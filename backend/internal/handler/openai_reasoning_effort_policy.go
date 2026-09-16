@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"net/http"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -69,15 +68,6 @@ func applyAnthropicReasoningEffortPolicyForRequest(c *gin.Context, apiKey *servi
 		return body, false, nil
 	}
 	return service.ApplyOpenAIReasoningEffortPolicy(body, maxEffort, mappings, overLimit)
-}
-
-// respondOpenAIReasoningEffortPolicyError 将本地超限拒绝转换为 OpenAI 权限错误。
-func respondOpenAIReasoningEffortPolicyError(c *gin.Context, err error, write func(*gin.Context, int, string, string)) {
-	if c == nil || err == nil || write == nil {
-		return
-	}
-	service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
-	write(c, http.StatusForbidden, "permission_error", err.Error())
 }
 
 // bindOpenAIReasoningEffortPolicyForMessagesRequest 只为显式 output_config.effort

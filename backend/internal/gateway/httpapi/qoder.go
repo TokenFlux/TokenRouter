@@ -1,12 +1,15 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
@@ -33,14 +36,27 @@ func (e *HTTPFailure) Error() string { return e.Message }
 
 // QoderChatHandler 的装配回调只加载已有认证/路由上下文；执行循环始终由 gateway 拥有。
 type QoderChatHandler struct {
-	Preflight func(*gin.Context) error
-	UseCase   *gateway.QoderUseCase
-	Prepare   func(*gin.Context, ParsedRequest) (gateway.Request, gateway.RequestPorts, error)
-	Failure   func(*gin.Context, error) *HTTPFailure
+	requestLifetime
+
+	Executor interface {
+		Execute(context.Context, gateway.Request, upstream.OutputSink) (gateway.ExecutionResult, error)
+	}
+	PrepareRequest func(*gin.Context, ParsedRequest) (gateway.Request, error)
+	Observer       func(*gin.Context, gateway.Request) gateway.ExecutionObserver
+	Preflight      func(*gin.Context) error
+	UseCase        *gateway.QoderUseCase
+	Prepare        func(*gin.Context, ParsedRequest) (gateway.Request, gateway.RequestPorts, error)
+	Failure        func(*gin.Context, error) *HTTPFailure
 }
 
 // ChatCompletions 保留原 Chat URL 的读取、错误 envelope 和 SSE 收尾。
 func (h *QoderChatHandler) ChatCompletions(c *gin.Context) {
+	done, accepted := h.beginRequest(c, "openai")
+	if !accepted {
+		return
+	}
+	defer done()
+
 	start := time.Now()
 	if h.Preflight != nil {
 		if err := h.Preflight(c); err != nil {
@@ -74,6 +90,23 @@ func (h *QoderChatHandler) ChatCompletions(c *gin.Context) {
 	stream, valid := ParseOpenAICompatibleStream(body)
 	if !valid {
 		h.writeError(c, &HTTPFailure{Status: 400, Type: "invalid_request_error", Message: InvalidStreamFieldTypeMessage}, false)
+		return
+	}
+
+	if h.Executor != nil {
+		request, err := h.PrepareRequest(c, ParsedRequest{Body: body, Model: strings.TrimSpace(model.String()), Stream: stream, StartedAt: start})
+		if err != nil {
+			h.fail(c, err, stream)
+			return
+		}
+		var output upstream.OutputSink = ResponseSink{Writer: c.Writer}
+		if h.Observer != nil {
+			output = observedExecutionOutput{ResponseSink: ResponseSink{Writer: c.Writer}, ExecutionObserver: h.Observer(c, request)}
+		}
+		_, err = h.Executor.Execute(c.Request.Context(), request, output)
+		if err != nil {
+			h.fail(c, err, stream)
+		}
 		return
 	}
 	request, ports, err := h.Prepare(c, ParsedRequest{Body: body, Model: strings.TrimSpace(model.String()), Stream: stream, StartedAt: start})
@@ -137,4 +170,10 @@ func BodyLimitLabel(limit int64) string {
 }
 func BodyTooLargeMessage(limit int64) string {
 	return fmt.Sprintf("Request body too large, limit is %s", BodyLimitLabel(limit))
+}
+
+// observedExecutionOutput 只同步报告 HTTP 状态，不流入异步完成输入。
+type observedExecutionOutput struct {
+	ResponseSink
+	gateway.ExecutionObserver
 }

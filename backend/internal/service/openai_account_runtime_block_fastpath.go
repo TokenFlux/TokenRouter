@@ -2,33 +2,30 @@ package service
 
 import (
 	"context"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+
 	"github.com/tidwall/gjson"
 )
 
 const (
-	openAIAccountStateUpdateTimeout       = 5 * time.Second
-	openAIOAuth429FallbackCooldown        = 5 * time.Second
-	openAIOAuth429RetryWindow             = 2 * time.Minute
-	openAIOAuth429RetryDelay              = 500 * time.Millisecond
-	openAIOAuth429MaxRetryDelay           = 8 * time.Second
-	openAIOAuth429MaxAccountAttempts      = 3
-	openAIStopSchedulingBridgeCooldown    = 2 * time.Minute
-	openAIOAuth429StormWindow             = 10 * time.Second
-	openAIOAuth429StormMaxAccountSwitches = 1
+	openAIAccountStateUpdateTimeout    = 5 * time.Second
+	openAIOAuth429FallbackCooldown     = 5 * time.Second
+	openAIOAuth429RetryWindow          = 2 * time.Minute
+	openAIOAuth429RetryDelay           = 500 * time.Millisecond
+	openAIOAuth429MaxRetryDelay        = 8 * time.Second
+	openAIStopSchedulingBridgeCooldown = 2 * time.Minute
+	openAIOAuth429StormWindow          = 10 * time.Second
 )
 
-// OpenAIOAuth429FailoverState 跟踪首次 Grok OAuth 429 后的请求级后续预算。
-// 发生该 429 后只允许再尝试一个不同账号，后续账号的任何失败都会终止切换。
-type OpenAIOAuth429FailoverState struct {
-	grokOAuth429FollowupPending bool
-}
+// 旧状态类型引用网关唯一的请求级预算。
+type OpenAIOAuth429FailoverState = failover.OAuth429State
 
 type openAIOAuth429Disposition uint8
 
@@ -644,29 +641,5 @@ func (s *OpenAIGatewayService) recordOpenAIOAuth429() {
 }
 
 func (s *OpenAIGatewayService) ShouldStopOpenAIOAuth429Failover(account *Account, statusCode int, failedSwitches int, state *OpenAIOAuth429FailoverState) bool {
-	if failedSwitches < openAIOAuth429StormMaxAccountSwitches {
-		return false
-	}
-	if state != nil && state.grokOAuth429FollowupPending {
-		// 后续预算由 Grok OAuth 429 激活；任一后续账号失败都要消耗预算，
-		// 即使混合池下一次选中了 API-key 账号。
-		return true
-	}
-	if isGrokOAuthAccount(account) {
-		if state == nil {
-			// 尚未采用请求级状态契约的调用方继续沿用旧阈值。
-			return statusCode == http.StatusTooManyRequests && failedSwitches >= 2
-		}
-		if statusCode == http.StatusTooManyRequests {
-			state.grokOAuth429FollowupPending = true
-		}
-		return false
-	}
-	if statusCode != http.StatusTooManyRequests || !isOpenAIOAuthAccount(account) {
-		return false
-	}
-	// Each OpenAI OAuth candidate has already consumed its full same-account
-	// retry window before reaching this switch point. A global storm is useful
-	// telemetry, but must not prevent trying the bounded next-account budget.
-	return failedSwitches >= openAIOAuth429MaxAccountAttempts
+	return failover.StopOAuth429(failover.OAuth429Account{OpenAI: isOpenAIOAuthAccount(account), Grok: isGrokOAuthAccount(account)}, statusCode, failedSwitches, state)
 }

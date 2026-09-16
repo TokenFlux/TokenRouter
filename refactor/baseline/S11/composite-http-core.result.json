@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/gateway/httpapi",
+    "./internal/apikey/httpapi",
+    "./internal/server/httpx",
+    "./internal/gateway/admission",
+    "./internal/gateway/modeltrace"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.505,
+  "pass": 28,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/composite-http-core.log.gz"
+}

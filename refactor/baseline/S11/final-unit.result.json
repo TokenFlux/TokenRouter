@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 254.478,
+  "pass": 19765,
+  "fail": 7,
+  "skip": 8,
+  "log": "logs/final-unit.log.gz"
+}

@@ -195,8 +195,7 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 // 顺序守卫：管理员配置的错误透传规则在更上游命中，新分支不得抢在它前面。
 func TestHandleErrorResponse_PassthroughRuleStillWinsOver400Branch(t *testing.T) {
 	c, rec := newOpenAIUpstreamErrorTestContext(t)
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{
 		newNonFailoverPassthroughRule(http.StatusBadRequest, "automation_update", http.StatusTeapot, "自定义文案"),
 	})
 	BindErrorPassthroughService(c, ruleSvc)

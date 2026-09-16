@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/gateway/httpapi",
+    "./internal/app",
+    "-run",
+    "Test(GatewayRequestActivity|RequestLifetime|SelectedAccountSlot)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 9.602,
+  "pass": 5,
+  "fail": 1,
+  "skip": 0,
+  "log": "logs/gateway-scope-race-final.log.gz"
+}

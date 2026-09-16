@@ -46,6 +46,10 @@ RequestLogger
 
 通知模板、SMTP 测试和公开退订直接绑定 notification/httpapi；搜索配置、管理测试和额度重置绑定 search/httpapi；风险配置、日志、媒体、Cyber 和解封绑定 moderation/httpapi。原 URL、中间件次序、幂等边界和返回字段保持。公开设置及页面由 site/httpapi 提供，旧设置 handler 只保留兼容委托。
 
+网关 HTTP、SSE、模型和计数入口直接绑定 app 构造的 `gateway/httpapi` 对象；Responses WebSocket 与 Live 使用独立 Handler。旧入口只提供兼容调用，路由不为迁移改变 URL、认证顺序、裸路径别名或 Responses 子路径白名单。普通 Key 的协议门禁不提前读取 body，复合 Key 保持原模型读取与报文恢复时机。实际账号循环由 gateway/text、媒体或会话用例拥有；每次 attempt 的模型与完成输入独立。
+
+客户端错误由 gateway/httpapi 写出，错误规则及管理位于 gateway/errorpolicy。规则只改变原客户端展示与监控跳过语义，不改变账号健康、重试或扣费资格。停止时，请求与平台尝试共享 app 的进入屏障；在途请求尾部完成后才停止完成队列，超时报告未完成阶段与拥有者状态。
+
 <a id="site_pages"></a>
 ### 站点页面
 

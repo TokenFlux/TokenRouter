@@ -286,8 +286,7 @@ func TestGatewayHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "上游请求失败")})
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "上游请求失败")})
 	BindErrorPassthroughService(c, ruleSvc)
 
 	svc := &GatewayService{}
@@ -316,8 +315,7 @@ func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "OpenAI上游失败")})
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "OpenAI上游失败")})
 	BindErrorPassthroughService(c, ruleSvc)
 
 	svc := &OpenAIGatewayService{}
@@ -346,8 +344,7 @@ func TestGeminiWriteGeminiMappedError_AppliesRuleFor422(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "Gemini上游失败")})
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "Gemini上游失败")})
 	BindErrorPassthroughService(c, ruleSvc)
 
 	svc := &GeminiMessagesCompatService{}
@@ -374,8 +371,7 @@ func TestApplyErrorPassthroughRule_SkipMonitoringSetsContextKey(t *testing.T) {
 	rule := newNonFailoverPassthroughRule(http.StatusBadRequest, "prompt is too long", http.StatusBadRequest, "上下文超限")
 	rule.SkipMonitoring = true
 
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{rule})
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{rule})
 	BindErrorPassthroughService(c, ruleSvc)
 
 	_, _, _, matched := applyErrorPassthroughRule(
@@ -404,8 +400,7 @@ func TestApplyErrorPassthroughRule_NoSkipMonitoringDoesNotSetContextKey(t *testi
 	rule := newNonFailoverPassthroughRule(http.StatusBadRequest, "prompt is too long", http.StatusBadRequest, "上下文超限")
 	rule.SkipMonitoring = false
 
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{rule})
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{rule})
 	BindErrorPassthroughService(c, ruleSvc)
 
 	_, _, _, matched := applyErrorPassthroughRule(
@@ -450,8 +445,7 @@ func TestHandleErrorResponse_PassthroughRuleSetsCommitted(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{
 		newNonFailoverPassthroughRule(http.StatusBadRequest, "temperature", http.StatusBadRequest, "参数错误"),
 	})
 	BindErrorPassthroughService(c, ruleSvc)

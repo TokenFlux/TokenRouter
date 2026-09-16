@@ -1,0 +1,21 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=10m",
+    "./internal/gateway/admission/...",
+    "./internal/gateway/requeststate/...",
+    "./internal/gateway/modeltrace/...",
+    "./internal/gateway/session/...",
+    "./internal/gateway/httpapi/...",
+    "./internal/pkg/ctxkey/...",
+    "./internal/server/middleware/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 6.449,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/parent-native-lint.log.gz"
+}

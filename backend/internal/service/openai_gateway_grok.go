@@ -1,18 +1,13 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	grokforward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
@@ -21,24 +16,19 @@ import (
 	wireanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
 
 const (
-	// Composer 图片桥接使用 Grok Build 生成简洁描述，限制输出长度以控制额外用量。
-	grokComposerImageBridgeVisionModel     = "grok-build-0.1"
-	grokComposerImageBridgeMaxOutputTokens = 512
-	grokCLIVersion                         = nativegrok.CLIClientVersion
-	grokDefaultResponsesModel              = nativegrok.DefaultResponsesModel
-	grokRateLimitFallbackCooldown          = 2 * time.Minute
-	grokRateLimitRepeatCooldown            = 10 * time.Minute
-	grokRateLimitSustainedCooldown         = 30 * time.Minute
-	grokRateLimitMaxAdaptiveCooldown       = time.Hour
-	grokRateLimitBackoffQuietPeriod        = time.Hour
+	grokCLIVersion                   = nativegrok.CLIClientVersion
+	grokDefaultResponsesModel        = nativegrok.DefaultResponsesModel
+	grokRateLimitFallbackCooldown    = 2 * time.Minute
+	grokRateLimitRepeatCooldown      = 10 * time.Minute
+	grokRateLimitSustainedCooldown   = 30 * time.Minute
+	grokRateLimitMaxAdaptiveCooldown = time.Hour
+	grokRateLimitBackoffQuietPeriod  = time.Hour
 )
 
 func (s *OpenAIGatewayService) forwardGrokResponses(
@@ -50,318 +40,9 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	reqStream bool,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
-	if account.Type != AccountTypeOAuth && account.Type != AccountTypeAPIKey {
-		return nil, fmt.Errorf("grok account type %s is not supported by Responses forwarding", account.Type)
-	}
-
-	billingModel := resolveOpenAIForwardModel(account, originalModel, "")
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
-	if isGrokImageGenerationModel(upstreamModel) {
-		err := fmt.Errorf("model %s is an image model and is not available on the Responses endpoint; use /v1/images/generations instead", upstreamModel)
-		// 这是客户端点选择错误，直接返回 400，避免 handler 将普通错误改写为通用 502。
-		if c != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": gin.H{
-					"type":    "invalid_request_error",
-					"message": err.Error(),
-					"param":   "model",
-				},
-			})
-		}
-		return nil, err
-	}
-	patchedBody, clientToolMapping, err := patchGrokResponsesBodyWithClientTools(body, upstreamModel)
-	if err != nil {
-		setOpsUpstreamError(c, http.StatusBadRequest, err.Error(), "")
-		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{
-			"type": "invalid_request_error", "message": err.Error(), "param": "tools",
-		}})
-		return nil, err
-	}
-	setGrokResponsesClientToolMapping(c, clientToolMapping)
-	// xAI 没有原生 /responses/compact；改成普通 Responses 摘要轮次，响应阶段再封装为 compaction 条目。
-	if isOpenAIResponsesCompactPath(c) {
-		patchedBody, err = buildGrokCompactRequestBody(patchedBody)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// 从 xAI 实际接收的请求派生身份，使 Codex Responses Lite 的 additional_tools
-	// 成为稳定工具前缀的一部分。若 Claude Code session 只存在于 metadata.user_id，
-	// 则在 metadata 被剥离前使用原始请求保留该身份。
-	cacheIdentityBody := patchedBody
-	if extractClaudeCodeSessionIDFromPayload(body) != "" {
-		cacheIdentityBody = body
-	}
-	cacheIdentity := resolveGrokCacheIdentity(c, cacheIdentityBody, "", upstreamModel)
-	mixedCacheIntentBody := append([]byte(nil), patchedBody...)
-	patchedBody, err = applyGrokResponsesCacheIdentity(patchedBody, body, cacheIdentity, account.IsGrokOAuth())
-	if err != nil {
-		return nil, fmt.Errorf("apply grok prompt cache identity: %w", err)
-	}
-	// Free OAuth 携带客户端函数工具时复用混合工具缓存路由，补齐 web_search/x_search，
-	// 避免 xAI 强制落到不可缓存的 build-free 层级。
-	patchedBody, err = applyGrokFreeRequestToolCacheRoute(c, patchedBody, mixedCacheIntentBody, account, cacheIdentity)
-	if err != nil {
-		return nil, fmt.Errorf("apply grok Free function-tool cache route: %w", err)
-	}
-
-	token, _, err := s.getRequestCredential(ctx, c, account)
-	if err != nil {
-		return nil, err
-	}
-
-	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-	defer releaseUpstreamCtx()
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-
-	upstreamStart := time.Now()
-	var handled bool
-	var handledResult *OpenAIForwardResult
-	var handleErr error
-	target := &nativegrok.ResponsesTarget{
-
-		AccountID: account.ID,
-
-		Model: upstreamModel,
-
-		Enter: s.nativeAttemptActivity,
-
-		Exchange: nativegrok.ResponsesExchange{
-
-			Build: func(body []byte) (*http.Request, error) {
-				return buildGrokResponsesRequest(upstreamCtx, c, account, body, token, cacheIdentity, s.cfg, s.settingService)
-			},
-
-			Do: func(req *http.Request) (*http.Response, error) {
-				return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
-			},
-
-			ReadError: s.readUpstreamErrorBody,
-
-			AfterExchange: func(err error) error {
-				SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-				if err != nil {
-					return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
-				}
-				return nil
-			},
-
-			OnReplay: func() {
-				slog.Info("grok_replay_decode_retry", "account_id", account.ID, "cache_identity_present", cacheIdentity != "")
-			},
-		},
-
-		BeforeResponse: func(resp *http.Response, body []byte) (bool, error) {
-			patchedBody = body
-
-			if resp.StatusCode >= 400 {
-				handled = true
-				respBody := s.readUpstreamErrorBody(resp)
-				resp.Body = io.NopCloser(bytes.NewReader(respBody))
-				upstreamMsg := sanitizeUpstreamErrorMessage(extractUpstreamErrorMessage(respBody))
-				if upstreamMsg == "" {
-					upstreamMsg = fmt.Sprintf("xAI upstream returned status %d", resp.StatusCode)
-				}
-				errCtx := withGrokTeamRateLimitModel(ctx, upstreamModel)
-				decision := s.applyGrokAccountUpstreamError(errCtx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
-				kind := "http_error"
-				if decision.ShouldFailover(account, resp.StatusCode, s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)) {
-					kind = "failover"
-				}
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-
-					Platform: account.Platform,
-
-					AccountID: account.ID,
-
-					AccountName: account.Name,
-
-					UpstreamStatusCode: resp.StatusCode,
-
-					UpstreamRequestID: firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
-
-					Kind: kind,
-
-					Message: upstreamMsg,
-				})
-				if decision.ShouldReturnGenericError() {
-					handledResult, handleErr = s.handleErrorResponse(ctx, resp, c, account, patchedBody, upstreamModel)
-					return true, handleErr
-				}
-				// 配额/限流响应写入团队模型覆盖层；容量属于请求压力，不应隐藏健康账号。
-				if shouldMarkGrokTeamModelRateLimit(resp.StatusCode, respBody) {
-					markGrokTeamModelRateLimit(account, upstreamModel, resolveGrokTeamRateLimitUntil(time.Now().Add(grokTeamRateLimitDefaultTTL), time.Now()))
-				}
-				if kind == "failover" {
-					retryable, retryDelay, retryDeadline, retryMax := grokSameAccountRetryMetadata(account, resp.StatusCode, respBody)
-					return true, &UpstreamFailoverError{
-
-						StatusCode: resp.StatusCode,
-
-						ResponseBody: respBody,
-
-						ResponseHeaders: resp.Header.Clone(),
-
-						RetryableOnSameAccount: retryable || decision.RetryableOnSameAccount(account, resp.StatusCode),
-
-						RequestScopedTransient: retryable && resp.StatusCode == http.StatusTooManyRequests,
-
-						SameAccountRetryDelay: retryDelay,
-
-						SameAccountRetryDeadline: retryDeadline,
-
-						SameAccountRetryMax: retryMax,
-					}
-				}
-				handledResult, handleErr = s.handleErrorResponse(ctx, resp, c, account, patchedBody, upstreamModel)
-				return true, handleErr
-			}
-
-			s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, upstreamModel), account, resp.Header, resp.StatusCode)
-			return false, nil
-		},
-
-		MaxLineSize: defaultMaxLineSize,
-
-		ClientTools: clientToolMapping,
-
-		ReadResponse: func(resp *http.Response, input upstream.AttemptInput, sink upstream.OutputSink) (upstream.ResponsesObservation, error) {
-			// 共享 OpenAI 入站适配暂留 S09.8/S11；平台不持有 Gin，调用时沿用该请求的原响应观察。
-			if input.Stream {
-				v, err := s.readStreamingResponseObservation(ctx, resp, c, account, startTime, originalModel, upstreamModel, "")
-				if v == nil {
-					return upstream.ResponsesObservation{}, err
-				}
-				return upstream.ResponsesObservation{
-
-					Usage: v.usage,
-
-					HasUsage: v.hasUsage,
-
-					Served: v.served,
-
-					HTTPCommitted: v.httpCommitted,
-
-					RetryCommitted: v.retryCommitted,
-
-					ClientDisconnected: v.clientDisconnected,
-
-					FirstSemanticOutput: v.firstSemanticOutput,
-
-					FirstTokenMs: v.firstTokenMs,
-
-					ResponseID: v.responseID,
-
-					SearchCount: v.searchCount,
-
-					ImageCount: v.imageCount,
-
-					ImageOutputSizes: v.imageOutputSizes,
-				}, err
-			}
-			v, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
-			if err != nil {
-				return upstream.ResponsesObservation{}, err
-			}
-			return upstream.ResponsesObservation{
-
-				Usage: v.usage,
-
-				HasUsage: v.usage != nil,
-				Served:   v.served,
-
-				HTTPCommitted: c.Writer.Written(),
-
-				RetryCommitted: IsResponseCommitted(c),
-
-				ResponseID: v.responseID,
-
-				SearchCount: v.searchCount,
-
-				ImageCount: v.imageCount,
-
-				ImageOutputSizes: v.imageOutputSizes,
-			}, nil
-		},
-	}
-	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
-		target.MaxLineSize = s.cfg.Gateway.MaxLineSize
-	}
-	var sink upstream.OutputSink
-	if c != nil {
-		sink = gatewayhttp.ResponseSink{Writer: c.Writer}
-	}
-	nativeResult, err := (nativegrok.ResponsesExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{Protocol: protocol.ProtocolOpenAIResponses, Body: patchedBody, ResponseModel: originalModel, Stream: reqStream, Target: target}, sink)
-	if handled {
-		return handledResult, err
-	}
-	if err != nil {
-		return nil, err
-	}
-	usage := &OpenAIUsage{
-
-		InputTokens: nativeResult.Usage.InputTokens,
-
-		ImageInputTokens: nativeResult.ImageInputTokens,
-
-		OutputTokens: nativeResult.Usage.OutputTokens,
-
-		CacheCreationInputTokens: nativeResult.Usage.CacheCreationInputTokens,
-
-		CacheReadInputTokens: nativeResult.Usage.CacheReadInputTokens,
-
-		ImageOutputTokens: nativeResult.Usage.ImageOutputTokens,
-	}
-	firstTokenMs := nativeResult.FirstTokenMs
-	responseID := nativeResult.ResponseID
-	searchCount := nativeResult.SearchCount
-	imageCount := nativeResult.ObservedImages
-	imageOutputSizes := nativeResult.ImageOutputSizes
-
-	reasoningEffort := extractOpenAIReasoningEffortFromBody(patchedBody, originalModel)
-	result := &OpenAIForwardResult{
-
-		RequestID: nativeResult.RequestID,
-
-		UpstreamHeaders: nativeResult.UpstreamHeaders,
-
-		ResponseID: responseID,
-
-		Usage: *usage,
-
-		Model: originalModel,
-
-		BillingModel: billingModel,
-
-		UpstreamModel: upstreamModel,
-
-		ReasoningEffort: reasoningEffort,
-
-		Stream: reqStream,
-
-		OpenAIWSMode: false,
-
-		ResponseHeaders: nativeResult.UpstreamHeaders.Clone(),
-
-		Duration: time.Since(startTime),
-
-		FirstTokenMs: firstTokenMs,
-	}
-	// 从共享 Responses 处理器传递搜索与图片计数；否则流式或 JSON 统计虽会运行，
-	// 但 search_price_per_1k 与图片费用不会生效。
-	if searchCount > 0 {
-		result.SearchCount = searchCount
-	}
-	if imageCount > 0 {
-		result.ImageCount = imageCount
-		result.ImageOutputSizes = imageOutputSizes
-	}
-	return result, nil
+	adapter := &grokForwardAdapter{s: s, c: c, account: account}
+	result, err := grokforward.Forward(ctx, adapter, adapter.options(), adapter.input(body, originalModel, reqStream, startTime))
+	return legacyGrokForwardResult(result), err
 }
 
 func isGrokInvalidEncryptedContentResponse(statusCode int, body []byte) bool {
@@ -400,10 +81,6 @@ func patchGrokResponsesBody(body []byte, upstreamModel string) ([]byte, error) {
 	return grokBodyCodec().PatchGrokResponsesBody(body, upstreamModel)
 }
 
-func patchGrokResponsesBodyWithClientTools(body []byte, upstreamModel string) ([]byte, apicompat.ResponsesClientToolMapping, error) {
-	return grokBodyCodec().PatchGrokResponsesBodyWithClientTools(body, upstreamModel)
-}
-
 func normalizeGrokChatReasoningEffort(body []byte, upstreamModel string) ([]byte, error) {
 	return grokBodyCodec().NormalizeGrokChatReasoningEffort(body, upstreamModel)
 }
@@ -438,140 +115,9 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 	imageURL string,
 	index int,
 ) (string, OpenAIUsage, error) {
-	body, err := buildGrokComposerImageDescriptionBody(imageURL, index)
-	if err != nil {
-		return "", OpenAIUsage{}, err
-	}
-
-	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-	// 图片描述探测是辅助请求而非会话轮次，不能绑定调用方的 Grok 提示缓存身份。
-	upstreamReq, err := buildGrokResponsesRequest(upstreamCtx, c, account, body, token, "", s.cfg)
-	releaseUpstreamCtx()
-	if err != nil {
-		return "", OpenAIUsage{}, fmt.Errorf("build grok composer image bridge request: %w", err)
-	}
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-
-	var description string
-	var usage OpenAIUsage
-	target := &nativegrok.ResponsesTarget{
-
-		AccountID: account.ID,
-
-		Model: grokComposerImageBridgeVisionModel,
-
-		Enter: s.nativeAttemptActivity,
-
-		PassRawStream: true,
-
-		Exchange: nativegrok.ResponsesExchange{
-
-			SingleExchange: true,
-
-			Build: func([]byte) (*http.Request, error) { return upstreamReq, nil },
-
-			Do: func(req *http.Request) (*http.Response, error) {
-				return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
-			},
-
-			ReadError: s.readUpstreamErrorBody,
-
-			AfterExchange: func(err error) error {
-				if err != nil {
-					return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
-				}
-				return nil
-			},
-		},
-
-		BeforeResponse: func(resp *http.Response, _ []byte) (bool, error) {
-
-			if resp.StatusCode >= 400 {
-				respBody := s.readUpstreamErrorBody(resp)
-				upstreamMsg := sanitizeUpstreamErrorMessage(extractUpstreamErrorMessage(respBody))
-				if upstreamMsg == "" {
-					upstreamMsg = fmt.Sprintf("xAI image bridge upstream returned status %d", resp.StatusCode)
-				}
-				decision := s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, grokComposerImageBridgeVisionModel)
-				kind := "http_error"
-				if decision.ShouldFailover(account, resp.StatusCode, s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)) {
-					kind = "failover"
-				}
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-
-					Platform: account.Platform,
-
-					AccountID: account.ID,
-
-					AccountName: account.Name,
-
-					UpstreamStatusCode: resp.StatusCode,
-
-					UpstreamRequestID: firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
-
-					Kind: kind,
-
-					Message: upstreamMsg,
-				})
-				if decision.ShouldReturnGenericError() {
-					return true, fmt.Errorf("grok composer image bridge upstream gateway error")
-				}
-				if kind == "failover" {
-					retryable, retryDelay, retryDeadline, retryMax := grokSameAccountRetryMetadata(account, resp.StatusCode, respBody)
-					return true, &UpstreamFailoverError{
-
-						StatusCode: resp.StatusCode,
-
-						ResponseBody: respBody,
-
-						ResponseHeaders: resp.Header.Clone(),
-
-						RetryableOnSameAccount: retryable || decision.RetryableOnSameAccount(account, resp.StatusCode),
-
-						RequestScopedTransient: retryable && resp.StatusCode == http.StatusTooManyRequests,
-
-						SameAccountRetryDelay: retryDelay,
-
-						SameAccountRetryDeadline: retryDeadline,
-
-						SameAccountRetryMax: retryMax,
-					}
-				}
-				return true, fmt.Errorf("grok composer image bridge upstream error: %s", upstreamMsg)
-			}
-
-			s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, grokComposerImageBridgeVisionModel), account, resp.Header, resp.StatusCode)
-			return false, nil
-		},
-
-		ReadResponse: func(resp *http.Response, _ upstream.AttemptInput, _ upstream.OutputSink) (upstream.ResponsesObservation, error) {
-			data, readErr := ReadUpstreamResponseBody(resp.Body, s.cfg, c, nil)
-			if readErr != nil {
-				return upstream.ResponsesObservation{}, fmt.Errorf("read grok composer image bridge response: %w", readErr)
-			}
-			var decodeErr error
-			description, usage, decodeErr = nativegrok.DecodeComposerDescription(data)
-			return upstream.ResponsesObservation{Usage: &usage, HasUsage: openAIUsageHasTokens(&usage), Served: description != ""}, decodeErr
-		},
-	}
-	_, err = (nativegrok.ResponsesExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{
-		Protocol: protocol.ProtocolOpenAIResponses,
-		Body:     body,
-		Target:   target,
-	}, nil)
-	return description, usage, err
-
+	adapter := &grokForwardAdapter{s: s, c: c, account: account, token: token}
+	return grokforward.DescribeImage(ctx, adapter, adapter.options(), adapter.input(nil, "", false, time.Time{}), imageURL, index)
 }
-
-func buildGrokComposerImageDescriptionBody(imageURL string, index int) ([]byte, error) {
-	return grokBodyCodec().BuildGrokComposerImageDescriptionBody(imageURL, index)
-}
-
-func addOpenAIUsage(dst *OpenAIUsage, usage OpenAIUsage) { protocolopenai.AddForwardUsage(dst, usage) }
 
 func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token, cacheIdentity string, cfg *config.Config, settings ...*SettingService) (*http.Request, error) {
 	targetURL, err := buildGrokResponsesURL(account, cfg, settings...)
@@ -659,30 +205,12 @@ func (s *OpenAIGatewayService) updateGrokUsageSnapshotWithRateLimit(ctx context.
 	}
 }
 
+// updateGrokUsageFromResponse 委托原生观测编排，账号领域写入继续使用唯一旧能力。
 func (s *OpenAIGatewayService) updateGrokUsageFromResponse(ctx context.Context, account *Account, headers http.Header, statusCode int) {
-	snapshot := parseGrokQuotaSnapshot(headers, statusCode, time.Now())
-	if snapshot != nil {
-		stampGrokQuotaSnapshotForPlan(account, snapshot, grokRequestedModelFromCtx(ctx))
-		s.updateGrokUsageSnapshot(ctx, account, snapshot)
-		return
-	}
-	// 即使上游没有返回可选的额度响应头，成功响应仍能证明账号已经恢复。
-	// 不用空快照覆盖已有信息，只清除本次请求观察到的精确冷却代次。
-	recoverySnapshot := &nativegrok.QuotaSnapshot{StatusCode: statusCode}
-	if isSuccessfulGrokRateLimitRecovery(account, recoverySnapshot) {
-		clearGrokRateLimitAfterRecovery(ctx, s.accountRepo, account)
-	}
+	grokforward.ObserveResponse(ctx, grokObservationAdapter{s: s, account: account}, headers, statusCode, grokRequestedModelFromCtx(ctx))
 }
-
 func parseGrokQuotaSnapshot(headers http.Header, statusCode int, now time.Time) *nativegrok.QuotaSnapshot {
-	snapshot := nativegrok.ParseQuotaHeaders(headers, statusCode)
-	if snapshot == nil && statusCode == http.StatusTooManyRequests {
-		return &nativegrok.QuotaSnapshot{
-			StatusCode: statusCode,
-			UpdatedAt:  now.UTC().Format(time.RFC3339),
-		}
-	}
-	return snapshot
+	return grokforward.ParseQuota(headers, statusCode, now)
 }
 
 func normalizeGrokExhaustedWindowResets(snapshot *nativegrok.QuotaSnapshot, resetAt, now time.Time) {

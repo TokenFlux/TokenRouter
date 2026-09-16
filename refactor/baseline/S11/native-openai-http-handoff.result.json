@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/handler",
+    "./internal/gateway/httpapi",
+    "./internal/gateway/ws",
+    "-run",
+    "Test(OpenAI|Responses|ChatCompletions|S11|.*WS|.*WebSocket|.*CountTokens)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 16.569,
+  "pass": 268,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/native-openai-http-handoff.log.gz"
+}

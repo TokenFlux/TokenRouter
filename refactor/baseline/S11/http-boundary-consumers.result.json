@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/gateway/...",
+    "./internal/pkg/httputil",
+    "./internal/handler",
+    "./internal/server/routes",
+    "./internal/server/middleware",
+    "-run",
+    "ResponsesFailed|ResponsesError|ResponseID|InboundIsResponses|ConcurrencyError|Lenient|BodyLimit|RequestBody|GatewayRoutes|Protocol|Composite"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 11.282,
+  "pass": 254,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/http-boundary-consumers.log.gz"
+}

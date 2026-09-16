@@ -55,7 +55,7 @@ func provideQueuesRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if usageRecordWorkerPool != nil {
-			usageRecordWorkerPool.Stop()
+			return usageRecordWorkerPool.StopContext(ctx)
 		}
 		return nil
 	}})

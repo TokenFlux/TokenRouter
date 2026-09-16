@@ -130,7 +130,7 @@ func provideAuthRuntime(
 	}})
 
 	manager.Register(lifecycle.Hook{Name: "ErrorPassthroughService", StartOrder: 190, StopOrder: 810,
-		Start: func(context.Context) error { errorPassthrough.Start(); return nil },
-		Stop:  func(context.Context) error { errorPassthrough.Stop(); return nil }})
+		Start: errorPassthrough.StartContext,
+		Stop:  errorPassthrough.StopContext})
 	return &authRuntimeReady{}
 }

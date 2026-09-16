@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/gateway",
+    "./internal/gateway/requeststate",
+    "./internal/gateway/session"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 4.122,
+  "pass": 19,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/fixed-execute-race.log.gz"
+}

@@ -1,0 +1,110 @@
+[
+  {
+    "path": "backend/internal/app/gateway_completion_billing.go",
+    "sha256": "8169f5f6e122268b27981245ee480ab3abbe135b03cc12edd4cf913f92e4c399"
+  },
+  {
+    "path": "backend/internal/gateway/completion/cache_ttl_test.go",
+    "sha256": "a63679294b57b4dec865bf2ea5f9d0357781a965642f6e16e26add69f47b1567"
+  },
+  {
+    "path": "backend/internal/gateway/completion/effects.go",
+    "sha256": "7307f6740612b670626e5804e150aa8fd73181a4a0b3d07f84760a7ef9d99d9a"
+  },
+  {
+    "path": "backend/internal/gateway/completion/normalize.go",
+    "sha256": "74aa2e82a30f173a5bf7c5101800ade3f571e08f8f9e54ce1c167d31946e2297"
+  },
+  {
+    "path": "backend/internal/gateway/completion/pricing.go",
+    "sha256": "9568813c0575f7a1be9605e6a0fb987637207d52f7e844bd7e161e764e25d9be"
+  },
+  {
+    "path": "backend/internal/gateway/completion/record.go",
+    "sha256": "0fe2b1383d480f0de08275730ba2489bd7d981b85efbda54b413e563dd125bba"
+  },
+  {
+    "path": "backend/internal/gateway/completion/record_helpers.go",
+    "sha256": "248a08d45ce1975542c00c0d51bc0a8b2ae2f61422308bb24a50475c01ef97b8"
+  },
+  {
+    "path": "backend/internal/gateway/completion/record_test.go",
+    "sha256": "1bc0ef65a855a6170de8bfbdfaa6d403789f8b76356c2e5b07f44d9b55419590"
+  },
+  {
+    "path": "backend/internal/gateway/completion/record_types.go",
+    "sha256": "6bab96e2f6699dd7c01041da816394922991ca918f617933ea985d6d18d62fcb"
+  },
+  {
+    "path": "backend/internal/gateway/completion/request_identity.go",
+    "sha256": "92267cd65b9ea1510216b8774aa3ac0cb877aedad55a074a55017bd4cd12ad64"
+  },
+  {
+    "path": "backend/internal/gateway/completion/settlement.go",
+    "sha256": "12aedf64c36a1f30cff4aa281767c8a290b4c9b36a1271a155824074e2343139"
+  },
+  {
+    "path": "backend/internal/gateway/completion/snapshot.go",
+    "sha256": "0771454a86a03e92ec9f646d8662153af4291f0d56a33a3e88a8f41433a4bbcc"
+  },
+  {
+    "path": "backend/internal/gateway/completion/usage_writer.go",
+    "sha256": "e878832ccff1786f9589842ac1fd8b294377d32d26e0af347115348ade12dae3"
+  },
+  {
+    "path": "backend/internal/protocol/cache_ttl.go",
+    "sha256": "32244aeddc260fa34f24b8c1a929327819e26781b1dcd6dd42747dc5d46282a1"
+  },
+  {
+    "path": "backend/internal/protocol/cache_ttl_test.go",
+    "sha256": "304317873d8b2411c21f37ec30728d5b1d3bb89f9aa397ce07933225bdbd2785"
+  },
+  {
+    "path": "backend/internal/service/gateway_completion_adapter.go",
+    "sha256": "fc2ecb40d8e820c27cfaf7f6a4baa81301b8de621045f65ca9b8940513d4ddf1"
+  },
+  {
+    "path": "backend/internal/service/gateway_completion_s11_compat_test.go",
+    "sha256": "b523a6c7c0c18214cc7e6f68d03788cdd1fb729b8703a6a235164d10e3218cde"
+  },
+  {
+    "path": "backend/internal/service/gateway_completion_s11_unit_compat_test.go",
+    "sha256": "35de011ccf9d5849f9c9063bd698c5a4d95ead1dbfd85ad1696fe4e672ea62b6"
+  },
+  {
+    "path": "backend/internal/service/gateway_service.go",
+    "sha256": "7a23eb228acde824cb1dad160e342bac8bbd76a667133f47885459ed36cf1872"
+  },
+  {
+    "path": "backend/internal/service/gateway_usage_billing.go",
+    "sha256": "a9d2f757cc37288bb3bb71184e42584e9dc0774b0e1d6f0efbecd90aece7623b"
+  },
+  {
+    "path": "backend/internal/service/group.go",
+    "sha256": "f419354369a29c9d605c50e12ac0a04731821a73bd0bfe7cf5898b8f23ce94b4"
+  },
+  {
+    "path": "backend/internal/service/openai_gateway_usage.go",
+    "sha256": "12514f38c045a4f5b1a05f955f460b204e0ed9b2f2a2148db786a7c84679fcef"
+  },
+  {
+    "path": "backend/internal/service/service_tier_billing.go",
+    "sha256": "995b126f03bf2994b506abb0ba0fdd0480567f7648e2db6297d18dd67cf81728"
+  },
+  {
+    "path": "backend/internal/service/usage_log_helpers.go",
+    "sha256": "ae5cc8a4336a9c320f7829fe55fa69227e1ade495b760e38899202b253923c24"
+  },
+  {
+    "path": "backend/internal/service/usage_rate_multiplier.go",
+    "sha256": "b0f3454f6ef4e3c4f1c069fc66f26f167d10ecb77b69dad6d74cb620d7d95f8c"
+  },
+  {
+    "path": "backend/internal/upstream/anthropic/cache_ttl_test.go",
+    "sha256": "aa273e9c9a86f81a3407a3f5f60d047d977cf7a07f7c91468203ec9a343291ab"
+  },
+  {
+    "path": "backend/internal/upstream/anthropic/stream_rules.go",
+    "sha256": "5e7d593265fece1d1c7f683186ba997d9a452da10ac4e090722eab4928f7bb50"
+  }
+]

@@ -1,8 +1,10 @@
 // Package ctxkey 定义用于 context.Value 的类型安全 key
 package ctxkey
 
+import "github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+
 // Key 定义 context key 的类型，避免使用内置 string 类型（staticcheck SA1029）
-type Key string
+type Key = telemetry.ContextKey
 
 const (
 	// ForcePlatform 强制平台（用于 /antigravity 路由），由 middleware.ForcePlatform 设置
@@ -13,43 +15,43 @@ const (
 	InboundEndpoint Key = "ctx_inbound_endpoint"
 
 	// RequestID 为服务端生成/透传的请求 ID。
-	RequestID Key = "ctx_request_id"
+	RequestID = telemetry.RequestID
 
 	// ClientRequestID 服务内部生成的请求唯一标识，用于 Ops 监控、结算幂等和排障。
-	ClientRequestID Key = "ctx_client_request_id"
+	ClientRequestID = telemetry.ClientRequestID
 
 	// ParentClientRequestID 入站调用方提供的关联标识，仅用于跨服务排障，不参与权限或结算幂等。
-	ParentClientRequestID Key = "ctx_parent_client_request_id"
+	ParentClientRequestID = telemetry.ParentClientRequestID
 
 	// RequestStartedAt 网关入口开始处理请求的时间，用于计算槽位和出站阶段耗时。
-	RequestStartedAt Key = "ctx_request_started_at"
+	RequestStartedAt = telemetry.RequestStartedAt
 
 	// AccountSlotAcquiredAt 账号并发槽位成功获取的时间。
-	AccountSlotAcquiredAt Key = "ctx_account_slot_acquired_at"
+	AccountSlotAcquiredAt = telemetry.AccountSlotAcquiredAt
 
 	// FirstSSEDataAt 上游首个原始 SSE data 行被网关解析的时间。
-	FirstSSEDataAt Key = "ctx_first_sse_data_at"
+	FirstSSEDataAt = telemetry.FirstSSEDataAt
 
 	// FirstDownstreamFlushAt 网关首次向下游 flush 响应数据的时间。
-	FirstDownstreamFlushAt Key = "ctx_first_downstream_flush_at"
+	FirstDownstreamFlushAt = telemetry.FirstDownstreamFlushAt
 
 	// FirstVisibleOutputAt 网关首次观察到可见输出事件的时间。
-	FirstVisibleOutputAt Key = "ctx_first_visible_output_at"
+	FirstVisibleOutputAt = telemetry.FirstVisibleOutputAt
 
 	// Model 请求模型标识（用于统一请求链路日志字段）。
-	Model Key = "ctx_model"
+	Model = telemetry.Model
 
 	// ClientModel 保存客户端提交的完整模型别名，用于日志与响应展示。
-	ClientModel Key = "ctx_client_model"
+	ClientModel = telemetry.ClientModel
 
 	// Platform 当前请求最终命中的平台（用于统一请求链路日志字段）。
-	Platform Key = "ctx_platform"
+	Platform = telemetry.Platform
 
 	// AccountID 当前请求最终命中的账号 ID（用于统一请求链路日志字段）。
-	AccountID Key = "ctx_account_id"
+	AccountID = telemetry.AccountID
 
 	// RetryCount 表示当前请求在网关层的重试次数（用于 Ops 记录与排障）。
-	RetryCount Key = "ctx_retry_count"
+	RetryCount = telemetry.RetryCount
 
 	// AccountSwitchCount 表示请求过程中发生的账号切换次数
 	AccountSwitchCount Key = "ctx_account_switch_count"

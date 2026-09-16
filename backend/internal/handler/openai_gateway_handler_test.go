@@ -775,9 +775,7 @@ func TestOpenAIMissingResponsesDependencies(t *testing.T) {
 			gatewayService:      &service.OpenAIGatewayService{},
 			billingCacheService: &service.BillingCacheService{},
 			apiKeyService:       &service.APIKeyService{},
-			concurrencyHelper: &ConcurrencyHelper{
-				concurrencyService: &service.ConcurrencyService{},
-			},
+			concurrencyHelper:   NewConcurrencyHelper(&service.ConcurrencyService{}, SSEPingFormatNone, 0),
 		}
 		require.Empty(t, h.missingResponsesDependencies())
 	})
@@ -829,9 +827,7 @@ func TestOpenAIEnsureResponsesDependencies(t *testing.T) {
 			gatewayService:      &service.OpenAIGatewayService{},
 			billingCacheService: &service.BillingCacheService{},
 			apiKeyService:       &service.APIKeyService{},
-			concurrencyHelper: &ConcurrencyHelper{
-				concurrencyService: &service.ConcurrencyService{},
-			},
+			concurrencyHelper:   NewConcurrencyHelper(&service.ConcurrencyService{}, SSEPingFormatNone, 0),
 		}
 		ok := h.ensureResponsesDependencies(c, nil)
 

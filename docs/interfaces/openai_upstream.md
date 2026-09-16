@@ -146,6 +146,10 @@ API Key 的普通调度能力只表达 `text_generation` 与 `embeddings` 工作
 
 Images API 的流式与非流式上游请求都脱离客户端请求取消信号继续执行，并由上游响应超时控制最终回收。生图属于长耗时且上游可能已经产生实际成本的媒体任务；客户端中途断开不能取消上游并丢失已完成图片的计费结果。下游写失败不改变图片产出和结算事实。
 
+OpenAI HTTP 准备、同账号恢复和响应消费由 `gateway/provider/openaiforward` 接入原生 upstream 原语；账号切换仍只有 `gateway/text` 的一套循环。HTTP-to-WS 恢复与入站 turn 编排由 `gateway/ws` 组织，连接池与帧解析继续由 upstream 持有。Compact 恢复资格与状态位于 gateway/compact，keepalive 和提交后的错误写出位于 gateway/httpapi；没有复制另一份计费或会话缓存。
+
+固定执行器使用 gateway/execution 的显式 Request/ExecutionResult 和同步 OutputSink。候选计划仅在实际选择返回时捕获，缺失用 PlanProvided 表达，不为填充结果增加查询或在执行结束后重新计算。完成数据在入队前冻结，WS 继续保留每 turn 原有定价时点、模型链和部分失败资格。
+
 ## 额度与调度
 
 OpenAI 是通用高级调度器的能力适配者之一，而不是该调度器的全局所有者。只有最终目标 Group 的 `scheduler_type=advanced` 时，OpenAI 路径才在共同 active/schedulable、分组、模型、限流和并发硬过滤后使用通用 Top-K 评分；`basic` 保留原有默认选择路径。高级分组可用稀疏 `advanced_scheduler_overrides` 覆盖全局 Top-K、评分权重和粘性开关，未设置字段继续继承网关设置。高级分组还会考虑所需 transport/capability、账号优先级、负载、排队、错误率、近期延迟、配额余量和粘性上下文。previous response、WebSocket 会话和显式 session 可约束账号复用；只有策略允许时才能迁移。

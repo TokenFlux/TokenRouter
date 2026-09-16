@@ -2,8 +2,9 @@ package middleware
 
 import (
 	"context"
-	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"net/http"
+
+	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/googleapi"
@@ -71,19 +72,6 @@ func NewErrorResponse(code, message string) ErrorResponse {
 
 func AbortWithError(c *gin.Context, statusCode int, code, message string) {
 	httpx.AbortWithError(c, statusCode, code, message)
-}
-
-// abortWithOpenAIQuotaError 输出与 OpenAI 兼容的配额不足响应。
-func abortWithOpenAIQuotaError(c *gin.Context, statusCode int, message string) {
-	c.JSON(statusCode, gin.H{
-		"error": gin.H{
-			"message": message,
-			"type":    "insufficient_quota",
-			"param":   nil,
-			"code":    "insufficient_quota",
-		},
-	})
-	c.Abort()
 }
 
 // ──────────────────────────────────────────────────────────

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/gateway/session",
+    "./internal/gateway/modeltrace",
+    "./internal/gateway/rediscache"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.23,
+  "pass": 37,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/session-state-race.log.gz"
+}

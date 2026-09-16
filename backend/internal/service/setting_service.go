@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+
 	"github.com/TokenFlux/TokenRouter/internal/search"
 
 	"github.com/TokenFlux/TokenRouter/internal/site"
@@ -160,6 +162,7 @@ var (
 
 // SettingService 系统设置服务
 type SettingService struct {
+	userPromptPolicy             *promptpolicy.Service
 	searchConfig                 *search.ConfigService
 	publicSite                   *site.PublicService
 	runtimeSettingsMu            sync.Mutex

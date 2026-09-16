@@ -1,0 +1,38 @@
+{
+  "approved": "用户确认六项全部纳入",
+  "discovery_closed": true,
+  "issues": [
+    {
+      "id": "B01",
+      "description": "完成队列 Stop 漏等同步溢出任务",
+      "test": "TestS11PlanningWorkerStopWaitsInline"
+    },
+    {
+      "id": "B02",
+      "description": "完成队列 Stop 后 Start 重新建立扩缩容协程",
+      "test": "TestS11PlanningWorkerStartAfterStop"
+    },
+    {
+      "id": "B03",
+      "description": "旧规则回源晚于禁用写入发布导致缓存恢复旧规则",
+      "test": "TestS11PlanningRuleOldReadAfterUpdate"
+    },
+    {
+      "id": "B04",
+      "description": "规则缓存输入及 MatchRule 返回值共享可变指针",
+      "test": "TestS11PlanningRuleSnapshotOwnership"
+    },
+    {
+      "id": "B05",
+      "description": "错误规则停止不能取消支持 context 的启动回源",
+      "test": "TestS11PlanningRuleStopCancelsLoad"
+    },
+    {
+      "id": "B06",
+      "description": "Live sideband 控制权交接等待忽略取消并继续查账号",
+      "test": "TestS11PlanningLiveHandoffCancellation"
+    }
+  ],
+  "qualification": "B04 是可变调用边界复现，未证明现有生产调用方主动修改返回值；其他证据为本地受控交错，非生产事故日志。",
+  "execution_boundary": "迁移、固定修复、约定验证；清单外历史问题只登记，阻塞也先请求调整计划。"
+}

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/gateway/httpapi",
+    "./internal/app",
+    "-run",
+    "Test(GatewayRequestActivity|RequestLifetime|SelectedAccountSlot)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 8.958,
+  "pass": 4,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/native-lifetime-race.log.gz"
+}

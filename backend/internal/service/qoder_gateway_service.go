@@ -305,11 +305,16 @@ func (s *QoderGatewayService) qoderExecutor() *qoder.Executor {
 
 // qoderTarget 只把现有凭据和传输端口转换为一次调用的受控句柄。
 func (s *QoderGatewayService) qoderTarget(c *gin.Context, account *Account) *qoder.Target {
+	return s.qoderTargetFromMetadata(qoderRequestMetadata(c), account)
+}
+
+// qoderTargetFromMetadata 不捕获 Gin，只持有本次受控凭据快照。
+func (s *QoderGatewayService) qoderTargetFromMetadata(metadata qoder.RequestMetadata, account *Account) *qoder.Target {
 	site, err := qoderSiteForAccount(account)
 	if err != nil {
 		site = qoder.SiteGlobal
 	}
-	return &qoder.Target{AccountID: qoderAccountID(account), Site: site, UserType: qoderUserType(account), Metadata: qoderRequestMetadata(c),
+	return &qoder.Target{AccountID: qoderAccountID(account), Site: site, UserType: qoderUserType(account), Metadata: metadata,
 		Session: func(ctx context.Context) (*qoder.SessionContext, error) {
 			return s.tokenProvider.GetSession(ctx, account)
 		},
@@ -353,4 +358,9 @@ func (s *QoderGatewayService) BindAttemptActivity(enter func() (func(), error)) 
 	s.conversationMu.Lock()
 	defer s.conversationMu.Unlock()
 	s.attemptActivity = enter
+}
+
+// PrepareQoderTarget 把显式元数据与受控账号投影为同一上游执行器。
+func (s *QoderGatewayService) PrepareQoderTarget(metadata qoder.RequestMetadata, account *Account, body []byte, wire protocolcore.ProtocolID, responseModel string) (upstream.Executor, upstream.AttemptInput) {
+	return s.qoderExecutor(), upstream.AttemptInput{Protocol: wire, Body: applyQoderAccountModelMapping(account, body), ResponseModel: responseModel, Stream: gjsonBool(body, "stream"), Target: s.qoderTargetFromMetadata(metadata, account)}
 }

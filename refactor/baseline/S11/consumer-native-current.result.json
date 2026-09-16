@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/handler",
+    "./internal/app",
+    "./internal/server/routes",
+    "-run",
+    "Test(GatewayRequestActivity|.*InputTokens|.*Intercept|.*SessionID|.*Slot|.*StreamError|.*ErrorResponse|.*Compact|Gateway|GroupClientProtocol|Qoder)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.548,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/consumer-native-current.log.gz"
+}

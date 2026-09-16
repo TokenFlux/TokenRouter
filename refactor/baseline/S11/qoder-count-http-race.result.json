@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/gateway/text",
+    "./internal/gateway/httpapi",
+    "./internal/handler",
+    "-run",
+    "Test(Qoder|.*Qoder|CountTokensAttemptBoundaries)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 22.613,
+  "pass": 35,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/qoder-count-http-race.log.gz"
+}

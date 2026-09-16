@@ -22,7 +22,6 @@ import (
 )
 
 const grokChatResponsesEndpoint = nativegrok.GrokChatResponsesEndpoint
-const grokChatRawEndpoint = nativegrok.GrokChatRawEndpoint
 
 func grokChatResponsesBridgeEligibility(body []byte) (bool, string) {
 	return grokBodyCodec().GrokChatResponsesBridgeEligibility(body)

@@ -2,25 +2,10 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"strings"
-	"time"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
-	"go.uber.org/zap"
 )
 
 // forwardAnthropicViaRawChatCompletions 将 `/v1/messages` 客户端请求桥接到
@@ -41,146 +26,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	defaultMappedModel string,
 	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
 ) (*OpenAIForwardResult, error) {
-	startTime := time.Now()
-
-	// 1. 解析 Anthropic 请求。
-	var anthropicReq protocolanthropic.AnthropicRequest
-	if err := json.Unmarshal(body, &anthropicReq); err != nil {
-		writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
-		return nil, fmt.Errorf("parse anthropic request: %w", err)
-	}
-	originalModel := anthropicReq.Model
-	if strings.TrimSpace(originalModel) == "" {
-		writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
-		return nil, fmt.Errorf("missing model in request")
-	}
-	if err := validateOpenAIReasoningEffort(body, originalModel); err != nil {
-		writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return nil, err
-	}
-	applyOpenAICompatModelNormalization(&anthropicReq)
-	clientStream := anthropicReq.Stream
-
-	// 2. 将 Anthropic 请求直接转换为 Chat Completions。
-	chatReq, err := apicompat.AnthropicToChatCompletionsRequest(&anthropicReq)
-	if err != nil {
-		writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return nil, fmt.Errorf("convert anthropic to chat completions: %w", err)
-	}
-
-	billingModel := resolveOpenAIForwardModel(account, anthropicReq.Model, defaultMappedModel)
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
-	chatReq.Model = upstreamModel
-	chatReq.ReasoningEffort = openAICompatAnthropicReasoningEffort(&anthropicReq, upstreamModel, chatReq.ReasoningEffort)
-	chatReq.Stream = clientStream
-	if clientStream {
-		chatReq.StreamOptions = &protocolopenai.ChatStreamOptions{IncludeUsage: true}
-	}
-
-	convertedEffort := chatReq.ReasoningEffort
-	reasoningEffort := &convertedEffort
-	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
-	serviceTier := extractOpenAIServiceTierFromBody(body)
-
-	chatBody, err := json.Marshal(chatReq)
-	if err != nil {
-		return nil, fmt.Errorf("marshal chat completions request: %w", err)
-	}
-	if normalizedBody, normalized := NormalizeGLMOpenAIReasoningEffort(chatBody, upstreamModel); normalized {
-		chatBody = normalizedBody
-	}
-	// Messages 桥只对客户端显式指定的推理强度执行分组超限策略。
-	if account.Platform == PlatformOpenAI {
-		policyBody, changed, policyErr := ApplyOpenAIReasoningEffortPolicyFromContext(ctx, chatBody)
-		if policyErr != nil {
-			var overLimit *ReasoningEffortOverLimitError
-			if errors.As(policyErr, &overLimit) {
-				MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
-				writeAnthropicError(c, http.StatusForbidden, "forbidden_error", overLimit.Error())
-			}
-			return nil, policyErr
-		}
-		if changed {
-			chatBody = policyBody
-			if effectiveEffort := strings.TrimSpace(gjson.GetBytes(chatBody, "reasoning_effort").String()); effectiveEffort != "" {
-				reasoningEffort = &effectiveEffort
-			}
-		}
-	}
-	chatBody, err = s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, chatBody)
-	if err != nil {
-		var blocked *OpenAIFastBlockedError
-		if errors.As(err, &blocked) {
-			writeOpenAIFastPolicyBlockedResponse(c, blocked)
-		}
-		return nil, err
-	}
-	if serviceTier == nil {
-		serviceTier = extractOpenAIServiceTierFromBody(chatBody)
-	}
-
-	logger.L().Debug("openai messages: forwarding via raw chat completions",
-		zap.Int64("account_id", account.ID),
-		zap.String("original_model", originalModel),
-		zap.String("billing_model", billingModel),
-		zap.String("upstream_model", upstreamModel),
-		zap.Bool("stream", clientStream),
-	)
-
-	// 3. 通过共享 CC 管线构造并发送上游请求。
-	apiKey, targetURL, err := s.resolveCCFallbackTarget(ctx, account)
-	if err != nil {
-		return nil, err
-	}
-	SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
-	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, chatBody, clientStream, apiKey, account.GetOpenAIUserAgent(), "", tlsRouterMatch...)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// 4. 处理上游错误响应。
-	if resp.StatusCode >= 400 {
-		respBody, upstreamMsg := s.readOpenAIUpstreamError(resp)
-		if foErr := s.failoverOpenAIUpstreamHTTPError(ctx, c, account, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
-			return nil, foErr
-		}
-		// 非 failover 错误交给共享兼容处理器返回 Anthropic 格式，确保错误
-		// 透传规则、ops 记录和 cyber_policy 检测保持一致。
-		return s.handleAnthropicErrorResponse(resp, c, account, billingModel)
-	}
-
-	// 5. 转换上游响应。
-	if clientStream {
-		return s.streamChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
-	}
-	return s.bufferChatCompletionsAsAnthropic(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
-}
-
-func (s *OpenAIGatewayService) bufferChatCompletionsAsAnthropic(
-	c *gin.Context,
-	resp *http.Response,
-	originalModel string,
-	billingModel string,
-	upstreamModel string,
-	reasoningEffort *string,
-	serviceTier *string,
-	startTime time.Time,
-) (*OpenAIForwardResult, error) {
-	result, err := nativeopenai.ReadCCAsMessagesBuffered(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, nil, billingModel, upstreamModel, serviceTier, writeAnthropicError), originalModel, upstreamModel, reasoningEffort, startTime)
-	return chatForwardResult(result, billingModel), err
-}
-
-func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
-	c *gin.Context,
-	resp *http.Response,
-	originalModel string,
-	billingModel string,
-	upstreamModel string,
-	reasoningEffort *string,
-	serviceTier *string,
-	startTime time.Time,
-) (*OpenAIForwardResult, error) {
-	result, err := nativeopenai.ReadCCAsMessagesStreaming(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, nil, billingModel, upstreamModel, serviceTier, writeAnthropicError), originalModel, upstreamModel, reasoningEffort, startTime)
-	return chatForwardResult(result, billingModel), err
+	adapter := &openAIRawFallbackAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch}, kind: forward.NativeMessages}
+	result, err := forward.MessagesViaRawChat(ctx, body, defaultMappedModel, adapter)
+	return openAIForwardResultFromHTTP(result), err
 }

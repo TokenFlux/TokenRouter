@@ -10,6 +10,10 @@ import (
 	"strings"
 	"time"
 
+	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
+
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -86,7 +90,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 		return nil, err
 	}
 
-	target := &nativeopenai.AlphaSearchTarget{
+	target := &mediaprovider.AlphaSearchOptions{
 		AccountID: account.ID, Request: req, ResponsesFallback: false, Model: upstreamModel, Enter: s.nativeAttemptActivity,
 		Do: func(request *http.Request) (*http.Response, error) {
 			return s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
@@ -97,31 +101,25 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 			return ReadUpstreamResponseBody(reader, s.cfg, c, openAITooLargeError)
 		},
 		HTTPError: func(resp *http.Response, respBody []byte) error {
-
 			upstreamMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
-			if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMessage, respBody) ||
-				isOpenAIAlphaSearchEndpointUnsupported(account, resp.StatusCode) {
-				resp.Body = io.NopCloser(bytes.NewReader(respBody))
-				// alpha/search 是独立的工具端点，单次 401 不能证明账号的模型调用
-				// 凭据全局失效。若沿用通用 401 逻辑，PAT 会因没有 refresh_token
-				// 被永久标记为 error；历史导入且缺少 auth_mode 标记的 at- token 也会
-				// 漏过 PAT 类型判断。这里仍允许本次请求换号，但不修改任何账号状态；
-				// 真正的凭据失效由普通 Responses 请求或 whoami 校验判定。
-				shouldDisable := false
-				if shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(resp.StatusCode) {
-					shouldDisable = s.handleFailoverSideEffects(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel))
-				}
-				retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
-				if account.IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
-					return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMessage, shouldDisable, retryableOnSameAccount)
-				}
-				if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
-					return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
-				}
-				return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
-			}
-
-			return nil
+			return gatewaymedia.ResolveAlphaFailure(resp.StatusCode, gatewaymedia.AlphaFailurePorts{
+				Failover:            func() bool { return s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMessage, respBody) },
+				EndpointUnsupported: func() bool { return isOpenAIAlphaSearchEndpointUnsupported(account, resp.StatusCode) },
+				Prepare:             func() { resp.Body = io.NopCloser(bytes.NewReader(respBody)) },
+				ApplySideEffects: func() bool {
+					return s.handleFailoverSideEffects(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel))
+				},
+				NewFailover: func(shouldDisable bool) error {
+					retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
+					if account.IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
+						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMessage, shouldDisable, retryableOnSameAccount)
+					}
+					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
+						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
+					}
+					return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
+				},
+			})
 		},
 		UpdateQuota: func(headers http.Header) {
 			if !account.IsShadow() {
@@ -130,7 +128,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 		},
 		Headers: func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
 	}
-	result, err := (nativeopenai.AlphaSearchExecutor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolAlphaSearch, ResponseModel: requestedModel, Target: target}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	result, err := (mediaprovider.AlphaSearch{Options: *target}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolAlphaSearch, ResponseModel: requestedModel}, gatewayhttp.ResponseSink{Writer: c.Writer})
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +163,7 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	}
 	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
 
-	target := &nativeopenai.AlphaSearchTarget{
+	target := &mediaprovider.AlphaSearchOptions{
 		AccountID: account.ID, Request: req, ResponsesFallback: true, Model: upstreamModel, Enter: s.nativeAttemptActivity,
 		Do: func(request *http.Request) (*http.Response, error) {
 			return s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
@@ -176,26 +174,25 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 			return ReadUpstreamResponseBody(reader, s.cfg, c, openAITooLargeError)
 		},
 		HTTPError: func(resp *http.Response, respBody []byte) error {
-
 			upstreamMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
-			if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMessage, respBody) {
-				resp.Body = io.NopCloser(bytes.NewReader(respBody))
-				// 仍按 alpha/search 工具请求处理：PAT 的工具链路失败不能直接永久置错。
-				shouldDisable := false
-				if shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(resp.StatusCode) {
-					shouldDisable = s.handleFailoverSideEffects(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel))
-				}
-				retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
-				if account.IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
-					return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMessage, shouldDisable, retryableOnSameAccount)
-				}
-				if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
-					return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
-				}
-				return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
-			}
-
-			return nil
+			return gatewaymedia.ResolveAlphaFailure(resp.StatusCode, gatewaymedia.AlphaFailurePorts{
+				Failover:            func() bool { return s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMessage, respBody) },
+				EndpointUnsupported: func() bool { return false },
+				Prepare:             func() { resp.Body = io.NopCloser(bytes.NewReader(respBody)) },
+				ApplySideEffects: func() bool {
+					return s.handleFailoverSideEffects(ctx, resp, account, respBody, openAIAlphaSearchSchedulingModel(account, requestedModel))
+				},
+				NewFailover: func(shouldDisable bool) error {
+					retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
+					if account.IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
+						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMessage, shouldDisable, retryableOnSameAccount)
+					}
+					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
+						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
+					}
+					return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
+				},
+			})
 		},
 		UpdateQuota: func(headers http.Header) {
 			if !account.IsShadow() {
@@ -204,7 +201,7 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 		},
 		Headers: func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
 	}
-	result, err := (nativeopenai.AlphaSearchExecutor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolAlphaSearch, ResponseModel: requestedModel, Target: target}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	result, err := (mediaprovider.AlphaSearch{Options: *target}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolAlphaSearch, ResponseModel: requestedModel}, gatewayhttp.ResponseSink{Writer: c.Writer})
 	if err != nil {
 		return nil, err
 	}
@@ -313,29 +310,12 @@ func (s *OpenAIGatewayService) ensureOpenAIAlphaSearchAuthMetadata(ctx context.C
 	return oauthService.Core().EnsureAlphaSearchMetadata(ctx, AccountRecordView(account), token, proxyURL, ports)
 }
 
-// isOpenAIAlphaSearchEndpointUnsupported 识别「API key 上游没有实现
-// /v1/alpha/search 端点」的响应。404/405 不在通用 failover 状态集里（模型
-// 调用中的 404 通常是用户请求问题），但对这个独立工具端点而言，它几乎只
-// 意味着所选上游（官方平台或第三方中转）不提供该端点——应换号重试，而
-// 不是把 404 透传给客户端，否则混合分组里 OAuth 账号明明可以承接搜索，
-// 请求却可能死在先被选中的 API key 账号上。
 func isOpenAIAlphaSearchEndpointUnsupported(account *Account, statusCode int) bool {
-	if account == nil || account.Type != AccountTypeAPIKey {
-		return false
-	}
-	return statusCode == http.StatusNotFound || statusCode == http.StatusMethodNotAllowed
+	return gatewaymedia.AlphaEndpointUnsupported(account != nil && account.Type == AccountTypeAPIKey, statusCode)
 }
 
 func shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(statusCode int) bool {
-	switch statusCode {
-	case http.StatusUnauthorized, http.StatusNotFound, http.StatusMethodNotAllowed:
-		// 401：工具端点的 access enforcement 不代表凭据全局失效；
-		// 404/405：端点不存在只说明该上游不支持独立搜索，账号本身健康。
-		// 两类都只换号，不写账号错误状态。
-		return false
-	default:
-		return true
-	}
+	return gatewaymedia.AlphaAccountErrorSideEffects(statusCode)
 }
 
 // openAIAlphaSearchURL 按账号类型选择 ChatGPT Codex 或 API-key 搜索端点。

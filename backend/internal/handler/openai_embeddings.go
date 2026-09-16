@@ -4,273 +4,169 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
-	"strings"
-	"time"
 
-	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
-// Embeddings 处理 OpenAI 兼容的 Embeddings API。
-// POST /v1/embeddings。
-func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
-	streamStarted := false
-	requestStart := time.Now()
+func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) { h.AuxiliaryHTTPHandler().Embeddings(c) }
 
-	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
-	if !ok {
-		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
+// embeddingRequestAdapter 只适配当前请求、已选账号和 HTTP；尝试循环由 media 唯一拥有。
+type embeddingRequestAdapter struct {
+	userID         int64
+	h              *OpenAIGatewayHandler
+	c              *gin.Context
+	apiKey         *service.APIKey
+	subscription   *service.UserSubscription
+	reqModel       string
+	channelMapping service.ChannelMappingResult
+	reqLog         *zap.Logger
+	streamStarted  *bool
+	selection      *service.AccountSelectionResult
+}
+
+func (p *embeddingRequestAdapter) SelectEmbedding(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
+	selection, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", p.reqModel, excluded, service.OpenAIUpstreamTransportHTTPSSE, service.OpenAIEndpointCapabilityEmbeddings, false, false)
+	p.selection = selection
+	if selection == nil || selection.Account == nil {
+		return accountcore.AccountSnapshot{}, false, err
+	}
+	return service.AccountSnapshotView(selection.Account), true, err
+}
+func (p *embeddingRequestAdapter) AcquireEmbedding(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
+	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, p.streamStarted, p.reqLog)
+}
+func (p *embeddingRequestAdapter) ForwardEmbedding(ctx context.Context, _ accountcore.AccountSnapshot, body []byte) gatewaymedia.EmbeddingOutcome {
+	forwardBody := body
+	if p.channelMapping.Mapped {
+		forwardBody = p.h.gatewayService.ReplaceModelInBody(body, p.channelMapping.MappedModel)
+	}
+	size := p.c.Writer.Size()
+	result, err := p.h.gatewayService.ForwardEmbeddings(ctx, p.c, p.selection.Account, forwardBody, "")
+	outcome := gatewaymedia.EmbeddingOutcome{Result: embeddingResultView(result), Err: err, OutputChanged: p.c.Writer.Size() != size}
+	var failure *service.UpstreamFailoverError
+	if errors.As(err, &failure) {
+		outcome.Failover = true
+		outcome.StatusCode = failure.StatusCode
+	}
+	return outcome
+}
+func (p *embeddingRequestAdapter) ReportEmbedding(_ context.Context, _ accountcore.AccountSnapshot, result *gatewaymedia.EmbeddingResult, success bool, err error) {
+	account := p.selection.Account
+	if success {
+		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(p.c, account, p.reqModel, false, legacyEmbeddingResult(result)), true, nil)
 		return
 	}
-
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
-	if !ok {
-		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
-		return
-	}
-	reqLog := requestLogger(
-		c,
-		"handler.openai_gateway.embeddings",
-		zap.Int64("user_id", subject.UserID),
-		zap.Int64("api_key_id", apiKey.ID),
-		zap.Any("group_id", apiKey.GroupID),
-	)
-	if !h.ensureResponsesDependencies(c, reqLog) {
-		return
-	}
-
-	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
-	if err != nil {
-		if maxErr, ok := extractMaxBytesError(err); ok {
-			h.errorResponse(c, http.StatusRequestEntityTooLarge, "invalid_request_error", buildBodyTooLargeMessage(maxErr.Limit))
-			return
+	p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(p.c, account, p.reqModel, false, legacyEmbeddingResult(result)), false, nil, err)
+}
+func (p *embeddingRequestAdapter) SwitchEmbedding(_ accountcore.AccountSnapshot) {
+	p.h.gatewayService.RecordOpenAIAccountSwitchForSelection(p.selection)
+}
+func (p *embeddingRequestAdapter) ClientGone() bool { return failoverClientGone(p.c) }
+func (p *embeddingRequestAdapter) ObserveEmbedding(event gatewaymedia.EmbeddingEvent) {
+	switch event.Kind {
+	case "selected":
+		setOpsSelectedAccount(p.c, event.Account.ID, event.Account.Platform)
+	case "routing":
+		service.SetOpsLatencyMs(p.c, service.OpsRoutingLatencyMsKey, event.Elapsed.Milliseconds())
+	case "response":
+		elapsed := event.Elapsed.Milliseconds()
+		upstream, _ := getContextInt64(p.c, service.OpsUpstreamLatencyMsKey)
+		if upstream > 0 && elapsed > upstream {
+			elapsed -= upstream
 		}
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+		service.SetOpsLatencyMs(p.c, service.OpsResponseLatencyMsKey, elapsed)
+	case "select_canceled":
+		p.reqLog.Info("openai_embeddings.account_select_aborted_client_disconnected", zap.Error(event.Outcome.Err))
+	case "select_failed":
+		p.reqLog.Warn("openai_embeddings.account_select_failed", zap.Error(event.Outcome.Err), zap.Int("excluded_account_count", event.Excluded))
+	case "forward_canceled":
+		p.reqLog.Info("openai_embeddings.failover_aborted_client_disconnected", zap.Int64("account_id", event.Account.ID), zap.Int("upstream_status", event.Outcome.StatusCode))
+	case "switch":
+		p.reqLog.Warn("openai_embeddings.upstream_failover_switching", zap.Int64("account_id", event.Account.ID), zap.Int("upstream_status", event.Outcome.StatusCode), zap.Int("switch_count", event.Switches), zap.Int("max_switches", event.MaxSwitches))
+	case "completed":
+		p.reqLog.Debug("openai_embeddings.request_completed", zap.Int64("account_id", event.Account.ID), zap.Int("switch_count", event.Switches))
+	}
+}
+func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure) {
+	if f == nil {
 		return
 	}
-	if len(body) == 0 {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
-		return
-	}
-	if !gjson.ValidBytes(body) {
-		logRequestBodyParseFailure(reqLog, body, nil)
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
-		return
-	}
-
-	modelResult := gjson.GetBytes(body, "model")
-	if !modelResult.Exists() || modelResult.Type != gjson.String || strings.TrimSpace(modelResult.String()) == "" {
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
-		return
-	}
-	reqModel := modelResult.String()
-	reqLog = reqLog.With(zap.String("model", reqModel))
-	setOpsRequestContext(c, reqModel, false)
-	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
-
-	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
-	channelMappingRoutePlan := h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(apiKey), apiKey.GroupID, reqModel)
-	channelMapping := service.ChannelMappingFromRoutePlan(channelMappingRoutePlan)
-	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), channelMappingRoutePlan))
-
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
-
-	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, false, &streamStarted, reqLog)
-	if !acquired {
-		return
-	}
-	if userReleaseFunc != nil {
-		defer userReleaseFunc()
-	}
-
-	if err := h.billingCacheService.CheckBillingEligibility(c.Request.Context(), apiKey.User, apiKey, apiKey.Group, subscription, service.QuotaPlatform(c.Request.Context(), apiKey)); err != nil {
-		reqLog.Info("openai_embeddings.billing_check_failed", zap.Error(err))
-		status, code, message, retryAfter := billingErrorDetails(err)
-		if retryAfter > 0 {
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-		}
-		h.errorResponse(c, status, code, message)
-		return
-	}
-
-	failedAccountIDs := make(map[int64]struct{})
-	var lastFailoverErr *service.UpstreamFailoverError
-	switchCount := 0
-	maxAccountSwitches := h.maxAccountSwitches
-	if maxAccountSwitches <= 0 {
-		maxAccountSwitches = 3
-	}
-	routingStart := time.Now()
-
-	for {
-		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
-			c.Request.Context(),
-			apiKey.GroupID,
-			"",
-			"",
-			reqModel,
-			failedAccountIDs,
-			service.OpenAIUpstreamTransportHTTPSSE,
-			service.OpenAIEndpointCapabilityEmbeddings,
-			false,
-			false,
-		)
-		if err != nil {
-			if failoverClientGone(c) {
-				reqLog.Info("openai_embeddings.account_select_aborted_client_disconnected", zap.Error(err))
+	switch f.Stage {
+	case "selection":
+		if f.Excluded == 0 {
+			if p.h.handleOpenAISelectionBusinessError(p.c, f.Err, *p.streamStarted) {
 				return
 			}
-			reqLog.Warn("openai_embeddings.account_select_failed",
-				zap.Error(err),
-				zap.Int("excluded_account_count", len(failedAccountIDs)),
-			)
-			if len(failedAccountIDs) == 0 {
-				if h.handleOpenAISelectionBusinessError(c, err, streamStarted) {
-					return
-				}
-				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, service.PlatformOpenAI)
-				if !cls.ModelNotFound {
-					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
-				}
-				h.errorResponse(c, cls.Status, cls.ErrType, cls.Message)
-				return
-			}
-			if lastFailoverErr != nil {
-				h.handleFailoverExhausted(c, lastFailoverErr, false)
-			} else {
-				h.errorResponse(c, http.StatusBadGateway, "api_error", "Upstream request failed")
-			}
-			return
-		}
-		if selection == nil || selection.Account == nil {
-			cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, service.PlatformOpenAI)
+			cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, service.PlatformOpenAI)
 			if !cls.ModelNotFound {
-				markOpsRoutingCapacityLimited(c)
+				markOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
 			}
-			h.errorResponse(c, cls.Status, cls.ErrType, cls.Message)
+			p.h.errorResponse(p.c, cls.Status, cls.ErrType, cls.Message)
 			return
 		}
-		account := selection.Account
-		setOpsSelectedAccount(c, account.ID, account.Platform)
-
-		accountReleaseFunc, accountAcquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, "", selection, false, &streamStarted, reqLog)
-		if !accountAcquired {
-			return
+		var failure *service.UpstreamFailoverError
+		if errors.As(f.Outcome.Err, &failure) {
+			p.h.handleFailoverExhausted(p.c, failure, false)
+		} else {
+			p.h.errorResponse(p.c, http.StatusBadGateway, "api_error", "Upstream request failed")
 		}
-
-		service.SetOpsLatencyMs(c, service.OpsRoutingLatencyMsKey, time.Since(routingStart).Milliseconds())
-		forwardStart := time.Now()
-
-		forwardBody := body
-		if channelMapping.Mapped {
-			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
+	case "empty_selection":
+		cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, service.PlatformOpenAI)
+		if !cls.ModelNotFound {
+			markOpsRoutingCapacityLimited(p.c)
 		}
-		writerSizeBeforeForward := c.Writer.Size()
-		result, err := func() (*service.OpenAIForwardResult, error) {
-			defer func() {
-				if accountReleaseFunc != nil {
-					accountReleaseFunc()
-				}
-			}()
-			return h.gatewayService.ForwardEmbeddings(c.Request.Context(), c, account, forwardBody, "")
-		}()
-
-		forwardDurationMs := time.Since(forwardStart).Milliseconds()
-		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
-		responseLatencyMs := forwardDurationMs
-		if upstreamLatencyMs > 0 && forwardDurationMs > upstreamLatencyMs {
-			responseLatencyMs = forwardDurationMs - upstreamLatencyMs
+		p.h.errorResponse(p.c, cls.Status, cls.ErrType, cls.Message)
+	case "exhausted":
+		var failure *service.UpstreamFailoverError
+		if errors.As(f.Outcome.Err, &failure) {
+			p.h.handleFailoverExhausted(p.c, failure, f.Outcome.OutputChanged)
 		}
-		service.SetOpsLatencyMs(c, service.OpsResponseLatencyMsKey, responseLatencyMs)
-
-		if err != nil {
-			var failoverErr *service.UpstreamFailoverError
-			if errors.As(err, &failoverErr) {
-				if c.Writer.Size() != writerSizeBeforeForward {
-					h.handleFailoverExhausted(c, failoverErr, true)
-					return
-				}
-				h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, result), false, nil, err)
-				if failoverClientGone(c) {
-					reqLog.Info("openai_embeddings.failover_aborted_client_disconnected",
-						zap.Int64("account_id", account.ID),
-						zap.Int("upstream_status", failoverErr.StatusCode),
-					)
-					return
-				}
-				h.gatewayService.RecordOpenAIAccountSwitchForSelection(selection)
-				failedAccountIDs[account.ID] = struct{}{}
-				lastFailoverErr = failoverErr
-				if switchCount >= maxAccountSwitches {
-					h.handleFailoverExhausted(c, failoverErr, false)
-					return
-				}
-				switchCount++
-				reqLog.Warn("openai_embeddings.upstream_failover_switching",
-					zap.Int64("account_id", account.ID),
-					zap.Int("upstream_status", failoverErr.StatusCode),
-					zap.Int("switch_count", switchCount),
-					zap.Int("max_switches", maxAccountSwitches),
-				)
-				continue
-			}
-			h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, result), false, nil, err)
-			if c.Writer.Size() == writerSizeBeforeForward {
-				h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
-			}
-			reqLog.Warn("openai_embeddings.forward_failed",
-				zap.Int64("account_id", account.ID),
-				zap.Error(err),
-			)
-			return
+	case "forward":
+		if !f.Outcome.OutputChanged {
+			p.h.errorResponse(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		}
-
-		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, result), true, nil)
-		userAgent := c.GetHeader("User-Agent")
-		clientIP := ip.GetClientIP(c)
-		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-		clientSessionID := service.ExtractClientSessionID(c)
-
-		h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {
-			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
-				Result:             result,
-				APIKey:             apiKey,
-				User:               apiKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				InboundEndpoint:    inboundEndpoint,
-				UpstreamEndpoint:   upstreamEndpoint,
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				APIKeyService:      h.apiKeyService,
-				QuotaPlatform:      quotaPlatform,
-				ClientSessionID:    clientSessionID,
-				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
-			}); err != nil {
-				logger.L().With(
-					zap.String("component", "handler.openai_gateway.embeddings"),
-					zap.Int64("user_id", subject.UserID),
-					zap.Int64("api_key_id", apiKey.ID),
-					zap.Any("group_id", apiKey.GroupID),
-					zap.String("model", reqModel),
-					zap.Int64("account_id", account.ID),
-				).Error("openai_embeddings.record_usage_failed", zap.Error(err))
-			}
-		})
-		reqLog.Debug("openai_embeddings.request_completed",
-			zap.Int64("account_id", account.ID),
-			zap.Int("switch_count", switchCount),
-		)
-		return
+		p.reqLog.Warn("openai_embeddings.forward_failed", zap.Int64("account_id", p.selection.Account.ID), zap.Error(f.Err))
 	}
+}
+
+func embeddingResultView(result *service.OpenAIForwardResult) *gatewaymedia.EmbeddingResult {
+	if result == nil {
+		return nil
+	}
+	return &gatewaymedia.EmbeddingResult{RequestID: result.RequestID, Model: result.Model, BillingModel: result.BillingModel, UpstreamModel: result.UpstreamModel, Headers: result.UpstreamHeaders.Clone(), Usage: result.Usage, Duration: result.Duration}
+}
+func legacyEmbeddingResult(result *gatewaymedia.EmbeddingResult) *service.OpenAIForwardResult {
+	if result == nil {
+		return nil
+	}
+	return &service.OpenAIForwardResult{RequestID: result.RequestID, Model: result.Model, BillingModel: result.BillingModel, UpstreamModel: result.UpstreamModel, UpstreamHeaders: http.Header(result.Headers).Clone(), Usage: result.Usage, Duration: result.Duration}
+}
+func (p *embeddingRequestAdapter) CompleteEmbedding(_ context.Context, _ accountcore.AccountSnapshot, value *gatewaymedia.EmbeddingResult) {
+	c, h, apiKey, account := p.c, p.h, p.apiKey, p.selection.Account
+	result := legacyEmbeddingResult(value)
+	userAgent := c.GetHeader("User-Agent")
+	clientIP := ip.GetClientIP(c)
+	inboundEndpoint := GetInboundEndpoint(c)
+	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+	clientSessionID := service.ExtractClientSessionID(c)
+	// 异步任务只读取此处固化的渠道结果，不能再读取可变 HTTP Context。
+	channelFields := p.channelMapping.ToUsageFields(p.reqModel, result.UpstreamModel)
+	subscription, reqModel, userID := p.subscription, p.reqModel, p.userID
+	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{Result: result, APIKey: apiKey, User: apiKey.User, Account: account, Subscription: subscription, InboundEndpoint: inboundEndpoint, UpstreamEndpoint: upstreamEndpoint, UserAgent: userAgent, IPAddress: clientIP, APIKeyService: h.apiKeyService, QuotaPlatform: quotaPlatform, ClientSessionID: clientSessionID, ChannelUsageFields: channelFields})
+	completionRecorder := h.completionRuntime()
+	completionLog := logger.L().With(zap.String("component", "handler.openai_gateway.embeddings"), zap.Int64("user_id", userID), zap.Int64("api_key_id", apiKey.ID), zap.Any("group_id", apiKey.GroupID), zap.String("model", reqModel), zap.Int64("account_id", account.ID))
+	h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {
+		if err := completionRecorder.Record(ctx, completionInput, true); err != nil {
+			completionLog.Error("openai_embeddings.record_usage_failed", zap.Error(err))
+		}
+	})
 }

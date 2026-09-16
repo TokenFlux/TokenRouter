@@ -1,16 +1,14 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
+
+	gatewaylive "github.com/TokenFlux/TokenRouter/internal/gateway/live"
 
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -18,19 +16,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 )
 
 const (
 	defaultLiveMaxSessionDuration = time.Hour
-	liveLeaseRefreshInterval      = 20 * time.Second
 	liveRedisOperationTimeout     = 3 * time.Second
-	liveClosedRecordTTL           = 24 * time.Hour
-	liveObserverPollInterval      = 250 * time.Millisecond
-	liveObserverStoreRetryLimit   = 5
 	liveUpstreamBodyLimit         = 2 << 20
 )
 
@@ -51,17 +43,8 @@ func liveSidebandReadError(err error) error {
 	return err
 }
 
-func hashLiveCallID(callID string) string {
-	sum := sha256.Sum256([]byte(callID))
-	return hex.EncodeToString(sum[:])
-}
-
-func liveGroupID(groupID *int64) int64 {
-	if groupID == nil {
-		return 0
-	}
-	return *groupID
-}
+// hashLiveCallID 委托唯一的持久会话标识编码。
+func hashLiveCallID(callID string) string { return gatewaylive.HashCallID(callID) }
 
 func liveOptionalID(value int64) *int64 {
 	if value <= 0 {
@@ -113,177 +96,14 @@ func ValidateLiveCallRequest(request *LiveCallRequest) error {
 	return wire.ValidateLiveCallRequest(request)
 }
 
-// CreateLiveCall 创建 Frameless 会话。调用方须在调用期间持有普通用户槽位；
-// 调度器持有的普通账号槽位会被同一个 Live 租约原子接替。
-func (s *OpenAIGatewayService) CreateLiveCall(
-	ctx context.Context,
-	request *LiveCallRequest,
-	identity LiveCallIdentity,
-	userMaxConcurrency int,
-) (*LiveCallCreated, error) {
-	if err := ValidateLiveCallRequest(request); err != nil {
-		return nil, err
-	}
-	store, err := s.liveStore()
+// CreateLiveCall 委托唯一创建编排，旧返回值只补入已有账号展示对象。
+func (s *OpenAIGatewayService) CreateLiveCall(ctx context.Context, request *LiveCallRequest, identity LiveCallIdentity, userMaxConcurrency int) (*LiveCallCreated, error) {
+	ports := &liveCreatePorts{service: s}
+	created, err := gatewaylive.NewCreator(s.liveRuntime(), ports, s.liveMaxSessionDuration()).Create(ctx, request, identity, userMaxConcurrency)
 	if err != nil {
 		return nil, err
 	}
-	liveCache, err := s.liveConcurrencyCache()
-	if err != nil {
-		return nil, err
-	}
-	attestation, attestationCiphertext, err := s.prepareLiveAttestation(ctx)
-	if err != nil {
-		return nil, err
-	}
-	model := strings.TrimSpace(gjson.GetBytes(request.Session, "model").String())
-	if model == "" {
-		model = "gpt-live"
-	}
-
-	excluded := make(map[int64]struct{})
-	var lastErr error
-	for attempt := 0; attempt <= 3; attempt++ {
-		selection, _, selectErr := s.SelectAccountWithSchedulerForCapability(
-			ctx,
-			identity.GroupID,
-			"",
-			uuid.NewString(),
-			model,
-			excluded,
-			OpenAIUpstreamTransportHTTPSSE,
-			OpenAIEndpointCapabilityLive,
-			false,
-			false,
-		)
-		if selectErr != nil {
-			if lastErr != nil {
-				return nil, lastErr
-			}
-			return nil, selectErr
-		}
-		if selection == nil || selection.Account == nil || !selection.Acquired {
-			if selection != nil && selection.ReleaseFunc != nil {
-				selection.ReleaseFunc()
-			}
-			return nil, ErrLiveConcurrencyFull
-		}
-
-		account := selection.Account
-		routingModel, routingErr := s.ResolveOpenAIWSRoutingModelForAccount(
-			ctx,
-			identity.GroupID,
-			account,
-			model,
-			OpenAIEndpointCapabilityLive,
-		)
-		if routingErr != nil {
-			selection.ReleaseFunc()
-			excluded[account.ID] = struct{}{}
-			lastErr = routingErr
-			continue
-		}
-		upstreamModel := resolveOpenAIAccountUpstreamModelForRequest(account, routingModel, false, false)
-		if strings.TrimSpace(upstreamModel) == "" {
-			upstreamModel = routingModel
-		}
-		RegisterAPIKeyModelRedirectStage(ctx, routingModel)
-		RegisterAPIKeyModelRedirectStage(ctx, upstreamModel)
-		upstreamSession, rewriteErr := sjson.SetBytes(request.Session, "model", upstreamModel)
-		if rewriteErr != nil {
-			selection.ReleaseFunc()
-			return nil, rewriteErr
-		}
-		upstreamRequest := &LiveCallRequest{SDP: request.SDP, Session: upstreamSession}
-		tlsRouterMatch := s.matchLiveTLSFingerprintRouter(account, identity.UserAgent)
-		policyResult := s.liveClientPolicyResult(ctx, account, identity, tlsRouterMatch)
-		if policyResult.Enabled && !policyResult.Matched {
-			selection.ReleaseFunc()
-			excluded[account.ID] = struct{}{}
-			lastErr = ErrLiveClientPolicyDenied
-			logger.FromContext(ctx).Warn(
-				"OpenAI Live 客户端策略拒绝候选账号",
-				zap.Int64("account_id", account.ID),
-				zap.String("policy", policyResult.Policy),
-				zap.String("reason", policyResult.Reason),
-			)
-			continue
-		}
-		leaseID := generateRequestID()
-		acquired, acquireErr := liveCache.AcquireLiveLease(
-			ctx,
-			account.ID,
-			account.Concurrency,
-			identity.UserID,
-			userMaxConcurrency,
-			identity.APIKeyID,
-			leaseID,
-			true,
-		)
-		if acquireErr != nil || !acquired {
-			selection.ReleaseFunc()
-			if acquireErr != nil {
-				return nil, acquireErr
-			}
-			return nil, ErrLiveConcurrencyFull
-		}
-
-		created, createErr := s.createUpstreamLiveCall(ctx, account, upstreamRequest, attestation, tlsRouterMatch)
-		selection.ReleaseFunc()
-		if createErr != nil {
-			s.releaseLiveLease(account.ID, identity.UserID, identity.APIKeyID, leaseID)
-			if !s.shouldFailoverLiveCreateError(createErr) {
-				return nil, createErr
-			}
-			excluded[account.ID] = struct{}{}
-			lastErr = createErr
-			continue
-		}
-
-		now := time.Now()
-		requestedModel := model
-		if trace, ok := APIKeyModelRedirectTraceFromContext(ctx); ok && strings.TrimSpace(trace.ClientModel) != "" {
-			requestedModel = trace.ClientModel
-		}
-		routePlan := s.PlanRoute(ctx, nil, identity.GroupID, model)
-		channelMapping := ChannelMappingFromRoutePlan(routePlan)
-		record := &LiveCallRecord{
-			CallID:                created.CallID,
-			CallHash:              hashLiveCallID(created.CallID),
-			AccountID:             account.ID,
-			APIKeyID:              identity.APIKeyID,
-			ActorUserID:           identity.ActorUserID,
-			UserID:                identity.UserID,
-			TeamID:                liveGroupID(identity.TeamID),
-			GroupID:               liveGroupID(identity.GroupID),
-			SubscriptionID:        liveGroupID(identity.SubscriptionID),
-			LeaseID:               leaseID,
-			Model:                 model,
-			RequestedModel:        requestedModel,
-			UpstreamModel:         upstreamModel,
-			ModelMappingChain:     channelMapping.BuildModelMappingChain(model, upstreamModel),
-			APIKeyModelMapping:    CloneModelMapping(identity.ModelMapping),
-			CreatedAt:             now,
-			ExpiresAt:             now.Add(s.liveMaxSessionDuration()),
-			Controller:            LiveControllerPending,
-			UserAgent:             identity.UserAgent,
-			IPAddress:             identity.IPAddress,
-			InboundEndpoint:       identity.InboundEndpoint,
-			AttestationCiphertext: attestationCiphertext,
-		}
-		mappingTTL := s.liveMaxSessionDuration() + 5*time.Minute
-		if saveErr := store.SaveLiveCall(ctx, record, mappingTTL); saveErr != nil {
-			s.releaseLiveLease(account.ID, identity.UserID, identity.APIKeyID, leaseID)
-			return nil, fmt.Errorf("save live call mapping: %w", saveErr)
-		}
-		created.Account = account
-		RunBackgroundTask("service/openai_live.go:CreateLiveCall", BackgroundCall1(s.observeLiveCall, record))
-		return created, nil
-	}
-	if lastErr != nil {
-		return nil, lastErr
-	}
-	return nil, ErrLiveUnavailable
+	return &LiveCallCreated{SDP: created.SDP, CallID: created.CallID, Location: created.Location, Account: ports.selected}, nil
 }
 
 func (s *OpenAIGatewayService) shouldFailoverLiveCreateError(err error) bool {
@@ -443,14 +263,6 @@ func (s *OpenAIGatewayService) liveSidebandAccount(ctx context.Context, record *
 	return account, nil
 }
 
-func (s *OpenAIGatewayService) dialLiveSideband(ctx context.Context, record *LiveCallRecord) (liveFrameConn, error) {
-	account, err := s.liveSidebandAccount(ctx, record)
-	if err != nil {
-		return nil, err
-	}
-	return s.dialLiveSidebandForAccount(ctx, record, account)
-}
-
 // dialLiveSidebandForAccount 复用已经校验的会话账号建立控制连接。
 func (s *OpenAIGatewayService) dialLiveSidebandForAccount(ctx context.Context, record *LiveCallRecord, account *Account) (liveFrameConn, error) {
 	tlsRouterMatch := s.matchLiveTLSFingerprintRouter(account, record.UserAgent)
@@ -486,635 +298,61 @@ func (s *OpenAIGatewayService) liveClientPolicyResult(
 	return s.detectCodexClientRestriction(&gin.Context{Request: request}, account, tlsRouterMatch)
 }
 
-// GetLiveCallForIdentity 校验 call 与 API Key、用户和分组的绑定关系。
-func (s *OpenAIGatewayService) GetLiveCallForIdentity(
-	ctx context.Context,
-	callID string,
-	identity LiveCallIdentity,
-) (*LiveCallRecord, error) {
-	store, err := s.liveStore()
-	if err != nil {
-		return nil, err
-	}
-	record, err := store.GetLiveCall(ctx, hashLiveCallID(callID))
-	if err != nil {
-		return nil, err
-	}
-	if record.CallID != callID ||
-		record.APIKeyID != identity.APIKeyID ||
-		record.UserID != identity.UserID ||
-		record.GroupID != liveGroupID(identity.GroupID) {
-		return nil, ErrLiveIdentityMismatch
-	}
-	if record.Controller == LiveControllerClosed {
-		return nil, ErrLiveCallNotFound
-	}
-	return record, nil
+// GetLiveCallForIdentity 委托会话绑定校验，不重复读取或复制身份规则。
+func (s *OpenAIGatewayService) GetLiveCallForIdentity(ctx context.Context, callID string, identity LiveCallIdentity) (*LiveCallRecord, error) {
+	return s.liveRuntime().Lookup(ctx, callID, identity)
 }
 
-type liveSidebandModelState struct {
-	mu             sync.RWMutex
-	clientModel    string
-	internalModels map[string]struct{}
-}
-
-// newLiveSidebandModelState 使用创建会话时的模型链初始化双向恢复状态。
-func newLiveSidebandModelState(record *LiveCallRecord) *liveSidebandModelState {
-	state := &liveSidebandModelState{internalModels: make(map[string]struct{})}
-	if record == nil {
-		return state
-	}
-	state.update(firstNonEmptyString(record.RequestedModel, record.Model), record.Model, record.UpstreamModel)
-	return state
-}
-
-func (s *liveSidebandModelState) update(clientModel string, internalModels ...string) {
-	if s == nil {
-		return
-	}
-	clientModel = strings.TrimSpace(clientModel)
-	s.mu.Lock()
-	if clientModel != "" {
-		s.clientModel = clientModel
-	}
-	s.internalModels = make(map[string]struct{}, len(internalModels))
-	for _, model := range internalModels {
-		model = strings.TrimSpace(model)
-		if model == "" || model == s.clientModel {
-			continue
-		}
-		s.internalModels[model] = struct{}{}
-	}
-	s.mu.Unlock()
-}
-
-func (s *liveSidebandModelState) snapshot() (string, []string) {
-	if s == nil {
-		return "", nil
-	}
-	s.mu.RLock()
-	clientModel := s.clientModel
-	models := make([]string, 0, len(s.internalModels))
-	for model := range s.internalModels {
-		models = append(models, model)
-	}
-	s.mu.RUnlock()
-	return clientModel, models
-}
-
-// rewriteLiveSidebandClientPayload 对每轮 session.model 执行 Key、渠道和账号映射。
-func (s *OpenAIGatewayService) rewriteLiveSidebandClientPayload(
-	ctx context.Context,
-	record *LiveCallRecord,
-	account *Account,
-	payload []byte,
-) ([]byte, string, []string, error) {
-	if record == nil || account == nil || !gjson.ValidBytes(payload) {
+// rewriteLiveSidebandClientPayload 委托唯一 Live 会话模型改写规则。
+func (s *OpenAIGatewayService) rewriteLiveSidebandClientPayload(ctx context.Context, record *LiveCallRecord, account *Account, payload []byte) ([]byte, string, []string, error) {
+	if account == nil {
 		return payload, "", nil, nil
 	}
-	rewritten := payload
-	if session := gjson.GetBytes(rewritten, "session"); session.IsObject() && len(record.APIKeyModelMapping) > 0 {
-		rewrittenSession, err := RewriteAPIKeyAdditionalModels([]byte(session.Raw), record.APIKeyModelMapping)
-		if err != nil {
-			return payload, "", nil, err
-		}
-		if !bytes.Equal(rewrittenSession, []byte(session.Raw)) {
-			rewritten, err = sjson.SetRawBytes(rewritten, "session", rewrittenSession)
-			if err != nil {
-				return payload, "", nil, err
-			}
-		}
-	}
-	clientModel := strings.TrimSpace(gjson.GetBytes(rewritten, "session.model").String())
-	if clientModel == "" {
-		return rewritten, "", nil, nil
-	}
-	keyTarget := clientModel
-	if mappedModel, matched := ResolveModelMapping(record.APIKeyModelMapping, clientModel); matched {
-		keyTarget = mappedModel
-	} else if clientModel == strings.TrimSpace(record.RequestedModel) && strings.TrimSpace(record.Model) != "" {
-		keyTarget = strings.TrimSpace(record.Model)
-	}
-	var groupID *int64
-	if record.GroupID > 0 {
-		value := record.GroupID
-		groupID = &value
-	}
-	routingModel, err := s.ResolveOpenAIWSRoutingModelForAccount(
-		ctx,
-		groupID,
-		account,
-		keyTarget,
-		OpenAIEndpointCapabilityLive,
-	)
-	if err != nil {
-		return payload, "", nil, err
-	}
-	upstreamModel := strings.TrimSpace(resolveOpenAIAccountUpstreamModelForRequest(account, routingModel, false, false))
-	if upstreamModel == "" {
-		return payload, "", nil, fmt.Errorf("live session model %s has no upstream mapping", clientModel)
-	}
-	rewritten, err = sjson.SetBytes(rewritten, "session.model", upstreamModel)
-	if err != nil {
-		return payload, "", nil, err
-	}
-	return rewritten, clientModel, []string{keyTarget, routingModel, upstreamModel}, nil
+	return gatewaylive.RewriteClientPayload(ctx, record, liveModelResolver{service: s, account: account}, payload)
 }
 
-// restoreLiveSidebandServerPayload 只恢复 Live 响应中的协议模型字段。
+// restoreLiveSidebandServerPayload 委托唯一的响应模型恢复实现。
 func restoreLiveSidebandServerPayload(payload []byte, clientModel string, internalModels []string) []byte {
-	clientModel = strings.TrimSpace(clientModel)
-	if clientModel == "" || len(internalModels) == 0 || !gjson.ValidBytes(payload) {
-		return payload
-	}
-	internal := make(map[string]struct{}, len(internalModels))
-	for _, model := range internalModels {
-		if model = strings.TrimSpace(model); model != "" && model != clientModel {
-			internal[model] = struct{}{}
-		}
-	}
-	rewritten := payload
-	for _, modelPath := range []string{"model", "modelVersion", "model_version", "response.model", "session.model"} {
-		value := gjson.GetBytes(rewritten, modelPath)
-		if value.Type != gjson.String {
-			continue
-		}
-		if _, ok := internal[strings.TrimSpace(value.String())]; !ok {
-			continue
-		}
-		if next, err := sjson.SetBytes(rewritten, modelPath, clientModel); err == nil {
-			rewritten = next
-		}
-	}
-	return rewritten
+	return gatewaylive.RestoreServerPayload(payload, clientModel, internalModels)
 }
 
-// ProxyLiveSideband 让认证后的客户端接管控制连接；媒体始终不经过这里。
-func (s *OpenAIGatewayService) ProxyLiveSideband(
-	ctx context.Context,
-	record *LiveCallRecord,
-	downstream *coderws.Conn,
-) error {
-	if record == nil || downstream == nil {
+// liveRuntime 复用原应用拥有的存储、租约和观察任务登记，不构造新的状态。
+func (s *OpenAIGatewayService) liveRuntime() *gatewaylive.Service {
+	return gatewaylive.New(livePorts{service: s}, liveObserverStoreRetryInterval, openAIWSMessageReadLimitBytes)
+}
+
+// ProxyLiveSideband 把 HTTP WebSocket 投影为帧端口，编排由 gateway/live 唯一持有。
+func (s *OpenAIGatewayService) ProxyLiveSideband(ctx context.Context, record *LiveCallRecord, downstream *coderws.Conn) error {
+	if downstream == nil {
 		return ErrLiveCallNotFound
 	}
-	store, err := s.liveStore()
-	if err != nil {
-		return err
-	}
-	owner := uuid.NewString()
-	claimed, err := store.ClaimLiveController(ctx, record.CallHash, LiveControllerProxy, owner)
-	if err != nil {
-		return err
-	}
-	if !claimed {
-		return ErrLiveControllerChanged
-	}
-
-	// observer 轮询到接管状态后会关闭旧控制连接；同一个 call 可重新加入。
-	time.Sleep(liveObserverPollInterval)
-	account, err := s.liveSidebandAccount(ctx, record)
-	if err != nil {
-		_, _ = store.ReleaseLiveController(context.Background(), record.CallHash, owner)
-		go s.observeLiveCall(record)
-		return err
-	}
-	upstream, err := s.dialLiveSidebandForAccount(ctx, record, account)
-	if err != nil {
-		_, _ = store.ReleaseLiveController(context.Background(), record.CallHash, owner)
-		go s.observeLiveCall(record)
-		return err
-	}
-	defer func() { _ = upstream.Close() }()
-	downstream.SetReadLimit(openAIWSMessageReadLimitBytes)
-
-	proxyCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	errCh := make(chan error, 2)
-	modelState := newLiveSidebandModelState(record)
-	go func() {
-		for {
-			messageType, payload, readErr := downstream.Read(proxyCtx)
-			if readErr != nil {
-				errCh <- readErr
-				return
-			}
-			if messageType == coderws.MessageText {
-				rewritten, clientModel, internalModels, rewriteErr := s.rewriteLiveSidebandClientPayload(proxyCtx, record, account, payload)
-				if rewriteErr != nil {
-					errCh <- rewriteErr
-					return
-				}
-				payload = rewritten
-				if clientModel != "" {
-					modelState.update(clientModel, internalModels...)
-				}
-			}
-			if writeErr := upstream.WriteFrame(proxyCtx, messageType, payload); writeErr != nil {
-				errCh <- writeErr
-				return
-			}
-		}
-	}()
-	go func() {
-		for {
-			messageType, payload, readErr := upstream.ReadFrame(proxyCtx)
-			if readErr != nil {
-				errCh <- liveSidebandReadError(readErr)
-				return
-			}
-			if messageType == coderws.MessageText {
-				clientModel, internalModels := modelState.snapshot()
-				payload = restoreLiveSidebandServerPayload(payload, clientModel, internalModels)
-			}
-			if writeErr := downstream.Write(proxyCtx, messageType, payload); writeErr != nil {
-				errCh <- writeErr
-				return
-			}
-			if messageType == coderws.MessageText {
-				eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
-				if eventType == "session.closed" || eventType == "session.ended" {
-					errCh <- ErrLiveCallNotFound
-					return
-				}
-			}
-		}
-	}()
-
-	runErr := s.runLiveController(proxyCtx, record, upstream, errCh)
-	cancel()
-	_, _ = store.ReleaseLiveController(context.Background(), record.CallHash, owner)
-	if liveSessionEnded(runErr) || !time.Now().Before(record.ExpiresAt) {
-		s.finalizeLiveCall(record)
-		return runErr
-	}
-	go s.observeLiveCall(record)
-	return runErr
+	return s.liveRuntime().ProxyLiveSideband(ctx, record, liveDownstreamFrames{downstream})
 }
-
-// liveSessionEnded 判断控制连接的退出原因是否意味着会话已终结（应 finalize：写
-// usage log 并释放租约），而不是可以交给 observer 重连的临时错误。
-//
-// ErrLiveUnavailable 在控制循环里只会来自租约续租失败。RefreshLiveLease 的 Lua 在
-// leaseID 被 GC 后不会重新写入，重连也拿不回并发槽 —— 若按临时错误重试，会话会以
-// 约 1 秒一轮的节奏空转到 ExpiresAt，期间持着上游连接却不计入任何并发限制。
-func liveSessionEnded(err error) bool {
-	return errors.Is(err, ErrLiveCallNotFound) ||
-		errors.Is(err, ErrLiveUnavailable) ||
-		errors.Is(err, context.DeadlineExceeded)
+func liveSessionEnded(err error) bool { return gatewaylive.SessionEnded(err) }
+func (s *OpenAIGatewayService) runLiveController(ctx context.Context, record *LiveCallRecord, upstream liveFrameConn, errs <-chan error) error {
+	return s.liveRuntime().RunController(ctx, record, liveUpstreamFrames{upstream}, errs)
 }
-
-func (s *OpenAIGatewayService) runLiveController(
-	ctx context.Context,
-	record *LiveCallRecord,
-	upstream liveFrameConn,
-	errCh <-chan error,
-) error {
-	refreshTicker := time.NewTicker(liveLeaseRefreshInterval)
-	defer refreshTicker.Stop()
-	maxTimer := time.NewTimer(time.Until(record.ExpiresAt))
-	defer maxTimer.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return context.Cause(ctx)
-		case err := <-errCh:
-			return err
-		case <-maxTimer.C:
-			closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			_ = upstream.WriteFrame(closeCtx, coderws.MessageText, []byte(`{"type":"session.close"}`))
-			cancel()
-			return context.DeadlineExceeded
-		case <-refreshTicker.C:
-			if !s.refreshLiveLease(record) {
-				return ErrLiveUnavailable
-			}
-		}
-	}
-}
-
 func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
-	if record == nil {
-		return
-	}
-	owner := uuid.NewString()
-	ctx, finish, ok := s.beginLiveObserver(owner)
-	if !ok {
-		return
-	}
-	defer finish()
-
-	store, err := s.liveStore()
-	if err != nil {
-		return
-	}
-	claimed, claimErr := store.ClaimLiveController(ctx, record.CallHash, LiveControllerObserver, owner)
-	if ctx.Err() != nil {
-		return
-	}
-	if claimErr != nil {
-		// 无法确认控制权时保留会话快照，到期后幂等 finalize，避免租约和用量记录静默丢失。
-		s.finalizeLiveCallAfterExpiryContext(ctx, record)
-		return
-	}
-	if !claimed {
-		return
-	}
-	storeErrStreak := 0
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		latest, getErr := store.GetLiveCall(ctx, record.CallHash)
-		if ctx.Err() != nil {
-			return
-		}
-		if getErr != nil {
-			if errors.Is(getErr, ErrLiveCallNotFound) {
-				return
-			}
-			// Redis 抖动不表示控制权已变化；有限重试后按会话到期时间兜底 finalize。
-			storeErrStreak++
-			if storeErrStreak >= liveObserverStoreRetryLimit {
-				s.finalizeLiveCallAfterExpiryContext(ctx, record)
-				return
-			}
-			if !waitLiveObserver(ctx, liveObserverStoreRetryInterval) {
-				return
-			}
-			continue
-		}
-		storeErrStreak = 0
-		record = latest
-		if record.Controller != LiveControllerObserver {
-			return
-		}
-		if !time.Now().Before(record.ExpiresAt) {
-			s.finalizeLiveCall(record)
-			return
-		}
-		upstream, dialErr := s.dialLiveSideband(ctx, record)
-		if ctx.Err() != nil {
-			if upstream != nil {
-				_ = upstream.Close()
-			}
-			return
-		}
-		if dialErr != nil {
-			if !s.waitForLiveObserverRetryContext(ctx, record) {
-				return
-			}
-			continue
-		}
-		runErr := s.runLiveObserverConnectionContext(ctx, record, upstream)
-		_ = upstream.Close()
-		if ctx.Err() != nil {
-			return
-		}
-		if errors.Is(runErr, ErrLiveControllerChanged) {
-			return
-		}
-		if liveSessionEnded(runErr) {
-			s.finalizeLiveCall(record)
-			return
-		}
-		if !s.waitForLiveObserverRetryContext(ctx, record) {
-			return
-		}
-	}
-}
-
-func (s *OpenAIGatewayService) runLiveObserverConnectionContext(parent context.Context, record *LiveCallRecord, upstream liveFrameConn) error {
-	ctx, cancel := context.WithCancel(parent)
-	defer cancel()
-	frameCh := make(chan []byte, 1)
-	errCh := make(chan error, 1)
-	go func() {
-		for {
-			messageType, payload, err := upstream.ReadFrame(ctx)
-			if err != nil {
-				select {
-				case errCh <- liveSidebandReadError(err):
-				case <-ctx.Done():
-				}
-				return
-			}
-			if messageType == coderws.MessageText {
-				select {
-				case frameCh <- payload:
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
-	}()
-	refreshTicker := time.NewTicker(liveLeaseRefreshInterval)
-	defer refreshTicker.Stop()
-	controllerTicker := time.NewTicker(liveObserverPollInterval)
-	defer controllerTicker.Stop()
-	maxTimer := time.NewTimer(time.Until(record.ExpiresAt))
-	defer maxTimer.Stop()
-	store, _ := s.liveStore()
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case payload := <-frameCh:
-			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
-			if eventType == "session.closed" || eventType == "session.ended" {
-				return ErrLiveCallNotFound
-			}
-		case err := <-errCh:
-			return err
-		case <-controllerTicker.C:
-			controller, err := store.GetLiveController(context.Background(), record.CallHash)
-			if err != nil {
-				return err
-			}
-			if controller != LiveControllerObserver {
-				return ErrLiveControllerChanged
-			}
-		case <-refreshTicker.C:
-			if !s.refreshLiveLease(record) {
-				return ErrLiveUnavailable
-			}
-		case <-maxTimer.C:
-			closeCtx, closeCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			_ = upstream.WriteFrame(closeCtx, coderws.MessageText, []byte(`{"type":"session.close"}`))
-			closeCancel()
-			return context.DeadlineExceeded
-		}
-	}
+	s.liveRuntime().Observe(record)
 }
 
 func (s *OpenAIGatewayService) waitForLiveObserverRetry(record *LiveCallRecord) bool {
-	return s.waitForLiveObserverRetryContext(context.Background(), record)
-}
-func (s *OpenAIGatewayService) waitForLiveObserverRetryContext(ctx context.Context, record *LiveCallRecord) bool {
-	timer := time.NewTimer(time.Second)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-	}
-	store, err := s.liveStore()
-	if err != nil {
-		return false
-	}
-	controller, getErr := store.GetLiveController(context.Background(), record.CallHash)
-	if getErr != nil && !errors.Is(getErr, ErrLiveCallNotFound) {
-		// store 故障不等于控制权变化，交回 observer 主循环统一重试和到期兜底。
-		return true
-	}
-	// 过期不在此处判定：返回 true 让调用方回到循环顶部的过期分支，由它 finalize
-	// （写 usage log + 释放租约）。在这里直接返回 false 会让会话静默结束、不留记录。
-	return getErr == nil && controller == LiveControllerObserver
-}
-
-// finalizeLiveCallAfterExpiry 在 observer 无法读取 store 时保留最后快照，最迟在会话到期后
-// finalize；MarkLiveCallClosed 的 first 语义负责与其他恢复路径去重。
-func (s *OpenAIGatewayService) finalizeLiveCallAfterExpiryContext(ctx context.Context, record *LiveCallRecord) {
-	if record == nil {
-		return
-	}
-	if wait := time.Until(record.ExpiresAt); wait > 0 {
-		if !waitLiveObserver(ctx, wait) {
-			return
-		}
-	}
-	s.finalizeLiveCall(record)
-}
-
-func (s *OpenAIGatewayService) refreshLiveLease(record *LiveCallRecord) bool {
-	cache, err := s.liveConcurrencyCache()
-	if err != nil {
-		return false
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
-	defer cancel()
-	refreshed, err := cache.RefreshLiveLease(ctx, record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
-	return err == nil && refreshed
-}
-
-func (s *OpenAIGatewayService) releaseLiveLease(accountID, userID, apiKeyID int64, leaseID string) {
-	cache, err := s.liveConcurrencyCache()
-	if err != nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
-	defer cancel()
-	_ = cache.ReleaseLiveLease(ctx, accountID, userID, apiKeyID, leaseID)
+	return s.liveRuntime().WaitForObserverRetry(context.Background(), record)
 }
 
 func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
-	if record == nil {
-		return
-	}
-	store, err := s.liveStore()
-	if err != nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
-	first, err := store.MarkLiveCallClosed(ctx, record.CallHash, liveClosedRecordTTL)
-	cancel()
-	if err != nil || !first {
-		return
-	}
-	s.releaseLiveLease(record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
-	if s.usageLogRepo == nil {
-		return
-	}
-	duration := int(time.Since(record.CreatedAt).Milliseconds())
-	if duration < 0 {
-		duration = 0
-	}
-	inboundEndpoint := record.InboundEndpoint
-	upstreamEndpoint := "/backend-api/codex/realtime/calls"
-	userAgent := record.UserAgent
-	ipAddress := record.IPAddress
-	billingType := int8(BillingTypeBalance)
-	if record.SubscriptionID > 0 {
-		billingType = BillingTypeSubscription
-	}
-	actorUserID := record.ActorUserID
-	if actorUserID <= 0 {
-		actorUserID = record.UserID
-	}
-	// TODO(billing): Live 当前只记录零费用用量，尚未进入标准计费管道；若后续按时长
-	// 或 token 计费，应在这里接入统一扣费逻辑并补充余额与订阅模式回归测试。
-	// Live finalize 只有一次落库机会，复用批量写入与同步 Create 兜底，避免队列故障吞掉记录。
-	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, &UsageLog{
-		UserID:            actorUserID,
-		BillingUserID:     record.UserID,
-		TeamID:            liveOptionalID(record.TeamID),
-		APIKeyID:          record.APIKeyID,
-		AccountID:         record.AccountID,
-		RequestID:         record.CallHash,
-		Model:             record.Model,
-		RequestedModel:    firstNonEmpty(record.RequestedModel, record.Model),
-		UpstreamModel:     liveOptionalString(record.UpstreamModel),
-		ModelMappingChain: liveOptionalString(record.ModelMappingChain),
-		GroupID:           liveOptionalID(record.GroupID),
-		SubscriptionID:    liveOptionalID(record.SubscriptionID),
-		RateMultiplier:    1,
-		BillingType:       billingType,
-		RequestType:       RequestTypeLive,
-		DurationMs:        &duration,
-		UserAgent:         &userAgent,
-		IPAddress:         &ipAddress,
-		InboundEndpoint:   &inboundEndpoint,
-		UpstreamEndpoint:  &upstreamEndpoint,
-		CreatedAt:         record.CreatedAt,
-	}, "service.openai_live")
+	s.liveRuntime().Finalize(record)
 }
 
-// beginLiveObserver 登记本进程观察循环，关闭后不再接受新的观察者。
+// liveObserverState 投影原应用的唯一技术登记，不复制取消表或等待计数。
+func (s *OpenAIGatewayService) liveObserverState() gatewaylive.ObserverState {
+	return gatewaylive.ObserverState{Mutex: &s.liveObserverMu, Stopped: &s.liveObserverStopped, Cancels: &s.liveObserverCancels, Wait: &s.liveObserverWG}
+}
 func (s *OpenAIGatewayService) beginLiveObserver(owner string) (context.Context, func(), bool) {
-	s.liveObserverMu.Lock()
-	defer s.liveObserverMu.Unlock()
-	if s.liveObserverStopped {
-		return nil, nil, false
-	}
-	if s.liveObserverCancels == nil {
-		s.liveObserverCancels = make(map[string]context.CancelFunc)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s.liveObserverCancels[owner] = cancel
-	s.liveObserverWG.Add(1)
-	return ctx, func() {
-		cancel()
-		s.liveObserverMu.Lock()
-		delete(s.liveObserverCancels, owner)
-		s.liveObserverMu.Unlock()
-		s.liveObserverWG.Done()
-	}, true
+	return s.liveObserverState().Begin(owner)
 }
 
-// StopLiveObservers 只关闭本地观察资源，保留 Redis 会话及既有接管/到期语义。
+// StopLiveObservers 复用原应用生命周期入口；停止实现由 gateway/live 拥有。
 func (s *OpenAIGatewayService) StopLiveObservers(ctx context.Context) error {
-	s.liveObserverMu.Lock()
-	s.liveObserverStopped = true
-	for _, cancel := range s.liveObserverCancels {
-		cancel()
-	}
-	s.liveObserverMu.Unlock()
-	done := make(chan struct{})
-	go func() { s.liveObserverWG.Wait(); close(done) }()
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-func waitLiveObserver(ctx context.Context, delay time.Duration) bool {
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return true
-	}
+	return s.liveObserverState().Stop(ctx)
 }

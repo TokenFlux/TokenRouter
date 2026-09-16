@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"io"
 	"net/http"
 	"strings"
@@ -196,13 +197,7 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	})
 }
 
-// writeOpenAIResponsesFallbackError 以 /v1/responses 回退路径的既有错误格式回写
-// （裸 error 对象；不调用 MarkResponseCommitted，与原内联写法保持一致）。
+// writeOpenAIResponsesFallbackError 委托 HTTP Adapter，保留旧调用入口。
 func writeOpenAIResponsesFallbackError(c *gin.Context, statusCode int, errType, message string) {
-	c.JSON(statusCode, gin.H{
-		"error": gin.H{
-			"type":    errType,
-			"message": message,
-		},
-	})
+	gatewayhttp.WriteForwardResponsesFallbackError(c, statusCode, errType, message)
 }

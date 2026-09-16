@@ -124,7 +124,7 @@ func isGrokClaudeDesktopResponsesCacheRequest(c *gin.Context) bool {
 		return false
 	}
 
-	if !claudeCodeUAPattern.MatchString(strings.TrimSpace(c.GetHeader("User-Agent"))) {
+	if !NewClaudeCodeValidator().ValidateUserAgent(strings.TrimSpace(c.GetHeader("User-Agent"))) {
 		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(c.GetHeader("X-App"))) {

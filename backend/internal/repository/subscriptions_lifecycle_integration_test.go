@@ -4,9 +4,10 @@ package repository
 
 import (
 	"context"
-	egressredis "github.com/TokenFlux/TokenRouter/internal/egress/rediscache"
 	"testing"
 	"time"
+
+	egressredis "github.com/TokenFlux/TokenRouter/internal/egress/rediscache"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,11 @@ func TestSubscriptionsWaitForInFlightCallback(t *testing.T) {
 		name, channel string
 		make          func(*redis.Client) stoppableTLSFingerprintCache
 	}{
-		{"error", errorPassthroughPubSubKey, func(c *redis.Client) stoppableTLSFingerprintCache { return &errorPassthroughCache{rdb: c} }},
+		{"error", "error_passthrough_rules_updated", func(c *redis.Client) stoppableTLSFingerprintCache {
+			value, ok := NewErrorPassthroughCache(c).(stoppableTLSFingerprintCache)
+			require.True(t, ok)
+			return value
+		}},
 		{"profile", "tls_fingerprint_profiles_updated", func(c *redis.Client) stoppableTLSFingerprintCache {
 			value, ok := egressredis.NewTLSFingerprintProfileCache(c).(stoppableTLSFingerprintCache)
 			require.True(t, ok)

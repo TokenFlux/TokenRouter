@@ -1,75 +1,22 @@
-// Package model 定义服务层使用的数据模型。
+// 错误规则值类型由 gateway 唯一拥有；旧 model 只保留兼容名称。
 package model
 
-import (
-	"github.com/TokenFlux/TokenRouter/internal/egress"
-	"time"
-)
+import "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 
-// ErrorPassthroughRule 全局错误透传规则
-// 用于控制上游错误如何返回给客户端
-type ErrorPassthroughRule struct {
-	ID              int64     `json:"id"`
-	Name            string    `json:"name"`             // 规则名称
-	Enabled         bool      `json:"enabled"`          // 是否启用
-	Priority        int       `json:"priority"`         // 优先级（数字越小优先级越高）
-	ErrorCodes      []int     `json:"error_codes"`      // 匹配的错误码列表（OR关系）
-	Keywords        []string  `json:"keywords"`         // 匹配的关键词列表（OR关系）
-	MatchMode       string    `json:"match_mode"`       // "any"(任一条件) 或 "all"(所有条件)
-	Platforms       []string  `json:"platforms"`        // 适用平台列表
-	PassthroughCode bool      `json:"passthrough_code"` // 是否透传原始状态码
-	ResponseCode    *int      `json:"response_code"`    // 自定义状态码（passthrough_code=false 时使用）
-	PassthroughBody bool      `json:"passthrough_body"` // 是否透传原始错误信息
-	CustomMessage   *string   `json:"custom_message"`   // 自定义错误信息（passthrough_body=false 时使用）
-	SkipMonitoring  bool      `json:"skip_monitoring"`  // 是否跳过运维监控记录
-	Description     *string   `json:"description"`      // 规则描述
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
-}
+type ErrorPassthroughRule = errorpolicy.ErrorPassthroughRule
 
-// MatchModeAny 表示任一条件匹配即可
-const MatchModeAny = "any"
+const MatchModeAny = errorpolicy.MatchModeAny
+const MatchModeAll = errorpolicy.MatchModeAll
+const PlatformAnthropic = errorpolicy.PlatformAnthropic
+const PlatformOpenAI = errorpolicy.PlatformOpenAI
+const PlatformGemini = errorpolicy.PlatformGemini
+const PlatformAntigravity = errorpolicy.PlatformAntigravity
+const PlatformQoder = errorpolicy.PlatformQoder
+const PlatformGrok = errorpolicy.PlatformGrok
+const PlatformKimi = errorpolicy.PlatformKimi
+const PlatformZhipu = errorpolicy.PlatformZhipu
+const PlatformDeepseek = errorpolicy.PlatformDeepseek
 
-// MatchModeAll 表示所有条件都必须匹配
-const MatchModeAll = "all"
+func AllPlatforms() []string { return errorpolicy.AllPlatforms() }
 
-// 支持的平台常量
-const (
-	PlatformAnthropic   = "anthropic"
-	PlatformOpenAI      = "openai"
-	PlatformGemini      = "gemini"
-	PlatformAntigravity = "antigravity"
-	PlatformQoder       = "qoder"
-	PlatformGrok        = "grok"
-	PlatformKimi        = "kimi"
-	PlatformZhipu       = "zhipu"
-	PlatformDeepseek    = "deepseek"
-)
-
-// AllPlatforms 返回所有支持的平台列表
-func AllPlatforms() []string {
-	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformQoder, PlatformGrok, PlatformKimi, PlatformZhipu, PlatformDeepseek}
-}
-
-// Validate 验证规则配置的有效性
-func (r *ErrorPassthroughRule) Validate() error {
-	if r.Name == "" {
-		return &ValidationError{Field: "name", Message: "name is required"}
-	}
-	if r.MatchMode != MatchModeAny && r.MatchMode != MatchModeAll {
-		return &ValidationError{Field: "match_mode", Message: "match_mode must be 'any' or 'all'"}
-	}
-	// 至少需要配置一个匹配条件（错误码或关键词）
-	if len(r.ErrorCodes) == 0 && len(r.Keywords) == 0 {
-		return &ValidationError{Field: "conditions", Message: "at least one error_code or keyword is required"}
-	}
-	if !r.PassthroughCode && (r.ResponseCode == nil || *r.ResponseCode <= 0) {
-		return &ValidationError{Field: "response_code", Message: "response_code is required when passthrough_code is false"}
-	}
-	if !r.PassthroughBody && (r.CustomMessage == nil || *r.CustomMessage == "") {
-		return &ValidationError{Field: "custom_message", Message: "custom_message is required when passthrough_body is false"}
-	}
-	return nil
-}
-
-type ValidationError = egress.ValidationError
+type ValidationError = errorpolicy.ValidationError

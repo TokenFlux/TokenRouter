@@ -1,0 +1,16 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=10m",
+    "./internal/gateway/text/...",
+    "./internal/gateway/promptpolicy/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.761,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/text-loop-lint.log.gz"
+}

@@ -2107,8 +2107,7 @@ func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputAppliesPassthroug
 	rule.Platforms = []string{PlatformOpenAI}
 	rule.PassthroughBody = true
 	rule.CustomMessage = nil
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{rule})
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{rule})
 	BindErrorPassthroughService(c, ruleSvc)
 
 	upstreamMessage := "Your input exceeds the context window of this model. Please adjust your input and try again."
@@ -2650,8 +2649,7 @@ func TestOpenAIStreamingPassthroughContextWindowResponseFailedBeforeOutputApplie
 	rule.Platforms = []string{PlatformOpenAI}
 	rule.PassthroughBody = true
 	rule.CustomMessage = nil
-	ruleSvc := &ErrorPassthroughService{}
-	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{rule})
+	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{rule})
 	BindErrorPassthroughService(c, ruleSvc)
 
 	upstreamMessage := "Your input exceeds the context window of this model. Please adjust your input and try again."

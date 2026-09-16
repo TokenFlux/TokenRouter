@@ -7,6 +7,10 @@ import (
 	"strings"
 	"time"
 
+	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
+
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -46,47 +50,7 @@ const (
 
 type OpenAIImagesUpload = nativeupstream.ImageUpload
 
-type OpenAIImagesRequest struct {
-	Endpoint           string
-	ContentType        string
-	Multipart          bool
-	Model              string
-	ExplicitModel      bool
-	Prompt             string
-	Stream             bool
-	N                  int
-	Size               string
-	ExplicitSize       bool
-	SizeTier           string
-	ResponseFormat     string
-	Quality            string
-	Background         string
-	OutputFormat       string
-	Moderation         string
-	InputFidelity      string
-	Style              string
-	OutputCompression  *int
-	PartialImages      *int
-	HasMask            bool
-	HasNativeOptions   bool
-	RequiredCapability OpenAIImagesCapability
-	InputImageURLs     []string
-	MaskImageURL       string
-	Uploads            []OpenAIImagesUpload
-	MaskUpload         *OpenAIImagesUpload
-	Body               []byte
-	bodyHash           string
-}
-
-func (r *OpenAIImagesRequest) ModerationBody() []byte {
-	return nativeImageRequestView(r).ModerationBody()
-}
-
-func (r *OpenAIImagesRequest) IsEdits() bool { return nativeImageRequestView(r).IsEdits() }
-
-func (r *OpenAIImagesRequest) StickySessionSeed() string {
-	return nativeImageRequestView(r).StickySessionSeed()
-}
+type OpenAIImagesRequest = gatewaymedia.ImageRequest
 
 // ParseOpenAIImagesRequest 解析请求并按请求中的模型执行严格校验，供不涉及渠道映射的调用方使用。
 func (s *OpenAIGatewayService) ParseOpenAIImagesRequest(c *gin.Context, body []byte) (*OpenAIImagesRequest, error) {
@@ -102,96 +66,25 @@ func (s *OpenAIGatewayService) parseOpenAIImagesRequest(c *gin.Context, body []b
 	if c == nil || c.Request == nil {
 		return nil, fmt.Errorf("missing request context")
 	}
-	value, err := nativeupstream.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body)
-	if err != nil {
-		return nil, err
-	}
-	req := &OpenAIImagesRequest{}
-	applyNativeImageRequest(req, value)
-	req.SizeTier = normalizeOpenAIImageSizeTier(req.Size)
-	req.RequiredCapability = classifyOpenAIImagesCapability(req)
-	if validateModel {
-		if err := req.ValidateRoutingModel(req.Model); err != nil {
-			return nil, err
-		}
-	}
-	return req, nil
+	return gatewaymedia.ParseImageRequest(c.Request.URL.Path, c.GetHeader("Content-Type"), body, validateModel)
 }
 
-// ValidateRoutingModel 使用渠道映射后的模型 C 校验 Images 端点，并同步账号选择所需的图片能力。
-func (r *OpenAIImagesRequest) ValidateRoutingModel(routingModel string) error {
-	if err := validateOpenAIImagesModel(routingModel); err != nil {
-		return err
-	}
-	if r == nil {
-		return nil
-	}
-	routed := *r
-	routed.Model = strings.TrimSpace(routingModel)
-	r.RequiredCapability = classifyOpenAIImagesCapability(&routed)
-	return nil
-}
-
-func applyOpenAIImagesDefaults(req *OpenAIImagesRequest) {
-	value := nativeImageRequestView(req)
-	nativeupstream.ApplyOpenAIImagesDefaults(value)
-	applyNativeImageRequest(req, value)
-
-}
+func applyOpenAIImagesDefaults(req *OpenAIImagesRequest) { gatewaymedia.ApplyImageDefaults(req) }
 
 func isOpenAIImageGenerationModel(model string) bool {
-	return IsGPTImageGenerationModel(model) || isGrokImageGenerationModel(model)
+	return gatewaymedia.IsImageGenerationModel(model)
 }
 
-// IsGPTImageGenerationModel 判断模型是否属于 GPT 原生生图模型族。
 func IsGPTImageGenerationModel(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	return strings.HasPrefix(model, "gpt-image-")
+	return gatewaymedia.IsGPTImageGenerationModel(model)
 }
 
 func isGrokImageGenerationModel(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	return model == "grok-imagine" ||
-		model == "grok-imagine-edit" ||
-		strings.HasPrefix(model, "grok-imagine-image")
-}
-
-func validateOpenAIImagesModel(model string) error {
-	model = strings.TrimSpace(model)
-	if isOpenAIImageGenerationModel(model) {
-		return nil
-	}
-	if model == "" {
-		return fmt.Errorf("images endpoint requires an image model")
-	}
-	return fmt.Errorf("images endpoint requires an image model, got %q", model)
-}
-
-func classifyOpenAIImagesCapability(req *OpenAIImagesRequest) OpenAIImagesCapability {
-	if req == nil {
-		return OpenAIImagesCapabilityNative
-	}
-	if req.ExplicitModel || req.ExplicitSize {
-		return OpenAIImagesCapabilityNative
-	}
-	model := strings.ToLower(strings.TrimSpace(req.Model))
-	if !strings.HasPrefix(model, "gpt-image-") {
-		return OpenAIImagesCapabilityNative
-	}
-	if req.Stream || req.N != 1 || req.HasMask || req.HasNativeOptions {
-		return OpenAIImagesCapabilityNative
-	}
-	if req.IsEdits() && !req.Multipart {
-		return OpenAIImagesCapabilityNative
-	}
-	if req.ResponseFormat != "" && req.ResponseFormat != "b64_json" {
-		return OpenAIImagesCapabilityNative
-	}
-	return OpenAIImagesCapabilityBasic
+	return gatewaymedia.IsGrokImageGenerationModel(model)
 }
 
 func normalizeOpenAIImageSizeTier(size string) string {
-	return NormalizeImageBillingTierOrDefault(size)
+	return gatewaymedia.NormalizeImageSizeTier(size)
 }
 
 func (s *OpenAIGatewayService) ForwardImages(
@@ -206,14 +99,14 @@ func (s *OpenAIGatewayService) ForwardImages(
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
-	switch account.Type {
-	case AccountTypeAPIKey:
-		return s.forwardOpenAIImagesAPIKey(ctx, c, account, body, parsed, channelMappedModel)
-	case AccountTypeOAuth, AccountTypeSetupToken:
-		return s.forwardOpenAIImagesOAuth(ctx, c, account, parsed, channelMappedModel)
-	default:
-		return nil, fmt.Errorf("unsupported account type: %s", account.Type)
+	oauth, err := gatewaymedia.ImageExecutionPath(account.Type)
+	if err != nil {
+		return nil, err
 	}
+	if oauth {
+		return s.forwardOpenAIImagesOAuth(ctx, c, account, parsed, channelMappedModel)
+	}
+	return s.forwardOpenAIImagesAPIKey(ctx, c, account, body, parsed, channelMappedModel)
 }
 
 func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
@@ -226,15 +119,10 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
 ) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
-	requestModel := strings.TrimSpace(parsed.Model)
-	if mapped := strings.TrimSpace(channelMappedModel); mapped != "" {
-		requestModel = mapped
-	}
-	if err := validateOpenAIImagesModel(requestModel); err != nil {
-		return nil, err
-	}
-	upstreamModel := resolveOpenAIAccountUpstreamModelForRequest(account, requestModel, false, false)
-	if err := validateOpenAIImagesModel(upstreamModel); err != nil {
+	requestModel, upstreamModel, err := gatewaymedia.ResolveImageModels(parsed.Model, channelMappedModel, "", func(model string) string {
+		return resolveOpenAIAccountUpstreamModelForRequest(account, model, false, false)
+	})
+	if err != nil {
 		return nil, err
 	}
 	SetOpsUpstreamModel(c, upstreamModel)
@@ -276,7 +164,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	options.Backfill = func(body []byte) []byte { return s.backfillOpenAIImagesB64JSON(upstreamCtx, account, parsed, body) }
 	var legacyHTTPResult *OpenAIForwardResult
 	httpFailure := false
-	target := &nativeopenai.ImagesTarget{
+	target := &mediaprovider.ImagesOptions{
 
 		AccountID: account.ID,
 		OAuth:     false,
@@ -318,58 +206,64 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 
 		HTTPError: func(resp *http.Response, respBody []byte) error {
 			httpFailure = true
+			upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+			shouldDisable := false
+			_, err := gatewaymedia.ResolveImageFailure(gatewaymedia.ImageFailurePorts{
+				Failover: func() bool { return s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) },
+				Observe: func() {
+					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 
-			upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
-			upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-			if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+						Platform: account.Platform,
 
-					Platform: account.Platform,
+						AccountID: account.ID,
 
-					AccountID: account.ID,
+						AccountName: account.Name,
 
-					AccountName: account.Name,
+						UpstreamStatusCode: resp.StatusCode,
 
-					UpstreamStatusCode: resp.StatusCode,
+						UpstreamRequestID: resp.Header.Get("x-request-id"),
 
-					UpstreamRequestID: resp.Header.Get("x-request-id"),
+						UpstreamURL: safeUpstreamURL(upstreamReq.URL.String()),
 
-					UpstreamURL: safeUpstreamURL(upstreamReq.URL.String()),
+						Kind: "failover",
 
-					Kind: "failover",
-
-					Message: upstreamMsg,
-				})
-				shouldDisable := s.handleFailoverSideEffects(upstreamCtx, resp, account, respBody, upstreamModel)
-				retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
-				if account.IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
-					return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMsg, shouldDisable, retryableOnSameAccount)
-				}
-				if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
-					return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, retryableOnSameAccount)
-				}
-				return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
-			}
-			var failure error
-			legacyHTTPResult, failure = s.handleOpenAIImagesErrorResponse(upstreamCtx, resp, c, account, forwardBody, upstreamModel)
-			return failure
-
+						Message: upstreamMsg,
+					})
+				},
+				ApplyPolicy: func() bool {
+					shouldDisable = s.handleFailoverSideEffects(upstreamCtx, resp, account, respBody, upstreamModel)
+					return false
+				},
+				NewFailover: func() error {
+					retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
+					if account.IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
+						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMsg, shouldDisable, retryableOnSameAccount)
+					}
+					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
+						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, retryableOnSameAccount)
+					}
+					return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
+				},
+				Handle: func() error {
+					var failure error
+					legacyHTTPResult, failure = s.handleOpenAIImagesErrorResponse(upstreamCtx, resp, c, account, forwardBody, upstreamModel)
+					return failure
+				},
+			})
+			return err
 		},
 	}
 	protocolID := protocol.ProtocolImagesGenerations
 	if parsed.IsEdits() {
 		protocolID = protocol.ProtocolImagesEdits
 	}
-	result, err := (nativeopenai.ImagesExecutor{}).Execute(upstreamCtx, nativeupstream.AttemptInput{Protocol: protocolID, ResponseModel: requestModel, Stream: parsed.Stream, Target: target}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	result, err := (mediaprovider.Images{Options: *target}).Execute(upstreamCtx, nativeupstream.AttemptInput{Protocol: protocolID, ResponseModel: requestModel, Stream: parsed.Stream}, gatewayhttp.ResponseSink{Writer: c.Writer})
 	if httpFailure {
 		return legacyHTTPResult, err
 	}
-	if err != nil && (!parsed.Stream || result.ObservedImages <= 0) {
+	imageCount, retain := gatewaymedia.ImageOutcome(parsed.Stream, false, isEventStreamResponse(result.UpstreamHeaders), parsed.N, result.ObservedImages, err)
+	if !retain {
 		return nil, err
-	}
-	imageCount := result.ObservedImages
-	if err == nil && (!parsed.Stream || !isEventStreamResponse(result.UpstreamHeaders)) && imageCount <= 0 {
-		imageCount = parsed.N
 	}
 	return openAIImagesForwardResult(result, parsed, imageCount), err
 }

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/gateway/...",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/handler",
+    "./internal/app",
+    "-run",
+    "SessionIsolation|DigestSession|GatewayCache|Live|ReasoningContent|SessionPreemption|OpenAIWSStateStore|EncryptedContent|BindingCapacity"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.517,
+  "pass": 147,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/session-state-unit.log.gz"
+}

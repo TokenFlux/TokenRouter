@@ -1,0 +1,209 @@
+{
+  "normal": {
+    "exit": 0,
+    "test_events": {
+      "pass": 7153,
+      "skip": 2
+    },
+    "failures": [],
+    "skips": [
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      }
+    ]
+  },
+  "unit-race": {
+    "exit": 0,
+    "test_events": {
+      "pass": 2176,
+      "skip": 1
+    },
+    "failures": [],
+    "skips": [
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      }
+    ]
+  },
+  "integration-race": {
+    "exit": 0,
+    "test_events": {
+      "pass": 36
+    },
+    "failures": [],
+    "skips": []
+  },
+  "original-repro": {
+    "exit": 1,
+    "test_events": {
+      "fail": 7
+    },
+    "failures": [
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningWorkerStopWaitsInline"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningWorkerStartAfterStop"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleOldReadAfterUpdate"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership/input"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership/output"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleStopCancelsLoad"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": null
+      }
+    ],
+    "skips": []
+  },
+  "live-repro": {
+    "exit": 1,
+    "test_events": {
+      "fail": 1
+    },
+    "failures": [
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningLiveHandoffCancellation"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": null
+      }
+    ],
+    "skips": []
+  },
+  "fixed-repro-race": {
+    "exit": 1,
+    "test_events": {
+      "fail": 24
+    },
+    "failures": [
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningWorkerStopWaitsInline"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningWorkerStartAfterStop"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleOldReadAfterUpdate"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership/input"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership/output"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleStopCancelsLoad"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningLiveHandoffCancellation"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningWorkerStopWaitsInline"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningWorkerStartAfterStop"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleOldReadAfterUpdate"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership/input"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership/output"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleStopCancelsLoad"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningLiveHandoffCancellation"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningWorkerStopWaitsInline"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningWorkerStartAfterStop"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleOldReadAfterUpdate"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership/input"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership/output"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleSnapshotOwnership"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningRuleStopCancelsLoad"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": "TestS11PlanningLiveHandoffCancellation"
+      },
+      {
+        "package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "test": null
+      }
+    ],
+    "skips": []
+  }
+}

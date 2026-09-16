@@ -1,6 +1,7 @@
 package service
 
 import (
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -92,54 +93,8 @@ func (s *GatewayService) applyClaudeCodeOAuthMimicryToBody(
 	systemRaw any,
 	model string,
 ) []byte {
-	if account == nil || !account.IsOAuth() || len(body) == 0 {
-		return body
-	}
-
-	systemPromptInjectionEnabled, systemPrompt, systemPromptBlocks := s.claudeOAuthSystemPromptInjectionSettings(ctx)
-	systemRewritten := false
-	if systemPromptInjectionEnabled {
-		systemPromptBlocks = claudeOAuthSystemPromptBlocksForModel(model, systemPromptBlocks)
-		body = rewriteSystemForNonClaudeCodeWithPromptBlocks(body, normalizeSystemParam(systemRaw), systemPrompt, systemPromptBlocks)
-		systemRewritten = true
-	}
-
-	normalizeOpts := claudeOAuthNormalizeOptions{StripSystemCacheControl: !systemRewritten}
-
-	if s.identityService != nil && c != nil && c.Request != nil {
-		if fp, err := s.identityService.GetOrCreateFingerprint(ctx, account.ID, c.Request.Header); err == nil && fp != nil {
-			mimicMPT := false
-			if s.settingService != nil {
-				_, mimicMPT, _ = s.settingService.GetGatewayForwardingSettings(ctx)
-			}
-			if !mimicMPT {
-				if uid := s.buildOAuthMetadataUserIDFromBody(ctx, account, fp, body); uid != "" {
-					normalizeOpts.InjectMetadata = true
-					normalizeOpts.MetadataUserID = uid
-				}
-			}
-		}
-	}
-
-	body, _ = normalizeClaudeOAuthRequestBody(body, model, normalizeOpts)
-
-	// Phase D+E+F: messages cache 策略 + 工具名混淆 + tools[-1] 断点
-	// 对齐 Parrot transform_request 里剩余的字段级改写。顺序有语义约束：
-	//   1) messages cache：仅在配置开启时清除客户端断点并注入代理断点
-	//   2) tool rewrite：最后改 tools[*].name / tool_choice.name 并在 tools[-1]
-	//      上打断点；mapping 存入 gin.Context 供响应侧 bytes.Replace 还原。
-	body = s.rewriteMessageCacheControlIfEnabled(ctx, body)
-
-	if rw := buildToolNameRewriteFromBody(body); rw != nil {
-		body = applyToolNameRewriteToBody(body, rw)
-		if c != nil {
-			c.Set(toolNameRewriteKey, rw)
-		}
-	} else {
-		body = applyToolsLastCacheBreakpoint(body)
-	}
-
-	return body
+	adapter := &mimicExecutionAdapter{messageExecutionAdapter: newMessageExecutionAdapter(s, c, account), systemRaw: systemRaw}
+	return forwardcore.Mimic(ctx, adapter, account != nil && account.IsOAuth(), body, model)
 }
 
 // buildOAuthMetadataUserIDFromBody 是 buildOAuthMetadataUserID 的变体，

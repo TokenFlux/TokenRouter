@@ -163,7 +163,7 @@ func TestOpenAIGatewayHandlerResponses_ImageIntentRejectedByImageConcurrency(t *
 		gatewayService:          &service.OpenAIGatewayService{},
 		billingCacheService:     &service.BillingCacheService{},
 		apiKeyService:           &service.APIKeyService{},
-		concurrencyHelper:       &ConcurrencyHelper{concurrencyService: service.NewConcurrencyService(&helperConcurrencyCacheStub{userSeq: []bool{true}})},
+		concurrencyHelper:       NewConcurrencyHelper(service.NewConcurrencyService(&helperConcurrencyCacheStub{userSeq: []bool{true}}), SSEPingFormatNone, 0),
 		errorPassthroughService: nil,
 		cfg: &config.Config{Gateway: config.GatewayConfig{ImageConcurrency: config.ImageConcurrencyConfig{
 			Enabled:               true,
@@ -208,7 +208,7 @@ func TestOpenAIGatewayHandlerResponses_TextOnlyNotRejectedByImageConcurrency(t *
 		gatewayService:      &service.OpenAIGatewayService{},
 		billingCacheService: service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil),
 		apiKeyService:       &service.APIKeyService{},
-		concurrencyHelper:   &ConcurrencyHelper{concurrencyService: service.NewConcurrencyService(&helperConcurrencyCacheStub{userSeq: []bool{true}})},
+		concurrencyHelper:   NewConcurrencyHelper(service.NewConcurrencyService(&helperConcurrencyCacheStub{userSeq: []bool{true}}), SSEPingFormatNone, 0),
 		cfg: &config.Config{Gateway: config.GatewayConfig{ImageConcurrency: config.ImageConcurrencyConfig{
 			Enabled:               true,
 			MaxConcurrentRequests: 1,

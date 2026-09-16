@@ -4,22 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"go.uber.org/zap"
+
 	"time"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // forwardResponsesViaRawChatCompletions 将 `/v1/responses` 入站请求桥接到
@@ -31,141 +29,9 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	body []byte,
 	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
 ) (*OpenAIForwardResult, error) {
-	startTime := time.Now()
-
-	var responsesReq protocolopenai.ResponsesRequest
-	if err := json.Unmarshal(body, &responsesReq); err != nil {
-		writeOpenAIResponsesFallbackError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
-		return nil, fmt.Errorf("parse responses request: %w", err)
-	}
-	originalModel := strings.TrimSpace(responsesReq.Model)
-	if originalModel == "" {
-		writeOpenAIResponsesFallbackError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
-		return nil, fmt.Errorf("missing model in request")
-	}
-
-	clientStream := responsesReq.Stream
-	serviceTier := extractOpenAIServiceTierFromBody(body)
-	// custom 工具（如 codex 的 exec）降级为 function 工具转发，回程需按名字还原为
-	// custom_tool_call 项，先记下名字集合；tool_search 工具同理，回程还原为
-	// tool_search_call 项；namespace 子工具（如 MCP 工具）摊平转发，回程按映射还原
-	// 为带 namespace 字段的 function_call 项。
-	effectiveTools, err := apicompat.EffectiveResponsesTools(&responsesReq)
-	if err != nil {
-		writeOpenAIResponsesFallbackError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return nil, fmt.Errorf("resolve responses tools: %w", err)
-	}
-	customTools := apicompat.CustomToolNames(effectiveTools)
-	functionTools := apicompat.FunctionToolNames(effectiveTools)
-	toolSearch := apicompat.HasToolSearchTool(effectiveTools)
-	namespaceTools := apicompat.NamespaceToolNames(effectiveTools)
-
-	// 带明文 summary 的历史 reasoning 顺手刷新缓存，帮助 encrypted-only 副本自愈。
-	s.recacheReasoningItemsFromInput(responsesReq.Input)
-	chatReq, err := apicompat.ResponsesToChatCompletionsRequestWithOptions(&responsesReq, &apicompat.ResponsesToChatOptions{
-		ReasoningContentByID: s.reasoningContentByID,
-	})
-	if err != nil {
-		writeOpenAIResponsesFallbackError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
-		return nil, fmt.Errorf("convert responses to chat completions: %w", err)
-	}
-
-	billingModel := resolveOpenAIForwardModel(account, originalModel, "")
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
-	chatReq.Model = upstreamModel
-	if clientStream {
-		chatReq.StreamOptions = &protocolopenai.ChatStreamOptions{IncludeUsage: true}
-	}
-
-	chatBody, err := json.Marshal(chatReq)
-	if err != nil {
-		return nil, fmt.Errorf("marshal chat completions fallback request: %w", err)
-	}
-	chatBody, err = s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, chatBody)
-	if err != nil {
-		var blocked *OpenAIFastBlockedError
-		if errors.As(err, &blocked) {
-			writeOpenAIFastPolicyBlockedResponse(c, blocked)
-		}
-		return nil, err
-	}
-	// Usage Log 以 Responses→Chat 转换和策略处理后的最终上游请求为准。
-	reasoningEffort := extractEffectiveOpenAIReasoningEffortFromBody(chatBody, body, upstreamModel, billingModel, originalModel)
-	// 国产模型没有显式 effort 档位时，thinking 启用后补默认展示值。
-	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, chatBody, billingModel)
-	if serviceTier == nil {
-		serviceTier = extractOpenAIServiceTierFromBody(chatBody)
-	}
-
-	logger.L().Debug("openai responses: forwarding via raw chat completions",
-		zap.Int64("account_id", account.ID),
-		zap.String("original_model", originalModel),
-		zap.String("billing_model", billingModel),
-		zap.String("upstream_model", upstreamModel),
-		zap.Bool("stream", clientStream),
-	)
-	SetOpsUpstreamModel(c, upstreamModel)
-
-	// 通过共享 CC 管线构造并发送上游请求。
-	apiKey, targetURL, err := s.resolveCCFallbackTarget(ctx, account)
-	if err != nil {
-		return nil, err
-	}
-	SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
-	resp, err := s.sendCCUpstreamRequest(ctx, c, account, targetURL, chatBody, clientStream, apiKey, account.GetOpenAIUserAgent(), "", tlsRouterMatch...)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 {
-		respBody, upstreamMsg := s.readOpenAIUpstreamError(resp)
-		if foErr := s.failoverOpenAIUpstreamHTTPError(ctx, c, account, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
-			return nil, foErr
-		}
-		return s.handleErrorResponse(ctx, resp, c, account, chatBody, billingModel)
-	}
-
-	if clientStream {
-		return s.streamChatCompletionsAsResponses(c, resp, originalModel, customTools, functionTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
-	}
-	return s.bufferChatCompletionsAsResponses(c, resp, originalModel, customTools, functionTools, toolSearch, namespaceTools, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
-}
-
-func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
-	c *gin.Context,
-	resp *http.Response,
-	originalModel string,
-	customTools map[string]bool,
-	functionTools map[string]bool,
-	toolSearch bool,
-	namespaceTools map[string]apicompat.NamespacedToolName,
-	billingModel string,
-	upstreamModel string,
-	reasoningEffort *string,
-	serviceTier *string,
-	startTime time.Time,
-) (*OpenAIForwardResult, error) {
-	result, err := nativeopenai.ReadCCAsResponsesBuffered(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, nil, billingModel, upstreamModel, serviceTier, writeOpenAIResponsesFallbackError), originalModel, upstreamModel, reasoningEffort, startTime, customTools, functionTools, toolSearch, namespaceTools)
-	return chatForwardResult(result, billingModel), err
-}
-
-func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
-	c *gin.Context,
-	resp *http.Response,
-	originalModel string,
-	customTools map[string]bool,
-	functionTools map[string]bool,
-	toolSearch bool,
-	namespaceTools map[string]apicompat.NamespacedToolName,
-	billingModel string,
-	upstreamModel string,
-	reasoningEffort *string,
-	serviceTier *string,
-	startTime time.Time,
-) (*OpenAIForwardResult, error) {
-	result, err := nativeopenai.ReadCCAsResponsesStreaming(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, nil, billingModel, upstreamModel, serviceTier, writeOpenAIResponsesFallbackError), originalModel, upstreamModel, reasoningEffort, startTime, customTools, functionTools, toolSearch, namespaceTools)
-	return chatForwardResult(result, billingModel), err
+	adapter := &openAIRawFallbackAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch}, kind: forward.NativeResponses}
+	result, err := forward.ResponsesViaRawChat(ctx, body, adapter)
+	return openAIForwardResultFromHTTP(result), err
 }
 
 func chatChunkStartsResponsesOutput(chunk *protocolopenai.ChatCompletionsChunk) bool {

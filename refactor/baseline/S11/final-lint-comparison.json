@@ -1,0 +1,23 @@
+[
+  {
+    "tag": "normal",
+    "baseline": 1,
+    "current": 1,
+    "added": [],
+    "removed": []
+  },
+  {
+    "tag": "unit",
+    "baseline": 284,
+    "current": 284,
+    "added": [],
+    "removed": []
+  },
+  {
+    "tag": "integration",
+    "baseline": 17,
+    "current": 17,
+    "added": [],
+    "removed": []
+  }
+]

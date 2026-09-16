@@ -133,6 +133,56 @@ func RegisterGatewayRoutes(
 	settingService *service.SettingService,
 	cfg *config.Config,
 ) {
+	// 生产使用 app 已绑定的目标 handler；手工装配的兼容测试仍复用同一实现。
+	countTokensHTTP := h.CountTokensHTTP
+	if countTokensHTTP == nil && h.Gateway != nil {
+		countTokensHTTP = h.Gateway.NewCountTokensHTTPHandler()
+	}
+	qoderCompatibleHTTP := h.QoderCompatibleHTTP
+	if qoderCompatibleHTTP == nil && h.QoderGateway != nil {
+		qoderCompatibleHTTP = h.QoderGateway.NewCompatibleHTTPHandler()
+	}
+	compatibleTextHTTP := h.CompatibleTextHTTP
+	if compatibleTextHTTP == nil && h.Gateway != nil {
+		compatibleTextHTTP = h.Gateway.NewCompatibleTextHTTPHandler()
+	}
+	geminiNativeHTTP := h.GeminiNativeHTTP
+	if geminiNativeHTTP == nil && h.Gateway != nil {
+		geminiNativeHTTP = h.Gateway.NewGeminiNativeHTTPHandler()
+	}
+	openAITextHTTP := h.OpenAITextHTTP
+	if openAITextHTTP == nil && h.OpenAIGateway != nil {
+		openAITextHTTP = h.OpenAIGateway.NewOpenAITextHTTPHandler()
+	}
+	responsesWSHTTP := h.ResponsesWSHTTP
+	if responsesWSHTTP == nil && h.OpenAIGateway != nil {
+		responsesWSHTTP = h.OpenAIGateway.NewResponsesWSHTTPHandler()
+	}
+	modelsHTTP := h.ModelsHTTP
+	if modelsHTTP == nil && h.Gateway != nil {
+		modelsHTTP = h.Gateway.NewModelsHTTPHandler()
+	}
+	messagesHTTP := h.MessagesHTTP
+	if messagesHTTP == nil && h.Gateway != nil {
+		messagesHTTP = h.Gateway.NewMessagesHTTPHandler()
+	}
+
+	mediaHTTP, auxiliaryHTTP, liveHTTP, searchHTTP := h.MediaHTTP, h.AuxiliaryHTTP, h.LiveHTTP, h.SearchHTTP
+	if h.OpenAIGateway != nil {
+		if mediaHTTP == nil {
+			mediaHTTP = h.OpenAIGateway.MediaHTTPHandler()
+		}
+		if auxiliaryHTTP == nil {
+			auxiliaryHTTP = h.OpenAIGateway.AuxiliaryHTTPHandler()
+		}
+		if liveHTTP == nil {
+			liveHTTP = h.OpenAIGateway.NewLiveHTTPHandler()
+		}
+	}
+	if searchHTTP == nil && h.Gateway != nil {
+		searchHTTP = h.Gateway.SearchHTTPHandler()
+	}
+
 	bodyLimit := middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize)
 	textBodyLimit := middleware.RequestBodyLimit(cfg.Gateway.TextMaxBodySize)
 	clientRequestID := middleware.ClientRequestID()
@@ -158,7 +208,7 @@ func RegisterGatewayRoutes(
 	}
 	responsesInputTokensHandler := func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-			h.OpenAIGateway.ResponsesInputTokens(c)
+			openAITextHTTP.ResponsesInputTokens(c)
 			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -196,19 +246,19 @@ func RegisterGatewayRoutes(
 				},
 			})
 		case service.PlatformOpenAI, service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek:
-			h.OpenAIGateway.CountTokens(c)
+			openAITextHTTP.CountTokens(c)
 		case service.PlatformGrok:
-			h.OpenAIGateway.GrokCountTokens(c)
+			openAITextHTTP.GrokCountTokens(c)
 		default:
-			h.Gateway.CountTokens(c)
+			countTokensHTTP.CountTokens(c)
 		}
 	}
 	imagesHandler := func(c *gin.Context) {
 		switch getGroupPlatform(c) {
 		case service.PlatformOpenAI:
-			h.OpenAIGateway.Images(c)
+			mediaHTTP.Images(c)
 		case service.PlatformGrok:
-			h.OpenAIGateway.GrokImages(c)
+			mediaHTTP.GrokImages(c)
 		default:
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 			c.JSON(http.StatusNotFound, gin.H{
@@ -221,7 +271,7 @@ func RegisterGatewayRoutes(
 	}
 	videoGenerationHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
-			h.OpenAIGateway.GrokVideoGeneration(c)
+			mediaHTTP.GrokVideoGeneration(c)
 			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -235,7 +285,7 @@ func RegisterGatewayRoutes(
 	videoStatusHandler := func(c *gin.Context) {
 		apiKey, _ := middleware.GetAPIKeyFromContext(c)
 		if getGroupPlatform(c) == service.PlatformGrok || (apiKey != nil && apiKey.IsComposite) {
-			h.OpenAIGateway.GrokVideoStatus(c)
+			mediaHTTP.GrokVideoStatus(c)
 			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -249,7 +299,7 @@ func RegisterGatewayRoutes(
 	videoContentHandler := func(c *gin.Context) {
 		apiKey, _ := middleware.GetAPIKeyFromContext(c)
 		if getGroupPlatform(c) == service.PlatformGrok || (apiKey != nil && apiKey.IsComposite) {
-			h.OpenAIGateway.GrokVideoContent(c)
+			mediaHTTP.GrokVideoContent(c)
 			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -262,7 +312,7 @@ func RegisterGatewayRoutes(
 	}
 	videoEditHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
-			h.OpenAIGateway.GrokVideoEdit(c)
+			mediaHTTP.GrokVideoEdit(c)
 			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -275,7 +325,7 @@ func RegisterGatewayRoutes(
 	}
 	videoExtensionHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
-			h.OpenAIGateway.GrokVideoExtension(c)
+			mediaHTTP.GrokVideoExtension(c)
 			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -311,7 +361,7 @@ func RegisterGatewayRoutes(
 	responsesWebSocketHandler := func(c *gin.Context) {
 		switch getGroupPlatform(c) {
 		case service.PlatformOpenAI, service.PlatformGrok:
-			h.OpenAIGateway.ResponsesWebSocket(c)
+			responsesWSHTTP.ResponsesWebSocket(c)
 		default:
 			responsesWebSocketUnsupported(c)
 		}
@@ -355,33 +405,33 @@ func RegisterGatewayRoutes(
 		// /v1/messages: auto-route based on group platform
 		gateway.POST("/messages", messagesProtocolGate, func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-				h.OpenAIGateway.Messages(c)
+				openAITextHTTP.Messages(c)
 				return
 			}
 			if getGroupPlatform(c) == service.PlatformQoder {
-				h.QoderGateway.Messages(c)
+				qoderCompatibleHTTP.Messages(c)
 				return
 			}
-			h.Gateway.Messages(c)
+			messagesHTTP.Messages(c)
 		})
 		// /v1/messages/count_tokens：OpenAI 桥接上游，Grok 本地估算，其余 Anthropic
 		// 兼容平台保留原处理路径。
 		gateway.POST("/messages/count_tokens", countTokensProtocolGate, countTokensHandler)
-		gateway.GET("/models", h.Gateway.Models)
+		gateway.GET("/models", modelsHTTP.Models)
 		gateway.GET("/usage", publicUsageHandler(h))
-		gateway.POST("/live", h.OpenAIGateway.Live)
-		gateway.GET("/live/:call_id", h.OpenAIGateway.LiveSideband)
+		gateway.POST("/live", liveHTTP.Live)
+		gateway.GET("/live/:call_id", liveHTTP.LiveSideband)
 		// OpenAI Responses API: auto-route based on group platform
 		gateway.POST("/responses", responsesProtocolGate, func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-				h.OpenAIGateway.Responses(c)
+				openAITextHTTP.Responses(c)
 				return
 			}
 			if getGroupPlatform(c) == service.PlatformQoder {
-				h.QoderGateway.Responses(c)
+				qoderCompatibleHTTP.Responses(c)
 				return
 			}
-			h.Gateway.Responses(c)
+			compatibleTextHTTP.Responses(c)
 		})
 		gateway.POST("/responses/*subpath", guardResponsesSubpath(withGroupClientProtocol(domain.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, func(c *gin.Context) {
 			if service.IsOpenAIResponsesInputTokensRequestPath(c) {
@@ -389,21 +439,21 @@ func RegisterGatewayRoutes(
 				return
 			}
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-				h.OpenAIGateway.Responses(c)
+				openAITextHTTP.Responses(c)
 				return
 			}
 			if getGroupPlatform(c) == service.PlatformQoder {
 				qoderResponsesSubpathUnsupported(c)
 				return
 			}
-			h.Gateway.Responses(c)
+			compatibleTextHTTP.Responses(c)
 		})))
-		gateway.POST("/alpha/search", textBodyLimit, h.OpenAIGateway.AlphaSearch)
+		gateway.POST("/alpha/search", textBodyLimit, auxiliaryHTTP.AlphaSearch)
 		gateway.GET("/responses", responsesWebSocketHandler)
 		// OpenAI Chat Completions API: auto-route based on group platform
 		gateway.POST("/chat/completions", chatCompletionsProtocolGate, func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-				h.OpenAIGateway.ChatCompletions(c)
+				openAITextHTTP.ChatCompletions(c)
 				return
 			}
 			if getGroupPlatform(c) == service.PlatformQoder {
@@ -414,7 +464,7 @@ func RegisterGatewayRoutes(
 				}
 				return
 			}
-			h.Gateway.ChatCompletions(c)
+			compatibleTextHTTP.ChatCompletions(c)
 		})
 		gateway.POST("/embeddings", textBodyLimit, func(c *gin.Context) {
 			if getGroupPlatform(c) != service.PlatformOpenAI {
@@ -427,7 +477,7 @@ func RegisterGatewayRoutes(
 				})
 				return
 			}
-			h.OpenAIGateway.Embeddings(c)
+			auxiliaryHTTP.Embeddings(c)
 		})
 		gateway.POST("/images/generations", imagesHandler)
 		gateway.POST("/images/edits", imagesHandler)
@@ -465,7 +515,7 @@ func RegisterGatewayRoutes(
 					c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
 					return
 				}
-				h.OpenAIGateway.GrokVoice(c, endpoint)
+				auxiliaryHTTP.GrokVoice(c, endpoint)
 			}
 		}
 		gateway.POST("/tts", voiceHandler("tts"))
@@ -477,7 +527,7 @@ func RegisterGatewayRoutes(
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
 				return
 			}
-			h.OpenAIGateway.GrokVoice(c, grokCustomVoiceEndpoint(c))
+			auxiliaryHTTP.GrokVoice(c, grokCustomVoiceEndpoint(c))
 		}
 		gateway.GET("/custom-voices", voiceHandler("custom-voices"))
 		gateway.GET("/custom-voices/:voice_id/audio", customVoicePathHandler)
@@ -490,7 +540,7 @@ func RegisterGatewayRoutes(
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Realtime API is not supported for this platform"}})
 				return
 			}
-			h.OpenAIGateway.GrokRealtime(c)
+			auxiliaryHTTP.GrokRealtime(c)
 		})
 		gateway.POST("/web_search", func(c *gin.Context) {
 			if getGroupPlatform(c) != service.PlatformGrok {
@@ -498,7 +548,7 @@ func RegisterGatewayRoutes(
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Web Search API is not supported for this platform"}})
 				return
 			}
-			h.Gateway.WebSearch(c)
+			searchHTTP.WebSearch(c)
 		})
 		gateway.POST("/x_search", func(c *gin.Context) {
 			if getGroupPlatform(c) != service.PlatformGrok {
@@ -506,7 +556,7 @@ func RegisterGatewayRoutes(
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "X Search API is not supported for this platform"}})
 				return
 			}
-			h.Gateway.XSearch(c)
+			searchHTTP.XSearch(c)
 		})
 	}
 
@@ -519,10 +569,10 @@ func RegisterGatewayRoutes(
 	gemini.Use(middleware.APIKeyAuthWithSubscriptionGoogle(apiKeyService, subscriptionService, cfg))
 	gemini.Use(requireGroupGoogle)
 	{
-		gemini.GET("/models", h.Gateway.GeminiV1BetaListModels)
-		gemini.GET("/models/*model", h.Gateway.GeminiV1BetaGetModel)
+		gemini.GET("/models", modelsHTTP.GeminiV1BetaListModels)
+		gemini.GET("/models/*model", modelsHTTP.GeminiV1BetaGetModel)
 		// Gin treats ":" as a param marker, but Gemini uses "{model}:{action}" in the same segment.
-		gemini.POST("/models/*modelAction", requireGeminiGenerateContentProtocol, h.Gateway.GeminiV1BetaModels)
+		gemini.POST("/models/*modelAction", requireGeminiGenerateContentProtocol, geminiNativeHTTP.GeminiV1BetaModels)
 	}
 
 	// OpenAI Responses API（不带v1前缀的别名）— auto-route based on group platform
@@ -532,7 +582,7 @@ func RegisterGatewayRoutes(
 			return
 		}
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-			h.OpenAIGateway.Responses(c)
+			openAITextHTTP.Responses(c)
 			return
 		}
 		if getGroupPlatform(c) == service.PlatformQoder {
@@ -540,17 +590,17 @@ func RegisterGatewayRoutes(
 				qoderResponsesSubpathUnsupported(c)
 				return
 			}
-			h.QoderGateway.Responses(c)
+			qoderCompatibleHTTP.Responses(c)
 			return
 		}
-		h.Gateway.Responses(c)
+		compatibleTextHTTP.Responses(c)
 	}
 	r.POST("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, responsesProtocolGate, responsesHandler)
 	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, guardResponsesSubpath(withGroupClientProtocol(domain.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, responsesHandler)))
-	r.POST("/alpha/search", textBodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, h.OpenAIGateway.AlphaSearch)
+	r.POST("/alpha/search", textBodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, auxiliaryHTTP.AlphaSearch)
 	r.GET("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, responsesWebSocketHandler)
 	// Codex 客户端会访问不带 v1 前缀的模型列表，保持与 /v1/models 相同的本地模型语义。
-	r.GET("/models", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, h.Gateway.Models)
+	r.GET("/models", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, modelsHTTP.Models)
 	r.POST("/messages/count_tokens", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, countTokensProtocolGate, countTokensHandler)
 	r.GET(
 		"/backend-api/codex/:call_id",
@@ -561,21 +611,21 @@ func RegisterGatewayRoutes(
 		endpointNorm,
 		gin.HandlerFunc(apiKeyAuth),
 		requireGroupAnthropic, requireExtendedProtocol,
-		h.OpenAIGateway.LiveSideband,
+		liveHTTP.LiveSideband,
 	)
 	codexDirect := r.Group("/backend-api/codex")
 	codexDirect.Use(bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol)
 	{
-		codexDirect.POST("/realtime/calls", h.OpenAIGateway.Live)
+		codexDirect.POST("/realtime/calls", liveHTTP.Live)
 		codexDirect.POST("/responses", responsesProtocolGate, responsesHandler)
 		codexDirect.POST("/responses/*subpath", guardResponsesSubpath(withGroupClientProtocol(domain.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, responsesHandler)))
-		codexDirect.POST("/alpha/search", textBodyLimit, h.OpenAIGateway.AlphaSearch)
+		codexDirect.POST("/alpha/search", textBodyLimit, auxiliaryHTTP.AlphaSearch)
 		codexDirect.GET("/responses", responsesWebSocketHandler)
 	}
 	// OpenAI Chat Completions API（不带v1前缀的别名）— auto-route based on group platform
 	r.POST("/chat/completions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, chatCompletionsProtocolGate, func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-			h.OpenAIGateway.ChatCompletions(c)
+			openAITextHTTP.ChatCompletions(c)
 			return
 		}
 		if getGroupPlatform(c) == service.PlatformQoder {
@@ -586,7 +636,7 @@ func RegisterGatewayRoutes(
 			}
 			return
 		}
-		h.Gateway.ChatCompletions(c)
+		compatibleTextHTTP.ChatCompletions(c)
 	})
 	r.POST("/embeddings", textBodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, func(c *gin.Context) {
 		if getGroupPlatform(c) != service.PlatformOpenAI {
@@ -599,7 +649,7 @@ func RegisterGatewayRoutes(
 			})
 			return
 		}
-		h.OpenAIGateway.Embeddings(c)
+		auxiliaryHTTP.Embeddings(c)
 	})
 	r.POST("/images/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, imagesHandler)
 	r.POST("/images/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, imagesHandler)
@@ -624,7 +674,7 @@ func RegisterGatewayRoutes(
 				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
 				return
 			}
-			h.OpenAIGateway.GrokVoice(c, endpoint)
+			auxiliaryHTTP.GrokVoice(c, endpoint)
 		}
 	}
 	r.POST("/tts", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, rootVoiceHandler("tts"))
@@ -636,7 +686,7 @@ func RegisterGatewayRoutes(
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Voice API is not supported for this platform"}})
 			return
 		}
-		h.OpenAIGateway.GrokVoice(c, grokCustomVoiceEndpoint(c))
+		auxiliaryHTTP.GrokVoice(c, grokCustomVoiceEndpoint(c))
 	}
 	r.GET("/custom-voices", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, rootVoiceHandler("custom-voices"))
 	r.GET("/custom-voices/:voice_id/audio", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, rootCustomVoicePathHandler)
@@ -649,7 +699,7 @@ func RegisterGatewayRoutes(
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Realtime API is not supported for this platform"}})
 			return
 		}
-		h.OpenAIGateway.GrokRealtime(c)
+		auxiliaryHTTP.GrokRealtime(c)
 	})
 	r.POST("/web_search", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, func(c *gin.Context) {
 		if getGroupPlatform(c) != service.PlatformGrok {
@@ -657,7 +707,7 @@ func RegisterGatewayRoutes(
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "Web Search API is not supported for this platform"}})
 			return
 		}
-		h.Gateway.WebSearch(c)
+		searchHTTP.WebSearch(c)
 	})
 	r.POST("/x_search", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, func(c *gin.Context) {
 		if getGroupPlatform(c) != service.PlatformGrok {
@@ -665,11 +715,11 @@ func RegisterGatewayRoutes(
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"type": "not_found_error", "message": "X Search API is not supported for this platform"}})
 			return
 		}
-		h.Gateway.XSearch(c)
+		searchHTTP.XSearch(c)
 	})
 
 	// Antigravity 模型列表
-	r.GET("/antigravity/models", middleware.ForcePlatform(service.PlatformAntigravity), gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, h.Gateway.AntigravityModels)
+	r.GET("/antigravity/models", middleware.ForcePlatform(service.PlatformAntigravity), gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, modelsHTTP.AntigravityModels)
 
 	// Antigravity 专用路由（仅使用 antigravity 账户，不混合调度）
 	antigravityV1 := r.Group("/antigravity/v1")
@@ -681,9 +731,9 @@ func RegisterGatewayRoutes(
 	antigravityV1.Use(gin.HandlerFunc(apiKeyAuth))
 	antigravityV1.Use(requireGroupAnthropic, requireExtendedProtocol)
 	{
-		antigravityV1.POST("/messages", messagesProtocolGate, h.Gateway.Messages)
+		antigravityV1.POST("/messages", messagesProtocolGate, messagesHTTP.Messages)
 		antigravityV1.POST("/messages/count_tokens", countTokensProtocolGate, countTokensHandler)
-		antigravityV1.GET("/models", h.Gateway.AntigravityModels)
+		antigravityV1.GET("/models", modelsHTTP.AntigravityModels)
 		antigravityV1.GET("/usage", publicUsageHandler(h))
 	}
 
@@ -696,9 +746,9 @@ func RegisterGatewayRoutes(
 	antigravityV1Beta.Use(middleware.APIKeyAuthWithSubscriptionGoogle(apiKeyService, subscriptionService, cfg))
 	antigravityV1Beta.Use(requireGroupGoogle)
 	{
-		antigravityV1Beta.GET("/models", h.Gateway.GeminiV1BetaListModels)
-		antigravityV1Beta.GET("/models/*model", h.Gateway.GeminiV1BetaGetModel)
-		antigravityV1Beta.POST("/models/*modelAction", requireGeminiGenerateContentProtocol, h.Gateway.GeminiV1BetaModels)
+		antigravityV1Beta.GET("/models", modelsHTTP.GeminiV1BetaListModels)
+		antigravityV1Beta.GET("/models/*model", modelsHTTP.GeminiV1BetaGetModel)
+		antigravityV1Beta.POST("/models/*modelAction", requireGeminiGenerateContentProtocol, geminiNativeHTTP.GeminiV1BetaModels)
 	}
 
 }

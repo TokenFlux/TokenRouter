@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/gateway/tokenestimate",
+    "./internal/gateway/text",
+    "./internal/handler",
+    "-run",
+    "Test(Estimate|OpenAIInputTokensEncoding|CountTokens|GrokCountTokens|ForwardCountTokens|OpenAICountTokens)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 8.041,
+  "pass": 16,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/count-native-http.log.gz"
+}

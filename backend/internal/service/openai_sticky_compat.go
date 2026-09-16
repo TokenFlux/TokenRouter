@@ -91,9 +91,6 @@ func (s *OpenAIGatewayService) schedulerSticky() *scheduler.StickySession {
 	}
 	return scheduler.NewStickySession(cache, scheduler.StickyOptions{Prefix: "openai:", ReadLegacy: s.openAISessionHashReadOldFallbackEnabled(), DualWriteLegacy: s.openAISessionHashDualWriteOldEnabled(), DefaultTTL: openaiStickySessionTTL}, SchedulerStickyStats())
 }
-func (s *OpenAIGatewayService) openAISessionCacheKey(hash string) string {
-	return s.schedulerSticky().SessionKey(hash)
-}
 
 func (s *OpenAIGatewayService) getStickySessionAccountID(ctx context.Context, groupID *int64, sessionHash string) (int64, error) {
 	return s.schedulerSticky().Get(ctx, derefGroupID(groupID), sessionHash, openAILegacySessionHashFromContext(ctx))

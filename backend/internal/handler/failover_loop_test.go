@@ -141,13 +141,13 @@ func TestNewFailoverState(t *testing.T) {
 		require.Empty(t, fs.SameAccountRetryCount)
 		require.Nil(t, fs.LastFailoverErr)
 		require.False(t, fs.ForceCacheBilling)
-		require.True(t, fs.hasBoundSession)
+		require.True(t, fs.HasBoundSession)
 	})
 
 	t.Run("无绑定会话", func(t *testing.T) {
 		fs := NewFailoverState(3, false)
 		require.Equal(t, 3, fs.MaxSwitches)
-		require.False(t, fs.hasBoundSession)
+		require.False(t, fs.HasBoundSession)
 	})
 
 	t.Run("零最大切换次数", func(t *testing.T) {

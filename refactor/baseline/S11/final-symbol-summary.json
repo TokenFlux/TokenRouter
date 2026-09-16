@@ -1,0 +1,23 @@
+[
+  {
+    "tag": "normal",
+    "complete": true,
+    "diagnostics": [],
+    "seconds": 4.332647875,
+    "symbols": 12131
+  },
+  {
+    "tag": "unit",
+    "complete": true,
+    "diagnostics": [],
+    "seconds": 5.007993708,
+    "symbols": 12527
+  },
+  {
+    "tag": "integration",
+    "complete": true,
+    "diagnostics": [],
+    "seconds": 4.71165575,
+    "symbols": 12177
+  }
+]

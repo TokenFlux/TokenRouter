@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/gateway/httpapi",
+    "./internal/handler",
+    "-run",
+    "Test(Gateway|Messages|Claude|Billing|UsageRecord)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.558,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/messages-http-compile.log.gz"
+}

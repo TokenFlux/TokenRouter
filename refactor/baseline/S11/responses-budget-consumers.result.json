@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/handler",
+    "./internal/service",
+    "-run",
+    "Test.*(OAuth429|FirstOutput|Failover)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 29.177,
+  "pass": 332,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/responses-budget-consumers.log.gz"
+}

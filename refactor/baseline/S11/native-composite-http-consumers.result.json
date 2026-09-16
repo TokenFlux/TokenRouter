@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/gateway/...",
+    "./internal/server/middleware",
+    "./internal/handler",
+    "./internal/app",
+    "./internal/service",
+    "-run",
+    "Composite|Model.*(Redirect|Mapping|Restore)|APIKeyAuth|QoderNativeGateway|QoderCanceled|RequestID"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 4.749,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/native-composite-http-consumers.log.gz"
+}

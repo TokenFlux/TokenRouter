@@ -3,6 +3,8 @@ package service
 import (
 	"fmt"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -596,7 +598,7 @@ const (
 	// 仅在账号 codex_cli_only 开启时生效；开启后无需逐账号配置 codex_cli_only_allowed_clients。
 	SettingKeyOpenAIAllowClaudeCodeCodexPlugin = "openai_allow_claude_code_codex_plugin"
 	// SettingKeyUserPromptReplacementConfig 用户提示词替换规则配置（JSON）。
-	SettingKeyUserPromptReplacementConfig = "user_prompt_replacement_config"
+	SettingKeyUserPromptReplacementConfig = promptpolicy.SettingKeyUserPromptReplacementConfig
 
 	// 余额不足提醒
 	SettingKeyBalanceLowNotifyEnabled     = "balance_low_notify_enabled"      // 全局开关

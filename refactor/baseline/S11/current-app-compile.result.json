@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/app",
+    "-run",
+    "^TestGatewayRequestActivity"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 8.096,
+  "pass": 2,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/current-app-compile.log.gz"
+}

@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "generate",
+    "./cmd/server"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.278,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/text-count-qoder-wire.log.gz"
+}

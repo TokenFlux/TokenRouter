@@ -1,0 +1,104 @@
+[
+  {
+    "tag": "normal",
+    "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "test": "TestRealAPI",
+    "output": "=== RUN   TestRealAPI\n    integration_test.go:20: set QODER_RUN_REAL_API_TESTS=1 to run real Qoder API integration test\n--- SKIP: TestRealAPI (0.00s)\n"
+  },
+  {
+    "tag": "normal",
+    "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "test": "TestReadLocalAuthFromDisk",
+    "output": "=== RUN   TestReadLocalAuthFromDisk\n    integration_test.go:136: set QODER_RUN_LOCAL_AUTH_TESTS=1 to run local Qoder auth import test\n--- SKIP: TestReadLocalAuthFromDisk (0.00s)\n"
+  },
+  {
+    "tag": "normal",
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+    "output": "=== RUN   TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI\n    openai_gateway_count_tokens_test.go:246: OPENAI_API_KEY not set\n--- SKIP: TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI (0.00s)\n"
+  },
+  {
+    "tag": "normal",
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+    "output": "=== RUN   TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type\n    openai_ws_forwarder_ingress_session_test.go:1620: fork relay fixture does not provide a response for non-response.create events\n--- SKIP: TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type (0.00s)\n"
+  },
+  {
+    "tag": "unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+    "test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference",
+    "output": "=== RUN   TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference\n    pending_test.go:366: legacy NULL pending_auth_session_id rows only exist in production PostgreSQL history; sqlite unit schema rejects NULL\n--- SKIP: TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference (0.00s)\n"
+  },
+  {
+    "tag": "unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+    "test": "TestDialerBasicConnection",
+    "output": "=== RUN   TestDialerBasicConnection\n    dialer_test.go:168: 跳过网络测试（需要设置 TLSFINGERPRINT_NETWORK_TESTS=1）\n--- SKIP: TestDialerBasicConnection (0.00s)\n"
+  },
+  {
+    "tag": "unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+    "test": "TestJA3Fingerprint",
+    "output": "=== RUN   TestJA3Fingerprint\n    dialer_test.go:168: 跳过网络测试（需要设置 TLSFINGERPRINT_NETWORK_TESTS=1）\n--- SKIP: TestJA3Fingerprint (0.00s)\n"
+  },
+  {
+    "tag": "unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+    "test": "TestAllProfiles",
+    "output": "=== RUN   TestAllProfiles\n    dialer_test.go:168: 跳过网络测试（需要设置 TLSFINGERPRINT_NETWORK_TESTS=1）\n--- SKIP: TestAllProfiles (0.00s)\n"
+  },
+  {
+    "tag": "unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "test": "TestRealAPI",
+    "output": "=== RUN   TestRealAPI\n    integration_test.go:20: set QODER_RUN_REAL_API_TESTS=1 to run real Qoder API integration test\n--- SKIP: TestRealAPI (0.00s)\n"
+  },
+  {
+    "tag": "unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "test": "TestReadLocalAuthFromDisk",
+    "output": "=== RUN   TestReadLocalAuthFromDisk\n    integration_test.go:136: set QODER_RUN_LOCAL_AUTH_TESTS=1 to run local Qoder auth import test\n--- SKIP: TestReadLocalAuthFromDisk (0.00s)\n"
+  },
+  {
+    "tag": "unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+    "output": "=== RUN   TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI\n    openai_gateway_count_tokens_test.go:246: OPENAI_API_KEY not set\n--- SKIP: TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI (0.00s)\n"
+  },
+  {
+    "tag": "unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+    "output": "=== RUN   TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type\n    openai_ws_forwarder_ingress_session_test.go:1620: fork relay fixture does not provide a response for non-response.create events\n--- SKIP: TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type (0.00s)\n"
+  },
+  {
+    "tag": "integration",
+    "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "test": "TestRealAPI",
+    "output": "=== RUN   TestRealAPI\n    integration_test.go:20: set QODER_RUN_REAL_API_TESTS=1 to run real Qoder API integration test\n--- SKIP: TestRealAPI (0.00s)\n"
+  },
+  {
+    "tag": "integration",
+    "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "test": "TestReadLocalAuthFromDisk",
+    "output": "=== RUN   TestReadLocalAuthFromDisk\n    integration_test.go:136: set QODER_RUN_LOCAL_AUTH_TESTS=1 to run local Qoder auth import test\n--- SKIP: TestReadLocalAuthFromDisk (0.00s)\n"
+  },
+  {
+    "tag": "integration",
+    "package": "github.com/TokenFlux/TokenRouter/internal/usage/postgres",
+    "test": "TestUsageLogRepoSuite/TestUsageAnalyticsQueriesExecuteOnPostgreSQL",
+    "output": "=== RUN   TestUsageLogRepoSuite/TestUsageAnalyticsQueriesExecuteOnPostgreSQL\n2026/09/16 02:42:30 Timezone initialized: Pacific/Honolulu (UTC offset: -10:00)\n    usage_log_repo_integration_test.go:1241: 当前业务日尚无足够的完整小时用于聚合查询\n2026/09/16 12:42:30 Timezone initialized: UTC (UTC offset: +00:00)\n--- SKIP: TestUsageLogRepoSuite/TestUsageAnalyticsQueriesExecuteOnPostgreSQL (0.00s)\n"
+  },
+  {
+    "tag": "integration",
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+    "output": "=== RUN   TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI\n    openai_gateway_count_tokens_test.go:246: OPENAI_API_KEY not set\n--- SKIP: TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI (0.00s)\n"
+  },
+  {
+    "tag": "integration",
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+    "output": "=== RUN   TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type\n    openai_ws_forwarder_ingress_session_test.go:1620: fork relay fixture does not provide a response for non-response.create events\n--- SKIP: TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type (0.00s)\n"
+  }
+]

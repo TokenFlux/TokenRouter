@@ -52,12 +52,10 @@ var ProviderSet = wire.NewSet(
 
 	NewUserSubscriptionRepository,
 	NewUserGroupRateRepository,
-	NewErrorPassthroughRepository,
 	NewAffiliateRepository,
 	NewUserPlatformQuotaRepository, // T14: user × platform quota
 
 	// Cache implementations
-	NewGatewayCache,
 	NewBillingCache,
 	NewInternal500CounterCache,
 
@@ -67,7 +65,6 @@ var ProviderSet = wire.NewSet(
 	NewBatchImageQueue,
 	NewBatchImageDownloadLimiter,
 	NewLeaderLockCache,
-	NewErrorPassthroughCache,
 
 	// Encryptors
 

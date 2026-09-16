@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 
@@ -68,7 +70,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 	}
 	var handledResult *OpenAIForwardResult
 	handled := false
-	target := &nativegrok.VoiceTarget{
+	target := &mediaprovider.GrokVoiceOptions{
 		AccountID:    account.ID,
 		Endpoint:     endpoint,
 		BaseEndpoint: baseEndpoint,
@@ -110,7 +112,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 	case "stt":
 		proto = protocol.ProtocolSTT
 	}
-	result, err := (nativegrok.VoiceExecutor{}).Execute(upstreamCtx, nativeupstream.AttemptInput{Protocol: proto, Body: body, Target: target}, sink)
+	result, err := (mediaprovider.GrokVoice{Options: *target}).Execute(upstreamCtx, nativeupstream.AttemptInput{Protocol: proto, Body: body}, sink)
 	if handled {
 		return handledResult, err
 	}
@@ -156,7 +158,7 @@ func (s *OpenAIGatewayService) OpenGrokRealtime(ctx context.Context, account *Ac
 	if err != nil {
 		return nil, err
 	}
-	return nativegrok.DialRealtime(ctx, s.grokRealtimeOptions(account, base, token, model))
+	return mediaprovider.DialRealtime(ctx, s.grokRealtimeOptions(account, base, token, model))
 }
 
 // HandleGrokRealtimeUpstreamError 为下游升级前失败的 WebSocket 握手应用共享 Grok 账号策略。
@@ -185,7 +187,7 @@ func (s *OpenAIGatewayService) ProbeGrokRealtime(ctx context.Context, account *A
 	if err != nil {
 		return err
 	}
-	return nativegrok.ProbeRealtime(ctx, s.grokRealtimeOptions(account, base, token, model))
+	return mediaprovider.ProbeRealtime(ctx, s.grokRealtimeOptions(account, base, token, model))
 }
 
 func awaitGrokRealtimeAudioObserved(errCh <-chan error, audioObserved *atomic.Bool) (bool, error) {
@@ -218,12 +220,12 @@ func (c grokUpstreamFrames) WriteFrame(ctx context.Context, _ nativeupstream.Fra
 func (c grokUpstreamFrames) Close() error { return c.conn.Close() }
 
 // 装配既有 WS dialer、代理和 TLS 快照，不更改共享客户端。
-func (s *OpenAIGatewayService) grokRealtimeOptions(account *Account, base, token, model string) nativegrok.RealtimeDialOptions {
+func (s *OpenAIGatewayService) grokRealtimeOptions(account *Account, base, token, model string) mediaprovider.RealtimeOptions {
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	options := nativegrok.RealtimeDialOptions{
+	options := mediaprovider.RealtimeOptions{
 		BaseURL:      base,
 		Token:        token,
 		Model:        model,
@@ -241,4 +243,17 @@ func (s *OpenAIGatewayService) grokRealtimeOptions(account *Account, base, token
 		options.CLIHeaders = applyGrokCLIHeaders
 	}
 	return options
+}
+
+// ProxyGrokRealtimeFrames 接收受控帧连接，供 media 持有关闭和账号槽所有权。
+func (s *OpenAIGatewayService) ProxyGrokRealtimeFrames(ctx context.Context, client *coderws.Conn, conn nativeupstream.FrameConn) (bool, error) {
+	if s == nil || client == nil || conn == nil {
+		return false, fmt.Errorf("realtime connection is required")
+	}
+	return nativegrok.RelayRealtime(ctx, grokClientFrames{client}, conn)
+}
+
+// RelayGrokRealtimeFrames 只连接原生帧中继；入站升级与槽位由媒体 HTTP/core 拥有。
+func (s *OpenAIGatewayService) RelayGrokRealtimeFrames(ctx context.Context, client, server nativeupstream.FrameConn) (bool, error) {
+	return nativegrok.RelayRealtime(ctx, client, server)
 }

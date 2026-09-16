@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/server/middleware",
+    "./internal/apikey/httpapi",
+    "./internal/gateway/httpapi",
+    "./internal/gateway/admission",
+    "./internal/gateway/modeltrace"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 6.698,
+  "pass": 373,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/native-auth-consumers.log.gz"
+}

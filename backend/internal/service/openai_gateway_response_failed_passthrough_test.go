@@ -27,28 +27,12 @@ func buildContextLengthFailedSSE() string {
 }
 
 func bindPassthroughRule(c *gin.Context, platform string, keywords []string, responseCode int) {
-	svc := &ErrorPassthroughService{}
-	rules := make([]*cachedPassthroughRule, 0, len(keywords))
+	rules := make([]*model.ErrorPassthroughRule, 0, len(keywords))
 	for i, kw := range keywords {
 		code := responseCode
-		rules = append(rules, &cachedPassthroughRule{
-			ErrorPassthroughRule: &model.ErrorPassthroughRule{
-				ID:              int64(i + 1),
-				Enabled:         true,
-				Platforms:       []string{platform},
-				MatchMode:       model.MatchModeAny,
-				Keywords:        []string{kw},
-				ResponseCode:    &code,
-				PassthroughBody: true,
-			},
-			lowerKeywords:  []string{strings.ToLower(kw)},
-			lowerPlatforms: []string{strings.ToLower(platform)},
-		})
+		rules = append(rules, &model.ErrorPassthroughRule{ID: int64(i + 1), Enabled: true, Platforms: []string{platform}, MatchMode: model.MatchModeAny, Keywords: []string{kw}, ResponseCode: &code, PassthroughBody: true})
 	}
-	svc.localCacheMu.Lock()
-	svc.localCache = rules
-	svc.localCacheMu.Unlock()
-	BindErrorPassthroughService(c, svc)
+	BindErrorPassthroughService(c, newErrorRulesTestService(rules))
 }
 
 // forcedResponsesChatTestAccount 让 Chat 入站进入 Responses 错误转换测试路径。
@@ -396,8 +380,7 @@ func bindStatusCodePassthroughRule(c *gin.Context, platform string, statusCode i
 		ResponseCode:    &responseCode,
 		PassthroughBody: true,
 	}
-	svc := &ErrorPassthroughService{}
-	svc.setLocalCache([]*model.ErrorPassthroughRule{rule})
+	svc := newErrorRulesTestService([]*model.ErrorPassthroughRule{rule})
 	BindErrorPassthroughService(c, svc)
 }
 

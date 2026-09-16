@@ -136,20 +136,6 @@ type UsageLog struct {
 	Subscription *UserSubscription
 }
 
-// usageActorUserID 返回实际发起请求的用户；个人 Key 的调用者与付款人相同。
-func usageActorUserID(apiKey *APIKey, billingUser *User) int64 {
-	if apiKey != nil && apiKey.ActorUser != nil && apiKey.ActorUser.ID > 0 {
-		return apiKey.ActorUser.ID
-	}
-	if apiKey != nil && apiKey.UserID > 0 {
-		return apiKey.UserID
-	}
-	if billingUser != nil {
-		return billingUser.ID
-	}
-	return 0
-}
-
 func (u *UsageLog) TotalTokens() int {
 	return (&usage.UsageLog{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CacheCreationTokens: u.CacheCreationTokens, CacheReadTokens: u.CacheReadTokens}).TotalTokens()
 }

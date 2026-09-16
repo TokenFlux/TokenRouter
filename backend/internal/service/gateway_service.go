@@ -13,14 +13,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
 
-	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+
+	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 
@@ -35,7 +36,6 @@ import (
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
-	"github.com/cespare/xxhash/v2"
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tidwall/gjson"
@@ -408,50 +408,13 @@ var ErrClaudeCodeOnly = errors.New("this group only allows Claude Code clients")
 
 var allowedHeaders = claude.AllowedHeaders
 
-// ErrReasoningContentNotFound 表示按 reasoning item id 查询缓存时未命中。
-var ErrReasoningContentNotFound = errors.New("reasoning content not found")
+var ErrReasoningContentNotFound = session.ErrReasoningContentNotFound
 
-// GatewayCache 定义网关服务的缓存操作接口。
-// 提供粘性会话（Sticky Session）的存储、查询、刷新和删除功能。
-//
-// GatewayCache defines cache operations for gateway service.
-// Provides sticky session storage, retrieval, refresh and deletion capabilities.
-type GatewayCache interface {
-	// GetSessionAccountID 获取粘性会话绑定的账号 ID
-	// Get the account ID bound to a sticky session
-	GetSessionAccountID(ctx context.Context, groupID int64, sessionHash string) (int64, error)
-	// SetSessionAccountID 设置粘性会话与账号的绑定关系
-	// Set the binding between sticky session and account
-	SetSessionAccountID(ctx context.Context, groupID int64, sessionHash string, accountID int64, ttl time.Duration) error
-	// RefreshSessionTTL 刷新粘性会话的过期时间
-	// Refresh the expiration time of a sticky session
-	RefreshSessionTTL(ctx context.Context, groupID int64, sessionHash string, ttl time.Duration) error
-	// DeleteSessionAccountID 删除粘性会话绑定，用于账号不可用时主动清理
-	// Delete sticky session binding, used to proactively clean up when account becomes unavailable
-	DeleteSessionAccountID(ctx context.Context, groupID int64, sessionHash string) error
-	// SetSessionOwnerGroupID 首次记录显式会话所属分组；返回 true 表示本次写入成功。
-	SetSessionOwnerGroupID(ctx context.Context, userID int64, source, sessionHash string, groupID int64, ttl time.Duration) (bool, error)
-	// GetSessionOwnerGroupID 读取显式会话首次归属分组。
-	GetSessionOwnerGroupID(ctx context.Context, userID int64, source, sessionHash string) (int64, error)
-	// RefreshSessionOwnerTTL 刷新显式会话归属记录的过期时间。
-	RefreshSessionOwnerTTL(ctx context.Context, userID int64, source, sessionHash string, ttl time.Duration) error
-}
+type GatewayCache = session.GatewayCache
 
-// ReasoningContentCache 是 Responses→Chat 桥接使用的可选缓存能力。
-// 与 GatewayCache 分离，避免不需要 reasoning 回放的缓存实现被迫扩展接口。
-type ReasoningContentCache interface {
-	SetReasoningContent(ctx context.Context, itemID string, content string, ttl time.Duration) error
-	GetReasoningContent(ctx context.Context, itemID string) (string, error)
-}
+type ReasoningContentCache = session.ReasoningContentCache
 
-// GrokVideoBillingCache 为异步视频任务保存创建时定价快照，并跨实例防止轮询重复扣费。
-// 它保持为独立子接口，避免与 Grok 无关的缓存实现被迫提供这组能力。
-type GrokVideoBillingCache interface {
-	SetGrokVideoPendingBilling(ctx context.Context, key string, payload []byte, ttl time.Duration) error
-	GetGrokVideoPendingBilling(ctx context.Context, key string) ([]byte, error)
-	ClaimGrokVideoBilled(ctx context.Context, key string, ttl time.Duration) (bool, error)
-	ReleaseGrokVideoBilled(ctx context.Context, key string) error
-}
+type GrokVideoBillingCache = session.GrokVideoBillingCache
 
 // derefGroupID safely dereferences *int64 to int64, returning 0 if nil
 func derefGroupID(groupID *int64) int64 {
@@ -670,6 +633,7 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 
 // GatewayService handles API gateway operations
 type GatewayService struct {
+	searchToolsRuntime    *searchtools.Emulator
 	nativeAttemptActivity func() (func(), error)
 	usageWindowSource     billing.WindowCostSource
 	accountRepo           AccountRepository
@@ -801,71 +765,9 @@ func NewGatewayService(
 	return svc
 }
 
-// GenerateSessionHash 从预解析请求计算粘性会话 hash
+// 兼容入口复用 gateway/session 的唯一请求哈希算法。
 func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
-	if parsed == nil {
-		return ""
-	}
-
-	// 1. 最高优先级：从 metadata.user_id 提取 session_xxx
-	if parsed.MetadataUserID != "" {
-		uid := ParseMetadataUserID(parsed.MetadataUserID)
-		if uid != nil && uid.SessionID != "" {
-			slog.Info("sticky.hash_source",
-				"source", "metadata_user_id",
-				"session_id", uid.SessionID,
-				"device_id", uid.DeviceID,
-				"is_new_format", uid.IsNewFormat,
-			)
-			return uid.SessionID
-		}
-		slog.Info("sticky.hash_metadata_parse_failed",
-			"metadata_user_id", parsed.MetadataUserID,
-			"parsed_nil", uid == nil,
-		)
-	}
-
-	// 2. 提取带 cache_control: {type: "ephemeral"} 的内容
-	cacheableContent := s.extractCacheableContent(parsed)
-	if cacheableContent != "" {
-		hash := s.hashContent(cacheableContent)
-		slog.Info("sticky.hash_source",
-			"source", "cacheable_content",
-			"hash", hash,
-		)
-		return hash
-	}
-
-	// 3. 最后 fallback: 使用 session上下文 + system + 所有消息的完整摘要串
-	var combined strings.Builder
-	// 混入请求上下文区分因子，避免不同用户相同消息产生相同 hash
-	if parsed.SessionContext != nil {
-		_, _ = combined.WriteString(parsed.SessionContext.ClientIP)
-		_, _ = combined.WriteString(":")
-		_, _ = combined.WriteString(NormalizeSessionUserAgent(parsed.SessionContext.UserAgent))
-		_, _ = combined.WriteString(":")
-		_, _ = combined.WriteString(strconv.FormatInt(parsed.SessionContext.APIKeyID, 10))
-		_, _ = combined.WriteString("|")
-	}
-	if systemText := extractTextFromSystemRaw(parsed.SystemRaw()); systemText != "" {
-		_, _ = combined.WriteString(systemText)
-	}
-	contentStart := combined.Len()
-	appendMessageTextsFromRaw(&combined, parsed.MessagesRaw())
-	if combined.Len() == contentStart {
-		appendResponsesSessionAnchorFromRaw(&combined, parsed.InputRaw())
-	}
-	if combined.Len() > 0 {
-		hash := s.hashContent(combined.String())
-		slog.Info("sticky.hash_source",
-			"source", "message_content_fallback",
-			"hash", hash,
-			"content_len", combined.Len(),
-		)
-		return hash
-	}
-
-	return ""
+	return session.GenerateSessionHash(parsed, slog.Info)
 }
 
 // BindStickySession sets session -> account binding with standard TTL.
@@ -924,197 +826,13 @@ func (s *GatewayService) SaveAnthropicSession(_ context.Context, groupID int64, 
 	return nil
 }
 
+// 兼容入口复用 gateway/session 的唯一请求哈希算法。
 func (s *GatewayService) extractCacheableContent(parsed *ParsedRequest) string {
-	if parsed == nil {
-		return ""
-	}
-
-	systemText := extractCacheableTextFromSystemRaw(parsed.SystemRaw())
-	if messageText := extractCacheableTextFromMessagesRaw(parsed.MessagesRaw()); messageText != "" {
-		return messageText
-	}
-	return systemText
+	return session.ExtractCacheableContent(parsed)
 }
 
-func parseRawJSONView(raw []byte) gjson.Result { return wirejson.ParseView(raw) }
-
-func extractTextFromSystemRaw(raw []byte) string {
-	system := parseRawJSONView(raw)
-	switch system.Type {
-	case gjson.String:
-		return system.String()
-	case gjson.JSON:
-		if !system.IsArray() {
-			return ""
-		}
-		var builder strings.Builder
-		system.ForEach(func(_, part gjson.Result) bool {
-			if text := part.Get("text").String(); text != "" {
-				_, _ = builder.WriteString(text)
-			}
-			return true
-		})
-		return builder.String()
-	}
-	return ""
-}
-
-func extractTextFromContentRaw(content gjson.Result) string {
-	switch content.Type {
-	case gjson.String:
-		return content.String()
-	case gjson.JSON:
-		if !content.IsArray() {
-			return ""
-		}
-		var builder strings.Builder
-		content.ForEach(func(_, part gjson.Result) bool {
-			if part.Get("type").String() == "text" {
-				if text := part.Get("text").String(); text != "" {
-					_, _ = builder.WriteString(text)
-				}
-			}
-			return true
-		})
-		return builder.String()
-	}
-	return ""
-}
-
-func appendMessageTextsFromRaw(builder *strings.Builder, raw []byte) {
-	if builder == nil || len(raw) == 0 {
-		return
-	}
-	messages := parseRawJSONView(raw)
-	if !messages.IsArray() {
-		return
-	}
-	messages.ForEach(func(_, msg gjson.Result) bool {
-		if content := msg.Get("content"); content.Exists() {
-			_, _ = builder.WriteString(extractTextFromContentRaw(content))
-			return true
-		}
-		parts := msg.Get("parts")
-		if parts.IsArray() {
-			parts.ForEach(func(_, part gjson.Result) bool {
-				if text := part.Get("text").String(); text != "" {
-					_, _ = builder.WriteString(text)
-				}
-				return true
-			})
-		}
-		return true
-	})
-}
-
-func appendResponsesSessionAnchorFromRaw(builder *strings.Builder, raw []byte) {
-	if builder == nil || len(raw) == 0 {
-		return
-	}
-	input := parseRawJSONView(raw)
-	if input.Type == gjson.String {
-		_, _ = builder.WriteString(input.String())
-		return
-	}
-	if !input.IsArray() {
-		return
-	}
-
-	input.ForEach(func(_, item gjson.Result) bool {
-		if item.Type == gjson.String {
-			_, _ = builder.WriteString(item.String())
-			return false
-		}
-
-		switch item.Get("role").String() {
-		case "system", "developer":
-			appendResponsesContentText(builder, item.Get("content"))
-		case "user":
-			appendResponsesContentText(builder, item.Get("content"))
-			return false
-		default:
-			if item.Get("type").String() == "input_text" {
-				if text := item.Get("text").String(); text != "" {
-					_, _ = builder.WriteString(text)
-				}
-				return false
-			}
-		}
-		return true
-	})
-}
-
-func appendResponsesContentText(builder *strings.Builder, content gjson.Result) {
-	if builder == nil || !content.Exists() {
-		return
-	}
-	if content.Type == gjson.String {
-		_, _ = builder.WriteString(content.String())
-		return
-	}
-	if !content.IsArray() {
-		return
-	}
-	content.ForEach(func(_, part gjson.Result) bool {
-		switch part.Get("type").String() {
-		case "input_text", "text":
-			if text := part.Get("text").String(); text != "" {
-				_, _ = builder.WriteString(text)
-			}
-		}
-		return true
-	})
-}
-
-func extractCacheableTextFromSystemRaw(raw []byte) string {
-	system := parseRawJSONView(raw)
-	if !system.IsArray() {
-		return ""
-	}
-	var builder strings.Builder
-	system.ForEach(func(_, part gjson.Result) bool {
-		if part.Get("cache_control.type").String() == "ephemeral" {
-			if text := part.Get("text").String(); text != "" {
-				_, _ = builder.WriteString(text)
-			}
-		}
-		return true
-	})
-	return builder.String()
-}
-
-func extractCacheableTextFromMessagesRaw(raw []byte) string {
-	messages := parseRawJSONView(raw)
-	if !messages.IsArray() {
-		return ""
-	}
-	var text string
-	messages.ForEach(func(_, msg gjson.Result) bool {
-		content := msg.Get("content")
-		if !content.IsArray() {
-			return true
-		}
-		found := false
-		content.ForEach(func(_, part gjson.Result) bool {
-			if part.Get("cache_control.type").String() == "ephemeral" {
-				found = true
-				return false
-			}
-			return true
-		})
-		if found {
-			text = extractTextFromContentRaw(content)
-			return false
-		}
-		return true
-	})
-	return text
-}
-
-func (s *GatewayService) hashContent(content string) string {
-	h := xxhash.Sum64String(content)
-	return strconv.FormatUint(h, 36)
-}
+// 兼容入口复用 gateway/session 的唯一请求哈希算法。
+func parseRawJSONView(raw []byte) gjson.Result { return session.ParseRawJSONView(raw) }
 
 // GetAccessToken 获取账号凭证
 // @project-doc docs/interfaces/anthropic_upstream.md#anthropic_account_and_transport
@@ -1349,44 +1067,6 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 	_, _ = f.WriteString(buf.String())
 }
 
-// resolveChannelPricingForUsage 按已选定的计费模型统一解析，所有平台使用相同价格回退规则。
-func (s *GatewayService) resolveChannelPricingForUsage(ctx context.Context, billingModel string, apiKey *APIKey) (*ResolvedPricing, string) {
-	return s.resolveChannelPricing(ctx, billingModel, apiKey), billingModel
-}
-
-func (p *usageBillingParams) shouldDeductAPIKeyQuota() bool {
-	return p.Cost.ActualCost > 0 && p.APIKey.Quota > 0 && p.APIKeyService != nil
-}
-
-func (p *usageBillingParams) shouldUpdateAccountQuota(accountQuotaCost float64) bool {
-	return accountQuotaCost > 0 && p.Account.IsAPIKeyOrBedrock() && p.Account.HasAnyQuotaLimit()
-}
-
-func (p *usageBillingParams) shouldUpdateRateLimits() bool {
-	return p.Cost.ActualCost > 0 && p.APIKey.HasRateLimits() && p.APIKeyService != nil
-}
-
-func applyUsageBillingResultToUsageLog(usageLog *UsageLog, result *UsageBillingApplyResult) {
-	if usageLog == nil || result == nil {
-		return
-	}
-
-	usageLog.SubscriptionAmountUSD = result.SubscriptionAmountUSD
-	usageLog.BalanceAmountUSD = result.BalanceAmountUSD
-	usageLog.BillingAllocations = cloneBillingAllocations(result.BillingAllocations)
-	usageLog.SubscriptionID = firstAllocatedSubscriptionID(result.BillingAllocations)
-	if billable := usageBillingResultBillableAmount(result); billable >= 0 && result.EffectiveRateMultiplier != nil {
-		usageLog.ActualCost = billable
-		usageLog.RateMultiplier = *result.EffectiveRateMultiplier
-	}
-	switch {
-	case result.SubscriptionAmountUSD > 0:
-		usageLog.BillingType = BillingTypeSubscription
-	default:
-		usageLog.BillingType = BillingTypeBalance
-	}
-}
-
 func cloneBillingAllocations(allocations []domain.BillingAllocation) []domain.BillingAllocation {
 	if len(allocations) == 0 {
 		return nil
@@ -1407,33 +1087,6 @@ func cloneBillingAllocations(allocations []domain.BillingAllocation) []domain.Bi
 	return cloned
 }
 
-// @project-doc docs/domains/platform_quotas.md#platform_quota_settlement_and_flush
-func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
-	if p == nil || p.Cost == nil || deps == nil {
-		return
-	}
-	input := billing.SettlementEffectInput{Cost: p.Cost, Result: result, Platform: p.Platform, HasUser: p.User != nil}
-	if p.User != nil {
-		input.UserID = p.User.ID
-	}
-	if p.APIKey != nil {
-		input.KeyID = p.APIKey.ID
-		input.HasKeyRateLimits = p.APIKey.HasRateLimits()
-	}
-	effects := settlementEffects(deps)
-	effects.AccountUsed = func() { deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID) }
-	effects.NotifyBalance = BackgroundCall3(notifyBalanceLow, p, deps, result)
-	effects.NotifyAccount = BackgroundCall3(notifyAccountQuota, p, deps, result)
-	effects.Finalize(input)
-}
-
-func usageBillingResultBillableAmount(result *UsageBillingApplyResult) float64 {
-	if result == nil {
-		return -1
-	}
-	return result.SubscriptionAmountUSD + result.BalanceAmountUSD
-}
-
 func firstAllocatedSubscriptionID(allocations []domain.BillingAllocation) *int64 {
 	for i := range allocations {
 		if allocations[i].Type != domain.BillingAllocationTypeSubscription || allocations[i].SubscriptionID == nil {
@@ -1443,25 +1096,6 @@ func firstAllocatedSubscriptionID(allocations []domain.BillingAllocation) *int64
 		return &subscriptionID
 	}
 	return nil
-}
-
-// usageBillingParams 统一扣费所需的参数
-type usageBillingParams struct {
-	Cost                            *CostBreakdown
-	User                            *User
-	APIKey                          *APIKey
-	Account                         *Account
-	Subscription                    *UserSubscription
-	RequestPayloadHash              string
-	AccountRateMultiplier           float64
-	SubscriptionRateMultiplier      float64
-	SubscriptionRateMultiplierScale float64
-	BalanceRateMultiplier           float64
-	APIKeyService                   APIKeyQuotaUpdater
-	Platform                        string // 来自 APIKey 关联 Group 的平台标识
-	// BillingBaseAmountUSD 是用户资金分配使用的未倍率基础金额；nil 时沿用 Cost.TotalCost。
-	// 免费 Fast 需要把用户基础价切换为 Standard，同时保留 Fast 的账号统计基础成本。
-	BillingBaseAmountUSD *float64
 }
 
 // ExpireRuntimeCaches 由应用拥有的时间轮调用，保留原缓存到期清理频率。

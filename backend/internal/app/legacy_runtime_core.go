@@ -32,9 +32,10 @@ func provideCoreRuntime(
 	usageRepo service.UsageLogRepository,
 	tasks *lifecycle.Tasks,
 	httpUpstream service.HTTPUpstream,
+	requestActivity *gatewayRequestActivity,
 ) *coreRuntimeReady {
 	// 原生平台仅登记同步尝试，不改变客户端取消或供应商重试预算。
-	nativeAttempts := lifecycle.NewOperations("NativeUpstreamAttempts")
+	nativeAttempts := requestActivity
 	if openAIGateway != nil {
 		openAIGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}
@@ -50,7 +51,6 @@ func provideCoreRuntime(
 	if gateway != nil {
 		gateway.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}
-	manager.Register(lifecycle.Hook{Name: "NativeUpstreamAttempts", StopOrder: 15, Stop: nativeAttempts.StopContext})
 
 	manager.Register(lifecycle.Hook{Name: "AuthCacheInvalidationWorker", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if authCacheInvalidationWorker != nil {

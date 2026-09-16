@@ -68,33 +68,45 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
-	Search           *searchhttp.Handler
-	PublicSettings   *sitehttpapi.PublicHandler
-	Notification     *notificationhttp.Handler
-	QoderChat        *gatewayhttp.QoderChatHandler
-	PublicUsage      *usagehttp.PublicUsageHandler
-	Plans            *billinghttpapi.PlanHandler
-	PlatformQuota    *billinghttpapi.QuotaHandler
-	Auth             AuthEndpoints
-	User             *UserHandler
-	APIKey           *APIKeyHandler
-	Usage            *UsageHandler
-	Redeem           *billinghttpapi.RedeemHandler
-	Subscription     *billinghttpapi.SubscriptionHandler
-	Announcement     *sitehttpapi.AnnouncementHandler
-	ModelMarketplace *ModelMarketplaceHandler
-	Admin            *AdminHandlers
-	Gateway          *GatewayHandler
-	OpenAIGateway    *OpenAIGatewayHandler
-	QoderGateway     *QoderGatewayHandler
-	Setting          *SettingHandler
-	Totp             *TotpHandler
-	Passkey          *PasskeyHandler
-	Payment          *PaymentHandler
-	PaymentWebhook   *PaymentWebhookHandler
-	BatchImage       *BatchImageHandler
-	Creative         *CreativeHandler
-	Team             *TeamHandler
+	ModelsHTTP          *gatewayhttp.ModelsHandler
+	ResponsesWSHTTP     *gatewayhttp.ResponsesWSHandler
+	OpenAITextHTTP      *gatewayhttp.OpenAITextHandler
+	GeminiNativeHTTP    *gatewayhttp.GeminiNativeHandler
+	CompatibleTextHTTP  *gatewayhttp.CompatibleTextHandler
+	QoderCompatibleHTTP *gatewayhttp.QoderCompatibleHandler
+	MediaHTTP           *gatewayhttp.MediaHandler
+	AuxiliaryHTTP       *gatewayhttp.AuxiliaryHandler
+	LiveHTTP            *gatewayhttp.LiveHandler
+	SearchHTTP          *gatewayhttp.SearchHandler
+	MessagesHTTP        *gatewayhttp.MessagesHandler
+	CountTokensHTTP     *gatewayhttp.CountTokensHandler
+	Search              *searchhttp.Handler
+	PublicSettings      *sitehttpapi.PublicHandler
+	Notification        *notificationhttp.Handler
+	QoderChat           *gatewayhttp.QoderChatHandler
+	PublicUsage         *usagehttp.PublicUsageHandler
+	Plans               *billinghttpapi.PlanHandler
+	PlatformQuota       *billinghttpapi.QuotaHandler
+	Auth                AuthEndpoints
+	User                *UserHandler
+	APIKey              *APIKeyHandler
+	Usage               *UsageHandler
+	Redeem              *billinghttpapi.RedeemHandler
+	Subscription        *billinghttpapi.SubscriptionHandler
+	Announcement        *sitehttpapi.AnnouncementHandler
+	ModelMarketplace    *ModelMarketplaceHandler
+	Admin               *AdminHandlers
+	Gateway             *GatewayHandler
+	OpenAIGateway       *OpenAIGatewayHandler
+	QoderGateway        *QoderGatewayHandler
+	Setting             *SettingHandler
+	Totp                *TotpHandler
+	Passkey             *PasskeyHandler
+	Payment             *PaymentHandler
+	PaymentWebhook      *PaymentWebhookHandler
+	BatchImage          *BatchImageHandler
+	Creative            *CreativeHandler
+	Team                *TeamHandler
 }
 
 // BuildInfo contains build-time information

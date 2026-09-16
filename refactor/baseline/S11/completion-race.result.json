@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "./internal/gateway/completion"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.807,
+  "pass": 18,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/completion-race.log.gz"
+}

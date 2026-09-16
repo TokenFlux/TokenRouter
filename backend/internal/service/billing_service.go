@@ -27,26 +27,11 @@ type BillingCache = billing.BillingCache
 // ModelPricing 保留旧用量/定价类型入口。
 type ModelPricing = purepricing.ModelPricing
 
-// normalizeBillingServiceTier 委托纯定价实现，旧查询与配置投影保留在适配层。
-func normalizeBillingServiceTier(serviceTier string) string {
-	return purepricing.NormalizeBillingServiceTier(serviceTier)
-}
-
 // UsageTokens 保留旧用量/定价类型入口。
 type UsageTokens = purepricing.UsageTokens
 
 // CostBreakdown 保留旧用量/定价类型入口。
 type CostBreakdown = purepricing.CostBreakdown
-
-// applyCostBreakdownMultiplier 委托纯定价实现，旧查询与配置投影保留在适配层。
-func applyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
-	purepricing.ApplyCostBreakdownMultiplier(cost, multiplier)
-}
-
-// maxReasoningEffortBillingMultiplier 委托纯定价实现，旧查询与配置投影保留在适配层。
-func maxReasoningEffortBillingMultiplier(model, effort string, pricing *ModelPricing) float64 {
-	return purepricing.MaxReasoningEffortBillingMultiplier(model, effort, pricing)
-}
 
 var ErrModelPricingUnavailable = purepricing.ErrModelPricingUnavailable
 

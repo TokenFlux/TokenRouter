@@ -2,12 +2,13 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
 	"time"
+
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 
 	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
@@ -48,7 +49,7 @@ const (
 	openAIWSStoreDisabledConnModeAdaptive = "adaptive"
 	openAIWSStoreDisabledConnModeOff      = "off"
 
-	openAIWSIngressStagePreviousResponseNotFound = "previous_response_not_found"
+	openAIWSIngressStagePreviousResponseNotFound = gatewayws.IngressStagePreviousResponseNotFound
 	openAIWSMaxPrevResponseIDDeletePasses        = nativeopenai.WSMaxPrevResponseIDDeletePasses
 )
 
@@ -61,32 +62,10 @@ var openAIWSLogValueReplacer = strings.NewReplacer(
 
 var openAIWSIngressPreflightPingIdle = 20 * time.Second
 
-// openAIWSFallbackError 表示可安全回退到 HTTP 的 WS 错误（尚未写下游）。
-type openAIWSFallbackError struct {
-	Reason string
-	Err    error
-}
+// WS 重试资格与当前轮重放载荷由 gateway/ws 唯一持有。
+type openAIWSFallbackError = gatewayws.FallbackError
 
-func (e *openAIWSFallbackError) Error() string {
-	if e == nil {
-		return ""
-	}
-	if e.Err == nil {
-		return fmt.Sprintf("openai ws fallback: %s", strings.TrimSpace(e.Reason))
-	}
-	return fmt.Sprintf("openai ws fallback: %s: %v", strings.TrimSpace(e.Reason), e.Err)
-}
-
-func (e *openAIWSFallbackError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.Err
-}
-
-func wrapOpenAIWSFallback(reason string, err error) error {
-	return &openAIWSFallbackError{Reason: strings.TrimSpace(reason), Err: err}
-}
+func wrapOpenAIWSFallback(reason string, err error) error { return gatewayws.WrapFallback(reason, err) }
 
 // OpenAIWSClientCloseError 表示应以指定 WebSocket close code 主动关闭客户端连接的错误。
 type OpenAIWSClientCloseError struct {
@@ -95,46 +74,8 @@ type OpenAIWSClientCloseError struct {
 	err        error
 }
 
-type openAIWSIngressTurnError struct {
-	stage           string
-	cause           error
-	wroteDownstream bool
-}
-
-// openAIWSCurrentTurnFailoverError 携带可在替换账号上重放的当前回合请求。
-type openAIWSCurrentTurnFailoverError struct {
-	cause        error
-	retryPayload []byte
-}
-
-func (e *openAIWSCurrentTurnFailoverError) Error() string {
-	if e == nil || e.cause == nil {
-		return "openai websocket current-turn failover"
-	}
-	return e.cause.Error()
-}
-
-func (e *openAIWSCurrentTurnFailoverError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.cause
-}
-
-func newOpenAIWSCurrentTurnFailoverError(cause error, retryPayload []byte) error {
-	return &openAIWSCurrentTurnFailoverError{
-		cause:        cause,
-		retryPayload: append([]byte(nil), retryPayload...),
-	}
-}
-
-// OpenAIWSCurrentTurnRetryPayload 返回替换账号可安全重放的当前回合请求副本。
 func OpenAIWSCurrentTurnRetryPayload(err error) ([]byte, bool) {
-	var retryErr *openAIWSCurrentTurnFailoverError
-	if !errors.As(err, &retryErr) || retryErr == nil {
-		return nil, false
-	}
-	return append([]byte(nil), retryErr.retryPayload...), true
+	return gatewayws.CurrentTurnRetryPayload(err)
 }
 
 // openAIWSGenericPolicyError 表示自定义错误码已开启但当前状态未命中。
@@ -150,73 +91,12 @@ func (e *openAIWSGenericPolicyError) Error() string {
 	return fmt.Sprintf("upstream websocket status %d not in custom error codes", e.upstreamStatus)
 }
 
-func (e *openAIWSIngressTurnError) Error() string {
-	if e == nil {
-		return ""
-	}
-	if e.cause == nil {
-		return strings.TrimSpace(e.stage)
-	}
-	return e.cause.Error()
-}
-
-func (e *openAIWSIngressTurnError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.cause
-}
-
-func wrapOpenAIWSIngressTurnError(stage string, cause error, wroteDownstream bool) error {
-	if cause == nil {
-		return nil
-	}
-	return &openAIWSIngressTurnError{
-		stage:           strings.TrimSpace(stage),
-		cause:           cause,
-		wroteDownstream: wroteDownstream,
-	}
-}
-
-func isOpenAIWSIngressTurnRetryable(err error) bool {
-	var turnErr *openAIWSIngressTurnError
-	if !errors.As(err, &turnErr) || turnErr == nil {
-		return false
-	}
-	if errors.Is(turnErr.cause, context.Canceled) || errors.Is(turnErr.cause, context.DeadlineExceeded) {
-		return false
-	}
-	if turnErr.wroteDownstream {
-		return false
-	}
-	switch turnErr.stage {
-	case "write_upstream", "read_upstream":
-		return true
-	default:
-		return false
-	}
-}
-
-func openAIWSIngressTurnRetryReason(err error) string {
-	var turnErr *openAIWSIngressTurnError
-	if !errors.As(err, &turnErr) || turnErr == nil {
-		return "unknown"
-	}
-	if turnErr.stage == "" {
-		return "unknown"
-	}
-	return turnErr.stage
+func wrapOpenAIWSIngressTurnError(stage string, cause error, wrote bool) error {
+	return gatewayws.WrapIngressTurnError(stage, cause, wrote)
 }
 
 func isOpenAIWSIngressPreviousResponseNotFound(err error) bool {
-	var turnErr *openAIWSIngressTurnError
-	if !errors.As(err, &turnErr) || turnErr == nil {
-		return false
-	}
-	if strings.TrimSpace(turnErr.stage) != openAIWSIngressStagePreviousResponseNotFound {
-		return false
-	}
-	return !turnErr.wroteDownstream
+	return gatewayws.IsPreviousResponseNotFound(err)
 }
 
 // NewOpenAIWSClientCloseError 创建一个客户端 WS 关闭错误。

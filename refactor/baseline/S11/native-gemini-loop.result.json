@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/handler",
+    "./internal/gateway/text",
+    "./internal/gateway/requeststate",
+    "-run",
+    "Test(Gemini|Gateway|Messages|UsageRecord)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 12.011,
+  "pass": 90,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/native-gemini-loop.log.gz"
+}

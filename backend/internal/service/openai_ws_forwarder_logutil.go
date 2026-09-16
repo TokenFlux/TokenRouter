@@ -12,8 +12,6 @@ import (
 	"sort"
 	"strings"
 
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
@@ -366,10 +364,6 @@ func openAIWSPayloadString(payload map[string]any, key string) string {
 	default:
 		return ""
 	}
-}
-
-func openAIWSPayloadStringFromRaw(payload []byte, key string) string {
-	return native.WSPayloadStringFromRaw(payload, key)
 }
 
 func openAIWSPayloadBoolFromRaw(payload []byte, key string, defaultValue bool) bool {

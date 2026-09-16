@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 )
 
 func resolveUsageSubscription(
@@ -13,41 +15,7 @@ func resolveUsageSubscription(
 	userID int64,
 	groupID *int64,
 ) *UserSubscription {
-	if current != nil {
-		return current
-	}
-	if groupID == nil || *groupID <= 0 || userID <= 0 {
-		return nil
-	}
-	if resolver == nil {
-		return nil
-	}
-	sub, err := resolver.ResolveUsableSubscriptionForGroup(ctx, userID, *groupID)
-	if err == nil && sub != nil {
-		return sub
-	}
-	return nil
-}
-
-// resolveUsageSubscriptionForAPIKey 防止后扣阶段绕过 API Key 已选择的资金来源。
-// 指定订阅仅信任鉴权阶段传入的同一订阅，余额模式不再尝试查找任何套餐。
-func resolveUsageSubscriptionForAPIKey(
-	ctx context.Context,
-	apiKey *APIKey,
-	current *UserSubscription,
-	repo UserSubscriptionRepository,
-	resolver usageSubscriptionResolver,
-	userID int64,
-	groupID *int64,
-) *UserSubscription {
-	switch APIKeyEffectiveBillingMode(apiKey) {
-	case APIKeyBillingModeBalance:
-		return nil
-	case APIKeyBillingModeSubscription:
-		return current
-	default:
-		return resolveUsageSubscription(ctx, current, repo, resolver, userID, groupID)
-	}
+	return completion.ResolveSubscription(ctx, current, resolver, userID, groupID)
 }
 
 type usageSubscriptionResolver interface {
@@ -80,36 +48,8 @@ func resolvePreferredUsageSubscription(ctx context.Context, resolver usagePrefer
 	return subscription
 }
 
-func subscriptionPlanIncludesGroup(plan *SubscriptionPlan, groupID int64) bool {
-	if plan == nil || groupID <= 0 {
-		return false
-	}
-	if len(plan.GroupIDs) == 0 {
-		return true
-	}
-	for _, id := range plan.GroupIDs {
-		if id == groupID {
-			return true
-		}
-	}
-	return false
-}
-
 func SubscriptionAllowsGroup(subscription *UserSubscription, groupID int64) bool {
 	return billing.SubscriptionAllowsGroup(subscription, groupID)
-}
-
-func subscriptionPlanGroupRateMultiplier(plan *SubscriptionPlan, groupID int64) (float64, bool) {
-	if plan == nil || groupID <= 0 {
-		return 0, false
-	}
-	if !subscriptionPlanIncludesGroup(plan, groupID) {
-		return 0, false
-	}
-	if multiplier, ok := plan.GroupRateMultipliers[groupID]; ok && multiplier > 0 {
-		return multiplier, true
-	}
-	return 0, false
 }
 
 func resolveUsageRateMultiplier(
@@ -121,22 +61,9 @@ func resolveUsageRateMultiplier(
 	subscription *UserSubscription,
 	resolveUserGroupRate func(context.Context, int64, int64, float64) float64,
 ) float64 {
-	multiplier := defaultMultiplier
-	if groupID == nil || group == nil {
-		return multiplier
+	var projected *completion.GroupSnapshot
+	if group != nil {
+		projected = completionKey(&APIKey{Group: group}).Group
 	}
-	if subscription != nil {
-		if multiplier, ok := subscriptionPlanGroupRateMultiplier(subscription.Plan, *groupID); ok {
-			return multiplier
-		}
-		if subscriptionPlanIncludesGroup(subscription.Plan, *groupID) {
-			return group.RateMultiplier
-		}
-		return multiplier
-	}
-	groupDefault := group.RateMultiplier
-	if resolveUserGroupRate == nil {
-		return groupDefault
-	}
-	return resolveUserGroupRate(ctx, userID, *groupID, groupDefault)
+	return completion.ResolveUsageRateMultiplier(ctx, userID, groupID, projected, defaultMultiplier, subscription, resolveUserGroupRate)
 }

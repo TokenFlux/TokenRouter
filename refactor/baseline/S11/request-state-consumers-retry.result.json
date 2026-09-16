@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/gateway/requeststate",
+    "./internal/handler",
+    "./internal/service",
+    "-run",
+    "Test(ParseGateway|DescribeInvalid|Concurrency|GatewayHelper|UserMsgQueue|GatewayWait|Qoder|GenerateSessionHash|NormalizeSession)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 7.942,
+  "pass": 85,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/request-state-consumers-retry.log.gz"
+}

@@ -1,0 +1,385 @@
+{
+  "TestStopWaitsForSynchronousOverflow": [
+    {
+      "result": "completion-context-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "./internal/gateway/completion",
+        "./internal/gateway/modeltrace"
+      ]
+    },
+    {
+      "result": "completion-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "./internal/gateway/completion"
+      ]
+    },
+    {
+      "result": "final-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ]
+    },
+    {
+      "result": "first-core-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/gateway/completion",
+        "./internal/gateway/errorpolicy"
+      ]
+    },
+    {
+      "result": "gateway-contracts-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    },
+    {
+      "result": "native-gateway-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    }
+  ],
+  "TestStartAfterStopDoesNotCreateWorker": [
+    {
+      "result": "completion-context-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "./internal/gateway/completion",
+        "./internal/gateway/modeltrace"
+      ]
+    },
+    {
+      "result": "completion-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "./internal/gateway/completion"
+      ]
+    },
+    {
+      "result": "final-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ]
+    },
+    {
+      "result": "first-core-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/gateway/completion",
+        "./internal/gateway/errorpolicy"
+      ]
+    },
+    {
+      "result": "gateway-contracts-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    },
+    {
+      "result": "native-gateway-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/completion",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    }
+  ],
+  "TestRuleUpdateCannotBeOverwrittenByOlderLoad": [
+    {
+      "result": "final-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ]
+    },
+    {
+      "result": "first-core-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/gateway/completion",
+        "./internal/gateway/errorpolicy"
+      ]
+    },
+    {
+      "result": "gateway-contracts-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    },
+    {
+      "result": "native-gateway-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    }
+  ],
+  "TestRuleSnapshotOwnership": [
+    {
+      "result": "final-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ]
+    },
+    {
+      "result": "first-core-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/gateway/completion",
+        "./internal/gateway/errorpolicy"
+      ]
+    },
+    {
+      "result": "gateway-contracts-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    },
+    {
+      "result": "native-gateway-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    }
+  ],
+  "TestStopCancelsStartupRuleLoad": [
+    {
+      "result": "final-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ]
+    },
+    {
+      "result": "first-core-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/gateway/completion",
+        "./internal/gateway/errorpolicy"
+      ]
+    },
+    {
+      "result": "gateway-contracts-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    },
+    {
+      "result": "native-gateway-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    }
+  ],
+  "TestStopCancelsSubscriptionRuleLoad": [
+    {
+      "result": "final-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ]
+    },
+    {
+      "result": "first-core-race.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/gateway/completion",
+        "./internal/gateway/errorpolicy"
+      ]
+    },
+    {
+      "result": "gateway-contracts-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    },
+    {
+      "result": "native-gateway-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    }
+  ],
+  "TestSidebandCancelledAfterClaimReleasesWithoutTarget": [
+    {
+      "result": "final-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/live",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ]
+    },
+    {
+      "result": "gateway-contracts-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/live",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    },
+    {
+      "result": "native-gateway-normal.result.json",
+      "package": "github.com/TokenFlux/TokenRouter/internal/gateway/live",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./internal/gateway/..."
+      ]
+    },
+    {
+      "log": "parallel-evidence/s11-ws-orchestration-final-race.json.gz",
+      "kind": "子任务定向 race 原始 JSON 事件；完整命令见并行交接索引"
+    }
+  ]
+}

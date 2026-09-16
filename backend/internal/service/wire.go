@@ -718,7 +718,6 @@ var ProviderSet = wire.NewSet(
 	NewDataManagementService,
 	ProvideBackupService,
 
-	NewUsageRecordWorkerPool,
 	NewRequestFingerprintService,
 
 	ProvideTokenRefreshService,
@@ -728,7 +727,6 @@ var ProviderSet = wire.NewSet(
 	NewAntigravityQuotaFetcher,
 	NewGrokQuotaFetcher,
 	NewUsageCache,
-	NewErrorPassthroughService,
 	NewDigestSessionStore,
 	ProvideIdempotencyCoordinator,
 	ProvideSystemOperationLockService,

@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -31,9 +33,9 @@ func TestOpenAIFirstOutputFailoverStopsAfterOneAccountSwitch(t *testing.T) {
 	failoverErr := &service.UpstreamFailoverError{SafeToFailoverAfterWrite: true}
 	count := 0
 
-	require.False(t, openAIFirstOutputFailoverExhausted(failoverErr, &count))
+	require.False(t, failover.FirstOutputExhausted(failoverErr.SafeToFailoverAfterWrite, &count))
 	require.Equal(t, 1, count)
-	require.True(t, openAIFirstOutputFailoverExhausted(failoverErr, &count))
+	require.True(t, failover.FirstOutputExhausted(failoverErr.SafeToFailoverAfterWrite, &count))
 	require.Equal(t, 1, count)
 }
 

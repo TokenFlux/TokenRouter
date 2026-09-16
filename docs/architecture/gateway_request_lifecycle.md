@@ -22,18 +22,22 @@
 
 | 入口族 | 主要用途 | 处理器分派 |
 | --- | --- | --- |
-| `/v1`、裸 `/models`/`responses` 等兼容别名 | Anthropic Messages、OpenAI Responses/Chat/Embeddings、图片、视频、模型与用量 | 根据所选分组平台进入 `GatewayHandler`、`OpenAIGatewayHandler` 或 `QoderGatewayHandler` |
-| `/v1beta` | Gemini 原生模型、生成、流式生成、token 统计 | Google 形状的 API Key 认证和 Gemini/Antigravity 兼容服务 |
+| `/v1`、裸 `/models`/`responses` 等兼容别名 | Anthropic Messages、OpenAI Responses/Chat/Embeddings、图片、视频、模型与用量 | 根据所选分组平台进入 app 固定绑定的 `gateway/httpapi` 文本、媒体、模型与 Qoder 入口 |
+| `/v1beta` | Gemini 原生模型、生成、流式生成、token 统计 | Google 形状认证后进入 `GeminiNativeHandler` 或 `ModelsHandler` |
 | `/antigravity/v1`、`/antigravity/v1beta` | 强制 Antigravity 平台的 Claude/Gemini 专用入口 | 在上下文写入 force platform，再复用通用 handler 与调度 |
-| `/backend-api/codex` | Codex/ChatGPT 风格 Responses、Realtime 和 sideband | OpenAI handler；部分路径有专用认证/路由限制 |
+| `/backend-api/codex` | Codex/ChatGPT 风格 Responses、Realtime 和 sideband | `OpenAITextHandler`、`ResponsesWSHandler` 与 `LiveHandler`；部分路径有专用认证/路由限制 |
 | 批量图片管理 | 提交、查询、下载、取消和清理任务 | 专用 handler/service；查询类入口只按任务归属认证，不重新选择模型账号 |
 
-同一个 URL 可能因方法、请求意图或分组平台走不同处理器。例如 `/v1/messages` 对 OpenAI/Grok 分组走 OpenAI 协议桥，对 Qoder 走 Qoder handler，其余走通用 Anthropic handler。路由层负责这个分派，service 层不能假设路径名唯一决定上游平台。
+同一个 URL 可能因方法、请求意图或分组平台走不同处理器。例如 `/v1/messages` 对 OpenAI/Grok 分组走 OpenAI 协议桥，对 Qoder 走 Qoder handler，其余走通用 Anthropic handler。路由层负责这个分派；新 Handler 调用 `gateway/text`、`media`、`ws`、`live` 等明确用例，暂存执行 Adapter 不能假设路径名唯一决定上游平台。
 
 公开入口不再注册 `/v1/sub2api/billing`。它不是模型、用量或结算管线的别名，访问时直接得到普通 `404`，也不会进入 API Key 非消费请求分支。
 
 <a id="gateway_pipeline"></a>
 ## 共同处理管线
+
+HTTP 入口由 app 固定构造。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。`forward` 组织通用请求准备和转换推进，技术 provider/HTTP Adapter 执行交换、读写与 Flush。平台专有部分仍按 S11 阶段清单逐批从旧单步 Adapter 收敛，不创建第二套账号切换循环。
+
+`gateway/searchtools` 组织工具模拟，`gateway/moderationflow` 固化审核完成输入；`completion.Recorder` 消费独立资金与用量快照。`ws`、`live` 各自管理连接/turn 状态；摘要、隔离和归属值由 `session` 提供，Redis 协议由 `rediscache` 适配。错误规则与不可变发布快照位于 `errorpolicy`，不承担调度健康或重试决策。
 
 ```text
 请求体/连接限制、request ID、Ops 采集
@@ -75,7 +79,7 @@
 <a id="apikey_authentication"></a>
 ## 认证与准入
 
-凭据提取和认证错误展示由 `apikey/httpapi` 承接，Key、用户、团队和 IP 校验进入 `apikey.Authenticate`，返回区分 owner/payer/actor/team 的 `AccessSnapshot`。旧网关中间件继续组合复合选组、模型改写与 billing 准入。认证缓存保持 v40、原 Redis key、TTL 和失效协议；来源与请求中的嵌套 map、slice、指针分别复制，复合选组不能污染共享快照，分组显式 Fast 策略也必须完整往返。
+凭据提取和认证错误展示由 `apikey/httpapi` 承接，Key、用户、团队和 IP 校验进入 `apikey.Authenticate`，返回区分 owner/payer/actor/team 的 `AccessSnapshot`。`gateway/httpapi` 的通用/Google 认证入口组合复合选组、模型改写与 `gateway/admission` 的资金准入，旧 middleware 只投影已有 context 与观测。普通协议门禁不提前读取请求体，Google 与通用入口仍各自保留原错误顺序。认证缓存保持 v40、原 Redis key、TTL 和失效协议；来源与请求中的嵌套 map、slice、指针分别复制，复合选组不能污染共享快照，分组显式 Fast 策略也必须完整往返。
 
 通用 API Key 认证依次执行：
 
@@ -153,6 +157,8 @@ Qoder 流式已经进入上游后使用完成释放：客户端断开停止下�
 
 上游转发产生可计量 usage 后，handler 把解析出的 token/图片/视频用量、客户端与上游模型、endpoint、账号、订阅快照、请求标识和渠道映射交给有界 UsageRecord worker pool。Anthropic 网关与 OpenAI 兼容的 Messages、Responses、Chat 三条链在终止事件前中断时，只要 service 随错误返回了部分结果，handler 仍提交其中已观测的 usage；无结果不生成记录，`UpstreamFailoverError` 不携带部分结果，避免重试成功后双重计费。国产供应商原生 Anthropic 转 Responses 的流在客户端写失败后停止下游输出，但继续排水上游并推进状态机，直到读到末尾 `message_delta` 的最终 token 或达到有界读超时。OpenAI OAuth 图片响应在 HTTP 成功后若发生上游 body 传输中断，仅在尚未向客户端写出真实图片内容时按 502 进入账号策略和 failover；JSON keepalive 空白不算真实输出，客户端取消、deadline、响应体超限以及首字节后的中断不会换号。worker 使用脱离已结束请求取消信号但受自身超时约束的 Context；队列策略可以同步回退或丢弃，并通过指标/日志暴露压力，不能为每个请求创建无界 goroutine。
 
+完成执行器的唯一实现位于 `gateway/completion`，配置由 app 投影，旧 UsageRecordWorkerPool 名称为类型别名。停止同时等待排队任务和已经接受的同步溢出任务；扩缩容与停止共用屏障，停止后不能重开。显式 drop/sample/sync 与 mandatory 兜底仍保留原入口语义，完成记录与结算编排也由 `gateway/completion.Recorder` 唯一实现，旧 RecordUsage 入口只投影和委托。app 在开放入口前绑定 Forward/OpenAI 完成器；已迁 HTTP 提交点先固化模型、主体和资金输入，再交给队列。媒体与 WS turn 同样在入队前取得快照；任务模块仍保留自己的完成资格和 S13 交接边界。
+
 标准模式中的共同顺序为：
 
 1. 归一化不同协议的 token 桶、媒体尺寸/时长、缓存和长上下文语义。
@@ -192,9 +198,9 @@ Brave/Tavily 搜索由 search 选择供应商并预占额度。失败释放自�
 
 Qoder Chat Completions 的生产路由绑定 `gateway/httpapi.QoderChatHandler`，由 `gateway.QoderUseCase` 拥有唯一请求级循环，`upstream/qoder.Executor` 只执行当次平台调用。使用既有认证 `AccessSnapshot`、路由 `RoutePlan`、账号 `AccountSnapshot` 和 scheduler Lease；其余 Qoder HTTP 协议仍通过旧 handler 组合相同平台实现。
 
-app 的精确过渡适配负责现有会话识别、选号投影、错误改写和完成队列调用，不另建状态缓存。资金预检后按原时机登记用户等待，实际等待取得槽位后再次执行 billing 资金检查，二次检查不再累计 RPM。账号尝试持有独立 AttemptLease，完成或失败后归还；只有尚未提交本次输出时才能按原资格进行受限刷新与换号。已服务的部分失败只进入一次完成处理，不产生成功粘性或成功反馈。
+app 将固定依赖绑定到 `QoderUseCase.Execute`；HTTP 只提交请求值及同步输出，不再逐请求组装选择、刷新、计费和完成回调。`gateway/session` 复用原会话种子及哈希格式，app 的选号和受控凭据投影仍转接旧能力，未另建状态缓存。资金预检后按原时机登记用户等待，实际等待取得槽位后再次执行 billing 资金检查，二次检查不再累计 RPM。账号尝试持有独立 AttemptLease，完成或失败后归还；只有尚未提交本次输出时才能按原资格进行受限刷新与换号。已服务的部分失败只进入一次完成处理，不产生成功粘性或成功反馈。
 
-HTTP 提交、当前 attempt 的重试边界和语义输出分别表示；等待心跳保持自己的输出责任。已经提交供应商服务后，结算或用量记录失败不重新执行供应商请求。完成 worker 和未迁的请求策略继续通过旧能力端口提供，后续由对应阶段清理。
+HTTP 提交、当前 attempt 的重试边界和语义输出分别表示；等待心跳保持自己的输出责任。已经提交供应商服务后，结算或用量记录失败不重新执行供应商请求。`ExecutionResult` 独立返回最后尝试的观测结果与错误。Qoder 完成输入在提交前转换为 `completion.Input`，异步任务不持有 Gin、原始报文或旧账号实体；未迁的请求策略仍通过精确端口接入。
 
 Qoder 请求与平台尝试在 app 的 `QoderRequestsAndAttempts` 中同步登记。后台停止顺序 15 先禁止新进入并等待在途，随后才停止完成队列和共享连接；超过剩余退出预算时报告未完成，不能宣称 drain 成功。这项登记不创建额外 worker，也不缩短已进入流式上游的正常执行预算。
 
@@ -204,4 +210,4 @@ Qoder 请求与平台尝试在 app 的 `QoderRequestsAndAttempts` 中同步登�
 
 各平台的供应商交换、请求构造与原生读取位于 upstream；旧网关在调用点投影账号、出站策略与错误观察接口，不向新平台传入 Gin 或完整 config。OpenAI 的响应读取、图片与辅助查询保留各自取消与终态差异，WS relay 和连接池独立于完整入站 WS 编排。续接报文和失效密文剥离使用平台纯实现，会话归属缓存和每轮价格快照仍由入站持有。
 
-NativeUpstreamAttempts 在应用退出时禁止新进入并等待在途，先于完成队列和共享存储关闭。它与 HTTPRequests 是并列等待屏障；额度恢复操作先取消，再等待请求结束，不能把 HTTPRequests 的完成时间当作停止监听时间。账号授权会话及底层配额服务随后停止，按需 Live/WS 资源不因构造应用而提前开启。
+GatewayRequestsAndAttempts 由 app 构造一次，HTTP 入口与原生平台尝试引用同一进入屏障；停止后拒绝新进入，并等待请求尾部完成快照入队及在途尝试，先于完成队列和共享存储关闭。它与 HTTPRequests 是并列等待屏障；额度恢复操作先取消，再等待请求结束，不能把 HTTPRequests 的完成时间当作停止监听时间。账号授权会话及底层配额服务随后停止，按需 Live/WS 资源不因构造应用而提前开启。

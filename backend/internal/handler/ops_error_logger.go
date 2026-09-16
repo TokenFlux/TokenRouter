@@ -31,8 +31,6 @@ const (
 	opsUpstreamModelKey = service.OpsUpstreamModelKey
 	opsRequestTypeKey   = "ops_request_type"
 
-	openAICyberWarningPromptExcerptKey = "openai_cyber_warning_prompt_excerpt"
-
 	// 错误过滤匹配常量 — shouldSkipOpsErrorLog 和错误分类共用
 	opsErrContextCanceled            = "context canceled"
 	opsErrNoAvailableAccounts        = "no available accounts"

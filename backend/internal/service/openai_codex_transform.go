@@ -69,18 +69,12 @@ func stripOpenAIImageGenerationTools(reqBody map[string]any) bool {
 func stripOpenAIImageGenerationToolsFromRawPayload(payload []byte) ([]byte, bool, error) {
 	return native.StripOpenAIImageGenerationToolsFromRawPayload(payload, openAIRequestBodyHasImageGenerationDeclaration(payload))
 }
-func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
-	return native.StripCodexSparkImageGenerationTools(reqBody)
-}
 
 func validateCodexSparkInput(reqBody map[string]any, model string) error {
 	return native.ValidateCodexSparkInput(reqBody, model, isCodexSparkModel(model))
 }
 func normalizeOpenAIResponsesImageGenerationTools(reqBody map[string]any) bool {
 	return native.NormalizeOpenAIResponsesImageGenerationTools(reqBody)
-}
-func normalizeOpenAIResponseFormatSchemas(reqBody map[string]any) bool {
-	return native.NormalizeOpenAIResponseFormatSchemas(reqBody)
 }
 
 func ensureOpenAIResponsesImageGenerationTool(reqBody map[string]any) bool {
@@ -110,9 +104,6 @@ func extractSystemMessagesFromInput(reqBody map[string]any, omitPromoted bool) b
 	return native.ExtractSystemMessagesFromInput(reqBody, omitPromoted)
 }
 
-func extractPromptLikeInstructionsFromInput(reqBody map[string]any) string {
-	return native.ExtractPromptLikeInstructionsFromInput(reqBody)
-}
 func defaultCodexSynthInstructions(model string) string {
 	return native.DefaultCodexSynthInstructions(model)
 }

@@ -3,50 +3,17 @@ package handler
 import (
 	"context"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	"github.com/gin-gonic/gin"
 )
 
+// usageRecordContextFromGin 仅在同步入口读取请求；异步使用独立快照。
 func usageRecordContextFromGin(c *gin.Context) context.Context {
-	dst := context.Background()
 	if c == nil || c.Request == nil {
-		return dst
+		return context.Background()
 	}
-	src := c.Request.Context()
-	for _, key := range []any{
-		ctxkey.RequestID,
-		ctxkey.ClientRequestID,
-		ctxkey.ClientModel,
-	} {
-		if value := src.Value(key); value != nil {
-			dst = context.WithValue(dst, key, value)
-		}
-	}
-	dst = service.PropagateAPIKeyModelRedirectTrace(dst, src)
-	return dst
+	return completion.SnapshotContext(c.Request.Context())
 }
-
 func wrapUsageRecordTaskContext(c *gin.Context, task func(context.Context)) func(context.Context) {
-	if task == nil {
-		return nil
-	}
-	requestCtx := usageRecordContextFromGin(c)
-	return func(workerCtx context.Context) {
-		base := workerCtx
-		if base == nil {
-			base = context.Background()
-		}
-		for _, key := range []any{
-			ctxkey.RequestID,
-			ctxkey.ClientRequestID,
-			ctxkey.ClientModel,
-		} {
-			if value := requestCtx.Value(key); value != nil {
-				base = context.WithValue(base, key, value)
-			}
-		}
-		base = service.PropagateAPIKeyModelRedirectTrace(base, requestCtx)
-		task(base)
-	}
+	return completion.WrapTaskContext(usageRecordContextFromGin(c), task)
 }

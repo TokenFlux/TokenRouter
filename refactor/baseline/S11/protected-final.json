@@ -1,0 +1,11 @@
+{
+  "checked": 6646,
+  "changes": [],
+  "head": "beb09fb536d9e3c220dac04e8ffb2d4ffeed628b",
+  "branch": "main",
+  "staged": [],
+  "original_untracked_count": 50,
+  "plan_prefix_sha256": "0b37ed644248a3a50a433610b3610e6e899f663c448b7a6dd7f5fd012f7f59be",
+  "final_source_hash_mismatches": [],
+  "leftover_depguard_fixtures": []
+}

@@ -1,0 +1,208 @@
+package service
+
+import (
+	"context"
+	"log/slog"
+	"net/http"
+	"time"
+
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	grokforward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
+	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/gin-gonic/gin"
+)
+
+// grokForwardAdapter 只持有本次受控凭据与旧能力引用，不保存新的会话/健康状态。
+type grokForwardAdapter struct {
+	s               *OpenAIGatewayService
+	c               *gin.Context
+	account         *Account
+	token, proxyURL string
+}
+
+func (a *grokForwardAdapter) options() grokforward.Options {
+	maxLine := defaultMaxLineSize
+	if a.s.cfg != nil && a.s.cfg.Gateway.MaxLineSize > 0 {
+		maxLine = a.s.cfg.Gateway.MaxLineSize
+	}
+	return grokforward.Options{Codec: grokBodyCodec(), MaxLineSize: maxLine, Enter: a.s.nativeAttemptActivity}
+}
+func (a *grokForwardAdapter) input(body []byte, model string, stream bool, start time.Time) grokforward.Input {
+	return grokforward.Input{
+		AccountID:     a.account.ID,
+		AccountName:   a.account.Name,
+		AccountType:   a.account.Type,
+		Platform:      a.account.Platform,
+		OAuth:         a.account.IsGrokOAuth(),
+		HTTPPresent:   a.c != nil,
+		Compact:       isOpenAIResponsesCompactPath(a.c),
+		Body:          body,
+		OriginalModel: model,
+		Stream:        stream,
+		StartedAt:     start,
+	}
+}
+func (a *grokForwardAdapter) BillingModel(model string) string {
+	return resolveOpenAIForwardModel(a.account, model, "")
+}
+func (a *grokForwardAdapter) UpstreamModel(model string) string {
+	return normalizeOpenAIModelForUpstream(a.account, model)
+}
+func (a *grokForwardAdapter) ImageModel(model string) bool { return isGrokImageGenerationModel(model) }
+func (a *grokForwardAdapter) InvalidRequest(message, param string) {
+	gatewayhttp.WriteGrokForwardInvalidRequest(a.c, message, param)
+}
+func (a *grokForwardAdapter) SetError(status int, message, detail string) {
+	setOpsUpstreamError(a.c, status, message, detail)
+}
+func (a *grokForwardAdapter) ClientTools(mapping bridge.ResponsesClientToolMapping) {
+	setGrokResponsesClientToolMapping(a.c, mapping)
+}
+func (a *grokForwardAdapter) CacheIdentity(body []byte, model string) string {
+	return resolveGrokCacheIdentity(a.c, body, "", model)
+}
+func (a *grokForwardAdapter) FreeCacheRoute(body, intent []byte, identity string) ([]byte, error) {
+	return applyGrokFreeRequestToolCacheRoute(a.c, body, intent, a.account, identity)
+}
+func (a *grokForwardAdapter) Credential(ctx context.Context) error {
+	token, _, err := a.s.getRequestCredential(ctx, a.c, a.account)
+	a.token = token
+	return err
+}
+func (a *grokForwardAdapter) Detach(ctx context.Context) (context.Context, func()) {
+	return detachUpstreamContext(ctx)
+}
+func (a *grokForwardAdapter) ResolveProxy() {
+	if a.account.ProxyID != nil && a.account.Proxy != nil {
+		a.proxyURL = a.account.Proxy.URL()
+	}
+}
+func (a *grokForwardAdapter) Build(ctx context.Context, body []byte, identity string, settings bool) (*http.Request, error) {
+	if settings {
+		return buildGrokResponsesRequest(ctx, a.c, a.account, body, a.token, identity, a.s.cfg, a.s.settingService)
+	}
+	return buildGrokResponsesRequest(ctx, a.c, a.account, body, a.token, identity, a.s.cfg)
+}
+func (a *grokForwardAdapter) Do(req *http.Request) (*http.Response, error) {
+	return a.s.httpUpstream.Do(req, a.proxyURL, a.account.ID, a.account.Concurrency)
+}
+func (a *grokForwardAdapter) ReadError(resp *http.Response) []byte {
+	return a.s.readUpstreamErrorBody(resp)
+}
+func (a *grokForwardAdapter) Latency(value int64) {
+	SetOpsLatencyMs(a.c, OpsUpstreamLatencyMsKey, value)
+}
+func (a *grokForwardAdapter) TransportError(ctx context.Context, err error) error {
+	return a.s.handleOpenAIUpstreamTransportError(ctx, a.c, a.account, err, false)
+}
+func (a *grokForwardAdapter) ReplayNotice(identity bool) {
+	slog.Info("grok_replay_decode_retry", "account_id", a.account.ID, "cache_identity_present", identity)
+}
+func (a *grokForwardAdapter) ErrorMessage(body []byte) string {
+	return sanitizeUpstreamErrorMessage(extractUpstreamErrorMessage(body))
+}
+func (a *grokForwardAdapter) Health(ctx context.Context, status int, headers http.Header, body []byte, model string, teamContext bool) grokforward.Decision {
+	if teamContext {
+		ctx = withGrokTeamRateLimitModel(ctx, model)
+	}
+	d := a.s.applyGrokAccountUpstreamError(ctx, a.account, status, headers, body, model)
+	return grokforward.Decision{
+		Generic:          d.ShouldReturnGenericError(),
+		Failover:         d.ShouldFailover(a.account, status, a.s.shouldFailoverGrokUpstreamError(status, body)),
+		RetrySameAccount: d.RetryableOnSameAccount(a.account, status),
+	}
+}
+func (a *grokForwardAdapter) Observe(n grokforward.Notice) {
+	appendOpsUpstreamError(a.c, OpsUpstreamErrorEvent{
+		Platform:           n.Platform,
+		AccountID:          n.AccountID,
+		AccountName:        n.AccountName,
+		UpstreamStatusCode: n.UpstreamStatusCode,
+		UpstreamRequestID:  n.UpstreamRequestID,
+		Kind:               n.Kind,
+		Message:            n.Message,
+	})
+}
+func (a *grokForwardAdapter) HandleError(ctx context.Context, resp *http.Response, body []byte, model string) (*grokforward.Result, error) {
+	v, err := a.s.handleErrorResponse(ctx, resp, a.c, a.account, body, model)
+	return nativeGrokForwardResult(v), err
+}
+func (a *grokForwardAdapter) ShouldMarkTeam(status int, body []byte) bool {
+	return shouldMarkGrokTeamModelRateLimit(status, body)
+}
+func (a *grokForwardAdapter) MarkTeam(model string) {
+	markGrokTeamModelRateLimit(a.account, model, resolveGrokTeamRateLimitUntil(time.Now().Add(grokTeamRateLimitDefaultTTL), time.Now()))
+}
+func (a *grokForwardAdapter) RetryMetadata(status int, body []byte) grokforward.Retry {
+	retry, delay, deadline, max := grokSameAccountRetryMetadata(a.account, status, body)
+	return grokforward.Retry{Retryable: retry, Delay: delay, Deadline: deadline, Max: max}
+}
+func (a *grokForwardAdapter) Failure(f grokforward.Failure) error {
+	return &UpstreamFailoverError{
+		StatusCode:               f.StatusCode,
+		ResponseBody:             f.ResponseBody,
+		ResponseHeaders:          f.ResponseHeaders,
+		RetryableOnSameAccount:   f.RetryableOnSameAccount,
+		RequestScopedTransient:   f.RequestScopedTransient,
+		SameAccountRetryDelay:    f.SameAccountRetryDelay,
+		SameAccountRetryDeadline: f.SameAccountRetryDeadline,
+		SameAccountRetryMax:      f.SameAccountRetryMax,
+	}
+}
+func (a *grokForwardAdapter) ObserveSuccess(ctx context.Context, headers http.Header, status int, model string) {
+	a.s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, model), a.account, headers, status)
+}
+func (a *grokForwardAdapter) ReadStream(ctx context.Context, resp *http.Response, start time.Time, original, mapped string) (upstream.ResponsesObservation, error) {
+	v, err := a.s.readStreamingResponseObservation(ctx, resp, a.c, a.account, start, original, mapped, "")
+	if v == nil {
+		return upstream.ResponsesObservation{}, err
+	}
+	return upstream.ResponsesObservation{
+		Usage:               v.usage,
+		HasUsage:            v.hasUsage,
+		Served:              v.served,
+		HTTPCommitted:       v.httpCommitted,
+		RetryCommitted:      v.retryCommitted,
+		ClientDisconnected:  v.clientDisconnected,
+		FirstSemanticOutput: v.firstSemanticOutput,
+		FirstTokenMs:        v.firstTokenMs,
+		ResponseID:          v.responseID,
+		SearchCount:         v.searchCount,
+		ImageCount:          v.imageCount,
+		ImageOutputSizes:    v.imageOutputSizes,
+	}, err
+}
+func (a *grokForwardAdapter) ReadNonStream(ctx context.Context, resp *http.Response, original, mapped string) (upstream.ResponsesObservation, error) {
+	v, err := a.s.handleNonStreamingResponse(ctx, resp, a.c, a.account, original, mapped)
+	if err != nil {
+		return upstream.ResponsesObservation{}, err
+	}
+	return upstream.ResponsesObservation{
+		Usage:            v.usage,
+		HasUsage:         v.usage != nil,
+		Served:           v.served,
+		HTTPCommitted:    a.c.Writer.Written(),
+		RetryCommitted:   IsResponseCommitted(a.c),
+		ResponseID:       v.responseID,
+		SearchCount:      v.searchCount,
+		ImageCount:       v.imageCount,
+		ImageOutputSizes: v.imageOutputSizes,
+	}, nil
+}
+func (a *grokForwardAdapter) Sink() upstream.OutputSink {
+	if a.c == nil {
+		return nil
+	}
+	return gatewayhttp.ResponseSink{Writer: a.c.Writer}
+}
+func (a *grokForwardAdapter) Effort(body []byte, model string) *string {
+	return extractOpenAIReasoningEffortFromBody(body, model)
+}
+func (a *grokForwardAdapter) ReadBody(resp *http.Response) ([]byte, error) {
+	return ReadUpstreamResponseBody(resp.Body, a.s.cfg, a.c, nil)
+}
+func (a *grokForwardAdapter) HasTokens(usage *protocolopenai.ForwardUsage) bool {
+	return openAIUsageHasTokens(usage)
+}

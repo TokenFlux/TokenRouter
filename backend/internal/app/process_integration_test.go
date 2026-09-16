@@ -264,8 +264,8 @@ func TestS02ProcessModes(t *testing.T) {
 			}
 			require.Less(t, strings.Index(logs, "stopped ContentModerationService"), strings.Index(logs, "stopped EmailQueueService"))
 
-			// S09 原生尝试与授权/额度资源只停止一次，并先于其 Redis/SQL 依赖关闭。
-			for _, name := range []string{"NativeUpstreamAttempts", "QoderRequestsAndAttempts", "QoderCredentialSessions", "OpenAIQuotaActions", "OpenAIQuotaService"} {
+			// S11 完整请求与原生尝试共用入口屏障；授权/额度资源仍先于 Redis/SQL 停止。
+			for _, name := range []string{"GatewayRequestsAndAttempts", "QoderRequestsAndAttempts", "QoderCredentialSessions", "OpenAIQuotaActions", "OpenAIQuotaService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Ent"), name)
@@ -273,11 +273,11 @@ func TestS02ProcessModes(t *testing.T) {
 			for _, name := range []string{"OAuthService", "OpenAIOAuthService", "GeminiOAuthService", "AntigravityOAuthService", "QoderOAuthService", "GrokOAuthService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
-				require.Less(t, strings.Index(logs, "stopped NativeUpstreamAttempts"), strings.Index(logs, "stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped GatewayRequestsAndAttempts"), strings.Index(logs, "stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
 			// 请求等待与原生操作屏障同阶段完成；操作取消不能等待自身所属 HTTP handler 先返回。
-			for _, name := range []string{"HTTPRequests", "NativeUpstreamAttempts", "QoderRequestsAndAttempts"} {
+			for _, name := range []string{"HTTPRequests", "GatewayRequestsAndAttempts", "QoderRequestsAndAttempts"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped UsageRecordWorkerPool"), name)
 			}

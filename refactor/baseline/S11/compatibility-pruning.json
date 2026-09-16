@@ -1,0 +1,939 @@
+[
+  {
+    "file": "backend/internal/handler/content_moderation_helper.go",
+    "name": "openAICyberWarningRecordedKey",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/content_moderation_helper.go",
+    "name": "openAICyberWarningSnapshotKey",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/content_moderation_helper.go",
+    "name": "cloneContentModerationID",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/content_moderation_helper.go",
+    "name": "contentModerationProvider",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/content_moderation_helper.go",
+    "name": "contentModerationRequestID",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "compositeRequestableModels",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "writeCompositeModelsList",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "writeModelsList",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "writeCustomModelsList",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "writeGrokModelsList",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "grokModelSupportsConfigurableReasoning",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "writeDefaultModelsList",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "writeOpenAIModelsList",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "writeClaudeCompatiblePlatformModelsList",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "customModelsListAllowsModel",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "mergeModelIDs",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "isMaxTokensOneHaikuRequest",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_handler.go",
+    "name": "generateRealisticMsgID",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gateway_helper.go",
+    "name": "recordGatewayStreamHeartbeat",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/handler/openai_gateway_credential_failover_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/handler/gateway_helper.go",
+    "name": "claudeCodeBodyMapFromParsedRequest",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "geminiCLITmpDirRegex",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/handler/gemini_cli_session_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "customGeminiModelsList",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/handler/gemini_v1beta_handler_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "parseGeminiModelAction",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "writeUpstreamResponse",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "shouldFallbackGeminiModels",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "shouldFallbackGeminiModel",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/handler/gemini_v1beta_handler_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "extractGeminiCLISessionHash",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/handler/gemini_cli_session_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "truncateDigestChain",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/gemini_v1beta_handler.go",
+    "name": "safeShortPrefix",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/handler/gemini_cli_session_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "errOpenAIWSLocalRoutingRejected",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "openAIWSTurnBillingModel",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "recoverAnthropicMessagesPanic",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "isSafeRetryAfter",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "buildCyberPolicyOpsErrorEntry",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "buildCyberSessionBlockedOpsEntry",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "cyberSessionBlockAppliesToGroup",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "cyberPolicyOpsMeta",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "cloneHandlerInt64Ptr",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "writeCyberSessionBlockedWSError",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "openAIWSIngressFallbackSessionSeed",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "isOpenAIWSUpgradeRequest",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "closeOpenAIClientWS",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "closeOpenAIWSFailoverExhausted",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/handler/openai_gateway_credential_failover_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/handler/openai_gateway_handler.go",
+    "name": "writeContentModerationWSError",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/openai_reasoning_effort_policy.go",
+    "name": "respondOpenAIReasoningEffortPolicyError",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/qoder_gateway_handler.go",
+    "name": "writeQoderChatCompletionsErrorSSE",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/request_body_parse_log.go",
+    "name": "parseFailureSnippetLen",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/handler/request_body_parse_log_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/handler/request_body_parse_log.go",
+    "name": "sanitizeBodySnippet",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/session_isolation.go",
+    "name": "metadataSessionIsolationID",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/session_isolation.go",
+    "name": "handleSessionIsolationError",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/session_isolation.go",
+    "name": "handleAnthropicSessionIsolationError",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/session_isolation.go",
+    "name": "handleGeminiSessionIsolationError",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/session_isolation.go",
+    "name": "writeSessionIsolationWSError",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/handler/session_isolation.go",
+    "name": "openAIWSSessionIsolationCloseReason",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/account_stats_pricing.go",
+    "name": "applyAccountStatsCost",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/account_stats_pricing_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/billing_service.go",
+    "name": "normalizeBillingServiceTier",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/billing_service.go",
+    "name": "applyCostBreakdownMultiplier",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/billing_service.go",
+    "name": "maxReasoningEffortBillingMultiplier",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_forward_as_responses.go",
+    "name": "appendRawJSON",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/gateway_forward_as_responses_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/gateway_request.go",
+    "name": "sliceRawFromBody",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_request.go",
+    "name": "filterThinkingBlocksInternal",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_request.go",
+    "name": "normalizeEffortToken",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_request.go",
+    "name": "normalizeGLMOpenAIReasoningEffort",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_service.go",
+    "name": "extractTextFromSystemRaw",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_service.go",
+    "name": "extractTextFromContentRaw",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_service.go",
+    "name": "appendMessageTextsFromRaw",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_service.go",
+    "name": "appendResponsesSessionAnchorFromRaw",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_service.go",
+    "name": "appendResponsesContentText",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_service.go",
+    "name": "extractCacheableTextFromSystemRaw",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_service.go",
+    "name": "extractCacheableTextFromMessagesRaw",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_service.go",
+    "name": "hashContent",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_usage_billing.go",
+    "name": "apiKeyAuthCacheInvalidator",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/gateway_usage_billing.go",
+    "name": "isForcedUsageBillingRequestID",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/gateway_usage_billing_request_id_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/gateway_usage_billing.go",
+    "name": "detachedBillingContext",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/grok_media.go",
+    "name": "isGrokMediaVideoContentURL",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "normalizeImageGenerationEndpoint",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIJSONToolsContainImageGeneration",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIJSONToolsContainNativeImageGeneration",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIAnyToolsContainNativeImageGeneration",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "isOpenAIImageGenerationType",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "isOpenAIImageGenNamespaceName",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "isImageGenNamespaceTool",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIJSONInputContainsImageGenTool",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIJSONToolChoiceSelectsImageGeneration",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIJSONToolChoiceSelectsExplicitImageGeneration",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "isOpenAIImageGenFunctionReference",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIAnyToolChoiceSelectsImageGeneration",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIAnyToolChoiceSelectsExplicitImageGeneration",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "isOpenAIImageBillingModelAlias",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/image_generation_intent.go",
+    "name": "openAIJSONString",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/media_price_config.go",
+    "name": "webSearchPricePerCallFromAPIKey",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/media_price_config.go",
+    "name": "groupSearchPricePer1kFromAPIKey",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_codex_transform.go",
+    "name": "stripCodexSparkImageGenerationTools",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_codex_transform.go",
+    "name": "normalizeOpenAIResponseFormatSchemas",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_codex_transform.go",
+    "name": "extractPromptLikeInstructionsFromInput",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_anthropic_native_pump.go",
+    "name": "errAnthropicNativeStreamIdle",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_chat_completions_raw.go",
+    "name": "streamRawChatCompletions",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_chat_completions_raw.go",
+    "name": "ensureOpenAIChatStreamUsage",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/openai_gateway_chat_completions_raw_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_chat_completions_raw.go",
+    "name": "bufferRawChatCompletions",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/openai_gateway_chat_completions_raw_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_count_tokens.go",
+    "name": "openAIInputTokensEncodingForModel",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_grok.go",
+    "name": "patchGrokResponsesBodyWithClientTools",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/openai_gateway_grok_test.go",
+      "backend/internal/service/openai_gateway_grok_tool_protocol_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_grok.go",
+    "name": "addOpenAIUsage",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_grok_chat_bridge.go",
+    "name": "grokChatRawEndpoint",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/openai_gateway_grok_chat_bridge_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_grok_compact.go",
+    "name": "buildGrokCompactRequestBody",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/openai_gateway_grok_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_messages.go",
+    "name": "handleAnthropicStreamingResponse",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+    "name": "handleNativeAnthropicBufferedResponse",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+    "name": "handleNativeAnthropicStreamingResponse",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+    "name": "nativeAnthropicStreamResult",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_messages_chat_fallback.go",
+    "name": "bufferChatCompletionsAsAnthropic",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_messages_chat_fallback.go",
+    "name": "streamChatCompletionsAsAnthropic",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_passthrough.go",
+    "name": "validOpenAIPassthroughRetryAfter",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_request_body.go",
+    "name": "setOpenAIRequestMapPath",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_request_body.go",
+    "name": "deleteOpenAIRequestMapPath",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_request_body.go",
+    "name": "openAIRequestBodyMayContainImageInput",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_responses_chat_fallback.go",
+    "name": "bufferChatCompletionsAsResponses",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_responses_chat_fallback.go",
+    "name": "streamChatCompletionsAsResponses",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_gateway_usage.go",
+    "name": "resolveUserGroupRateMultiplier",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_images.go",
+    "name": "validateOpenAIImagesModel",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_model_alias.go",
+    "name": "firstUsageBillingModel",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_sticky_compat.go",
+    "name": "openAISessionCacheKey",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/openai_ws_session_preemption.go",
+    "name": "openAIWSSessionPreemptCacheHash",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/openai_ws_session_preemption_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/openai_ws_session_preemption.go",
+    "name": "claimOpenAIWSSessionPreemptOwner",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/openai_ws_session_preemption_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/openai_ws_session_preemption.go",
+    "name": "releaseOpenAIWSSessionPreemptOwner",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/openai_ws_session_preemption_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/session_id.go",
+    "name": "maxPersistedSessionIDLength",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/usage_log.go",
+    "name": "usageActorUserID",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/usage_log_helpers.go",
+    "name": "coalesceRequestedReasoningEffort",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  },
+  {
+    "file": "backend/internal/service/usage_log_helpers.go",
+    "name": "forwardResultBillingModel",
+    "action": "test-only",
+    "tag": "(unit)",
+    "test_consumers": [
+      "backend/internal/service/gateway_record_usage_test.go"
+    ]
+  },
+  {
+    "file": "backend/internal/service/usage_log_helpers.go",
+    "name": "optionalInt64Ptr",
+    "action": "delete",
+    "tag": "",
+    "test_consumers": []
+  }
+]

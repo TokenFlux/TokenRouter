@@ -3,12 +3,13 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	s09wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -339,160 +340,14 @@ func deriveOpenAIReasoningEffortFromModelCandidates(models []string) string {
 	return ""
 }
 
-type openAIRequestView struct {
-	body               []byte
-	Model              string
-	Stream             bool
-	PromptCacheKey     string
-	PreviousResponseID string
-	ServiceTier        string
-	HasServiceTier     bool
-	ReasoningEffort    string
-	patches            []openAIRequestPatch
-	patchesDisabled    bool
-}
-
-type openAIRequestPatch struct {
-	path   string
-	delete bool
-	value  any
-}
+// 旧 HTTP 解码入口只持有目标视图；字段扫描和补丁算法只有一份。
+type openAIRequestView struct{ requeststate.OpenAIRequestView }
 
 func newOpenAIRequestView(body []byte) openAIRequestView {
-	if len(body) == 0 {
-		return openAIRequestView{}
-	}
-	const (
-		modelField uint8 = 1 << iota
-		streamField
-		promptCacheKeyField
-		previousResponseIDField
-		serviceTierField
-		reasoningField
-		allRequestViewFields = modelField | streamField | promptCacheKeyField |
-			previousResponseIDField | serviceTierField | reasoningField
-	)
-
-	view := openAIRequestView{body: body}
-	var seen uint8
-	// 直接读取原始请求体，避免为大 input/contents 复制整段 JSON；视图持有 body 保证字符串有效。
-	parseRawJSONView(body).ForEach(func(key, value gjson.Result) bool {
-		switch key.Str {
-		case "model":
-			if seen&modelField == 0 {
-				view.Model = strings.TrimSpace(value.String())
-				seen |= modelField
-			}
-		case "stream":
-			if seen&streamField == 0 {
-				view.Stream = value.Bool()
-				seen |= streamField
-			}
-		case "prompt_cache_key":
-			if seen&promptCacheKeyField == 0 {
-				view.PromptCacheKey = strings.TrimSpace(value.String())
-				seen |= promptCacheKeyField
-			}
-		case "previous_response_id":
-			if seen&previousResponseIDField == 0 {
-				view.PreviousResponseID = strings.TrimSpace(value.String())
-				seen |= previousResponseIDField
-			}
-		case "service_tier":
-			if seen&serviceTierField == 0 {
-				view.ServiceTier = strings.TrimSpace(value.String())
-				view.HasServiceTier = value.Exists()
-				seen |= serviceTierField
-			}
-		case "reasoning":
-			if seen&reasoningField == 0 {
-				view.ReasoningEffort = strings.TrimSpace(value.Get("effort").String())
-				seen |= reasoningField
-			}
-		}
-		return seen != allRequestViewFields
-	})
-	return view
+	return openAIRequestView{OpenAIRequestView: requeststate.NewOpenAIRequestView(body)}
 }
-
-// Decode 保留阶段一既有 full-map 行为；后续阶段会把调用点下沉到复杂分支。
 func (v openAIRequestView) Decode(c *gin.Context) (map[string]any, error) {
-	return getOpenAIRequestBodyMap(c, v.body)
-}
-
-func (v *openAIRequestView) MarkPatchSet(path string, value any) {
-	if v == nil || v.patchesDisabled {
-		return
-	}
-	path = strings.TrimSpace(path)
-	if !isSimpleOpenAIRequestPatchPath(path) {
-		v.DisablePatches()
-		return
-	}
-	v.patches = append(v.patches, openAIRequestPatch{path: path, value: value})
-}
-
-func (v *openAIRequestView) MarkPatchDelete(path string) {
-	if v == nil || v.patchesDisabled {
-		return
-	}
-	path = strings.TrimSpace(path)
-	if !isSimpleOpenAIRequestPatchPath(path) {
-		v.DisablePatches()
-		return
-	}
-	v.patches = append(v.patches, openAIRequestPatch{path: path, delete: true})
-}
-
-func isSimpleOpenAIRequestPatchPath(path string) bool {
-	if path == "" || strings.ContainsRune(path, '\\') {
-		return false
-	}
-	for _, part := range strings.Split(path, ".") {
-		if strings.TrimSpace(part) == "" {
-			return false
-		}
-	}
-	return true
-}
-
-func (v *openAIRequestView) DisablePatches() {
-	if v == nil {
-		return
-	}
-	v.patchesDisabled = true
-	v.patches = nil
-}
-
-func (v openAIRequestView) HasPatches() bool {
-	return !v.patchesDisabled && len(v.patches) > 0
-}
-
-func (v openAIRequestView) ApplyPatches() ([]byte, error) {
-	if v.patchesDisabled || len(v.patches) == 0 {
-		return nil, errors.New("openai request patches disabled")
-	}
-	body := v.body
-	for _, patch := range v.patches {
-		var err error
-		if patch.delete {
-			body, err = sjson.DeleteBytes(body, patch.path)
-		} else {
-			body, err = sjson.SetBytes(body, patch.path, patch.value)
-		}
-		if err != nil {
-			return nil, err
-		}
-	}
-	return body, nil
-}
-
-func setOpenAIRequestMapPath(reqBody map[string]any, path string, value any) {
-	nativeopenai.SetOpenAIRequestMapPath(reqBody, path, value)
-}
-
-func deleteOpenAIRequestMapPath(reqBody map[string]any, path string) {
-	nativeopenai.DeleteOpenAIRequestMapPath(reqBody, path)
+	return getOpenAIRequestBodyMap(c, v.Bytes())
 }
 
 func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, promptCacheKey string) {
@@ -1103,26 +958,13 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToBody(ctx context.Context, 
 	return body, nil
 }
 
-// writeOpenAIFastPolicyBlockedResponse writes a 403 JSON response for a
-// request blocked by the OpenAI fast policy.
+// writeOpenAIFastPolicyBlockedResponse 保留策略观察，具体 HTTP/SSE 输出委托 Adapter。
 func writeOpenAIFastPolicyBlockedResponse(c *gin.Context, err *OpenAIFastBlockedError) {
 	if c == nil || err == nil {
 		return
 	}
 	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
-	// body-signal compact 心跳可能已把响应头提交为 200（长排队后才进入
-	// Forward），此时以 response.failed 终止事件回传；未提交时先停拍再写
-	// JSON，保持原状态码语义（#3887）。
-	if StopOpenAICompactSSEKeepaliveCommitted(c) {
-		writeOpenAICompactSSEFailureMessage(c, http.StatusForbidden, "permission_error", err.Message)
-		return
-	}
-	c.JSON(http.StatusForbidden, gin.H{
-		"error": gin.H{
-			"type":    "permission_error",
-			"message": err.Message,
-		},
-	})
+	gatewayhttp.WriteForwardFastPolicyBlocked(c, err.Message, StopOpenAICompactSSEKeepaliveCommitted, writeOpenAICompactSSEFailureMessage)
 }
 
 // applyOpenAIFastPolicyToWSResponseCreate 针对单个 client -> upstream WebSocket
@@ -1249,10 +1091,6 @@ func buildOpenAIFastPolicyBlockedWSEvent(err *OpenAIFastBlockedError) []byte {
 		return []byte(`{"event_id":"` + eventID + `","type":"error","error":{"type":"invalid_request_error","code":"policy_violation","message":"openai fast policy blocked this request"}}`)
 	}
 	return payload
-}
-
-func openAIRequestBodyMayContainImageInput(body []byte) bool {
-	return nativeopenai.OpenAIRequestBodyMayContainImageInput(body)
 }
 
 func openAIJSONValueMayContainImageInput(value gjson.Result) bool {

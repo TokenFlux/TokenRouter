@@ -46,11 +46,11 @@
 | 旧业务图 | `internal/service`、`payment`、`repository` | 尚未迁移的业务规则、事务和适配实现；原 provider set 继续参与构造 |
 | 平台执行 | `internal/upstream` 与各平台子包 | 供应商交换、原生报文、媒体、单次执行和连接资源；业务凭据写入由 account 提供 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
-| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
+| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
 
 settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `SettingService` 继续解释业务设置和维护领域缓存。idempotency 的核心、观察出口与 SQL Adapter 已独立，旧默认入口只委托唯一实例。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；旧 domain 公告类型只作为 Ent 生成代码引用的别名。
 
-`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain/PricingService 保留必要转接。billing 的 Calculator、PriceResolver 和资金分配规则接收显式投影；普通结算与任务资金由 Funds 进入 billing/postgres 的闭合事务，Redis 缓存位于 billing/rediscache。供应商交换、报文与流解析由 upstream 各平台实现；网关完成处理和支付订单编排仍在旧图，纯定价和协议不读取配置或 I/O。
+`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain/PricingService 保留必要转接。billing 的 Calculator、PriceResolver 和资金分配规则接收显式投影；普通结算与任务资金由 Funds 进入 billing/postgres 的闭合事务，Redis 缓存位于 billing/rediscache。供应商交换、报文与流解析由 upstream 各平台实现；网关完成处理由 gateway/completion 消费已冻结输入，支付订单编排仍在旧图，纯定价和协议不读取配置或 I/O。
 
 公告与 billing 的用户读取由 app 直接投影 identity；公告有效订阅直接适配 billing 存取接口，匹配规则仍由 site 执行。模块不导入 app。旧图的跨层构造暂留原 provider，应用级启停和新旧模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
 
@@ -58,9 +58,9 @@ settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `Setting
 
 `usage` 拥有用量事实、统计口径、查询缓存、Dashboard、聚合与清理；`audit` 拥有通用操作审计；`ops` 拥有观测查询、队列、采样、告警、报告和发布查询。各模块的 HTTP、PostgreSQL、Redis 与技术 provider 通过独立端口接入。app 绑定唯一生产实例并投影身份、账号、并发和认证健康数据；旧 `UsageLog` 的关联形状只通过展示投影兼容，不进入新事实模型。用户最后活动排序、Key 最近使用 IP 和团队用量由 `usage/postgres/query` 参与调用方原有连接与查询，排序继续发生在分页前。
 
-`upstream` 按平台持有供应商认证交换、签名、原生请求/响应、媒体和连接资源；通用 wire 仍使用 protocol。账号授权会话、凭据缓存与条件写入由 account 拥有。Qoder Chat 的路由直接进入 gateway/httpapi 和 gateway.QoderUseCase；其余入站仍通过旧网关组合新平台能力，保持唯一请求尝试循环。每次上游执行只接收明确投影，通过同步输出端口写出，完整输入授权、结算与完成队列不下沉到具体平台。
+`upstream` 按平台持有供应商认证交换、签名、原生请求/响应、媒体和连接资源；通用 wire 仍使用 protocol。账号授权会话、凭据缓存与条件写入由 account 拥有。HTTP、SSE、WebSocket、Live、计数与模型入口直接绑定 gateway/httpapi；文本、媒体和会话编排分别由 gateway/text、media、ws、live 拥有。Qoder Chat 继续使用固定 gateway.Execute，Messages/Responses 显式保留其字节提交和等待契约差异。平台执行的混合适配随 S11 逐批收敛，保持每请求唯一账号尝试循环。每次上游执行只接收明确投影，通过同步输出端口写出，完整输入授权、结算与完成队列不下沉到具体平台。
 
-notification 拥有模板、语言/退订、投递协调、队列与 SMTP Adapter；identity 拥有验证码和重置凭据，billing/account/业务用例先确定通知事件，通知模块不反向查询资金或账号。site 同时拥有公告、页面权限和公开信息投影，文件读取位于 site/filesystem；web 只接收公开投影。moderation 的规则、裁决、观测和记录使用自己的核心与 Adapter，用户写入通过 identity 命令或同连接参与能力完成。search 拥有配置发布、供应商选择和额度意图，Brave/Tavily HTTP 与 Redis 状态分别进入 Adapter；旧网关保留工具协议和完成处理。
+notification 拥有模板、语言/退订、投递协调、队列与 SMTP Adapter；identity 拥有验证码和重置凭据，billing/account/业务用例先确定通知事件，通知模块不反向查询资金或账号。site 同时拥有公告、页面权限和公开信息投影，文件读取位于 site/filesystem；web 只接收公开投影。moderation 的规则、裁决、观测和记录使用自己的核心与 Adapter，用户写入通过 identity 命令或同连接参与能力完成。search 拥有配置发布、供应商选择和额度意图，Brave/Tavily HTTP 与 Redis 状态分别进入 Adapter；gateway/searchtools 拥有工具协议与合成结果，gateway/completion 保持原完成资格、资金与分析事实的次序。
 
 `pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型与计算；`server/httpx`、`server/clientip` 拥有 HTTP 适配。旧 pkg/util 入口保留必要的类型别名和委托，不复制实现或状态。
 

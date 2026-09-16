@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/gateway/tokenestimate",
+    "./internal/gateway/text",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "Test(CountTokensAttemptBoundaries|EstimateGrok|EstimateOpenAIInputTokens_RequestSamples|OpenAIInputTokensEncoding|OpenAIGatewayService.*(CountTokens|InputTokens))"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 29.817,
+  "pass": 34,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/count-native-race.log.gz"
+}

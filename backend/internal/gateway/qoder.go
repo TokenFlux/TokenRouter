@@ -6,23 +6,16 @@ import (
 	"errors"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 // Request 使用已认证主体及最终路由计划，不定义第二套身份或路由实体。
-type Request struct {
-	Access      *apikey.AccessSnapshot
-	Route       routing.RoutePlan
-	UserID      int64
-	Concurrency int
-	Stream      bool
-	Body        []byte
-	Model       string
-}
+type Request = execution.Request
 
 type FailureStage string
 
@@ -86,6 +79,8 @@ type QoderUseCase struct {
 	MaxAccounts int
 	WaitTimeout time.Duration
 	Enter       func() (func(), error)
+	concurrency *scheduler.ConcurrencyService
+	runtime     QoderRuntime
 }
 
 func NewQoderUseCase(maxAccounts int, waitTimeout time.Duration) *QoderUseCase {
@@ -95,6 +90,11 @@ func NewQoderUseCase(maxAccounts int, waitTimeout time.Duration) *QoderUseCase {
 // Run 贯通已有准入、Lease、平台执行与完成处理，只有这里拥有本请求的账号尝试循环。
 // @project-doc docs/architecture/gateway_request_lifecycle.md#qoder_gateway_execution
 func (u *QoderUseCase) Run(ctx context.Context, request Request, ports RequestPorts, output *OutputTracker) error {
+	return u.run(ctx, request, ports, output, nil)
+}
+
+// run 是兼容测试与固定依赖入口共用的唯一尝试循环。
+func (u *QoderUseCase) run(ctx context.Context, request Request, ports RequestPorts, output *OutputTracker, execution *ExecutionResult) error {
 	if u.Enter != nil {
 		done, err := u.Enter()
 		if err != nil {
@@ -181,7 +181,7 @@ func (u *QoderUseCase) Run(ctx context.Context, request Request, ports RequestPo
 			return &Failure{Stage: FailureExhausted, Cause: err, Attempted: true}
 		}
 		refreshPending = false
-		result, attemptErr := u.attempt(ctx, request, ports, lease, selected, output)
+		result, attemptErr := u.attempt(ctx, request, ports, lease, selected, output, execution)
 		if selected.Observe != nil {
 			selected.Observe(result, attemptErr)
 		}
@@ -207,7 +207,7 @@ func (u *QoderUseCase) Run(ctx context.Context, request Request, ports RequestPo
 			cancel()
 			if refreshErr == nil && refreshed != nil {
 				selected = refreshed
-				result, attemptErr = u.attempt(ctx, request, ports, lease, selected, output)
+				result, attemptErr = u.attempt(ctx, request, ports, lease, selected, output, execution)
 				if selected.Observe != nil {
 					selected.Observe(result, attemptErr)
 				}
@@ -263,7 +263,10 @@ func (u *QoderUseCase) Run(ctx context.Context, request Request, ports RequestPo
 	}
 }
 
-func (u *QoderUseCase) attempt(ctx context.Context, request Request, ports RequestPorts, parent *scheduler.Lease, selected *Selection, output *OutputTracker) (upstream.AttemptResult, error) {
+func (u *QoderUseCase) attempt(ctx context.Context, request Request, ports RequestPorts, parent *scheduler.Lease, selected *Selection, output *OutputTracker, execution *ExecutionResult) (upstream.AttemptResult, error) {
+	if observer, ok := output.Sink.(ExecutionObserver); ok {
+		observer.Selected(selected.Snapshot)
+	}
 	output.BeginAttempt()
 	attempt := scheduler.NewAttemptLease(parent, nil, selected.Release)
 	defer attempt.Release()
@@ -303,6 +306,13 @@ func (u *QoderUseCase) attempt(ctx context.Context, request Request, ports Reque
 		return upstream.AttemptResult{}, err
 	}
 	result, err := selected.Executor.Execute(ctx, selected.Input, output)
+	if execution != nil {
+		execution.Attempts++
+		execution.Attempt = result
+		execution.Account = selected.Snapshot
+		execution.Plan = selected.Plan
+		execution.PlanProvided = selected.Plan.AccountID != 0
+	}
 	attempt.Finish(scheduler.AttemptOutcome{Served: result.Served})
 	return result, err
 }

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/gateway/...",
+    "./internal/handler",
+    "./internal/service",
+    "-run",
+    "Test(Qoder|.*Qoder)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 21.849,
+  "pass": 508,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/qoder-compatible-http.log.gz"
+}

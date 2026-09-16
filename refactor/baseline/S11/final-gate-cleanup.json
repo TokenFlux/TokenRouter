@@ -1,0 +1,260 @@
+{
+  "scope": "S11 final precise-permission cleanup only",
+  "permission_cleanup": [
+    {
+      "rule": "s05-apikey-httpapi-credentials-go",
+      "path": "internal/apikey/httpapi/credentials.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$"
+    },
+    {
+      "rule": "s11-internal-gateway-execution-go",
+      "path": "internal/gateway/execution.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/billing$"
+    },
+    {
+      "rule": "s11-internal-gateway-httpapi-messages-go",
+      "path": "internal/gateway/httpapi/messages.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/text$"
+    },
+    {
+      "rule": "s11-internal-gateway-httpapi-compatible_text-go",
+      "path": "internal/gateway/httpapi/compatible_text.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/text$"
+    },
+    {
+      "rule": "s11-internal-gateway-httpapi-gemini_native-go",
+      "path": "internal/gateway/httpapi/gemini_native.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/text$"
+    },
+    {
+      "rule": "s11-internal-gateway-httpapi-openai_text_chat-go",
+      "path": "internal/gateway/httpapi/openai_text_chat.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/text$"
+    },
+    {
+      "rule": "s11-internal-gateway-httpapi-openai_text_messages-go",
+      "path": "internal/gateway/httpapi/openai_text_messages.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/text$"
+    },
+    {
+      "rule": "s11-internal-gateway-httpapi-openai_text_responses-go",
+      "path": "internal/gateway/httpapi/openai_text_responses.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/text$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth-go",
+      "path": "internal/server/middleware/api_key_auth.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth-go",
+      "path": "internal/server/middleware/api_key_auth.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google-go",
+      "path": "internal/server/middleware/api_key_auth_google.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google-go",
+      "path": "internal/server/middleware/api_key_auth_google.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_billing-go",
+      "path": "internal/server/middleware/api_key_billing.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/service$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_billing-go",
+      "path": "internal/server/middleware/api_key_billing.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/gateway/admission$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go",
+      "path": "internal/server/middleware/api_key_composite.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go",
+      "path": "internal/server/middleware/api_key_composite.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/pkg/errors$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go",
+      "path": "internal/server/middleware/api_key_composite.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/pkg/httputil$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go",
+      "path": "internal/server/middleware/api_key_composite.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/apikey$"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_model_mapping-go",
+      "path": "internal/server/middleware/api_key_model_mapping.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey$"
+    }
+  ],
+  "removed_rules": [
+    {
+      "rule": "s05-apikey-httpapi-credentials-go",
+      "path": "internal/apikey/httpapi/credentials.go",
+      "base": "apikey-httpapi"
+    }
+  ],
+  "removed_exclusions": [
+    {
+      "rule": "apikey-httpapi",
+      "pattern": "!**/internal/apikey/httpapi/credentials.go"
+    }
+  ],
+  "removed_comments": [
+    "        # S09：internal/app/legacybridge/qoder_chat.go 的实际装配/值契约；保留基础限制，仅许可精确 import；平台实现保留，S11/S15 删除对应旧过渡入口。"
+  ],
+  "preserved_frozen_permissions": [
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth-go",
+      "path": "internal/server/middleware/api_key_auth.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ip$",
+      "reason": "HEAD中已无该import，非S11产生的残留，按授权保留"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google-go",
+      "path": "internal/server/middleware/api_key_auth_google.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/pkg/googleapi$",
+      "reason": "HEAD中已无该import，非S11产生的残留，按授权保留"
+    },
+    {
+      "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google-go",
+      "path": "internal/server/middleware/api_key_auth_google.go",
+      "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ip$",
+      "reason": "HEAD中已无该import，非S11产生的残留，按授权保留"
+    }
+  ],
+  "missing_rule_targets_before": [],
+  "missing_negative_targets_before": [],
+  "changed_files": [
+    "backend/.golangci.yml",
+    "refactor/baseline/S11/dependency-exceptions.json",
+    "/tmp/s11-gates.py"
+  ],
+  "source_files_changed": false,
+  "scope_paths": [
+    "internal/apikey/httpapi/credentials.go",
+    "internal/gateway/execution.go",
+    "internal/gateway/httpapi/compatible_text.go",
+    "internal/gateway/httpapi/gemini_native.go",
+    "internal/gateway/httpapi/messages.go",
+    "internal/gateway/httpapi/openai_text_chat.go",
+    "internal/gateway/httpapi/openai_text_messages.go",
+    "internal/gateway/httpapi/openai_text_responses.go",
+    "internal/server/middleware/api_key_auth.go",
+    "internal/server/middleware/api_key_auth_google.go",
+    "internal/server/middleware/api_key_billing.go",
+    "internal/server/middleware/api_key_composite.go",
+    "internal/server/middleware/api_key_model_mapping.go"
+  ],
+  "before_sha256": "03136f355a7b59bcbd45bb39a87df5e3a98bb47a6e5b0f60865387afa93513f5",
+  "after_sha256": "5312f5869c66d07ef82295b82e2217c3b57271c78bb3cdcc6aaff929e5d3d286",
+  "verification": {
+    "yaml_parsed": true,
+    "script_syntax_valid": true,
+    "script_prune_only_matches": true,
+    "ledger_matches_s11_rules": true,
+    "missing_exact_targets_after": 0,
+    "new_unpaired_precise_exclusions_after": 0,
+    "diff_check": "passed",
+    "semantic_changes": [
+      {
+        "rule": "apikey-httpapi",
+        "fields": [
+          "files"
+        ]
+      },
+      {
+        "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_billing-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_model_mapping-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "s05-apikey-httpapi-credentials-go",
+        "fields": [
+          "files",
+          "allow",
+          "list-mode",
+          "deny"
+        ]
+      },
+      {
+        "rule": "s11-internal-gateway-execution-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "s11-internal-gateway-httpapi-compatible_text-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "s11-internal-gateway-httpapi-gemini_native-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "s11-internal-gateway-httpapi-messages-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "s11-internal-gateway-httpapi-openai_text_chat-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "s11-internal-gateway-httpapi-openai_text_messages-go",
+        "fields": [
+          "allow"
+        ]
+      },
+      {
+        "rule": "s11-internal-gateway-httpapi-openai_text_responses-go",
+        "fields": [
+          "allow"
+        ]
+      }
+    ],
+    "full_lint_fixtures": "父级统一执行，未重复运行"
+  }
+}

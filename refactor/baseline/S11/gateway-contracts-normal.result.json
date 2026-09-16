@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/gateway/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.816,
+  "pass": 411,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/gateway-contracts-normal.log.gz"
+}

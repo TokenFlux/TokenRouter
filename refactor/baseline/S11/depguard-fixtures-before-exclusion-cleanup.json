@@ -1,0 +1,313 @@
+[
+  {
+    "name": "legal-text-core",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-legal-text-core-normal.json",
+      "./internal/gateway/text"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.444,
+    "log": "logs/gate-legal-text-core-normal.log.gz"
+  },
+  {
+    "name": "legal-error-core",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-legal-error-core-normal.json",
+      "./internal/gateway/errorpolicy"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.39,
+    "log": "logs/gate-legal-error-core-normal.log.gz"
+  },
+  {
+    "name": "legal-http-adapter",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-legal-http-adapter-normal.json",
+      "./internal/gateway/httpapi"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.496,
+    "log": "logs/gate-legal-http-adapter-normal.log.gz"
+  },
+  {
+    "name": "legal-storage-adapter",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-legal-storage-adapter-normal.json",
+      "./internal/gateway/postgres"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.454,
+    "log": "logs/gate-legal-storage-adapter-normal.log.gz"
+  },
+  {
+    "name": "legal-redis-adapter",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-legal-redis-adapter-normal.json",
+      "./internal/gateway/rediscache"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.441,
+    "log": "logs/gate-legal-redis-adapter-normal.log.gz"
+  },
+  {
+    "name": "legal-app-adaptation",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-legal-app-adaptation-normal.json",
+      "./internal/app"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.816,
+    "log": "logs/gate-legal-app-adaptation-normal.log.gz"
+  },
+  {
+    "name": "new-file-no-historical-permission",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-new-file-no-historical-permission-normal.json",
+      "./internal/gateway/errorpolicy"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/egress",
+    "expected_file": "internal/gateway/errorpolicy/zz_s11_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/egress' is not allowed from list 'core-gateway'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/egress\""
+        ],
+        "Pos": {
+          "Filename": "internal/gateway/errorpolicy/zz_s11_gate.go",
+          "Offset": 77,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.415,
+    "log": "logs/gate-new-file-no-historical-permission-normal.log.gz"
+  },
+  {
+    "name": "core-config-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-core-config-denied-normal.json",
+      "./internal/gateway/errorpolicy"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/gateway/errorpolicy/zz_s11_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-gateway'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/gateway/errorpolicy/zz_s11_gate.go",
+          "Offset": 77,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.414,
+    "log": "logs/gate-core-config-denied-normal.log.gz"
+  },
+  {
+    "name": "core-http-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-core-http-denied-normal.json",
+      "./internal/gateway/errorpolicy"
+    ],
+    "exit_code": 1,
+    "expected_import": "net/http",
+    "expected_file": "internal/gateway/errorpolicy/zz_s11_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'net/http' is not allowed from list 'core-gateway': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"net/http\""
+        ],
+        "Pos": {
+          "Filename": "internal/gateway/errorpolicy/zz_s11_gate.go",
+          "Offset": 77,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.399,
+    "log": "logs/gate-core-http-denied-normal.log.gz"
+  },
+  {
+    "name": "new-app-file-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-new-app-file-denied-normal.json",
+      "./internal/app"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "expected_file": "internal/app/zz_s11_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/service' is not allowed from list 'app': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/service\""
+        ],
+        "Pos": {
+          "Filename": "internal/app/zz_s11_gate.go",
+          "Offset": 69,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.623,
+    "log": "logs/gate-new-app-file-denied-normal.log.gz"
+  },
+  {
+    "name": "deleted-bridge-permission-expired",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s11-fixture-deleted-bridge-permission-expired-normal.json",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 0,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "expected_file": "internal/app/legacybridge/qoder_chat.go",
+    "matched": false,
+    "issues": [],
+    "seconds": 0.543,
+    "log": "logs/gate-deleted-bridge-permission-expired-normal.log.gz"
+  }
+]

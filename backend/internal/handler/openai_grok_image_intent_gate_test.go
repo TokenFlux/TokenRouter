@@ -101,9 +101,9 @@ func runOpenAIResponsesImagePermissionGateTest(t *testing.T, platform string, bo
 		gatewayService:      &service.OpenAIGatewayService{},
 		billingCacheService: service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil),
 		apiKeyService:       &service.APIKeyService{},
-		concurrencyHelper: &ConcurrencyHelper{concurrencyService: service.NewConcurrencyService(
+		concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(
 			&helperConcurrencyCacheStub{userSeq: []bool{true}},
-		)},
+		), SSEPingFormatNone, 0),
 		cfg:          &config.Config{},
 		imageLimiter: &imageConcurrencyLimiter{},
 	}

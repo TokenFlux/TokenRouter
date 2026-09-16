@@ -9,10 +9,13 @@ import (
 	"strings"
 	"time"
 
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
+	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
@@ -79,7 +82,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 			forwardHeaders[key] = append([]string(nil), values...)
 		}
 	}
-	target := &nativeopenai.EmbeddingsTarget{
+	target := &mediaprovider.EmbeddingsOptions{
 
 		AccountID: account.ID,
 
@@ -129,66 +132,69 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		ReadErrorBody: s.readUpstreamErrorBody,
 
 		HTTPError: func(resp *http.Response, respBody []byte) error {
-
-			upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
-			upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-			if isOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) {
-				writeOpenAIEmbeddingsUpstreamResponse(c, resp, respBody, s.responseHeaderFilter)
-				return fmt.Errorf("upstream invalid request: %d", resp.StatusCode)
-			}
+			upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
 			var decision UpstreamErrorDecision
-			if account.Platform == PlatformGrok {
-				decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
-			} else {
-				decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
-			}
-			if decision.ShouldReturnGenericError() {
-				writeOpenAIEmbeddingsError(c, http.StatusInternalServerError, "upstream_error", "Upstream gateway error")
-				return fmt.Errorf("upstream error: %d (not in custom error codes)", resp.StatusCode)
-			}
-			defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
-			if account.Platform == PlatformGrok {
-				defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
-			}
-			if decision.ShouldFailover(account, resp.StatusCode, defaultFailover) {
-				upstreamDetail := ""
-				if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-					maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-					if maxBytes <= 0 {
-						maxBytes = 2048
+			return gatewaymedia.ResolveEmbeddingFailure(resp.StatusCode, gatewaymedia.EmbeddingFailurePorts{
+				InvalidRequest: func() bool { return isOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) },
+				ApplyPolicy: func() {
+					if account.Platform == PlatformGrok {
+						decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+					} else {
+						decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 					}
-					upstreamDetail = truncateString(string(respBody), maxBytes)
-				}
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+				},
+				Generic: func() bool { return decision.ShouldReturnGenericError() },
+				Failover: func() bool {
+					defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
+					if account.Platform == PlatformGrok {
+						defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
+					}
+					return decision.ShouldFailover(account, resp.StatusCode, defaultFailover)
+				},
+				RecordFailover: func() {
+					upstreamDetail := ""
+					if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+						maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+						if maxBytes <= 0 {
+							maxBytes = 2048
+						}
+						upstreamDetail = truncateString(string(respBody), maxBytes)
+					}
+					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 
-					Platform: account.Platform,
+						Platform: account.Platform,
 
-					AccountID: account.ID,
+						AccountID: account.ID,
 
-					AccountName: account.Name,
+						AccountName: account.Name,
 
-					UpstreamStatusCode: resp.StatusCode,
+						UpstreamStatusCode: resp.StatusCode,
 
-					UpstreamRequestID: resp.Header.Get("x-request-id"),
+						UpstreamRequestID: resp.Header.Get("x-request-id"),
 
-					Kind: "failover",
+						Kind: "failover",
 
-					Message: upstreamMsg,
+						Message: upstreamMsg,
 
-					Detail: upstreamDetail,
-				})
-				shouldDisable := s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
-				retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
-				if account.IsOpenAIOAuth() && resp.StatusCode == http.StatusTooManyRequests {
-					return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMsg, shouldDisable, retryableOnSameAccount)
-				}
-				if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
-					return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, retryableOnSameAccount)
-				}
-				return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
-			}
-			writeOpenAIEmbeddingsUpstreamResponse(c, resp, respBody, s.responseHeaderFilter)
-			return fmt.Errorf("upstream returned status %d", resp.StatusCode)
+						Detail: upstreamDetail,
+					})
+				},
+				NewFailover: func() error {
+					shouldDisable := s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
+					retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
+					if account.IsOpenAIOAuth() && resp.StatusCode == http.StatusTooManyRequests {
+						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMsg, shouldDisable, retryableOnSameAccount)
+					}
+					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
+						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, retryableOnSameAccount)
+					}
+					return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
+				},
+				Forward: func() { writeOpenAIEmbeddingsUpstreamResponse(c, resp, respBody, s.responseHeaderFilter) },
+				Write: func(response gatewaymedia.ErrorResponse) {
+					writeOpenAIEmbeddingsError(c, response.Status, response.Type, response.Message)
+				},
+			})
 		},
 
 		ReadBody: func(reader io.Reader) ([]byte, error) {
@@ -206,11 +212,10 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 			responseheaders.WriteFilteredHeaders(output, input, s.responseHeaderFilter)
 		},
 	}
-	result, err := (nativeopenai.EmbeddingsExecutor{}).Execute(ctx, upstream.AttemptInput{
+	result, err := (mediaprovider.Embeddings{Options: *target}).Execute(ctx, upstream.AttemptInput{
 		Protocol:      protocol.ProtocolEmbeddings,
 		Body:          upstreamBody,
 		ResponseModel: originalModel,
-		Target:        target,
 	}, gatewayhttp.ResponseSink{Writer: c.Writer})
 	if err != nil {
 		return nil, err
@@ -242,31 +247,11 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 }
 
 func writeOpenAIEmbeddingsUpstreamResponse(c *gin.Context, resp *http.Response, body []byte, filter *responseheaders.CompiledHeaderFilter) {
-	if c == nil || resp == nil {
-		return
-	}
-	if c.Writer.Written() {
-		return
-	}
-	if resp.Header != nil {
-		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, filter)
-	}
-	if ct := resp.Header.Get("Content-Type"); ct != "" {
-		c.Writer.Header().Set("Content-Type", ct)
-	} else {
-		c.Writer.Header().Set("Content-Type", "application/json")
-	}
-	c.Writer.WriteHeader(resp.StatusCode)
-	_, _ = c.Writer.Write(body)
+	gatewayhttp.WriteEmbeddingsUpstreamResponse(c, resp, body, filter)
 }
 
 func writeOpenAIEmbeddingsError(c *gin.Context, statusCode int, errType, message string) {
-	c.JSON(statusCode, gin.H{
-		"error": gin.H{
-			"type":    errType,
-			"message": message,
-		},
-	})
+	gatewayhttp.WriteEmbeddingsError(c, statusCode, errType, message)
 }
 
 func extractOpenAIEmbeddingsUsage(body []byte) OpenAIUsage {

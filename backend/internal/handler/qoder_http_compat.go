@@ -43,10 +43,7 @@ func ObserveQoderRequest(c *gin.Context, model string, stream bool) {
 func QoderEndpoints(c *gin.Context, platform string) (string, string) {
 	return GetInboundEndpoint(c), GetUpstreamEndpoint(c, platform)
 }
-func QoderMayFailover(err error) bool {
-	var native *qoder.APIError
-	return qoderShouldFailover(err) || !errors.As(err, &native)
-}
+func QoderMayFailover(err error) bool { return qoder.MaySwitchAttempt(err) }
 func (h *QoderGatewayHandler) QoderMayRefresh(err error) bool {
 	return h.shouldRefreshQoderAccount(err, false)
 }

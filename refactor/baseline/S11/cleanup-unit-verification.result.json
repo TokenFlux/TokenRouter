@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/handler",
+    "./internal/server/middleware",
+    "-run",
+    "Test(.*Cost|.*Billing|.*CacheTTL|.*Passthrough.*Effort|.*Gemini|.*Composite|.*Session|.*Usage)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 30.164,
+  "pass": 2114,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/cleanup-unit-verification.log.gz"
+}

@@ -3,19 +3,16 @@ package service
 // 本文件承载 /v1/responses 透传转发及其流式、非流式响应与错误处理。
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
@@ -25,433 +22,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
 )
 
-func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
-	ctx context.Context,
-	c *gin.Context,
-	account *Account,
-	body []byte,
-	canonicalImageIntentBody []byte,
-	reqModel string,
-	attemptImageIntentInvalidated bool,
-	reasoningEffort *string,
-	reqStream bool,
-	startTime time.Time,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
-) (*OpenAIForwardResult, error) {
-	requestedModel := reqModel
-	upstreamPassthroughModel := ""
-	if isOpenAIResponsesCompactPath(c) {
-		compactMappedModel := s.resolveOpenAICompactFallbackModel(account, reqModel)
-		if compactMappedModel != "" && compactMappedModel != reqModel {
-			nextBody, setErr := sjson.SetBytes(body, "model", compactMappedModel)
-			if setErr != nil {
-				return nil, fmt.Errorf("set compact passthrough model: %w", setErr)
-			}
-			body = nextBody
-			upstreamPassthroughModel = compactMappedModel
-			attemptImageIntentInvalidated = true
-		}
-	}
-
-	if account != nil && account.UsesOpenAICodexProtocol() {
-		if rejectReason := detectOpenAIPassthroughInstructionsRejectReason(reqModel, body); rejectReason != "" {
-			rejectMsg := "OpenAI codex passthrough requires a non-empty instructions field"
-			MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
-			logOpenAIPassthroughInstructionsRejected(ctx, c, account, reqModel, rejectReason, body)
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": gin.H{
-					"type":    "forbidden_error",
-					"message": rejectMsg,
-				},
-			})
-			return nil, fmt.Errorf("openai passthrough rejected before upstream: %s", rejectReason)
-		}
-		// Codex passthrough 允许省略 instructions，但仍拒绝显式的非法值。
-		if isOpenAICodexModel(reqModel) && !gjson.GetBytes(body, "instructions").Exists() {
-			nextBody, setErr := sjson.SetBytes(body, "instructions", defaultCodexSynthInstructions(reqModel))
-			if setErr != nil {
-				return nil, fmt.Errorf("set passthrough codex instructions: %w", setErr)
-			}
-			body = nextBody
-		}
-
-		normalizedBody, normalized, err := normalizeOpenAIPassthroughOAuthBody(body, isOpenAIResponsesCompactPath(c))
-		if err != nil {
-			return nil, err
-		}
-		if normalized {
-			body = normalizedBody
-		}
-		reqStream = gjson.GetBytes(body, "stream").Bool()
-
-		accountScopedBody, accountScoped, scopeErr := applyCodexAccountIdentityClientMetadataRaw(body, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c))
-		if scopeErr != nil {
-			return nil, scopeErr
-		}
-		if accountScoped {
-			body = accountScopedBody
-		}
-
-		stageCodexFingerprintIDs(c, nil)
-		// 透传与普通转换路径共享指纹收敛语义。只局部改写 client_metadata，
-		// 避免为大请求体做整包反序列化。
-		if !isOpenAIResponsesCompactPath(c) {
-			var clientHeaders http.Header
-			if c != nil && c.Request != nil {
-				clientHeaders = c.Request.Header
-			}
-			fingerprintIDs := resolveCodexFingerprintIDsFromRequest(account, clientHeaders)
-			if fingerprintIDs != nil {
-				updatedBody, changed, fingerprintErr := applyCodexFingerprintClientMetadataRaw(body, fingerprintIDs)
-				if fingerprintErr != nil {
-					return nil, fingerprintErr
-				}
-				if changed {
-					body = updatedBody
-				}
-			}
-			// nil 也必须覆盖，避免 failover 复用前一个账号的收敛 ID。
-			stageCodexFingerprintIDs(c, fingerprintIDs)
-		}
-	}
-	if account != nil && account.IsOpenAI() {
-		responsesLite := false
-		if c != nil {
-			responsesLite = isOpenAIResponsesLiteHeader(c.GetHeader(responsesLiteHeader))
-		}
-		responsesLite = responsesLite || isOpenAIResponsesLiteWebSocketPayload(body)
-		normalizedBody, normalized, normalizeErr := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, account, responsesLite)
-		if normalizeErr != nil {
-			return nil, fmt.Errorf("normalize passthrough Responses compatibility: %w", normalizeErr)
-		}
-		if normalized {
-			body = normalizedBody
-		}
-		if account.IsOpenAIOAuthLike() {
-			aliasedBody, reverse, aliased, aliasErr := aliasOpenAIOAuthReservedToolNamesBody(body)
-			if aliasErr != nil {
-				return nil, aliasErr
-			}
-			mergeCodexToolNameReverse(c, reverse)
-			if aliased {
-				body = aliasedBody
-			}
-		}
-	}
-
-	if account != nil && account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey &&
-		!isOpenAIResponsesCompactPath(c) && needsOpenAIResponsesClientToolAdaptation(body) {
-		adaptedBody, mapping, adaptErr := adaptOpenAIResponsesClientTools(body)
-		if adaptErr != nil {
-			return nil, adaptErr
-		}
-		body = adaptedBody
-		setOpenAIResponsesClientToolMapping(c, mapping)
-	}
-
-	sanitizedBody, sanitized, err := sanitizeEmptyBase64InputImagesInOpenAIBody(body)
-	if err != nil {
-		return nil, err
-	}
-	if sanitized {
-		body = sanitizedBody
-	}
-	// 透传分支后续的 OAuth/APIKey 兼容归一化可能删除无工具请求的
-	// parallel_tool_calls；Responses Lite 契约仍要求显式发送 false。
-	if c != nil && isOpenAIResponsesLiteHeader(c.GetHeader(responsesLiteHeader)) {
-		liteBody, liteChanged, liteErr := normalizeOpenAIResponsesLitePayloadForAccount(account, body)
-		if liteErr != nil {
-			return nil, liteErr
-		}
-		if liteChanged {
-			body = liteBody
-		}
-	}
-
-	policyModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
-	if policyModel == "" {
-		policyModel = reqModel
-	}
-	updatedBody, policyErr := s.applyOpenAIFastPolicyToBody(ctx, account, policyModel, body)
-	if policyErr != nil {
-		var blocked *OpenAIFastBlockedError
-		if errors.As(policyErr, &blocked) {
-			writeOpenAIFastPolicyBlockedResponse(c, blocked)
-		}
-		return nil, policyErr
-	}
-	body = updatedBody
-
-	apiKey := getAPIKeyFromContext(c)
-	// 宽泛意图保留给图片状态和计费，显式意图单独负责权限门禁。
-	imageIntent := resolveOpenAIPassthroughImageIntent(
-		c,
-		reqModel,
-		canonicalImageIntentBody,
-		policyModel,
-		body,
-		attemptImageIntentInvalidated,
-		IsImageGenerationIntent,
-	)
-	explicitImageIntent := IsExplicitImageGenerationIntent(openAIResponsesEndpoint, policyModel, body)
-	if explicitImageIntent && !GroupAllowsResponsesImages(apiKeyGroup(apiKey)) {
-		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": gin.H{
-				"type":    "permission_error",
-				"message": ImageGenerationPermissionMessage(),
-			},
-		})
-		return nil, errors.New("image generation disabled for group")
-	}
-	imageBillingModel := ""
-	imageSizeTier := ""
-	imageInputSize := ""
-	if imageIntent {
-		var imageCfgErr error
-		imageCfg, imageCfgErr := resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, reqModel)
-		if imageCfgErr != nil {
-			setOpsUpstreamError(c, http.StatusBadRequest, imageCfgErr.Error(), "")
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": gin.H{
-					"type":    "invalid_request_error",
-					"message": imageCfgErr.Error(),
-					"param":   "size",
-				},
-			})
-			return nil, imageCfgErr
-		}
-		imageBillingModel = imageCfg.Model
-		imageSizeTier = imageCfg.SizeTier
-		imageInputSize = imageCfg.InputSize
-	}
-
-	logger.LegacyPrintf("service.openai_gateway",
-		"[OpenAI 自动透传] 命中自动透传分支: account=%d name=%s type=%s model=%s stream=%v",
-		account.ID,
-		account.Name,
-		account.Type,
-		reqModel,
-		reqStream,
-	)
-	if reqStream && c != nil && c.Request != nil {
-		if timeoutHeaders := collectOpenAIPassthroughTimeoutHeaders(c.Request.Header); len(timeoutHeaders) > 0 {
-			streamWarnLogger := logger.FromContext(ctx).With(
-				zap.String("component", "service.openai_gateway"),
-				zap.Int64("account_id", account.ID),
-				zap.Strings("timeout_headers", timeoutHeaders),
-			)
-			if s.isOpenAIPassthroughTimeoutHeadersAllowed() {
-				streamWarnLogger.Warn("OpenAI passthrough 透传请求包含超时相关请求头，且当前配置为放行，可能导致上游提前断流")
-			} else {
-				streamWarnLogger.Warn("OpenAI passthrough 检测到超时相关请求头，将按配置过滤以降低断流风险")
-			}
-		}
-	}
-
-	token, _, err := s.GetAccessToken(ctx, account)
-	if err != nil {
-		return nil, err
-	}
-
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-
-	if c != nil {
-		c.Set("openai_passthrough", true)
-	}
-
-	agentTaskRecoveryTried := false
-	compactModelFallbackRetried := false
-	rejectedFieldRetryState := openAIResponsesRejectedFieldRetryStateForRequest(c, body)
-	var resp *http.Response
-	var usage *OpenAIUsage
-	var firstTokenMs *int
-	responseID := ""
-	imageCount := 0
-	var imageOutputSizes []string
-	for {
-		actualModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
-		if actualModel == "" {
-			actualModel = reqModel
-		}
-		SetOpsUpstreamModel(c, actualModel)
-		upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-		upstreamReq, buildErr := s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, body, token, tlsRouterMatch...)
-		releaseUpstreamCtx()
-		if buildErr != nil {
-			return nil, buildErr
-		}
-
-		upstreamStart := time.Now()
-		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-		if err != nil {
-			// 未收到 HTTP 响应时交给外层切换账号，持久故障仍由统一处理器临时摘除。
-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true)
-		}
-		if resp.StatusCode >= 400 {
-			// Peek only to identify an invalid task. Restore the body so the existing
-			// passthrough error handling sees the same response after recovery fails.
-			probeBody := s.readUpstreamErrorBody(resp)
-			_ = resp.Body.Close()
-			resp.Body = io.NopCloser(bytes.NewReader(probeBody))
-			if retryBody, reason, changed, retryErr := normalizeOpenAIResponsesRejectedFieldRetryBody(resp.StatusCode, body, probeBody); retryErr != nil {
-				return nil, fmt.Errorf("normalize passthrough rejected Responses field retry body: %w", retryErr)
-			} else if changed && rejectedFieldRetryState.Allow(retryBody) {
-				body = retryBody
-				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Retrying passthrough request after %s (account: %s)", reason, account.Name)
-				continue
-			}
-			if !agentTaskRecoveryTried && s.isAgentIdentityAccount(ctx, account) && isAgentIdentityTaskInvalidHTTPResponse(resp.StatusCode, probeBody) {
-				agentTaskRecoveryTried = true
-				expectedTaskID := account.GetCredential("task_id")
-				if recoveryErr := s.recoverAgentIdentityTask(ctx, account, expectedTaskID); recoveryErr != nil {
-					return nil, fmt.Errorf("agent identity task recovery failed: %w", recoveryErr)
-				}
-				continue
-			}
-			upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(probeBody)))
-			if retryBody, fallbackModel, retry := s.prepareOpenAICompactFallbackRetry(
-				c, account, requestedModel, body, resp.StatusCode, upstreamMsg, probeBody, compactModelFallbackRetried,
-			); retry {
-				s.appendOpenAICompactFallbackRetryOps(c, account, resp, probeBody, upstreamMsg, true)
-				fromModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
-				body = retryBody
-				upstreamPassthroughModel = fallbackModel
-				compactModelFallbackRetried = true
-				SetOpsUpstreamModel(c, fallbackModel)
-				logger.LegacyPrintf(
-					"service.openai_gateway",
-					"[OpenAI passthrough] Retrying explicit compact request once with fallback model (account: %s, from: %s, to: %s, upstream_code: %s)",
-					account.Name, fromModel, fallbackModel, extractUpstreamErrorCode(probeBody),
-				)
-				continue
-			}
-
-			// 透传模式默认保持原样代理；容量错误以及 API-key 上游的瞬时
-			// 5xx 应先触发多账号 failover，且此时尚未写入下游响应。
-			// probeBody 已在上方任务探测时读取过一次，直接复用避免重复读取。
-			if shouldFailoverOpenAIPassthroughResponse(account, resp.StatusCode, probeBody) {
-				return nil, s.handleFailoverErrorResponsePassthrough(ctx, resp, c, account, body, probeBody)
-			}
-			return nil, s.handleErrorResponsePassthrough(ctx, resp, c, account, body, probeBody)
-		}
-
-		if mapping, ok := openAIResponsesClientToolMapping(c); ok && isEventStreamResponse(resp.Header) {
-			maxLineSize := defaultMaxLineSize
-			if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
-				maxLineSize = s.cfg.Gateway.MaxLineSize
-			}
-			resp.Body = newOpenAIResponsesClientToolStreamBody(resp.Body, mapping, maxLineSize)
-		}
-
-		// x-codex-turn-state 溯源：下游回传由 writeOpenAIPassthroughResponseHeaders
-		// 在各 handler 的写头点强制放行，铸造账号在此统一记录，供出站守卫剥离
-		// failover 换号后的跨账号回带（openai_codex_turn_state.go）。
-		if extractOpenAICodexTurnState(resp.Header) != "" {
-			s.noteOpenAICodexTurnStateProvenance(c, account)
-		}
-
-		if reqStream {
-			result, handleErr := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
-			if handleErr != nil {
-				if retryBody, fallbackModel, retry := s.applyOpenAIPassthroughCompactFallbackFromSignal(
-					c, account, requestedModel, body, handleErr, compactModelFallbackRetried, resp,
-				); retry {
-					body = retryBody
-					upstreamPassthroughModel = fallbackModel
-					compactModelFallbackRetried = true
-					continue
-				}
-				if signal, ok := asOpenAICompactFallbackSignal(handleErr); ok {
-					_ = resp.Body.Close()
-					compactResp, compactBody := openAICompactFallbackErrorResponse(resp, signal)
-					if shouldFailoverOpenAIPassthroughResponse(account, compactResp.StatusCode, compactBody) {
-						return nil, s.handleFailoverErrorResponsePassthrough(ctx, compactResp, c, account, body, compactBody)
-					}
-					return nil, s.handleErrorResponsePassthrough(ctx, compactResp, c, account, body, compactBody)
-				}
-				_ = resp.Body.Close()
-				return nil, handleErr
-			}
-			usage = result.usage
-			firstTokenMs = result.firstTokenMs
-			responseID = strings.TrimSpace(result.responseID)
-			imageCount = result.imageCount
-			imageOutputSizes = result.imageOutputSizes
-		} else {
-			result, handleErr := s.handleNonStreamingResponsePassthrough(ctx, resp, c, account, reqModel, upstreamPassthroughModel)
-			if handleErr != nil {
-				if retryBody, fallbackModel, retry := s.applyOpenAIPassthroughCompactFallbackFromSignal(
-					c, account, requestedModel, body, handleErr, compactModelFallbackRetried, resp,
-				); retry {
-					body = retryBody
-					upstreamPassthroughModel = fallbackModel
-					compactModelFallbackRetried = true
-					continue
-				}
-				if signal, ok := asOpenAICompactFallbackSignal(handleErr); ok {
-					_ = resp.Body.Close()
-					compactResp, compactBody := openAICompactFallbackErrorResponse(resp, signal)
-					if shouldFailoverOpenAIPassthroughResponse(account, compactResp.StatusCode, compactBody) {
-						return nil, s.handleFailoverErrorResponsePassthrough(ctx, compactResp, c, account, body, compactBody)
-					}
-					return nil, s.handleErrorResponsePassthrough(ctx, compactResp, c, account, body, compactBody)
-				}
-				_ = resp.Body.Close()
-				return nil, handleErr
-			}
-			usage = result.usage
-			responseID = strings.TrimSpace(result.responseID)
-			imageCount = result.imageCount
-			imageOutputSizes = result.imageOutputSizes
-		}
-		break
-	}
-	defer func() { _ = resp.Body.Close() }()
-	serviceTier := extractOpenAIServiceTierFromBody(body)
-	s.bindHTTPResponseAccount(ctx, c, account, responseID)
-
-	if !account.IsShadow() {
-		if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
-			s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
-		}
-	}
-
-	if usage == nil {
-		usage = &OpenAIUsage{}
-	}
-
-	forwardResult := &OpenAIForwardResult{
-		RequestID:                   resp.Header.Get("x-request-id"),
-		UpstreamHeaders:             resp.Header,
-		ResponseID:                  responseID,
-		Usage:                       *usage,
-		Model:                       reqModel,
-		UpstreamModel:               upstreamPassthroughModel,
-		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
-		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-		ReasoningEffort:             reasoningEffort,
-		Stream:                      reqStream,
-		OpenAIWSMode:                false,
-		Duration:                    time.Since(startTime),
-		FirstTokenMs:                firstTokenMs,
-	}
-	if imageCount > 0 {
-		forwardResult.ImageCount = imageCount
-		forwardResult.ImageSize = imageSizeTier
-		forwardResult.ImageInputSize = imageInputSize
-		forwardResult.ImageOutputSizes = imageOutputSizes
-		forwardResult.BillingModel = imageBillingModel
-	}
-	return forwardResult, nil
+// 旧透传入口仅保持签名，当前账号的请求准备和恢复由目标执行器唯一实现。
+func (s *OpenAIGatewayService) forwardOpenAIPassthrough(ctx context.Context, c *gin.Context, account *Account, body, canonicalImageIntentBody []byte, reqModel string, attemptImageIntentInvalidated bool, reasoningEffort *string, reqStream bool, startTime time.Time, tlsRouterMatch ...TLSFingerprintRouterMatchResult) (*OpenAIForwardResult, error) {
+	input := forward.PassthroughInput{Body: body, CanonicalImageIntentBody: canonicalImageIntentBody, Model: reqModel, ImageIntentInvalidated: attemptImageIntentInvalidated, ReasoningEffort: reasoningEffort, Stream: reqStream, StartedAt: startTime}
+	p := &openAIPassthroughExecutionAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch}}
+	result, err := forward.RunPassthrough(ctx, input, p)
+	return openAIForwardResultFromHTTP(result), err
 }
 
 func logOpenAIPassthroughInstructionsRejected(
@@ -493,165 +72,59 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	token string,
 	routerMatch ...TLSFingerprintRouterMatchResult,
 ) (*http.Request, error) {
-	targetURL := openaiPlatformAPIURL
-	switch account.Type {
-	case AccountTypeOAuth:
-		targetURL = chatgptCodexURL
-	case AccountTypeSetupToken:
-		if account.IsOpenAIOAuthLike() {
-			targetURL = chatgptCodexURL
-		}
-	case AccountTypeAPIKey:
-		baseURL := account.GetOpenAIBaseURL()
-		if _, unified := account.Credentials[upstreamProtocolsKey]; account.UsesNativeCNResponses() && (unified || account.IsAdaptiveAPIProtocol()) {
-			baseURL = account.GetCNProtocolBaseURL(APIProtocolResponses)
-		}
-		if baseURL != "" {
-			validatedURL, err := s.validateUpstreamBaseURL(baseURL)
-			if err != nil {
-				return nil, err
+	return forward.BuildPassthroughRequest(ctx, body, s.openAIRequestTarget(c, account, true), func(b []byte) []byte { return normalizeDeepSeekResponsesRequestBody(account, b) }, func(target string) nativeopenai.PassthroughRequestOptions {
+		options := s.nativeResponsesRequestOptions(ctx, c, account, token, target, false, routerMatch...)
+		options.ForwardHeaders = func() http.Header {
+			if c == nil || c.Request == nil {
+				return nil
 			}
-			targetURL = buildOpenAIResponsesURLForPlatform(account.Platform, validatedURL)
+			return c.Request.Header
 		}
-	}
-	targetURL = appendOpenAIResponsesRequestPathSuffix(targetURL, openAIResponsesRequestPathSuffix(c))
-
-	// DeepSeek / Kimi 原生 Responses 端点为无状态实现（见 normalizeDeepSeekResponsesRequestBody）。
-	body = normalizeDeepSeekResponsesRequestBody(account, body)
-
-	options := s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, false, routerMatch...)
-	options.ForwardHeaders = func() http.Header {
-		if c == nil || c.Request == nil {
-			return nil
+		options.ApplyUserAgent = func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, true, routerMatch...) }
+		options.Diagnostics = func(headers http.Header, body []byte) {
+			logOpenAIRoutingDiagnosticsFromBody(ctx, account, "http_passthrough", headers, body, "not_applicable")
 		}
-		return c.Request.Header
-	}
-	options.ApplyUserAgent = func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, true, routerMatch...) }
-	options.Diagnostics = func(headers http.Header, body []byte) {
-		logOpenAIRoutingDiagnosticsFromBody(ctx, account, "http_passthrough", headers, body, "not_applicable")
-	}
-	return nativeopenai.BuildPassthroughRequest(ctx, body, nativeopenai.PassthroughRequestOptions{
-		ResponsesRequestOptions: options,
-		AllowTimeoutHeaders:     s.isOpenAIPassthroughTimeoutHeadersAllowed,
-		AllowPassthroughHeader:  isOpenAIPassthroughAllowedRequestHeader,
-		MatchedOriginator: func() string {
-			if len(routerMatch) > 0 && routerMatch[0].Matched {
-				return strings.TrimSpace(routerMatch[0].UpstreamOriginator)
-			}
-			return ""
+		return nativeopenai.PassthroughRequestOptions{
+			ResponsesRequestOptions: options,
+			AllowTimeoutHeaders:     s.isOpenAIPassthroughTimeoutHeadersAllowed,
+			AllowPassthroughHeader:  isOpenAIPassthroughAllowedRequestHeader,
+			MatchedOriginator: func() string {
+				if len(routerMatch) > 0 && routerMatch[0].Matched {
+					return strings.TrimSpace(routerMatch[0].UpstreamOriginator)
+				}
+				return ""
+			},
+		}
+	})
+}
+
+// shouldFailoverOpenAIPassthroughResponse 只投影账号类别与平台错误分类。
+func shouldFailoverOpenAIPassthroughResponse(account *Account, status int, body []byte) bool {
+	return forward.ShouldFailoverPassthrough(status, body, forward.PassthroughFailureOptions{
+		APIKey:        account != nil && account.Type == AccountTypeAPIKey,
+		Cyber:         func(b []byte) bool { hit, _, _ := detectOpenAICyberPolicy(b); return hit },
+		ContextWindow: func(b []byte) bool { return isOpenAIContextWindowError("", b) },
+		AccessState:   func(s int, b []byte) bool { return isOpenAIHTTPUpstreamAccessStateError(s, "", b) },
+		BodyTooLarge:  func(s int, b []byte) bool { return isOpenAIRequestBodyTooLargeError(s, "", b) },
+		PoolRetryable: func(s int) bool {
+			return account != nil && account.IsPoolMode() && account.IsPoolModeRetryableStatus(s)
 		},
 	})
 }
 
-func shouldFailoverOpenAIPassthroughResponse(account *Account, statusCode int, responseBody []byte) bool {
-	if hit, _, _ := detectOpenAICyberPolicy(responseBody); hit {
-		return false
-	}
-	if isOpenAIContextWindowError("", responseBody) {
-		return false
-	}
-	if isOpenAIHTTPUpstreamAccessStateError(statusCode, "", responseBody) {
-		return true
-	}
-	if isOpenAIRequestBodyTooLargeError(statusCode, "", responseBody) {
-		return true
-	}
-	if account != nil && account.IsPoolMode() && account.IsPoolModeRetryableStatus(statusCode) {
-		return true
-	}
-	switch statusCode {
-	case http.StatusTooManyRequests, 529:
-		return true
-	}
-	if account == nil || account.Type != AccountTypeAPIKey {
-		return false
-	}
-	switch statusCode {
-	case http.StatusInternalServerError,
-		http.StatusBadGateway,
-		http.StatusServiceUnavailable,
-		http.StatusGatewayTimeout,
-		520, 521, 522, 523, 524:
-		return true
-	default:
-		return false
-	}
-}
-
-// writeOpenAIPassthroughErrorHeaders 仅保留可安全转发的错误响应头，避免泄露上游信息。
+// writeOpenAIPassthroughErrorHeaders 委托 HTTP Adapter，保留旧调用入口。
 func writeOpenAIPassthroughErrorHeaders(dst, src http.Header) {
-	if dst == nil {
-		return
-	}
-	dst.Set("Content-Type", "application/json; charset=utf-8")
-	dst.Set("Cache-Control", "no-store")
-	dst.Del("Retry-After")
-	if src == nil {
-		return
-	}
-	rawRetryAfter := strings.TrimSpace(src.Get("Retry-After"))
-	if validOpenAIPassthroughRetryAfter(rawRetryAfter, time.Now()) {
-		dst.Set("Retry-After", rawRetryAfter)
-	}
+	gatewayhttp.WriteForwardPassthroughErrorHeaders(dst, src)
 }
 
-// validOpenAIPassthroughRetryAfter 校验 Retry-After 是否为正整数秒或未来的 HTTP 时间。
-func validOpenAIPassthroughRetryAfter(raw string, now time.Time) bool {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return false
-	}
-	delaySeconds := true
-	for i := 0; i < len(raw); i++ {
-		if raw[i] < '0' || raw[i] > '9' {
-			delaySeconds = false
-			break
-		}
-	}
-	if delaySeconds {
-		seconds, err := strconv.ParseUint(raw, 10, 64)
-		return err == nil && seconds > 0
-	}
-	parsed, err := http.ParseTime(raw)
-	return err == nil && parsed.After(now)
-}
-
-// writeSanitizedOpenAIPassthroughError 使用本地错误信封替换不可信的上游错误正文。
+// writeSanitizedOpenAIPassthroughError 委托 HTTP Adapter，保留旧调用入口。
 func writeSanitizedOpenAIPassthroughError(c *gin.Context, upstreamStatus int, upstreamHeaders http.Header) {
-	downstreamStatus := upstreamStatus
-	message := "Upstream request failed"
-	switch upstreamStatus {
-	case http.StatusUnauthorized:
-		downstreamStatus = http.StatusBadGateway
-		message = "Upstream authentication failed"
-	case http.StatusForbidden:
-		downstreamStatus = http.StatusBadGateway
-		message = "Upstream access denied"
-	default:
-		if upstreamStatus >= http.StatusInternalServerError {
-			message = "Upstream service temporarily unavailable"
-		}
-	}
-	writeOpenAIPassthroughErrorEnvelope(c, downstreamStatus, upstreamHeaders, message)
+	gatewayhttp.WriteSanitizedForwardPassthroughError(c, upstreamStatus, upstreamHeaders, writeOpenAICompactSSEBridge)
 }
 
-// writeOpenAIPassthroughErrorEnvelope 以本地 JSON 信封 + 净化后的头策略写出
-// 错误响应；message 由调用方决定（净化通用文案或脱敏后的上游消息）。
+// writeOpenAIPassthroughErrorEnvelope 委托 HTTP Adapter，保留旧调用入口。
 func writeOpenAIPassthroughErrorEnvelope(c *gin.Context, downstreamStatus int, upstreamHeaders http.Header, message string) {
-	if c == nil {
-		return
-	}
-	body, _ := json.Marshal(gin.H{
-		"error": gin.H{
-			"type":    "upstream_error",
-			"message": message,
-		},
-	})
-	if writeOpenAICompactSSEBridge(c, downstreamStatus, body) {
-		return
-	}
-	writeOpenAIPassthroughErrorHeaders(c.Writer.Header(), upstreamHeaders)
-	c.Data(downstreamStatus, "application/json; charset=utf-8", body)
+	gatewayhttp.WriteForwardPassthroughErrorEnvelope(c, downstreamStatus, upstreamHeaders, message, writeOpenAICompactSSEBridge)
 }
 
 func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(

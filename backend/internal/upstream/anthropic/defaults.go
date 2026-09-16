@@ -1,7 +1,11 @@
 // 平台端点和默认提示词保持原字节，旧入口只引用这些值。
 package anthropic
 
-import "strings"
+import (
+	"strings"
+
+	wire "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+)
 
 const ClaudeAPIURL = "https://api.anthropic.com/v1/messages?beta=true"
 const ClaudeAPICountTokensURL = "https://api.anthropic.com/v1/messages/count_tokens?beta=true"
@@ -27,11 +31,11 @@ var ClaudeCodePromptPrefixes = []string{
 
 const MaxCacheControlBlocks = 4
 const CacheTTLTarget1h = "1h"
-const ClaudeCodeBillingHeaderPrefix = "x-anthropic-billing-header"
+const ClaudeCodeBillingHeaderPrefix = wire.ClaudeCodeBillingHeaderPrefix
 
 // IsAnthropicFableModel 判断是否为 Fable 模型家族（claude-fable-5、claude-fable-5[1m] 等变体）
 func IsAnthropicFableModel(model string) bool {
 	return strings.Contains(strings.ToLower(model), "fable")
 }
 
-const ClaudeCodeEntrypointMarker = "cc_entrypoint="
+const ClaudeCodeEntrypointMarker = wire.ClaudeCodeEntrypointMarker

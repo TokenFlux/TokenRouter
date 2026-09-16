@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/handler",
+    "-run",
+    "Test(Concurrency|GatewayHelper|UserMsgQueue|GatewayWait|Qoder)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 3.773,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/native-wait-consumers.log.gz"
+}

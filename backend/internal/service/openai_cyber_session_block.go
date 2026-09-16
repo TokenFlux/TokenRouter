@@ -8,17 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
-// CyberSessionBlockStore 是 cyber 会话屏蔽表的存取接口。
-// repository 层 gatewayCache 通过类型断言接入，测试桩未实现时自动降级为关闭。
-type CyberSessionBlockStore interface {
-	SetCyberSessionBlocked(ctx context.Context, scopeKey string, keys []string, ttl time.Duration) error
-	IsCyberSessionScopeActive(ctx context.Context, scopeKey string) (bool, error)
-	FindCyberSessionBlocked(ctx context.Context, keys []string) (string, error)
-}
+type CyberSessionBlockStore = session.CyberSessionBlockStore
 
 // legacyCyberSessionBlockStore 兼容迁移前缓存接口，避免旧部署在升级后静默失去会话屏蔽。
 type legacyCyberSessionBlockStore interface {

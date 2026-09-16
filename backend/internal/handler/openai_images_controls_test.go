@@ -38,7 +38,7 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 		gatewayService:      &service.OpenAIGatewayService{},
 		billingCacheService: &service.BillingCacheService{},
 		apiKeyService:       &service.APIKeyService{},
-		concurrencyHelper:   &ConcurrencyHelper{concurrencyService: &service.ConcurrencyService{}},
+		concurrencyHelper:   NewConcurrencyHelper(&service.ConcurrencyService{}, SSEPingFormatNone, 0),
 	}
 
 	h.Images(c)

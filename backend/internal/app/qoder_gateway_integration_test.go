@@ -227,8 +227,54 @@ func TestS09QoderHTTPStorageChain(t *testing.T) {
 					done <- createErr
 				})
 			}
-			handler := &gatewayhttp.QoderChatHandler{UseCase: gateway.NewQoderUseCase(3, time.Second)}
-			handler.Prepare = func(c *gin.Context, p gatewayhttp.ParsedRequest) (gateway.Request, gateway.RequestPorts, error) {
+
+			// S11 使用固定 Execute；HTTP 只投影认证和报文，依赖不在每请求内重组。
+			runtime := &s11StorageQoderRuntime{}
+			runtime.prepare = func(callCtx context.Context, request gateway.Request) (gateway.Request, error) {
+				grp, err := groups.GetByID(callCtx, group.ID)
+				if err != nil {
+					return gateway.Request{}, err
+				}
+				request.Route = routing.Plan(routing.PlanInput{Group: grp, GroupID: &group.ID, RequestedModel: request.Model, ClientProtocol: protocol.ProtocolOpenAIChatCompletions, Channel: routing.ChannelMappingResult{ClientModel: request.Model, MappedModel: request.Model}})
+				return request, nil
+			}
+			runtime.check = func(callCtx context.Context) error {
+				return eligibility.Check(callCtx, billing.CheckInput{Payer: &billing.UserSummary{ID: user.ID}, Key: &billing.KeySnapshot{ID: key.ID, BillingMode: "balance"}, Group: &billing.GroupSnapshot{ID: group.ID}, Platform: "qoder"})
+			}
+
+			runtime.selectAccount = func(callCtx context.Context, request gateway.Request, excluded map[int64]struct{}) (*gateway.Selection, error) {
+				record, loadErr := accounts.GetByID(callCtx, acc.ID)
+				if loadErr != nil {
+					return nil, loadErr
+				}
+				snapshot := record.RoutingSnapshot()
+				selectionInput := scheduler.SelectionInput{RoutePlan: request.Route, Candidates: []scheduler.SelectionCandidate{{Snapshot: &snapshot}}, ExcludedIDs: excluded}
+				fresh := func(ctx context.Context, candidate scheduler.SelectionCandidate) (scheduler.SelectionCandidate, bool) {
+					r, e := accounts.GetByID(ctx, acc.ID)
+					if e != nil {
+						return candidate, false
+					}
+					value := r.RoutingSnapshot()
+					candidate.Snapshot = &value
+					cp, ok := request.Route.ResolveCandidate(value)
+					candidate.Plan = &cp
+					return candidate, ok
+				}
+				selected, ok, selectErr := scheduler.RequestLease(callCtx).Select(callCtx, selectionInput, scheduler.AttemptSelectionPorts{Acquire: func(ctx context.Context, id int64, limit int) (*scheduler.AcquireResult, bool, error) {
+					r, e := concur.AcquireAccountSlot(ctx, id, limit)
+					return r, true, e
+				}, Fresh: fresh, CanRecheck: func() bool { return true }, Recheck: fresh, CompactAllowed: func(scheduler.SelectionCandidate) bool { return true }})
+				if selectErr != nil {
+					return nil, selectErr
+				}
+				if !ok {
+					return nil, fmt.Errorf("fixture candidate unavailable")
+				}
+				target := &qoder.Target{AccountID: acc.ID, Site: qoder.SiteGlobal, UserType: "personal_standard", Metadata: qoder.RequestMetadata{APIKeyID: key.ID}, Session: func(context.Context) (*qoder.SessionContext, error) { return session, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }}
+				return &gateway.Selection{Snapshot: snapshot, Plan: *selected.Candidate.Plan, Acquired: true, Release: selected.Attempt.Release, Executor: executor, Input: upstream.AttemptInput{Protocol: protocol.ProtocolOpenAIChatCompletions, Body: request.Body, Stream: request.Stream, ResponseModel: request.Model, Target: target}, Complete: complete}, nil
+			}
+			handler := &gatewayhttp.QoderChatHandler{Executor: gateway.NewQoderExecutor(3, time.Second, concur, runtime)}
+			handler.PrepareRequest = func(c *gin.Context, p gatewayhttp.ParsedRequest) (gateway.Request, error) {
 				if tc.disconnect {
 					requestCtx := c.Request.Context()
 					go func() { <-requestCtx.Done(); close(clientGone) }()
@@ -236,47 +282,9 @@ func TestS09QoderHTTPStorageChain(t *testing.T) {
 				value, _ := c.Get("access")
 				access, ok := value.(*apikey.AccessSnapshot)
 				require.True(t, ok)
-				grp, readErr := groups.GetByID(c.Request.Context(), group.ID)
-				if readErr != nil {
-					return gateway.Request{}, gateway.RequestPorts{}, readErr
-				}
-				plan := routing.Plan(routing.PlanInput{Group: grp, GroupID: &group.ID, RequestedModel: p.Model, ClientProtocol: protocol.ProtocolOpenAIChatCompletions, Channel: routing.ChannelMappingResult{ClientModel: p.Model, MappedModel: p.Model}})
-				ports := gateway.RequestPorts{Concurrency: concur, CanFailover: func(error) bool { return true }, Check: func(callCtx context.Context, _ bool) error {
-					return eligibility.Check(callCtx, billing.CheckInput{Payer: &billing.UserSummary{ID: user.ID}, Key: &billing.KeySnapshot{ID: key.ID, BillingMode: "balance"}, Group: &billing.GroupSnapshot{ID: group.ID}, Platform: "qoder"})
-				}}
-				ports.Select = func(callCtx context.Context, excluded map[int64]struct{}) (*gateway.Selection, error) {
-					record, loadErr := accounts.GetByID(callCtx, acc.ID)
-					if loadErr != nil {
-						return nil, loadErr
-					}
-					snapshot := record.RoutingSnapshot()
-					selectionInput := scheduler.SelectionInput{RoutePlan: plan, Candidates: []scheduler.SelectionCandidate{{Snapshot: &snapshot}}, ExcludedIDs: excluded}
-					fresh := func(ctx context.Context, candidate scheduler.SelectionCandidate) (scheduler.SelectionCandidate, bool) {
-						r, e := accounts.GetByID(ctx, acc.ID)
-						if e != nil {
-							return candidate, false
-						}
-						value := r.RoutingSnapshot()
-						candidate.Snapshot = &value
-						cp, ok := plan.ResolveCandidate(value)
-						candidate.Plan = &cp
-						return candidate, ok
-					}
-					selected, ok, selectErr := scheduler.RequestLease(callCtx).Select(callCtx, selectionInput, scheduler.AttemptSelectionPorts{Acquire: func(ctx context.Context, id int64, limit int) (*scheduler.AcquireResult, bool, error) {
-						r, e := concur.AcquireAccountSlot(ctx, id, limit)
-						return r, true, e
-					}, Fresh: fresh, CanRecheck: func() bool { return true }, Recheck: fresh, CompactAllowed: func(scheduler.SelectionCandidate) bool { return true }})
-					if selectErr != nil {
-						return nil, selectErr
-					}
-					if !ok {
-						return nil, fmt.Errorf("fixture candidate unavailable")
-					}
-					target := &qoder.Target{AccountID: acc.ID, Site: qoder.SiteGlobal, UserType: "personal_standard", Metadata: qoder.RequestMetadata{APIKeyID: key.ID}, Session: func(context.Context) (*qoder.SessionContext, error) { return session, nil }, Client: func() (qoder.StreamClient, error) { return client, nil }}
-					return &gateway.Selection{Snapshot: snapshot, Plan: *selected.Candidate.Plan, Acquired: true, Release: selected.Attempt.Release, Executor: executor, Input: upstream.AttemptInput{Protocol: protocol.ProtocolOpenAIChatCompletions, Body: p.Body, Stream: p.Stream, ResponseModel: p.Model, Target: target}, Complete: complete}, nil
-				}
-				return gateway.Request{Access: access, Route: plan, UserID: user.ID, Concurrency: 1, Stream: p.Stream, Body: p.Body, Model: p.Model}, ports, nil
+				return gateway.Request{Access: access, UserID: user.ID, Concurrency: 1, Stream: p.Stream, Body: p.Body, Model: p.Model}, nil
 			}
+
 			router := gin.New()
 			router.Use(func(c *gin.Context) {
 				a, ok := keyhttp.Authenticate(c, auth, keyhttp.AuthenticationOptions{})
@@ -366,3 +374,24 @@ func TestS09QoderHTTPStorageChain(t *testing.T) {
 		})
 	}
 }
+
+// s11StorageQoderRuntime 仅替换供应商与依赖取得；执行、租约、真实资金及分析存储均走新生产模块。
+type s11StorageQoderRuntime struct {
+	prepare       func(context.Context, gateway.Request) (gateway.Request, error)
+	check         func(context.Context) error
+	selectAccount func(context.Context, gateway.Request, map[int64]struct{}) (*gateway.Selection, error)
+}
+
+func (r *s11StorageQoderRuntime) Prepare(ctx context.Context, v gateway.Request) (gateway.Request, error) {
+	return r.prepare(ctx, v)
+}
+func (r *s11StorageQoderRuntime) Check(ctx context.Context, _ gateway.Request, _ bool) error {
+	return r.check(ctx)
+}
+func (r *s11StorageQoderRuntime) Select(ctx context.Context, v gateway.Request, excluded map[int64]struct{}) (*gateway.Selection, error) {
+	return r.selectAccount(ctx, v, excluded)
+}
+func (*s11StorageQoderRuntime) CanRefresh(error) bool      { return false }
+func (*s11StorageQoderRuntime) CanFailover(error) bool     { return true }
+func (*s11StorageQoderRuntime) RefreshPending(error) bool  { return false }
+func (*s11StorageQoderRuntime) QueueFailure(string, error) {}
