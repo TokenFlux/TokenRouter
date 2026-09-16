@@ -19,6 +19,7 @@ func provideAuthRuntime(
 	geminiOAuth *service.GeminiOAuthService,
 	antigravityOAuth *service.AntigravityOAuthService,
 	qoderOAuth *service.QoderOAuthService,
+	qoderTokens *service.QoderTokenProvider,
 	grokOAuth *service.GrokOAuthService,
 	tlsFingerprintProfile *service.TLSFingerprintProfileService,
 	tlsFingerprintRouter *service.TLSFingerprintRouterService,
@@ -43,7 +44,7 @@ func provideAuthRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if oauth != nil {
-			oauth.Stop()
+			return oauth.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -54,7 +55,7 @@ func provideAuthRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if openaiOAuth != nil {
-			openaiOAuth.Stop()
+			return openaiOAuth.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -65,7 +66,7 @@ func provideAuthRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if geminiOAuth != nil {
-			geminiOAuth.Stop()
+			return geminiOAuth.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -76,10 +77,12 @@ func provideAuthRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if antigravityOAuth != nil {
-			antigravityOAuth.Stop()
+			return antigravityOAuth.StopContext(ctx)
 		}
 		return nil
 	}})
+	// 凭据构建在生产者停止后取消并等待，先于完成队列与共享连接释放。
+	manager.Register(lifecycle.Hook{Name: "QoderCredentialSessions", StopOrder: 30, Stop: qoderTokens.StopContext})
 	manager.Register(lifecycle.Hook{Name: "QoderOAuthService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
 		if qoderOAuth != nil {
 			qoderOAuth.Start()
@@ -87,7 +90,7 @@ func provideAuthRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if qoderOAuth != nil {
-			qoderOAuth.Stop()
+			return qoderOAuth.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -98,7 +101,7 @@ func provideAuthRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if grokOAuth != nil {
-			grokOAuth.Stop()
+			return grokOAuth.StopContext(ctx)
 		}
 		return nil
 	}})

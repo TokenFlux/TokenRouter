@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/upstream/grok",
+    "./internal/account/rediscache"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.158,
+  "pass": 109,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-native-all-race.log.gz"
+}

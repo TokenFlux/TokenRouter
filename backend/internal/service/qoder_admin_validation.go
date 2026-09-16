@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 var qoderValidatePAT = func(ctx context.Context, account *Account, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
@@ -30,72 +30,35 @@ func validateQoderCosyCredentials(ctx context.Context, account *Account, httpUps
 	return validateQoderCosyCredentialsWithOptions(ctx, account, httpUpstream, tlsFPProfileService, false)
 }
 
-func validateQoderCosyCredentialsWithOptions(
-	ctx context.Context,
-	account *Account,
-	httpUpstream HTTPUpstream,
-	tlsFPProfileService *TLSFingerprintProfileService,
-	deferPATExchange bool,
-) error {
-	if account == nil {
-		return nil
-	}
-	if account.Platform != PlatformQoder {
-		if account.Type == AccountTypeCosy {
-			return fmt.Errorf("%s account type requires %s platform", AccountTypeCosy, PlatformQoder)
-		}
-		return nil
-	}
-	if account.Type != AccountTypeCosy {
-		return fmt.Errorf("qoder accounts require %s account type", AccountTypeCosy)
-	}
-	if account.Credentials == nil {
-		return errors.New("qoder cosy credentials are required")
-	}
-	site, err := qoderSiteForAccount(account)
-	if err != nil {
-		return err
-	}
-	if _, err := qoderRefreshModeForAccount(account); err != nil {
-		return err
-	}
-
-	pat := strings.TrimSpace(account.GetCredential("pat"))
-	if pat != "" {
-		// 编辑仅切换站点时先保存原凭据，兼容性由连接测试使用新站点协议验证。
-		if deferPATExchange {
-			return nil
-		}
-		machine := qoderMachineForAccount(account)
-		doer := newQoderRequestDoer(account, httpUpstream, tlsFPProfileService)
-		if site == qoder.SiteCN {
-			if _, err := qoderValidateCNPAT(ctx, account, pat, machine, doer); err != nil {
-				return fmt.Errorf("validate qoder cn pat: %w", err)
+func validateQoderCosyCredentialsWithOptions(ctx context.Context, value *Account, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService, deferPATExchange bool) error {
+	return accountcore.ValidateQoderCredentials(ctx, AccountRecordView(value), deferPATExchange, accountcore.QoderCredentialValidation{
+		Normalize: func(site, mode string) (string, error) {
+			parsed, err := qoder.ParseSite(site)
+			if err != nil {
+				return "", err
+			}
+			_, err = qoder.ParseRefreshMode(mode)
+			return string(parsed), err
+		},
+		ValidatePAT: func(ctx context.Context, _ *accountcore.Record, site, pat string) error {
+			machine := qoderMachineForAccount(value)
+			doer := newQoderRequestDoer(value, httpUpstream, tlsFPProfileService)
+			if qoder.Site(site) == qoder.SiteCN {
+				if _, err := qoderValidateCNPAT(ctx, value, pat, machine, doer); err != nil {
+					return fmt.Errorf("validate qoder cn pat: %w", err)
+				}
+				return nil
+			}
+			validatePAT := qoderValidatePAT
+			if httpUpstream != nil {
+				validatePAT = func(ctx context.Context, account *Account, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+					return qoder.ExchangePATContext(ctx, pat, machine, "", newQoderRequestDoer(account, httpUpstream, tlsFPProfileService))
+				}
+			}
+			if _, err := validatePAT(ctx, value, pat, machine); err != nil {
+				return fmt.Errorf("validate qoder pat: %w", err)
 			}
 			return nil
-		}
-		validatePAT := qoderValidatePAT
-		if httpUpstream != nil {
-			validatePAT = func(ctx context.Context, account *Account, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
-				return qoder.ExchangePATContext(ctx, pat, machine, "", newQoderRequestDoer(account, httpUpstream, tlsFPProfileService))
-			}
-		}
-		if _, err := validatePAT(ctx, account, pat, machine); err != nil {
-			return fmt.Errorf("validate qoder pat: %w", err)
-		}
-		return nil
-	}
-
-	token := strings.TrimSpace(account.GetCredential("security_oauth_token"))
-	machineID := strings.TrimSpace(account.GetCredential("machine_id"))
-	if token != "" {
-		if machineID == "" {
-			return errors.New("qoder cosy credentials require machine_id with security_oauth_token")
-		}
-		if strings.TrimSpace(account.GetCredential("uid")) == "" && strings.TrimSpace(account.GetCredential("aid")) == "" {
-			return errors.New("qoder cosy credentials require uid or aid with security_oauth_token")
-		}
-		return nil
-	}
-	return errors.New("qoder cosy credentials require pat or security_oauth_token+machine_id")
+		},
+	})
 }

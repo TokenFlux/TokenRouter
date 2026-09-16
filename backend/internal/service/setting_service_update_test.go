@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"
 )
 

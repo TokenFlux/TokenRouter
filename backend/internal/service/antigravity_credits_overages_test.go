@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -138,9 +138,9 @@ func TestHandleSmartRetry_QuotaExhausted_UsesCreditsAndStoresIndependentState(t 
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.NotNil(t, result.resp)
-	require.Nil(t, result.switchError)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.NotNil(t, result.Resp)
+	require.Nil(t, result.SwitchError)
 	require.Len(t, upstream.requestBodies, 1)
 	require.Contains(t, string(upstream.requestBodies[0]), "enabledCreditTypes")
 	require.Equal(t, "probe-client/9.9", upstream.userAgents[0])
@@ -200,8 +200,8 @@ func TestHandleSmartRetry_RateLimited_DoesNotUseCredits(t *testing.T) {
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.NotNil(t, result.resp)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.NotNil(t, result.Resp)
 	require.Len(t, upstream.requestBodies, 1)
 	require.NotContains(t, string(upstream.requestBodies[0]), "enabledCreditTypes")
 	require.Empty(t, repo.extraUpdateCalls)

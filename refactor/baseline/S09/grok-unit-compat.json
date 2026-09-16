@@ -1,0 +1,46 @@
+[
+  {
+    "file": "backend/internal/egress/url_policy.go",
+    "test_compat": "backend/internal/egress/url_policy_compat_unit_test.go",
+    "symbols": [
+      "isAllowedHost",
+      "isBlockedHost",
+      "normalizeAllowlist"
+    ]
+  },
+  {
+    "file": "backend/internal/repository/http_upstream.go",
+    "test_compat": "backend/internal/repository/http_upstream_compat_unit_test.go",
+    "symbols": [
+      "isSupportedGrokCLIVersion"
+    ]
+  },
+  {
+    "file": "backend/internal/service/grok_token_provider.go",
+    "test_compat": "backend/internal/service/grok_token_provider_compat_unit_test.go",
+    "symbols": [
+      "cloneGrokProxyID",
+      "grokRefreshLockPollInterval",
+      "grokRefreshLockWaitTimeout",
+      "grokRequestRefreshTimeout",
+      "grokTokenCacheSkew",
+      "waitForRefreshedToken"
+    ]
+  },
+  {
+    "file": "backend/internal/service/grok_token_refresher.go",
+    "test_compat": "backend/internal/service/grok_token_refresher_compat_unit_test.go",
+    "symbols": [
+      "grokTokenRefreshJitterMax",
+      "grokTokenRefreshSkewMin",
+      "grokTokenRefreshWindowWithJitter"
+    ]
+  },
+  {
+    "file": "backend/internal/service/oauth_refresh_api.go",
+    "test_compat": "backend/internal/service/oauth_refresh_api_compat_unit_test.go",
+    "symbols": [
+      "withOAuthRefreshRequestPath"
+    ]
+  }
+]

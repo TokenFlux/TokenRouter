@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/stretchr/testify/require"
 )
 

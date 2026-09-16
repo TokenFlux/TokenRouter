@@ -124,24 +124,24 @@ func TestBedrockModelRegionRules_DefaultCatalogAndSourceConsistency(t *testing.T
 		require.Contains(t, bedrockModelRegionRules, bedrockBaseModelID(modelID))
 	}
 	for baseID, rule := range bedrockModelRegionRules {
-		require.NotEmpty(t, rule.sourceURL, baseID)
-		for _, source := range rule.inRegionSources {
-			require.Contains(t, rule.documentedRegions, source)
+		require.NotEmpty(t, rule.SourceURL, baseID)
+		for _, source := range rule.InRegionSources {
+			require.Contains(t, rule.DocumentedRegions, source)
 		}
 		seen := map[string]bool{}
-		for _, profile := range rule.geoProfiles {
-			require.Equal(t, baseID, bedrockBaseModelID(profile.id))
-			for _, source := range profile.sourceRegions {
+		for _, profile := range rule.GeoProfiles {
+			require.Equal(t, baseID, bedrockBaseModelID(profile.Id))
+			for _, source := range profile.SourceRegions {
 				require.False(t, seen[source], "同一型号来源区域不可同时指向两个地域 ID：%s / %s", baseID, source)
 				seen[source] = true
-				require.Contains(t, rule.documentedRegions, source)
-				require.NotContains(t, rule.unverifiedGeoRegions, source)
+				require.Contains(t, rule.DocumentedRegions, source)
+				require.NotContains(t, rule.UnverifiedGeoRegions, source)
 			}
 		}
-		if rule.globalProfile.id != "" {
-			require.Equal(t, "global."+baseID, rule.globalProfile.id)
-			for _, source := range rule.globalProfile.sourceRegions {
-				require.Contains(t, rule.documentedRegions, source)
+		if rule.GlobalProfile.Id != "" {
+			require.Equal(t, "global."+baseID, rule.GlobalProfile.Id)
+			for _, source := range rule.GlobalProfile.SourceRegions {
+				require.Contains(t, rule.DocumentedRegions, source)
 			}
 		}
 	}

@@ -1,0 +1,56 @@
+[
+  {
+    "file": "internal/service/openai_codex_transform_s09_unit_compat_test.go",
+    "symbols": [
+      "isCodexDateSuffix"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "isEmptyBase64DataURI"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "shouldDropEmptyBase64InputImagePart"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "sanitizeEmptyBase64InputImagesInOpenAIInput"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "openAIJSONValueMayContainEmptyBase64InputImage"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "openAIRequestBodyMayContainInputImageToken"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "openAIRequestBodyHasTools"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "isOpenAIEncryptedReasoningInputItem"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "dropOpenAIEncryptedReasoningInputItems"
+    ]
+  }
+]

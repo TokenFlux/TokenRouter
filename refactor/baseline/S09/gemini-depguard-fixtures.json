@@ -1,0 +1,394 @@
+[
+  {
+    "name": "gemini-legal-native",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/gemini/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.401,
+    "log": "logs/gate-gemini-legal-native-normal.log.gz"
+  },
+  {
+    "name": "gemini-legal-account-http",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.384,
+    "log": "logs/gate-gemini-legal-account-http-normal.log.gz"
+  },
+  {
+    "name": "gemini-new-core-no-exception",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.455,
+    "log": "logs/gate-gemini-new-core-no-exception-normal.log.gz"
+  },
+  {
+    "name": "gemini-old-file-gin-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.45,
+    "log": "logs/gate-gemini-old-file-gin-denied-normal.log.gz"
+  },
+  {
+    "name": "gemini-moved-exception-expired",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.443,
+    "log": "logs/gate-gemini-moved-exception-expired-normal.log.gz"
+  },
+  {
+    "name": "gemini-core-redis-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/gemini"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.376,
+    "log": "logs/gate-gemini-core-redis-denied-normal.log.gz"
+  },
+  {
+    "name": "gemini-platform-peer-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/gemini"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/bedrock",
+    "matched": true,
+    "seconds": 0.395,
+    "log": "logs/gate-gemini-platform-peer-denied-normal.log.gz"
+  },
+  {
+    "name": "gemini-legal-native",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/gemini/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.392,
+    "log": "logs/gate-gemini-legal-native-unit.log.gz"
+  },
+  {
+    "name": "gemini-legal-account-http",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.403,
+    "log": "logs/gate-gemini-legal-account-http-unit.log.gz"
+  },
+  {
+    "name": "gemini-new-core-no-exception",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.513,
+    "log": "logs/gate-gemini-new-core-no-exception-unit.log.gz"
+  },
+  {
+    "name": "gemini-old-file-gin-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.522,
+    "log": "logs/gate-gemini-old-file-gin-denied-unit.log.gz"
+  },
+  {
+    "name": "gemini-moved-exception-expired",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.453,
+    "log": "logs/gate-gemini-moved-exception-expired-unit.log.gz"
+  },
+  {
+    "name": "gemini-core-redis-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/gemini"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.385,
+    "log": "logs/gate-gemini-core-redis-denied-unit.log.gz"
+  },
+  {
+    "name": "gemini-platform-peer-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/gemini"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/bedrock",
+    "matched": true,
+    "seconds": 0.392,
+    "log": "logs/gate-gemini-platform-peer-denied-unit.log.gz"
+  },
+  {
+    "name": "gemini-legal-native",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/gemini/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.381,
+    "log": "logs/gate-gemini-legal-native-integration.log.gz"
+  },
+  {
+    "name": "gemini-legal-account-http",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.4,
+    "log": "logs/gate-gemini-legal-account-http-integration.log.gz"
+  },
+  {
+    "name": "gemini-new-core-no-exception",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.442,
+    "log": "logs/gate-gemini-new-core-no-exception-integration.log.gz"
+  },
+  {
+    "name": "gemini-old-file-gin-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.447,
+    "log": "logs/gate-gemini-old-file-gin-denied-integration.log.gz"
+  },
+  {
+    "name": "gemini-moved-exception-expired",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.459,
+    "log": "logs/gate-gemini-moved-exception-expired-integration.log.gz"
+  },
+  {
+    "name": "gemini-core-redis-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/gemini"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.376,
+    "log": "logs/gate-gemini-core-redis-denied-integration.log.gz"
+  },
+  {
+    "name": "gemini-platform-peer-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/gemini"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/bedrock",
+    "matched": true,
+    "seconds": 0.383,
+    "log": "logs/gate-gemini-platform-peer-denied-integration.log.gz"
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "RawChat|ChatCompletions.*(Responses|Anthropic)|CCStream|CCUpstream|ChatFallback|ChatCompletionServiceTier"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 11.568,
+  "pass": 57,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-cc-reader-unit.log.gz"
+}

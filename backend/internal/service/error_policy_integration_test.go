@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -172,10 +172,10 @@ func TestRetryLoop_ErrorPolicy_CustomErrorCodes(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			require.NotNil(t, result.resp)
-			defer func() { _ = result.resp.Body.Close() }()
+			require.NotNil(t, result.Resp)
+			defer func() { _ = result.Resp.Body.Close() }()
 
-			require.Equal(t, tt.expectStatusCode, result.resp.StatusCode)
+			require.Equal(t, tt.expectStatusCode, result.Resp.StatusCode)
 			require.Equal(t, tt.expectHandleError, handleErrorCount, "handleError call count")
 			require.Equal(t, tt.expectUpstream, upstream.calls, "upstream call count")
 		})
@@ -358,10 +358,10 @@ func TestRetryLoop_ErrorPolicy_NoPolicy_OriginalBehavior(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, result.resp)
-	defer func() { _ = result.resp.Body.Close() }()
+	require.NotNil(t, result.Resp)
+	defer func() { _ = result.Resp.Body.Close() }()
 
-	require.Equal(t, http.StatusTooManyRequests, result.resp.StatusCode)
+	require.Equal(t, http.StatusTooManyRequests, result.Resp.StatusCode)
 	require.Equal(t, antigravityMaxRetries, upstream.calls, "should exhaust all retries")
 	require.Equal(t, 1, handleErrorCount, "handleError should be called once after retries exhausted")
 }
@@ -446,11 +446,11 @@ func TestCustomErrorCode599_SkippedErrors_Return500_NoRateLimit(t *testing.T) {
 			// 不应返回 error（Skipped 不触发账号切换）
 			require.NoError(t, err, "should not return error")
 			require.NotNil(t, result, "result should not be nil")
-			require.NotNil(t, result.resp, "response should not be nil")
-			defer func() { _ = result.resp.Body.Close() }()
+			require.NotNil(t, result.Resp, "response should not be nil")
+			defer func() { _ = result.Resp.Body.Close() }()
 
 			// 状态码必须是 500（不透传原始状态码）
-			require.Equal(t, http.StatusInternalServerError, result.resp.StatusCode,
+			require.Equal(t, http.StatusInternalServerError, result.Resp.StatusCode,
 				"skipped error should return 500, not %d", upstreamStatus)
 
 			// 不调用 handleError

@@ -4,288 +4,45 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"mime"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
+	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
-type GrokMediaEndpoint string
+type GrokMediaEndpoint = nativegrok.GrokMediaEndpoint
 
-const (
-	GrokMediaEndpointImagesGenerations GrokMediaEndpoint = "images_generations"
-	GrokMediaEndpointImagesEdits       GrokMediaEndpoint = "images_edits"
-	GrokMediaEndpointVideosGenerations GrokMediaEndpoint = "videos_generations"
-	GrokMediaEndpointVideosEdits       GrokMediaEndpoint = "videos_edits"
-	GrokMediaEndpointVideosExtensions  GrokMediaEndpoint = "videos_extensions"
-	GrokMediaEndpointVideoStatus       GrokMediaEndpoint = "video_status"
-	GrokMediaEndpointVideoContent      GrokMediaEndpoint = "video_content"
+const GrokMediaEndpointImagesGenerations = nativegrok.GrokMediaEndpointImagesGenerations
+const GrokMediaEndpointImagesEdits = nativegrok.GrokMediaEndpointImagesEdits
+const GrokMediaEndpointVideosGenerations = nativegrok.GrokMediaEndpointVideosGenerations
+const GrokMediaEndpointVideosEdits = nativegrok.GrokMediaEndpointVideosEdits
+const GrokMediaEndpointVideosExtensions = nativegrok.GrokMediaEndpointVideosExtensions
+const GrokMediaEndpointVideoStatus = nativegrok.GrokMediaEndpointVideoStatus
+const GrokMediaEndpointVideoContent = nativegrok.GrokMediaEndpointVideoContent
+const grokMediaMaxEditSourceImages = nativegrok.GrokMediaMaxEditSourceImages
 
-	// xAI Imagine 官方图片编辑数量上限。
-	grokMediaMaxEditSourceImages = 3
-)
-
-func (e GrokMediaEndpoint) RequiresRequestBody() bool {
-	return !e.IsVideoLookupRequest()
-}
-
-func (e GrokMediaEndpoint) IsVideoLookupRequest() bool {
-	return e == GrokMediaEndpointVideoStatus || e == GrokMediaEndpointVideoContent
-}
-
-func (e GrokMediaEndpoint) IsGenerationRequest() bool {
-	switch e {
-	case GrokMediaEndpointImagesGenerations, GrokMediaEndpointImagesEdits, GrokMediaEndpointVideosGenerations, GrokMediaEndpointVideosEdits, GrokMediaEndpointVideosExtensions:
-		return true
-	default:
-		return false
-	}
-}
-
-type GrokMediaRequestInfo struct {
-	Model           string
-	Prompt          string
-	N               int
-	Size            string
-	SizeTier        string
-	AspectRatio     string
-	ImageResolution string
-	Resolution      string
-	DurationSeconds int
-	InputImageURLs  []string
-	MaskImageURL    string
-	Uploads         []OpenAIImagesUpload
-	MaskUpload      *OpenAIImagesUpload
-}
-
-func (r GrokMediaRequestInfo) ModerationBody() []byte {
-	payload := map[string]any{}
-	if prompt := strings.TrimSpace(r.Prompt); prompt != "" {
-		payload["prompt"] = prompt
-	}
-
-	images := make([]map[string]string, 0, len(r.InputImageURLs)+len(r.Uploads)+1)
-	for _, imageURL := range r.InputImageURLs {
-		if imageURL = strings.TrimSpace(imageURL); imageURL != "" {
-			images = append(images, map[string]string{"image_url": imageURL})
-		}
-	}
-	for _, upload := range r.Uploads {
-		if dataURL := upload.ModerationDataURL(); dataURL != "" {
-			images = append(images, map[string]string{"image_url": dataURL})
-		}
-	}
-	if maskURL := strings.TrimSpace(r.MaskImageURL); maskURL != "" {
-		images = append(images, map[string]string{"image_url": maskURL})
-	}
-	if r.MaskUpload != nil {
-		if dataURL := r.MaskUpload.ModerationDataURL(); dataURL != "" {
-			images = append(images, map[string]string{"image_url": dataURL})
-		}
-	}
-	if len(images) > 0 {
-		payload["images"] = images
-	}
-	if len(payload) == 0 {
-		return nil
-	}
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil
-	}
-	return body
-}
-
-func (e GrokMediaEndpoint) httpMethod() string {
-	if e.IsVideoLookupRequest() {
-		return http.MethodGet
-	}
-	return http.MethodPost
-}
+type GrokMediaRequestInfo = nativegrok.GrokMediaRequestInfo
 
 func ExtractGrokMediaModel(contentType string, body []byte) string {
-	return ParseGrokMediaRequest(contentType, body).Model
+	return grokMediaCodec().ExtractGrokMediaModel(contentType, body)
 }
 
 func ParseGrokMediaRequest(contentType string, body []byte) GrokMediaRequestInfo {
-	info := GrokMediaRequestInfo{N: 1}
-	if gjson.ValidBytes(body) {
-		parseGrokMediaJSONRequest(body, &info)
-	} else {
-		parseGrokMediaMultipartRequest(contentType, body, &info)
-	}
-	info.Model = strings.TrimSpace(info.Model)
-	info.Prompt = strings.TrimSpace(info.Prompt)
-	info.Size = strings.TrimSpace(info.Size)
-	info.SizeTier = NormalizeImageBillingTierOrDefault(info.Size)
-	info.AspectRatio = strings.TrimSpace(info.AspectRatio)
-	info.ImageResolution = grokImagineImageResolution(info.ImageResolution)
-	info.Resolution = NormalizeVideoBillingResolutionOrDefault(info.Resolution)
-	info.DurationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(info.DurationSeconds)
-	if info.N <= 0 {
-		info.N = 1
-	}
-	return info
-}
-
-func parseGrokMediaJSONRequest(body []byte, info *GrokMediaRequestInfo) {
-	if info == nil {
-		return
-	}
-	info.Model = strings.TrimSpace(gjson.GetBytes(body, "model").String())
-	info.Prompt = strings.TrimSpace(gjson.GetBytes(body, "prompt").String())
-	info.Size = strings.TrimSpace(gjson.GetBytes(body, "size").String())
-	info.AspectRatio = strings.TrimSpace(gjson.GetBytes(body, "aspect_ratio").String())
-	assignGrokMediaResolution(strings.TrimSpace(gjson.GetBytes(body, "resolution").String()), info)
-	if duration := gjson.GetBytes(body, "duration"); duration.Exists() && duration.Type == gjson.Number {
-		info.DurationSeconds = int(duration.Int())
-	}
-	if n := gjson.GetBytes(body, "n"); n.Exists() && n.Type == gjson.Number {
-		info.N = int(n.Int())
-	}
-	appendJSONImageURLs := func(value gjson.Result) {
-		if !value.Exists() {
-			return
-		}
-		switch {
-		case value.IsArray():
-			for _, item := range value.Array() {
-				if imageURL := extractGrokMediaImageURL(item); imageURL != "" {
-					info.InputImageURLs = append(info.InputImageURLs, imageURL)
-				}
-			}
-		default:
-			if imageURL := extractGrokMediaImageURL(value); imageURL != "" {
-				info.InputImageURLs = append(info.InputImageURLs, imageURL)
-			}
-		}
-	}
-	appendJSONImageURLs(gjson.GetBytes(body, "image"))
-	appendJSONImageURLs(gjson.GetBytes(body, "images"))
-	appendJSONImageURLs(gjson.GetBytes(body, "reference_images"))
-	info.MaskImageURL = extractGrokMediaImageURL(gjson.GetBytes(body, "mask"))
-}
-
-// extractGrokMediaImageURL 优先读取 xAI 官方 url，并兼容历史字符串和 image_url 形态。
-func extractGrokMediaImageURL(value gjson.Result) string {
-	if !value.Exists() {
-		return ""
-	}
-	if value.Type == gjson.String {
-		return strings.TrimSpace(value.String())
-	}
-	return grokMediaJSONImageURL(value)
-}
-
-// grokMediaJSONImageURL 优先读取 xAI 官方 url，空白时兼容历史 image_url。
-func grokMediaJSONImageURL(value gjson.Result) string {
-	if imageURL := strings.TrimSpace(value.Get("url").String()); imageURL != "" {
-		return imageURL
-	}
-	if nested := value.Get("image_url"); nested.Exists() {
-		if nested.Type == gjson.String {
-			return strings.TrimSpace(nested.String())
-		}
-		if imageURL := strings.TrimSpace(nested.Get("url").String()); imageURL != "" {
-			return imageURL
-		}
-	}
-	return strings.TrimSpace(value.Get("image_url").String())
-}
-
-func grokMediaImageObject(imageURL string) map[string]string {
-	return map[string]string{"url": imageURL, "type": "image_url"}
-}
-
-func parseGrokMediaMultipartRequest(contentType string, body []byte, info *GrokMediaRequestInfo) {
-	if info == nil {
-		return
-	}
-	mediaType, params, err := mime.ParseMediaType(strings.TrimSpace(contentType))
-	if err != nil || !strings.EqualFold(mediaType, "multipart/form-data") {
-		return
-	}
-	boundary := strings.TrimSpace(params["boundary"])
-	if boundary == "" {
-		return
-	}
-	reader := multipart.NewReader(bytes.NewReader(body), boundary)
-	for {
-		part, err := reader.NextPart()
-		if err == io.EOF {
-			return
-		}
-		if err != nil {
-			return
-		}
-		name := strings.TrimSpace(part.FormName())
-		if name == "" {
-			_ = part.Close()
-			continue
-		}
-		data, err := io.ReadAll(io.LimitReader(part, openAIImageMaxUploadPartSize))
-		_ = part.Close()
-		if err != nil {
-			return
-		}
-		fileName := strings.TrimSpace(part.FileName())
-		partContentType := strings.TrimSpace(part.Header.Get("Content-Type"))
-		if fileName != "" {
-			upload := OpenAIImagesUpload{
-				FieldName:   name,
-				FileName:    fileName,
-				ContentType: partContentType,
-				Data:        data,
-			}
-			if name == "mask" {
-				info.MaskUpload = &upload
-				continue
-			}
-			if name == "image" || strings.HasPrefix(name, "image[") {
-				info.Uploads = append(info.Uploads, upload)
-			}
-			continue
-		}
-
-		value := strings.TrimSpace(string(data))
-		switch name {
-		case "model":
-			info.Model = value
-		case "prompt":
-			info.Prompt = value
-		case "size":
-			info.Size = value
-		case "aspect_ratio":
-			info.AspectRatio = value
-		case "resolution":
-			assignGrokMediaResolution(value, info)
-		case "duration":
-			if duration, err := strconv.Atoi(value); err == nil {
-				info.DurationSeconds = duration
-			}
-		case "n":
-			if n, err := strconv.Atoi(value); err == nil {
-				info.N = n
-			}
-		case "image", "image_url":
-			if value != "" {
-				info.InputImageURLs = append(info.InputImageURLs, value)
-			}
-		case "mask", "mask_image_url":
-			info.MaskImageURL = value
-		}
-	}
+	return grokMediaCodec().ParseGrokMediaRequest(contentType, body)
 }
 
 func GrokMediaVideoRequestSessionHash(requestID string, userID, apiKeyID int64) string {
@@ -586,8 +343,7 @@ func IsGrokVideoStatusBillable(statusBody []byte) bool {
 }
 
 func isOfficialGrokVideoStatusDone(statusBody []byte) bool {
-	// 官方枚举值包括 pending、done、expired 与 failed。
-	return strings.EqualFold(strings.TrimSpace(gjson.GetBytes(statusBody, "status").String()), "done")
+	return grokMediaCodec().IsOfficialGrokVideoStatusDone(statusBody)
 }
 
 // ExtractGrokVideoBillingFromStatusBody 根据官方 done 状态构建用量单位。
@@ -650,12 +406,19 @@ func ExtractGrokVideoBillingFromStatusBody(statusBody []byte, pending *GrokVideo
 		responseID = strings.TrimSpace(requestID)
 	}
 	return &OpenAIForwardResult{
-		ResponseID:           responseID,
-		Model:                model,
-		BillingModel:         billingModel,
-		UpstreamModel:        upstreamModel,
-		VideoCount:           1,
-		VideoResolution:      resolution,
+
+		ResponseID: responseID,
+
+		Model: model,
+
+		BillingModel: billingModel,
+
+		UpstreamModel: upstreamModel,
+
+		VideoCount: 1,
+
+		VideoResolution: resolution,
+
 		VideoDurationSeconds: durationSeconds,
 	}
 }
@@ -718,75 +481,88 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 		return nil, err
 	}
 
-	var bodyReader io.Reader
-	if endpoint.RequiresRequestBody() {
-		bodyReader = bytes.NewReader(body)
-	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
-	upstreamReq, err := http.NewRequestWithContext(upstreamCtx, endpoint.httpMethod(), targetURL, bodyReader)
+	var cliHeaders func(http.Header)
+	if account.IsGrokOAuth() && isGrokCLIProxyTarget(targetURL) {
+		cliHeaders = applyGrokCLIHeaders
+	}
+	req, err := nativegrok.BuildMediaRequest(upstreamCtx, endpoint, targetURL, token, contentType, body, cliHeaders, account.ApplyHeaderOverrides)
 	if err != nil {
 		return nil, err
 	}
-	upstreamReq.Header.Set("Authorization", "Bearer "+token)
-	upstreamReq.Header.Set("Accept", "application/json")
-	if account.IsGrokOAuth() && isGrokCLIProxyTarget(targetURL) {
-		applyGrokCLIHeaders(upstreamReq.Header)
-	}
-	if endpoint.RequiresRequestBody() {
-		contentType = strings.TrimSpace(contentType)
-		if contentType == "" {
-			contentType = "application/json"
-		}
-		upstreamReq.Header.Set("Content-Type", contentType)
-	}
-	// 账号级请求头覆写最后应用，配置值优先于内置默认头。
-	account.ApplyHeaderOverrides(upstreamReq.Header)
-
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	upstreamStart := time.Now()
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
-	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+	handled := false
+	var handledResult *OpenAIForwardResult
+	target := &nativegrok.MediaTarget{
+		AccountID: account.ID,
+		Endpoint:  endpoint,
+		Request:   req,
+		StartedAt: startTime,
+		Enter:     s.nativeAttemptActivity,
+		Do: func(req *http.Request) (*http.Response, error) {
+			return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+		},
+		AfterExchange: func(elapsed time.Duration, err error) error {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, elapsed.Milliseconds())
+			if err != nil {
+				return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+			}
+			return nil
+		},
+		BeforeResponse: func(resp *http.Response) (bool, error) {
+			if resp.StatusCode >= 400 {
+				handled = true
+				var err error
+				handledResult, err = s.handleGrokMediaErrorResponse(ctx, resp, c, account, firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")), upstreamModel)
+				return true, err
+			}
+			s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, requestInfo.Model), account, resp.Header, resp.StatusCode)
+			return false, nil
+		},
+		ReadBody: func(reader io.Reader) ([]byte, error) {
+			return ReadUpstreamResponseBody(reader, s.cfg, c, openAITooLargeError)
+		},
+		CountImages: countOpenAIResponseImageOutputsFromJSONBytes,
+		TransformBody: func(data []byte) []byte {
+			if endpoint == GrokMediaEndpointVideoStatus {
+				return rewriteGrokMediaVideoContentURLs(data, requestID, grokMediaContentProxyURL(c, requestID))
+			}
+			return data
+		},
+		CopyHeaders: func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	requestIDHeader := firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id"))
-	requestModel := requestInfo.Model
-	if resp.StatusCode >= 400 {
-		// 错误策略必须使用实际发往上游的映射后模型，确保模型级暂停与调度键一致。
-		return s.handleGrokMediaErrorResponse(ctx, resp, c, account, requestIDHeader, upstreamModel)
+	var sink upstream.OutputSink
+	if c != nil {
+		sink = gatewayhttp.ResponseSink{Writer: c.Writer}
 	}
-
-	s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, requestModel), account, resp.Header, resp.StatusCode)
-	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
+	protocols := map[GrokMediaEndpoint]protocol.ProtocolID{
+		GrokMediaEndpointImagesGenerations: protocol.ProtocolImagesGenerations,
+		GrokMediaEndpointImagesEdits:       protocol.ProtocolImagesEdits,
+		GrokMediaEndpointVideosGenerations: protocol.ProtocolVideosGenerations,
+		GrokMediaEndpointVideosEdits:       protocol.ProtocolVideosEdits,
+		GrokMediaEndpointVideosExtensions:  protocol.ProtocolVideosExtensions,
+		GrokMediaEndpointVideoStatus:       protocol.ProtocolVideosGenerations,
+	}
+	result, err := (nativegrok.MediaExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{Protocol: protocols[endpoint], Body: body, ResponseModel: requestInfo.Model, Target: target}, sink)
+	if handled {
+		return handledResult, err
+	}
 	if err != nil {
+		var missing *nativegrok.MissingImageOutput
+		if errors.As(err, &missing) {
+			setOpsUpstreamError(c, http.StatusBadGateway, missing.Error(), truncateString(string(missing.Body), 512))
+			return nil, &UpstreamFailoverError{StatusCode: http.StatusBadGateway, ResponseBody: missing.Body, ResponseHeaders: missing.Headers}
+		}
 		return nil, err
 	}
-	if endpoint == GrokMediaEndpointImagesGenerations || endpoint == GrokMediaEndpointImagesEdits {
-		if countOpenAIResponseImageOutputsFromJSONBytes(respBody) <= 0 {
-			setOpsUpstreamError(c, http.StatusBadGateway, "xAI upstream returned no image output", truncateString(string(respBody), 512))
-			return nil, &UpstreamFailoverError{
-				StatusCode:      http.StatusBadGateway,
-				ResponseBody:    respBody,
-				ResponseHeaders: resp.Header.Clone(),
-			}
-		}
-	}
-	if endpoint == GrokMediaEndpointVideoStatus {
-		respBody = rewriteGrokMediaVideoContentURLs(
-			respBody,
-			requestID,
-			grokMediaContentProxyURL(c, requestID),
-		)
-	}
-	writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
+	respBody := result.MediaBody
+
 	usage := grokMediaUsageFromResponse(endpoint, requestInfo, respBody)
-	resultModel := requestModel
+	resultModel := requestInfo.Model
 	resultBillingModel := billingModel
 	if endpoint == GrokMediaEndpointVideoStatus {
 		// 状态请求不含请求体模型，满足计费条件时使用上游状态字段。
@@ -798,28 +574,43 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 		}
 	}
 	return &OpenAIForwardResult{
-		RequestID:            requestIDHeader,
-		UpstreamHeaders:      resp.Header,
-		ResponseID:           usage.ResponseID,
-		Usage:                usage.Usage,
-		Model:                resultModel,
-		BillingModel:         resultBillingModel,
-		UpstreamModel:        upstreamModel,
-		ResponseHeaders:      resp.Header.Clone(),
-		Duration:             time.Since(startTime),
-		ImageCount:           usage.ImageCount,
-		ImageSize:            usage.ImageSize,
-		ImageInputSize:       usage.ImageInputSize,
-		ImageOutputSizes:     usage.ImageOutputSizes,
-		VideoCount:           usage.VideoCount,
-		VideoResolution:      usage.VideoResolution,
+
+		RequestID: result.RequestID,
+
+		UpstreamHeaders: result.UpstreamHeaders,
+
+		ResponseID: usage.ResponseID,
+
+		Usage: usage.Usage,
+
+		Model: resultModel,
+
+		BillingModel: resultBillingModel,
+
+		UpstreamModel: upstreamModel,
+
+		ResponseHeaders: result.UpstreamHeaders.Clone(),
+
+		Duration: time.Since(startTime),
+
+		ImageCount: usage.ImageCount,
+
+		ImageSize: usage.ImageSize,
+
+		ImageInputSize: usage.ImageInputSize,
+
+		ImageOutputSizes: usage.ImageOutputSizes,
+
+		VideoCount: usage.VideoCount,
+
+		VideoResolution: usage.VideoResolution,
+
 		VideoDurationSeconds: usage.VideoDurationSeconds,
 	}, nil
 }
 
-// RewriteGrokMediaRequestModel 同时支持 JSON 与 multipart 媒体请求的模型改写。
 func RewriteGrokMediaRequestModel(body []byte, contentType, model string) ([]byte, string, error) {
-	return rewriteOpenAIImagesModel(body, contentType, model)
+	return grokMediaCodec().RewriteGrokMediaRequestModel(body, contentType, model)
 }
 
 func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
@@ -836,99 +627,57 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
-	statusReq, err := http.NewRequestWithContext(
-		WithHTTPUpstreamRedirectsDisabled(upstreamCtx),
-		http.MethodGet,
-		statusURL,
-		nil,
-	)
-	if err != nil {
-		return nil, err
-	}
-	statusReq.Header.Set("Authorization", "Bearer "+token)
-	statusReq.Header.Set("Accept", "application/json")
-	if account.IsGrokOAuth() && isGrokCLIProxyTarget(statusURL) {
-		applyGrokCLIHeaders(statusReq.Header)
-	}
-	account.ApplyHeaderOverrides(statusReq.Header)
-
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	upstreamStart := time.Now()
-	statusResp, err := s.httpUpstream.Do(statusReq, proxyURL, account.ID, account.Concurrency)
-	if err != nil {
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
-	}
-	statusRequestID := firstNonEmpty(statusResp.Header.Get("x-request-id"), statusResp.Header.Get("xai-request-id"))
-	if statusResp.StatusCode >= 300 {
-		defer func() { _ = statusResp.Body.Close() }()
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-		if statusResp.StatusCode < 400 {
-			return nil, fmt.Errorf("grok media status redirect is not allowed")
-		}
-		return s.handleGrokMediaErrorResponse(ctx, statusResp, c, account, statusRequestID, "")
-	}
-	statusBody, err := ReadUpstreamResponseBody(statusResp.Body, s.cfg, c, openAITooLargeError)
-	_ = statusResp.Body.Close()
-	if err != nil {
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-		return nil, err
-	}
-
-	contentURL, err := grokMediaSignedVideoContentURL(statusBody, requestID)
-	if err != nil {
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-		return nil, err
-	}
-	signedContent := contentURL != ""
-	if !signedContent {
-		contentURL, err = buildGrokMediaURL(account, s.cfg, GrokMediaEndpointVideoContent, requestID)
-		if err != nil {
-			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-			return nil, err
-		}
-	}
-
-	contentReq, err := http.NewRequestWithContext(
-		WithHTTPUpstreamRedirectsDisabled(upstreamCtx),
-		http.MethodGet,
-		contentURL,
-		nil,
-	)
-	if err != nil {
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-		return nil, err
-	}
-	contentReq.Header.Set("Accept", "*/*")
+	rangeHeader := ""
 	if c != nil {
-		if rangeHeader := strings.TrimSpace(c.GetHeader("Range")); rangeHeader != "" {
-			contentReq.Header.Set("Range", rangeHeader)
-		}
+		rangeHeader = c.GetHeader("Range")
 	}
-	if !signedContent {
-		contentReq.Header.Set("Authorization", "Bearer "+token)
-		if account.IsGrokOAuth() && isGrokCLIProxyTarget(contentURL) {
-			applyGrokCLIHeaders(contentReq.Header)
-		}
-		account.ApplyHeaderOverrides(contentReq.Header)
+	handled := false
+	var handledResult *OpenAIForwardResult
+	resource, err := nativegrok.OpenVideoContent(upstreamCtx, nativegrok.VideoContentOptions{
+		StatusURL: statusURL,
+		RequestID: requestID,
+		Token:     token,
+		Range:     rangeHeader,
+		Context:   WithHTTPUpstreamRedirectsDisabled,
+		ContentURL: func() (string, error) {
+			return buildGrokMediaURL(account, s.cfg, GrokMediaEndpointVideoContent, requestID)
+		},
+		ApplyHeaders: func(headers http.Header, target string) {
+			if account.IsGrokOAuth() && isGrokCLIProxyTarget(target) {
+				applyGrokCLIHeaders(headers)
+			}
+			account.ApplyHeaderOverrides(headers)
+		},
+		Do: func(req *http.Request) (*http.Response, error) {
+			return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+		},
+		ReadStatus: func(reader io.Reader) ([]byte, error) {
+			return ReadUpstreamResponseBody(reader, s.cfg, c, openAITooLargeError)
+		},
+		Latency:        func(elapsed time.Duration) { SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, elapsed.Milliseconds()) },
+		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false) },
+		HTTPError: func(resp *http.Response, id string) error {
+			handled = true
+			var err error
+			handledResult, err = s.handleGrokMediaErrorResponse(ctx, resp, c, account, id, "")
+			return err
+		},
+		Enter: s.nativeAttemptActivity,
+	})
+	if handled {
+		return handledResult, err
 	}
-
-	contentResp, err := s.httpUpstream.Do(contentReq, proxyURL, account.ID, account.Concurrency)
-	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+		return nil, err
 	}
-	defer func() { _ = contentResp.Body.Close() }()
-	contentRequestID := firstNonEmpty(contentResp.Header.Get("x-request-id"), contentResp.Header.Get("xai-request-id"), statusRequestID)
-	if contentResp.StatusCode >= 300 && contentResp.StatusCode < 400 {
-		return nil, fmt.Errorf("grok media signed content redirect is not allowed")
-	}
-	if contentResp.StatusCode >= 400 && contentResp.StatusCode != http.StatusRequestedRangeNotSatisfiable {
-		return s.handleGrokMediaErrorResponse(ctx, contentResp, c, account, contentRequestID, "")
-	}
+	defer func() { _ = resource.Close() }()
+	contentResp := &http.Response{StatusCode: resource.StatusCode, ContentLength: resource.ContentLength, Header: resource.Headers, Body: resource}
+	contentRequestID := resource.RequestID
+	statusBody := resource.StatusBody
 
 	s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, ""), account, contentResp.Header, contentResp.StatusCode)
 	if err := writeGrokMediaContentResponse(c, contentResp); err != nil {
@@ -937,10 +686,14 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	// 内容下载也是完成观测入口：状态体满足官方 done 和 video.url 条件时附加计费单位，
 	// 使处理器能够按与状态轮询相同的路径领取一次计费；待计费快照由处理器合并。
 	result := &OpenAIForwardResult{
-		RequestID:       contentRequestID,
+
+		RequestID: contentRequestID,
+
 		UpstreamHeaders: contentResp.Header,
+
 		ResponseHeaders: contentResp.Header.Clone(),
-		Duration:        time.Since(startTime),
+
+		Duration: time.Since(startTime),
 	}
 	if billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID); billed != nil {
 		result.ResponseID = firstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
@@ -954,268 +707,22 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	return result, nil
 }
 
-func grokMediaSignedVideoContentURL(body []byte, requestID string) (string, error) {
-	rawURL := strings.TrimSpace(gjson.GetBytes(body, "video.url").String())
-	if rawURL == "" {
-		return "", nil
-	}
-	// 上游 TokenRouter 可能把受保护内容 URL 改写为自身代理端点。此类 URL 应视为
-	// 需要认证的 relay 路径，而不是签名 URL；调用方会基于账号 base URL 重建地址，
-	// 并附加上游 API Key。
-	if isGrokMediaVideoContentURL(rawURL, requestID) {
-		return "", nil
-	}
-	parsed, err := url.Parse(rawURL)
-	if err != nil || !strings.EqualFold(parsed.Scheme, "https") ||
-		!strings.EqualFold(parsed.Hostname(), "vidgen.x.ai") ||
-		(parsed.Port() != "" && parsed.Port() != "443") || parsed.User != nil {
-		return "", fmt.Errorf("grok media status returned an unsupported video content URL")
-	}
-	return parsed.String(), nil
-}
-
-// isGrokCLIProxyTarget 只按规范化主机名识别官方 CLI 网关，端口和路径不影响判断。
-func isGrokCLIProxyTarget(rawURL string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	return err == nil && strings.EqualFold(parsed.Hostname(), "cli-chat-proxy.grok.com")
-}
+func isGrokCLIProxyTarget(rawURL string) bool { return grokMediaCodec().IsGrokCLIProxyTarget(rawURL) }
 
 func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
-	if endpoint != GrokMediaEndpointImagesEdits {
-		return body, contentType, nil
-	}
-	if gjson.ValidBytes(body) {
-		out, err := normalizeGrokMediaJSONImageRefs(body)
-		return out, contentType, err
-	}
-	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(contentType))
-	if err != nil || !strings.EqualFold(mediaType, "multipart/form-data") {
-		return body, contentType, nil
-	}
-
-	info := ParseGrokMediaRequest(contentType, body)
-	payload := make(map[string]any)
-	if info.Model != "" {
-		payload["model"] = info.Model
-	}
-	if info.Prompt != "" {
-		payload["prompt"] = info.Prompt
-	}
-	if info.N > 1 {
-		payload["n"] = info.N
-	}
-	if info.Size != "" {
-		payload["size"] = info.Size
-	}
-	if info.ImageResolution != "" {
-		payload["resolution"] = info.ImageResolution
-	}
-	if info.AspectRatio != "" {
-		payload["aspect_ratio"] = info.AspectRatio
-	}
-
-	images := make([]map[string]string, 0, len(info.InputImageURLs)+len(info.Uploads))
-	for _, imageURL := range info.InputImageURLs {
-		if imageURL = strings.TrimSpace(imageURL); imageURL != "" {
-			images = append(images, grokMediaImageObject(imageURL))
-		}
-	}
-	for _, upload := range info.Uploads {
-		dataURL, err := openAIImageUploadToDataURL(upload)
-		if err != nil {
-			return nil, "", err
-		}
-		images = append(images, grokMediaImageObject(dataURL))
-	}
-	if len(images) > grokMediaMaxEditSourceImages {
-		return nil, "", fmt.Errorf("a maximum of %d source images is supported for image edits", grokMediaMaxEditSourceImages)
-	}
-	if len(images) > 0 {
-		payload["image"] = images[0]
-		if len(images) > 1 {
-			payload["images"] = images
-		}
-	}
-
-	maskImageURL := strings.TrimSpace(info.MaskImageURL)
-	if info.MaskUpload != nil {
-		dataURL, err := openAIImageUploadToDataURL(*info.MaskUpload)
-		if err != nil {
-			return nil, "", err
-		}
-		maskImageURL = dataURL
-	}
-	if maskImageURL != "" {
-		payload["mask"] = grokMediaImageObject(maskImageURL)
-	}
-
-	out, err := marshalOpenAIUpstreamJSON(payload)
-	if err != nil {
-		return nil, "", err
-	}
-	return out, "application/json", nil
-}
-
-func normalizeGrokMediaJSONImageRefs(body []byte) ([]byte, error) {
-	info := ParseGrokMediaRequest("application/json", body)
-	if len(info.InputImageURLs) > grokMediaMaxEditSourceImages {
-		return nil, fmt.Errorf("a maximum of %d source images is supported for image edits", grokMediaMaxEditSourceImages)
-	}
-	out := body
-	var err error
-	for _, field := range []string{"image", "images", "mask"} {
-		out, err = rewriteGrokMediaJSONImageField(out, field)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
-}
-
-func rewriteGrokMediaJSONImageField(body []byte, path string) ([]byte, error) {
-	value := gjson.GetBytes(body, path)
-	if !value.Exists() {
-		return body, nil
-	}
-	if value.IsArray() {
-		rewritten := make([]map[string]string, 0, len(value.Array()))
-		for _, item := range value.Array() {
-			imageURL := extractGrokMediaImageURL(item)
-			if imageURL == "" {
-				return body, nil
-			}
-			rewritten = append(rewritten, grokMediaImageObject(imageURL))
-		}
-		out, err := sjson.SetBytes(body, path, rewritten)
-		if err != nil {
-			return nil, fmt.Errorf("rewrite grok media %s: %w", path, err)
-		}
-		return out, nil
-	}
-	imageURL := extractGrokMediaImageURL(value)
-	if imageURL == "" {
-		return body, nil
-	}
-	out, err := sjson.SetBytes(body, path, grokMediaImageObject(imageURL))
-	if err != nil {
-		return nil, fmt.Errorf("rewrite grok media %s: %w", path, err)
-	}
-	return out, nil
+	return grokMediaCodec().PrepareGrokMediaForwardBody(endpoint, body, contentType)
 }
 
 func normalizeGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
-	if !endpoint.RequiresRequestBody() || !gjson.ValidBytes(body) {
-		return body, contentType, nil
-	}
-	var imageFields []string
-	switch endpoint {
-	case GrokMediaEndpointImagesEdits:
-		imageFields = []string{"image", "images", "mask"}
-	case GrokMediaEndpointVideosGenerations:
-		imageFields = []string{"image", "images", "reference_images"}
-	}
-	var err error
-	body, err = canonicalizeGrokMediaImageURLFields(body, imageFields...)
-	if err != nil {
-		return nil, "", err
-	}
-	info := ParseGrokMediaRequest(contentType, body)
-	upstreamModel := NormalizeGrokMediaModelForEndpoint(endpoint, info.Model, info.HasInputImage())
-	if upstreamModel == "" || upstreamModel == info.Model {
-		return body, contentType, nil
-	}
-	out, err := sjson.SetBytes(body, "model", upstreamModel)
-	if err != nil {
-		return nil, "", fmt.Errorf("rewrite grok media model: %w", err)
-	}
-	return out, contentType, nil
-}
-
-// canonicalizeGrokMediaImageURLFields 把指定对象或对象数组中的 image_url 统一为 url。
-func canonicalizeGrokMediaImageURLFields(body []byte, fields ...string) ([]byte, error) {
-	out := body
-	for _, field := range fields {
-		value := gjson.GetBytes(out, field)
-		if !value.Exists() {
-			continue
-		}
-		if value.IsArray() {
-			for index := range value.Array() {
-				var err error
-				out, err = canonicalizeGrokMediaImageURLObject(out, fmt.Sprintf("%s.%d", field, index))
-				if err != nil {
-					return nil, err
-				}
-			}
-			continue
-		}
-		var err error
-		out, err = canonicalizeGrokMediaImageURLObject(out, field)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
-}
-
-// canonicalizeGrokMediaImageURLObject 规范化单个图片引用，并让非空官方字段优先。
-func canonicalizeGrokMediaImageURLObject(body []byte, path string) ([]byte, error) {
-	legacyPath := path + ".image_url"
-	legacy := gjson.GetBytes(body, legacyPath)
-	if !legacy.Exists() {
-		return body, nil
-	}
-
-	out := body
-	if strings.TrimSpace(gjson.GetBytes(out, path+".url").String()) == "" {
-		var err error
-		out, err = sjson.SetBytes(out, path+".url", legacy.Value())
-		if err != nil {
-			return nil, fmt.Errorf("normalize grok media image url: %w", err)
-		}
-	}
-	out, err := sjson.DeleteBytes(out, legacyPath)
-	if err != nil {
-		return nil, fmt.Errorf("remove legacy grok media image url: %w", err)
-	}
-	return out, nil
+	return grokMediaCodec().NormalizeGrokMediaForwardBody(endpoint, body, contentType)
 }
 
 func sanitizeGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
-	if !endpoint.RequiresRequestBody() || !gjson.ValidBytes(body) {
-		return body, contentType, nil
-	}
-	switch endpoint {
-	case GrokMediaEndpointImagesGenerations, GrokMediaEndpointImagesEdits:
-		out, err := applyGrokImagineImageGeometry(body)
-		if err != nil {
-			return nil, "", fmt.Errorf("sanitize grok media size: %w", err)
-		}
-		return out, contentType, nil
-	default:
-		return body, contentType, nil
-	}
+	return grokMediaCodec().SanitizeGrokMediaForwardBody(endpoint, body, contentType)
 }
 
-func (r GrokMediaRequestInfo) HasInputImage() bool {
-	return len(r.InputImageURLs) > 0 || len(r.Uploads) > 0
-}
-
-// NormalizeGrokMediaModelForEndpoint 在账号级模型映射和调度前，
-// 根据媒体端点解析内置的上游模型别名。
 func NormalizeGrokMediaModelForEndpoint(endpoint GrokMediaEndpoint, model string, hasInputImage bool) string {
-	model = strings.TrimSpace(model)
-	switch endpoint {
-	case GrokMediaEndpointImagesGenerations, GrokMediaEndpointImagesEdits:
-		if model == "grok-imagine" {
-			return "grok-imagine-image-quality"
-		}
-	case GrokMediaEndpointVideosGenerations:
-		// xAI 1.5 模型仅支持图生视频。缺少图片时保留请求模型不变，
-		// 让上游返回文档约定的参数错误，避免静默切换模型和计费价格。
-		_ = hasInputImage
-	}
-	return model
+	return grokMediaCodec().NormalizeGrokMediaModelForEndpoint(endpoint, model, hasInputImage)
 }
 
 type grokMediaUsageMetadata struct {
@@ -1261,16 +768,7 @@ func grokMediaUsageFromResponse(endpoint GrokMediaEndpoint, requestInfo GrokMedi
 }
 
 func extractGrokMediaVideoRequestID(body []byte) string {
-	if len(body) == 0 || !gjson.ValidBytes(body) {
-		return ""
-	}
-	// task_id 仅作为兼容兜底，不能改变历史字段的匹配优先级。
-	for _, path := range []string{"request_id", "id", "data.request_id", "data.id", "video.request_id", "video.id", "task_id", "data.task_id", "video.task_id"} {
-		if id := strings.TrimSpace(gjson.GetBytes(body, path).String()); id != "" {
-			return id
-		}
-	}
-	return ""
+	return grokMediaCodec().ExtractGrokMediaVideoRequestID(body)
 }
 
 func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
@@ -1301,14 +799,22 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 	if isGrokContentPolicyRejection(resp.StatusCode, body) {
 		clientMsg := grokContentPolicyClientMessage(body)
 		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+
+			Platform: account.Platform,
+
+			AccountID: account.ID,
+
+			AccountName: account.Name,
+
 			UpstreamStatusCode: resp.StatusCode,
-			UpstreamRequestID:  requestIDHeader,
-			Kind:               "http_error",
-			Message:            clientMsg,
-			Detail:             upstreamDetail,
+
+			UpstreamRequestID: requestIDHeader,
+
+			Kind: "http_error",
+
+			Message: clientMsg,
+
+			Detail: upstreamDetail,
 		})
 		MarkResponseCommitted(c)
 		writeGrokMediaErrorResponse(c, http.StatusForbidden, "invalid_request_error", clientMsg)
@@ -1317,14 +823,22 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 
 	if decision.ShouldReturnGenericError() {
 		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+
+			Platform: account.Platform,
+
+			AccountID: account.ID,
+
+			AccountName: account.Name,
+
 			UpstreamStatusCode: resp.StatusCode,
-			UpstreamRequestID:  requestIDHeader,
-			Kind:               "http_error",
-			Message:            upstreamMsg,
-			Detail:             upstreamDetail,
+
+			UpstreamRequestID: requestIDHeader,
+
+			Kind: "http_error",
+
+			Message: upstreamMsg,
+
+			Detail: upstreamDetail,
 		})
 		MarkResponseCommitted(c)
 		writeGrokMediaErrorResponse(c, http.StatusInternalServerError, "upstream_error", "Upstream gateway error")
@@ -1336,26 +850,42 @@ func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
 		kind = "failover"
 	}
 	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-		Platform:           account.Platform,
-		AccountID:          account.ID,
-		AccountName:        account.Name,
+
+		Platform: account.Platform,
+
+		AccountID: account.ID,
+
+		AccountName: account.Name,
+
 		UpstreamStatusCode: resp.StatusCode,
-		UpstreamRequestID:  requestIDHeader,
-		Kind:               kind,
-		Message:            upstreamMsg,
-		Detail:             upstreamDetail,
+
+		UpstreamRequestID: requestIDHeader,
+
+		Kind: kind,
+
+		Message: upstreamMsg,
+
+		Detail: upstreamDetail,
 	})
 	if kind == "failover" {
 		retryable, retryDelay, retryDeadline, retryMax := grokSameAccountRetryMetadata(account, resp.StatusCode, body)
 		return nil, &UpstreamFailoverError{
-			StatusCode:               resp.StatusCode,
-			ResponseBody:             body,
-			ResponseHeaders:          resp.Header.Clone(),
-			RetryableOnSameAccount:   retryable || decision.RetryableOnSameAccount(account, resp.StatusCode),
-			RequestScopedTransient:   retryable && resp.StatusCode == http.StatusTooManyRequests,
-			SameAccountRetryDelay:    retryDelay,
+
+			StatusCode: resp.StatusCode,
+
+			ResponseBody: body,
+
+			ResponseHeaders: resp.Header.Clone(),
+
+			RetryableOnSameAccount: retryable || decision.RetryableOnSameAccount(account, resp.StatusCode),
+
+			RequestScopedTransient: retryable && resp.StatusCode == http.StatusTooManyRequests,
+
+			SameAccountRetryDelay: retryDelay,
+
 			SameAccountRetryDeadline: retryDeadline,
-			SameAccountRetryMax:      retryMax,
+
+			SameAccountRetryMax: retryMax,
 		}
 	}
 
@@ -1401,18 +931,6 @@ func writeGrokMediaErrorResponse(c *gin.Context, statusCode int, errType, messag
 			"message": strings.TrimSpace(message),
 		},
 	})
-}
-
-func writeGrokMediaResponse(c *gin.Context, resp *http.Response, body []byte, filter *responseheaders.CompiledHeaderFilter) {
-	if c == nil || resp == nil {
-		return
-	}
-	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, filter)
-	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
-	if contentType == "" {
-		contentType = "application/json"
-	}
-	c.Data(resp.StatusCode, contentType, body)
 }
 
 func writeGrokMediaContentResponse(c *gin.Context, resp *http.Response) error {
@@ -1523,22 +1041,7 @@ func rewriteGrokMediaVideoContentURLValue(value *any, requestID, proxyURL string
 }
 
 func isGrokMediaVideoContentURL(rawURL, requestID string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	if err != nil || parsed.Path == "" {
-		return false
-	}
-	segments := strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/")
-	if len(segments) < 3 {
-		return false
-	}
-	requestID = strings.Trim(requestID, "/")
-	decodedID, err := url.PathUnescape(segments[len(segments)-2])
-	if err != nil {
-		return false
-	}
-	return segments[len(segments)-3] == "videos" &&
-		decodedID == requestID &&
-		segments[len(segments)-1] == "content"
+	return grokMediaCodec().IsGrokMediaVideoContentURL(rawURL, requestID)
 }
 
 func grokMediaContentProxyURL(c *gin.Context, requestID string) string {
@@ -1550,4 +1053,18 @@ func grokMediaContentProxyURL(c *gin.Context, requestID string) string {
 		pathPrefix = "/v1"
 	}
 	return pathPrefix + "/videos/" + url.PathEscape(strings.Trim(requestID, "/")) + "/content"
+}
+
+// 输入归一化继续复用 billing/pricing 的原纯规则；不提前读取价格或额外查询。
+func grokMediaCodec() nativegrok.MediaCodec {
+	return nativegrok.MediaCodec{Options: nativegrok.MediaNormalization{
+		MaxUploadPartSize:                             openAIImageMaxUploadPartSize,
+		ImageTier1K:                                   ImageBillingSize1K,
+		MarshalJSON:                                   marshalOpenAIUpstreamJSON,
+		NormalizeImageBillingTierOrDefault:            NormalizeImageBillingTierOrDefault,
+		NormalizeVideoBillingResolutionOrDefault:      NormalizeVideoBillingResolutionOrDefault,
+		NormalizeVideoBillingDurationSecondsOrDefault: NormalizeVideoBillingDurationSecondsOrDefault,
+		ClassifyImageBillingTier:                      ClassifyImageBillingTier,
+		ParseImageDimensions:                          parseImageBillingDimensions,
+	}}
 }

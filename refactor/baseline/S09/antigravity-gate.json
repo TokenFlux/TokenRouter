@@ -1,0 +1,32 @@
+{
+  "stage": "S09.5",
+  "status": "passed",
+  "behavior_results": [
+    "antigravity-final-normal.result.json",
+    "antigravity-final-consumer-race.result.json",
+    "antigravity-native-full-race.result.json",
+    "antigravity-native-full-unit-race.result.json",
+    "antigravity-observed-partial-race.result.json",
+    "antigravity-output-consumer-race.result.json",
+    "antigravity-native-storage-race.result.json",
+    "antigravity-auth-lifecycle-race.result.json",
+    "antigravity-quota-selected-unit.result.json",
+    "antigravity-static-execute-race.result.json"
+  ],
+  "lint": "antigravity-lint-comparison.json",
+  "final_output_lint": "antigravity-output-lint.result.json",
+  "direction_fixtures": "antigravity-depguard-fixtures.json",
+  "buildsets": "antigravity-buildsets.json",
+  "symbols": [
+    "antigravity-symbols-normal.json.gz",
+    "antigravity-symbols-unit.json.gz",
+    "antigravity-symbols-integration.json.gz"
+  ],
+  "wire": "antigravity-final-wire.result.json",
+  "limitations": [
+    "消费者 race 测试级 -parallel=1 隔离已登记 Gin 全局状态，保留测试内部并发。",
+    "I01 宽泛 Tier 选择失败归档至 S09.8；原有两项 roundTripperFunc unused 按迁移路径保留，不额外修复。",
+    "真实供应商、完整进程及全量阶段验收仍按最终安排；本批不改变 Antigravity 的旧失败结算规则。"
+  ],
+  "next": "S09.6 CN/Ollama/usageprovider"
+}

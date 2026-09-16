@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "RejectedField|ResponsesField|OpenAI.*Retry|Codex.*Retry"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.426,
+  "pass": 87,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-rejected-field-native-unit3.log.gz"
+}

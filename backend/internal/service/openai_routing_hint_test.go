@@ -276,7 +276,7 @@ func TestOpenAIWSConnPoolPreferredContinuationIgnoresRoutingHintChanges(t *testi
 
 	pool := newOpenAIWSConnPool(cfg)
 	dialer := &openAIWSCountingDialer{}
-	pool.setClientDialerForTest(dialer)
+	pool.SetClientDialerForTest(dialer)
 	account := &Account{ID: 913, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
 
 	acquire := func(t *testing.T, hint, preferred string, forcePreferred bool) *openAIWSConnLease {
@@ -286,7 +286,7 @@ func TestOpenAIWSConnPoolPreferredContinuationIgnoresRoutingHintChanges(t *testi
 			headers.Set(openAICodexRoutingHintHeader, hint)
 		}
 		lease, err := pool.Acquire(context.Background(), openAIWSAcquireRequest{
-			Account:            account,
+			Account:            openAIWSPoolAccountView(account),
 			WSURL:              "wss://example.com/v1/responses",
 			Headers:            headers,
 			PreferredConnID:    preferred,
@@ -322,14 +322,14 @@ func TestOpenAIWSConnPoolUsesRoutingHintAsSoftDialAffinity(t *testing.T) {
 
 	pool := newOpenAIWSConnPool(cfg)
 	dialer := &openAIWSCountingDialer{}
-	pool.setClientDialerForTest(dialer)
+	pool.SetClientDialerForTest(dialer)
 	account := &Account{ID: 913, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
 
 	acquire := func(t *testing.T, hint string) *openAIWSConnLease {
 		headers := make(http.Header)
 		headers.Set(openAICodexRoutingHintHeader, hint)
 		lease, err := pool.Acquire(context.Background(), openAIWSAcquireRequest{
-			Account: account,
+			Account: openAIWSPoolAccountView(account),
 			WSURL:   "wss://example.com/v1/responses",
 			Headers: headers,
 		})

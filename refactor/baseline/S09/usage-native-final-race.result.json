@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/account/provider",
+    "./internal/upstream/ollama",
+    "-run",
+    "TestNativeUsageAdaptersLocalTLS|TestParseOllamaCloudUsageHTML|TestFetchUsageLocalTLSContract"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.505,
+  "pass": 21,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/usage-native-final-race.log.gz"
+}

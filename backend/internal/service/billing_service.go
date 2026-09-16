@@ -3,14 +3,15 @@ package service
 
 import (
 	context "context"
+	strings "strings"
+	time "time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	provider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	xai "github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	strings "strings"
-	time "time"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type APIKeyRateLimitCacheData = billing.APIKeyRateLimitCacheData

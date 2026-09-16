@@ -1,0 +1,114 @@
+[
+  {
+    "name": "deleted-bridge-account_ollama",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/service",
+    "matched": true,
+    "seconds": 0.468,
+    "log": "logs/gate-deleted-bridge-account_ollama-normal.log.gz"
+  },
+  {
+    "name": "deleted-bridge-account_upstream_usage",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/service",
+    "matched": true,
+    "seconds": 0.447,
+    "log": "logs/gate-deleted-bridge-account_upstream_usage-normal.log.gz"
+  },
+  {
+    "name": "deleted-bridge-account_ollama",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/service",
+    "matched": true,
+    "seconds": 0.464,
+    "log": "logs/gate-deleted-bridge-account_ollama-unit.log.gz"
+  },
+  {
+    "name": "deleted-bridge-account_upstream_usage",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/service",
+    "matched": true,
+    "seconds": 0.45,
+    "log": "logs/gate-deleted-bridge-account_upstream_usage-unit.log.gz"
+  },
+  {
+    "name": "deleted-bridge-account_ollama",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/service",
+    "matched": true,
+    "seconds": 0.448,
+    "log": "logs/gate-deleted-bridge-account_ollama-integration.log.gz"
+  },
+  {
+    "name": "deleted-bridge-account_upstream_usage",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/service",
+    "matched": true,
+    "seconds": 0.468,
+    "log": "logs/gate-deleted-bridge-account_upstream_usage-integration.log.gz"
+  }
+]

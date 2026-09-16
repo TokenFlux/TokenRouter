@@ -2,14 +2,15 @@
 package app
 
 import (
+	"log/slog"
+	time "time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
-	qoder "github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
-	"log/slog"
-	time "time"
+	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 func provideRoutingChannels(repo *routingpostgres.ChannelStore, invalidator service.APIKeyAuthCacheInvalidator) *routing.ChannelService {

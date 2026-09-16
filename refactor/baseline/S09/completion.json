@@ -1,0 +1,243 @@
+{
+  "stage": "S09",
+  "status": "complete",
+  "baseline_head": "1d2519723af97970ff1a429e3d04cfa804f522b2",
+  "branch": "main",
+  "date": "2026-09-16T05:09:51.288862+08:00",
+  "substep_gates": [
+    "qoder-first-chain-gate.json",
+    "anthropic-bedrock-gate.json",
+    "gemini-gate.json",
+    "vertex-gate.json",
+    "antigravity-gate.json",
+    "usage-gate.json",
+    "grok-gate.json",
+    "openai-gate.json"
+  ],
+  "final_results": {
+    "final-normal": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 154.398,
+      "pass": 11487,
+      "fail": 0,
+      "skip": 4,
+      "log": "logs/final-normal.log.gz"
+    },
+    "final-unit-repeat": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 196.508,
+      "pass": 19525,
+      "fail": 0,
+      "skip": 8,
+      "log": "logs/final-unit-repeat.log.gz"
+    },
+    "final-integration-repeat": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=integration",
+        "-p=4",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 147.031,
+      "pass": 12423,
+      "fail": 0,
+      "skip": 4,
+      "log": "logs/final-integration-repeat.log.gz"
+    },
+    "final-backend-build": {
+      "command": [
+        "make",
+        "build"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 15.644,
+      "pass": 0,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-backend-build.log.gz"
+    },
+    "final-frontend-test": {
+      "command": [
+        "make",
+        "-C",
+        "..",
+        "test-frontend"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 26.723,
+      "pass": 0,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-frontend-test.log.gz"
+    },
+    "final-frontend-build": {
+      "command": [
+        "make",
+        "-C",
+        "..",
+        "build-frontend"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 21.425,
+      "pass": 0,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-frontend-build.log.gz"
+    },
+    "final-embed-test": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=embed",
+        "./internal/web"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 2.337,
+      "pass": 101,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-embed-test.log.gz"
+    },
+    "final-embed-build": {
+      "command": [
+        "go",
+        "build",
+        "-tags=embed",
+        "-o",
+        "bin/server-embed",
+        "./cmd/server"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 2.935,
+      "pass": 0,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-embed-build.log.gz"
+    },
+    "final-linux-build": {
+      "command": [
+        "env",
+        "GOOS=linux",
+        "GOARCH=amd64",
+        "CGO_ENABLED=0",
+        "go",
+        "build",
+        "-o",
+        "bin/server-linux-amd64",
+        "./cmd/server"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 15.482,
+      "pass": 0,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-linux-build.log.gz"
+    },
+    "final-jwtgen-build": {
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "bin/jwtgen-s09",
+        "./cmd/jwtgen"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.416,
+      "pass": 0,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-jwtgen-build.log.gz"
+    },
+    "final-cleanup-command-build": {
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "bin/cleanup-ingress-reject-logs-s09",
+        "./cmd/cleanup-ingress-reject-logs"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.449,
+      "pass": 0,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-cleanup-command-build.log.gz"
+    },
+    "final-wire-idempotence": {
+      "command": [
+        "go",
+        "generate",
+        "./cmd/server"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.876,
+      "pass": 0,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/final-wire-idempotence.log.gz"
+    },
+    "openai-process-modes-order": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=integration",
+        "./internal/app",
+        "-run",
+        "^TestS02ProcessModes$"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 13.363,
+      "pass": 10,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-process-modes-order.log.gz"
+    }
+  },
+  "lint": "final-lint-comparison.json",
+  "wire": "final-wire-idempotence.json",
+  "integrity": "final-integrity-check.json",
+  "contract_matrix": "acceptance-matrix.md",
+  "handoff": "handoff.md",
+  "initial_failures_retained": [
+    "final-unit.result.json",
+    "final-integration.result.json"
+  ],
+  "observations": "incidental-observations.json",
+  "note": "测试事件包含父子项；最终 unit 原样重跑，integration 以 -p=4 降低包级容器启动并发重跑。均未修改原断言。没有自动提交或推送。"
+}

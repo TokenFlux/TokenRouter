@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/upstream/grok",
+    "./internal/protocol/openai",
+    "-run",
+    "Test.*Grok|Test.*OpenAISSE"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 10.155,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-parsers-unit.log.gz"
+}

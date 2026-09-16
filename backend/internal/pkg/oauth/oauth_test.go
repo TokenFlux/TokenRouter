@@ -2,9 +2,7 @@ package oauth
 
 import (
 	"net/url"
-	"sync"
 	"testing"
-	"time"
 )
 
 // TestAuthorizeURLMatchesClaudeCodeCLI 验证浏览器授权地址与 Claude Code OAuth 流程保持一致。
@@ -36,43 +34,5 @@ func TestAuthorizeURLMatchesClaudeCodeCLI(t *testing.T) {
 		if got := query.Get(key); got != expected {
 			t.Errorf("授权参数 %s = %q, want %q", key, got, expected)
 		}
-	}
-}
-
-func TestSessionStore_Stop_Idempotent(t *testing.T) {
-	store := NewSessionStore()
-	store.Start()
-
-	store.Stop()
-	store.Stop()
-
-	select {
-	case <-store.stopCh:
-		// ok
-	case <-time.After(time.Second):
-		t.Fatal("stopCh 未关闭")
-	}
-}
-
-func TestSessionStore_Stop_Concurrent(t *testing.T) {
-	store := NewSessionStore()
-	store.Start()
-
-	var wg sync.WaitGroup
-	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			store.Stop()
-		}()
-	}
-
-	wg.Wait()
-
-	select {
-	case <-store.stopCh:
-		// ok
-	case <-time.After(time.Second):
-		t.Fatal("stopCh 未关闭")
 	}
 }

@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "-parallel=1",
+    "./internal/service",
+    "./internal/account",
+    "./internal/handler/admin",
+    "./internal/upstream/grok",
+    "-run",
+    "Test.*Grok|TestOpenAIResponseFlush|TestOpenAINativeFirstOutput|TestHandleStreamingResponse|TestParseSSEUsage|Test.*ClientTool|Test.*ConcatenatedJSON"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 83.492,
+  "pass": 1058,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-final-consumer-race.log.gz"
+}

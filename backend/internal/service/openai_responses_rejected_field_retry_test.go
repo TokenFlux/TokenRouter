@@ -43,7 +43,7 @@ func TestOpenAIResponsesRejectedFieldRetryStateForRequestAllowsSameTransformAcro
 
 	accountB := openAIResponsesRejectedFieldRetryStateForRequest(c, initialBody)
 	require.NotSame(t, accountA, accountB)
-	require.Same(t, accountA.budget, accountB.budget)
+	require.Same(t, accountA.Budget(), accountB.Budget())
 	require.True(t, accountB.Allow(retryBody), "a failover account must be allowed to apply the same transform")
 }
 

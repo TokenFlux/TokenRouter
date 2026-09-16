@@ -8,13 +8,15 @@ import (
 	"strings"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -22,6 +24,8 @@ import (
 
 // QoderGatewayHandler 处理 Qoder 原生网关请求。
 type QoderGatewayHandler struct {
+	enter                   func() (func(), error)
+	chat                    *gatewayhttp.QoderChatHandler
 	gatewayService          *service.GatewayService
 	qoderGatewayService     *service.QoderGatewayService
 	billingCacheService     *service.BillingCacheService
@@ -54,6 +58,10 @@ func NewQoderGatewayHandler(
 }
 
 func (h *QoderGatewayHandler) ChatCompletions(c *gin.Context) {
+	if h.chat != nil {
+		h.chat.ChatCompletions(c)
+		return
+	}
 	h.handle(c, qoderEndpointChatCompletions)
 }
 
@@ -74,6 +82,15 @@ const (
 )
 
 func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
+	if h.enter != nil {
+		done, err := h.enter()
+		if err != nil {
+			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Service is shutting down", endpoint)
+			return
+		}
+		defer done()
+	}
+
 	streamStarted := false
 	requestStart := time.Now()
 
@@ -193,6 +210,55 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		}
 	}
 
+	recordUsage := func(account *service.Account, result *service.ForwardResult) {
+		userAgent := c.GetHeader("User-Agent")
+		clientIP := ip.GetClientIP(c)
+		requestPayloadHash := service.HashUsageRequestPayload(body)
+		inboundEndpoint := GetInboundEndpoint(c)
+		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+		h.submitUsageRecordTask(c, func(ctx context.Context) {
+			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+				Result:             result,
+				QuotaPlatform:      quotaPlatform,
+				APIKey:             apiKey,
+				User:               apiKey.User,
+				Account:            account,
+				Subscription:       subscription,
+				InboundEndpoint:    inboundEndpoint,
+				UpstreamEndpoint:   upstreamEndpoint,
+				UserAgent:          userAgent,
+				IPAddress:          clientIP,
+				RequestPayloadHash: requestPayloadHash,
+				RequestBody:        append([]byte(nil), body...),
+				APIKeyService:      h.apiKeyService,
+				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+			}); err != nil {
+				reqLog.Error("qoder.record_usage_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+			}
+		})
+	}
+
+	// finishPartial 不把服务失败当成成功，也不允许已有服务的请求进入下一次推理。
+	finishPartial := func(account *service.Account, result *service.ForwardResult, forwardErr error) bool {
+		if forwardErr == nil || result == nil {
+			return false
+		}
+		recordUsage(account, result)
+		if qoderRequestCanceled(c.Request.Context(), forwardErr) {
+			return true
+		}
+		status, kind, message, ok := h.qoderGatewayErrorDetails(c, forwardErr)
+		if !ok {
+			status = http.StatusBadGateway
+			kind = "upstream_error"
+			message = "Upstream request failed"
+		}
+		service.SetOpsUpstreamError(c, upstreamStatusFromError(forwardErr), message, "")
+		h.streamingAwareError(c, status, kind, message, true, endpoint)
+		return true
+	}
+
 	fs := NewFailoverState(h.maxAccountSwitches, false)
 	refreshInProgressSelectionExhausted := false
 	var lastQoderFailoverErr error
@@ -263,6 +329,9 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			accountRelease()
 		}
 		h.gatewayService.ReportAdvancedAccountScheduleResult(selection, account.ID, err == nil, result)
+		if finishPartial(account, result, err) {
+			return
+		}
 		if err != nil {
 			if qoderRequestCanceled(forwardCtx, err) {
 				reqLog.Info("qoder.forward_canceled", zap.Int64("account_id", account.ID), zap.Error(err))
@@ -294,6 +363,9 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 						accountRelease()
 					}
 					h.gatewayService.ReportAdvancedAccountScheduleResult(selection, account.ID, err == nil, result)
+					if finishPartial(account, result, err) {
+						return
+					}
 					if err != nil && qoderRequestCanceled(forwardCtx, err) {
 						reqLog.Info("qoder.retry_forward_canceled", zap.Int64("account_id", account.ID), zap.Error(err))
 						return
@@ -313,32 +385,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 				}
 				if err == nil {
 					h.bindQoderStickySessions(c.Request.Context(), apiKey.GroupID, sessionHash, account.ID, endpoint, result, reqLog)
-					userAgent := c.GetHeader("User-Agent")
-					clientIP := ip.GetClientIP(c)
-					requestPayloadHash := service.HashUsageRequestPayload(body)
-					inboundEndpoint := GetInboundEndpoint(c)
-					upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-					quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-					h.submitUsageRecordTask(c, func(ctx context.Context) {
-						if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
-							Result:             result,
-							QuotaPlatform:      quotaPlatform,
-							APIKey:             apiKey,
-							User:               apiKey.User,
-							Account:            account,
-							Subscription:       subscription,
-							InboundEndpoint:    inboundEndpoint,
-							UpstreamEndpoint:   upstreamEndpoint,
-							UserAgent:          userAgent,
-							IPAddress:          clientIP,
-							RequestPayloadHash: requestPayloadHash,
-							RequestBody:        append([]byte(nil), body...),
-							APIKeyService:      h.apiKeyService,
-							ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
-						}); err != nil {
-							reqLog.Error("qoder.record_usage_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-						}
-					})
+					recordUsage(account, result)
 					return
 				}
 			}
@@ -371,32 +418,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		}
 
 		h.bindQoderStickySessions(c.Request.Context(), apiKey.GroupID, sessionHash, account.ID, endpoint, result, reqLog)
-		userAgent := c.GetHeader("User-Agent")
-		clientIP := ip.GetClientIP(c)
-		requestPayloadHash := service.HashUsageRequestPayload(body)
-		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-		h.submitUsageRecordTask(c, func(ctx context.Context) {
-			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
-				Result:             result,
-				QuotaPlatform:      quotaPlatform,
-				APIKey:             apiKey,
-				User:               apiKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				InboundEndpoint:    inboundEndpoint,
-				UpstreamEndpoint:   upstreamEndpoint,
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				RequestPayloadHash: requestPayloadHash,
-				RequestBody:        append([]byte(nil), body...),
-				APIKeyService:      h.apiKeyService,
-				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
-			}); err != nil {
-				reqLog.Error("qoder.record_usage_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-			}
-		})
+		recordUsage(account, result)
 		return
 	}
 }
@@ -769,3 +791,9 @@ func (h *QoderGatewayHandler) submitUsageRecordTask(c *gin.Context, task service
 	defer cancel()
 	task(ctx)
 }
+
+// BindChatHandler 仅由 app 装配，新旧路由引用同一 Chat 实例。
+func (h *QoderGatewayHandler) BindChatHandler(chat *gatewayhttp.QoderChatHandler) { h.chat = chat }
+
+// BindRequestActivity 由 app 统一等待尚未迁入新 HTTP 编排的 Qoder 请求。
+func (h *QoderGatewayHandler) BindRequestActivity(enter func() (func(), error)) { h.enter = enter }

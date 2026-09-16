@@ -1179,7 +1179,7 @@ git diff --check
 
 ## 9. Roadmap
 
-当前 **9 / 17 个阶段完成**。S08 已完成；下一步编写 S09 子计划。
+当前 **10 / 17 个阶段完成**。S09 已完成；下一步编写 S10 子计划。
 
 状态使用：未实施、规划中、计划就绪、实施中、待验、已完成。详细决策、执行记录和完成证据保存在子计划；文件创建后再补链接，必要验收通过后才更新为已完成。
 
@@ -1194,7 +1194,7 @@ git diff --check
 | S06 | egress、routing、account | 已完成 | [S06 计划与完成证据](S06-egress-routing-account.md#s06_completion) |
 | S07 | scheduler 与 Lease | 已完成 | [阶段计划与完成证据](S07-scheduler-leases.md#s07_completion) |
 | S08 | usage、audit、ops | 已完成 | [阶段计划与完成证据](S08-usage-audit-ops.md#s08_completion) |
-| S09 | 首条请求链与上游迁移 | 未实施 | — |
+| S09 | 首条请求链与上游迁移 | 已完成 | [阶段计划与完成证据](S09-upstream-gateway.md#s09_completion) |
 | S10 | 通知、站点、审核、搜索 | 未实施 | — |
 | S11 | gateway 协议与传输收敛 | 未实施 | — |
 | S12 | promotion、payment | 未实施 | — |

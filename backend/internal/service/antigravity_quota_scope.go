@@ -2,24 +2,13 @@ package service
 
 import (
 	"context"
-	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
 func normalizeAntigravityModelName(model string) string {
-	normalized := strings.ToLower(strings.TrimSpace(model))
-	if idx := strings.LastIndex(normalized, "/publishers/google/models/"); idx != -1 {
-		normalized = normalized[idx+len("/publishers/google/models/"):]
-	} else if idx := strings.LastIndex(normalized, "/publishers/anthropic/models/"); idx != -1 {
-		normalized = normalized[idx+len("/publishers/anthropic/models/"):]
-	} else if idx := strings.LastIndex(normalized, "/models/"); idx != -1 {
-		normalized = normalized[idx+len("/models/"):]
-	} else {
-		normalized = strings.TrimPrefix(normalized, "publishers/google/models/")
-		normalized = strings.TrimPrefix(normalized, "publishers/anthropic/models/")
-		normalized = strings.TrimPrefix(normalized, "models/")
-	}
-	return normalized
+	return antigravity.NormalizeAntigravityModelName(model)
 }
 
 // resolveAntigravityModelKey 根据请求的模型名解析限流 key

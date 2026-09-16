@@ -145,8 +145,8 @@ func TestResolveCodexFingerprintIDsFromRequest_ExplicitOptInHonored(t *testing.T
 			account := newTestOAuthAccount(1, map[string]any{codexFingerprintModeExtraKey: mode})
 			ids := resolveCodexFingerprintIDsFromRequest(account, nil)
 			require.NotNil(t, ids, "显式配置必须生效")
-			assert.Equal(t, codexFingerprintMode(mode), ids.mode)
-			assert.NotEmpty(t, ids.installationID)
+			assert.Equal(t, mode, ids.Mode)
+			assert.NotEmpty(t, ids.InstallationID)
 		})
 	}
 }
@@ -361,9 +361,9 @@ func TestFingerprintIDs_HeaderAndBody_TurnID_Consistent(t *testing.T) {
 
 	assert.Equal(t, headerTurnID, bodyTurnID, "头和体的 turn_id 必须一致")
 	assert.Equal(t, headerTurnID, bodyEmbeddedTurnID, "头和体内嵌 turn-metadata 的 turn_id 必须一致")
-	assert.Equal(t, ids.turnID, headerTurnID, "所有 turn_id 都应来自同一份 ids")
+	assert.Equal(t, ids.TurnID, headerTurnID, "所有 turn_id 都应来自同一份 ids")
 	assert.Equal(t, headerMeta["turn_started_at_unix_ms"], bodyMeta["turn_started_at_unix_ms"], "头和体的 timestamp 必须一致")
-	assert.Equal(t, float64(ids.turnStartedAtUnixMs), headerMeta["turn_started_at_unix_ms"])
+	assert.Equal(t, float64(ids.TurnStartedAtUnixMs), headerMeta["turn_started_at_unix_ms"])
 }
 
 func TestFingerprintIDs_MalformedEmbeddedMetadataRebuiltConsistently(t *testing.T) {
@@ -573,8 +573,8 @@ func cloneCodexFingerprintIDsForTest(ids *codexFingerprintIDs) *codexFingerprint
 		return nil
 	}
 	cloned := *ids
-	cloned.originalBodySessionID = ""
-	cloned.originalBodySessionIDCaptured = false
+	cloned.OriginalBodySessionID = ""
+	cloned.OriginalBodySessionIDCaptured = false
 	return &cloned
 }
 
@@ -606,10 +606,10 @@ func TestApplyCodexFingerprintPromptCacheKey_MapRawEquivalence(t *testing.T) {
 			mapBody, rawBody := applyMapAndRawFingerprintBodiesForTest(t, body, ids)
 
 			require.Equal(t, mapBody["prompt_cache_key"], rawBody["prompt_cache_key"])
-			require.Equal(t, ids.sessionID, mapBody["prompt_cache_key"])
+			require.Equal(t, ids.SessionID, mapBody["prompt_cache_key"])
 			mapCM, _ := mapBody["client_metadata"].(map[string]any)
 			rawCM, _ := rawBody["client_metadata"].(map[string]any)
-			require.Equal(t, ids.sessionID, mapCM["session_id"])
+			require.Equal(t, ids.SessionID, mapCM["session_id"])
 			require.Equal(t, mapCM["session_id"], rawCM["session_id"])
 			require.Equal(t, "keep", rawCM["trace"])
 		})
@@ -627,8 +627,8 @@ func TestApplyCodexFingerprintPromptCacheKey_MapRawEquivalence(t *testing.T) {
 		require.Equal(t, "explicit-cache", rawBody["prompt_cache_key"])
 		mapCM, _ := mapBody["client_metadata"].(map[string]any)
 		rawCM, _ := rawBody["client_metadata"].(map[string]any)
-		require.Equal(t, ids.sessionID, mapCM["session_id"])
-		require.Equal(t, ids.sessionID, rawCM["session_id"])
+		require.Equal(t, ids.SessionID, mapCM["session_id"])
+		require.Equal(t, ids.SessionID, rawCM["session_id"])
 	})
 }
 
@@ -781,8 +781,8 @@ func TestApplyCodexFingerprintClientMetadataRaw_PreservesUnrelatedFields(t *test
 	assert.Equal(t, true, decoded["stream"])
 	cm, _ := decoded["client_metadata"].(map[string]any)
 	require.NotNil(t, cm)
-	assert.Equal(t, ids.sessionID, cm["session_id"])
-	assert.Equal(t, ids.turnID, cm["turn_id"])
+	assert.Equal(t, ids.SessionID, cm["session_id"])
+	assert.Equal(t, ids.TurnID, cm["turn_id"])
 }
 
 func TestApplyCodexFingerprintClientMetadataRaw_Noop(t *testing.T) {
@@ -792,7 +792,7 @@ func TestApplyCodexFingerprintClientMetadataRaw_Noop(t *testing.T) {
 	assert.False(t, changed)
 	assert.Equal(t, body, out)
 
-	out, changed, err = applyCodexFingerprintClientMetadataRaw(nil, &codexFingerprintIDs{mode: codexFingerprintSession, installationID: "x"})
+	out, changed, err = applyCodexFingerprintClientMetadataRaw(nil, &codexFingerprintIDs{Mode: string(codexFingerprintSession), InstallationID: "x"})
 	require.NoError(t, err)
 	assert.False(t, changed)
 	assert.Nil(t, out)
@@ -882,13 +882,13 @@ func TestBuildUpstreamRequestOpenAIPassthrough_AppliesStagedFingerprint(t *testi
 	req, err := svc.buildUpstreamRequestOpenAIPassthrough(context.Background(), c, account, body, "test-token")
 	require.NoError(t, err)
 
-	assert.Equal(t, ids.sessionID, req.Header.Get("session_id"), "session 模式下出站 session_id 应为账号级收敛值")
-	assert.Equal(t, ids.installationID, req.Header.Get("x-codex-installation-id"))
-	assert.Equal(t, ids.windowID, req.Header.Get("x-codex-window-id"))
-	assert.Equal(t, ids.threadID, req.Header.Get("x-client-request-id"))
+	assert.Equal(t, ids.SessionID, req.Header.Get("session_id"), "session 模式下出站 session_id 应为账号级收敛值")
+	assert.Equal(t, ids.InstallationID, req.Header.Get("x-codex-installation-id"))
+	assert.Equal(t, ids.WindowID, req.Header.Get("x-codex-window-id"))
+	assert.Equal(t, ids.ThreadID, req.Header.Get("x-client-request-id"))
 	turnMetadata := req.Header.Get("x-codex-turn-metadata")
 	require.NotEmpty(t, turnMetadata)
-	assert.Contains(t, turnMetadata, ids.sessionID, "turn-metadata JSON 中的 session_id 应被收敛")
+	assert.Contains(t, turnMetadata, ids.SessionID, "turn-metadata JSON 中的 session_id 应被收敛")
 	assert.Contains(t, turnMetadata, `"sandbox":"seatbelt"`, "turn-metadata 未指定字段应原样保留")
 }
 

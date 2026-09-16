@@ -1,12 +1,9 @@
 package service
 
 import (
-	"strconv"
-	"strings"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/ollama"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 // Ollama Cloud 的 OpenAI 兼容 /v1/chat/completions 把思维放在 reasoning / thinking，
@@ -73,105 +70,13 @@ func applyOllamaCloudRawChatCompletionsSSELine(account *Account, line string) st
 }
 
 func normalizeOllamaCloudChatCompletionsRequest(body []byte) []byte {
-	if !gjson.ValidBytes(body) {
-		return body
-	}
-	messages := gjson.GetBytes(body, "messages")
-	if !messages.IsArray() {
-		return body
-	}
-	updated := body
-	changed := false
-	for i, msg := range messages.Array() {
-		if msg.Get("role").String() != "assistant" {
-			continue
-		}
-		reasoningContent, ok := jsonNonEmptyString(msg.Get("reasoning_content"))
-		if !ok {
-			continue
-		}
-		if _, has := jsonNonEmptyString(msg.Get("reasoning")); has {
-			continue
-		}
-		if _, has := jsonNonEmptyString(msg.Get("thinking")); has {
-			continue
-		}
-		next, err := sjson.SetBytes(updated, "messages."+strconv.Itoa(i)+".reasoning", reasoningContent)
-		if err != nil {
-			return body
-		}
-		updated = next
-		changed = true
-	}
-	if !changed {
-		return body
-	}
-	return updated
+	return ollama.NormalizeOllamaCloudChatCompletionsRequest(body)
 }
 
 func normalizeOllamaCloudChatCompletionsResponseJSON(body []byte) []byte {
-	if !gjson.ValidBytes(body) {
-		return body
-	}
-	choices := gjson.GetBytes(body, "choices")
-	if !choices.IsArray() {
-		return body
-	}
-	updated := body
-	changed := false
-	for i, choice := range choices.Array() {
-		for _, container := range []string{"message", "delta"} {
-			obj := choice.Get(container)
-			if !obj.Exists() || !obj.IsObject() {
-				continue
-			}
-			if obj.Get("reasoning_content").Exists() {
-				continue
-			}
-			src, ok := jsonNonEmptyString(obj.Get("reasoning"))
-			if !ok {
-				src, ok = jsonNonEmptyString(obj.Get("thinking"))
-			}
-			if !ok {
-				continue
-			}
-			next, err := sjson.SetBytes(updated, "choices."+strconv.Itoa(i)+"."+container+".reasoning_content", src)
-			if err != nil {
-				return body
-			}
-			updated = next
-			changed = true
-		}
-	}
-	if !changed {
-		return body
-	}
-	return updated
+	return ollama.NormalizeOllamaCloudChatCompletionsResponseJSON(body)
 }
 
 func normalizeOllamaCloudChatCompletionsSSELine(line string) string {
-	payload, ok := extractOpenAISSEDataLine(line)
-	if !ok {
-		return line
-	}
-	trimmed := strings.TrimSpace(payload)
-	if trimmed == "" || trimmed == "[DONE]" {
-		return line
-	}
-	rewritten := normalizeOllamaCloudChatCompletionsResponseJSON([]byte(payload))
-	if string(rewritten) == payload {
-		return line
-	}
-	prefixLen := len(line) - len(payload)
-	if prefixLen < 0 {
-		return line
-	}
-	return line[:prefixLen] + string(rewritten)
-}
-
-func jsonNonEmptyString(v gjson.Result) (string, bool) {
-	if v.Type != gjson.String || v.Str == "" {
-		return "", false
-	}
-	return v.Str, true
+	return ollama.NormalizeOllamaCloudChatCompletionsSSELine(line)
 }

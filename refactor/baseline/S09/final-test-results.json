@@ -1,0 +1,175 @@
+[
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "./..."
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 154.398,
+    "pass": 11487,
+    "fail": 0,
+    "skip": 4,
+    "log": "logs/final-normal.log.gz",
+    "label": "final-normal"
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=unit",
+      "./..."
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 1,
+    "seconds": 203.139,
+    "pass": 19524,
+    "fail": 1,
+    "skip": 8,
+    "log": "logs/final-unit.log.gz",
+    "label": "final-unit"
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=unit",
+      "./..."
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 196.508,
+    "pass": 19525,
+    "fail": 0,
+    "skip": 8,
+    "log": "logs/final-unit-repeat.log.gz",
+    "label": "final-unit-repeat"
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=integration",
+      "./..."
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 1,
+    "seconds": 149.734,
+    "pass": 12238,
+    "fail": 1,
+    "skip": 4,
+    "log": "logs/final-integration.log.gz",
+    "label": "final-integration"
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=integration",
+      "-p=4",
+      "./..."
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 147.031,
+    "pass": 12423,
+    "fail": 0,
+    "skip": 4,
+    "log": "logs/final-integration-repeat.log.gz",
+    "label": "final-integration-repeat"
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-race",
+      "-tags=unit",
+      "-parallel=1",
+      "./internal/upstream/openai",
+      "./internal/protocol/openai",
+      "./internal/protocol/bridge",
+      "./internal/service",
+      "-run",
+      "Test(.*(Grok|OpenAI|OpenAi|Codex|AgentIdentity|Live|ImagesURL|BackfillOpenAI|FirstOutput|RawChat|RawStream)|WSPool.*|.*ResponsesStreaming.*|CorrectTool.*|ImagesExecute.*|BuildUpstreamRequest.*)|TestS09AlphaSearch"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 124.556,
+    "pass": 4361,
+    "fail": 0,
+    "skip": 2,
+    "log": "logs/openai-final-consumer-race.log.gz",
+    "label": "openai-final-consumer-race"
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-race",
+      "-tags=unit",
+      "./internal/upstream/openai/...",
+      "./internal/account/rediscache"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 5.809,
+    "pass": 252,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/openai-final-native-race.log.gz",
+    "label": "openai-final-native-race"
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=embed",
+      "./internal/web"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 2.337,
+    "pass": 101,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-embed-test.log.gz",
+    "label": "final-embed-test"
+  },
+  {
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=integration",
+      "./internal/app",
+      "-run",
+      "^TestS02ProcessModes$"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 13.363,
+    "pass": 10,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/openai-process-modes-order.log.gz",
+    "label": "openai-process-modes-order"
+  }
+]

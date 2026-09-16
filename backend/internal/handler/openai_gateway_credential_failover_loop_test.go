@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,12 +15,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

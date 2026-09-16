@@ -1,0 +1,32 @@
+[
+  {
+    "file": "backend/internal/service/gateway_upstream_request.go",
+    "symbol": "applyClaudeCodeMimicHeaders",
+    "code": "func applyClaudeCodeMimicHeaders(req *http.Request, isStream bool) {\n\tclaude.ApplyClaudeCodeMimicHeaders(req, isStream)\n}"
+  },
+  {
+    "file": "backend/internal/service/gateway_upstream_request.go",
+    "symbol": "applyClaudeOAuthHeaderDefaults",
+    "code": "func applyClaudeOAuthHeaderDefaults(req *http.Request) { claude.ApplyClaudeOAuthHeaderDefaults(req) }"
+  },
+  {
+    "file": "backend/internal/service/gateway_count_tokens.go",
+    "symbol": "sanitizeCountTokensRequestBody",
+    "code": "func sanitizeCountTokensRequestBody(body []byte) []byte {\n\treturn claude.SanitizeCountTokensRequestBody(body)\n}"
+  },
+  {
+    "file": "backend/internal/service/gateway_claude_oauth_body.go",
+    "symbol": "deleteJSONPathBytes",
+    "code": "func deleteJSONPathBytes(body []byte, path string) ([]byte, bool) {\n\treturn claude.DeleteJSONPathBytes(body, path)\n}"
+  },
+  {
+    "file": "backend/internal/service/gateway_request.go",
+    "symbol": "stripEmptyTextBlocksFromSlice",
+    "code": "func stripEmptyTextBlocksFromSlice(blocks []any) ([]any, bool) {\n\treturn protocolanthropic.StripEmptyTextBlocksFromSlice(blocks)\n}"
+  },
+  {
+    "file": "backend/internal/service/gateway_billing_header.go",
+    "symbol": "effectiveBillingUserAgent",
+    "code": "func effectiveBillingUserAgent(tokenType string, mimicClaudeCode bool, fingerprint *Fingerprint) string {\n\treturn claude.EffectiveBillingUserAgent(tokenType, mimicClaudeCode, fingerprint)\n}"
+  }
+]

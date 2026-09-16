@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "Test(.*(NonStreaming|SSEToJSON|OpenAI.*FirstOutput|CodexFinal|ResponsesOutput|RawResponses|CompactionItem|GrokObservation))"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 22.309,
+  "pass": 120,
+  "fail": 2,
+  "skip": 0,
+  "log": "logs/openai-native-nonstream-unit2.log.gz"
+}

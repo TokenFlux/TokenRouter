@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 )
 
 // GeminiCliCodeAssistClient calls GeminiCli internal Code Assist endpoints.

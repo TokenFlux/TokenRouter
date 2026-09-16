@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/upstream/grok",
+    "./internal/app",
+    "-run",
+    "Test.*Grok|Test.*OpenAIImages"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.651,
+  "pass": 1046,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-media-codec-unit3.log.gz"
+}

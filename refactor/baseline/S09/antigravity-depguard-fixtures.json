@@ -1,0 +1,394 @@
+[
+  {
+    "name": "antigravity-legal-native",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/antigravity/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.365,
+    "log": "logs/gate-antigravity-legal-native-normal.log.gz"
+  },
+  {
+    "name": "antigravity-legal-http",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.37,
+    "log": "logs/gate-antigravity-legal-http-normal.log.gz"
+  },
+  {
+    "name": "antigravity-new-file-no-exception",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.426,
+    "log": "logs/gate-antigravity-new-file-no-exception-normal.log.gz"
+  },
+  {
+    "name": "antigravity-old-file-gin-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.428,
+    "log": "logs/gate-antigravity-old-file-gin-denied-normal.log.gz"
+  },
+  {
+    "name": "antigravity-moved-exception-expired",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.41,
+    "log": "logs/gate-antigravity-moved-exception-expired-normal.log.gz"
+  },
+  {
+    "name": "antigravity-platform-peer-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/antigravity"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/gemini",
+    "matched": true,
+    "seconds": 0.359,
+    "log": "logs/gate-antigravity-platform-peer-denied-normal.log.gz"
+  },
+  {
+    "name": "antigravity-native-redis-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/antigravity"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.366,
+    "log": "logs/gate-antigravity-native-redis-denied-normal.log.gz"
+  },
+  {
+    "name": "antigravity-legal-native",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/antigravity/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.372,
+    "log": "logs/gate-antigravity-legal-native-unit.log.gz"
+  },
+  {
+    "name": "antigravity-legal-http",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.344,
+    "log": "logs/gate-antigravity-legal-http-unit.log.gz"
+  },
+  {
+    "name": "antigravity-new-file-no-exception",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.415,
+    "log": "logs/gate-antigravity-new-file-no-exception-unit.log.gz"
+  },
+  {
+    "name": "antigravity-old-file-gin-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.457,
+    "log": "logs/gate-antigravity-old-file-gin-denied-unit.log.gz"
+  },
+  {
+    "name": "antigravity-moved-exception-expired",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.413,
+    "log": "logs/gate-antigravity-moved-exception-expired-unit.log.gz"
+  },
+  {
+    "name": "antigravity-platform-peer-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/antigravity"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/gemini",
+    "matched": true,
+    "seconds": 0.365,
+    "log": "logs/gate-antigravity-platform-peer-denied-unit.log.gz"
+  },
+  {
+    "name": "antigravity-native-redis-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/antigravity"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.37,
+    "log": "logs/gate-antigravity-native-redis-denied-unit.log.gz"
+  },
+  {
+    "name": "antigravity-legal-native",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/antigravity/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.363,
+    "log": "logs/gate-antigravity-legal-native-integration.log.gz"
+  },
+  {
+    "name": "antigravity-legal-http",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.37,
+    "log": "logs/gate-antigravity-legal-http-integration.log.gz"
+  },
+  {
+    "name": "antigravity-new-file-no-exception",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.413,
+    "log": "logs/gate-antigravity-new-file-no-exception-integration.log.gz"
+  },
+  {
+    "name": "antigravity-old-file-gin-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.426,
+    "log": "logs/gate-antigravity-old-file-gin-denied-integration.log.gz"
+  },
+  {
+    "name": "antigravity-moved-exception-expired",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/protocol/google",
+    "matched": true,
+    "seconds": 0.413,
+    "log": "logs/gate-antigravity-moved-exception-expired-integration.log.gz"
+  },
+  {
+    "name": "antigravity-platform-peer-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/antigravity"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/gemini",
+    "matched": true,
+    "seconds": 0.355,
+    "log": "logs/gate-antigravity-platform-peer-denied-integration.log.gz"
+  },
+  {
+    "name": "antigravity-native-redis-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/antigravity"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.36,
+    "log": "logs/gate-antigravity-native-redis-denied-integration.log.gz"
+  }
+]

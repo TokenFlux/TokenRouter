@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=integration",
+    "./internal/repository",
+    "./internal/app",
+    "-run",
+    "^(TestS09GeminiTokenRefreshUsesOriginalCAS|TestS09ClaudeTokenRefreshUsesOriginalCAS|TestS09QoderHTTPStorageChain|TestIdentityCacheSuite|TestGeminiTokenCacheSuite)$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 31.956,
+  "pass": 24,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/gemini-final-storage-race.log.gz"
+}

@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/upstream/usageprovider",
+    "./internal/upstream/kimi",
+    "./internal/upstream/zhipu",
+    "./internal/upstream/deepseek",
+    "./internal/upstream/internal/usageclient",
+    "-run",
+    "Test.*UpstreamUsage|Test.*CN|Test.*Kimi|Test.*Zhipu|Test.*Deep[Ss]eek"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 21.538,
+  "pass": 239,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/usage-adapters-unit2.log.gz"
+}

@@ -18,7 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )

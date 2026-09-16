@@ -2,8 +2,10 @@
 package account
 
 import (
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	time "time"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
 )
 
 const (
@@ -22,36 +24,16 @@ type OllamaCloudUsageSettings struct {
 	DebounceMinutes int  `json:"debounce_minutes"` // 最近一次请求后的尾随静默期
 }
 
-// OllamaCloudUsageWindow 是单个官方用量窗口的最小化脱敏视图。
-type OllamaCloudUsageWindow struct {
-	UsedPercent float64    `json:"used_percent"`
-	ResetAt     *time.Time `json:"reset_at,omitempty"`
-	ResetText   string     `json:"reset_text,omitempty"`
-}
+type OllamaCloudUsageWindow = usageview.OllamaCloudUsageWindow
 
-// OllamaCloudUsageModelWindow 标识模型请求数所属的官方用量窗口。
-type OllamaCloudUsageModelWindow string
+type OllamaCloudUsageModelWindow = usageview.OllamaCloudUsageModelWindow
 
-const (
-	OllamaCloudUsageModelWindowFiveHour OllamaCloudUsageModelWindow = "five_hour"
-	OllamaCloudUsageModelWindowSevenDay OllamaCloudUsageModelWindow = "seven_day"
-)
+const OllamaCloudUsageModelWindowFiveHour = usageview.OllamaCloudUsageModelWindowFiveHour
+const OllamaCloudUsageModelWindowSevenDay = usageview.OllamaCloudUsageModelWindowSevenDay
 
-// OllamaCloudUsageModel 保存 Ollama 用量页面按窗口展示的模型及请求数。
-type OllamaCloudUsageModel struct {
-	Model    string                      `json:"model"`
-	Window   OllamaCloudUsageModelWindow `json:"window"`
-	Requests int64                       `json:"requests"`
-}
+type OllamaCloudUsageModel = usageview.OllamaCloudUsageModel
 
-// OllamaCloudUsageData 明确排除原始 HTML 和浏览器会话数据。
-type OllamaCloudUsageData struct {
-	Plan     string                  `json:"plan,omitempty"`
-	FiveHour *OllamaCloudUsageWindow `json:"five_hour,omitempty"`
-	SevenDay *OllamaCloudUsageWindow `json:"seven_day,omitempty"`
-	Balance  string                  `json:"balance,omitempty"`
-	Models   []OllamaCloudUsageModel `json:"models,omitempty"`
-}
+type OllamaCloudUsageData = usageview.OllamaCloudUsageData
 
 // OllamaCloudUsageSnapshot 是账号 extra 中唯一持久化的用量观测数据。
 //

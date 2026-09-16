@@ -1,10 +1,8 @@
 package service
 
 import (
-	"strings"
-
+	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 )
 
 // geminiImageOutputCounterKey 是请求级内联图片计数器挂在 gin.Context 上的键。
@@ -89,43 +87,6 @@ func resolveGeminiImageCount(c *gin.Context, originalModel, mappedModel string) 
 	return 0
 }
 
-// countGeminiInlineImageOutputs 统计一段 Gemini 响应 JSON 里的内联图片 part。
-// Gemini REST 回 camelCase 的 inlineData，官方 SDK 与部分中转会回 snake_case
-// 的 inline_data，两种都要认。
 func countGeminiInlineImageOutputs(payload []byte) int {
-	if len(payload) == 0 || !gjson.ValidBytes(payload) {
-		return 0
-	}
-	count := 0
-	gjson.GetBytes(payload, "candidates").ForEach(func(_, candidate gjson.Result) bool {
-		candidate.Get("content.parts").ForEach(func(_, part gjson.Result) bool {
-			if geminiPartIsInlineImage(part) {
-				count++
-			}
-			return true
-		})
-		return true
-	})
-	return count
-}
-
-func geminiPartIsInlineImage(part gjson.Result) bool {
-	inline := part.Get("inlineData")
-	if !inline.Exists() {
-		inline = part.Get("inline_data")
-	}
-	if !inline.Exists() {
-		return false
-	}
-
-	mimeType := inline.Get("mimeType")
-	if !mimeType.Exists() {
-		mimeType = inline.Get("mime_type")
-	}
-	if !isGeminiInlineImageMIMEType(strings.ToLower(strings.TrimSpace(mimeType.String()))) {
-		return false
-	}
-
-	// 只认真的带上了 base64 数据的 part，空壳 part 不计费。
-	return strings.TrimSpace(inline.Get("data").String()) != ""
+	return gemininative.CountGeminiInlineImageOutputs(payload)
 }

@@ -1,17 +1,6 @@
+// 历史名称转接账号模块的统一 token 缓存契约，各平台不持有第二份实现。
 package service
 
-import (
-	"context"
-	"time"
-)
+import "github.com/TokenFlux/TokenRouter/internal/account"
 
-// GeminiTokenCache stores short-lived access tokens and coordinates refresh to avoid stampedes.
-type GeminiTokenCache interface {
-	// cacheKey should be stable for the token scope; for GeminiCli OAuth we primarily use project_id.
-	GetAccessToken(ctx context.Context, cacheKey string) (string, error)
-	SetAccessToken(ctx context.Context, cacheKey string, token string, ttl time.Duration) error
-	DeleteAccessToken(ctx context.Context, cacheKey string) error
-
-	AcquireRefreshLock(ctx context.Context, cacheKey string, ttl time.Duration) (bool, error)
-	ReleaseRefreshLock(ctx context.Context, cacheKey string) error
-}
+type GeminiTokenCache = account.AccessTokenCache

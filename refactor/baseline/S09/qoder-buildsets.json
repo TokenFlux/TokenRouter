@@ -1,0 +1,175 @@
+[
+  {
+    "name": "normal",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "./internal/upstream/qoder/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 40,
+    "errors": [],
+    "data": "qoder-buildset-normal.json.gz"
+  },
+  {
+    "name": "unit",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=unit",
+      "./internal/upstream/qoder/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 40,
+    "errors": [],
+    "data": "qoder-buildset-unit.json.gz"
+  },
+  {
+    "name": "integration",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=integration",
+      "./internal/upstream/qoder/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 40,
+    "errors": [],
+    "data": "qoder-buildset-integration.json.gz"
+  },
+  {
+    "name": "wireinject",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=wireinject",
+      "./internal/upstream/qoder/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 40,
+    "errors": [],
+    "data": "qoder-buildset-wireinject.json.gz"
+  },
+  {
+    "name": "embed",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=embed",
+      "./internal/upstream/qoder/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 40,
+    "errors": [],
+    "data": "qoder-buildset-embed.json.gz"
+  },
+  {
+    "name": "e2e",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=e2e",
+      "./internal/upstream/qoder/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 40,
+    "errors": [],
+    "data": "qoder-buildset-e2e.json.gz"
+  },
+  {
+    "name": "linux",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "./internal/upstream/qoder/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "linux",
+      "CGO_ENABLED": "0"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 40,
+    "errors": [],
+    "data": "qoder-buildset-linux.json.gz"
+  }
+]

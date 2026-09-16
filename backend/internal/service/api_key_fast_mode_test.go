@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

@@ -1142,13 +1142,13 @@ func TestStreamUpstreamResponse_UsageAndFirstToken(t *testing.T) {
 	_ = pr.Close()
 
 	require.NotNil(t, result)
-	require.NotNil(t, result.usage)
-	require.Equal(t, 1, result.usage.InputTokens)
+	require.NotNil(t, result.Usage)
+	require.Equal(t, 1, result.Usage.InputTokens)
 	// 第二次事件覆盖 output_tokens
-	require.Equal(t, 5, result.usage.OutputTokens)
-	require.Equal(t, 3, result.usage.CacheReadInputTokens)
-	require.Equal(t, 4, result.usage.CacheCreationInputTokens)
-	require.NotNil(t, result.firstTokenMs)
+	require.Equal(t, 5, result.Usage.OutputTokens)
+	require.Equal(t, 3, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 4, result.Usage.CacheCreationInputTokens)
+	require.NotNil(t, result.FirstTokenMs)
 
 	// 确保有透传输出
 	require.Contains(t, rec.Body.String(), "data:")
@@ -1188,10 +1188,10 @@ func TestStreamUpstreamResponse_NormalComplete(t *testing.T) {
 	_ = pr.Close()
 
 	require.NotNil(t, result)
-	require.False(t, result.clientDisconnect, "normal completion should not set clientDisconnect")
-	require.NotNil(t, result.usage)
-	require.Equal(t, 5, result.usage.OutputTokens, "should collect output_tokens from message_delta")
-	require.NotNil(t, result.firstTokenMs, "should record first token time")
+	require.False(t, result.ClientDisconnect, "normal completion should not set clientDisconnect")
+	require.NotNil(t, result.Usage)
+	require.Equal(t, 5, result.Usage.OutputTokens, "should collect output_tokens from message_delta")
+	require.NotNil(t, result.FirstTokenMs, "should record first token time")
 
 	// 验证数据被透传到客户端
 	body := rec.Body.String()
@@ -1230,14 +1230,14 @@ func TestHandleGeminiStreamingResponse_NormalComplete(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.False(t, result.clientDisconnect, "normal completion should not set clientDisconnect")
-	require.NotNil(t, result.usage)
+	require.False(t, result.ClientDisconnect, "normal completion should not set clientDisconnect")
+	require.NotNil(t, result.Usage)
 	// Gemini usage: promptTokenCount=10, candidatesTokenCount=8, cachedContentTokenCount=2
 	// → InputTokens=10-2=8, OutputTokens=8, CacheReadInputTokens=2
-	require.Equal(t, 8, result.usage.InputTokens)
-	require.Equal(t, 8, result.usage.OutputTokens)
-	require.Equal(t, 2, result.usage.CacheReadInputTokens)
-	require.NotNil(t, result.firstTokenMs, "should record first token time")
+	require.Equal(t, 8, result.Usage.InputTokens)
+	require.Equal(t, 8, result.Usage.OutputTokens)
+	require.Equal(t, 2, result.Usage.CacheReadInputTokens)
+	require.NotNil(t, result.FirstTokenMs, "should record first token time")
 
 	// 验证数据被透传到客户端
 	body := rec.Body.String()
@@ -1275,12 +1275,12 @@ func TestHandleClaudeStreamingResponse_NormalComplete(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.False(t, result.clientDisconnect, "normal completion should not set clientDisconnect")
-	require.NotNil(t, result.usage)
+	require.False(t, result.ClientDisconnect, "normal completion should not set clientDisconnect")
+	require.NotNil(t, result.Usage)
 	// Gemini→Claude 转换的 usage：promptTokenCount=5→InputTokens=5, candidatesTokenCount=3→OutputTokens=3
-	require.Equal(t, 5, result.usage.InputTokens)
-	require.Equal(t, 3, result.usage.OutputTokens)
-	require.NotNil(t, result.firstTokenMs, "should record first token time")
+	require.Equal(t, 5, result.Usage.InputTokens)
+	require.Equal(t, 3, result.Usage.OutputTokens)
+	require.NotNil(t, result.FirstTokenMs, "should record first token time")
 
 	// 验证输出是 Claude SSE 格式（processor 会转换）
 	body := rec.Body.String()
@@ -1318,12 +1318,12 @@ func TestHandleGeminiStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, result.usage)
+	require.NotNil(t, result.Usage)
 	// promptTokenCount=100, cachedContentTokenCount=10 → InputTokens=90
-	require.Equal(t, 90, result.usage.InputTokens)
+	require.Equal(t, 90, result.Usage.InputTokens)
 	// candidatesTokenCount=30 + thoughtsTokenCount=80 → OutputTokens=110
-	require.Equal(t, 110, result.usage.OutputTokens)
-	require.Equal(t, 10, result.usage.CacheReadInputTokens)
+	require.Equal(t, 110, result.Usage.OutputTokens)
+	require.Equal(t, 10, result.Usage.CacheReadInputTokens)
 }
 
 // TestHandleClaudeStreamingResponse_ThoughtsTokenCount
@@ -1352,11 +1352,11 @@ func TestHandleClaudeStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, result.usage)
+	require.NotNil(t, result.Usage)
 	// promptTokenCount=50 → InputTokens=50
-	require.Equal(t, 50, result.usage.InputTokens)
+	require.Equal(t, 50, result.Usage.InputTokens)
 	// candidatesTokenCount=10 + thoughtsTokenCount=25 → OutputTokens=35
-	require.Equal(t, 35, result.usage.OutputTokens)
+	require.Equal(t, 35, result.Usage.OutputTokens)
 }
 
 // --- 流式客户端断开检测测试 ---
@@ -1391,9 +1391,9 @@ func TestStreamUpstreamResponse_ClientDisconnectDrainsUsage(t *testing.T) {
 	_ = pr.Close()
 
 	require.NotNil(t, result)
-	require.True(t, result.clientDisconnect)
-	require.NotNil(t, result.usage)
-	require.Equal(t, 20, result.usage.OutputTokens)
+	require.True(t, result.ClientDisconnect)
+	require.NotNil(t, result.Usage)
+	require.Equal(t, 20, result.Usage.OutputTokens)
 }
 
 // TestStreamUpstreamResponse_ContextCanceled
@@ -1415,7 +1415,7 @@ func TestStreamUpstreamResponse_ContextCanceled(t *testing.T) {
 	result := svc.streamUpstreamResponse(c, resp, time.Now())
 
 	require.NotNil(t, result)
-	require.True(t, result.clientDisconnect)
+	require.True(t, result.ClientDisconnect)
 	require.NotContains(t, rec.Body.String(), "event: error")
 }
 
@@ -1439,7 +1439,7 @@ func TestStreamUpstreamResponse_Timeout(t *testing.T) {
 	_ = pr.Close()
 
 	require.NotNil(t, result)
-	require.False(t, result.clientDisconnect)
+	require.False(t, result.ClientDisconnect)
 }
 
 // TestStreamUpstreamResponse_TimeoutAfterClientDisconnect
@@ -1469,7 +1469,7 @@ func TestStreamUpstreamResponse_TimeoutAfterClientDisconnect(t *testing.T) {
 	_ = pr.Close()
 
 	require.NotNil(t, result)
-	require.True(t, result.clientDisconnect)
+	require.True(t, result.ClientDisconnect)
 }
 
 // TestHandleGeminiStreamingResponse_ClientDisconnect
@@ -1499,7 +1499,7 @@ func TestHandleGeminiStreamingResponse_ClientDisconnect(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.True(t, result.clientDisconnect)
+	require.True(t, result.ClientDisconnect)
 	require.NotContains(t, rec.Body.String(), "write_failed")
 }
 
@@ -1523,7 +1523,7 @@ func TestHandleGeminiStreamingResponse_ContextCanceled(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.True(t, result.clientDisconnect)
+	require.True(t, result.ClientDisconnect)
 	require.NotContains(t, rec.Body.String(), "event: error")
 }
 
@@ -1555,7 +1555,7 @@ func TestHandleClaudeStreamingResponse_ClientDisconnect(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.True(t, result.clientDisconnect)
+	require.True(t, result.ClientDisconnect)
 }
 
 // TestHandleClaudeStreamingResponse_EmptyStream
@@ -1618,7 +1618,7 @@ func TestHandleClaudeStreamingResponse_ContextCanceled(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.True(t, result.clientDisconnect)
+	require.True(t, result.ClientDisconnect)
 	require.NotContains(t, rec.Body.String(), "event: error")
 }
 

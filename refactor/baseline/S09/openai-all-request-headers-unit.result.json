@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "BuildUpstreamRequest|OpenAI.*Header|Codex.*Header|OpenAI.*Identity|AgentIdentity|OpenCodeSession|CodexBeta|Passthrough.*Norm"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 13.883,
+  "pass": 168,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-all-request-headers-unit.log.gz"
+}

@@ -4,10 +4,11 @@ import (
 	"context"
 	"net/http"
 	"regexp"
-	"strconv"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
 
 // ClaudeCodeValidator 验证请求是否来自 Claude Code 客户端
@@ -19,7 +20,6 @@ var (
 	claudeCodeUAPattern = regexp.MustCompile(`(?i)^claude-cli/\d+\.\d+\.\d+`)
 
 	// 带捕获组的版本提取正则
-	claudeCodeUAVersionPattern = regexp.MustCompile(`(?i)^claude-cli/(\d+\.\d+\.\d+)`)
 
 	// System prompt 相似度阈值（默认 0.5，和 claude-relay-service 一致）
 	systemPromptThreshold = 0.5
@@ -56,11 +56,11 @@ const (
 	// 大多数真实 CLI 请求（含部分无身份说明文本的子请求）会携带该块；不携带该块的
 	// 固定官方辅助请求由独立规则识别。该格式比身份说明文本更稳定。
 	// 生成见 gateway_billing_block.go；同类识别见 pkg/apicompat/anthropic_to_responses.go。
-	claudeCodeBillingHeaderPrefix = "x-anthropic-billing-header"
+	claudeCodeBillingHeaderPrefix = claude.ClaudeCodeBillingHeaderPrefix
 	// claudeCodeEntrypointMarker 标识计费块携带入口归因字段。不绑定具体入口值
 	// （cli / claude-vscode / jetbrains / sdk 等都是真实入口）：入口值会随新增 IDE 漂移，
 	// 且伪造者同样可填任意值、不构成防伪边界，故仅要求该字段存在即可。
-	claudeCodeEntrypointMarker = "cc_entrypoint="
+	claudeCodeEntrypointMarker = claude.ClaudeCodeEntrypointMarker
 )
 
 // NewClaudeCodeValidator 创建验证器实例
@@ -377,31 +377,4 @@ func GetClaudeCodeVersion(ctx context.Context) string {
 	return ""
 }
 
-// CompareVersions 比较两个 semver 版本号
-// 返回: -1 (a < b), 0 (a == b), 1 (a > b)
-func CompareVersions(a, b string) int {
-	aParts := parseSemver(a)
-	bParts := parseSemver(b)
-	for i := 0; i < 3; i++ {
-		if aParts[i] < bParts[i] {
-			return -1
-		}
-		if aParts[i] > bParts[i] {
-			return 1
-		}
-	}
-	return 0
-}
-
-// parseSemver 解析 semver 版本号为 [major, minor, patch]
-func parseSemver(v string) [3]int {
-	v = strings.TrimPrefix(v, "v")
-	parts := strings.Split(v, ".")
-	result := [3]int{0, 0, 0}
-	for i := 0; i < len(parts) && i < 3; i++ {
-		if parsed, err := strconv.Atoi(parts[i]); err == nil {
-			result[i] = parsed
-		}
-	}
-	return result
-}
+func CompareVersions(a, b string) int { return clientmeta.CompareVersions(a, b) }

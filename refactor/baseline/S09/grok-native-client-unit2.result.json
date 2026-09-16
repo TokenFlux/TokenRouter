@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/grok",
+    "./internal/repository",
+    "./internal/account/rediscache",
+    "./internal/egress/...",
+    "-run",
+    "Test.*Grok|TestSessionStore|TestValidate|TestIsBlocked|TestIsAllowed|TestNormalizeAllowlist"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.752,
+  "pass": 73,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-native-client-unit2.log.gz"
+}

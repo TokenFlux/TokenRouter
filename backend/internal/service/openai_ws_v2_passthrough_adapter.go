@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	openaiwsv2 "github.com/TokenFlux/TokenRouter/internal/service/openai_ws_v2"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	openaiwsv2 "github.com/TokenFlux/TokenRouter/internal/upstream/openai/wsrelay"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -236,17 +236,17 @@ type openAIWSPassthroughUsageMeta struct {
 	reasoningEffort          atomic.Pointer[string]
 	requestedReasoningEffort atomic.Pointer[string]
 
-	// 仅在 client->upstream filter goroutine 中读写；Load 侧通过上方原子指针同步。
-	sessionRequestModel string
+	// 上下行共享会话缺省模型；每轮模型链仍由原快照固化。
+	sessionRequestModel atomic.Pointer[string]
 }
 
 func newOpenAIWSPassthroughUsageMeta(initialRequestModel string, firstFrame []byte) *openAIWSPassthroughUsageMeta {
-	meta := &openAIWSPassthroughUsageMeta{
-		sessionRequestModel: strings.TrimSpace(initialRequestModel),
+	meta := &openAIWSPassthroughUsageMeta{}
+	model := strings.TrimSpace(initialRequestModel)
+	if model == "" {
+		model = openAIWSPassthroughRequestModelForFrame(firstFrame)
 	}
-	if meta.sessionRequestModel == "" {
-		meta.sessionRequestModel = openAIWSPassthroughRequestModelForFrame(firstFrame)
-	}
+	meta.sessionRequestModel.Store(&model)
 	return meta
 }
 
@@ -255,7 +255,7 @@ func (m *openAIWSPassthroughUsageMeta) initFromFirstFrame(policyOutput []byte, m
 		return
 	}
 	m.serviceTier.Store(extractOpenAIServiceTierFromBody(policyOutput))
-	m.reasoningEffort.Store(extractOpenAIReasoningEffortFromBody(policyOutput, mappedModel, m.sessionRequestModel))
+	m.reasoningEffort.Store(extractOpenAIReasoningEffortFromBody(policyOutput, mappedModel, m.loadSessionRequestModel()))
 }
 
 // captureRequestedReasoningEffort 在策略和模型改写前保存客户端档位。
@@ -263,7 +263,7 @@ func (m *openAIWSPassthroughUsageMeta) captureRequestedReasoningEffort(originalB
 	if m == nil {
 		return
 	}
-	candidates := append([]string{m.sessionRequestModel}, modelCandidates...)
+	candidates := append([]string{m.loadSessionRequestModel()}, modelCandidates...)
 	m.requestedReasoningEffort.Store(CanonicalRequestedReasoningEffort(originalBody, candidates...))
 }
 
@@ -272,7 +272,7 @@ func (m *openAIWSPassthroughUsageMeta) updateSessionRequestModel(payload []byte)
 		return
 	}
 	if model := openAIWSPassthroughRequestModelFromSessionFrame(payload); model != "" {
-		m.sessionRequestModel = model
+		m.sessionRequestModel.Store(&model)
 	}
 }
 
@@ -283,7 +283,7 @@ func (m *openAIWSPassthroughUsageMeta) requestModelForFrame(payload []byte) stri
 	if model := openAIWSPassthroughRequestModelForFrame(payload); model != "" {
 		return model
 	}
-	return m.sessionRequestModel
+	return m.loadSessionRequestModel()
 }
 
 func (m *openAIWSPassthroughUsageMeta) updateFromResponseCreate(policyOutput []byte, mappedModel string, requestModelForFrame string) {
@@ -1186,7 +1186,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if isResponseCreate && hooks != nil && hooks.BeforeRequest != nil {
 				requestModel := usageMeta.requestModelForFrame(payload)
 				if requestModel == "" {
-					requestModel = strings.TrimSpace(usageMeta.sessionRequestModel)
+					requestModel = usageMeta.loadSessionRequestModel()
 				}
 				previousResponseID := strings.TrimSpace(gjson.GetBytes(payload, "previous_response_id").String())
 				updatedPayload, err := hooks.BeforeRequest(turnNo, payload, requestModel, previousResponseID)
@@ -1820,4 +1820,15 @@ func logOpenAIWSV2Passthrough(format string, args ...any) {
 		"[OpenAI WS v2 passthrough] %s "+format,
 		append([]any{openaiWSV2PassthroughModeFields}, args...)...,
 	)
+}
+
+// loadSessionRequestModel 对上下行提供同一原子读取入口，空值保持原回退语义。
+func (m *openAIWSPassthroughUsageMeta) loadSessionRequestModel() string {
+	if m == nil {
+		return ""
+	}
+	if value := m.sessionRequestModel.Load(); value != nil {
+		return *value
+	}
+	return ""
 }

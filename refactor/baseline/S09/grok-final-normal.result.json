@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/upstream/grok",
+    "./internal/account",
+    "./internal/account/httpapi",
+    "./internal/service",
+    "-run",
+    "Test.*Grok|TestOpenAIResponseFlush|TestOpenAINativeFirstOutput|TestHandleStreamingResponse|TestParseSSEUsage|Test.*ClientTool|Test.*ConcatenatedJSON"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 18.592,
+  "pass": 235,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-final-normal.log.gz"
+}

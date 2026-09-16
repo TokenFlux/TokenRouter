@@ -1,0 +1,26 @@
+{
+  "normal": {
+    "baseline": 1,
+    "current": 1,
+    "added": [],
+    "removed": [],
+    "log": "logs/anthropic-accepted-lint-normal.log.gz",
+    "normalization": "只去除消息末尾空白；路径/规则/完整消息按重数比较"
+  },
+  "unit": {
+    "baseline": 285,
+    "current": 285,
+    "added": [],
+    "removed": [],
+    "log": "logs/anthropic-final-lint-unit.log.gz",
+    "normalization": "只去除消息末尾空白；路径/规则/完整消息按重数比较"
+  },
+  "integration": {
+    "baseline": 17,
+    "current": 17,
+    "added": [],
+    "removed": [],
+    "log": "logs/anthropic-accepted-lint-integration.log.gz",
+    "normalization": "只去除消息末尾空白；路径/规则/完整消息按重数比较"
+  }
+}

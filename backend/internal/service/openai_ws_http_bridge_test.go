@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -2127,7 +2127,7 @@ func TestOpenAIWSHTTPBridgeKeepsContinuationFramesOnHTTPWithoutPreviousResponseI
 	captureConn := &openAIWSCaptureConn{}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,

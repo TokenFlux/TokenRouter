@@ -1,0 +1,302 @@
+[
+  {
+    "file": "internal/service/openai_codex_tool_names.go",
+    "symbols": [
+      "codexToolNameField"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_tool_names.go",
+    "symbols": [
+      "aliasOpenAIOAuthReservedToolName"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_tool_names.go",
+    "symbols": [
+      "collectOpenAIResponsesToolNameFields"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_tool_names.go",
+    "symbols": [
+      "containsASCIIFold"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_tool_names.go",
+    "symbols": [
+      "restoreCodexToolNameFields"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexVersionModelPrefixes"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "normalizeCodexCallIDForItemType"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "compactCodexCallIDForItemType"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "trimOpenAIResponsesKnownCallIDPrefix"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexImageGenerationFunctionToolName"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexImageGenerationBridgeText"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexSparkImageUnsupportedText"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "openAICodexOAuthUnsupportedFields"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "normalizeCodexToolChoice"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexInputAdditionalToolsContainType"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexToolsContainType"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexToolsContainFunctionName"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "normalizeCodexToolRoleMessages"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "normalizeCodexMessageContentText"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "stringifyCodexContentText"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "normalizeKnownCodexModel"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexModelLookupKey"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "isKnownCodexModelSuffix"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "isKnownCodexModelSuffixForTarget"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "hasUnsupportedOpenAIReasoningSuffix"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "toolsContainImageGeneration"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "isOpenAIImageGenerationToolMap"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "isImageGenNamespaceToolMap"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "inputContainsImageGenerationTool"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "stripOpenAIImageGenerationToolList"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "stripOpenAIImageGenerationToolsFromInput"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "hasOpenAIInputImage"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "hasOpenAIInputImageValue"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "normalizeOpenAIResponseJSONSchema"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "applyCodexSparkImageUnsupportedInstructions"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "extractTextFromContent"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "extractLosslessTextFromContent"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "applyInstructions"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "normalizeCodexFilterCallID"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexItemReferenceIDMappings"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexInputItemIDs"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "codexInputCallIDs"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "isCodexToolCallInputType"
+    ]
+  },
+  {
+    "file": "internal/service/openai_codex_transform.go",
+    "symbols": [
+      "normalizeCodexTools"
+    ]
+  },
+  {
+    "file": "internal/service/openai_embeddings.go",
+    "symbols": [
+      "firstPositiveGJSONInt"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_request_body.go",
+    "symbols": [
+      "normalizeOpenAIOAuthResponsesCompatibilityFields"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_response_handling.go",
+    "symbols": [
+      "openAICacheReadTokensFromUsage"
+    ]
+  },
+  {
+    "file": "internal/service/openai_gateway_response_handling.go",
+    "symbols": [
+      "openAICacheCreationTokensFromUsage"
+    ]
+  },
+  {
+    "file": "internal/service/openai_responses_item_id.go",
+    "symbols": [
+      "openAIResponsesInputItemIDPrefix"
+    ]
+  },
+  {
+    "file": "internal/service/openai_responses_item_id.go",
+    "symbols": [
+      "openAIResponsesToolCallIDPrefix"
+    ]
+  }
+]

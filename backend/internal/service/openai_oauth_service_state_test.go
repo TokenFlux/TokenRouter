@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	"github.com/TokenFlux/TokenRouter/internal/model"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,7 +46,7 @@ func TestOpenAIOAuthService_ExchangeCode_StateRequired(t *testing.T) {
 	svc.Start()
 	defer svc.Stop()
 
-	svc.sessionStore.Set("sid", &openai.OAuthSession{
+	svc.sessionStore.Set("sid", &accountcore.OpenAIOAuthSession{
 		State:        "expected-state",
 		CodeVerifier: "verifier",
 		RedirectURI:  openai.DefaultRedirectURI,
@@ -66,7 +68,7 @@ func TestOpenAIOAuthService_ExchangeCode_StateMismatch(t *testing.T) {
 	svc.Start()
 	defer svc.Stop()
 
-	svc.sessionStore.Set("sid", &openai.OAuthSession{
+	svc.sessionStore.Set("sid", &accountcore.OpenAIOAuthSession{
 		State:        "expected-state",
 		CodeVerifier: "verifier",
 		RedirectURI:  openai.DefaultRedirectURI,
@@ -89,7 +91,7 @@ func TestOpenAIOAuthService_ExchangeCode_StateMatch(t *testing.T) {
 	svc.Start()
 	defer svc.Stop()
 
-	svc.sessionStore.Set("sid", &openai.OAuthSession{
+	svc.sessionStore.Set("sid", &accountcore.OpenAIOAuthSession{
 		State:        "expected-state",
 		CodeVerifier: "verifier",
 		RedirectURI:  openai.DefaultRedirectURI,
@@ -128,7 +130,7 @@ func TestOpenAIOAuthService_ExchangeCode_UsesRequestTLSRouterConfig(t *testing.T
 		},
 	}}, &openAIOAuthTokenProfileResolverStub{profiles: map[int64]*tlsfingerprint.Profile{42: profile}})
 
-	svc.sessionStore.Set("sid", &openai.OAuthSession{
+	svc.sessionStore.Set("sid", &accountcore.OpenAIOAuthSession{
 		State:        "expected-state",
 		CodeVerifier: "verifier",
 		RedirectURI:  openai.DefaultRedirectURI,

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -113,8 +113,8 @@ func TestNormalizeClaudeOAuthRequestBody_PreservesTopLevelFieldOrder(t *testing.
 	body := []byte(`{"alpha":1,"model":"claude-3-5-sonnet-latest","temperature":0.2,"system":"You are OpenCode, the best coding agent on the planet.","messages":[],"tool_choice":{"type":"auto"},"omega":2}`)
 
 	result, modelID := normalizeClaudeOAuthRequestBody(body, "claude-3-5-sonnet-latest", claudeOAuthNormalizeOptions{
-		injectMetadata: true,
-		metadataUserID: "user-1",
+		InjectMetadata: true,
+		MetadataUserID: "user-1",
 	})
 	resultStr := string(result)
 

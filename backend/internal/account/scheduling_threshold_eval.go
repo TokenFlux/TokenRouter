@@ -7,6 +7,8 @@ import (
 	strconv "strconv"
 	strings "strings"
 	time "time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 // AccountSchedulingThresholdDecision 表示单个账号的纯停调判定结果。
@@ -510,20 +512,7 @@ func parseSchedulingResetAt(raw any) *time.Time {
 	return nil
 }
 
-func ParseSchedulingTime(raw string) (time.Time, error) {
-	formats := []string{
-		time.RFC3339,
-		time.RFC3339Nano,
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05.000Z",
-	}
-	for _, format := range formats {
-		if ts, err := time.Parse(format, raw); err == nil {
-			return ts, nil
-		}
-	}
-	return time.Time{}, strconv.ErrSyntax
-}
+func ParseSchedulingTime(raw string) (time.Time, error) { return timezone.ParseFlexibleTimestamp(raw) }
 
 func CloneThresholdTime(src *time.Time) *time.Time {
 	if src == nil {

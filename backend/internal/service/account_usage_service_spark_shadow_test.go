@@ -65,7 +65,11 @@ func TestGetOpenAIUsage_SparkShadow_WritesExtraAndReturnsNonEmptyWindows(t *test
 	// 同一个 repo 供 OpenAIQuotaService 解析母账号，也供 AccountUsageService 持久化 Extra。
 	updateExtraCh := make(chan map[string]any, 1)
 	repo := &sparkShadowUsageTestRepo{
-		accounts:      map[int64]*Account{200: shadow, 100: parent},
+		// 模拟数据库持有独立快照，不能与请求侧兼容投影写回共享可变对象。
+		accounts: map[int64]*Account{
+			200: AccountFromRecord(AccountRecordView(shadow)),
+			100: AccountFromRecord(AccountRecordView(parent)),
+		},
 		updateExtraCh: updateExtraCh,
 	}
 

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/account/httpapi",
+    "./internal/handler/admin",
+    "./internal/service",
+    "-run",
+    "Test.*(OpenAI|OpenAi|CodexPAT|CreateShadow|ResetQuota)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 78.199,
+  "pass": 2963,
+  "fail": 0,
+  "skip": 2,
+  "log": "logs/openai-account-import-unit.log.gz"
+}

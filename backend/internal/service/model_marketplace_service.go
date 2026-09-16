@@ -3,13 +3,14 @@ package service
 
 import (
 	context "context"
+
 	config "github.com/TokenFlux/TokenRouter/internal/config"
-	antigravity "github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	claude "github.com/TokenFlux/TokenRouter/internal/pkg/claude"
-	geminicli "github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	openai "github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	xai "github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	antigravity "github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 const DefaultMarketplaceAvailabilityWindowDays = routing.DefaultMarketplaceAvailabilityWindowDays

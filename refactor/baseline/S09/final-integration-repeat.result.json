@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "-p=4",
+    "./..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 147.031,
+  "pass": 12423,
+  "fail": 0,
+  "skip": 4,
+  "log": "logs/final-integration-repeat.log.gz"
+}

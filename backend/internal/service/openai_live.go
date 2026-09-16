@@ -5,16 +5,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
-	"path"
 	"strings"
 	"sync"
 	"time"
+
+	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
@@ -43,11 +42,7 @@ var (
 	chatGPTLiveSidebandBaseURL = "wss://chatgpt.com/backend-api/codex"
 )
 
-type liveFrameConn interface {
-	ReadFrame(ctx context.Context) (coderws.MessageType, []byte, error)
-	WriteFrame(ctx context.Context, msgType coderws.MessageType, payload []byte) error
-	Close() error
-}
+type liveFrameConn = nativeopenai.LiveFrameConn
 
 func liveSidebandReadError(err error) error {
 	if coderws.CloseStatus(err) == coderws.StatusNormalClosure {
@@ -114,22 +109,8 @@ func (s *OpenAIGatewayService) liveMaxSessionDuration() time.Duration {
 	return defaultLiveMaxSessionDuration
 }
 
-// ValidateLiveCallRequest 校验 SDP 与不改写的 session JSON 基本结构。
 func ValidateLiveCallRequest(request *LiveCallRequest) error {
-	if request == nil || strings.TrimSpace(request.SDP) == "" {
-		return errors.New("sdp is required")
-	}
-	if len(request.Session) == 0 || !json.Valid(request.Session) {
-		return errors.New("session must be valid JSON")
-	}
-	var sessionObject map[string]json.RawMessage
-	if err := json.Unmarshal(request.Session, &sessionObject); err != nil {
-		return errors.New("session must be a JSON object")
-	}
-	if sessionObject == nil {
-		return errors.New("session must be a JSON object")
-	}
-	return nil
+	return wire.ValidateLiveCallRequest(request)
 }
 
 // CreateLiveCall 创建 Frameless 会话。调用方须在调用期间持有普通用户槽位；
@@ -318,89 +299,36 @@ func (s *OpenAIGatewayService) shouldFailoverLiveCreateError(err error) bool {
 	)
 }
 
-func (s *OpenAIGatewayService) createUpstreamLiveCall(
-	ctx context.Context,
-	account *Account,
-	request *LiveCallRequest,
-	attestation string,
-	tlsRouterMatch TLSFingerprintRouterMatchResult,
-) (*LiveCallCreated, error) {
-	token, _, err := s.GetAccessToken(ctx, account)
-	if err != nil {
-		logLiveCreateStageFailure(ctx, account.ID, "access_token", err)
-		return nil, err
-	}
-	body, err := json.Marshal(struct {
-		SDP     string          `json:"sdp"`
-		Session json.RawMessage `json:"session"`
-	}{
-		SDP:     request.SDP,
-		Session: request.Session,
+func (s *OpenAIGatewayService) createUpstreamLiveCall(ctx context.Context, account *Account, request *LiveCallRequest, attestation string, tlsRouterMatch TLSFingerprintRouterMatchResult) (*LiveCallCreated, error) {
+	result, err := nativeopenai.CreateLiveCall(ctx, request, nativeopenai.LiveCreateOptions{
+		URL:         chatGPTLiveCallsURL,
+		Attestation: attestation,
+		Token: func(ctx context.Context) (string, error) {
+			token, _, err := s.GetAccessToken(ctx, account)
+			return token, err
+		},
+		Authentication: func(ctx context.Context, token string) (http.Header, error) {
+			return s.buildOpenAIAuthenticationHeaders(ctx, account, token)
+		},
+		AccountHeaders: func(ctx context.Context, headers http.Header) error {
+			return resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, headers, account)
+		},
+		Routing: func(ctx context.Context, headers http.Header) {
+			s.applyLiveUpstreamRouting(ctx, account, headers, tlsRouterMatch)
+		},
+		Do: func(request *http.Request) (*http.Response, error) {
+			return s.httpUpstream.DoWithTLS(request, resolveAccountProxyURL(account), account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch))
+		},
+		StageFailure: func(stage string, err error) { logLiveCreateStageFailure(ctx, account.ID, stage, err) },
+		HTTPFailure: func(status int, headers http.Header, body []byte) error {
+			logLiveUpstreamFailure(ctx, account.ID, status, headers, body)
+			return &UpstreamFailoverError{StatusCode: status, ResponseBody: body, ResponseHeaders: headers.Clone()}
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	reqCtx := WithHTTPUpstreamRedirectsDisabled(WithHTTPUpstreamProfile(ctx, HTTPUpstreamProfileOpenAI))
-	upstreamReq, err := http.NewRequestWithContext(reqCtx, http.MethodPost, chatGPTLiveCallsURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	authHeaders, err := s.buildOpenAIAuthenticationHeaders(ctx, account, token)
-	if err != nil {
-		logLiveCreateStageFailure(ctx, account.ID, "authentication_headers", err)
-		return nil, err
-	}
-	for key, values := range authHeaders {
-		for _, value := range values {
-			upstreamReq.Header.Add(key, value)
-		}
-	}
-	upstreamReq.Host = "chatgpt.com"
-	if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, upstreamReq.Header, account); err != nil {
-		logLiveCreateStageFailure(ctx, account.ID, "account_headers", err)
-		return nil, err
-	}
-	upstreamReq.Header.Set("Content-Type", "application/json")
-	upstreamReq.Header.Set("Accept", "application/sdp")
-	upstreamReq.Header.Set(liveAttestationHeader, attestation)
-
-	s.applyLiveUpstreamRouting(ctx, account, upstreamReq.Header, tlsRouterMatch)
-	resp, err := s.httpUpstream.DoWithTLS(
-		upstreamReq,
-		resolveAccountProxyURL(account),
-		account.ID,
-		account.Concurrency,
-		s.resolveOpenAITLSProfile(account, tlsRouterMatch),
-	)
-	if err != nil {
-		logLiveCreateStageFailure(ctx, account.ID, "upstream_transport", err)
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	responseBody, readErr := io.ReadAll(io.LimitReader(resp.Body, liveUpstreamBodyLimit+1))
-	if readErr != nil {
-		return nil, readErr
-	}
-	if len(responseBody) > liveUpstreamBodyLimit {
-		return nil, errors.New("live upstream response is too large")
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		logLiveUpstreamFailure(ctx, account.ID, resp.StatusCode, resp.Header, responseBody)
-		return nil, &UpstreamFailoverError{
-			StatusCode:      resp.StatusCode,
-			ResponseBody:    responseBody,
-			ResponseHeaders: resp.Header.Clone(),
-		}
-	}
-	callID, err := liveCallIDFromLocation(resp.Header.Get("Location"))
-	if err != nil {
-		return nil, err
-	}
-	return &LiveCallCreated{
-		SDP:      responseBody,
-		CallID:   callID,
-		Location: resp.Header.Get("Location"),
-	}, nil
+	return &LiveCallCreated{SDP: result.SDP, CallID: result.CallID, Location: result.Location}, nil
 }
 
 func logLiveCreateStageFailure(ctx context.Context, accountID int64, stage string, err error) {
@@ -451,33 +379,11 @@ func logLiveUpstreamFailure(
 }
 
 func liveCallIDFromLocation(location string) (string, error) {
-	location = strings.TrimSpace(location)
-	if location == "" {
-		return "", errors.New("live upstream response has no Location")
-	}
-	parsed, err := url.Parse(location)
-	if err != nil {
-		return "", fmt.Errorf("parse live Location: %w", err)
-	}
-	callID := strings.TrimSpace(path.Base(strings.TrimSuffix(parsed.Path, "/")))
-	if callID == "" || callID == "." || callID == "codex" {
-		return "", errors.New("live upstream Location has no call id")
-	}
-	return callID, nil
+	return nativeopenai.LiveCallIDFromLocation(location)
 }
 
 func applyLiveUpstreamIdentityHeaders(headers http.Header) {
-	headers.Set("OpenAI-Alpha", "quicksilver=v2")
-	ensureCodexIdentityHeaders(headers)
-	enforceCodexIdentityHeaders(headers)
-	if strings.TrimSpace(headers.Get("session-id")) == "" {
-		headers.Set("session-id", uuid.NewString())
-	}
-	if strings.TrimSpace(headers.Get("thread-id")) == "" {
-		headers.Set("thread-id", uuid.NewString())
-	}
-	// Realtime/Live 不使用 Responses 的实验头。
-	headers.Del("OpenAI-Beta")
+	nativeopenai.ApplyLiveUpstreamIdentityHeaders(headers)
 }
 
 // applyLiveUpstreamRouting 同步应用 fork 的 UA 路由和 TLS 身份配对规则。
@@ -552,18 +458,8 @@ func (s *OpenAIGatewayService) dialLiveSidebandForAccount(ctx context.Context, r
 	if err != nil {
 		return nil, err
 	}
-	target := strings.TrimRight(chatGPTLiveSidebandBaseURL, "/") + "/" + url.PathEscape(record.CallID)
 	tlsProfile, _ := s.resolveOpenAIWSTLSProfile(account, tlsRouterMatch)
-	conn, status, _, err := s.getOpenAIWSPassthroughDialer().Dial(ctx, target, headers, resolveAccountProxyURL(account), tlsProfile)
-	if err != nil {
-		return nil, fmt.Errorf("dial live sideband (status %d): %w", status, err)
-	}
-	raw, ok := conn.(liveFrameConn)
-	if !ok {
-		_ = conn.Close()
-		return nil, errors.New("live sideband transport does not support raw frames")
-	}
-	return raw, nil
+	return nativeopenai.DialLiveSideband(ctx, s.getOpenAIWSPassthroughDialer(), chatGPTLiveSidebandBaseURL, record.CallID, headers, resolveAccountProxyURL(account), tlsProfile)
 }
 
 // matchLiveTLSFingerprintRouter 使用创建 Live 会话时记录的入站 UA 选择 fork 的 TLS 路由模板。

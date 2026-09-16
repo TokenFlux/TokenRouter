@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=5",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "-parallel=1",
+    "./internal/service",
+    "-run",
+    "^TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter$|^TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 12.048,
+  "pass": 10,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-fixed-original-ws-race.log.gz"
+}

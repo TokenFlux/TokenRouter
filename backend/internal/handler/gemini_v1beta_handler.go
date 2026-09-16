@@ -13,8 +13,6 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/googleapi"
 	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
@@ -22,6 +20,8 @@ import (
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	gemini "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

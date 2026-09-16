@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -149,9 +149,9 @@ func TestAntigravityRetryLoop_NoURLFallback_UsesConfiguredBaseURL(t *testing.T) 
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.NotNil(t, result.resp)
-	defer func() { _ = result.resp.Body.Close() }()
-	require.Equal(t, http.StatusTooManyRequests, result.resp.StatusCode)
+	require.NotNil(t, result.Resp)
+	defer func() { _ = result.Resp.Body.Close() }()
+	require.Equal(t, http.StatusTooManyRequests, result.Resp.StatusCode)
 	require.True(t, handleErrorCalled)
 	require.Len(t, upstream.calls, antigravityMaxRetries)
 	for _, callURL := range upstream.calls {

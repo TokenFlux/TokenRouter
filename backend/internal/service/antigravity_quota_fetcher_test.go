@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
 // ---------------------------------------------------------------------------

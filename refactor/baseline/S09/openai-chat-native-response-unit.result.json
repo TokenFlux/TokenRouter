@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai/...",
+    "./internal/service",
+    "-run",
+    "Chat.*(Stream|Buffer)|OpenAI.*Chat|Chat.*OpenAI|SilentRefusal|EmptyCompleted"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.673,
+  "pass": 109,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-chat-native-response-unit.log.gz"
+}

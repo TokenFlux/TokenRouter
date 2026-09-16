@@ -1,0 +1,1154 @@
+[
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 3396,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 3319,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 1402,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages.go",
+    "Offset": 5404,
+    "Old": "handled",
+    "New": "Handled"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages.go",
+    "Offset": 5418,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 3349,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 3377,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_service.go",
+    "Offset": 16551,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages.go",
+    "Offset": 7153,
+    "Old": "handled",
+    "New": "Handled"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 19684,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 13721,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 26839,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 31215,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_compat.go",
+    "Offset": 7781,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 6741,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages.go",
+    "Offset": 6994,
+    "Old": "handled",
+    "New": "Handled"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 4195,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_service.go",
+    "Offset": 16835,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 10151,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_service.go",
+    "Offset": 16446,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages.go",
+    "Offset": 5895,
+    "Old": "handled",
+    "New": "Handled"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_gemini.go",
+    "Offset": 6310,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 17955,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_service.go",
+    "Offset": 16757,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 8649,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 12911,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_claude.go",
+    "Offset": 9147,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 26713,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 12112,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 5022,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 9242,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages.go",
+    "Offset": 6510,
+    "Old": "handled",
+    "New": "Handled"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 7978,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 12868,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 5080,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 4957,
+    "Old": "handled",
+    "New": "Handled"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_gemini.go",
+    "Offset": 10210,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_claude.go",
+    "Offset": 5520,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 8688,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 10112,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 6783,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 16903,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 16942,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages.go",
+    "Offset": 7009,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 5065,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 12069,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 26572,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_claude.go",
+    "Offset": 13897,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 17994,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 8023,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 13763,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 26757,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 9198,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 19643,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_service.go",
+    "Offset": 16625,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 14014,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 4975,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 26936,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_gateway_retry.go",
+    "Offset": 26891,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 35043,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 4930,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 21496,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 4838,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 14311,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 26246,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 8353,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 44347,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 32947,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 4127,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 25972,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 26054,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 30573,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 42075,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 31929,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 16301,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 11246,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 22707,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 33019,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 37731,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 5344,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_rate_limit_test.go",
+    "Offset": 4844,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 4184,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 11455,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 39921,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 6244,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 17437,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 9514,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 26281,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 4096,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 25941,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 31814,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 30398,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 5988,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 16334,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 15582,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 26169,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 42146,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 4567,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 28242,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 8476,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 24228,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 21724,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 6113,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 19715,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages_test.go",
+    "Offset": 4393,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_rate_limit_test.go",
+    "Offset": 4877,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 11277,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 31777,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 21692,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 21416,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 6190,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 28430,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 24340,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages_test.go",
+    "Offset": 4330,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 12597,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 24194,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 31743,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 21826,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 5450,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 7361,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 5878,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 19848,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 35081,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 42109,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 16393,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 18206,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 26211,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 19614,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 18360,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 28211,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 11381,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 11510,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 12898,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 19866,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 14243,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 9605,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 21661,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 5379,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 11998,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages_test.go",
+    "Offset": 6558,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 12031,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 28324,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 19527,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 18303,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 4798,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 15173,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 19980,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_rate_limit_test.go",
+    "Offset": 4952,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 15314,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 40004,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages_test.go",
+    "Offset": 4364,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 12733,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 15108,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 15666,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 4695,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 20008,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 8436,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 47365,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 39887,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 17554,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 17471,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 11136,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 19951,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 14283,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 8319,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 4156,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/error_policy_integration_test.go",
+    "Offset": 12107,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 30533,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 17670,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 7188,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 22674,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 44384,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 30432,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 12858,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 21450,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 14126,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 7269,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 5909,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 8504,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 18332,
+    "Old": "err",
+    "New": "Err"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 37804,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 35009,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_credits_overages_test.go",
+    "Offset": 6524,
+    "Old": "action",
+    "New": "Action"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 47402,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 28484,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 17594,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_single_account_retry_test.go",
+    "Offset": 19755,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 14160,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 11167,
+    "Old": "resp",
+    "New": "Resp"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 37766,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 40044,
+    "Old": "switchError",
+    "New": "SwitchError"
+  },
+  {
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/antigravity_smart_retry_test.go",
+    "Offset": 6019,
+    "Old": "switchError",
+    "New": "SwitchError"
+  }
+]

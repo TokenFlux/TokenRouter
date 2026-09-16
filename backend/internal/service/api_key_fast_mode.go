@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )

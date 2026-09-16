@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=10",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "^TestGetOpenAIUsage_SparkShadow_WritesExtraAndReturnsNonEmptyWindows$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 28.396,
+  "pass": 10,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-shadow-fixture-fixed-race.log.gz"
+}

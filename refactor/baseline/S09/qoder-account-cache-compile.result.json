@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/account",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "Qoder|qoder"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.816,
+  "pass": 429,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/qoder-account-cache-compile.log.gz"
+}

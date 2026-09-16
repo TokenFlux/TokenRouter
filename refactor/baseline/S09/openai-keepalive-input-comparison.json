@@ -1,0 +1,14 @@
+{
+  "test": "TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle",
+  "inputs": [
+    {
+      "path": "backend/internal/service/openai_gateway_service_test.go",
+      "test_sha256": "6e6a6b5b3558ebb30ad5428f99004f53257f23631d57f1293bd08631ed8f176f"
+    },
+    {
+      "path": "/tmp/tokenrouter-s09-openai-acceptance-original/backend/internal/service/openai_gateway_service_test.go",
+      "test_sha256": "6e6a6b5b3558ebb30ad5428f99004f53257f23631d57f1293bd08631ed8f176f"
+    }
+  ],
+  "identical": true
+}

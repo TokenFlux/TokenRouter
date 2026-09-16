@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // QuotaFetcher 额度获取接口，各平台实现此接口
@@ -12,8 +14,4 @@ type QuotaFetcher interface {
 	FetchQuota(ctx context.Context, account *Account, proxyURL string) (*QuotaResult, error)
 }
 
-// QuotaResult 额度获取结果
-type QuotaResult struct {
-	UsageInfo *UsageInfo     // 转换后的使用信息
-	Raw       map[string]any // 原始响应，可存入 account.Extra
-}
+type QuotaResult = account.QuotaResult

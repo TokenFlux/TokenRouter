@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -10,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -17,33 +18,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// effectiveOpenAISSEEventType 优先使用 payload 内的 type，兼容 event 行与 data 行分离的 SSE。
 func effectiveOpenAISSEEventType(payload []byte, eventType string) string {
-	if value := strings.TrimSpace(gjson.GetBytes(payload, "type").String()); value != "" {
-		return value
-	}
-	return strings.TrimSpace(eventType)
-}
-
-// (s *OpenAIGatewayService) parseSSEUsageBytesWithType 兼容带 event 类型的用量解析入口。
-// 旧实现没有 event 参数，因此先复用原有解析器，保持已有字段合并语义。
-func (s *OpenAIGatewayService) parseSSEUsageBytesWithType(data []byte, eventType string, usage *OpenAIUsage) {
-	if usage == nil || len(data) == 0 || bytes.Equal(bytes.TrimSpace(data), []byte("[DONE]")) {
-		return
-	}
-	parsedUsage, ok := extractOpenAIUsageFromJSONBytes(data)
-	if !ok {
-		return
-	}
-	if openAIStreamEventTypeIsTerminal(effectiveOpenAISSEEventType(data, eventType)) {
-		// 某些兼容上游会在 completed 事件附带全零占位 usage；该占位不能
-		// 覆盖此前已收到的真实用量。终态只在至少有一个非零字段时生效。
-		if openAIUsageHasTokens(&parsedUsage) {
-			*usage = parsedUsage
-		}
-		return
-	}
-	mergeOpenAIUsageNonZero(usage, parsedUsage)
+	return s09openai.EffectiveOpenAISSEEventType(payload, eventType)
 }
 
 const openAIMissingUsageLogInterval = time.Minute
@@ -146,8 +122,7 @@ func openAIStreamGenericFailedEventPayload(_ ...[]byte) []byte {
 }
 
 func openAIUsageHasTokens(usage *OpenAIUsage) bool {
-	return usage != nil && (usage.InputTokens > 0 || usage.OutputTokens > 0 || usage.ImageOutputTokens > 0 ||
-		usage.CacheCreationInputTokens > 0 || usage.CacheReadInputTokens > 0 || usage.ImageInputTokens > 0)
+	return s09openai.OpenAIUsageHasTokens(usage)
 }
 
 // openAIRequestPayloadView 解包 Responses WS 事件，返回实际请求对象视图。

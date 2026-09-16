@@ -2,37 +2,16 @@ package service
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
-// 固定的 CLI 身份别名，唯一数据源为 internal/pkg/xai。
-const (
-	grokClientVersionHeader    = xai.CLIStableVersion
-	grokClientIdentifierHeader = xai.CLIClientIdentifier
-	grokClientModeHeader       = xai.CLIClientMode
-)
+func defaultGrokUpstreamUserAgent() string { return xai.DefaultGrokUpstreamUserAgent() }
 
-// defaultGrokUpstreamUserAgent 返回固定的 Grok CLI 或工作区用户代理。
-// Grok 上游不得转发 Claude Code、Codex 或浏览器客户端的用户代理。
-func defaultGrokUpstreamUserAgent() string {
-	return xai.CLIUserAgent(xai.ResolveCLIVersion())
-}
-
-func applyDefaultGrokUpstreamHeaders(req *http.Request) {
-	if req == nil {
-		return
-	}
-	// 始终写入 CLI 身份，不保留 Claude Code、Codex、curl 等入站客户端用户代理，
-	// 因为 xAI 对话与 CLI 接口会识别客户端字符串。
-	req.Header.Set("User-Agent", defaultGrokUpstreamUserAgent())
-	req.Header.Set("x-grok-client-version", xai.ResolveCLIVersion())
-	req.Header.Set("x-grok-client-identifier", grokClientIdentifierHeader)
-}
+func applyDefaultGrokUpstreamHeaders(req *http.Request) { xai.ApplyDefaultGrokUpstreamHeaders(req) }
 
 func applyGrokTLSProfileHeaders(req *http.Request, profile *tlsfingerprint.Profile) {
 	// 当前 Profile 仅包含 TLS 信息，不含 HTTP UserAgent 或 Originator 字段，因此始终写入 CLI 身份。
@@ -50,16 +29,7 @@ type openAITLSFingerprintRuntime struct {
 }
 
 func applyGrokRuntimeHeaders(req *http.Request, runtime openAITLSFingerprintRuntime) {
-	applyDefaultGrokUpstreamHeaders(req)
-	if req == nil {
-		return
-	}
-	// 仅应用 Originator，随后强制覆盖为 CLI 用户代理，避免路由配置将 Codex 或
-	// Claude Code 身份泄露给 Grok 上游。
-	if originator := strings.TrimSpace(runtime.UpstreamOriginator); originator != "" {
-		req.Header.Set("Originator", originator)
-	}
-	req.Header.Set("User-Agent", defaultGrokUpstreamUserAgent())
+	xai.ApplyGrokRuntimeHeaders(req, runtime.UpstreamOriginator)
 }
 
 // resolveGrokUpstreamUserAgent 始终返回固定的 Grok CLI 用户代理。

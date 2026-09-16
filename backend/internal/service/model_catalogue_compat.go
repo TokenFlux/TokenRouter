@@ -3,10 +3,11 @@ package service
 
 import (
 	context "context"
-	qoder "github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	slog "log/slog"
 	slices "slices"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 func legacyCatalogueDefaults() routing.CatalogueDefaults {

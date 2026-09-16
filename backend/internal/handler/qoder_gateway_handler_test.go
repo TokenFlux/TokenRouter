@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/model"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

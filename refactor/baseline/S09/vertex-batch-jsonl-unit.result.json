@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/upstream/vertex",
+    "./internal/upstream/internal/googleauth",
+    "-run",
+    "Test.*Vertex"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.811,
+  "pass": 49,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/vertex-batch-jsonl-unit.log.gz"
+}

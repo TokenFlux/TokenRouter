@@ -3,7 +3,7 @@ package service
 import (
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // 内置视频默认价格使用的标准模型族。

@@ -5,15 +5,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"net/url"
 	"slices"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 const accountTestSuppressCompletionContextKey = "account_test_suppress_completion"

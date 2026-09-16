@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/protocol/openai",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "RawChat|RawStream|CCStream|Chat.*Tool|Chat.*Usage|StreamReadError|StreamTruncat|ChatCompletionServiceTier"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.726,
+  "pass": 142,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-raw-wire-unit.log.gz"
+}

@@ -7,17 +7,12 @@ import (
 	"strconv"
 	"strings"
 
-	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
-	"github.com/cespare/xxhash/v2"
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 )
 
-// shortHash 使用 XXHash64 + Base36 生成短 hash（16 字符）
-// XXHash64 比 SHA256 快约 10 倍，Base36 比 Hex 短约 20%
-func shortHash(data []byte) string {
-	h := xxhash.Sum64(data)
-	return strconv.FormatUint(h, 36)
-}
+func shortHash(data []byte) string { return upstream.ShortHash(data) }
 
 // BuildGeminiDigestChain 根据 Gemini 请求生成摘要链
 // 格式: s:<hash>-u:<hash>-m:<hash>-u:<hash>-...

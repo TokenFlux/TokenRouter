@@ -95,7 +95,7 @@ func TestCompositeTokenCacheInvalidator_Antigravity(t *testing.T) {
 func TestCompositeTokenCacheInvalidator_QoderCosy(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
 	provider := NewQoderTokenProvider()
-	provider.sessions[42] = qoderSessionCacheEntry{credentialsHash: "old"}
+	provider.qoderState().Sessions[42] = qoderSessionCacheEntry{CredentialsHash: "old"}
 	invalidator := NewCompositeTokenCacheInvalidator(cache, provider)
 	account := &Account{
 		ID:       42,
@@ -107,15 +107,15 @@ func TestCompositeTokenCacheInvalidator_QoderCosy(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Contains(t, cache.deletedKeys, "qoder:account:42")
-	provider.mu.Lock()
-	_, cached := provider.sessions[42]
-	provider.mu.Unlock()
+	provider.qoderState().Mu.Lock()
+	_, cached := provider.qoderState().Sessions[42]
+	provider.qoderState().Mu.Unlock()
 	require.False(t, cached, "qoder provider session cache should be invalidated too")
 }
 
 func TestCompositeTokenCacheInvalidator_QoderCosyInvalidatesProviderWithoutExternalCache(t *testing.T) {
 	provider := NewQoderTokenProvider()
-	provider.sessions[43] = qoderSessionCacheEntry{credentialsHash: "old"}
+	provider.qoderState().Sessions[43] = qoderSessionCacheEntry{CredentialsHash: "old"}
 	invalidator := NewCompositeTokenCacheInvalidator(nil, provider)
 	account := &Account{
 		ID:       43,
@@ -126,9 +126,9 @@ func TestCompositeTokenCacheInvalidator_QoderCosyInvalidatesProviderWithoutExter
 	err := invalidator.InvalidateToken(context.Background(), account)
 
 	require.NoError(t, err)
-	provider.mu.Lock()
-	_, cached := provider.sessions[43]
-	provider.mu.Unlock()
+	provider.qoderState().Mu.Lock()
+	_, cached := provider.qoderState().Sessions[43]
+	provider.qoderState().Mu.Unlock()
 	require.False(t, cached)
 }
 

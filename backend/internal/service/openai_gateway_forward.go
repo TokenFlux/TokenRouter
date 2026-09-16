@@ -5,15 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -230,7 +232,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	compatMessagesBridge := isOpenAICompatMessagesBridgeBody(body)
 	setOpenAICompatMessagesBridgeContext(c, compatMessagesBridge)
 
-	isCodexCLI := openai.IsCodexOfficialClientByHeaders(c.GetHeader("User-Agent"), c.GetHeader("originator")) || (s.cfg != nil && s.cfg.Gateway.ForceCodexCLI)
+	isCodexCLI := nativeopenai.IsCodexOfficialClientByHeaders(c.GetHeader("User-Agent"), c.GetHeader("originator")) || (s.cfg != nil && s.cfg.Gateway.ForceCodexCLI)
 	codexImageGenerationExplicitToolPolicy := codexImageGenerationExplicitToolPolicyAllow
 	if isCodexCLI {
 		codexImageGenerationExplicitToolPolicy = account.CodexImageGenerationExplicitToolPolicy()
@@ -1007,57 +1009,29 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	rejectedFieldRetryState := newOpenAIResponsesRejectedFieldRetryState(body)
 	for {
 
-		upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-		var headerGuard *openAIFirstOutputHeaderGuard
-		if firstOutputTimeout > 0 {
-			upstreamCtx, headerGuard = newOpenAIFirstOutputHeaderGuard(
-				upstreamCtx, releaseUpstreamCtx, startTime.Add(firstOutputTimeout),
-			)
-		}
-		upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, body, token, reqStream, promptCacheKey, isCodexCLI, tlsRouterMatch)
-		if headerGuard == nil {
-			releaseUpstreamCtx()
-		}
+		resp, err := nativeopenai.ExchangeHTTP(ctx, body, nativeopenai.HTTPExchangeOptions{
+			StartedAt:          startTime,
+			FirstOutputTimeout: firstOutputTimeout,
+			RequestContext:     detachUpstreamContext,
+			Build: func(ctx context.Context, body []byte) (*http.Request, error) {
+				return s.buildUpstreamRequest(ctx, c, account, body, token, reqStream, promptCacheKey, isCodexCLI, tlsRouterMatch)
+			},
+			ApplyHeaders: func(headers http.Header) { applyCodexFingerprintHeaders(headers, fingerprintIDs) },
+			Do: func(request *http.Request) (*http.Response, error) {
+				proxyURL := ""
+				if account.ProxyID != nil && account.Proxy != nil {
+					proxyURL = account.Proxy.URL()
+				}
+				return s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch))
+			},
+			Latency: func(elapsed time.Duration) { SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, elapsed.Milliseconds()) },
+			HeaderTimeout: func() error {
+				return s.newOpenAIFirstOutputTimeoutError(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
+			},
+			TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false) },
+		})
 		if err != nil {
-			if headerGuard != nil {
-				headerGuard.close()
-			}
 			return nil, err
-		}
-		// 内部重试每次都会重建 request，必须重复应用与 body 相同的指纹 IDs。
-		applyCodexFingerprintHeaders(upstreamReq.Header, fingerprintIDs)
-
-		proxyURL := ""
-		if account.ProxyID != nil && account.Proxy != nil {
-			proxyURL = account.Proxy.URL()
-		}
-
-		upstreamStart := time.Now()
-		resp, err := s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch))
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-		if headerGuard != nil && headerGuard.stopHeaderWait() {
-			if resp != nil && resp.Body != nil {
-				_ = resp.Body.Close()
-			}
-			headerGuard.close()
-			return nil, s.newOpenAIFirstOutputTimeoutError(
-				ctx, c, account, startTime, originalModel, reasoningEffortValue,
-				firstOutputTimeout, "response_headers", nil,
-			)
-		}
-		if err != nil {
-			if resp != nil && resp.Body != nil {
-				_ = resp.Body.Close()
-			}
-			if headerGuard != nil {
-				headerGuard.close()
-			}
-			// 传输层故障（代理、DNS、TCP、TLS，且没有 HTTP 响应）转为 failover，
-			// 让 handler 切换到健康账号；持久故障会临时摘除账号。
-			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
-		}
-		if headerGuard != nil {
-			resp.Body = &openAIRequestContextReadCloser{ReadCloser: resp.Body, cleanup: headerGuard.close}
 		}
 
 		if resp.StatusCode >= 400 {
@@ -1096,7 +1070,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 						s.markOpenAIWSInvalidEncryptedContentLineage(lineageGroupID, lineageSessionHash, invalidDigests)
 					}
 					httpInvalidEncryptedContentRetryTried = true
-					rejectedFieldRetryState.remember(body)
+					rejectedFieldRetryState.Remember(body)
 					logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Retrying non-WSv2 request once after invalid_encrypted_content (account: %s)", account.Name)
 					continue
 				}
@@ -1355,119 +1329,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	// previous_response_id，避免携带状态字段被上游拒绝。
 	body = normalizeDeepSeekResponsesRequestBody(account, body)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
-
-	// Agent Identity 在这里为当前请求生成新 assertion，其它认证模式继续使用原有 Bearer 语义。
-	authHeaders, err := s.buildOpenAIAuthenticationHeaders(ctx, account, token)
-	if err != nil {
-		return nil, fmt.Errorf("build openai authentication headers: %w", err)
-	}
-	for key, values := range authHeaders {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
-
-	// Set headers specific to OAuth accounts (ChatGPT internal API)
-	if account.UsesOpenAICodexProtocol() {
-		// Required: set Host for ChatGPT API (must use req.Host, not Header.Set)
-		req.Host = "chatgpt.com"
-		if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, req.Header, account); err != nil {
-			return nil, fmt.Errorf("resolve chatgpt account headers: %w", err)
-		}
-	}
-
-	// Whitelist passthrough headers
-	for key, values := range c.Request.Header {
-		lowerKey := strings.ToLower(key)
-		if openaiAllowedHeaders[lowerKey] {
-			for _, v := range values {
-				req.Header.Add(key, v)
-			}
-		}
-	}
-	// 故障转移换号后，不能把已知由旧账号签发的回合状态继续送往新账号。
-	s.guardOpenAICodexTurnStateEcho(c, account, req.Header)
-	if account.UsesOpenAICodexProtocol() {
-		compatMessagesBridge := isOpenAICompatMessagesBridgeContext(c) || isOpenAICompatMessagesBridgeBody(body)
-		// 清除客户端透传的 session 头，后续用隔离后的值重新设置，防止跨用户会话碰撞。
-		clientConversationID := strings.TrimSpace(req.Header.Get("conversation_id"))
-		req.Header.Del("conversation_id")
-		req.Header.Del("session_id")
-
-		if compatMessagesBridge {
-			req.Header.Del("OpenAI-Beta")
-			req.Header.Del("originator")
-		} else {
-			req.Header.Set("originator", resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...))
-		}
-		apiKeyID := getAPIKeyIDFromContext(c)
-		if isOpenAIResponsesCompactPath(c) {
-			req.Header.Set("accept", "application/json")
-			if req.Header.Get("version") == "" {
-				req.Header.Set("version", CodexCanonicalClientVersion())
-			}
-			compactSession := resolveOpenAICompactSessionID(c)
-			req.Header.Set("session_id", isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), compactSession))
-		} else {
-			req.Header.Set("accept", "text/event-stream")
-		}
-		if promptCacheKey != "" {
-			isolated := isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), promptCacheKey)
-			req.Header.Set("session_id", isolated)
-			if !compatMessagesBridge || clientConversationID != "" {
-				req.Header.Set("conversation_id", isolated)
-			}
-		}
-	} else if isOpenAIResponsesCompactPath(c) {
-		// compact 上游是 unary JSON 协议：API-key 账号也显式声明 Accept，
-		// 避免 OpenAI 兼容网关按 SSE 返回（#3777 期望行为 4）。
-		req.Header.Set("accept", "application/json")
-	}
-
-	// 根据 TLS 路由规则、账号配置与全局兜底决定最终上游 User-Agent。
-	s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, false, routerMatch...)
-
-	// 若开启 ForceCodexCLI，则强制将上游 User-Agent 伪装为规范 Codex 身份。
-	// 用于网关未透传/改写 User-Agent 时，仍能命中 Codex 侧识别逻辑。
-	if s.cfg != nil && s.cfg.Gateway.ForceCodexCLI {
-		req.Header.Set("user-agent", CodexCanonicalUserAgent())
-	}
-
-	// 账号 namespace 不改变客户端身份基数，但确保 scheduler failover 后不会把
-	// 同一组 Codex IDs 发送给另一份 OAuth 凭据。可选指纹收敛随后仍可覆盖这些值。
-	applyCodexAccountIdentityHeaders(req.Header, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c))
-
-	// 指纹收敛：使用 Forward() 中预计算的收敛 ID 改写出站头，与请求体使用同一份 IDs。
-	applyStagedCodexFingerprintHeaders(c, account, req.Header)
-
-	// 终态收口：强制统一 OAuth 出站身份（User-Agent / originator / version 同源自洽）。
-	// 客户端自报身份不参与构造，浏览器型 UA 也因此不会再到达上游（原浏览器 UA 兜底已被吸收）。
-	if account.UsesOpenAICodexProtocol() {
-		enforceCodexIdentityHeadersWithUA(req.Header, "")
-	}
-
-	// Ensure required headers exist
-	if req.Header.Get("content-type") == "" {
-		req.Header.Set("content-type", "application/json")
-	}
-
-	// 账号级请求头覆写（仅 openai api_key 账号启用时生效；OAuth 路径 no-op）
-	account.ApplyHeaderOverrides(req.Header)
-	// 原生 V2 必须携带协商能力；OAuth 的普通 Responses 请求也对齐 Codex 的
-	// 会话级 beta 头行为。
-	applyOpenCodeSessionHeader(c, account, targetURL, req.Header)
-	// x-codex-beta-features：按真实 Codex 的会话级行为补注（在账号级覆写之后，
-	// 保证不被覆盖丢失）。
-	applyOpenAICodexBetaFeatures(c, account, req.Header)
-	setOpenAICodexRoutingHintFromBody(req.Header, account, body)
-	logOpenAIRoutingDiagnosticsFromBody(ctx, account, "http", req.Header, body, "not_applicable")
-
-	return req, nil
+	return nativeopenai.BuildResponsesRequest(ctx, body, promptCacheKey, s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, isCodexCLI, routerMatch...))
 }
 
 // overrideBrowserUserAgent 检查请求的最终 user-agent，若为浏览器 UA 则替换为后台配置的 Codex UA。
@@ -1482,7 +1344,7 @@ func (s *OpenAIGatewayService) overrideBrowserUserAgent(ctx context.Context, acc
 		return
 	}
 	currentUA := req.Header.Get("user-agent")
-	if !openai.IsBrowserUserAgent(currentUA) {
+	if !nativeopenai.IsBrowserUserAgent(currentUA) {
 		return
 	}
 	codexUA := DefaultOpenAICodexUserAgent

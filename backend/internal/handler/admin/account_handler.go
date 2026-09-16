@@ -6,23 +6,10 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
-
-// OAuthHandler handles OAuth-related operations for accounts
-type OAuthHandler struct {
-	oauthService *service.OAuthService
-}
-
-// NewOAuthHandler creates a new OAuth handler
-func NewOAuthHandler(oauthService *service.OAuthService) *OAuthHandler {
-	return &OAuthHandler{
-		oauthService: oauthService,
-	}
-}
 
 // AccountHandler handles admin account management
 type AccountHandler struct {
@@ -241,148 +228,6 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) { h.managementHTTP().BulkUpd
 
 // ========== OAuth Handlers ==========
 
-// GenerateAuthURLRequest represents the request for generating auth URL
-type GenerateAuthURLRequest struct {
-	ProxyID *int64 `json:"proxy_id"`
-}
-
-// GenerateAuthURL generates OAuth authorization URL with full scope
-// POST /api/v1/admin/accounts/generate-auth-url
-func (h *OAuthHandler) GenerateAuthURL(c *gin.Context) {
-	var req GenerateAuthURLRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		// Allow empty body
-		req = GenerateAuthURLRequest{}
-	}
-
-	result, err := h.oauthService.GenerateAuthURL(c.Request.Context(), req.ProxyID)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, result)
-}
-
-// GenerateSetupTokenURL generates OAuth authorization URL for setup token (inference only)
-// POST /api/v1/admin/accounts/generate-setup-token-url
-func (h *OAuthHandler) GenerateSetupTokenURL(c *gin.Context) {
-	var req GenerateAuthURLRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		// Allow empty body
-		req = GenerateAuthURLRequest{}
-	}
-
-	result, err := h.oauthService.GenerateSetupTokenURL(c.Request.Context(), req.ProxyID)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, result)
-}
-
-// ExchangeCodeRequest represents the request for exchanging auth code
-type ExchangeCodeRequest struct {
-	SessionID string `json:"session_id" binding:"required"`
-	Code      string `json:"code" binding:"required"`
-	ProxyID   *int64 `json:"proxy_id"`
-}
-
-// ExchangeCode exchanges authorization code for tokens
-// POST /api/v1/admin/accounts/exchange-code
-func (h *OAuthHandler) ExchangeCode(c *gin.Context) {
-	var req ExchangeCodeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	tokenInfo, err := h.oauthService.ExchangeCode(c.Request.Context(), &service.ExchangeCodeInput{
-		SessionID: req.SessionID,
-		Code:      req.Code,
-		ProxyID:   req.ProxyID,
-	})
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, tokenInfo)
-}
-
-// ExchangeSetupTokenCode exchanges authorization code for setup token
-// POST /api/v1/admin/accounts/exchange-setup-token-code
-func (h *OAuthHandler) ExchangeSetupTokenCode(c *gin.Context) {
-	var req ExchangeCodeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	tokenInfo, err := h.oauthService.ExchangeCode(c.Request.Context(), &service.ExchangeCodeInput{
-		SessionID: req.SessionID,
-		Code:      req.Code,
-		ProxyID:   req.ProxyID,
-	})
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, tokenInfo)
-}
-
-// CookieAuthRequest represents the request for cookie-based authentication
-type CookieAuthRequest struct {
-	SessionKey string `json:"code" binding:"required"` // Using 'code' field as sessionKey (frontend sends it this way)
-	ProxyID    *int64 `json:"proxy_id"`
-}
-
-// CookieAuth performs OAuth using sessionKey (cookie-based auto-auth)
-// POST /api/v1/admin/accounts/cookie-auth
-func (h *OAuthHandler) CookieAuth(c *gin.Context) {
-	var req CookieAuthRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	tokenInfo, err := h.oauthService.CookieAuth(c.Request.Context(), &service.CookieAuthInput{
-		SessionKey: req.SessionKey,
-		ProxyID:    req.ProxyID,
-		Scope:      "full",
-	})
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, tokenInfo)
-}
-
-// SetupTokenCookieAuth performs OAuth using sessionKey for setup token (inference only)
-// POST /api/v1/admin/accounts/setup-token-cookie-auth
-func (h *OAuthHandler) SetupTokenCookieAuth(c *gin.Context) {
-	var req CookieAuthRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	tokenInfo, err := h.oauthService.CookieAuth(c.Request.Context(), &service.CookieAuthInput{
-		SessionKey: req.SessionKey,
-		ProxyID:    req.ProxyID,
-		Scope:      "inference",
-	})
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, tokenInfo)
-}
-
 func (h *AccountHandler) GetUsage(c *gin.Context) {
 	accounthttp.NewOAuthUsageHandler(h.accountUsageService.Core(), h.accountUsageService.LocalStatistics()).GetUsage(c)
 }
@@ -465,4 +310,14 @@ func (h *AccountHandler) BatchRefreshTier(c *gin.Context) { h.managementHTTP().B
 // GetAntigravityDefaultModelMapping 委托默认表的只读展示。
 func (h *AccountHandler) GetAntigravityDefaultModelMapping(c *gin.Context) {
 	h.managementHTTP().GetAntigravityDefaultModelMapping(c)
+}
+
+// 旧 OAuth 构造只绑定唯一账号 HTTP 实现，S15/S16 清理。
+type OAuthHandler = accounthttp.ClaudeOAuthHandler
+type GenerateAuthURLRequest = accounthttp.ClaudeGenerateAuthURLRequest
+type ExchangeCodeRequest = accounthttp.ClaudeExchangeCodeRequest
+type CookieAuthRequest = accounthttp.ClaudeCookieAuthRequest
+
+func NewOAuthHandler(s *service.OAuthService) *OAuthHandler {
+	return accounthttp.NewClaudeOAuthHandler(s.ClaudeAuthorization)
 }

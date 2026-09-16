@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/service",
+    "./internal/account/...",
+    "./internal/repository",
+    "./internal/upstream/gemini/...",
+    "./internal/upstream/qoder",
+    "./internal/gateway",
+    "-run",
+    "^(Test.*Gemini.*|Test.*Qoder.*|Test.*Creative.*|Test.*EmptyParts.*|Test.*ResourceManager.*|TestGenerateImagesLocalWireAndLastOutput|TestBatchClientLocalTLSAndStreamCancellation)$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 11.033,
+  "pass": 640,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/gemini-final-normal.log.gz"
+}

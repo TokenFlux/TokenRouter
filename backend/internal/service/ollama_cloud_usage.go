@@ -6,16 +6,14 @@ import (
 	sql "database/sql"
 	errors "errors"
 	fmt "fmt"
+	rand "math/rand/v2"
+	time "time"
+
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	logger "github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/ollama"
 	uuid "github.com/google/uuid"
-	rand "math/rand/v2"
-	http "net/http"
-	url "net/url"
-	strconv "strconv"
-	strings "strings"
-	time "time"
 )
 
 type OllamaCloudUsageService struct {
@@ -50,7 +48,7 @@ const (
 	// 活动可以把刷新提前到该边界，但不能越过；导出该常量供仓储 SQL 到期筛选复用。
 	OllamaCloudUsageMinFetchInterval = acctcore.OllamaCloudUsageMinFetchInterval
 
-	ollamaCloudUsageSettingsURL            = "https://ollama.com/settings"
+	ollamaCloudUsageSettingsURL            = ollama.SettingsURL
 	ollamaCloudUsageDefaultIntervalMinutes = acctcore.OllamaCloudUsageDefaultIntervalMinutes
 	ollamaCloudUsageMinIntervalMinutes     = acctcore.OllamaCloudUsageMinIntervalMinutes
 	ollamaCloudUsageMaxIntervalMinutes     = acctcore.OllamaCloudUsageMaxIntervalMinutes
@@ -59,8 +57,8 @@ const (
 	ollamaCloudUsageMaxDebounceMinutes     = acctcore.OllamaCloudUsageMaxDebounceMinutes
 	ollamaCloudUsageCycleInterval          = time.Minute
 	ollamaCloudUsageManualRefreshInterval  = 30 * time.Second
-	ollamaCloudUsageRequestTimeout         = 15 * time.Second
-	ollamaCloudUsageMaxBodyBytes           = 512 * 1024
+	ollamaCloudUsageRequestTimeout         = ollama.RequestTimeout
+	ollamaCloudUsageMaxBodyBytes           = ollama.MaxBodyBytes
 	ollamaCloudUsageMaxSessionBytes        = 16 * 1024
 	ollamaCloudUsageMaxPerCycle            = 20
 	ollamaCloudUsageConcurrency            = 4
@@ -76,7 +74,6 @@ var (
 	ErrOllamaCloudUsageEncryptionKey      = acctcore.ErrOllamaCloudUsageEncryptionKey
 	ErrOllamaCloudUsageIdentityChanged    = acctcore.ErrOllamaCloudUsageIdentityChanged
 	ErrOllamaCloudUsageRefreshRateLimited = acctcore.ErrOllamaCloudUsageRefreshRateLimited
-	errOllamaCloudUsageUnauthorizedHTML   = errors.New("settings HTML is a sign-in page")
 )
 
 const OllamaCloudUsageStatusOK = acctcore.OllamaCloudUsageStatusOK
@@ -168,10 +165,7 @@ func isOllamaCloudBaseURL(raw string) bool { return egress.IsOllamaCloudBaseURL(
 func ollamaCloudUsageGroupFingerprint(account *Account) (string, bool) {
 	return acctcore.OllamaCloudUsageGroupFingerprint(AccountRecordView(account))
 }
-func isExactOllamaCloudSettingsURL(parsed *url.URL) bool {
-	return parsed != nil && parsed.Scheme == "https" && parsed.Host == "ollama.com" && parsed.Path == "/settings" &&
-		parsed.User == nil && parsed.RawQuery == "" && parsed.Fragment == "" && parsed.RawPath == ""
-}
+
 func normalizeOllamaCloudUsageCookie(raw string) (string, error) {
 	return egress.NormalizeOllamaCloudUsageCookie(raw)
 }
@@ -180,22 +174,6 @@ func decodeOllamaCloudUsageSnapshot(extra map[string]any) *OllamaCloudUsageSnaps
 	return acctcore.DecodeOllamaCloudUsageSnapshot(extra)
 }
 
-// ollamaCloudUsageRetryAfter 解析上游限流响应要求的最短重试间隔。
-func ollamaCloudUsageRetryAfter(header http.Header, now time.Time) time.Duration {
-	value := strings.TrimSpace(header.Get("Retry-After"))
-	if value == "" {
-		return 0
-	}
-	if seconds, err := strconv.Atoi(value); err == nil && seconds > 0 {
-		return time.Duration(seconds) * time.Second
-	}
-	if at, err := http.ParseTime(value); err == nil {
-		if delay := at.Sub(now); delay > 0 {
-			return delay
-		}
-	}
-	return 0
-}
 func nextOllamaCloudUsageDelay(intervalMinutes, failureCount int, retryAfterDuration time.Duration) time.Duration {
 	return acctcore.NextOllamaCloudUsageDelay(intervalMinutes, failureCount, retryAfterDuration, rand.Int64N)
 }

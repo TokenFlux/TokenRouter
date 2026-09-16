@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,29 +47,4 @@ func TestCleanGeminiNativeThoughtSignatures_InvalidJSONReturnsOriginal(t *testin
 	cleaned := CleanGeminiNativeThoughtSignatures(input)
 
 	require.Equal(t, input, cleaned)
-}
-
-func TestReplaceThoughtSignaturesRecursive_OnlyReplacesTargetField(t *testing.T) {
-	input := map[string]any{
-		"thoughtSignature": "sig_root",
-		"signature":        "keep_signature",
-		"nested": []any{
-			map[string]any{
-				"thoughtSignature": "sig_nested",
-				"signature":        "keep_nested_signature",
-			},
-		},
-	}
-
-	got, ok := replaceThoughtSignaturesRecursive(input).(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, antigravity.DummyThoughtSignature, got["thoughtSignature"])
-	require.Equal(t, "keep_signature", got["signature"])
-
-	nested, ok := got["nested"].([]any)
-	require.True(t, ok)
-	nestedMap, ok := nested[0].(map[string]any)
-	require.True(t, ok)
-	require.Equal(t, antigravity.DummyThoughtSignature, nestedMap["thoughtSignature"])
-	require.Equal(t, "keep_nested_signature", nestedMap["signature"])
 }

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/stretchr/testify/require"
 )
 
@@ -120,13 +120,13 @@ func TestQoderOAuthServiceGenerateAuthURLCreatesSession(t *testing.T) {
 	session, ok := svc.sessionStore.Get(result.SessionID)
 	require.True(t, ok)
 	require.Equal(t, result.State, session.State)
-	require.NotNil(t, session.Machine)
-	require.Contains(t, result.AuthURL, "nonce="+session.Nonce)
+	require.NotNil(t, session.Flow.Machine)
+	require.Contains(t, result.AuthURL, "nonce="+session.Flow.Nonce)
 	require.Contains(t, result.AuthURL, "challenge=")
 	require.Contains(t, result.AuthURL, "client_id="+qoder.OAuthClientID)
 	authURL, err := url.Parse(result.AuthURL)
 	require.NoError(t, err)
-	require.Equal(t, session.Machine.MachineID, authURL.Query().Get("machine_id"))
+	require.Equal(t, session.Flow.Machine.MachineID, authURL.Query().Get("machine_id"))
 }
 
 func TestQoderOAuthServiceCNFreezesSiteAndIgnoresPollProxyOverride(t *testing.T) {
@@ -177,8 +177,8 @@ func TestQoderOAuthServiceCNFreezesSiteAndIgnoresPollProxyOverride(t *testing.T)
 	require.Len(t, parsed.Query().Get("machine_id"), 36)
 	session, ok := svc.sessionStore.Get(result.SessionID)
 	require.True(t, ok)
-	require.Empty(t, session.Machine.MachineToken)
-	require.Empty(t, session.Machine.MachineType)
+	require.Empty(t, session.Flow.Machine.MachineToken)
+	require.Empty(t, session.Flow.Machine.MachineType)
 
 	ignoredProxyID := int64(9999)
 	completed, err := svc.Poll(context.Background(), result.SessionID, result.State, &ignoredProxyID)
@@ -289,8 +289,8 @@ func TestQoderOAuthServiceExchangePendingKeepsSession(t *testing.T) {
 	_, ok := svc.sessionStore.Get(result.SessionID)
 	require.True(t, ok, "pending authorization should keep the session available")
 	session, _ := svc.sessionStore.Get(result.SessionID)
-	require.Equal(t, session.Nonce, client.gotNonce)
-	require.Equal(t, session.CodeVerifier, client.gotVerifier)
+	require.Equal(t, session.Flow.Nonce, client.gotNonce)
+	require.Equal(t, session.Flow.CodeVerifier, client.gotVerifier)
 }
 
 func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t *testing.T) {

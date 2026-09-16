@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "./internal/upstream/antigravity",
+    "-run",
+    "Test.*Antigravity|Test.*DefaultTier|Test.*TokenVersion"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 28.472,
+  "pass": 282,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/antigravity-token-unit.log.gz"
+}

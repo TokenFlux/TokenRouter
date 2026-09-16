@@ -3,7 +3,6 @@ package service
 // 本文件承载 /v1/responses 透传转发及其流式、非流式响应与错误处理。
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -16,8 +15,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
@@ -518,148 +519,28 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	// DeepSeek / Kimi 原生 Responses 端点为无状态实现（见 normalizeDeepSeekResponsesRequestBody）。
 	body = normalizeDeepSeekResponsesRequestBody(account, body)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
+	options := s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, false, routerMatch...)
+	options.ForwardHeaders = func() http.Header {
+		if c == nil || c.Request == nil {
+			return nil
+		}
+		return c.Request.Header
 	}
-	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
-
-	allowTimeoutHeaders := s.isOpenAIPassthroughTimeoutHeadersAllowed()
-	if c != nil && c.Request != nil {
-		for key, values := range c.Request.Header {
-			lower := strings.ToLower(strings.TrimSpace(key))
-			if !isOpenAIPassthroughAllowedRequestHeader(lower, allowTimeoutHeaders) {
-				continue
+	options.ApplyUserAgent = func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, true, routerMatch...) }
+	options.Diagnostics = func(headers http.Header, body []byte) {
+		logOpenAIRoutingDiagnosticsFromBody(ctx, account, "http_passthrough", headers, body, "not_applicable")
+	}
+	return nativeopenai.BuildPassthroughRequest(ctx, body, nativeopenai.PassthroughRequestOptions{
+		ResponsesRequestOptions: options,
+		AllowTimeoutHeaders:     s.isOpenAIPassthroughTimeoutHeadersAllowed,
+		AllowPassthroughHeader:  isOpenAIPassthroughAllowedRequestHeader,
+		MatchedOriginator: func() string {
+			if len(routerMatch) > 0 && routerMatch[0].Matched {
+				return strings.TrimSpace(routerMatch[0].UpstreamOriginator)
 			}
-			for _, v := range values {
-				req.Header.Add(key, v)
-			}
-		}
-	}
-
-	// 故障转移换号后，不能把已知由旧账号签发的回合状态送往新账号。
-	s.guardOpenAICodexTurnStateEcho(c, account, req.Header)
-	req.Header.Del("authorization")
-	req.Header.Del("x-api-key")
-	req.Header.Del("x-goog-api-key")
-	authHeaders, err := s.buildOpenAIAuthenticationHeaders(ctx, account, token)
-	if err != nil {
-		return nil, fmt.Errorf("build openai authentication headers: %w", err)
-	}
-	for key, values := range authHeaders {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
-
-	// OAuth 透传到 ChatGPT internal API 时补齐必要头。
-	if account.UsesOpenAICodexProtocol() {
-		// Current Codex OAuth HTTP no longer negotiates the legacy Responses
-		// experiment. Passthrough may receive it from an older client, so remove
-		// only that token while preserving any independent beta negotiation.
-		stripOpenAILegacyResponsesBeta(req.Header)
-		promptCacheKey := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
-		req.Host = "chatgpt.com"
-		if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, req.Header, account); err != nil {
-			return nil, fmt.Errorf("resolve chatgpt account headers: %w", err)
-		}
-		apiKeyID := getAPIKeyIDFromContext(c)
-
-		clientSessionID := strings.TrimSpace(req.Header.Get("session_id"))
-		clientConversationID := strings.TrimSpace(req.Header.Get("conversation_id"))
-		if isOpenAIResponsesCompactPath(c) {
-			req.Header.Set("accept", "application/json")
-			if req.Header.Get("version") == "" {
-				req.Header.Set("version", CodexCanonicalClientVersion())
-			}
-			if clientSessionID == "" {
-				clientSessionID = resolveOpenAICompactSessionID(c)
-			}
-		} else if req.Header.Get("accept") == "" {
-			req.Header.Set("accept", "text/event-stream")
-		}
-		if req.Header.Get("originator") == "" {
-			req.Header.Set("originator", resolveCodexOutboundIdentity("").originator)
-		}
-		if len(routerMatch) > 0 && routerMatch[0].Matched {
-			if originator := strings.TrimSpace(routerMatch[0].UpstreamOriginator); originator != "" {
-				req.Header.Set("originator", originator)
-			}
-		}
-
-		if clientSessionID == "" {
-			clientSessionID = promptCacheKey
-		}
-		if clientConversationID == "" {
-			clientConversationID = promptCacheKey
-		}
-		if clientSessionID != "" {
-			req.Header.Set("session_id", isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), clientSessionID))
-		}
-		if clientConversationID != "" {
-			req.Header.Set("conversation_id", isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), clientConversationID))
-		}
-	} else if isOpenAIResponsesCompactPath(c) {
-		// 透传白名单会放行客户端的 Accept: text/event-stream；compact 上游是
-		// unary JSON 协议，API-key 账号同样强制 Accept，避免上游按 SSE 返回
-		// （#3777 期望行为 4）。
-		req.Header.Set("accept", "application/json")
-	}
-
-	s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, true, routerMatch...)
-	// 透传模式与普通路径共享账号 namespace 和已解析的指纹。
-	applyCodexAccountIdentityHeaders(req.Header, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c))
-	applyStagedCodexFingerprintHeaders(c, account, req.Header)
-	// 终态收口：透传路径的 OAuth 与非透传完全一致，同样强制统一出站身份
-	// （User-Agent / originator / version 同源自洽），客户端自报身份不会到达上游。
-	if account.UsesOpenAICodexProtocol() {
-		enforceCodexIdentityHeadersWithUA(req.Header, "")
-	}
-
-	if req.Header.Get("content-type") == "" {
-		req.Header.Set("content-type", "application/json")
-	}
-
-	account.ApplyHeaderOverrides(req.Header)
-	applyOpenCodeSessionHeader(c, account, targetURL, req.Header)
-	// x-codex-beta-features：按真实 Codex 的会话级行为补注（在账号级覆写之后，
-	// 保证不被覆盖丢失）。
-	applyOpenAICodexBetaFeatures(c, account, req.Header)
-	setOpenAICodexRoutingHintFromBody(req.Header, account, body)
-	logOpenAIRoutingDiagnosticsFromBody(ctx, account, "http_passthrough", req.Header, body, "not_applicable")
-
-	return req, nil
-}
-
-func stripOpenAILegacyResponsesBeta(headers http.Header) {
-	if headers == nil {
-		return
-	}
-
-	preserved := make([]string, 0)
-	for key, values := range headers {
-		if !strings.EqualFold(strings.TrimSpace(key), "OpenAI-Beta") {
-			continue
-		}
-		delete(headers, key)
-		for _, value := range values {
-			parts := strings.Split(value, ",")
-			kept := parts[:0]
-			for _, part := range parts {
-				part = strings.TrimSpace(part)
-				if part == "" || strings.EqualFold(part, "responses=experimental") {
-					continue
-				}
-				kept = append(kept, part)
-			}
-			if len(kept) > 0 {
-				preserved = append(preserved, strings.Join(kept, ", "))
-			}
-		}
-	}
-	for _, value := range preserved {
-		headers.Add("OpenAI-Beta", value)
-	}
+			return ""
+		},
+	})
 }
 
 func shouldFailoverOpenAIPassthroughResponse(account *Account, statusCode int, responseBody []byte) bool {
@@ -999,195 +880,16 @@ func openAIStreamClientOutputStarted(c *gin.Context, localStarted bool) bool {
 	return OpenAICompactKeepaliveAdjustedWrittenSize(c) >= 0
 }
 
-func openAIStreamEventIsPreamble(eventType string) bool {
-	switch strings.TrimSpace(eventType) {
-	case "response.created", "response.in_progress":
-		return true
-	default:
-		return false
-	}
-}
-
-func openAIStreamAddedEventStartsClientOutput(payload []byte, eventType string) bool {
-	if len(payload) == 0 || !gjson.ValidBytes(payload) {
-		return true
-	}
-
-	switch strings.TrimSpace(eventType) {
-	case "response.output_item.added":
-		item := gjson.GetBytes(payload, "item")
-		if !item.Exists() || !item.IsObject() {
-			return true
-		}
-		switch strings.TrimSpace(item.Get("type").String()) {
-		case "reasoning":
-			if item.Get("encrypted_content").String() != "" {
-				return true
-			}
-			summary := item.Get("summary")
-			if !summary.IsArray() {
-				return false
-			}
-			for _, part := range summary.Array() {
-				if strings.TrimSpace(part.Get("type").String()) != "summary_text" || part.Get("text").String() != "" {
-					return true
-				}
-			}
-			return false
-		case "message":
-			content := item.Get("content")
-			if !content.IsArray() {
-				return false
-			}
-			for _, part := range content.Array() {
-				switch strings.TrimSpace(part.Get("type").String()) {
-				case "output_text":
-					if part.Get("text").String() != "" {
-						return true
-					}
-				case "refusal":
-					if part.Get("refusal").String() != "" {
-						return true
-					}
-				default:
-					return true
-				}
-			}
-			return false
-		case "function_call":
-			return item.Get("arguments").String() != ""
-		case "custom_tool_call":
-			return item.Get("input").String() != ""
-		case "compaction":
-			return item.Get("encrypted_content").String() != ""
-		default:
-			return true
-		}
-	case "response.content_part.added":
-		part := gjson.GetBytes(payload, "part")
-		if !part.Exists() || !part.IsObject() {
-			return true
-		}
-		switch strings.TrimSpace(part.Get("type").String()) {
-		case "output_text":
-			return part.Get("text").String() != ""
-		case "refusal":
-			return part.Get("refusal").String() != ""
-		default:
-			return true
-		}
-	case "response.reasoning_summary_part.added":
-		part := gjson.GetBytes(payload, "part")
-		if !part.Exists() || !part.IsObject() || strings.TrimSpace(part.Get("type").String()) != "summary_text" {
-			return true
-		}
-		return part.Get("text").String() != ""
-	default:
-		return true
-	}
-}
-
 func openAIStreamDataStartsClientOutput(data, eventType string) bool {
-	trimmed := strings.TrimSpace(data)
-	if trimmed == "" {
-		return false
-	}
-	switch strings.TrimSpace(eventType) {
-	case "response.failed":
-		return false
-	case "error":
-		// 上游降载/瞬时故障会先推 {"type":"error"} 帧、再以 response.failed 收尾。
-		// 可重试类错误帧不能算客户端输出：一旦把它当首输出 flush，
-		// clientOutputStarted 即被固化，随后的 failed 事件永远进不了 pre-output
-		// failover 分支，只能把致命错误原样转发给客户端。不可重试类
-		// （content_policy / invalid_request 等）维持原样转发，保留上游错误细节。
-		payload := []byte(trimmed)
-		return !openAIStreamFailedEventShouldFailover(payload, extractOpenAISSEErrorMessage(payload))
-	case "response.output_item.added", "response.content_part.added", "response.reasoning_summary_part.added":
-		return openAIStreamAddedEventStartsClientOutput([]byte(trimmed), eventType)
-	}
-	return !openAIStreamEventIsPreamble(eventType)
+	return nativeopenai.OpenAIStreamDataStartsClientOutput(data, eventType)
 }
 
-func openAIStreamItemHasVisibleOutput(item gjson.Result) bool {
-	if item.Get("arguments").String() != "" || item.Get("input").String() != "" || item.Get("result").String() != "" {
-		return true
-	}
-	for _, path := range []string{"content", "summary"} {
-		for _, part := range item.Get(path).Array() {
-			if part.Get("text").String() != "" || part.Get("transcript").String() != "" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// 结构进度可以提交当前 attempt 并解除首输出故障转移，但只有客户端可用内容才开始计算 TTFT。
 func openAIStreamDataStartsVisibleOutput(data, eventType string) bool {
-	trimmed := strings.TrimSpace(data)
-	if trimmed == "" || trimmed == "[DONE]" || !gjson.Valid(trimmed) {
-		return false
-	}
-	eventType = strings.TrimSpace(eventType)
-	if eventType == "" {
-		eventType = strings.TrimSpace(gjson.Get(trimmed, "type").String())
-	}
-	if strings.HasSuffix(eventType, ".delta") {
-		delta := gjson.Get(trimmed, "delta")
-		return delta.Exists() && delta.String() != ""
-	}
-	switch eventType {
-	case "response.output_text.done",
-		"response.reasoning_summary_text.done",
-		"response.reasoning_text.done",
-		"response.audio_transcript.done":
-		return gjson.Get(trimmed, "text").String() != ""
-	case "response.function_call_arguments.done":
-		return gjson.Get(trimmed, "arguments").String() != ""
-	case "response.custom_tool_call_input.done":
-		return gjson.Get(trimmed, "input").String() != ""
-	case "response.image_generation_call.partial_image":
-		return gjson.Get(trimmed, "partial_image_b64").String() != ""
-	case "response.content_part.added", "response.content_part.done",
-		"response.reasoning_summary_part.added", "response.reasoning_summary_part.done":
-		part := gjson.Get(trimmed, "part")
-		return part.Get("text").String() != "" || part.Get("transcript").String() != ""
-	case "response.output_item.added", "response.output_item.done":
-		return openAIStreamItemHasVisibleOutput(gjson.Get(trimmed, "item"))
-	case "response.completed", "response.done":
-		for _, item := range gjson.Get(trimmed, "response.output").Array() {
-			if openAIStreamItemHasVisibleOutput(item) {
-				return true
-			}
-		}
-	}
-	return false
+	return protocolopenai.StreamDataStartsVisibleOutput(data, eventType)
 }
 
-// openAIStreamDataStartsSemanticTTFT 使用客户端语义事件作为 TTFT 起点；空的
-// reasoning/content 结构只表示协议进度，不能提交首输出阶段或阻断故障转移。
 func openAIStreamDataStartsSemanticTTFT(data, eventType string) bool {
-	trimmed := strings.TrimSpace(data)
-	if trimmed == "" || trimmed == "[DONE]" {
-		return false
-	}
-	eventType = strings.TrimSpace(eventType)
-	if eventType == "" && gjson.Valid(trimmed) {
-		eventType = strings.TrimSpace(gjson.Get(trimmed, "type").String())
-	}
-	switch eventType {
-	case "response.failed":
-		return false
-	case "response.completed", "response.done":
-		// 仅携带 usage 的终态不是语义输出，不能虚构首 token。
-		return openAIStreamDataStartsVisibleOutput(trimmed, eventType)
-	case "error":
-		payload := []byte(trimmed)
-		return !openAIStreamFailedEventShouldFailover(payload, extractOpenAISSEErrorMessage(payload))
-	default:
-		return openAIStreamDataStartsClientOutput(trimmed, eventType)
-	}
+	return nativeopenai.OpenAIStreamDataStartsSemanticTTFT(data, eventType)
 }
 
 // openAIStreamDataStartsTTFT 按管理员设置选择语义事件或真实可见内容作为 TTFT 起点。
@@ -1211,30 +913,8 @@ func (s *OpenAIGatewayService) openAITTFTMode(ctx context.Context) string {
 	return normalizeOpenAITTFTMode(mode)
 }
 
-// openAIStreamFailedEventErrorCode 提取流内 failed 事件的错误码（小写），
-// 兼容 response.failed 的嵌套形态与裸 error 形态。
-func openAIStreamFailedEventErrorCode(payload []byte) string {
-	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
-	if code == "" {
-		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.code").String()))
-	}
-	return code
-}
-
-// isOpenAIUpstreamCapacityShedEvent 判断流内 failed 事件是否为上游容量降载信号。
-// 上游在容量紧张时会把请求丢进降载路径：HTTP 200 之后立刻推 event: error
-// （code=server_is_overloaded / slow_down）并以 response.failed 收尾。
 func isOpenAIUpstreamCapacityShedEvent(payload []byte) bool {
-	switch openAIStreamFailedEventErrorCode(payload) {
-	case "server_is_overloaded", "slow_down":
-		return true
-	}
-	for _, path := range []string{"response.error.message", "error.message", "message"} {
-		if isOpenAICapacityShedMessage(gjson.GetBytes(payload, path).String()) {
-			return true
-		}
-	}
-	return false
+	return nativeopenai.IsOpenAIUpstreamCapacityShedEvent(payload)
 }
 
 func logOpenAICapacityFailoverSuppressed(
@@ -1258,152 +938,20 @@ func logOpenAICapacityFailoverSuppressed(
 	logger.FromContext(ctx).Warn("gateway.failover_suppressed_after_semantic_output", fields...)
 }
 
-// openAICapacityShedRetryableClientCode 是把上游容量降载错误转发给客户端时改写
-// 使用的错误码。Codex CLI 按闭集对错误码分类：server_is_overloaded / slow_down
-// 被判为致命错误（客户端提示 "Selected model is at capacity. Please try a
-// different model." 并直接终止会话），而 server_error 等致命集之外的错误码会进入
-// 客户端内置的退避重试。
-const openAICapacityShedRetryableClientCode = "server_error"
-
-// sanitizeOpenAICapacityShedErrorCodeForClient 把即将写给下游客户端的
-// error / response.failed 事件中的容量降载错误码改写为客户端可重试的错误码。
-// 走到转发这一步说明网关侧 failover 已不可用（流中途）或已用尽；保留原始降载码
-// 只会让客户端就地终止会话。错误消息原样保留；监控与账号状态判定都基于改写前
-// 的原始 payload，不受影响。rate_limit 等其他错误码一律不动（客户端依赖
-// rate_limit_exceeded 原码解析重试延时）。
 func sanitizeOpenAICapacityShedErrorCodeForClient(payload []byte) ([]byte, bool) {
-	if len(payload) == 0 || !gjson.ValidBytes(payload) || !isOpenAIUpstreamCapacityShedEvent(payload) {
-		return payload, false
-	}
-	updated := payload
-	changed := false
-	for _, path := range []string{"response.error.code", "error.code"} {
-		parent := strings.TrimSuffix(path, ".code")
-		if !gjson.GetBytes(updated, parent).Exists() {
-			continue
-		}
-		code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(updated, path).String()))
-		if code != "" && code != "server_is_overloaded" && code != "slow_down" {
-			continue
-		}
-		next, err := sjson.SetBytes(updated, path, openAICapacityShedRetryableClientCode)
-		if err != nil {
-			return payload, false
-		}
-		updated = next
-		changed = true
-	}
-	return updated, changed
+	return nativeopenai.SanitizeOpenAICapacityShedErrorCodeForClient(payload)
 }
 
 func openAIStreamFailedEventSemanticStatus(payload []byte, message string) int {
-	if isOpenAIContextWindowError(message, payload) {
-		return http.StatusBadRequest
-	}
-	// 聚合上游可能在 HTTP 200 的 response.failed 中携带真实状态码；
-	// 必须优先保留，才能让任意自定义错误码命中统一账号策略。
-	for _, path := range []string{
-		"response.error.status_code",
-		"response.error.status",
-		"error.status_code",
-		"error.status",
-	} {
-		status := int(gjson.GetBytes(payload, path).Int())
-		if status >= http.StatusBadRequest && status <= 599 {
-			return status
-		}
-	}
-
-	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
-	if code == "" {
-		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.code").String()))
-	}
-	errType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.type").String()))
-	if errType == "" {
-		errType = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.type").String()))
-	}
-	combined := strings.TrimSpace(errType + " " + code + " " + strings.ToLower(strings.TrimSpace(message)))
-	for _, path := range []string{"response.error.status_code", "error.status_code", "status_code"} {
-		if status := int(gjson.GetBytes(payload, path).Int()); status == http.StatusUnauthorized ||
-			status == http.StatusForbidden || status == http.StatusTooManyRequests || status == 529 {
-			return status
-		}
-	}
-	switch {
-	// 上游可能用泛化 invalid_request 类型包装真实限流代码，限流信号优先。
-	case strings.Contains(combined, "rate_limit"):
-		return http.StatusTooManyRequests
-	case strings.Contains(errType, "invalid_request"):
-		return http.StatusBadRequest
-	case strings.Contains(combined, "authentication") || strings.Contains(combined, "unauthorized") || strings.Contains(combined, "invalid_api_key"):
-		return http.StatusUnauthorized
-	case strings.Contains(combined, "permission") || strings.Contains(combined, "forbidden") || strings.Contains(combined, "access denied"):
-		return http.StatusForbidden
-	case isOpenAIUpstreamAccessStateError(message, payload):
-		return http.StatusForbidden
-	case isOpenAIUpstreamCapacityShedEvent(payload):
-		return http.StatusServiceUnavailable
-	default:
-		return http.StatusBadGateway
-	}
+	return nativeopenai.OpenAIStreamFailedEventSemanticStatus(payload, message)
 }
 
 func openAIStreamFailureStatus(payload []byte, message string) int {
-	if len(bytes.TrimSpace(payload)) == 0 || !gjson.ValidBytes(payload) {
-		return http.StatusBadGateway
-	}
-	semanticStatus := openAIStreamFailedEventSemanticStatus(payload, message)
-	// response.failed 可能携带任意明确的 HTTP 状态码（例如 422 自定义策略），
-	// 该状态必须传递给统一策略与故障转移错误，而不能退化为 502。
-	for _, path := range []string{"response.error.status_code", "response.error.status", "error.status_code", "error.status", "status_code"} {
-		status := int(gjson.GetBytes(payload, path).Int())
-		if status >= http.StatusBadRequest && status <= 599 {
-			return status
-		}
-	}
-	switch semanticStatus {
-	case http.StatusUnauthorized, http.StatusForbidden, http.StatusTooManyRequests, 529:
-		return semanticStatus
-	case http.StatusServiceUnavailable:
-		if isOpenAIUpstreamCapacityShedEvent(payload) {
-			return semanticStatus
-		}
-	}
-	return http.StatusBadGateway
-}
-
-// openAIStreamCredentialAuthFailure distinguishes credential failures from
-// request/content permission denials carried inside an HTTP 200 stream. Do not
-// infer credential health from free-form 403 messages: providers also use
-// permission_error/forbidden/access denied for request-scoped policy failures.
-func openAIStreamCredentialAuthFailure(payload []byte) bool {
-	if len(bytes.TrimSpace(payload)) == 0 || !gjson.ValidBytes(payload) {
-		return false
-	}
-	for _, path := range []string{"response.error.status_code", "error.status_code", "status_code"} {
-		if int(gjson.GetBytes(payload, path).Int()) == http.StatusUnauthorized {
-			return true
-		}
-	}
-	for _, path := range []string{"response.error.type", "error.type", "type"} {
-		errType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, path).String()))
-		if errType == "authentication_error" || errType == "authentication_failed" || errType == "unauthorized_error" {
-			return true
-		}
-	}
-	for _, path := range []string{"response.error.code", "error.code", "code"} {
-		switch strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, path).String())) {
-		case "invalid_api_key", "api_key_disabled", "unauthorized", "authentication_error",
-			"invalid_token", "access_token_invalid", "token_revoked", "token_invalidated",
-			"invalid_credentials", "credential_invalid":
-			return true
-		}
-	}
-	return false
+	return nativeopenai.OpenAIStreamFailureStatus(payload, message)
 }
 
 func openAIStream403AccountFailure(payload []byte, message string) bool {
-	return isOpenAIUpstreamAccessStateError(message, payload) || openAIStreamCredentialAuthFailure(payload)
+	return nativeopenai.OpenAIStream403AccountFailure(payload, message)
 }
 
 func openAIStreamFailedEventPassthroughBody(payload []byte, failedMessage string) []byte {
@@ -1479,87 +1027,11 @@ func applyOpenAIStreamFailedErrorPassthroughRule(
 }
 
 func openAIStreamFailedEventShouldFailover(payload []byte, message string) bool {
-	if hit, _, _ := detectOpenAICyberPolicy(payload); hit {
-		return false
-	}
-	if isOpenAIContextWindowError(message, payload) {
-		return false
-	}
-	if isOpenAIUpstreamAccessStateError(message, payload) {
-		return true
-	}
-	semanticStatus := openAIStreamFailureStatus(payload, message)
-	if semanticStatus == http.StatusForbidden {
-		return openAIStream403AccountFailure(payload, message)
-	}
-	// A response.failed event is transported over HTTP 200. Prefer its semantic
-	// rate-limit status over a generic/invalid_request error type so it can enter
-	// the same 429 retry policy as a regular upstream HTTP response.
-	if semanticStatus == http.StatusTooManyRequests {
-		return true
-	}
-	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
-		return true
-	}
-	if IsOpenAICyberWarningText(message) || IsOpenAICyberWarningText(string(payload)) {
-		return false
-	}
-	code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
-	if code == "" {
-		code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.code").String()))
-	}
-	errType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.type").String()))
-	if errType == "" {
-		errType = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.type").String()))
-	}
-	combined := strings.ToLower(strings.TrimSpace(message + " " + code + " " + errType))
-	if combined == "" {
-		return true
-	}
-	nonRetryableMarkers := []string{
-		"invalid_request",
-		"content_policy",
-		"policy",
-		"safety",
-		"high-risk cyber",
-		"not allowed",
-		"violat",
-	}
-	for _, marker := range nonRetryableMarkers {
-		if strings.Contains(combined, marker) {
-			return false
-		}
-	}
-	return true
+	return nativeopenai.OpenAIStreamFailedEventShouldFailover(payload, message)
 }
 
-// openAIStreamErrorEventShouldFailover 只处理尚未写出语义内容的裸 error 事件。
-// response.failed 仍由统一账号策略处理，避免重复记录或重复切号。
 func openAIStreamErrorEventShouldFailover(payload []byte, message string) bool {
-	if hit, _, _ := detectOpenAICyberPolicy(payload); hit {
-		return false
-	}
-	if isOpenAIContextWindowError(message, payload) {
-		return false
-	}
-	if isOpenAIUpstreamAccessStateError(message, payload) {
-		return true
-	}
-	switch openAIStreamFailedEventSemanticStatus(payload, message) {
-	case http.StatusForbidden:
-		return openAIStream403AccountFailure(payload, message)
-	case http.StatusUnauthorized, http.StatusTooManyRequests, 529:
-		return true
-	}
-	if isOpenAITransientProcessingError(http.StatusBadRequest, message, payload) {
-		return true
-	}
-	combined := strings.ToLower(strings.TrimSpace(message + " " +
-		gjson.GetBytes(payload, "error.message").String() + " " +
-		gjson.GetBytes(payload, "response.error.message").String()))
-	return strings.Contains(combined, "temporary") ||
-		strings.Contains(combined, "try again") ||
-		strings.Contains(combined, "please retry")
+	return nativeopenai.OpenAIStreamErrorEventShouldFailover(payload, message)
 }
 
 func (s *OpenAIGatewayService) handleOpenAIStreamTerminalAccountSideEffects(
@@ -1887,445 +1359,11 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	originalModel string,
 	mappedModel string,
 ) (*openaiStreamingResultPassthrough, error) {
-	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
-
-	c.Header("Content-Type", "text/event-stream")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("Connection", "keep-alive")
-	c.Header("X-Accel-Buffering", "no")
-	if v := resp.Header.Get("x-request-id"); v != "" {
-		c.Header("x-request-id", v)
+	result, err := nativeopenai.ReadPassthroughStreaming(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativePassthroughOptions(ctx, c, account), startTime, originalModel, mappedModel)
+	if result == nil {
+		return nil, err
 	}
-
-	w := c.Writer
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		return nil, errors.New("streaming not supported")
-	}
-
-	usage := &OpenAIUsage{}
-	imageCounter := newOpenAIImageOutputCounter()
-	var firstTokenMs *int
-	ttftMode := s.openAITTFTMode(ctx)
-	responseID := ""
-	clientDisconnected := false
-	sawDone := false
-	sawTerminalEvent := false
-	sawFailedEvent := false
-	sawBareError := false
-	sawResponseFailed := false
-	terminalEventType := ""
-	semanticOutputSeen := false
-	capacityFailoverSuppressedLogged := false
-	failedMessage := ""
-	var failedPayload []byte
-	clientOutputStarted := false
-	codexFailureTerminal := account != nil && account.Platform == PlatformOpenAI
-	failureDelivered := false
-	suppressCurrentEvent := false
-	responseFailedPending := false
-	var bareErrorPayload []byte
-	bareErrorAccountSideEffectsPending := false
-	upstreamRequestID := strings.TrimSpace(resp.Header.Get("x-request-id"))
-	// pendingLines 在首个可见输出前保留前导事件，确保无输出失败仍可安全 failover。
-	pendingLines := make([]string, 0, 8)
-
-	// ── 首个可见输出之前的下游 keepalive ──────────────────────────────────
-	//
-	// 与 Forward 路径同源的问题。openai_gateway_response_handling.go 里那句注释
-	// 说得最清楚：
-	//
-	//   "Track downstream writes separately from upstream reads: pre-output
-	//    failover can buffer response.created / response.in_progress, so
-	//    keepalive must be based on downstream idle time."
-	//
-	// 上面的 pendingLines 正是同一种缓冲：首个可见输出到来之前，下游【一个字节
-	// 都收不到】—— 连 HTTP 响应头都不会提交（gin 的 ResponseWriter 直到首次写入
-	// 才发送 header）。Forward 路径为此加了心跳，透传路径漏了。
-	//
-	// 推理模型在首个可见输出前思考数百秒是常态，于是中间层代理会按空闲超时把
-	// 连接判死。这不是假设：某生产部署实测 12 小时内 44 个 /v1/responses 请求在
-	// 600~900s 才产出首个可见输出（每个 3~5 万 output token，上游其实算完了），
-	// 全部被中间 nginx 的 proxy_read_timeout(600s) 判超时回 504，用户一个字没拿到。
-	//
-	// 心跳写出的 SSE 注释同时做到三件事：
-	//   1. 提交 HTTP 响应头，让下游知道连接活着；
-	//   2. 刷新中间层的空闲超时（proxy_read_timeout 衡量的是两次读之间的间隔，
-	//      不是请求总时长），长推理因此不再被误杀；
-	//   3. 不写出任何 pendingLines、不泄露账号相关的头，
-	//      且心跳字节已由 OpenAICompactKeepaliveAdjustedWrittenSize 排除，
-	//      所以 pre-output failover 的能力完全不受影响（#3887 的记账在此复用）。
-	//
-	// 用 startOpenAISSEKeepalive 而不是 StartOpenAICompactSSEKeepalive：后者会检查
-	// compact 标记，而这里是普通 /v1/responses 透传。走到这一行时上游已回
-	// text/event-stream、SSE 响应头也已设好，处于流式上下文是确定的。
-	stopKeepalive := func() {}
-	if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
-		stopKeepalive = startOpenAISSEKeepalive(c,
-			time.Duration(s.cfg.Gateway.StreamKeepaliveInterval)*time.Second)
-	}
-	// 任何返回路径都要停拍。Stop 与心跳 goroutine 之间有互斥锁，
-	// 返回后不会再有字节写出。
-	defer stopKeepalive()
-	// flushPending 表示已写入但未到 SSE 空行边界的脏状态；defer 兜底函数退出前的残留，断连后不再 Flush。
-	flushPending := false
-	pendingSSEEventType := ""
-	flushPendingOutput := func() {
-		if clientDisconnected || !flushPending {
-			return
-		}
-		flusher.Flush()
-		MarkOpsTimestamp(c, ctxkey.FirstDownstreamFlushAt)
-		flushPending = false
-	}
-	defer flushPendingOutput()
-	writePendingLines := func() bool {
-		for _, pending := range pendingLines {
-			if _, err := fmt.Fprintln(w, pending); err != nil {
-				clientDisconnected = true
-				logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
-				return false
-			}
-		}
-		pendingLines = pendingLines[:0]
-		return true
-	}
-	ensureResponseFailedTerminal := func() {
-		if !sawBareError || sawResponseFailed || failureDelivered {
-			return
-		}
-		if bareErrorAccountSideEffectsPending {
-			s.handleOpenAIStreamTerminalAccountSideEffects(c, account, bareErrorPayload, failedMessage, resp.Header, mappedModel)
-			bareErrorAccountSideEffectsPending = false
-		}
-		if clientDisconnected || !writePendingLines() {
-			return
-		}
-		if _, err := fmt.Fprint(w, buildOpenAIResponseFailedSSE(responseID, originalModel, bareErrorPayload, failedMessage)); err != nil {
-			clientDisconnected = true
-			return
-		}
-		clientOutputStarted = true
-		failureDelivered = true
-		flushPending = true
-		flushPendingOutput()
-	}
-
-	scanner := bufio.NewScanner(resp.Body)
-	maxLineSize := defaultMaxLineSize
-	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
-		maxLineSize = s.cfg.Gateway.MaxLineSize
-	}
-	scanBuf := getSSEScannerBuf64K()
-	scanner.Buffer(scanBuf[:0], maxLineSize)
-	defer putSSEScannerBuf64K(scanBuf)
-	documentScanner := newOpenAISSEJSONDocumentScanner(scanner)
-
-	needModelReplace := strings.TrimSpace(originalModel) != "" && strings.TrimSpace(mappedModel) != "" && strings.TrimSpace(originalModel) != strings.TrimSpace(mappedModel)
-	responseAccumulator := apicompat.NewBufferedResponseAccumulator()
-	streamDoneItems := newResponsesStreamOutputItems()
-	streamImageOutputs := make([]json.RawMessage, 0, 1)
-	streamSeenImages := make(map[string]struct{})
-	resultWithUsage := func() *openaiStreamingResultPassthrough {
-		return &openaiStreamingResultPassthrough{
-			usage:            usage,
-			firstTokenMs:     firstTokenMs,
-			responseID:       responseID,
-			imageCount:       imageCounter.Count(),
-			imageOutputSizes: imageCounter.Sizes(),
-		}
-	}
-
-	for documentScanner.Scan() {
-		line := documentScanner.Text()
-		if eventType, ok := extractOpenAISSEEventLine(line); ok {
-			pendingSSEEventType = eventType
-			eventType = strings.TrimSpace(eventType)
-			suppressCurrentEvent = codexFailureTerminal && (eventType == "error" || (sawBareError && !sawResponseFailed && eventType != "response.failed"))
-		}
-		lineStartsClientOutput := false
-		forceFlushFailedEvent := false
-		if data, ok := extractOpenAISSEDataLine(line); ok {
-			MarkOpsTimestamp(c, ctxkey.FirstSSEDataAt)
-			dataBytes := []byte(data)
-			trimmedData := strings.TrimSpace(data)
-			rawEventType := effectiveOpenAISSEEventType(dataBytes, pendingSSEEventType)
-			if needModelReplace && strings.Contains(data, mappedModel) {
-				line = s.replaceModelInSSELine(line, mappedModel, originalModel)
-				if replacedData, replaced := extractOpenAISSEDataLine(line); replaced {
-					dataBytes = []byte(replacedData)
-					trimmedData = strings.TrimSpace(replacedData)
-				}
-			}
-			if normalizedData, normalized := normalizeOpenAIResponsesFunctionCallArguments(dataBytes); normalized {
-				dataBytes = normalizedData
-				trimmedData = strings.TrimSpace(string(normalizedData))
-				line = "data: " + string(normalizedData)
-			}
-			if normalizedData, normalized := normalizeCompletedImageGenerationStatus(dataBytes); normalized {
-				dataBytes = normalizedData
-				trimmedData = strings.TrimSpace(string(normalizedData))
-				line = "data: " + string(normalizedData)
-			}
-			if trimmedData != "[DONE]" {
-				restoredData, restoreErr := restoreOpenAIResponsesNamespacePayload(c, dataBytes)
-				if restoreErr != nil {
-					return resultWithUsage(), fmt.Errorf("restore OpenAI passthrough namespace response: %w", restoreErr)
-				}
-				restoredData = restoreCodexToolNamesFromSSEContext(c, restoredData, rawEventType)
-				if !bytes.Equal(restoredData, dataBytes) {
-					dataBytes = restoredData
-					trimmedData = strings.TrimSpace(string(restoredData))
-					line = "data: " + string(restoredData)
-				}
-			}
-			eventType := effectiveOpenAISSEEventType(dataBytes, rawEventType)
-			if codexFailureTerminal && sawBareError && !sawResponseFailed && eventType != "response.failed" {
-				suppressCurrentEvent = true
-			}
-			if !capacityFailoverSuppressedLogged && account != nil && account.Platform == PlatformOpenAI &&
-				(eventType == "error" || eventType == "response.failed") &&
-				openAIStreamClientOutputStarted(c, clientOutputStarted) &&
-				isOpenAIUpstreamCapacityShedEvent(dataBytes) {
-				logOpenAICapacityFailoverSuppressed(ctx, account, "passthrough_sse", upstreamRequestID, eventType)
-				capacityFailoverSuppressedLogged = true
-			}
-			cyberHit := false
-			if eventType == "response.failed" || eventType == "error" {
-				if codexFailureTerminal && eventType == "error" {
-					sawBareError = true
-					bareErrorPayload = append(bareErrorPayload[:0], dataBytes...)
-					suppressCurrentEvent = true
-				} else if codexFailureTerminal && eventType == "response.failed" {
-					sawResponseFailed = true
-				}
-				responseFailedPending = !codexFailureTerminal || eventType == "response.failed"
-				failedMessage = extractOpenAISSEErrorMessage(dataBytes)
-				if failedMessage == "" {
-					failedMessage = "Upstream response failed"
-				}
-				// response.failed 自带上游已消耗的 usage（input token 通常已扣）；必须先解析
-				// 再打 cyber 标记，否则 mark 记到的是解析前的 0，导致流式 cyber 按 0 token 计费
-				// 而漏记真实用量。对齐 WS V2 / Chat 流式路径（均先解析 usage 再 Mark）。
-				s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
-				if hit, code, msg := detectOpenAICyberPolicy(dataBytes); hit {
-					cyberHit = true
-					MarkOpsCyberPolicy(c, CyberPolicyMark{
-						Code:           code,
-						Message:        msg,
-						Body:           truncateString(string(dataBytes), 4096),
-						UpstreamStatus: http.StatusOK,
-						UpstreamInTok:  usage.InputTokens,
-						UpstreamOutTok: usage.OutputTokens,
-					})
-				}
-				outputStarted := openAIStreamClientOutputStarted(c, clientOutputStarted)
-				if !outputStarted && !cyberHit {
-					if compactErr := newOpenAICompactFallbackSignal(c, dataBytes, failedMessage); compactErr != nil {
-						return resultWithUsage(), compactErr
-					}
-				}
-				if outputStarted && !cyberHit {
-					if codexFailureTerminal && eventType == "error" {
-						// Wait for the authoritative response.failed before mutating
-						// account health; EOF synthesis applies the pending effect.
-						bareErrorAccountSideEffectsPending = true
-					} else {
-						s.handleOpenAIStreamTerminalAccountSideEffects(c, account, dataBytes, failedMessage, resp.Header, mappedModel)
-						bareErrorAccountSideEffectsPending = false
-					}
-				}
-				if !outputStarted {
-					shouldFailover := false
-					if !cyberHit {
-						if eventType == "error" {
-							shouldFailover = openAIStreamErrorEventShouldFailover(dataBytes, failedMessage)
-						} else {
-							shouldFailover = openAIStreamFailedEventShouldFailover(dataBytes, failedMessage)
-						}
-					}
-					if shouldFailover {
-						return resultWithUsage(),
-							s.newOpenAIStreamFailoverErrorWithModel(c, account, true, upstreamRequestID, dataBytes, failedMessage, mappedModel)
-					}
-					if !cyberHit && !sawBareError {
-						if status, errType, errMsg, matched := applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, dataBytes, failedMessage); matched {
-							// 命中透传规则也要记录 ops 上游错误事件（对齐 CC/Messages 与
-							// antigravity 先例），否则透传命中的 failed 在监控中不可见。
-							s.recordOpenAIStreamUpstreamError(c, account, true, upstreamRequestID, "http_error", dataBytes, failedMessage)
-							MarkResponseCommitted(c)
-							c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-							c.JSON(status, gin.H{
-								"error": gin.H{
-									"type":    errType,
-									"message": errMsg,
-								},
-							})
-							return resultWithUsage(), fmt.Errorf("upstream response failed: passthrough rule matched message=%s", errMsg)
-						}
-					}
-				}
-				forceFlushFailedEvent = true
-				sawFailedEvent = true
-			}
-			if trimmedData == "[DONE]" {
-				sawDone = true
-				terminalEventType = "[DONE]"
-			}
-			if openAIStreamEventIsTerminalWithType(trimmedData, eventType) {
-				sawTerminalEvent = true
-				if trimmedData != "[DONE]" {
-					terminalEventType = eventType
-				}
-			}
-			if responseID == "" {
-				responseID = extractOpenAIResponseIDFromJSONBytes(dataBytes)
-			}
-			var responseEvent protocolopenai.ResponsesStreamEvent
-			if err := json.Unmarshal(dataBytes, &responseEvent); err == nil {
-				responseAccumulator.ProcessEvent(&responseEvent)
-			}
-			if imageOutput, ok := extractImageGenerationOutputFromSSEData(dataBytes, streamSeenImages); ok {
-				streamImageOutputs = append(streamImageOutputs, imageOutput)
-			}
-			streamDoneItems.Observe(dataBytes)
-			if normalizedData, normalized := normalizeResponsesStreamingTerminalOutput(dataBytes, responseAccumulator, streamDoneItems, streamImageOutputs); normalized {
-				dataBytes = normalizedData
-				data = string(normalizedData)
-				trimmedData = strings.TrimSpace(data)
-				line = "data: " + data
-				eventType = strings.TrimSpace(gjson.GetBytes(dataBytes, "type").String())
-			}
-			imageCounter.AddSSEData(dataBytes)
-			if sanitizedData, sanitized := sanitizeOpenAIResponseFailedEventForClient(
-				dataBytes,
-				eventType,
-				openAIStreamClientOutputStarted(c, clientOutputStarted),
-			); sanitized {
-				dataBytes = sanitizedData
-				trimmedData = strings.TrimSpace(string(sanitizedData))
-				line = "data: " + string(sanitizedData)
-			}
-			lineStartsClientOutput = forceFlushFailedEvent || openAIStreamDataStartsClientOutput(trimmedData, eventType)
-			if lineStartsClientOutput && trimmedData != "[DONE]" && !openAIStreamEventTypeIsTerminal(eventType) {
-				semanticOutputSeen = true
-			}
-			// 透传流在写出前也要识别空 completed，确保仍可安全切换账号。
-			if (eventType == "response.completed" || eventType == "response.done") &&
-				!sawFailedEvent && !semanticOutputSeen && !clientOutputStarted &&
-				openAIResponsesCompletedEventIsEmpty(dataBytes, usage) {
-				return resultWithUsage(), newOpenAIResponsesEmptyCompletedFailoverError(c, account, upstreamRequestID)
-			}
-			startsVisibleOutput := openAIStreamDataStartsVisibleOutput(trimmedData, eventType)
-			if startsVisibleOutput {
-				MarkOpsTimestamp(c, ctxkey.FirstVisibleOutputAt)
-			}
-			if firstTokenMs == nil && openAIStreamDataStartsTTFT(trimmedData, eventType, forceFlushFailedEvent, ttftMode) {
-				ms := int(time.Since(startTime).Milliseconds())
-				firstTokenMs = &ms
-			}
-			s.parseSSEUsageBytesWithType(dataBytes, eventType, usage)
-		}
-		if line == "" {
-			pendingSSEEventType = ""
-			if suppressCurrentEvent {
-				suppressCurrentEvent = false
-				responseFailedPending = false
-				continue
-			}
-		}
-
-		if !clientDisconnected && !failureDelivered && !suppressCurrentEvent {
-			if !clientOutputStarted && !lineStartsClientOutput {
-				pendingLines = append(pendingLines, line)
-				continue
-			}
-			// 真实输出开始，心跳的使命结束。停拍是幂等的，且会与心跳 goroutine
-			// 建立 happens-before —— 之后 ResponseWriter 由本循环独占。
-			if !clientOutputStarted {
-				stopKeepalive()
-			}
-			if !clientOutputStarted && len(pendingLines) > 0 {
-				if !writePendingLines() {
-					continue
-				}
-			}
-			if _, err := fmt.Fprintln(w, line); err != nil {
-				clientDisconnected = true
-				logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] Client disconnected during streaming, continue draining upstream for usage: account=%d", account.ID)
-			} else {
-				clientOutputStarted = true
-				flushPending = true
-				if line == "" {
-					flushPendingOutput()
-				}
-			}
-		}
-		if line == "" && responseFailedPending {
-			responseFailedPending = false
-			failureDelivered = true
-		}
-	}
-	ensureResponseFailedTerminal()
-	if err := documentScanner.Err(); err != nil {
-		if (sawDone || sawTerminalEvent) && !sawFailedEvent {
-			s.clearOpenAIProxyStreamDisconnect(account)
-			return resultWithUsage(), nil
-		}
-		if sawFailedEvent {
-			err := fmt.Errorf("upstream response failed: %s", failedMessage)
-			return resultWithUsage(), wrapOpenAIUpstreamWarningIfCyber(resp.StatusCode, failedPayload, failedMessage, err)
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return resultWithUsage(), fmt.Errorf("stream usage incomplete: %w", err)
-		}
-		if errors.Is(err, bufio.ErrTooLong) {
-			logger.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] SSE line too long: account=%d max_size=%d error=%v", account.ID, maxLineSize, err)
-			return resultWithUsage(), err
-		}
-		if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
-			msg := "OpenAI stream disconnected before completion"
-			if errText := strings.TrimSpace(err.Error()); errText != "" {
-				msg += ": " + errText
-			}
-			return resultWithUsage(),
-				s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, nil, msg)
-		}
-		if clientDisconnected {
-			return resultWithUsage(), fmt.Errorf("stream usage incomplete after disconnect: %w", err)
-		}
-		s.recordOpenAIProxyStreamDisconnect(account, err, upstreamRequestID)
-		logger.LegacyPrintf("service.openai_gateway",
-			"[OpenAI passthrough] 流读取异常中断: account=%d request_id=%s err=%v",
-			account.ID,
-			upstreamRequestID,
-			err,
-		)
-		return resultWithUsage(), fmt.Errorf("stream read error: %w", err)
-	}
-	if sawFailedEvent {
-		err := fmt.Errorf("upstream response failed: %s", failedMessage)
-		return resultWithUsage(), wrapOpenAIUpstreamWarningIfCyber(resp.StatusCode, failedPayload, failedMessage, err)
-	}
-	if !clientDisconnected && !sawDone && !sawTerminalEvent && ctx.Err() == nil {
-		logger.FromContext(ctx).With(
-			zap.String("component", "service.openai_gateway"),
-			zap.Int64("account_id", account.ID),
-			zap.String("upstream_request_id", upstreamRequestID),
-		).Info("OpenAI passthrough 上游流在未收到 [DONE] 时结束，疑似断流")
-		if !openAIStreamClientOutputStarted(c, clientOutputStarted) {
-			return resultWithUsage(),
-				s.newOpenAIStreamFailoverError(c, account, true, upstreamRequestID, nil, "OpenAI stream ended before a terminal event")
-		}
-		s.recordOpenAIProxyStreamDisconnect(account, errors.New("stream ended before terminal event"), upstreamRequestID)
-		return resultWithUsage(), errors.New("stream usage incomplete: missing terminal event")
-	}
-	if (sawDone || sawTerminalEvent) && !sawFailedEvent {
-		s.clearOpenAIProxyStreamDisconnect(account)
-	}
-	logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, terminalEventType, clientDisconnected)
-
-	return resultWithUsage(), nil
+	return &openaiStreamingResultPassthrough{usage: result.Usage, firstTokenMs: result.FirstTokenMs, responseID: result.ResponseID, imageCount: result.ImageCount, imageOutputSizes: result.ImageOutputSizes}, err
 }
 
 func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
@@ -2336,141 +1374,19 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	originalModel string,
 	mappedModel string,
 ) (*openaiNonStreamingResultPassthrough, error) {
-	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
-	if err != nil {
+	result, err := nativeopenai.ReadPassthroughNonStreaming(ctx, resp, gatewayhttp.ResponseSink{Writer: c.Writer}, s.nativePassthroughOptions(ctx, c, account), originalModel, mappedModel)
+	if result == nil {
 		return nil, err
 	}
-
-	if isEventStreamResponse(resp.Header) {
-		observeOpenAISSEBody(c, string(body))
-		return s.handlePassthroughSSEToJSON(resp, c, account, body, originalModel, mappedModel)
-	}
-	observeOpenAIServiceTierInContext(c, body, "response.completed")
-
-	usage := &OpenAIUsage{}
-	usageParsed := false
-	if len(body) > 0 {
-		if parsedUsage, ok := extractOpenAIUsageFromJSONBytes(body); ok {
-			*usage = parsedUsage
-			usageParsed = true
-		}
-	}
-	if !usageParsed {
-
-		usage = s.parseSSEUsageFromBody(string(body))
-	}
-	logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, "json", false)
-
-	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
-
-	contentType := resp.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = "application/json"
-	}
-	if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
-		body = s.replaceModelInResponseBody(body, mappedModel, originalModel)
-	}
-	body, err = restoreOpenAIResponsesNamespacePayload(c, body)
-	if err != nil {
-		return nil, fmt.Errorf("restore OpenAI passthrough namespace response: %w", err)
-	}
-	body = restoreCodexToolNamesFromContext(c, body)
-	body, err = restoreOpenAIResponsesClientToolPayload(c, body)
-	if err != nil {
-		return nil, fmt.Errorf("restore OpenAI Responses client tools: %w", err)
-	}
-	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
-		c.Data(resp.StatusCode, contentType, body)
-	}
-	return &openaiNonStreamingResultPassthrough{
-		OpenAIUsage:      usage,
-		usage:            usage,
-		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
-		imageCount:       countOpenAIResponseImageOutputsFromJSONBytes(body),
-		imageOutputSizes: collectOpenAIResponseImageOutputSizesFromJSONBytes(body),
-	}, nil
+	return &openaiNonStreamingResultPassthrough{OpenAIUsage: result.Usage, usage: result.Usage, responseID: result.ResponseID, imageCount: result.ImageCount, imageOutputSizes: result.ImageOutputSizes}, err
 }
 
-// handlePassthroughSSEToJSON converts an SSE response body into a JSON
-// response for the passthrough path. It mirrors handleSSEToJSON while
-// preserving passthrough payloads, except compact-only model remapping may
-// rewrite model fields back to the original requested model.
 func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c *gin.Context, account *Account, body []byte, originalModel string, mappedModel string) (*openaiNonStreamingResultPassthrough, error) {
-	bodyText := string(body)
-	terminalType, terminalPayload, terminalOK := extractOpenAISSETerminalEvent(bodyText)
-	if terminalOK && (terminalType == "response.failed" || terminalType == "error") {
-		msg := extractOpenAISSEErrorMessage(terminalPayload)
-		if msg == "" {
-			msg = "Upstream compact response failed"
-		}
-		if compactErr := newOpenAICompactFallbackSignal(c, terminalPayload, msg); compactErr != nil {
-			return nil, compactErr
-		}
-		if failoverErr := s.nonStreamingTerminalFailureFailover(c, resp, account, true, terminalType, terminalPayload, msg, mappedModel); failoverErr != nil {
-			return nil, failoverErr
-		}
-		return nil, s.writeOpenAINonStreamingProtocolError(resp, c, msg)
+	result, err := nativeopenai.ReadPassthroughSSEAsJSON(resp, gatewayhttp.ResponseSink{Writer: c.Writer}, s.nativePassthroughOptions(c.Request.Context(), c, account), body, originalModel, mappedModel)
+	if result == nil {
+		return nil, err
 	}
-	finalResponse, ok := extractCodexFinalResponse(bodyText)
-
-	usage := s.parseSSEUsageFromBody(bodyText)
-	if ok {
-		if parsedUsage, parsed := extractOpenAIUsageFromJSONBytes(finalResponse); parsed {
-			*usage = parsedUsage
-		}
-
-		if len(gjson.GetBytes(finalResponse, "output").Array()) == 0 {
-			if outputJSON, reconstructed := reconstructResponseOutputFromSSE(bodyText); reconstructed {
-				if patched, err := sjson.SetRawBytes(finalResponse, "output", outputJSON); err == nil {
-					finalResponse = patched
-				}
-			}
-		}
-		finalResponse = supplementCompactionItemFromSSE(c, finalResponse, bodyText)
-		body = finalResponse
-		if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
-			body = s.replaceModelInResponseBody(body, mappedModel, originalModel)
-		}
-
-		body = s.correctToolCallsInResponseBody(body)
-		restoredBody, restoreErr := restoreOpenAIResponsesNamespacePayload(c, body)
-		if restoreErr != nil {
-			return nil, fmt.Errorf("restore OpenAI passthrough namespace response: %w", restoreErr)
-		}
-		restoredBody = restoreCodexToolNamesFromContext(c, restoredBody)
-		body = restoredBody
-		body, restoreErr = restoreOpenAIResponsesClientToolPayload(c, body)
-		if restoreErr != nil {
-			return nil, fmt.Errorf("restore OpenAI Responses client tools: %w", restoreErr)
-		}
-	} else {
-		if originalModel != "" && mappedModel != "" && originalModel != mappedModel {
-			bodyText = s.replaceModelInSSEBody(bodyText, mappedModel, originalModel)
-		}
-		body = []byte(bodyText)
-	}
-
-	writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
-	logOpenAISuccessMissingUsage(c.Request.Context(), c, account, resp, usage, terminalType, false)
-
-	contentType := "application/json; charset=utf-8"
-	if !ok {
-		contentType = resp.Header.Get("Content-Type")
-		if contentType == "" {
-			contentType = "text/event-stream"
-		}
-	}
-	if !writeOpenAICompactSSEBridge(c, resp.StatusCode, body) {
-		c.Data(resp.StatusCode, contentType, body)
-	}
-
-	return &openaiNonStreamingResultPassthrough{
-		OpenAIUsage:      usage,
-		usage:            usage,
-		responseID:       extractOpenAIResponseIDFromJSONBytes(body),
-		imageCount:       countOpenAIImageOutputsFromSSEBody(bodyText),
-		imageOutputSizes: collectOpenAIImageOutputSizesFromSSEBody(bodyText),
-	}, nil
+	return &openaiNonStreamingResultPassthrough{OpenAIUsage: result.Usage, usage: result.Usage, responseID: result.ResponseID, imageCount: result.ImageCount, imageOutputSizes: result.ImageOutputSizes}, err
 }
 
 func writeOpenAIPassthroughResponseHeaders(dst http.Header, src http.Header, filter *responseheaders.CompiledHeaderFilter) {

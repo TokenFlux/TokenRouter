@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/service",
+    "-run",
+    "^TestS09AlphaSearchFailoverClosesOriginalResponse$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 8.412,
+  "pass": 0,
+  "fail": 1,
+  "skip": 0,
+  "log": "logs/openai-alpha-resource-original.log.gz"
+}

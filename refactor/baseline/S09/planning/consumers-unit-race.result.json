@@ -1,0 +1,34 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/handler",
+    "./internal/repository",
+    "-run",
+    "Qoder|Gemini|Geminicli|Antigravity|Bedrock|Vertex|Grok|OpenAI.*(Stream|Passthrough|WS|Live|Token|OAuth)|Claude.*(Identity|Token|OAuth)|CNProvider|Ollama|UpstreamUsage"
+  ],
+  "exit": 1,
+  "seconds": 53.49181270599365,
+  "events": {
+    "pass": 2439,
+    "fail": 1,
+    "skip": 1
+  },
+  "nonpass": [
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+      "Action": "skip"
+    },
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA",
+      "Action": "fail"
+    }
+  ]
+}

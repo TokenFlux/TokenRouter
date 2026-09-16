@@ -502,6 +502,7 @@ func TestForward_ResponsesServiceTierOmittedStaysOmitted(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestForwardStreaming_ServiceTierPropagatedToResult(t *testing.T) {
+	resetGatewayForwardingSettingsCacheForTest(t)
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()

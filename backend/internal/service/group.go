@@ -2,10 +2,11 @@
 package service
 
 import (
+	time "time"
+
 	domain "github.com/TokenFlux/TokenRouter/internal/domain"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	time "time"
 )
 
 type OpenAIMessagesDispatchModelConfig = routing.OpenAIMessagesDispatchModelConfig
@@ -156,10 +157,6 @@ func IsGroupContextValid(group *Group) bool {
 
 func (g *Group) GetRoutingAccountIDs(requestedModel string) []int64 {
 	return groupRules(g).GetRoutingAccountIDs(requestedModel)
-}
-
-func matchModelPattern(pattern, model string) bool {
-	return routing.MatchModelPattern(pattern, model)
 }
 
 func parseMinutes(hhmm string) (int, bool) {

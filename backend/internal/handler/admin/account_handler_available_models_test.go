@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

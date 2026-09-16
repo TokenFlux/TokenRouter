@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 func TestGrokAccountModelMappingRemainsIndependentFromRuntimeSettings(t *testing.T) {

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/service",
+    "./internal/upstream/anthropic",
+    "./internal/app",
+    "-run",
+    "AnthropicAPIKeyPassthrough|HandleStreamingResponse|QoderNative|GatewayService_Forward_Stream"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 7.689,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-passthrough-stream-tests.log.gz"
+}

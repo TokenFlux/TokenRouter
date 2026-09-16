@@ -10,7 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"image"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	_ "image/jpeg"
+
 	_ "image/png"
 	"sort"
 	"strings"
@@ -20,6 +24,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"go.uber.org/zap"
@@ -1237,19 +1242,7 @@ func normalizeCreativeImageInput(input CreativeInputImage, maxBytes int64) (Crea
 	return CreativeInputImage{Bytes: input.Bytes, Mime: mime}, nil
 }
 
-// sniffCreativeImageMime 按魔数识别 PNG/JPEG/WebP。
-func sniffCreativeImageMime(data []byte) string {
-	if len(data) >= 8 && data[0] == 0x89 && data[1] == 'P' && data[2] == 'N' && data[3] == 'G' {
-		return "image/png"
-	}
-	if len(data) >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF {
-		return "image/jpeg"
-	}
-	if len(data) >= 12 && string(data[0:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
-		return "image/webp"
-	}
-	return ""
-}
+func sniffCreativeImageMime(data []byte) string { return upstream.SniffImageMIME(data) }
 
 // creativeImageDimensions 解析图片尺寸；webp 使用 x/image/webp 解码器。
 func creativeImageDimensions(data []byte, mime string) (int, int, error) {

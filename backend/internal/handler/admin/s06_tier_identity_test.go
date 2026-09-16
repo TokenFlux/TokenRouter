@@ -2,15 +2,16 @@ package admin
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/service"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 // 模拟 Drive 查询期间管理员已经替换凭据与非 tier 配置。

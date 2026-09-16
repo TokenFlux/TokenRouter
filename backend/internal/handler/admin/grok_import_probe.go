@@ -3,10 +3,11 @@ package admin
 
 import (
 	context "context"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
 	slog "log/slog"
 	time "time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 type grokImportProber interface {
@@ -30,11 +31,4 @@ func (h *AccountHandler) scheduleGrokImportProbe(value *service.Account) {
 	}
 	snapshot := service.AccountSnapshotView(value)
 	h.importProbes.Schedule(legacyImportQuotaProbe{h.grokImportProber}, &snapshot)
-}
-func (h *GrokOAuthHandler) scheduleGrokImportProbe(value *service.Account) {
-	if h == nil || h.importProber == nil {
-		return
-	}
-	snapshot := service.AccountSnapshotView(value)
-	h.importProbes.Schedule(legacyImportQuotaProbe{h.importProber}, &snapshot)
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // qoderSiteForAccount 严格读取账号站点；旧账号缺失字段时默认国际站。
@@ -22,14 +22,6 @@ func qoderProfileForAccount(account *Account) (qoder.Profile, error) {
 		return qoder.Profile{}, err
 	}
 	return qoder.ProfileForSite(site)
-}
-
-// qoderRefreshModeForAccount 严格读取刷新模式；旧账号默认旧式 COSY。
-func qoderRefreshModeForAccount(account *Account) (string, error) {
-	if account == nil {
-		return "", fmt.Errorf("qoder: account is nil")
-	}
-	return qoder.ParseRefreshMode(account.GetCredential("refresh_mode"))
 }
 
 // ensureQoderMachineCredentials 为新建 Qoder 账号补齐并持久化站点对应的稳定机器身份。
@@ -76,28 +68,8 @@ func ensureQoderMachineCredentials(account *Account) {
 	}
 }
 
-// qoderMachineForAccount 读取持久化机器身份，并对旧账号使用兼容回退值。
-func qoderMachineForAccount(account *Account) *qoder.MachineIdentity {
-	if account == nil {
-		return qoder.NewMachine()
-	}
-	site, err := qoderSiteForAccount(account)
-	if err != nil {
-		site = qoder.SiteGlobal
-	}
-	machineID := strings.TrimSpace(account.GetCredential("machine_id"))
-	if machineID == "" {
-		machineID = qoder.NewMachineForSite(site).MachineID
-	}
-	if site == qoder.SiteCN {
-		// 忽略旧版本曾保存的随机 token/type，保持官方国内客户端的空值语义。
-		return &qoder.MachineIdentity{MachineID: machineID}
-	}
-	return &qoder.MachineIdentity{
-		MachineID:    machineID,
-		MachineToken: firstNonEmptyQoder(account.GetCredential("machine_token"), machineID),
-		MachineType:  firstNonEmptyQoder(account.GetCredential("machine_type"), "5"),
-	}
+func qoderMachineForAccount(value *Account) *qoder.MachineIdentity {
+	return qoder.MachineForCredentials(qoderCredentialInput(value))
 }
 
 // qoderStreamClientForAccount 保留测试注入客户端，生产客户端则按账号站点重建端点和版本。

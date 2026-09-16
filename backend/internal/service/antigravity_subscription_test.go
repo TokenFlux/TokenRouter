@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/assert"
 )
 

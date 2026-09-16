@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "RequestBody|Reasoning|Replay|Compact|EmptyBase64|Passthrough.*Norm|NormalizeOpenAI|CrossModeFailover"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.528,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-request-codec-unit.log.gz"
+}

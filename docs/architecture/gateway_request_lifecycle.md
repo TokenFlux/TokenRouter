@@ -12,6 +12,8 @@
 - [转发与流式边界](#转发与流式边界)：修改上游调用和错误返回时读取。
 - [用量与结算](#用量与结算)：修改记录、价格或扣费时读取。
 - [扩展约束](#扩展约束)：新增入口或平台时检查。
+- [Qoder Chat 的新请求编排](#qoder_gateway_execution)：修改首条独立请求链时读取。
+- [平台执行与资源拥有权](#upstream_attempt_ownership)：修改单次执行、流输出及关闭边界时读取。
 
 ## 入口族与处理器
 
@@ -173,3 +175,23 @@ Qoder 流式已经进入上游后使用完成释放：客户端断开停止下�
 - handler、service、repository、前端调用方与 API contract/协议测试是否一起更新。
 
 相关文档：[系统架构](system_architecture.md)、[账号调度与缓存一致性](account_scheduling_and_cache.md)、[网关策略控制](../domains/gateway_policy_controls.md)、[上游账号能力矩阵](../interfaces/upstream_account_matrix.md)、[网关错误响应策略](../interfaces/gateway_error_policy.md)、[领域目录](../domains/index.md)、[接口目录](../interfaces/index.md)。
+
+
+<a id="qoder_gateway_execution"></a>
+## Qoder Chat 的新请求编排
+
+Qoder Chat Completions 的生产路由绑定 `gateway/httpapi.QoderChatHandler`，由 `gateway.QoderUseCase` 拥有唯一请求级循环，`upstream/qoder.Executor` 只执行当次平台调用。使用既有认证 `AccessSnapshot`、路由 `RoutePlan`、账号 `AccountSnapshot` 和 scheduler Lease；其余 Qoder HTTP 协议仍通过旧 handler 组合相同平台实现。
+
+app 的精确过渡适配负责现有会话识别、选号投影、错误改写和完成队列调用，不另建状态缓存。资金预检后按原时机登记用户等待，实际等待取得槽位后再次执行 billing 资金检查，二次检查不再累计 RPM。账号尝试持有独立 AttemptLease，完成或失败后归还；只有尚未提交本次输出时才能按原资格进行受限刷新与换号。已服务的部分失败只进入一次完成处理，不产生成功粘性或成功反馈。
+
+HTTP 提交、当前 attempt 的重试边界和语义输出分别表示；等待心跳保持自己的输出责任。已经提交供应商服务后，结算或用量记录失败不重新执行供应商请求。完成 worker 和未迁的请求策略继续通过旧能力端口提供，后续由对应阶段清理。
+
+Qoder 请求与平台尝试在 app 的 `QoderRequestsAndAttempts` 中同步登记。后台停止顺序 15 先禁止新进入并等待在途，随后才停止完成队列和共享连接；超过剩余退出预算时报告未完成，不能宣称 drain 成功。这项登记不创建额外 worker，也不缩短已进入流式上游的正常执行预算。
+
+
+<a id="upstream_attempt_ownership"></a>
+## 平台执行与资源拥有权
+
+各平台的供应商交换、请求构造与原生读取位于 upstream；旧网关在调用点投影账号、出站策略与错误观察接口，不向新平台传入 Gin 或完整 config。OpenAI 的响应读取、图片与辅助查询保留各自取消与终态差异，WS relay 和连接池独立于完整入站 WS 编排。续接报文和失效密文剥离使用平台纯实现，会话归属缓存和每轮价格快照仍由入站持有。
+
+NativeUpstreamAttempts 在应用退出时禁止新进入并等待在途，先于完成队列和共享存储关闭。它与 HTTPRequests 是并列等待屏障；额度恢复操作先取消，再等待请求结束，不能把 HTTPRequests 的完成时间当作停止监听时间。账号授权会话及底层配额服务随后停止，按需 Live/WS 资源不因构造应用而提前开启。

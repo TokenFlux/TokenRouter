@@ -4,61 +4,20 @@ import (
 	"fmt"
 	"strings"
 
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
+	s09wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
-func openAIResponsesInputItemIDPrefix(itemType string) (string, bool) {
-	switch strings.TrimSpace(itemType) {
-	case "message":
-		return "msg", true
-	case "reasoning":
-		return "rs", true
-	case "web_search_call":
-		return "ws", true
-	case "custom_tool_call":
-		return openAIResponsesToolCallIDPrefix(itemType), true
-	case "tool_search_call":
-		return openAIResponsesToolCallIDPrefix(itemType), true
-	case "custom_tool_call_output":
-		// Although custom calls use ctc IDs, OpenAI validates replayed custom
-		// call output item IDs against the generic fc namespace.
-		return "fc", true
-	default:
-		if isCodexToolCallInputType(itemType) {
-			return openAIResponsesToolCallIDPrefix(itemType), true
-		}
-		return "", false
-	}
-}
-
-func openAIResponsesToolCallIDPrefix(itemType string) string {
-	switch strings.TrimSpace(itemType) {
-	case "custom_tool_call", "custom_tool_call_output":
-		return "ctc"
-	case "tool_search_call", "tool_search_output":
-		return "tsc"
-	default:
-		return "fc"
-	}
-}
-
-// 回放请求中的无效 ID 必须删除而不是改写，因为伪造的 ID 可能会指向另一个上游对象。
 func shouldStripOpenAIResponsesInputItemID(itemType, id string) bool {
-	prefix, constrained := openAIResponsesInputItemIDPrefix(itemType)
-	if !constrained {
-		return false
-	}
-	return id == "" || !strings.HasPrefix(id, prefix)
+	return nativeopenai.ShouldStripOpenAIResponsesInputItemID(itemType, id)
 }
 
 func shouldStripOpenAIResponsesNonPairCallID(itemType string) bool {
-	switch strings.TrimSpace(itemType) {
-	case "message", "reasoning", "image_generation_call":
-		return true
-	default:
-		return false
-	}
+	return s09wire.ShouldStripNonPairCallID(itemType)
 }
 
 func sanitizeOpenAIResponsesInputItemIDs(body []byte) ([]byte, bool, error) {

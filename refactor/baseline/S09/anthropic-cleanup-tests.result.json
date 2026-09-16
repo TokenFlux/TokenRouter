@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account/...",
+    "./internal/handler/...",
+    "./internal/upstream/anthropic/...",
+    "./internal/upstream/bedrock",
+    "-run",
+    "Claude|Anthropic|Bedrock|ToolName|ToolMap|CacheControl|Fingerprint|SystemPrompt|SSEUsage"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 28.645,
+  "pass": 1225,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-cleanup-tests.log.gz"
+}

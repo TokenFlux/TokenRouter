@@ -8,9 +8,11 @@ import (
 	"net/url"
 	"strings"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -62,40 +64,27 @@ func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
 		writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		return fmt.Errorf("responses input_tokens: upstream client is unavailable")
 	}
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
-	if err != nil {
-		safeErr := sanitizeUpstreamErrorMessage(err.Error())
-		setOpsUpstreamError(c, 0, safeErr, "")
-		writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
-		return fmt.Errorf("responses input_tokens: upstream request failed: %s", safeErr)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := s.readResponsesInputTokensBody(resp)
-	if err != nil {
-		writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Failed to read response")
-		return err
-	}
-	if resp.StatusCode >= 400 {
-		if resp.StatusCode == http.StatusNotFound ||
-			(account.Type == AccountTypeOAuth && isOpenAIOAuthInputTokensUnsupported(resp.StatusCode, respBody)) {
-			writeOpenAIResponsesInputTokensFallback(c, account, prepared, resp.StatusCode, "upstream_unsupported")
-			return nil
-		}
-		return s.handleResponsesInputTokensUpstreamError(ctx, c, account, prepared, resp, respBody)
-	}
-
-	inputTokens := gjson.GetBytes(respBody, "input_tokens")
-	if !inputTokens.Exists() || inputTokens.Type != gjson.Number {
-		writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream response missing input_tokens")
-		return fmt.Errorf("responses input_tokens: upstream response missing input_tokens")
-	}
-	contentType := strings.TrimSpace(resp.Header.Get("Content-Type"))
-	if contentType == "" {
-		contentType = "application/json"
-	}
-	c.Data(http.StatusOK, contentType, respBody)
-	return nil
+	return nativeopenai.CountNativeInputTokens(upstreamReq, nativeopenai.NativeInputTokensOptions{
+		Enter: s.nativeAttemptActivity,
+		Do: func(req *http.Request) (*http.Response, error) {
+			return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+		},
+		TransportError: func(err error) error {
+			safeErr := sanitizeUpstreamErrorMessage(err.Error())
+			setOpsUpstreamError(c, 0, safeErr, "")
+			writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
+			return fmt.Errorf("responses input_tokens: upstream request failed: %s", safeErr)
+		},
+		ReadBody: s.readResponsesInputTokensBody,
+		HTTPError: func(resp *http.Response, respBody []byte) error {
+			if resp.StatusCode == http.StatusNotFound || (account.Type == AccountTypeOAuth && isOpenAIOAuthInputTokensUnsupported(resp.StatusCode, respBody)) {
+				writeOpenAIResponsesInputTokensFallback(c, account, prepared, resp.StatusCode, "upstream_unsupported")
+				return nil
+			}
+			return s.handleResponsesInputTokensUpstreamError(ctx, c, account, prepared, resp, respBody)
+		},
+		WriteError: func(status int, kind, message string) { writeOpenAIResponsesInputTokensError(c, status, kind, message) },
+	}, gatewayhttp.ResponseSink{Writer: c.Writer})
 }
 
 func prepareNativeOpenAIInputTokensCountRequest(body []byte, account *Account) (*openAIInputTokensCountPrepared, error) {

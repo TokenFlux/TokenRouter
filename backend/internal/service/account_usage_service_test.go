@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"strings"
@@ -12,8 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 type accountUsageCodexProbeRepo struct {

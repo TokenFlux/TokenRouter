@@ -114,7 +114,7 @@ OAuth 用量入口、Anthropic 主/被动窗口、六并发批量查询和生命
 
 Qoder 与 OpenAI 查询写回比较本轮平台、账号类型、状态、凭据、代理及影子归属；管理员换身份后旧结果不覆盖新行。Qoder 清除限流还比较原限流及 overload 窗口，保留快照与健康写入各自的提交/通知顺序。Qoder、Antigravity 与 Anthropic 内存缓存及共享返回带进程内来源标识，换身份不复用旧结果，负缓存也不能跨身份传播；key、TTL 与持久化格式不变。主动查询回写 Anthropic 被动 Extra 时比较查询身份，窗口列另外比较旧结束时间；两步保持原独立提交和尽力失败行为。观测 Extra 只同步单账号快照，窗口列继续发布尽力 outbox。普通网关响应的供应商 Header/错误解析及采样投影仍在旧执行 Adapter，持久化调用由账号存储完成；调度评分、快速阻断和选取执行等待 S07，供应商执行与请求时序等待 S09/S11。不能将本阶段刷新与管理查询的身份比较理解为所有平台请求都新增了相同的竞争协议。
 
-Ollama Cloud 的共享浏览器会话、按 API Key 身份分组、手动刷新、周期资格、singleflight、成功/失败快照和重试调度由 `account.OllamaCloudUsageService` 唯一拥有，app 直接绑定 AccountStore、原加密器及动态设置端口。设置 JSON 校验和到期规则也在 account；原 settings 表 key 与赋值行为不变。Cookie 名值检查和允许集合归 egress，固定 URL 请求、重定向阻断及 HTML 供应商解析通过旧执行适配返回技术观测，留待 S09 迁移。
+Ollama Cloud 的共享浏览器会话、按 API Key 身份分组、手动刷新、周期资格、singleflight、成功/失败快照和重试调度由 `account.OllamaCloudUsageService` 唯一拥有，app 直接绑定 AccountStore、原加密器及动态设置端口。设置 JSON 校验和到期规则也在 account；原 settings 表 key 与赋值行为不变。Cookie 名值检查和允许集合归 egress，固定 URL 请求、重定向阻断及 HTML 供应商解析由 `upstream/ollama.FetchUsage` 返回技术观测，旧执行入口只投影原 HTTP 池、Cookie 和取消上下文。用量原生包不决定健康或调度，见 [原生查询与账号编排](../interfaces/upstream_usage.md#native_usage_adapters)。
 
 其运行拥有者同时跟踪立即首轮、每分钟扫描和管理员手动查询；停止取消排队、周期锁等待及在途操作，并使用 app 剩余预算等待。未完成时报告超时，重复 Stop 不覆盖首次结果；调用方或停机取消后，迟到响应不再写快照。Redis 租约竞争跳过、故障回退数据库和无后端执行的既有策略通过同一端口实现复用，锁名、owner、TTL 及释放预算保持原值。
 

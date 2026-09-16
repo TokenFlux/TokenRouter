@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/upstream/gemini/...",
+    "./internal/pkg/googleapi",
+    "./internal/service",
+    "./internal/account",
+    "-run",
+    "^(Test.*(Gemini|Google|SessionStore)|Test.*OAuth|Test.*CodeAssist)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 20.02,
+  "pass": 383,
+  "fail": 1,
+  "skip": 0,
+  "log": "logs/gemini-primitives-normal.log.gz"
+}

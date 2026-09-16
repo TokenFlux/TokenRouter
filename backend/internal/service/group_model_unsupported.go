@@ -5,12 +5,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 const groupModelUnsupportedAvailableModelsLimit = 20

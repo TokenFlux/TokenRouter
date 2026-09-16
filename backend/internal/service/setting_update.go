@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // OmittedSettingKeys 标记调用方载荷中未包含的设置键。

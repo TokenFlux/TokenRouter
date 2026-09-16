@@ -1,0 +1,28 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-parallel=1",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/upstream/vertex",
+    "./internal/upstream/internal/googleauth",
+    "./internal/upstream/bedrock",
+    "./internal/upstream/anthropic",
+    "./internal/upstream/gemini",
+    "./internal/protocol/anthropic",
+    "-run",
+    "Test.*(Vertex|Gemini|ClaudeToken|ServiceAccountSigned|Bedrock|Beta)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 56.258,
+  "pass": 988,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/vertex-final-consumer-race.log.gz"
+}

@@ -3,13 +3,13 @@ package service
 
 import (
 	account "github.com/TokenFlux/TokenRouter/internal/account"
-	antigravity "github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	claude "github.com/TokenFlux/TokenRouter/internal/pkg/claude"
-	geminicli "github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	openai "github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	qoder "github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
-	xai "github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	antigravity "github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // AdminCatalogOptions 只适配现存的平台目录，平台目录来源 S09 改绑。

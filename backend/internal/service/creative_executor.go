@@ -2,16 +2,18 @@ package service
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 // 创作台执行器常量。
@@ -72,13 +74,14 @@ func IsRetryableCreativeError(err error) bool {
 // CreativeExecutor 是创作台的 provider 执行器：按分组平台直接构造上游 HTTP 请求，
 // 绝不通过本地 HTTP 回环调用网关。
 type CreativeExecutor struct {
-	cfg            *config.Config
-	accountRepo    CreativeAccountRepository
-	groupRepo      CreativeGroupRepository
-	gateway        *OpenAIGatewayService
-	gatewayService *GatewayService
-	geminiTokens   *GeminiTokenProvider
-	settingService *SettingService
+	nativeAttemptActivity func() (func(), error)
+	cfg                   *config.Config
+	accountRepo           CreativeAccountRepository
+	groupRepo             CreativeGroupRepository
+	gateway               *OpenAIGatewayService
+	gatewayService        *GatewayService
+	geminiTokens          *GeminiTokenProvider
+	settingService        *SettingService
 }
 
 // NewCreativeExecutor 创建创作台执行器。
@@ -303,12 +306,8 @@ func accountProxyURL(account *Account) string {
 	return account.Proxy.URL()
 }
 
-// readCreativeUpstreamBody 读取上游响应体，限制最大读取量，避免异常响应撑爆内存。
 func readCreativeUpstreamBody(body io.Reader, limit int64) ([]byte, error) {
-	if limit <= 0 {
-		limit = 64 << 20
-	}
-	return io.ReadAll(io.LimitReader(body, limit))
+	return upstream.ReadLimitedBody(body, limit)
 }
 
 // normalizeCreativeOutputs 对执行器输出做后处理：
@@ -386,44 +385,14 @@ func creativeGrokImageResolution(imageSize string) string {
 	return "2k"
 }
 
-// creativeGrokAspectRatio 校验并返回 grok imagine 支持的 aspect_ratio，不支持时返回空串（上游取默认）。
 func creativeGrokAspectRatio(aspectRatio string) string {
-	aspectRatio = strings.TrimSpace(aspectRatio)
-	if aspectRatio == "" {
-		return ""
-	}
-	if aspectRatio == "auto" {
-		return aspectRatio
-	}
-	for _, candidate := range grokImagineAspectRatioValues {
-		if candidate.label == aspectRatio {
-			return aspectRatio
-		}
-	}
-	return ""
+	return nativegrok.NormalizeImagineAspectRatio(aspectRatio)
 }
 
-// decodedCreativeImage 是 base64 解码后的图片字节与嗅探出的 MIME。
-type decodedCreativeImage struct {
-	Bytes []byte
-	Mime  string
-}
+type decodedCreativeImage = upstream.DecodedImage
 
-// decodeBase64Image 解码上游返回的 base64 图片并按魔数嗅探 MIME。
 func decodeBase64Image(raw string) (decodedCreativeImage, error) {
-	data, err := base64.StdEncoding.DecodeString(raw)
-	if err != nil {
-		// 部分上游会省略 padding，按 RawStdEncoding 再试一次。
-		data, err = base64.RawStdEncoding.DecodeString(raw)
-		if err != nil {
-			return decodedCreativeImage{}, err
-		}
-	}
-	mime := sniffCreativeImageMime(data)
-	if mime == "" {
-		mime = "image/png"
-	}
-	return decodedCreativeImage{Bytes: data, Mime: mime}, nil
+	return upstream.DecodeBase64Image(raw)
 }
 
 // creativeFileExtension 返回 MIME 对应的文件扩展名（用于 multipart 文件名）。
@@ -436,4 +405,9 @@ func creativeFileExtension(mime string) string {
 	default:
 		return "png"
 	}
+}
+
+// BindNativeAttemptActivity 仅登记实际原生尝试，任务租约仍由所属 worker 持有。
+func (e *CreativeExecutor) BindNativeAttemptActivity(enter func() (func(), error)) {
+	e.nativeAttemptActivity = enter
 }

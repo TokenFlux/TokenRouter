@@ -13,7 +13,15 @@
 
 ## 账号与凭据
 
+管理员 OAuth/PAT 导入、账号刷新和额度操作由 account 用例执行，HTTP 位于 account/httpapi，组合根绑定同一实例。额度的供应商请求由 upstream/openai 执行，窗口与返回报文使用 protocol/openai 值类型。额度消费完成后的恢复阶段保留八秒独立预算，客户端断开不取消该收尾，应用停止会取消并等待；操作先于底层额度服务停止。
+
 OpenAI 正式支持 `oauth` 与 `apikey`。OAuth 账号保存 access/refresh token、账号/组织上下文和 Codex 能力元数据，后台与请求路径都可触发刷新；API Key 账号保存 key、base URL、工作负载能力、文本协议路由和管理员压缩开关。其它通用导入类型不构成 OpenAI 转发支持，详见[上游账号能力矩阵](upstream_account_matrix.md)。
+
+OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthorization` 持有；token source/refresher 复用原缓存与协调器。共享 OAuth token 与刷新锁的 Redis Adapter 位于 account/rediscache，由 app 构造唯一实例，保留原键和 TTL。Agent Identity 的共享任务锁、锁内复查和凭据登记也由 account 协调，旧服务提供装配和入站投影。
+
+供应商 OAuth/PAT/隐私交换、规范 Codex 身份、请求指纹、Header 组合及 WS 客户端位于 `upstream/openai`；WS v2 relay 与 Live attestation 是平台内的技术子包。WS 池唯一持有连接、预热、队列和租约状态，构造不启动 worker，入站拥有者在首次使用时显式启用。完整入站 WS 编排、每轮资金快照和完成处理仍在旧网关。
+
+标准 Responses、passthrough、Chat/Messages 转换和 Raw Chat 读取使用原生实现，通过同步 OutputSink 输出。首输出暂存器拥有当前尝试的内存和临时文件；protocol 唯一提供工具参数、usage、终态重建和图片产出计数。Embeddings、Images 和 Alpha Search 的单次执行负责网络调用和响应资源，账号选择、健康写入及全局重试由入站适配。Alpha Search 在错误处理回卷响应体时仍关闭最初取得的上游 Body。计数查询保持原生完整 JSON 与 Anthropic 兼容响应的区别，不作为推理结算事实。
 
 OAuth 补全账号元数据时，ID token 中的个人 `chatgpt_plan_type` 是个人套餐的权威来源。`accounts/check` 可能按 access token 的 `poid` 命中另一个 workspace；仅当该记录的账号 ID 与个人 `chatgpt_account_id` 一致时，才能把它的 `entitlement.expires_at` 与个人套餐组合。账号不一致时，到期时间必须改从个人 `/backend-api/subscriptions` 的 `active_until` 获取；若套餐本身来自 `accounts/check`，套餐和到期时间仍保持来自同一条记录。
 
@@ -26,7 +34,9 @@ OpenAI 兼容请求的显式粘性会话头按 `session-id`、`session_id`、`co
 <a id="openai_protocol_dispatch"></a>
 ## 协议与传输
 
-`protocol/openai` 拥有 Responses/Chat 报文、自定义编解码、服务层级值与宽容 JSON 字节修复；`protocol/bridge` 拥有跨协议转换和每条流的状态。旧 apicompat 委托它们并提供时刻/随机源。BOM、控制字节、原文与大小限制保持原行为；纯 `BodyLimitError` 在旧 httputil 的 HTTP 边界转回 `http.MaxBytesError`，请求读取和解压仍由 `server/httpx` 执行，原先未使用宽容修复的入口不会自动启用。UA/originator 字符串识别在 `gateway/clientmeta`，平台策略与请求字段改写时机仍在旧网关。
+`protocol/openai` 拥有 Responses/Chat 报文、自定义编解码、服务层级值与宽容 JSON 字节修复；`protocol/bridge` 拥有跨协议转换和每条流的状态。旧 apicompat 委托它们并提供时刻/随机源。BOM、控制字节、原文与大小限制保持原行为；纯 `BodyLimitError` 在旧 httputil 的 HTTP 边界转回 `http.MaxBytesError`，请求读取和解压仍由 `server/httpx` 执行，原先未使用宽容修复的入口不会自动启用。Compact 请求白名单、reasoning replay 与 store=false 修复由原生请求 codec 执行，触发条件仍由原入站决定。Responses Header 与 CC 请求发送也通过原生实现，账号身份、代理/TLS 和请求状态以窄端口投影，保持原覆写顺序。UA/originator 字符串识别在 `gateway/clientmeta`，规范 Codex 出站身份与动态 UA resolver 已由原生包唯一持有，请求字段改写时机仍由旧入站适配决定。
+
+Responses 标准/透传读取、Responses 转 Chat/Messages、Raw Chat 直通及 Chat 转 Responses/Messages 的响应执行已归 upstream/openai；协议算法继续由 protocol/bridge 唯一拥有。缓冲终态、空响应检测与流状态按每次尝试创建，终态 usage 的覆盖顺序和断开返回差异分别保留。旧入站传入账号策略和观察端口；HTTP 只在原输出时点取得 Header，等待心跳不因创建适配器而提前结束。
 
 OpenAI 平台拥有以下正式协议族：
 
@@ -43,7 +53,11 @@ OpenAI 平台拥有以下正式协议族：
 <a id="images_url_backfill"></a>
 ### 图片结果回填
 
+图片 API Key/OAuth 的单次发送与响应释放由原生 ImagesExecutor 执行，旧网关仍决定账号恢复、失败重试与完成处理。图片真实产出、HTTP 提交和失败分别记录；原非流张数回退与部分结果返回保持各入口语义。
+
 OpenAI API Key 账号可通过 `extra.images_url_to_b64_json=true` 启用图片回填，默认关闭。非流式 `/images/generations` 与 `/images/edits` 响应中，只有缺少非空 `b64_json` 且含 URL 的图片项会被补全；已有 Base64、显式 `response_format=url` 和流式请求保持原行为。回填保留原 URL、修订提示词和所有上游元数据，下载失败只跳过该项；用量、图片数量和计费尺寸始终从回填前的上游响应读取。下载复用账号代理，不携带账号认证或客户端 Cookie；每张最多 20 MiB、60 秒，只接受字节嗅探确认的 PNG/JPEG/WebP/GIF，data URI 也执行内容与大小检查。目标检查见[上游传输安全](../operations/upstream_transport_security.md)。
+
+图片 JSON/multipart 解析和上传边界由 upstream 的通用图片输入处理；OpenAI 原生包拥有 Responses 图片转换、渐进事件、终态去重和尺寸解析。API Key 与 OAuth 仍采用各自的响应读取规则，通过同步 OutputSink 交付。非流 OAuth 图片在读取上游期间继续发送原 JSON 空白心跳，响应写出时才停止心跳；断开后的读取与计费边界沿用各自原规则。
 
 ### 创作台 Images 契约
 

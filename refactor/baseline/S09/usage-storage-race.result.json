@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "Test.*Ollama|TestS06UsageObservationDatabaseIdentity|TestS06UsageRecoveryDatabaseIdentity|TestS06PassiveUsage"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 32.513,
+  "pass": 80,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/usage-storage-race.log.gz"
+}

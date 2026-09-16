@@ -67,6 +67,8 @@ identity、team、apikey 的生产实例和同连接事务参与工厂由 app �
 
 usage、audit、ops 已使用各自核心和 Adapter；用户/Key/团队的用量 SQL 参与函数复用调用方连接，不能改成逐条查询或分页后排序。新核心不导入旧实体、Gin 或具体存储；纯 `querycache`、`logevent` 与已迁统计值拥有独立职责规则。历史构造、HTTP 上下文和测试适配许可继续精确到文件/import，普通新文件不会继承许可；验收需要真实队列/事务/取消事件和查询次数证据，不能用仅编译或跳过替代。
 
+upstream 的具体平台不能相互导入，也不接收旧 Account、Gin 或完整 config。共享 Google 认证原语位于 upstream/internal/googleauth，纯 wire/转换继续由 protocol 提供；账号授权会话及凭据持久化归 account。旧网关的参数投影与重试时机保留到入站迁移，测试需要分别验证 HTTP 提交、语义输出、可重试边界和已观测用量。平台迁移使用本地 HTTP/TLS/WS 及隔离存储夹具，不能把这些结果当作真实供应商账号验证。
+
 所有手写代码都要写必要注释，注释使用中文；生成文件不手改。注释应解释约束、失败语义或非显然原因，不复述语句。跨模块不变量应同步到 Project Doc，并在关键手写入口添加唯一 `@project-doc` 锚点。
 
 前端使用 Vue 3、TypeScript、Pinia、Vue Router、Vue I18n 和项目组件。修改界面时：

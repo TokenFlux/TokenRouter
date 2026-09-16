@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "./internal/app",
+    "./internal/account",
+    "-run",
+    "Qoder(Native|Canceled|Sessions|Authorization)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 36.122,
+  "pass": 16,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/qoder-final-first-chain.log.gz"
+}

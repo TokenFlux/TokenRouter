@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
@@ -21,7 +23,7 @@ const (
 	openAIWSBetaV2Value = "responses_websockets=2026-02-06"
 
 	openAIWSTurnStateHeader    = "x-codex-turn-state"
-	openAIWSTurnMetadataHeader = "x-codex-turn-metadata"
+	openAIWSTurnMetadataHeader = nativeopenai.WSTurnMetadataHeader
 
 	openAIWSLogValueMaxLen      = 160
 	openAIWSHeaderValueMaxLen   = 120
@@ -47,7 +49,7 @@ const (
 	openAIWSStoreDisabledConnModeOff      = "off"
 
 	openAIWSIngressStagePreviousResponseNotFound = "previous_response_not_found"
-	openAIWSMaxPrevResponseIDDeletePasses        = 8
+	openAIWSMaxPrevResponseIDDeletePasses        = nativeopenai.WSMaxPrevResponseIDDeletePasses
 )
 
 var openAIWSLogValueReplacer = strings.NewReplacer(
@@ -333,6 +335,7 @@ func (s *OpenAIGatewayService) getOpenAIWSConnPool() *openAIWSConnPool {
 	s.openaiWSPoolOnce.Do(func() {
 		if s.openaiWSPool == nil {
 			s.openaiWSPool = newOpenAIWSConnPool(s.cfg)
+			s.openaiWSPool.Start()
 		}
 	})
 	return s.openaiWSPool

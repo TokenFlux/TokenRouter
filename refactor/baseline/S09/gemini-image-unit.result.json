@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/upstream/gemini/...",
+    "-run",
+    "^(Test.*Gemini.*|Test.*Creative.*|Test.*Qoder.*)$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 29.326,
+  "pass": 1048,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/gemini-image-unit.log.gz"
+}

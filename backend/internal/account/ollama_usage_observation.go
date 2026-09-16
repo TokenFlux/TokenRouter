@@ -1,6 +1,10 @@
 package account
 
-import "time"
+import (
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
+)
 
 // OllamaUsageFetchInput 仅用于受控的出站端口，不作为管理响应或普通日志字段。
 type OllamaUsageFetchInput struct {
@@ -11,11 +15,4 @@ type OllamaUsageFetchInput struct {
 	ObservedAt  time.Time
 }
 
-// OllamaUsageObservation 分离实际 HTTP 观测和账号的失败计数、重试与存储规则。
-type OllamaUsageObservation struct {
-	Data         *OllamaCloudUsageData
-	HTTPStatus   int
-	Failure      string
-	RetryAfter   time.Duration
-	Unauthorized bool
-}
+type OllamaUsageObservation = usageview.OllamaUsageObservation

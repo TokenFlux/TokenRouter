@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/upstream/usageview",
+    "-run",
+    "Test.*UpstreamUsage|Test.*CN|Test.*Kimi|Test.*Zhipu|Test.*Deep[Ss]eek"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 20.257,
+  "pass": 239,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/usageview-unit.log.gz"
+}

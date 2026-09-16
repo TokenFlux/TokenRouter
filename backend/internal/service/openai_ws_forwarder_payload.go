@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,11 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"unsafe"
+
+	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 func validateOpenAIWSBearerToken(account *Account, token string) error {
@@ -89,109 +88,60 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	routingServiceTier string,
 	routerMatch ...TLSFingerprintRouterMatchResult,
 ) (http.Header, openAIWSSessionHeaderResolution, error) {
-	headers := make(http.Header)
-	if account == nil || !account.IsOpenAIAgentIdentity() {
-		headers.Set("authorization", "Bearer "+token)
-	}
-
-	sessionResolution := resolveOpenAIWSSessionHeaders(c, promptCacheKey)
-	if c != nil && c.Request != nil {
-		if v := strings.TrimSpace(c.Request.Header.Get("accept-language")); v != "" {
-			headers.Set("accept-language", v)
-		}
-		// Codex beta feature 会参与上游 WS 握手，也用于连接池兼容性隔离。
-		for _, value := range c.Request.Header.Values("x-codex-beta-features") {
-			if value = strings.TrimSpace(value); value != "" {
-				headers.Add("x-codex-beta-features", value)
+	var sessionResolution openAIWSSessionHeaderResolution
+	headers, err := native.BuildWSHeaders(ctx, native.WSHeaderOptions{
+		AgentIdentity: account != nil && account.IsOpenAIAgentIdentity(), Token: token,
+		TurnState: turnState, TurnMetadata: turnMetadata,
+		BetaV1: openAIWSBetaV1Value, BetaV2: openAIWSBetaV2Value,
+		LegacyWS: decision.Transport == OpenAIUpstreamTransportResponsesWebsocket,
+		ResolveSession: func() (string, string) {
+			sessionResolution = resolveOpenAIWSSessionHeaders(c, promptCacheKey)
+			return sessionResolution.SessionID, sessionResolution.ConversationID
+		},
+		InboundHeaders: func() http.Header {
+			if c != nil && c.Request != nil {
+				return c.Request.Header
 			}
-		}
-		// 仅转发 Codex 明确使用的窗口与安装身份提示，不开放任意客户端头透传。
-		for _, name := range [...]string{
-			"x-codex-window-id",
-			"x-codex-installation-id",
-			"session-id",
-			"thread-id",
-			"x-client-request-id",
-		} {
-			if value := strings.TrimSpace(c.Request.Header.Get(name)); value != "" {
-				headers.Set(name, value)
+			return nil
+		},
+		UserAgent: func() string {
+			if c != nil {
+				return c.GetHeader("User-Agent")
 			}
-		}
-	}
-	// OAuth 账号：将 apiKeyID 混入 session 标识符，防止跨用户会话碰撞。
-	if account != nil && account.UsesOpenAICodexProtocol() {
-		apiKeyID := getAPIKeyIDFromContext(c)
-		if sessionResolution.SessionID != "" {
-			headers.Set("session_id", isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), sessionResolution.SessionID))
-		}
-		if sessionResolution.ConversationID != "" {
-			headers.Set("conversation_id", isolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentitySource(c, account), sessionResolution.ConversationID))
-		}
-	} else {
-		if sessionResolution.SessionID != "" {
-			headers.Set("session_id", sessionResolution.SessionID)
-		}
-		if sessionResolution.ConversationID != "" {
-			headers.Set("conversation_id", sessionResolution.ConversationID)
-		}
-	}
-	if state := strings.TrimSpace(turnState); state != "" {
-		headers.Set(openAIWSTurnStateHeader, state)
-	}
-	if metadata := strings.TrimSpace(turnMetadata); metadata != "" {
-		headers.Set(openAIWSTurnMetadataHeader, metadata)
-	}
-	applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c))
-	applyStagedCodexFingerprintHeaders(c, account, headers)
-
-	if account != nil && account.UsesOpenAICodexProtocol() {
-		if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, headers, account); err != nil {
-			return nil, sessionResolution, fmt.Errorf("resolve chatgpt account headers: %w", err)
-		}
-		headers.Set("originator", resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...))
-	}
-
-	betaValue := openAIWSBetaV2Value
-	if decision.Transport == OpenAIUpstreamTransportResponsesWebsocket {
-		betaValue = openAIWSBetaV1Value
-	}
-	headers.Set("OpenAI-Beta", betaValue)
-
-	if c != nil {
-		if ua := strings.TrimSpace(c.GetHeader("User-Agent")); ua != "" {
-			headers.Set("user-agent", ua)
-		}
-	}
-	reqCtx := context.Background()
-	if c != nil && c.Request != nil {
-		reqCtx = c.Request.Context()
-	}
-	s.applyOpenAIUpstreamUserAgentHeader(reqCtx, c, account, headers, true, routerMatch...)
-
-	// 终态收口：originator 必须与最终 user-agent 首段配套且为官方身份，非官方 UA 整体回退为
-	// 默认 Codex TUI 身份，同时避免 originator 与 UA 首段错配导致上游 404，详见 issue #3901。
-	if account != nil && account.UsesOpenAICodexProtocol() {
-		enforceCodexIdentityHeaders(headers)
-	}
-
-	// 账号级请求头覆写（仅 openai api_key 账号启用时生效；OAuth 路径 no-op）。
-	// 覆盖所有 WS 模式（ctx_pool/dedicated/passthrough）的握手头。
-	account.ApplyHeaderOverrides(headers)
-	// HTTP 与 WebSocket 共用同一份 Codex 会话级能力协商，连接池也会据此
-	// 隔离不兼容握手。
-	applyOpenAICodexBetaFeatures(c, account, headers)
-	setOpenAICodexRoutingHint(headers, account, routingModel, routingServiceTier)
-	logOpenAIRoutingDiagnostics(
-		ctx,
-		account,
-		string(decision.Transport),
-		routingModel,
-		routingServiceTier,
-		strings.TrimSpace(headers.Get(openAICodexRoutingHintHeader)) != "",
-		"soft_routing_hint",
-	)
-
-	return headers, sessionResolution, nil
+			return ""
+		},
+		ApplyWSUserAgent: func(headers http.Header) {
+			reqCtx := context.Background()
+			if c != nil && c.Request != nil {
+				reqCtx = c.Request.Context()
+			}
+			s.applyOpenAIUpstreamUserAgentHeader(reqCtx, c, account, headers, true, routerMatch...)
+		},
+		ResponsesRequestOptions: native.ResponsesRequestOptions{
+			UsesCodex: func() bool { return account != nil && account.UsesOpenAICodexProtocol() },
+			APIKeyID:  func() int64 { return getAPIKeyIDFromContext(c) },
+			IsolateSession: func(keyID int64, value string) string {
+				return isolateOpenAIUpstreamSessionID(keyID, codexAccountIdentitySource(c, account), value)
+			},
+			ApplyAccountIdentity: func(headers http.Header) {
+				applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c))
+			},
+			ApplyFingerprint: func(headers http.Header) { applyStagedCodexFingerprintHeaders(c, account, headers) },
+			AccountHeaders: func(ctx context.Context, headers http.Header) error {
+				return resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, headers, account)
+			},
+			Originator:      func() string { return resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...) },
+			OverrideHeaders: account.ApplyHeaderOverrides,
+			BetaFeatures:    func(headers http.Header) { applyOpenAICodexBetaFeatures(c, account, headers) },
+			RoutingHint: func(headers http.Header, _ []byte) {
+				setOpenAICodexRoutingHint(headers, account, routingModel, routingServiceTier)
+			},
+			Diagnostics: func(headers http.Header, _ []byte) {
+				logOpenAIRoutingDiagnostics(ctx, account, string(decision.Transport), routingModel, routingServiceTier, strings.TrimSpace(headers.Get(openAICodexRoutingHintHeader)) != "", "soft_routing_hint")
+			},
+		},
+	})
+	return headers, sessionResolution, err
 }
 
 func (s *OpenAIGatewayService) buildOpenAIWSCreatePayload(reqBody map[string]any, account *Account) map[string]any {
@@ -216,30 +166,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSCreatePayload(reqBody map[string]any
 }
 
 func setOpenAIWSTurnMetadata(payload map[string]any, turnMetadata string) {
-	if len(payload) == 0 {
-		return
-	}
-	metadata := strings.TrimSpace(turnMetadata)
-	if metadata == "" {
-		return
-	}
-
-	switch existing := payload["client_metadata"].(type) {
-	case map[string]any:
-		existing[openAIWSTurnMetadataHeader] = metadata
-		payload["client_metadata"] = existing
-	case map[string]string:
-		next := make(map[string]any, len(existing)+1)
-		for k, v := range existing {
-			next[k] = v
-		}
-		next[openAIWSTurnMetadataHeader] = metadata
-		payload["client_metadata"] = next
-	default:
-		payload["client_metadata"] = map[string]any{
-			openAIWSTurnMetadataHeader: metadata,
-		}
-	}
+	native.SetOpenAIWSTurnMetadata(payload, turnMetadata)
 }
 
 func (s *OpenAIGatewayService) isOpenAIWSStoreRecoveryAllowed(account *Account) bool {
@@ -307,72 +234,22 @@ func (s *OpenAIGatewayService) openAIWSStoreDisabledConnMode() string {
 }
 
 func shouldForceNewConnOnStoreDisabled(mode, lastFailureReason string) bool {
-	switch mode {
-	case openAIWSStoreDisabledConnModeOff:
-		return false
-	case openAIWSStoreDisabledConnModeAdaptive:
-		reason := strings.TrimPrefix(strings.TrimSpace(lastFailureReason), "prewarm_")
-		switch reason {
-		case "policy_violation", "message_too_big", "auth_failed", "write_request", "write":
-			return true
-		default:
-			return false
-		}
-	default:
-		return true
-	}
+	return native.ShouldForceNewConnOnStoreDisabled(mode, lastFailureReason)
 }
 
 func dropPreviousResponseIDFromRawPayload(payload []byte) ([]byte, bool, error) {
-	return dropPreviousResponseIDFromRawPayloadWithDeleteFn(payload, sjson.DeleteBytes)
+	return native.DropPreviousResponseIDFromRawPayload(payload)
 }
 
 func dropPreviousResponseIDFromRawPayloadWithDeleteFn(
 	payload []byte,
 	deleteFn func([]byte, string) ([]byte, error),
 ) ([]byte, bool, error) {
-	if len(payload) == 0 {
-		return payload, false, nil
-	}
-	if !gjson.GetBytes(payload, "previous_response_id").Exists() {
-		return payload, false, nil
-	}
-	if deleteFn == nil {
-		deleteFn = sjson.DeleteBytes
-	}
-
-	updated := payload
-	for i := 0; i < openAIWSMaxPrevResponseIDDeletePasses &&
-		gjson.GetBytes(updated, "previous_response_id").Exists(); i++ {
-		next, err := deleteFn(updated, "previous_response_id")
-		if err != nil {
-			return payload, false, err
-		}
-		updated = next
-	}
-	return updated, !gjson.GetBytes(updated, "previous_response_id").Exists(), nil
+	return native.DropPreviousResponseIDFromRawPayloadWithDeleteFn(payload, deleteFn)
 }
 
 func setPreviousResponseIDToRawPayload(payload []byte, previousResponseID string) ([]byte, error) {
-	normalizedPrevID := strings.TrimSpace(previousResponseID)
-	if len(payload) == 0 || normalizedPrevID == "" {
-		return payload, nil
-	}
-	updated, err := sjson.SetBytes(payload, "previous_response_id", normalizedPrevID)
-	if err == nil {
-		return updated, nil
-	}
-
-	var reqBody map[string]any
-	if unmarshalErr := json.Unmarshal(payload, &reqBody); unmarshalErr != nil {
-		return nil, err
-	}
-	reqBody["previous_response_id"] = normalizedPrevID
-	rebuilt, marshalErr := json.Marshal(reqBody)
-	if marshalErr != nil {
-		return nil, marshalErr
-	}
-	return rebuilt, nil
+	return native.SetPreviousResponseIDToRawPayload(payload, previousResponseID)
 }
 
 func shouldInferIngressFunctionCallOutputPreviousResponseID(
@@ -382,54 +259,14 @@ func shouldInferIngressFunctionCallOutputPreviousResponseID(
 	currentPreviousResponseID string,
 	expectedPreviousResponseID string,
 ) bool {
-	if !storeDisabled || turn <= 1 || !signals.HasFunctionCallOutput {
-		return false
-	}
-	if strings.TrimSpace(currentPreviousResponseID) != "" {
-		return false
-	}
-	if signals.HasFunctionCallOutputMissingCallID {
-		return false
-	}
-	// If the client already sent the actual tool-call context, treat this as
-	// a full replay / self-contained continuation payload rather than
-	// downgrading it into an inferred delta continuation. item_reference alone
-	// is not enough on the store=false WS path: it still needs a valid prior
-	// response anchor so upstream can resolve the referenced function_call.
-	if signals.HasToolCallContext {
-		return false
-	}
-	return strings.TrimSpace(expectedPreviousResponseID) != ""
+	return native.ShouldInferIngressFunctionCallOutputPreviousResponseID(storeDisabled, turn, signals, currentPreviousResponseID, expectedPreviousResponseID)
 }
 
 func alignStoreDisabledPreviousResponseID(
 	payload []byte,
 	expectedPreviousResponseID string,
 ) ([]byte, bool, error) {
-	if len(payload) == 0 {
-		return payload, false, nil
-	}
-	expected := strings.TrimSpace(expectedPreviousResponseID)
-	if expected == "" {
-		return payload, false, nil
-	}
-	current := openAIWSPayloadStringFromRaw(payload, "previous_response_id")
-	if current == "" || current == expected {
-		return payload, false, nil
-	}
-
-	withoutPrev, removed, dropErr := dropPreviousResponseIDFromRawPayload(payload)
-	if dropErr != nil {
-		return payload, false, dropErr
-	}
-	if !removed {
-		return payload, false, nil
-	}
-	updated, setErr := setPreviousResponseIDToRawPayload(withoutPrev, expected)
-	if setErr != nil {
-		return payload, false, setErr
-	}
-	return updated, true, nil
+	return native.AlignStoreDisabledPreviousResponseID(payload, expectedPreviousResponseID)
 }
 
 // Replay 状态所有权不变式：replay 序列中的 json.RawMessage 正文一经放入即视为
@@ -437,267 +274,42 @@ func alignStoreDisabledPreviousResponseID(
 // 序列头数组在跨持有者保存时必须新建（combineOpenAIWSReplayItems），禁止通过
 // 共享头 append，否则会写入其他持有者可见的底层数组。
 
-// combineOpenAIWSReplayItems 合并历史与增量为新头数组，正文共享不复制。
 func combineOpenAIWSReplayItems(history, delta []json.RawMessage) []json.RawMessage {
-	if len(delta) == 0 {
-		return history
-	}
-	combined := make([]json.RawMessage, 0, len(history)+len(delta))
-	combined = append(combined, history...)
-	return append(combined, delta...)
-}
-
-// openAIWSPayloadStringView 返回与 payload 共享底层数组的零拷贝 string 视图，
-// 供 gjson.Get 使用（gjson.GetBytes 会整段复制结果 Raw，对 input 这类占
-// payload 主体的字段是每次 O(payload) 分配）。调用方必须保证 payload 在结果
-// 存活期间不可变（replay 所有权不变式）。
-func openAIWSPayloadStringView(payload []byte) string {
-	return unsafe.String(unsafe.SliceData(payload), len(payload))
-}
-
-// openAIWSRawMessageFromResult 优先返回 parent 的子切片（gjson 值零拷贝共享），
-// Index 不可用时回退为复制。共享要求 parent 遵守上面的不可变约定。
-func openAIWSRawMessageFromResult(parent []byte, value gjson.Result) json.RawMessage {
-	idx := value.Index
-	if idx > 0 && idx+len(value.Raw) <= len(parent) && string(parent[idx:idx+len(value.Raw)]) == value.Raw {
-		return json.RawMessage(parent[idx : idx+len(value.Raw)])
-	}
-	return json.RawMessage(value.Raw)
+	return native.CombineOpenAIWSReplayItems(history, delta)
 }
 
 func normalizeOpenAIWSJSONForCompare(raw []byte) ([]byte, error) {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 {
-		return nil, errors.New("json is empty")
-	}
-	var decoded any
-	if err := json.Unmarshal(trimmed, &decoded); err != nil {
-		return nil, err
-	}
-	return json.Marshal(decoded)
+	return native.NormalizeOpenAIWSJSONForCompare(raw)
 }
 
 func normalizeOpenAIWSJSONForCompareOrRaw(raw []byte) []byte {
-	normalized, err := normalizeOpenAIWSJSONForCompare(raw)
-	if err != nil {
-		return bytes.TrimSpace(raw)
-	}
-	return normalized
+	return native.NormalizeOpenAIWSJSONForCompareOrRaw(raw)
 }
 
 func normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(payload []byte) ([]byte, error) {
-	if len(payload) == 0 {
-		return nil, errors.New("payload is empty")
-	}
-	var decoded map[string]any
-	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return nil, err
-	}
-	delete(decoded, "input")
-	delete(decoded, "previous_response_id")
-	// Codex 会在每次 response.create 时更新传输元数据，这些字段不改变 previous_response_id 引用的上下文。
-	delete(decoded, "client_metadata")
-	delete(decoded, "stream_options")
-	// 官方 Codex 使用 generate=false 预热连接，后续业务请求会省略该字段；只归一化 false，保留 true 的语义变化。
-	if generate, ok := decoded["generate"].(bool); ok && !generate {
-		delete(decoded, "generate")
-	}
-	return json.Marshal(decoded)
+	return native.NormalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(payload)
 }
 
-// openAIWSExtractNormalizedInputSequence 拆出 input 序列。返回的正文尽可能与
-// payload 共享底层数组（零拷贝），受 replay 所有权不变式保护。
 func openAIWSExtractNormalizedInputSequence(payload []byte) ([]json.RawMessage, bool, error) {
-	if len(payload) == 0 {
-		return nil, false, nil
-	}
-	inputValue := gjson.Get(openAIWSPayloadStringView(payload), "input")
-	if !inputValue.Exists() {
-		return nil, false, nil
-	}
-	if inputValue.Type == gjson.JSON {
-		if inputValue.IsArray() {
-			// gjson 宽容解析；数组整体先做零分配合法性校验，避免把断裂
-			// JSON 塞进 replay 历史。
-			arrayRaw := openAIWSRawMessageFromResult(payload, inputValue)
-			if !json.Valid(arrayRaw) {
-				return nil, true, errors.New("input array json is invalid")
-			}
-			elems := inputValue.Array()
-			items := make([]json.RawMessage, 0, len(elems))
-			for _, elem := range elems {
-				items = append(items, openAIWSRawMessageFromResult(payload, elem))
-			}
-			return items, true, nil
-		}
-		return []json.RawMessage{openAIWSRawMessageFromResult(payload, inputValue)}, true, nil
-	}
-	if inputValue.Type == gjson.String {
-		encoded, _ := json.Marshal(inputValue.String())
-		return []json.RawMessage{encoded}, true, nil
-	}
-	return []json.RawMessage{openAIWSRawMessageFromResult(payload, inputValue)}, true, nil
+	return native.OpenAIWSExtractNormalizedInputSequence(payload)
 }
 
 func openAIWSInputIsPrefixExtended(previousPayload, currentPayload []byte) (bool, error) {
-	previousItems, previousExists, prevErr := openAIWSExtractNormalizedInputSequence(previousPayload)
-	if prevErr != nil {
-		return false, prevErr
-	}
-	currentItems, currentExists, currentErr := openAIWSExtractNormalizedInputSequence(currentPayload)
-	if currentErr != nil {
-		return false, currentErr
-	}
-	if !previousExists && !currentExists {
-		return true, nil
-	}
-	if !previousExists {
-		return len(currentItems) == 0, nil
-	}
-	if !currentExists {
-		return len(previousItems) == 0, nil
-	}
-	if len(currentItems) < len(previousItems) {
-		return false, nil
-	}
-
-	for idx := range previousItems {
-		previousNormalized := normalizeOpenAIWSJSONForCompareOrRaw(previousItems[idx])
-		currentNormalized := normalizeOpenAIWSJSONForCompareOrRaw(currentItems[idx])
-		if !bytes.Equal(previousNormalized, currentNormalized) {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-func openAIWSRawItemsHasPrefix(items []json.RawMessage, prefix []json.RawMessage) bool {
-	if len(prefix) == 0 {
-		return true
-	}
-	if len(items) < len(prefix) {
-		return false
-	}
-	for idx := range prefix {
-		// 快路径：客户端逐字节重发历史时直接比较，避免整轮历史的解码/再编码。
-		if bytes.Equal(bytes.TrimSpace(prefix[idx]), bytes.TrimSpace(items[idx])) {
-			continue
-		}
-		previousNormalized := normalizeOpenAIWSJSONForCompareOrRaw(prefix[idx])
-		currentNormalized := normalizeOpenAIWSJSONForCompareOrRaw(items[idx])
-		if !bytes.Equal(previousNormalized, currentNormalized) {
-			return false
-		}
-	}
-	return true
+	return native.OpenAIWSInputIsPrefixExtended(previousPayload, currentPayload)
 }
 
 func openAIWSRawItemsHasFunctionCallOutput(items []json.RawMessage) bool {
-	for _, item := range items {
-		if isCodexToolCallOutputItemType(gjson.GetBytes(item, "type").String()) {
-			return true
-		}
-	}
-	return false
+	return native.OpenAIWSRawItemsHasFunctionCallOutput(items)
 }
 
-// openAIWSRawItemsHaveToolCallContextForOutputs 判断工具输出是否带有对应的工具调用上下文。
 func openAIWSRawItemsHaveToolCallContextForOutputs(items []json.RawMessage) bool {
-	if len(items) == 0 {
-		return false
-	}
-	contextCallIDs := make(map[string]struct{})
-	outputCallIDs := make(map[string]struct{})
-	for _, item := range items {
-		itemType := gjson.GetBytes(item, "type").String()
-		callID := strings.TrimSpace(gjson.GetBytes(item, "call_id").String())
-		switch {
-		case isCodexToolCallContextItemType(itemType):
-			if callID != "" {
-				contextCallIDs[callID] = struct{}{}
-			}
-		case isCodexToolCallOutputItemType(itemType):
-			if callID == "" {
-				return false
-			}
-			outputCallIDs[callID] = struct{}{}
-		}
-	}
-	if len(outputCallIDs) == 0 || len(contextCallIDs) == 0 {
-		return false
-	}
-	for callID := range outputCallIDs {
-		if _, ok := contextCallIDs[callID]; !ok {
-			return false
-		}
-	}
-	return true
+	return native.OpenAIWSRawItemsHaveToolCallContextForOutputs(items)
 }
 
-// sanitizeOpenAIWSHistoricalReplayToolCalls 清理历史中没有对应输出的工具调用，
-// 避免剥离 previous_response_id 后向上游重放无法闭合的旧调用上下文。
-// sanitizeOpenAIWSHistoricalReplayToolCalls 返回的新头数组与 previousItems 共享正文。
-func sanitizeOpenAIWSHistoricalReplayToolCalls(
-	previousItems []json.RawMessage,
-	currentItems []json.RawMessage,
-) []json.RawMessage {
-	if len(previousItems) == 0 {
-		return previousItems
-	}
-	outputCallIDs := make(map[string]struct{})
-	collectOutputCallIDs := func(items []json.RawMessage) {
-		for _, item := range items {
-			if !isCodexToolCallOutputItemType(gjson.GetBytes(item, "type").String()) {
-				continue
-			}
-			if callID := strings.TrimSpace(gjson.GetBytes(item, "call_id").String()); callID != "" {
-				outputCallIDs[callID] = struct{}{}
-			}
-		}
-	}
-	collectOutputCallIDs(previousItems)
-	collectOutputCallIDs(currentItems)
-
-	sanitized := make([]json.RawMessage, 0, len(previousItems))
-	for _, item := range previousItems {
-		if isCodexToolCallContextItemType(gjson.GetBytes(item, "type").String()) {
-			callID := strings.TrimSpace(gjson.GetBytes(item, "call_id").String())
-			if _, paired := outputCallIDs[callID]; !paired {
-				continue
-			}
-		}
-		sanitized = append(sanitized, item)
-	}
-	return sanitized
-}
-
-// openAIWSRawPayloadHasToolCallOutput 判断 response.create payload 的 input 是否包含工具输出。
 func openAIWSRawPayloadHasToolCallOutput(payload []byte) bool {
-	if len(payload) == 0 {
-		return false
-	}
-	input := gjson.Get(openAIWSPayloadStringView(payload), "input")
-	if !input.Exists() {
-		return false
-	}
-	if input.IsArray() {
-		for _, item := range input.Array() {
-			if isCodexToolCallOutputItemType(item.Get("type").String()) {
-				return true
-			}
-		}
-		return false
-	}
-	if input.Type == gjson.JSON {
-		return isCodexToolCallOutputItemType(input.Get("type").String())
-	}
-	return false
+	return native.OpenAIWSRawPayloadHasToolCallOutput(payload)
 }
 
-// buildOpenAIWSReplayInputSequenceFromItems 基于已解析的当前 turn input 构建
-// replay 序列。返回序列的正文与 previousFullInput/currentItems 共享所有权
-// （见 combineOpenAIWSReplayItems 上方的所有权不变式），头数组可能直接转移自
-// currentItems。
 func buildOpenAIWSReplayInputSequenceFromItems(
 	previousFullInput []json.RawMessage,
 	previousFullInputExists bool,
@@ -705,20 +317,7 @@ func buildOpenAIWSReplayInputSequenceFromItems(
 	currentExists bool,
 	hasPreviousResponseID bool,
 ) ([]json.RawMessage, bool) {
-	if !hasPreviousResponseID || !previousFullInputExists {
-		return currentItems, currentExists
-	}
-	previousFullInput = sanitizeOpenAIWSHistoricalReplayToolCalls(previousFullInput, currentItems)
-	if !currentExists || len(currentItems) == 0 {
-		return previousFullInput, true
-	}
-	if openAIWSRawItemsHasPrefix(currentItems, previousFullInput) {
-		return currentItems, true
-	}
-	merged := make([]json.RawMessage, 0, len(previousFullInput)+len(currentItems))
-	merged = append(merged, previousFullInput...)
-	merged = append(merged, currentItems...)
-	return merged, true
+	return native.BuildOpenAIWSReplayInputSequenceFromItems(previousFullInput, previousFullInputExists, currentItems, currentExists, hasPreviousResponseID)
 }
 
 func buildOpenAIWSReplayInputSequence(
@@ -727,18 +326,7 @@ func buildOpenAIWSReplayInputSequence(
 	currentPayload []byte,
 	hasPreviousResponseID bool,
 ) ([]json.RawMessage, bool, error) {
-	currentItems, currentExists, currentErr := openAIWSExtractNormalizedInputSequence(currentPayload)
-	if currentErr != nil {
-		return nil, false, currentErr
-	}
-	items, exists := buildOpenAIWSReplayInputSequenceFromItems(
-		previousFullInput,
-		previousFullInputExists,
-		currentItems,
-		currentExists,
-		hasPreviousResponseID,
-	)
-	return items, exists, nil
+	return native.BuildOpenAIWSReplayInputSequence(previousFullInput, previousFullInputExists, currentPayload, hasPreviousResponseID)
 }
 
 func setOpenAIWSPayloadInputSequence(
@@ -746,48 +334,16 @@ func setOpenAIWSPayloadInputSequence(
 	fullInput []json.RawMessage,
 	fullInputExists bool,
 ) ([]byte, error) {
-	if !fullInputExists {
-		return payload, nil
-	}
-	// Preserve [] vs null semantics when input exists but is empty.
-	inputForMarshal := fullInput
-	if inputForMarshal == nil {
-		inputForMarshal = []json.RawMessage{}
-	}
-	inputRaw, marshalErr := json.Marshal(inputForMarshal)
-	if marshalErr != nil {
-		return nil, marshalErr
-	}
-	return sjson.SetRawBytes(payload, "input", inputRaw)
+	return native.SetOpenAIWSPayloadInputSequence(payload, fullInput, fullInputExists)
 }
 
-// buildOpenAIWSCurrentTurnRetryPayload 构造替换账号可用的无链路当前回合请求。
-// 只有 input 能完整覆盖所有 function_call_output 时才允许剥离 previous_response_id。
 func buildOpenAIWSCurrentTurnRetryPayload(
 	payload []byte,
 	fullInput []json.RawMessage,
 	fullInputExists bool,
 	originalModel string,
 ) ([]byte, bool, error) {
-	if !fullInputExists {
-		return nil, false, nil
-	}
-	retryPayload, err := setOpenAIWSPayloadInputSequence(payload, fullInput, true)
-	if err != nil {
-		return nil, false, err
-	}
-	retryPayload = RemovePreviousResponseIDFromBody(retryPayload)
-	if model := strings.TrimSpace(originalModel); model != "" {
-		retryPayload, err = sjson.SetBytes(retryPayload, "model", model)
-		if err != nil {
-			return nil, false, err
-		}
-	}
-	coverage := AnalyzeToolCallOutputContextCoverageBytes(retryPayload)
-	if coverage.HasFunctionCallOutput && !coverage.ContextCoversAllCallIDs {
-		return nil, false, nil
-	}
-	return retryPayload, true, nil
+	return native.BuildOpenAIWSCurrentTurnRetryPayload(payload, fullInput, fullInputExists, originalModel)
 }
 
 func shouldKeepIngressPreviousResponseID(
@@ -796,53 +352,13 @@ func shouldKeepIngressPreviousResponseID(
 	lastTurnResponseID string,
 	hasFunctionCallOutput bool,
 ) (bool, string, error) {
-	if hasFunctionCallOutput {
-		return true, "has_function_call_output", nil
-	}
-	currentPreviousResponseID := strings.TrimSpace(openAIWSPayloadStringFromRaw(currentPayload, "previous_response_id"))
-	if currentPreviousResponseID == "" {
-		return false, "missing_previous_response_id", nil
-	}
-	expectedPreviousResponseID := strings.TrimSpace(lastTurnResponseID)
-	if expectedPreviousResponseID == "" {
-		return false, "missing_last_turn_response_id", nil
-	}
-	if currentPreviousResponseID != expectedPreviousResponseID {
-		return false, "previous_response_id_mismatch", nil
-	}
-	if len(previousPayload) == 0 {
-		return false, "missing_previous_turn_payload", nil
-	}
-
-	previousComparable, previousComparableErr := normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(previousPayload)
-	if previousComparableErr != nil {
-		return false, "non_input_compare_error", previousComparableErr
-	}
-	currentComparable, currentComparableErr := normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(currentPayload)
-	if currentComparableErr != nil {
-		return false, "non_input_compare_error", currentComparableErr
-	}
-	if !bytes.Equal(previousComparable, currentComparable) {
-		return false, "non_input_changed", nil
-	}
-	return true, "strict_incremental_ok", nil
+	return native.ShouldKeepIngressPreviousResponseID(previousPayload, currentPayload, lastTurnResponseID, hasFunctionCallOutput)
 }
 
-type openAIWSIngressPreviousTurnStrictState struct {
-	nonInputComparable []byte
-}
+type openAIWSIngressPreviousTurnStrictState = native.WSPreviousTurnStrictState
 
 func buildOpenAIWSIngressPreviousTurnStrictState(payload []byte) (*openAIWSIngressPreviousTurnStrictState, error) {
-	if len(payload) == 0 {
-		return nil, nil
-	}
-	nonInputComparable, nonInputErr := normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(payload)
-	if nonInputErr != nil {
-		return nil, nonInputErr
-	}
-	return &openAIWSIngressPreviousTurnStrictState{
-		nonInputComparable: nonInputComparable,
-	}, nil
+	return native.BuildOpenAIWSIngressPreviousTurnStrictState(payload)
 }
 
 func shouldKeepIngressPreviousResponseIDWithStrictState(
@@ -851,30 +367,5 @@ func shouldKeepIngressPreviousResponseIDWithStrictState(
 	lastTurnResponseID string,
 	hasFunctionCallOutput bool,
 ) (bool, string, error) {
-	if hasFunctionCallOutput {
-		return true, "has_function_call_output", nil
-	}
-	currentPreviousResponseID := strings.TrimSpace(openAIWSPayloadStringFromRaw(currentPayload, "previous_response_id"))
-	if currentPreviousResponseID == "" {
-		return false, "missing_previous_response_id", nil
-	}
-	expectedPreviousResponseID := strings.TrimSpace(lastTurnResponseID)
-	if expectedPreviousResponseID == "" {
-		return false, "missing_last_turn_response_id", nil
-	}
-	if currentPreviousResponseID != expectedPreviousResponseID {
-		return false, "previous_response_id_mismatch", nil
-	}
-	if previousState == nil {
-		return false, "missing_previous_turn_payload", nil
-	}
-
-	currentComparable, currentComparableErr := normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(currentPayload)
-	if currentComparableErr != nil {
-		return false, "non_input_compare_error", currentComparableErr
-	}
-	if !bytes.Equal(previousState.nonInputComparable, currentComparable) {
-		return false, "non_input_changed", nil
-	}
-	return true, "strict_incremental_ok", nil
+	return native.ShouldKeepIngressPreviousResponseIDWithStrictState(previousState, currentPayload, lastTurnResponseID, hasFunctionCallOutput)
 }

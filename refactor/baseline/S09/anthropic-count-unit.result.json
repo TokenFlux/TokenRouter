@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "^(Test.*(CountTokens|Anthropic|Claude|Beta|Signature|Budget|MessageCache|TokenVersion)|TestHandle.*Response|TestS09Anthropic)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.813,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-count-unit.log.gz"
+}

@@ -13,8 +13,8 @@ import (
 	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -79,8 +79,7 @@ func TestGrokSSOBatchImportKeepsCreatedAccountsWhenOneAutomaticProbeFails(t *tes
 	defer oauthService.Stop()
 	prober := newGrokImportProbeStub(3)
 	prober.failures[502] = infraerrors.New(502, "GROK_TEST_PROBE_FAILED", "sensitive-upstream-body")
-	handler := NewGrokOAuthHandler(oauthService, adminService, nil, nil)
-	handler.importProber = prober
+	handler := NewGrokOAuthHandler(oauthService, adminService, nil, nil, prober)
 
 	router := gin.New()
 	router.POST("/api/v1/admin/grok/sso-to-oauth", handler.CreateAccountsFromSSO)

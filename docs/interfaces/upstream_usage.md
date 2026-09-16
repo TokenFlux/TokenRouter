@@ -31,7 +31,7 @@ New API 钱包若需要用户级认证，可在 `credentials` 中保存
 
 ### New API
 
-严格请求 API Key 专用的 `/api/usage/token/`，把 `total_granted`、`total_used` 和 `total_available` 归一化为当前 Key 的 `limits` 与 `subscription`，不写入结果的 `balance`。再读取 `/api/status` 的 `quota_display_type`、`quota_per_unit` 和可选 `usd_exchange_rate` 换算为 `USD`、`CNY` 或 `TOKENS`。`expires_at` 转为 UTC 到期时间，`unlimited_quota=true` 归一化为 `subscription.unlimited=true`，即使上游同时返回整数溢出的负额度也忽略这些字段，不向前端传递哨兵值。
+先读取 `/api/status` 的显示配置，再严格请求 API Key 专用的 `/api/usage/token/`，把 `total_granted`、`total_used` 和 `total_available` 归一化为当前 Key 的 `limits` 与 `subscription`，不写入结果的 `balance`。使用 `quota_display_type`、`quota_per_unit` 和可选 `usd_exchange_rate` 换算为 `USD`、`CNY` 或 `TOKENS`。`expires_at` 转为 UTC 到期时间，`unlimited_quota=true` 归一化为 `subscription.unlimited=true`，即使上游同时返回整数溢出的负额度也忽略这些字段，不向前端传递哨兵值。
 
 钱包余额按以下固定顺序查询：若 token 响应包含 fork 扩展的 `user_balance_display`/`user_balance`，直接使用；否则优先使用配置的用户访问令牌请求 `/api/user/self`（可带固定的 `New-Api-User` 用户 ID），只把当前 `quota` 归一化为钱包 `remaining`，不把生命周期 `used_quota` 拼成虚构的钱包总额；最后尝试允许 API Key 访问的 `/user/balance`，解析 `balance_infos[].total_balance`。钱包余额才进入结果的 `balance`，因此即使 Key 是无限量，也不会把 `100000000` 或整数溢出值显示成余额。官方 New API 未开放 API Key 钱包端点且未配置用户访问令牌时，返回 `UPSTREAM_USAGE_WALLET_UNAVAILABLE`，不降级为 token quota。
 
@@ -56,6 +56,15 @@ Zhipu payg 没有公开余额协议，DeepSeek coding 也不是合法账号组�
 
 适配器拒绝 HTTP 非成功、认证失败、限流、超时、重定向、超大响应体、缺字段或不一致数值。选择的适配器失败时不会自动回退到另一个协议，也不会修改账号配置。
 
+<a id="native_usage_adapters"></a>
+## 原生查询与账号编排
+
+S09 将 Sub2API、New API、Zivv 的固定查询及归一化移到 `upstream/usageprovider`，Kimi、Zhipu、DeepSeek 分别进入对应的 `upstream` 包。`account/provider.UpstreamUsageExecution` 持有唯一适配器注册表，app 将它绑定到既有 account 查询用例；旧 service 入口只投影账号凭据、代理、TLS 和 Header 参数并委托。
+
+`upstream/usageview` 保存归一化值、错误和验证规则，account 的旧值入口使用别名。`upstream/usagecontract.Request` 是本次查询的技术快照，敏感字段不参与 JSON 或普通字符串格式化；共享 `upstream/internal/usageclient` 保留固定读取上限、请求头覆盖顺序、状态映射和响应体关闭。原生包不读取账号仓储，不写健康、调度或资金。
+
+Ollama 的固定设置页抓取、HTML 解析、Retry-After 及 Chat 思考字段补齐和输出上限处理进入 `upstream/ollama`。account 继续拥有浏览器会话、分组、加密、singleflight、身份 CAS 与周期维护。它仍是现有 OpenAI 兼容账号的一种能力，不新增独立账号平台。CN 的通用文本执行复用 Anthropic/OpenAI 协议链；平台资格与全局重试不进入用量适配器。
+
 ## 管理员接口
 
 - `POST /api/v1/admin/accounts/:id/upstream-usage/query`
@@ -63,7 +72,7 @@ Zhipu payg 没有公开余额协议，DeepSeek coding 也不是合法账号组�
 
 成功结果在顶层包含 `account_id`、`adapter`、`provider`、UTC `observed_at`、`mode`、`unit`、`balance`、`balances`、`available`、`limits`、`subscription` 和 `expires_at`；未适用字段省略。New API 的 `balance` 是钱包余额，`limits`/`subscription` 是当前 Key 的配额信息；DeepSeek 的 `balances` 保存多币种钱包，coding 周期使用 `unit=PERCENT`。`mode` 为 `balance`、`quota`、`limits` 或 `subscription`。批量响应将成功结果和每个账号的结构化错误分开，单个账号失败不取消其它账号。
 
-每次操作使用约 60 秒总超时、512 KiB 响应体上限、禁止重定向，并复用账号代理、TLS 指纹、Header Override 和 `HTTPUpstream`。查询前后重新读取账号；凭据、代理、Base URL、TLS 连接设置或规范化配置改变时返回 `UPSTREAM_USAGE_IDENTITY_CHANGED`。同一账号和配置指纹使用 singleflight，等待方可以独立取消；每个等待方取得独立结果副本。查询编排、身份复核、并发槽和指标由 `account.UpstreamUsageService` 唯一持有，app 直接绑定账号 Store，旧供应商网络适配继续通过受控端口提供。构造不启动后台任务；应用关闭会阻止新认领、取消并等待脱离 HTTP 等待方的共享查询，执行未结束时报告超时，不能提前宣布依赖已释放。
+每次操作使用约 60 秒总超时、512 KiB 响应体上限、禁止重定向，并复用账号代理、TLS 指纹、Header Override 和 `HTTPUpstream`。查询前后重新读取账号；凭据、代理、Base URL、TLS 连接设置或规范化配置改变时返回 `UPSTREAM_USAGE_IDENTITY_CHANGED`。同一账号和配置指纹使用 singleflight，等待方可以独立取消；每个等待方取得独立结果副本。查询编排、身份复核、并发槽和指标由 `account.UpstreamUsageService` 唯一持有，app 直接绑定账号 Store 和 `account/provider.UpstreamUsageExecution`；后者将技术快照交给对应原生适配器。构造不启动后台任务；应用关闭会阻止新认领、取消并等待脱离 HTTP 等待方的共享查询，执行未结束时报告超时，不能提前宣布依赖已释放。
 
 <a id="frontend_lifecycle"></a>
 ## 前端生命周期

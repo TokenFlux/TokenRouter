@@ -2,10 +2,10 @@
 package admin
 
 import (
-	qoder "github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
+	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 type ChannelHandler = routinghttp.ChannelHandler

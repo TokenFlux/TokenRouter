@@ -1,19 +1,21 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	geminiwire "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/gin-gonic/gin"
 )
 
@@ -145,7 +147,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 	upstreamAction := "streamGenerateContent"
 
 	// 执行带重试的请求
-	result, err := s.antigravityRetryLoop(antigravityRetryLoopParams{
+	retry, params := s.antigravityRetryAdapter(antigravityRetryLoopParams{
 		ctx:             ctx,
 		prefix:          prefix,
 		account:         account,
@@ -163,168 +165,51 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 		groupID:         forwardOpts.groupID,
 		sessionHash:     forwardOpts.sessionHash,
 	})
-	if err != nil {
-		// 检查是否是账号切换信号，转换为 UpstreamFailoverError 让 Handler 切换账号
-		if switchErr, ok := IsAntigravityAccountSwitchError(err); ok {
-			return nil, &UpstreamFailoverError{
-				StatusCode:        http.StatusServiceUnavailable,
-				ForceCacheBilling: switchErr.IsStickySession,
+	var recovered antigravity.GeminiRecoveryResult
+	target := &antigravity.Target{AccountID: account.ID, Model: billingModel, Mode: antigravity.ModeGeminiResponse, StartedAt: startTime, Response: s.antigravityResponseAdapter(c).Options, Enter: s.nativeAttemptActivity}
+	target.Exchange = func(context.Context) (*http.Response, error) {
+		result, err := retry.AntigravityRetryLoop(params)
+		if err != nil {
+			// 检查是否是账号切换信号，转换为 UpstreamFailoverError 让 Handler 切换账号
+			if switchErr, ok := IsAntigravityAccountSwitchError(err); ok {
+				return nil, &UpstreamFailoverError{
+					StatusCode:        http.StatusServiceUnavailable,
+					ForceCacheBilling: switchErr.IsStickySession,
+				}
 			}
+			// 区分客户端取消和真正的上游失败，返回更准确的错误消息
+			if c.Request.Context().Err() != nil {
+				return nil, s.writeGoogleError(c, http.StatusBadGateway, "Client disconnected before upstream response")
+			}
+			return nil, s.writeGoogleError(c, http.StatusBadGateway, "Upstream request failed after retries")
 		}
-		// 区分客户端取消和真正的上游失败，返回更准确的错误消息
-		if c.Request.Context().Err() != nil {
-			return nil, s.writeGoogleError(c, http.StatusBadGateway, "Client disconnected before upstream response")
+		opts := antigravity.GeminiRecoveryOptions{Retry: func(body []byte) (*http.Response, error) {
+			next := params
+			next.Body = body
+			value, err := retry.AntigravityRetryLoop(next)
+			if err != nil {
+				return nil, err
+			}
+			return value.Resp, nil
+		}, Do: retry.Options.Do, FallbackEnabled: func(ctx context.Context) bool {
+			return s.settingService != nil && s.settingService.IsModelFallbackEnabled(ctx)
+		}, SignatureEnabled: func(ctx context.Context) bool {
+			return s.settingService != nil && s.settingService.IsSignatureRectifierEnabled(ctx)
+		}, FallbackModel: func(ctx context.Context) string { return s.settingService.GetFallbackModel(ctx, PlatformAntigravity) }, IsModelNotFound: isModelNotFoundError, CleanSignatures: CleanGeminiNativeThoughtSignatures, ReadErrorBody: s.readUpstreamErrorBody, ErrorDetail: s.getUpstreamErrorDetail, Observe: retry.Options.Observe}
+		recovered, err = antigravity.RecoverGemini(ctx, antigravity.GeminiRecoveryInput{AccountID: account.ID, AccountName: account.Name, ProjectID: projectID, Model: mappedModel, Action: upstreamAction, AccessToken: accessToken, Body: injectedBody}, result.Resp, opts)
+		if err != nil {
+			if switchErr, ok := IsAntigravityAccountSwitchError(err); ok {
+				return nil, &UpstreamFailoverError{StatusCode: http.StatusServiceUnavailable, ForceCacheBilling: switchErr.IsStickySession}
+			}
+			return nil, err
 		}
-		return nil, s.writeGoogleError(c, http.StatusBadGateway, "Upstream request failed after retries")
+		return recovered.Response, nil
 	}
-	resp := result.resp
-	defer func() {
-		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
-		}
-	}()
-
-	// 处理错误响应
-	if resp.StatusCode >= 400 {
-		respBody := s.readUpstreamErrorBody(resp)
-		contentType := resp.Header.Get("Content-Type")
-		// 尽早关闭原始响应体，释放连接；后续逻辑仍可能需要读取 body，因此用内存副本重新包装。
-		_ = resp.Body.Close()
-		resp.Body = io.NopCloser(bytes.NewReader(respBody))
-
-		// 模型兜底：模型不存在且开启 fallback 时，自动用 fallback 模型重试一次
-		if s.settingService != nil && s.settingService.IsModelFallbackEnabled(ctx) &&
-			isModelNotFoundError(resp.StatusCode, respBody) {
-			fallbackModel := s.settingService.GetFallbackModel(ctx, PlatformAntigravity)
-			if fallbackModel != "" && fallbackModel != mappedModel {
-				logger.LegacyPrintf("service.antigravity_gateway", "[Antigravity] Model not found (%s), retrying with fallback model %s (account: %s)", mappedModel, fallbackModel, account.Name)
-
-				fallbackWrapped, err := s.wrapV1InternalRequest(projectID, fallbackModel, injectedBody)
-				if err == nil {
-					fallbackReq, err := antigravity.NewAPIRequest(ctx, upstreamAction, accessToken, fallbackWrapped)
-					if err == nil {
-						fallbackResp, err := s.httpUpstream.Do(fallbackReq, proxyURL, account.ID, account.Concurrency)
-						if err == nil && fallbackResp.StatusCode < 400 {
-							_ = resp.Body.Close()
-							resp = fallbackResp
-						} else if fallbackResp != nil {
-							_ = fallbackResp.Body.Close()
-						}
-					}
-				}
-			}
-		}
-
-		// Gemini 原生请求中的 thoughtSignature 可能来自旧上下文/旧账号，触发上游严格校验后返回
-		// "Corrupted thought signature."。检测到此类 400 时，将 thoughtSignature 清理为 dummy 值后重试一次。
-		signatureCheckBody := respBody
-		if unwrapped, unwrapErr := s.unwrapV1InternalResponse(respBody); unwrapErr == nil && len(unwrapped) > 0 {
-			signatureCheckBody = unwrapped
-		}
-		if resp.StatusCode == http.StatusBadRequest &&
-			s.settingService != nil &&
-			s.settingService.IsSignatureRectifierEnabled(ctx) &&
-			isSignatureRelatedError(signatureCheckBody) &&
-			bytes.Contains(injectedBody, []byte(`"thoughtSignature"`)) {
-			upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractAntigravityErrorMessage(signatureCheckBody)))
-			upstreamDetail := s.getUpstreamErrorDetail(signatureCheckBody)
-			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-				Platform:           account.Platform,
-				AccountID:          account.ID,
-				AccountName:        account.Name,
-				UpstreamStatusCode: resp.StatusCode,
-				UpstreamRequestID:  resp.Header.Get("x-request-id"),
-				Kind:               "signature_error",
-				Message:            upstreamMsg,
-				Detail:             upstreamDetail,
-			})
-
-			logger.LegacyPrintf("service.antigravity_gateway", "Antigravity Gemini account %d: detected signature-related 400, retrying with cleaned thought signatures", account.ID)
-
-			cleanedInjectedBody := CleanGeminiNativeThoughtSignatures(injectedBody)
-			retryWrappedBody, wrapErr := s.wrapV1InternalRequest(projectID, mappedModel, cleanedInjectedBody)
-			if wrapErr == nil {
-				retryResult, retryErr := s.antigravityRetryLoop(antigravityRetryLoopParams{
-					ctx:             ctx,
-					prefix:          prefix,
-					account:         account,
-					proxyURL:        proxyURL,
-					accessToken:     accessToken,
-					action:          upstreamAction,
-					body:            retryWrappedBody,
-					c:               c,
-					httpUpstream:    s.httpUpstream,
-					settingService:  s.settingService,
-					accountRepo:     s.accountRepo,
-					handleError:     s.handleUpstreamError,
-					requestedModel:  originalModel,
-					isStickySession: isStickySession,
-					groupID:         forwardOpts.groupID,
-					sessionHash:     forwardOpts.sessionHash,
-				})
-				if retryErr == nil {
-					retryResp := retryResult.resp
-					if retryResp.StatusCode < 400 {
-						resp = retryResp
-					} else {
-						retryRespBody := s.readUpstreamErrorBody(retryResp)
-						_ = retryResp.Body.Close()
-						retryOpsBody := retryRespBody
-						if retryUnwrapped, unwrapErr := s.unwrapV1InternalResponse(retryRespBody); unwrapErr == nil && len(retryUnwrapped) > 0 {
-							retryOpsBody = retryUnwrapped
-						}
-						appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-							Platform:           account.Platform,
-							AccountID:          account.ID,
-							AccountName:        account.Name,
-							UpstreamStatusCode: retryResp.StatusCode,
-							UpstreamRequestID:  retryResp.Header.Get("x-request-id"),
-							Kind:               "signature_retry",
-							Message:            sanitizeUpstreamErrorMessage(strings.TrimSpace(extractAntigravityErrorMessage(retryOpsBody))),
-							Detail:             s.getUpstreamErrorDetail(retryOpsBody),
-						})
-						respBody = retryRespBody
-						resp = &http.Response{
-							StatusCode: retryResp.StatusCode,
-							Header:     retryResp.Header.Clone(),
-							Body:       io.NopCloser(bytes.NewReader(retryRespBody)),
-						}
-						contentType = resp.Header.Get("Content-Type")
-					}
-				} else {
-					if switchErr, ok := IsAntigravityAccountSwitchError(retryErr); ok {
-						appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-							Platform:           account.Platform,
-							AccountID:          account.ID,
-							AccountName:        account.Name,
-							UpstreamStatusCode: http.StatusServiceUnavailable,
-							Kind:               "failover",
-							Message:            sanitizeUpstreamErrorMessage(retryErr.Error()),
-						})
-						return nil, &UpstreamFailoverError{
-							StatusCode:        http.StatusServiceUnavailable,
-							ForceCacheBilling: switchErr.IsStickySession,
-						}
-					}
-					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-						Platform:           account.Platform,
-						AccountID:          account.ID,
-						AccountName:        account.Name,
-						UpstreamStatusCode: 0,
-						Kind:               "signature_retry_request_error",
-						Message:            sanitizeUpstreamErrorMessage(retryErr.Error()),
-					})
-					logger.LegacyPrintf("service.antigravity_gateway", "Antigravity Gemini account %d: signature retry request failed: %v", account.ID, retryErr)
-				}
-			} else {
-				logger.LegacyPrintf("service.antigravity_gateway", "Antigravity Gemini account %d: signature retry wrap failed: %v", account.ID, wrapErr)
-			}
-		}
-
-		// fallback 成功：继续按正常响应处理
+	target.BeforeResponse = func(ctx context.Context, resp *http.Response) (bool, error) {
 		if resp.StatusCode < 400 {
-			goto handleSuccess
+			return false, nil
 		}
+		respBody, contentType := recovered.ErrorBody, recovered.ContentType
 
 		requestID := resp.Header.Get("x-request-id")
 		if requestID != "" {
@@ -357,7 +242,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 				Message:            upstreamMsg,
 				Detail:             upstreamDetail,
 			})
-			return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: unwrappedForOps, RetryableOnSameAccount: true}
+			return true, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: unwrappedForOps, RetryableOnSameAccount: true}
 		}
 
 		if s.shouldFailoverUpstreamError(resp.StatusCode) {
@@ -371,7 +256,7 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 				Message:            upstreamMsg,
 				Detail:             upstreamDetail,
 			})
-			return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: unwrappedForOps}
+			return true, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: unwrappedForOps}
 		}
 		if contentType == "" {
 			contentType = "application/json"
@@ -389,167 +274,26 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] upstream error status=%d body=%s", resp.StatusCode, truncateForLog(unwrappedForOps, 500))
 		MarkResponseCommitted(c)
 		c.Data(resp.StatusCode, contentType, unwrappedForOps)
-		return nil, fmt.Errorf("antigravity upstream error: %d", resp.StatusCode)
+		return true, fmt.Errorf("antigravity upstream error: %d", resp.StatusCode)
 	}
-
-handleSuccess:
-	requestID := resp.Header.Get("x-request-id")
-	if requestID != "" {
-		c.Header("x-request-id", requestID)
-	}
-
-	var usage *ClaudeUsage
-	var firstTokenMs *int
-	var clientDisconnect bool
-
-	if stream {
-		// 客户端要求流式，直接透传
-		streamRes, err := s.handleGeminiStreamingResponse(c, resp, startTime)
-		if err != nil {
-			logger.LegacyPrintf("service.antigravity_gateway", "%s status=stream_error error=%v", prefix, err)
-			return nil, err
+	target.OutputError = func(err error) {
+		kind := "stream_collect_error"
+		if stream {
+			kind = "stream_error"
 		}
-		usage = streamRes.usage
-		firstTokenMs = streamRes.firstTokenMs
-		clientDisconnect = streamRes.clientDisconnect
-	} else {
-		// 客户端要求非流式，收集流式响应后返回
-		streamRes, err := s.handleGeminiStreamToNonStreaming(c, resp, startTime)
-		if err != nil {
-			logger.LegacyPrintf("service.antigravity_gateway", "%s status=stream_collect_error error=%v", prefix, err)
-			return nil, err
-		}
-		usage = streamRes.usage
-		firstTokenMs = streamRes.firstTokenMs
+		logger.LegacyPrintf("service.antigravity_gateway", "%s status=%s error=%v", prefix, kind, err)
 	}
-
-	if usage == nil {
-		usage = &ClaudeUsage{}
+	result, err := (antigravity.Executor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolGeminiGenerateContent, Body: wrappedBody, ResponseModel: originalModel, Stream: stream, Target: target}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	if err != nil {
+		return nil, err
 	}
-
-	// 判断是否为图片生成模型
 	imageCount := 0
 	if isImageGenerationModel(mappedModel) {
-		// Gemini 图片生成 API 每次请求只生成一张图片（API 限制）
 		imageCount = 1
 	}
-
-	return &ForwardResult{
-		RequestID:        requestID,
-		UpstreamHeaders:  resp.Header,
-		Usage:            *usage,
-		Model:            originalModel,
-		UpstreamModel:    billingModel,
-		Stream:           stream,
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     firstTokenMs,
-		ClientDisconnect: clientDisconnect,
-		ImageCount:       imageCount,
-		ImageSize:        imageSize,
-		ImageInputSize:   imageInputSize,
-	}, nil
+	return &ForwardResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Usage: result.Usage, Model: originalModel, UpstreamModel: billingModel, Stream: stream, Duration: result.Duration, FirstTokenMs: result.FirstTokenMs, ClientDisconnect: result.ClientDisconnect, ImageCount: imageCount, ImageSize: imageSize, ImageInputSize: imageInputSize}, nil
 }
 
-// cleanGeminiRequest 清理 Gemini 请求体中的 Schema
-func cleanGeminiRequest(body []byte) ([]byte, error) {
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, err
-	}
-
-	modified := false
-
-	// 1. 清理 Tools
-	if tools, ok := payload["tools"].([]any); ok && len(tools) > 0 {
-		for _, t := range tools {
-			toolMap, ok := t.(map[string]any)
-			if !ok {
-				continue
-			}
-
-			// function_declarations (snake_case) or functionDeclarations (camelCase)
-			var funcs []any
-			if f, ok := toolMap["functionDeclarations"].([]any); ok {
-				funcs = f
-			} else if f, ok := toolMap["function_declarations"].([]any); ok {
-				funcs = f
-			}
-
-			if len(funcs) == 0 {
-				continue
-			}
-
-			for _, f := range funcs {
-				funcMap, ok := f.(map[string]any)
-				if !ok {
-					continue
-				}
-
-				if params, ok := funcMap["parameters"].(map[string]any); ok {
-					antigravity.DeepCleanUndefined(params)
-					cleaned := antigravity.CleanJSONSchema(params)
-					funcMap["parameters"] = cleaned
-					modified = true
-				}
-			}
-		}
-	}
-
-	if !modified {
-		return body, nil
-	}
-
-	return json.Marshal(payload)
-}
-
-// filterEmptyPartsFromGeminiRequest 过滤掉 parts 为空的消息
-// Gemini API 不接受空 parts，需要在请求前过滤
 func filterEmptyPartsFromGeminiRequest(body []byte) ([]byte, error) {
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, err
-	}
-
-	contents, ok := payload["contents"].([]any)
-	if !ok || len(contents) == 0 {
-		return body, nil
-	}
-
-	filtered := make([]any, 0, len(contents))
-	modified := false
-
-	for _, c := range contents {
-		contentMap, ok := c.(map[string]any)
-		if !ok {
-			filtered = append(filtered, c)
-			continue
-		}
-
-		parts, hasParts := contentMap["parts"]
-		if !hasParts {
-			filtered = append(filtered, c)
-			continue
-		}
-
-		partsSlice, ok := parts.([]any)
-		if !ok {
-			filtered = append(filtered, c)
-			continue
-		}
-
-		// 跳过 parts 为空数组的消息
-		if len(partsSlice) == 0 {
-			modified = true
-			continue
-		}
-
-		filtered = append(filtered, c)
-	}
-
-	if !modified {
-		return body, nil
-	}
-
-	payload["contents"] = filtered
-	return json.Marshal(payload)
+	return geminiwire.FilterEmptyParts(body)
 }

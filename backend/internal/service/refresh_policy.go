@@ -2,74 +2,35 @@ package service
 
 import acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 
-import "time"
+type ProviderRefreshErrorAction = acctcore.ProviderRefreshErrorAction
 
-// ProviderRefreshErrorAction 定义 provider 在刷新失败时的处理动作。
-type ProviderRefreshErrorAction int
+const ProviderRefreshErrorReturn = acctcore.ProviderRefreshErrorReturn
+const ProviderRefreshErrorUseExistingToken = acctcore.ProviderRefreshErrorUseExistingToken
 
-const (
-	// ProviderRefreshErrorReturn 失败即返回错误（不降级旧 token）。
-	ProviderRefreshErrorReturn ProviderRefreshErrorAction = iota
-	// ProviderRefreshErrorUseExistingToken 失败后继续使用现有 token。
-	ProviderRefreshErrorUseExistingToken
-)
+type ProviderLockHeldAction = acctcore.ProviderLockHeldAction
 
-// ProviderLockHeldAction 定义 provider 在刷新锁被占用时的处理动作。
-type ProviderLockHeldAction int
+const ProviderLockHeldUseExistingToken = acctcore.ProviderLockHeldUseExistingToken
+const ProviderLockHeldWaitForCache = acctcore.ProviderLockHeldWaitForCache
 
-const (
-	// ProviderLockHeldUseExistingToken 直接使用现有 token。
-	ProviderLockHeldUseExistingToken ProviderLockHeldAction = iota
-	// ProviderLockHeldWaitForCache 等待后重试缓存读取。
-	ProviderLockHeldWaitForCache
-)
-
-// ProviderRefreshPolicy 描述 provider 的平台差异策略。
-type ProviderRefreshPolicy struct {
-	OnRefreshError ProviderRefreshErrorAction
-	OnLockHeld     ProviderLockHeldAction
-	FailureTTL     time.Duration
-}
+type ProviderRefreshPolicy = acctcore.ProviderRefreshPolicy
 
 func ClaudeProviderRefreshPolicy() ProviderRefreshPolicy {
-	return ProviderRefreshPolicy{
-		OnRefreshError: ProviderRefreshErrorUseExistingToken,
-		OnLockHeld:     ProviderLockHeldWaitForCache,
-		FailureTTL:     time.Minute,
-	}
+	return acctcore.ClaudeProviderRefreshPolicy()
 }
 
 func OpenAIProviderRefreshPolicy() ProviderRefreshPolicy {
-	return ProviderRefreshPolicy{
-		OnRefreshError: ProviderRefreshErrorUseExistingToken,
-		OnLockHeld:     ProviderLockHeldWaitForCache,
-		FailureTTL:     time.Minute,
-	}
+	return acctcore.OpenAIProviderRefreshPolicy()
 }
 
 func GeminiProviderRefreshPolicy() ProviderRefreshPolicy {
-	return ProviderRefreshPolicy{
-		OnRefreshError: ProviderRefreshErrorReturn,
-		OnLockHeld:     ProviderLockHeldUseExistingToken,
-		FailureTTL:     0,
-	}
+	return acctcore.GeminiProviderRefreshPolicy()
 }
 
 func AntigravityProviderRefreshPolicy() ProviderRefreshPolicy {
-	return ProviderRefreshPolicy{
-		OnRefreshError: ProviderRefreshErrorReturn,
-		OnLockHeld:     ProviderLockHeldUseExistingToken,
-		FailureTTL:     0,
-	}
+	return acctcore.AntigravityProviderRefreshPolicy()
 }
 
-func GrokProviderRefreshPolicy() ProviderRefreshPolicy {
-	return ProviderRefreshPolicy{
-		OnRefreshError: ProviderRefreshErrorReturn,
-		OnLockHeld:     ProviderLockHeldWaitForCache,
-		FailureTTL:     0,
-	}
-}
+func GrokProviderRefreshPolicy() ProviderRefreshPolicy { return acctcore.GrokProviderRefreshPolicy() }
 
 type BackgroundSkipAction = acctcore.BackgroundSkipAction
 

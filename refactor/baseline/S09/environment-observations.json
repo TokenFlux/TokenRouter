@@ -1,0 +1,18 @@
+[
+  {
+    "id": "E-final-integration",
+    "result": "final-integration.result.json",
+    "affected_packages": [
+      "internal/server/routes",
+      "internal/usage/postgres"
+    ],
+    "failure": "Redis Testcontainers 在 Docker API 查询 mapped port/container state 时 context deadline exceeded；routes 尚未发送认证请求，usage/postgres 的 TestMain 尚未完成",
+    "engine_observation": "失败后 docker ps 返回成功且没有运行容器；未删除其它任务资源",
+    "action": "原测试和超时不变，以 -p=4 降低 go test 的包级并发补跑整个 integration；测试内部并发保持。",
+    "resolution": {
+      "result": "final-integration-repeat.result.json",
+      "status": "整个 integration 集合 -p=4 重跑通过，routes 和 usage/postgres 均实际执行通过",
+      "code_changes": false
+    }
+  }
+]

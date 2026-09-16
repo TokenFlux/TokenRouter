@@ -712,8 +712,8 @@ func TestAntigravityCompatChatStreamMapsToolCallAndUsage(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, 8, result.usage.InputTokens)
-	require.Equal(t, 3, result.usage.OutputTokens)
+	require.Equal(t, 8, result.Usage.InputTokens)
+	require.Equal(t, 3, result.Usage.OutputTokens)
 	require.Contains(t, recorder.Body.String(), `"tool_calls"`)
 	require.Contains(t, recorder.Body.String(), `"get_weather"`)
 	require.Contains(t, recorder.Body.String(), `"finish_reason":"tool_calls"`)
@@ -778,8 +778,8 @@ func TestAntigravityCompatClientDisconnectDrainsUsage(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.True(t, result.clientDisconnect)
-	require.Equal(t, 15, result.usage.OutputTokens)
+	require.True(t, result.ClientDisconnect)
+	require.Equal(t, 15, result.Usage.OutputTokens)
 }
 
 func TestAntigravityCompatStreamErrorCommitsSingleTerminalFrame(t *testing.T) {

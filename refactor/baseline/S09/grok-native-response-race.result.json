@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/upstream/grok",
+    "-run",
+    "TestGrokResponsesExecute"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.15,
+  "pass": 2,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-native-response-race.log.gz"
+}

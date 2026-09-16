@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
+
+	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
@@ -39,11 +40,7 @@ func (e *LiveAttestationUnavailableError) Error() string {
 	return "Live attestation is unavailable: " + e.Reason
 }
 
-// LiveCallRequest 是两个下游创建协议归一后的请求。Session 不做结构改写。
-type LiveCallRequest struct {
-	SDP     string          `json:"sdp"`
-	Session json.RawMessage `json:"session"`
-}
+type LiveCallRequest = wire.LiveCallRequest
 
 // LiveCallIdentity 保存创建者身份和 fork 路由所需的入站元数据。
 type LiveCallIdentity struct {

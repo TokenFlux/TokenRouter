@@ -1,0 +1,226 @@
+{
+  "stage": "S09.8",
+  "status": "passed",
+  "date": "2026-09-16T05:09:51.288862+08:00",
+  "results": {
+    "openai-final-consumer-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "-tags=unit",
+        "-parallel=1",
+        "./internal/upstream/openai",
+        "./internal/protocol/openai",
+        "./internal/protocol/bridge",
+        "./internal/service",
+        "-run",
+        "Test(.*(Grok|OpenAI|OpenAi|Codex|AgentIdentity|Live|ImagesURL|BackfillOpenAI|FirstOutput|RawChat|RawStream)|WSPool.*|.*ResponsesStreaming.*|CorrectTool.*|ImagesExecute.*|BuildUpstreamRequest.*)|TestS09AlphaSearch"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 124.556,
+      "pass": 4361,
+      "fail": 0,
+      "skip": 2,
+      "log": "logs/openai-final-consumer-race.log.gz"
+    },
+    "openai-final-native-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "-tags=unit",
+        "./internal/upstream/openai/...",
+        "./internal/account/rediscache"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 5.809,
+      "pass": 252,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-final-native-race.log.gz"
+    },
+    "openai-fixed-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "-tags=unit",
+        "-parallel=1",
+        "./internal/service",
+        "-run",
+        "TestS09WSUsageModelConcurrentDirections|TestWSPassthroughUsageMeta|TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA|TestOpenAIWSPassthroughTurnLifecycle"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 28.497,
+      "pass": 7,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-fixed-race.log.gz"
+    },
+    "openai-fixed-original-ws-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=5",
+        "-json",
+        "-race",
+        "-tags=unit",
+        "-parallel=1",
+        "./internal/service",
+        "-run",
+        "^TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter$|^TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA$"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 12.048,
+      "pass": 10,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-fixed-original-ws-race.log.gz"
+    },
+    "openai-token-postgres-redis-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "-tags=integration",
+        "./internal/repository",
+        "-run",
+        "TestS09OpenAITokenRefreshUsesOriginalCAS|TestGeminiTokenCacheSuite"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 19.731,
+      "pass": 6,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-token-postgres-redis-race.log.gz"
+    },
+    "openai-import-postgres-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "-tags=integration",
+        "./internal/repository",
+        "-run",
+        "TestS06CodexImportHTTPDatabaseContract|TestGrokOAuthConditionalMutationRollsBackWhenOutboxInsertFails"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 42.175,
+      "pass": 2,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-import-postgres-race.log.gz"
+    },
+    "openai-process-modes-order": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=integration",
+        "./internal/app",
+        "-run",
+        "^TestS02ProcessModes$"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 13.363,
+      "pass": 10,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-process-modes-order.log.gz"
+    },
+    "openai-images-execute-tls-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "./internal/upstream/openai",
+        "-run",
+        "TestImagesExecute"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 3.848,
+      "pass": 6,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-images-execute-tls-race.log.gz"
+    },
+    "openai-native-embeddings-tls-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-race",
+        "./internal/upstream/openai",
+        "-run",
+        "^TestEmbeddingsExecutorLocalTLSAndResourceOwnership$"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 3.855,
+      "pass": 3,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-native-embeddings-tls-race.log.gz"
+    },
+    "openai-alpha-resource-fixed-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=3",
+        "-json",
+        "-race",
+        "-parallel=1",
+        "./internal/service",
+        "-run",
+        "TestS09AlphaSearchFailoverClosesOriginalResponse|TestForwardAlphaSearch"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 20.323,
+      "pass": 39,
+      "fail": 0,
+      "skip": 0,
+      "log": "logs/openai-alpha-resource-fixed-race.log.gz"
+    }
+  },
+  "lint": "final-lint-comparison.json",
+  "fixtures": [
+    "openai-depguard-fixtures.json",
+    "deleted-bridge-depguard-fixtures.json"
+  ],
+  "buildsets": "openai-buildsets.json",
+  "files": "final-file-declarations.json.gz",
+  "consumers": [
+    "final-consumer-refs-normal.json.gz",
+    "final-consumer-refs-unit.json.gz",
+    "final-consumer-refs-integration.json.gz"
+  ],
+  "integrity": "final-integrity-check.json",
+  "remaining_boundaries": "handoff.md",
+  "incidents": "incidental-observations.json",
+  "environment": "environment-observations.json",
+  "limitations": "真实供应商、硬件 attestation、外部 TLS/E2E 既有限制单列；跳过与仅编译不算行为通过。"
+}

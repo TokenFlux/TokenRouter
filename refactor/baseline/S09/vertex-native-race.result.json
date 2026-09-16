@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/upstream/vertex",
+    "./internal/upstream/internal/googleauth",
+    "./internal/account",
+    "-run",
+    "Test.*(Vertex|ServiceAccountSigned)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.519,
+  "pass": 8,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/vertex-native-race.log.gz"
+}

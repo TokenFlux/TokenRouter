@@ -1,0 +1,506 @@
+[
+  {
+    "name": "grok-legal-native",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.443,
+    "log": "logs/gate-grok-legal-native-normal.log.gz"
+  },
+  {
+    "name": "grok-legal-account-adapter",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.354,
+    "log": "logs/gate-grok-legal-account-adapter-normal.log.gz"
+  },
+  {
+    "name": "grok-legacy-projection",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.537,
+    "log": "logs/gate-grok-legacy-projection-normal.log.gz"
+  },
+  {
+    "name": "grok-platform-peer-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder",
+    "matched": true,
+    "seconds": 0.367,
+    "log": "logs/gate-grok-platform-peer-denied-normal.log.gz"
+  },
+  {
+    "name": "grok-native-redis-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.367,
+    "log": "logs/gate-grok-native-redis-denied-normal.log.gz"
+  },
+  {
+    "name": "grok-new-core-file-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.423,
+    "log": "logs/gate-grok-new-core-file-denied-normal.log.gz"
+  },
+  {
+    "name": "grok-old-file-new-gin-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.412,
+    "log": "logs/gate-grok-old-file-new-gin-denied-normal.log.gz"
+  },
+  {
+    "name": "grok-moved-exception-expired",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.404,
+    "log": "logs/gate-grok-moved-exception-expired-normal.log.gz"
+  },
+  {
+    "name": "grok-new-wire-unsafe-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/protocol/wirejson"
+    ],
+    "exit_code": 1,
+    "expected": "unsafe",
+    "matched": true,
+    "seconds": 0.284,
+    "log": "logs/gate-grok-new-wire-unsafe-denied-normal.log.gz"
+  },
+  {
+    "name": "grok-legal-native",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.344,
+    "log": "logs/gate-grok-legal-native-unit.log.gz"
+  },
+  {
+    "name": "grok-legal-account-adapter",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.339,
+    "log": "logs/gate-grok-legal-account-adapter-unit.log.gz"
+  },
+  {
+    "name": "grok-legacy-projection",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.463,
+    "log": "logs/gate-grok-legacy-projection-unit.log.gz"
+  },
+  {
+    "name": "grok-platform-peer-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder",
+    "matched": true,
+    "seconds": 0.428,
+    "log": "logs/gate-grok-platform-peer-denied-unit.log.gz"
+  },
+  {
+    "name": "grok-native-redis-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.386,
+    "log": "logs/gate-grok-native-redis-denied-unit.log.gz"
+  },
+  {
+    "name": "grok-new-core-file-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.423,
+    "log": "logs/gate-grok-new-core-file-denied-unit.log.gz"
+  },
+  {
+    "name": "grok-old-file-new-gin-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.41,
+    "log": "logs/gate-grok-old-file-new-gin-denied-unit.log.gz"
+  },
+  {
+    "name": "grok-moved-exception-expired",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.391,
+    "log": "logs/gate-grok-moved-exception-expired-unit.log.gz"
+  },
+  {
+    "name": "grok-new-wire-unsafe-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/protocol/wirejson"
+    ],
+    "exit_code": 1,
+    "expected": "unsafe",
+    "matched": true,
+    "seconds": 0.261,
+    "log": "logs/gate-grok-new-wire-unsafe-denied-unit.log.gz"
+  },
+  {
+    "name": "grok-legal-native",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.333,
+    "log": "logs/gate-grok-legal-native-integration.log.gz"
+  },
+  {
+    "name": "grok-legal-account-adapter",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account/httpapi"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.354,
+    "log": "logs/gate-grok-legal-account-adapter-integration.log.gz"
+  },
+  {
+    "name": "grok-legacy-projection",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/app/legacybridge"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.476,
+    "log": "logs/gate-grok-legacy-projection-integration.log.gz"
+  },
+  {
+    "name": "grok-platform-peer-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder",
+    "matched": true,
+    "seconds": 0.342,
+    "log": "logs/gate-grok-platform-peer-denied-integration.log.gz"
+  },
+  {
+    "name": "grok-native-redis-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/grok"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.343,
+    "log": "logs/gate-grok-native-redis-denied-integration.log.gz"
+  },
+  {
+    "name": "grok-new-core-file-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.396,
+    "log": "logs/gate-grok-new-core-file-denied-integration.log.gz"
+  },
+  {
+    "name": "grok-old-file-new-gin-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.424,
+    "log": "logs/gate-grok-old-file-new-gin-denied-integration.log.gz"
+  },
+  {
+    "name": "grok-moved-exception-expired",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.438,
+    "log": "logs/gate-grok-moved-exception-expired-integration.log.gz"
+  },
+  {
+    "name": "grok-new-wire-unsafe-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/protocol/wirejson"
+    ],
+    "exit_code": 1,
+    "expected": "unsafe",
+    "matched": true,
+    "seconds": 0.273,
+    "log": "logs/gate-grok-new-wire-unsafe-denied-integration.log.gz"
+  }
+]

@@ -1,0 +1,18 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--build-tags=integration",
+    "./..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 3,
+  "seconds": 5.263,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/qoder-current-integration-lint.log.gz"
+}

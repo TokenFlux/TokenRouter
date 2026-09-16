@@ -160,12 +160,18 @@ func (s *GrokReconciliationService) ReconcileGrokOAuth(ctx context.Context, inpu
 		return nil, errors.New("OAuth refresh candidate pager is not configured")
 	}
 	page, err := pager.ListOAuthRefreshCandidatePage(ctx, OAuthRefreshPageOptions{
-		Platforms:  []string{PlatformGrok},
-		AfterID:    input.AfterID,
-		Limit:      limit,
+
+		Platforms: []string{PlatformGrok},
+
+		AfterID: input.AfterID,
+
+		Limit: limit,
+
 		ActiveOnly: true,
+
 		// 对账只扫描 OAuth 账号，并且不要求 refresh token，以便发现结构不完整的记录。
-		IncludeSetupToken:   false,
+		IncludeSetupToken: false,
+
 		RequireRefreshToken: false,
 	})
 	if err != nil {

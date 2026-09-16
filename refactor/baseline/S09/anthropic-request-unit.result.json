@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/upstream/anthropic",
+    "-run",
+    "^(TestGatewayService_.*(Forward|Anthropic)|Test.*(Beta|BillingHeader|Mimic|Fingerprint)|TestHandleStreamingResponse|TestS09Anthropic|TestClaude|TestAnthropic)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.614,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-request-unit.log.gz"
+}

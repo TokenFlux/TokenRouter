@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 func TestApplyDefaultGrokUpstreamHeadersUsesCLIUserAgent(t *testing.T) {

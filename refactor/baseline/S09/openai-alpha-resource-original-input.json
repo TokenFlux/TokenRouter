@@ -1,0 +1,9 @@
+{
+  "head": "1d2519723af97970ff1a429e3d04cfa804f522b2",
+  "original_source": "backend/internal/service/openai_alpha_search.go",
+  "original_sha256": "5daa06764bf6352f236e85bb22dfb87a26e25f51cb463fbdfc1093cd15d61036",
+  "test": "backend/internal/service/s09_alpha_resource_test.go",
+  "test_sha256": "2fb16c216086a2260a35e6b679c2e74be2b7401aae43d8c041308dfd90d369ae",
+  "same_fixture": true,
+  "scope": "原有 Alpha failover 错误/输出断言增加 Close 次数；只核对该验收阻塞"
+}

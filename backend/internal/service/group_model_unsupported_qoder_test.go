@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/stretchr/testify/require"
 )
 

@@ -1,0 +1,75 @@
+{
+  "list-mode": "strict",
+  "files": [
+    "**/internal/app/qoder_gateway_integration_test.go"
+  ],
+  "allow": [
+    "gopkg.in/yaml.v3$",
+    "$gostd",
+    "entgo.io/ent",
+    "github.com/TokenFlux/TokenRouter/ent",
+    "github.com/andybalholm/brotli$",
+    "github.com/google/go-cmp/",
+    "github.com/google/wire$",
+    "github.com/imroc/req/v3$",
+    "github.com/klauspost/compress/",
+    "github.com/lib/pq",
+    "github.com/natefinch/lumberjack$",
+    "github.com/redis/go-redis/v9",
+    "github.com/refraction-networking/utls$",
+    "github.com/stretchr/testify/",
+    "go.uber.org/goleak$",
+    "go.uber.org/zap",
+    "golang.org/x/mod/semver$",
+    "golang.org/x/net/",
+    "gopkg.in/natefinch/lumberjack.v2$",
+    "github.com/DATA-DOG/go-sqlmock$",
+    "modernc.org/sqlite$",
+    "github.com/testcontainers/testcontainers-go",
+    "github.com/TokenFlux/TokenRouter/migrations$",
+    "github.com/TokenFlux/TokenRouter/internal/account/postgres$",
+    "github.com/TokenFlux/TokenRouter/internal/apikey$",
+    "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$",
+    "github.com/TokenFlux/TokenRouter/internal/apikey/postgres$",
+    "github.com/TokenFlux/TokenRouter/internal/billing$",
+    "github.com/TokenFlux/TokenRouter/internal/billing/postgres$",
+    "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+    "github.com/TokenFlux/TokenRouter/internal/billing/rediscache$",
+    "github.com/TokenFlux/TokenRouter/internal/gateway$",
+    "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$",
+    "github.com/TokenFlux/TokenRouter/internal/protocol$",
+    "github.com/TokenFlux/TokenRouter/internal/routing$",
+    "github.com/TokenFlux/TokenRouter/internal/routing/accessview$",
+    "github.com/TokenFlux/TokenRouter/internal/routing/postgres$",
+    "github.com/TokenFlux/TokenRouter/internal/scheduler$",
+    "github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache$",
+    "github.com/TokenFlux/TokenRouter/internal/service$",
+    "github.com/TokenFlux/TokenRouter/internal/upstream$",
+    "github.com/TokenFlux/TokenRouter/internal/upstream/qoder$",
+    "github.com/TokenFlux/TokenRouter/internal/usage$",
+    "github.com/TokenFlux/TokenRouter/internal/usage/postgres$",
+    "github.com/gin-gonic/gin$",
+    "github.com/google/uuid$",
+    "github.com/redis/go-redis/v9$",
+    "github.com/stretchr/testify/require$",
+    "github.com/testcontainers/testcontainers-go/modules/redis$"
+  ],
+  "deny": [
+    {
+      "pkg": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+    },
+    {
+      "pkg": "github.com/TokenFlux/TokenRouter/internal/handler",
+      "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+    },
+    {
+      "pkg": "github.com/TokenFlux/TokenRouter/internal/domain",
+      "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+    },
+    {
+      "pkg": "github.com/TokenFlux/TokenRouter/internal/model",
+      "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+    }
+  ]
+}

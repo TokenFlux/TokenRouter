@@ -241,53 +241,6 @@ func TestValidateOpenAIWSBearerTokenAllowsAgentIdentityWithoutStoredToken(t *tes
 	})
 }
 
-func TestOpenAIWSConnPoolHeadersFactoryRunsAtDialAndStalePrewarmIsDiscarded(t *testing.T) {
-	cfg := &config.Config{}
-	cfg.Gateway.OpenAIWS.MaxConnsPerAccount = 1
-	pool := newOpenAIWSConnPool(cfg)
-	defer pool.Close()
-	pool.setClientDialerForTest(&openAIWSFakeDialer{})
-
-	accountID := int64(22)
-	ap := pool.getOrCreateAccountPool(accountID)
-	factoryCalls := 0
-	latestHeader := ""
-	req := openAIWSAcquireRequest{
-		Account: &Account{ID: accountID, Platform: PlatformOpenAI, Type: AccountTypeOAuth},
-		WSURL:   "wss://example.com/v1/responses",
-		HeadersFactory: func(_ context.Context, headers http.Header) (http.Header, error) {
-			factoryCalls++
-			latestHeader = "AgentAssertion dial-" + string(rune('0'+factoryCalls))
-			if headers == nil {
-				headers = make(http.Header)
-			}
-			headers.Set("Authorization", latestHeader)
-			return headers, nil
-		},
-	}
-	ap.mu.Lock()
-	ap.lastAcquire = &req
-	generation := ap.generation
-	ap.mu.Unlock()
-
-	pool.prewarmConns(accountID, req, 1, generation)
-	require.Equal(t, 1, factoryCalls, "prewarm must generate authorization inside the actual dial")
-	require.Equal(t, "AgentAssertion dial-1", latestHeader)
-
-	pool.ClearAccount(accountID)
-	ap.mu.Lock()
-	require.Empty(t, ap.conns, "credential recovery must remove pooled connections")
-	require.Nil(t, ap.lastAcquire, "credential recovery must discard delayed acquire state")
-	require.Equal(t, generation+1, ap.generation)
-	ap.mu.Unlock()
-
-	// ClearAccount 前捕获的预热连接不能在凭据恢复后重新进入连接池。
-	pool.prewarmConns(accountID, req, 1, generation)
-	ap.mu.Lock()
-	require.Empty(t, ap.conns)
-	ap.mu.Unlock()
-}
-
 func TestOpenAIAgentIdentityTaskInvalidRetriesExactlyOnce(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	key, privateKey := newTestAgentIdentityKey(t)

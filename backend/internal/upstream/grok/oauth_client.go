@@ -1,0 +1,435 @@
+package grok
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	wiregrok "github.com/TokenFlux/TokenRouter/internal/protocol/grok"
+
+	sharedhttp "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/imroc/req/v3"
+)
+
+type OAuthClient struct {
+	tokenURL string
+}
+
+const (
+	accountsBaseURL      = "https://accounts.x.ai"
+	loginRPCEndpoint     = accountsBaseURL + "/api/rpc"
+	turnstileWebsiteURL  = accountsBaseURL
+	turnstileWebsiteKey  = "0x4AAAAAAAhr9JGVDZbrZOo0"
+	yesCaptchaCreateTask = "https://api.yescaptcha.com/createTask"
+	yesCaptchaGetResult  = "https://api.yescaptcha.com/getTaskResult"
+)
+
+func NewOAuthClient() *OAuthClient {
+	// 采用 fail-closed：不能回退到未经校验的 EffectiveTokenURL，防止恶意环境变量窃取授权码或 refresh token。
+	tokenURL, err := ValidatedTokenURL()
+	if err != nil || strings.TrimSpace(tokenURL) == "" {
+		// 仅回退到官方白名单端点，不能使用原始环境变量中的 EffectiveTokenURL。
+		tokenURL = DefaultTokenURL
+	}
+	return &OAuthClient{tokenURL: tokenURL}
+}
+
+func (c *OAuthClient) ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI, proxyURL, clientID string) (*TokenResponse, error) {
+	client, err := createGrokReqClient(proxyURL)
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
+	}
+
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" {
+		clientID = EffectiveClientID()
+	}
+
+	formData := url.Values{}
+	formData.Set("grant_type", "authorization_code")
+	formData.Set("client_id", clientID)
+	formData.Set("code", code)
+	formData.Set("redirect_uri", EffectiveRedirectURI(redirectURI))
+	formData.Set("code_verifier", codeVerifier)
+
+	var tokenResp TokenResponse
+	resp, err := client.R().
+		SetContext(ctx).
+		SetHeader("User-Agent", "sub2api-grok-oauth/1.0").
+		SetFormDataFromValues(formData).
+		SetSuccessResult(&tokenResp).
+		Post(c.tokenURL)
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_REQUEST_FAILED", "request failed: %v", err)
+	}
+	if !resp.IsSuccessState() {
+		return nil, grokOAuthStatusError("GROK_OAUTH_TOKEN_EXCHANGE_FAILED", "token exchange failed", resp)
+	}
+	return &tokenResp, nil
+}
+
+func (c *OAuthClient) RefreshToken(ctx context.Context, refreshToken, proxyURL, clientID string) (*TokenResponse, error) {
+	client, err := createGrokReqClient(proxyURL)
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
+	}
+
+	clientID = strings.TrimSpace(clientID)
+	if clientID == "" {
+		clientID = EffectiveClientID()
+	}
+
+	formData := url.Values{}
+	formData.Set("grant_type", "refresh_token")
+	formData.Set("client_id", clientID)
+	formData.Set("refresh_token", refreshToken)
+
+	var tokenResp TokenResponse
+	resp, err := client.R().
+		SetContext(ctx).
+		SetHeader("User-Agent", "sub2api-grok-oauth/1.0").
+		SetFormDataFromValues(formData).
+		SetSuccessResult(&tokenResp).
+		Post(c.tokenURL)
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_REQUEST_FAILED", "request failed: %v", err)
+	}
+	if !resp.IsSuccessState() {
+		return nil, grokOAuthStatusError("GROK_OAUTH_TOKEN_REFRESH_FAILED", "token refresh failed", resp)
+	}
+	return &tokenResp, nil
+}
+
+// LoginWithPassword 向 accounts.x.ai 验证密码并返回临时 SSO cookie；
+// 密码和 SSO 信息不得写入账号凭据或日志。
+func (c *OAuthClient) LoginWithPassword(ctx context.Context, email, password, proxyURL string) (*wiregrok.PasswordLoginResult, error) {
+	turnstileToken, err := solveTurnstile(ctx)
+	if err != nil {
+		return nil, err
+	}
+	httpClient, err := createGrokHTTPClient(proxyURL, true)
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
+	}
+	cookieSetterURL, err := createGrokPasswordSession(ctx, httpClient, strings.TrimSpace(email), password, turnstileToken)
+	if err != nil {
+		return nil, err
+	}
+	ssoToken, err := extractGrokSSOToken(ctx, httpClient, cookieSetterURL)
+	if err != nil {
+		return nil, err
+	}
+	return &wiregrok.PasswordLoginResult{
+		Email:    strings.TrimSpace(email),
+		SSOToken: ssoToken,
+	}, nil
+}
+
+func (c *OAuthClient) ConvertSSOToBuild(ctx context.Context, ssoToken, proxyURL string) (*TokenResponse, error) {
+	client, err := createGrokSSOHTTPClient(proxyURL)
+	if err != nil {
+		return nil, infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_SSO_CLIENT_INIT_FAILED", "create HTTP client: %v", err)
+	}
+
+	requestCtx, cancel := context.WithTimeout(ctx, SSOConversionTimeout)
+	defer cancel()
+	tokenResp, err := ConvertSSOToBuild(requestCtx, ssoToken, &SSODeviceOptions{HTTPClient: client})
+	if err != nil {
+		return nil, grokSSOConversionError(err)
+	}
+	return tokenResp, nil
+}
+
+func createGrokReqClient(proxyURL string) (*req.Client, error) {
+	return sharedhttp.GetSharedReqClient(sharedhttp.ReqClientOptions{
+		ProxyURL: proxyURL,
+		Timeout:  60 * time.Second,
+	})
+}
+
+func createGrokSSOHTTPClient(proxyURL string) (*http.Client, error) {
+	client, err := sharedhttp.GetClient(sharedhttp.Options{
+		ProxyURL:              proxyURL,
+		Timeout:               SSOConversionTimeout,
+		ResponseHeaderTimeout: 30 * time.Second,
+	})
+	if err != nil {
+		return nil, err
+	}
+	clone := *client
+	clone.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &clone, nil
+}
+
+func grokSSOConversionError(err error) error {
+	if errors.Is(err, ErrSSOUnauthorized) {
+		return infraerrors.New(infraerrors.Category(http.StatusUnauthorized), "GROK_SSO_UNAUTHORIZED", "Grok Web SSO cookie is invalid or expired")
+	}
+	if errors.Is(err, ErrSSOAuthorizationDenied) {
+		return infraerrors.New(infraerrors.Category(http.StatusForbidden), "GROK_SSO_AUTHORIZATION_DENIED", "xAI device authorization was denied or expired")
+	}
+	var statusErr SSOHTTPError
+	if errors.As(err, &statusErr) {
+		statusCode := http.StatusBadGateway
+		if statusErr.Status == http.StatusForbidden {
+			statusCode = http.StatusForbidden
+		}
+		return infraerrors.Newf(infraerrors.Category(statusCode), "GROK_SSO_UPSTREAM_FAILED", "xAI SSO conversion failed: %v", err)
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return infraerrors.Newf(infraerrors.Category(http.StatusGatewayTimeout), "GROK_SSO_TIMEOUT", "xAI SSO conversion timed out: %v", err)
+	}
+	return infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_SSO_CONVERSION_FAILED", "xAI SSO conversion failed: %v", err)
+}
+
+func grokOAuthStatusError(code, message string, resp *req.Response) error {
+	statusCode := http.StatusBadGateway
+	errorCode := code
+	upstreamStatus := 0
+	body := ""
+	if resp != nil {
+		upstreamStatus = resp.StatusCode
+		body = logredact.RedactText(resp.String())
+		if resp.StatusCode == http.StatusForbidden && grokOAuthHasExplicitEntitlementDenial(body) {
+			statusCode = http.StatusForbidden
+			errorCode = "GROK_OAUTH_ENTITLEMENT_DENIED"
+		}
+	}
+	return infraerrors.Newf(infraerrors.Category(statusCode), errorCode, "%s: status %d, body: %s", message, upstreamStatus, body)
+}
+
+func grokOAuthHasExplicitEntitlementDenial(body string) bool {
+	lower := strings.ToLower(body)
+	// 账单额度耗尽可恢复；xAI 可能同时返回通用 access_denied 与额度消息，
+	// 因此额度语义必须优先于 refresh token 流程中的 entitlement 拒绝标记。
+	for _, phrase := range []string{
+		"spending limit",
+		"run out of credits",
+		"out of credits",
+		"credits exhausted",
+		"included free usage",
+	} {
+		if strings.Contains(lower, phrase) {
+			return false
+		}
+	}
+	compact := strings.NewReplacer(" ", "", "\n", "", "\r", "", "\t", "").Replace(lower)
+	for _, field := range []string{"error", "code", "reason"} {
+		for _, value := range []string{"access_denied", "entitlement_denied", "subscription_required", "no_active_subscription"} {
+			if strings.Contains(compact, `"`+field+`":"`+value+`"`) {
+				return true
+			}
+		}
+	}
+	return strings.Contains(lower, "entitlement denied") ||
+		strings.Contains(lower, "subscription required") ||
+		strings.Contains(lower, "no active grok subscription")
+}
+
+func createGrokHTTPClient(proxyURL string, noRedirect bool) (*http.Client, error) {
+	transport := &http.Transport{}
+	if strings.TrimSpace(proxyURL) != "" {
+		parsed, err := url.Parse(proxyURL)
+		if err != nil {
+			return nil, err
+		}
+		transport.Proxy = http.ProxyURL(parsed)
+	}
+	client := &http.Client{Timeout: 120 * time.Second, Transport: transport}
+	if noRedirect {
+		client.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+	}
+	return client, nil
+}
+
+func solveTurnstile(ctx context.Context) (string, error) {
+	clientKey := strings.TrimSpace(os.Getenv("YESCAPTCHA_CLIENT_KEY"))
+	if clientKey == "" {
+		clientKey = strings.TrimSpace(os.Getenv("YESCAPTCHA_API_KEY"))
+	}
+	if clientKey == "" {
+		return "", infraerrors.New(infraerrors.Category(http.StatusBadRequest), "GROK_OAUTH_CAPTCHA_KEY_REQUIRED", "yescaptcha client key is required for Grok password authorization")
+	}
+	createBody, err := json.Marshal(map[string]any{
+		"clientKey": clientKey,
+		"task": map[string]any{
+			"type":       "TurnstileTaskProxyless",
+			"websiteURL": turnstileWebsiteURL,
+			"websiteKey": turnstileWebsiteKey,
+		},
+	})
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusInternalServerError), "GROK_OAUTH_CAPTCHA_FAILED", "encode captcha create request failed: %v", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, yesCaptchaCreateTask, bytes.NewReader(createBody))
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CAPTCHA_FAILED", "build captcha create request failed: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CAPTCHA_FAILED", "create captcha task failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var createResp struct {
+		ErrorID          int    `json:"errorId"`
+		TaskID           string `json:"taskId"`
+		ErrorDescription string `json:"errorDescription"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&createResp); err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CAPTCHA_FAILED", "decode captcha create response failed: %v", err)
+	}
+	if createResp.ErrorID != 0 || strings.TrimSpace(createResp.TaskID) == "" {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CAPTCHA_FAILED", "captcha create failed: %s", createResp.ErrorDescription)
+	}
+	deadline := time.Now().Add(90 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(5 * time.Second):
+		}
+		body, err := json.Marshal(map[string]any{"clientKey": clientKey, "taskId": createResp.TaskID})
+		if err != nil {
+			return "", infraerrors.Newf(infraerrors.Category(http.StatusInternalServerError), "GROK_OAUTH_CAPTCHA_FAILED", "encode captcha poll request failed: %v", err)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, yesCaptchaGetResult, bytes.NewReader(body))
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			continue
+		}
+		var pollResp struct {
+			ErrorID          int    `json:"errorId"`
+			Status           string `json:"status"`
+			ErrorDescription string `json:"errorDescription"`
+			Solution         struct {
+				Token string `json:"token"`
+			} `json:"solution"`
+		}
+		err = json.NewDecoder(resp.Body).Decode(&pollResp)
+		_ = resp.Body.Close()
+		if err != nil {
+			continue
+		}
+		if pollResp.ErrorID != 0 {
+			return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_CAPTCHA_FAILED", "captcha poll failed: %s", pollResp.ErrorDescription)
+		}
+		if pollResp.Status == "ready" && strings.TrimSpace(pollResp.Solution.Token) != "" {
+			return pollResp.Solution.Token, nil
+		}
+	}
+	return "", infraerrors.New(infraerrors.Category(http.StatusGatewayTimeout), "GROK_OAUTH_CAPTCHA_TIMEOUT", "captcha solve timed out")
+}
+
+func createGrokPasswordSession(ctx context.Context, client *http.Client, email, password, turnstileToken string) (string, error) {
+	payload, err := json.Marshal(map[string]any{
+		"rpc": "createSession",
+		"req": map[string]any{
+			"createSessionRequest": map[string]any{
+				"credentials": map[string]any{
+					"case": "emailAndPassword",
+					"value": map[string]any{
+						"email":             email,
+						"clearTextPassword": password,
+					},
+				},
+			},
+			"turnstileToken": turnstileToken,
+		},
+	})
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusInternalServerError), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "encode password login request failed: %v", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, loginRPCEndpoint, bytes.NewReader(payload))
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "build password login request failed: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Origin", accountsBaseURL)
+	req.Header.Set("Referer", accountsBaseURL+"/sign-in?redirect=grok-com&email=true")
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Header.Set("Accept", "*/*")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "password login request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "password login returned status %d: %s", resp.StatusCode, logredact.RedactText(string(body)))
+	}
+	var loginResp struct {
+		CookieSetterURL string `json:"cookieSetterUrl"`
+		Error           string `json:"error"`
+	}
+	if err := json.Unmarshal(body, &loginResp); err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "decode password login response failed: %v", err)
+	}
+	if strings.TrimSpace(loginResp.Error) != "" {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "password login error: %s", logredact.RedactText(loginResp.Error))
+	}
+	if strings.TrimSpace(loginResp.CookieSetterURL) == "" {
+		return "", infraerrors.New(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "password login did not return cookieSetterUrl")
+	}
+	return loginResp.CookieSetterURL, nil
+}
+
+func extractGrokSSOToken(ctx context.Context, client *http.Client, cookieSetterURL string) (string, error) {
+	safeURL, err := validateGrokCookieSetterURL(cookieSetterURL)
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "invalid cookie setter url: %v", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, safeURL.String(), nil)
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "build cookie setter request: %v", err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Referer", accountsBaseURL+"/")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "follow cookie setter url failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	for _, cookie := range resp.Header.Values("Set-Cookie") {
+		if token, ok := strings.CutPrefix(cookie, "sso="); ok {
+			if idx := strings.Index(token, ";"); idx > 0 {
+				token = token[:idx]
+			}
+			return strings.TrimSpace(token), nil
+		}
+	}
+	return "", infraerrors.Newf(infraerrors.Category(http.StatusBadGateway), "GROK_OAUTH_PASSWORD_LOGIN_FAILED", "no sso cookie found in response (status=%d)", resp.StatusCode)
+}
+
+func validateGrokCookieSetterURL(rawURL string) (*url.URL, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil {
+		return nil, err
+	}
+	if parsed.Scheme != "https" || !strings.EqualFold(parsed.Hostname(), "accounts.x.ai") {
+		return nil, fmt.Errorf("url must use https://accounts.x.ai")
+	}
+	if parsed.User != nil || parsed.Port() != "" || parsed.Fragment != "" || parsed.Opaque != "" {
+		return nil, fmt.Errorf("url contains disallowed authority or fragment components")
+	}
+	return parsed, nil
+}

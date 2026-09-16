@@ -3,7 +3,7 @@ package provider
 
 import (
 	account "github.com/TokenFlux/TokenRouter/internal/account"
-	openai "github.com/TokenFlux/TokenRouter/internal/pkg/openai"
+	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // DecodeArchiveIDToken 沿用原 OpenAI 导入的非认证解码，不新增过期或签名验证。

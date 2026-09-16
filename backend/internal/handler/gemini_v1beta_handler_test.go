@@ -8,11 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/gemini"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	gemini "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"

@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,8 +34,8 @@ func TestQoderHighestContextFlowsThroughAllProtocols(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			request, err := tt.parse(tt.body)
 			require.NoError(t, err)
-			request.site = qoder.SiteGlobal
-			payload, modelKey := buildQoderPayloadWithOptions(request, "", request.messages, true, true)
+			request.Site = qoder.SiteGlobal
+			payload, modelKey := buildQoderPayloadWithOptions(request, "", request.Messages, true, true)
 
 			require.Equal(t, "qmodel_38max", modelKey)
 			assertQoderContextCapabilityForTest(t, payload, 1000000, true)

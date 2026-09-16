@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/upstream/openai",
+    "-run",
+    "Test.*AgentIdentity|Test.*AgentAssertion|Test.*AgentTask"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 49.528,
+  "pass": 22,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-agent-unit.log.gz"
+}

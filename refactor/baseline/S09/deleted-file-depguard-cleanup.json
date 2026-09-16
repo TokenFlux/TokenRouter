@@ -1,0 +1,10 @@
+[
+  {
+    "rule": "s06-app-legacybridge-account_ollama-go",
+    "file": "backend/internal/app/legacybridge/account_ollama.go"
+  },
+  {
+    "rule": "s06-app-legacybridge-account_upstream_usage-go",
+    "file": "backend/internal/app/legacybridge/account_upstream_usage.go"
+  }
+]

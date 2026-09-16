@@ -1,0 +1,38 @@
+{
+  "normal": {
+    "baseline": 1,
+    "current": 1,
+    "added": [],
+    "removed": [],
+    "baseline_data": "../S08/final-lint-normal.json",
+    "data": "usage-accepted-lint-normal.json.gz",
+    "path_mapping": {
+      "internal/upstream/antigravity/": "internal/pkg/antigravity/"
+    },
+    "normalization": "完整规则/消息/重数，只去除末尾空白。"
+  },
+  "unit": {
+    "baseline": 285,
+    "current": 285,
+    "added": [],
+    "removed": [],
+    "baseline_data": "../S08/final-lint-unit.json",
+    "data": "usage-accepted-lint-unit.json.gz",
+    "path_mapping": {
+      "internal/upstream/antigravity/": "internal/pkg/antigravity/"
+    },
+    "normalization": "完整规则/消息/重数，只去除末尾空白。"
+  },
+  "integration": {
+    "baseline": 17,
+    "current": 17,
+    "added": [],
+    "removed": [],
+    "baseline_data": "../S08/final-lint-integration.json",
+    "data": "usage-accepted-lint-integration.json.gz",
+    "path_mapping": {
+      "internal/upstream/antigravity/": "internal/pkg/antigravity/"
+    },
+    "normalization": "完整规则/消息/重数，只去除末尾空白。"
+  }
+}

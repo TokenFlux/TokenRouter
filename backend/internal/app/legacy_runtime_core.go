@@ -25,11 +25,33 @@ func provideCoreRuntime(
 	manager *lifecycle.Manager,
 	timingWheel *service.TimingWheelService,
 	gateway *service.GatewayService,
+	geminiGateway *service.GeminiMessagesCompatService,
+	antigravityGateway *service.AntigravityGatewayService,
+	creativeExecutor *service.CreativeExecutor,
 	digestStore *service.DigestSessionStore,
 	usageRepo service.UsageLogRepository,
 	tasks *lifecycle.Tasks,
 	httpUpstream service.HTTPUpstream,
 ) *coreRuntimeReady {
+	// 原生平台仅登记同步尝试，不改变客户端取消或供应商重试预算。
+	nativeAttempts := lifecycle.NewOperations("NativeUpstreamAttempts")
+	if openAIGateway != nil {
+		openAIGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
+	}
+	if antigravityGateway != nil {
+		antigravityGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
+	}
+	if creativeExecutor != nil {
+		creativeExecutor.BindNativeAttemptActivity(nativeAttempts.Enter)
+	}
+	if geminiGateway != nil {
+		geminiGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
+	}
+	if gateway != nil {
+		gateway.BindNativeAttemptActivity(nativeAttempts.Enter)
+	}
+	manager.Register(lifecycle.Hook{Name: "NativeUpstreamAttempts", StopOrder: 15, Stop: nativeAttempts.StopContext})
+
 	manager.Register(lifecycle.Hook{Name: "AuthCacheInvalidationWorker", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if authCacheInvalidationWorker != nil {
 			authCacheInvalidationWorker.Start()

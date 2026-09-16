@@ -1,82 +1,19 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-
-	"github.com/google/uuid"
-	"github.com/tidwall/gjson"
-)
-
-const (
-	antigravityStickySessionTTL = time.Hour
-	antigravityMaxRetries       = 3
-	antigravityRetryBaseDelay   = 1 * time.Second
-	antigravityRetryMaxDelay    = 16 * time.Second
-
-	// 限流相关常量
-	// antigravityRateLimitThreshold 限流等待/切换阈值
-	// - 智能重试：retryDelay < 此阈值时等待后重试，>= 此阈值时直接限流模型
-	// - 预检查：剩余限流时间 < 此阈值时等待，>= 此阈值时切换账号
-	antigravityRateLimitThreshold       = 7 * time.Second
-	antigravitySmartRetryMinWait        = 1 * time.Second  // 智能重试最小等待时间
-	antigravitySmartRetryMaxAttempts    = 1                // 智能重试最大次数（仅重试 1 次，防止重复限流/长期等待）
-	antigravityDefaultRateLimitDuration = 30 * time.Second // 默认限流时间（无 retryDelay 时使用）
-
-	// MODEL_CAPACITY_EXHAUSTED 专用重试参数
-	// 模型容量不足时，所有账号共享同一容量池，切换账号无意义
-	// 使用固定 1s 间隔重试，最多重试 60 次
-	antigravityModelCapacityRetryMaxAttempts = 60
-	antigravityModelCapacityRetryWait        = 1 * time.Second
-
-	// Google RPC 状态和类型常量
-	googleRPCStatusResourceExhausted      = "RESOURCE_EXHAUSTED"
-	googleRPCStatusUnavailable            = "UNAVAILABLE"
-	googleRPCTypeRetryInfo                = "type.googleapis.com/google.rpc.RetryInfo"
-	googleRPCTypeErrorInfo                = "type.googleapis.com/google.rpc.ErrorInfo"
-	googleRPCReasonModelCapacityExhausted = "MODEL_CAPACITY_EXHAUSTED"
-	googleRPCReasonRateLimitExceeded      = "RATE_LIMIT_EXCEEDED"
-
-	// 单账号 503 退避重试：Service 层原地重试的最大次数
-	// 在 handleSmartRetry 中，对于 shouldRateLimitModel（长延迟 ≥ 7s）的情况，
-	// 多账号模式下会设限流+切换账号；但单账号模式下改为原地等待+重试。
-	antigravitySingleAccountSmartRetryMaxAttempts = 3
-
-	// 单账号 503 退避重试：原地重试时单次最大等待时间
-	// 防止上游返回过长的 retryDelay 导致请求卡住太久
-	antigravitySingleAccountSmartRetryMaxWait = 15 * time.Second
-
-	// 单账号 503 退避重试：原地重试的总累计等待时间上限
-	// 超过此上限将不再重试，直接返回 503
-	antigravitySingleAccountSmartRetryTotalMaxWait = 30 * time.Second
-
-	// MODEL_CAPACITY_EXHAUSTED 全局去重：重试全部失败后的 cooldown 时间
-	antigravityModelCapacityCooldown = 10 * time.Second
-)
-
-// antigravityPassthroughErrorMessages 透传给客户端的错误消息白名单（小写）
-// 匹配时使用 strings.Contains，无需完全匹配
-var antigravityPassthroughErrorMessages = []string{
-	"prompt is too long",
-}
-
-// MODEL_CAPACITY_EXHAUSTED 全局去重：避免多个并发请求同时对同一模型进行容量耗尽重试
-var (
-	modelCapacityExhaustedMu    sync.RWMutex
-	modelCapacityExhaustedUntil = make(map[string]time.Time) // modelName -> cooldown until
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
 const (
@@ -86,51 +23,17 @@ const (
 
 const antigravityProjectIDFallbackCredentialKey = "antigravity_project_id"
 
-var errAntigravityProjectIDRequired = errors.New("该 standard-tier Antigravity 账号需配置 project_id")
-
-// AntigravityAccountSwitchError 账号切换信号
-// 当账号限流时间超过阈值时，通知上层切换账号
-type AntigravityAccountSwitchError struct {
-	OriginalAccountID int64
-	RateLimitedModel  string
-	IsStickySession   bool // 是否为粘性会话切换（决定是否缓存计费）
-}
-
-func (e *AntigravityAccountSwitchError) Error() string {
-	return fmt.Sprintf("account %d model %s rate limited, need switch",
-		e.OriginalAccountID, e.RateLimitedModel)
-}
-
-// IsAntigravityAccountSwitchError 检查错误是否为账号切换信号
-func IsAntigravityAccountSwitchError(err error) (*AntigravityAccountSwitchError, bool) {
-	var switchErr *AntigravityAccountSwitchError
-	if errors.As(err, &switchErr) {
-		return switchErr, true
-	}
-	return nil, false
-}
-
-// PromptTooLongError 表示上游明确返回 prompt too long
-type PromptTooLongError struct {
-	StatusCode int
-	RequestID  string
-	Body       []byte
-}
-
-func (e *PromptTooLongError) Error() string {
-	return fmt.Sprintf("prompt too long: status=%d", e.StatusCode)
-}
-
 // AntigravityGatewayService 处理 Antigravity 平台的 API 转发
 type AntigravityGatewayService struct {
-	accountRepo       AccountRepository
-	tokenProvider     *AntigravityTokenProvider
-	rateLimitService  *RateLimitService
-	httpUpstream      HTTPUpstream
-	settingService    *SettingService
-	cache             GatewayCache // 用于模型级限流时清除粘性会话绑定
-	schedulerSnapshot *SchedulerSnapshotService
-	internal500Cache  Internal500CounterCache // INTERNAL 500 渐进惩罚计数器
+	nativeAttemptActivity func() (func(), error)
+	accountRepo           AccountRepository
+	tokenProvider         *AntigravityTokenProvider
+	rateLimitService      *RateLimitService
+	httpUpstream          HTTPUpstream
+	settingService        *SettingService
+	cache                 GatewayCache // 用于模型级限流时清除粘性会话绑定
+	schedulerSnapshot     *SchedulerSnapshotService
+	internal500Cache      Internal500CounterCache // INTERNAL 500 渐进惩罚计数器
 }
 
 func (s *AntigravityGatewayService) upstreamErrorBodyReadLimit() int64 {
@@ -303,31 +206,7 @@ func (s *AntigravityGatewayService) getMappedModel(account *Account, requestedMo
 }
 
 func resolveAntigravityProjectID(account *Account) (string, error) {
-	if account == nil {
-		return "", errAntigravityProjectIDRequired
-	}
-	if projectID := strings.TrimSpace(account.GetCredential("project_id")); projectID != "" {
-		return projectID, nil
-	}
-	if projectID := strings.TrimSpace(account.GetCredential(antigravityProjectIDFallbackCredentialKey)); projectID != "" {
-		return projectID, nil
-	}
-	if projectID := strings.TrimSpace(account.GetExtraString(antigravityProjectIDFallbackCredentialKey)); projectID != "" {
-		return projectID, nil
-	}
-	return "", errAntigravityProjectIDRequired
-}
-
-// applyThinkingModelSuffix 根据 thinking 配置调整模型名
-// 当映射结果是 claude-sonnet-4-5 且请求开启了 thinking 时，改为 claude-sonnet-4-5-thinking
-func applyThinkingModelSuffix(mappedModel string, thinkingEnabled bool) string {
-	if !thinkingEnabled {
-		return mappedModel
-	}
-	if mappedModel == "claude-sonnet-4-5" {
-		return "claude-sonnet-4-5-thinking"
-	}
-	return mappedModel
+	return accountcore.ResolveAntigravityProjectID(AccountRecordView(account), errAntigravityProjectIDRequired)
 }
 
 // IsModelSupported 检查模型是否被支持
@@ -337,11 +216,7 @@ func (s *AntigravityGatewayService) IsModelSupported(requestedModel string) bool
 		strings.HasPrefix(requestedModel, "gemini-")
 }
 
-// TestConnectionResult 测试连接结果
-type TestConnectionResult struct {
-	Text        string // 响应文本
-	MappedModel string // 实际使用的模型
-}
+type TestConnectionResult = antigravity.TestConnectionResult
 
 // TestConnection 测试 Antigravity 账号连接；prompt 为空时使用最小默认提示词。
 // 复用 antigravityRetryLoop 的完整重试 / credits overages / 智能重试逻辑，
@@ -407,32 +282,8 @@ func (s *AntigravityGatewayService) TestConnection(ctx context.Context, account 
 		handleError:    testConnectionHandleError,
 	}
 
-	result, err := s.antigravityRetryLoop(p)
-	if err != nil {
-		// AccountSwitchError → 测试时不切换账号，返回友好提示
-		var switchErr *AntigravityAccountSwitchError
-		if errors.As(err, &switchErr) {
-			return nil, fmt.Errorf("该账号模型 %s 当前限流中，请稍后重试", switchErr.RateLimitedModel)
-		}
-		return nil, err
-	}
-
-	if result == nil || result.resp == nil {
-		return nil, errors.New("upstream returned empty response")
-	}
-	defer func() { _ = result.resp.Body.Close() }()
-
-	respBody, err := io.ReadAll(io.LimitReader(result.resp.Body, s.upstreamErrorBodyReadLimit()))
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
-	}
-
-	if result.resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API 返回 %d: %s", result.resp.StatusCode, string(respBody))
-	}
-
-	text := extractTextFromSSEResponse(respBody)
-	return &TestConnectionResult{Text: text, MappedModel: mappedModel}, nil
+	adapter, input := s.antigravityRetryAdapter(p)
+	return antigravity.Probe(ctx, input, adapter.Options, mappedModel, s.upstreamErrorBodyReadLimit, s.nativeAttemptActivity)
 }
 
 // testConnectionHandleError 是 TestConnection 使用的轻量 handleError 回调。
@@ -448,56 +299,12 @@ func testConnectionHandleError(
 	return nil
 }
 
-// buildGeminiTestRequest 构建 Gemini 格式测试请求
-// 使用最小 token 消耗：使用调用方提示词并限制 maxOutputTokens 为 1。
 func (s *AntigravityGatewayService) buildGeminiTestRequest(projectID, model string, prompts ...string) ([]byte, error) {
-	prompt := "."
-	if len(prompts) > 0 && strings.TrimSpace(prompts[0]) != "" {
-		prompt = strings.TrimSpace(prompts[0])
-	}
-	payload := map[string]any{
-		"contents": []map[string]any{
-			{
-				"role": "user",
-				"parts": []map[string]any{
-					{"text": prompt},
-				},
-			},
-		},
-		// Antigravity 上游要求必须包含身份提示词
-		"systemInstruction": map[string]any{
-			"parts": []map[string]any{
-				{"text": antigravity.GetDefaultIdentityPatch()},
-			},
-		},
-		"generationConfig": map[string]any{
-			"maxOutputTokens": 1,
-		},
-	}
-	payloadBytes, _ := json.Marshal(payload)
-	return s.wrapV1InternalRequest(projectID, model, payloadBytes)
+	return antigravity.BuildGeminiTestRequest(projectID, model, prompts...)
 }
 
-// buildClaudeTestRequest 构建 Claude 格式测试请求并转换为 Gemini 格式
-// 使用最小 token 消耗：使用调用方提示词并限制 MaxTokens 为 1。
 func (s *AntigravityGatewayService) buildClaudeTestRequest(projectID, mappedModel string, prompts ...string) ([]byte, error) {
-	prompt := "."
-	if len(prompts) > 0 && strings.TrimSpace(prompts[0]) != "" {
-		prompt = strings.TrimSpace(prompts[0])
-	}
-	promptJSON, _ := json.Marshal(prompt)
-	claudeReq := &protocolanthropic.ClaudeRequest{
-		Model: mappedModel,
-		Messages: []protocolanthropic.ClaudeMessage{
-			{
-				Role:    "user",
-				Content: json.RawMessage(promptJSON),
-			},
-		},
-		MaxTokens: 1,
-		Stream:    false,
-	}
-	return antigravity.TransformClaudeToGemini(claudeReq, projectID, mappedModel)
+	return antigravity.BuildClaudeTestRequest(projectID, mappedModel, prompts...)
 }
 
 func (s *AntigravityGatewayService) getClaudeTransformOptions(ctx context.Context) antigravity.TransformOptions {
@@ -510,149 +317,7 @@ func (s *AntigravityGatewayService) getClaudeTransformOptions(ctx context.Contex
 	return opts
 }
 
-// extractTextFromSSEResponse 从 SSE 流式响应中提取文本
-func extractTextFromSSEResponse(respBody []byte) string {
-	var texts []string
-	lines := bytes.Split(respBody, []byte("\n"))
-
-	for _, line := range lines {
-		line = bytes.TrimSpace(line)
-		if len(line) == 0 {
-			continue
-		}
-
-		// 跳过 SSE 前缀
-		if bytes.HasPrefix(line, []byte("data:")) {
-			line = bytes.TrimPrefix(line, []byte("data:"))
-			line = bytes.TrimSpace(line)
-		}
-
-		// 跳过非 JSON 行
-		if len(line) == 0 || line[0] != '{' {
-			continue
-		}
-
-		// 解析 JSON
-		var data map[string]any
-		if err := json.Unmarshal(line, &data); err != nil {
-			continue
-		}
-
-		// 尝试从 response.candidates[0].content.parts[].text 提取
-		response, ok := data["response"].(map[string]any)
-		if !ok {
-			// 尝试直接从 candidates 提取（某些响应格式）
-			response = data
-		}
-
-		candidates, ok := response["candidates"].([]any)
-		if !ok || len(candidates) == 0 {
-			continue
-		}
-
-		candidate, ok := candidates[0].(map[string]any)
-		if !ok {
-			continue
-		}
-
-		content, ok := candidate["content"].(map[string]any)
-		if !ok {
-			continue
-		}
-
-		parts, ok := content["parts"].([]any)
-		if !ok {
-			continue
-		}
-
-		for _, part := range parts {
-			if partMap, ok := part.(map[string]any); ok {
-				if text, ok := partMap["text"].(string); ok && text != "" {
-					texts = append(texts, text)
-				}
-			}
-		}
-	}
-
-	return strings.Join(texts, "")
-}
-
-// injectIdentityPatchToGeminiRequest 为 Gemini 格式请求注入身份提示词
-// 如果请求中已包含 "You are Antigravity" 则不重复注入
-func injectIdentityPatchToGeminiRequest(body []byte) ([]byte, error) {
-	var request map[string]any
-	if err := json.Unmarshal(body, &request); err != nil {
-		return nil, fmt.Errorf("解析 Gemini 请求失败: %w", err)
-	}
-
-	// 检查现有 systemInstruction 是否已包含身份提示词
-	if sysInst, ok := request["systemInstruction"].(map[string]any); ok {
-		if parts, ok := sysInst["parts"].([]any); ok {
-			for _, part := range parts {
-				if partMap, ok := part.(map[string]any); ok {
-					if text, ok := partMap["text"].(string); ok {
-						if strings.Contains(text, "You are Antigravity") {
-							// 已包含身份提示词，直接返回原始请求
-							return body, nil
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// 获取默认身份提示词
-	identityPatch := antigravity.GetDefaultIdentityPatch()
-
-	// 构建新的 systemInstruction
-	newPart := map[string]any{"text": identityPatch}
-
-	if existing, ok := request["systemInstruction"].(map[string]any); ok {
-		// 已有 systemInstruction，在开头插入身份提示词
-		if parts, ok := existing["parts"].([]any); ok {
-			existing["parts"] = append([]any{newPart}, parts...)
-		} else {
-			existing["parts"] = []any{newPart}
-		}
-	} else {
-		// 没有 systemInstruction，创建新的
-		request["systemInstruction"] = map[string]any{
-			"parts": []any{newPart},
-		}
-	}
-
-	return json.Marshal(request)
-}
-
-// wrapV1InternalRequest 包装请求为 v1internal 格式
-func (s *AntigravityGatewayService) wrapV1InternalRequest(projectID, model string, originalBody []byte) ([]byte, error) {
-	var request any
-	if err := json.Unmarshal(originalBody, &request); err != nil {
-		return nil, fmt.Errorf("解析请求体失败: %w", err)
-	}
-	projectID = strings.TrimSpace(projectID)
-	if projectID == "" {
-		return nil, errAntigravityProjectIDRequired
-	}
-
-	wrapped := map[string]any{
-		"project":     projectID,
-		"requestId":   "agent-" + uuid.New().String(),
-		"userAgent":   "antigravity", // 固定值，与官方客户端一致
-		"requestType": "agent",
-		"model":       model,
-		"request":     request,
-	}
-
-	return json.Marshal(wrapped)
-}
-
-// unwrapV1InternalResponse 解包 v1internal 响应
-// 使用 gjson 零拷贝提取 response 字段，避免 Unmarshal+Marshal 双重开销
-func (s *AntigravityGatewayService) unwrapV1InternalResponse(body []byte) ([]byte, error) {
-	result := gjson.GetBytes(body, "response")
-	if result.Exists() {
-		return []byte(result.Raw), nil
-	}
-	return body, nil
+// BindNativeAttemptActivity 仅在构造阶段绑定同一 app 屏障，停止等待已进入尝试。
+func (s *AntigravityGatewayService) BindNativeAttemptActivity(enter func() (func(), error)) {
+	s.nativeAttemptActivity = enter
 }

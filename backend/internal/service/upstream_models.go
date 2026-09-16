@@ -4,16 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 )
 
 // ChatGPT Codex 模型清单地址仅供管理员手动同步 OAuth 账号模型使用；

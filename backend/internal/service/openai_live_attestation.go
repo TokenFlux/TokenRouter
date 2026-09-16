@@ -2,72 +2,20 @@ package service
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"errors"
-	"fmt"
-	"io"
 	"strings"
+
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 )
 
-const liveAttestationHeader = "x-oai-attestation"
-
-type liveAttestationAES struct {
-	key [32]byte
-}
+const liveAttestationHeader = nativeopenai.LiveAttestationHeader
 
 func newLiveAttestationCipher(cfg *config.Config) SecretEncryptor {
 	if cfg == nil || strings.TrimSpace(cfg.JWT.Secret) == "" {
 		return nil
 	}
-	return &liveAttestationAES{
-		key: sha256.Sum256([]byte("tokenrouter/live-attestation/v1\x00" + cfg.JWT.Secret)),
-	}
-}
-
-func (c *liveAttestationAES) Encrypt(plaintext string) (string, error) {
-	block, err := aes.NewCipher(c.key[:])
-	if err != nil {
-		return "", err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", fmt.Errorf("generate Live attestation nonce: %w", err)
-	}
-	encrypted := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
-	return base64.RawStdEncoding.EncodeToString(encrypted), nil
-}
-
-func (c *liveAttestationAES) Decrypt(ciphertext string) (string, error) {
-	encrypted, err := base64.RawStdEncoding.DecodeString(ciphertext)
-	if err != nil {
-		return "", fmt.Errorf("decode Live attestation: %w", err)
-	}
-	block, err := aes.NewCipher(c.key[:])
-	if err != nil {
-		return "", err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	if len(encrypted) < gcm.NonceSize() {
-		return "", errors.New("encrypted Live attestation is too short")
-	}
-	plaintext, err := gcm.Open(nil, encrypted[:gcm.NonceSize()], encrypted[gcm.NonceSize():], nil)
-	if err != nil {
-		return "", fmt.Errorf("decrypt Live attestation: %w", err)
-	}
-	return string(plaintext), nil
+	return nativeopenai.NewLiveAttestationCipher(cfg.JWT.Secret)
 }
 
 func (s *OpenAIGatewayService) prepareLiveAttestation(ctx context.Context) (string, string, error) {

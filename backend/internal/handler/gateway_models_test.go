@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

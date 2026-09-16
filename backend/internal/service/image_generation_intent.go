@@ -3,6 +3,8 @@ package service
 import (
 	"strings"
 
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"github.com/tidwall/gjson"
 )
 
@@ -233,14 +235,12 @@ func openAIAnyToolsContainNativeImageGeneration(rawTools any) bool {
 	return false
 }
 
-// isOpenAIImageGenerationType 判断工具类型是否为原生生图工具。
 func isOpenAIImageGenerationType(value string) bool {
-	return strings.TrimSpace(value) == "image_generation"
+	return nativeopenai.IsOpenAIImageGenerationType(value)
 }
 
-// isOpenAIImageGenNamespaceName 判断命名空间是否为 Codex 生图命名空间。
 func isOpenAIImageGenNamespaceName(value string) bool {
-	return strings.TrimSpace(value) == "image_gen"
+	return nativeopenai.IsOpenAIImageGenNamespaceName(value)
 }
 
 // isImageGenNamespaceTool 检测 Codex 的 namespace 风格生图工具声明：
@@ -374,27 +374,7 @@ func isOpenAIImageGenFunctionReference(namespace string, name string) bool {
 }
 
 func openAIAnyToolChoiceSelectsImageGeneration(choice any) bool {
-	switch v := choice.(type) {
-	case string:
-		return isOpenAIImageGenerationType(v)
-	case map[string]any:
-		choiceType := strings.TrimSpace(firstNonEmptyString(v["type"]))
-		if isOpenAIImageGenerationType(choiceType) {
-			return true
-		}
-		if choiceType == "namespace" &&
-			(isOpenAIImageGenNamespaceName(firstNonEmptyString(v["name"])) ||
-				isOpenAIImageGenNamespaceName(firstNonEmptyString(v["namespace"]))) {
-			return true
-		}
-		if tool, ok := v["tool"].(map[string]any); ok && openAIAnyToolChoiceSelectsImageGeneration(tool) {
-			return true
-		}
-		if fn, ok := v["function"].(map[string]any); ok && isOpenAIImageGenerationType(firstNonEmptyString(fn["name"])) {
-			return true
-		}
-	}
-	return false
+	return nativeopenai.OpenAIAnyToolChoiceSelectsImageGeneration(choice)
 }
 
 func openAIAnyToolChoiceSelectsExplicitImageGeneration(choice any) bool {

@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"log"
 	"net/http"
@@ -18,14 +17,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/deepseek"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/kimi"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/zhipu"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
 	"github.com/google/uuid"
 )
@@ -344,11 +349,11 @@ func createTestPayloadWithPrompt(modelID string, prompt string) (map[string]any,
 func defaultCNProviderTestModel(platform string) string {
 	switch platform {
 	case PlatformKimi:
-		return "kimi-k2.5"
+		return kimi.DefaultTestModel
 	case PlatformZhipu:
-		return "glm-4.7"
+		return zhipu.DefaultTestModel
 	case PlatformDeepseek:
-		return "deepseek-chat"
+		return deepseek.DefaultTestModel
 	default:
 		return ""
 	}

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "./internal/app/lifecycle",
+    "./internal/app",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "Operations|Qoder"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 33.055,
+  "pass": 443,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/qoder-lifecycle-race.log.gz"
+}

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "-parallel=1",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "AlphaSearch|RejectedField|ResponsesField|OpenAI.*Retry|Codex.*Retry|ForwardStreaming_ServiceTierPropagatedToResult"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 33.387,
+  "pass": 105,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-alpha-retry-race.log.gz"
+}

@@ -6,12 +6,17 @@ package service
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 
@@ -113,150 +118,34 @@ func (s *GatewayService) forwardBedrock(
 		}
 	}
 
-	// 执行上游请求（含重试）
-	resp, err := s.executeBedrockUpstream(ctx, c, account, bedrockBody, mappedModel, region, reqStream, signer, bedrockAPIKey, proxyURL)
+	options, policy := s.bedrockRequestOptions(ctx, c, account, mappedModel, region, reqStream, signer, bedrockAPIKey, proxyURL)
+	streamOptions := bedrock.StreamOptions{AccountID: account.ID}
+	if s.cfg != nil && s.cfg.Gateway.StreamDataIntervalTimeout > 0 {
+		streamOptions.Interval = time.Duration(s.cfg.Gateway.StreamDataIntervalTimeout) * time.Second
+	}
+	if s.rateLimitService != nil {
+		streamOptions.OnTimeout = func(ctx context.Context, model string) { s.rateLimitService.HandleStreamTimeout(ctx, account, model) }
+	}
+	hadHTTPError := false
+	var errorResult *ForwardResult
+	target := &bedrock.Target{AccountID: account.ID, Request: options, Retry: policy, Stream: streamOptions, StartedAt: startTime, Enter: s.nativeAttemptActivity, Accepted: parsed.OnUpstreamAccepted, ReadBody: func(r io.Reader) ([]byte, error) {
+		return ReadUpstreamResponseBody(r, s.cfg, c, anthropicTooLargeError)
+	}, HTTPError: func(ctx context.Context, resp *http.Response) (upstream.AttemptResult, error) {
+		hadHTTPError = true
+		var err error
+		errorResult, err = s.handleBedrockUpstreamErrors(ctx, resp, c, account, mappedModel)
+		return upstream.AttemptResult{}, err
+	}}
+	result, err := (bedrock.Executor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolAnthropicMessages, Body: bedrockBody, Stream: reqStream, ResponseModel: reqModel, Target: target}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	if hadHTTPError {
+		return errorResult, err
+	}
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// 将 Bedrock 的 x-amzn-requestid 映射到 x-request-id，
-	// 使通用错误处理函数（handleErrorResponse、handleRetryExhaustedError）能正确提取 AWS request ID。
-	if awsReqID := resp.Header.Get("x-amzn-requestid"); awsReqID != "" && resp.Header.Get("x-request-id") == "" {
-		resp.Header.Set("x-request-id", awsReqID)
-	}
-
-	// 错误/failover 处理
-	if resp.StatusCode >= 400 {
-		return s.handleBedrockUpstreamErrors(ctx, resp, c, account, mappedModel)
-	}
-
-	// Bedrock 分支绕过通用 Forward 成功路径，这里保持上游接受回调语义一致。
-	if parsed.OnUpstreamAccepted != nil {
-		parsed.OnUpstreamAccepted()
-	}
-
-	// 响应处理
-	var usage *ClaudeUsage
-	var firstTokenMs *int
-	var clientDisconnect bool
-	if reqStream {
-		streamResult, err := s.handleBedrockStreamingResponse(ctx, resp, c, account, startTime, reqModel)
-		if err != nil {
-			return nil, err
-		}
-		usage = streamResult.usage
-		firstTokenMs = streamResult.firstTokenMs
-		clientDisconnect = streamResult.clientDisconnect
-	} else {
-		usage, err = s.handleBedrockNonStreamingResponse(ctx, resp, c, account)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if usage == nil {
-		usage = &ClaudeUsage{}
-	}
-
-	return &ForwardResult{
-		RequestID:        resp.Header.Get("x-amzn-requestid"),
-		UpstreamHeaders:  resp.Header,
-		Usage:            *usage,
-		Model:            reqModel,
-		UpstreamModel:    mappedModel,
-		Stream:           reqStream,
-		Duration:         time.Since(startTime),
-		FirstTokenMs:     firstTokenMs,
-		ClientDisconnect: clientDisconnect,
-	}, nil
-}
-
-// executeBedrockUpstream 执行 Bedrock 上游请求（含重试逻辑）
-func (s *GatewayService) executeBedrockUpstream(
-	ctx context.Context,
-	c *gin.Context,
-	account *Account,
-	body []byte,
-	modelID string,
-	region string,
-	stream bool,
-	signer *BedrockSigner,
-	apiKey string,
-	proxyURL string,
-) (*http.Response, error) {
-	var resp *http.Response
-	var err error
-	retryStart := time.Now()
-	for attempt := 1; attempt <= maxRetryAttempts; attempt++ {
-		var upstreamReq *http.Request
-		if account.IsBedrockAPIKey() {
-			upstreamReq, err = s.buildUpstreamRequestBedrockAPIKey(ctx, body, modelID, region, stream, apiKey)
-		} else {
-			upstreamReq, err = s.buildUpstreamRequestBedrock(ctx, body, modelID, region, stream, signer)
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, nil)
-		if err != nil {
-			if resp != nil && resp.Body != nil {
-				_ = resp.Body.Close()
-			}
-			return nil, s.handleUpstreamTransportError(ctx, c, account, err, OpsUpstreamErrorEvent{
-				UpstreamURL: safeUpstreamURL(upstreamReq.URL.String()),
-			})
-		}
-
-		if resp.StatusCode >= 400 && resp.StatusCode != 400 && s.shouldRetryUpstreamError(account, resp.StatusCode) {
-			if attempt < maxRetryAttempts {
-				elapsed := time.Since(retryStart)
-				if elapsed >= maxRetryElapsed {
-					break
-				}
-
-				delay := retryBackoffDelay(attempt)
-				remaining := maxRetryElapsed - elapsed
-				if delay > remaining {
-					delay = remaining
-				}
-				if delay <= 0 {
-					break
-				}
-
-				respBody, _ := s.readUpstreamErrorBody(resp)
-				_ = resp.Body.Close()
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-					Platform:           account.Platform,
-					AccountID:          account.ID,
-					AccountName:        account.Name,
-					UpstreamStatusCode: resp.StatusCode,
-					UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
-					Kind:               "retry",
-					Message:            extractUpstreamErrorMessage(respBody),
-					Detail: func() string {
-						if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-							return truncateString(string(respBody), s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
-						}
-						return ""
-					}(),
-				})
-				logger.LegacyPrintf("service.gateway", "[Bedrock] account %d: upstream error %d, retry %d/%d after %v",
-					account.ID, resp.StatusCode, attempt, maxRetryAttempts, delay)
-				if err := sleepWithContext(ctx, delay); err != nil {
-					return nil, err
-				}
-				continue
-			}
-			break
-		}
-
-		break
-	}
-	if resp == nil || resp.Body == nil {
-		return nil, errors.New("upstream request failed: empty response")
-	}
-	return resp, nil
+	converted := ForwardResultFromAttempt(result)
+	converted.UpstreamHeaders = result.UpstreamHeaders
+	return converted, nil
 }
 
 // handleBedrockUpstreamErrors 处理 Bedrock 上游 4xx/5xx 错误（failover + 错误响应）
@@ -327,79 +216,19 @@ func (s *GatewayService) handleBedrockUpstreamErrors(
 	return s.handleErrorResponse(ctx, resp, c, account, mappedModel)
 }
 
-// buildUpstreamRequestBedrock 构建 Bedrock 上游请求
-func (s *GatewayService) buildUpstreamRequestBedrock(
-	ctx context.Context,
-	body []byte,
-	modelID string,
-	region string,
-	stream bool,
-	signer *BedrockSigner,
-) (*http.Request, error) {
-	targetURL := BuildBedrockURL(region, modelID, stream)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	// SigV4 签名
-	if err := signer.SignRequest(ctx, req, body); err != nil {
-		return nil, fmt.Errorf("sign bedrock request: %w", err)
-	}
-
-	return req, nil
-}
-
-// buildUpstreamRequestBedrockAPIKey 构建 Bedrock API Key (Bearer Token) 上游请求
-func (s *GatewayService) buildUpstreamRequestBedrockAPIKey(
-	ctx context.Context,
-	body []byte,
-	modelID string,
-	region string,
-	stream bool,
-	apiKey string,
-) (*http.Request, error) {
-	targetURL := BuildBedrockURL(region, modelID, stream)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	return req, nil
-}
-
-// handleBedrockNonStreamingResponse 处理 Bedrock 非流式响应
-// Bedrock InvokeModel 非流式响应的 body 格式与 Claude API 兼容
-func (s *GatewayService) handleBedrockNonStreamingResponse(
-	ctx context.Context,
-	resp *http.Response,
-	c *gin.Context,
-	account *Account,
-) (*ClaudeUsage, error) {
-	body, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, anthropicTooLargeError)
-	if err != nil {
-		return nil, err
-	}
-
-	// 转换 Bedrock 特有的 amazon-bedrock-invocationMetrics 为标准 Anthropic usage 格式
-	// 并移除该字段避免透传给客户端
-	body = transformBedrockInvocationMetrics(body)
-
-	usage := parseClaudeUsageFromResponseBody(body)
-
-	c.Header("Content-Type", "application/json")
-	if v := resp.Header.Get("x-amzn-requestid"); v != "" {
-		c.Header("x-request-id", v)
-	}
-	c.Data(resp.StatusCode, "application/json", body)
-	return usage, nil
+func (s *GatewayService) bedrockRequestOptions(ctx context.Context, c *gin.Context, account *Account, modelID, region string, stream bool, signer *BedrockSigner, apiKey, proxyURL string) (bedrock.RequestOptions, bedrock.RetryPolicy) {
+	options := bedrock.RequestOptions{ModelID: modelID, Region: region, Stream: stream, Signer: signer, APIKey: apiKey, APIKeyMode: account.IsBedrockAPIKey(), Do: func(req *http.Request) (*http.Response, error) {
+		return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
+	}}
+	policy := bedrock.RetryPolicy{MaxAttempts: maxRetryAttempts, MaxElapsed: maxRetryElapsed, Delay: retryBackoffDelay, ShouldRetry: func(status int) bool { return s.shouldRetryUpstreamError(account, status) }, ReadErrorBody: s.readUpstreamErrorBody, TransportError: func(err error, url string) error {
+		return s.handleUpstreamTransportError(ctx, c, account, err, OpsUpstreamErrorEvent{UpstreamURL: safeUpstreamURL(url)})
+	}, ObserveRetry: func(resp *http.Response, body []byte, url string, attempt int, delay time.Duration) {
+		detail := ""
+		if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+			detail = truncateString(string(body), s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
+		}
+		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{Platform: account.Platform, AccountID: account.ID, AccountName: account.Name, UpstreamStatusCode: resp.StatusCode, UpstreamURL: safeUpstreamURL(url), Kind: "retry", Message: extractUpstreamErrorMessage(body), Detail: detail})
+		logger.LegacyPrintf("service.gateway", "[Bedrock] account %d: upstream error %d, retry %d/%d after %v", account.ID, resp.StatusCode, attempt, maxRetryAttempts, delay)
+	}}
+	return options, policy
 }

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -50,7 +50,7 @@ func TestQoderThinkingParsersUseProtocolNativeFields(t *testing.T) {
 		"messages":[{"role":"user","content":"hello"}]
 	}`))
 	require.NoError(t, err)
-	require.Equal(t, qoderThinkingDirective{Enabled: true, Effort: "medium"}, chat.thinking)
+	require.Equal(t, qoderThinkingDirective{Enabled: true, Effort: "medium"}, chat.Thinking)
 
 	responses, err := parseQoderResponsesPayload([]byte(`{
 		"model":"deepseek-v4-pro",
@@ -58,7 +58,7 @@ func TestQoderThinkingParsersUseProtocolNativeFields(t *testing.T) {
 		"input":"hello"
 	}`))
 	require.NoError(t, err)
-	require.Equal(t, qoderThinkingDirective{Enabled: true, Effort: "max"}, responses.thinking)
+	require.Equal(t, qoderThinkingDirective{Enabled: true, Effort: "max"}, responses.Thinking)
 
 	// Anthropic 的显式等级优先于同时出现的预算。
 	messages, err := parseQoderAnthropicMessagesPayload([]byte(`{
@@ -69,7 +69,7 @@ func TestQoderThinkingParsersUseProtocolNativeFields(t *testing.T) {
 		"messages":[{"role":"user","content":"hello"}]
 	}`))
 	require.NoError(t, err)
-	require.Equal(t, qoderThinkingDirective{Enabled: true, Effort: "low"}, messages.thinking)
+	require.Equal(t, qoderThinkingDirective{Enabled: true, Effort: "low"}, messages.Thinking)
 
 	// Qoder 会忽略未知等级，不能被通用 Anthropic 转换层提前拒绝。
 	messages, err = parseQoderAnthropicMessagesPayload([]byte(`{
@@ -79,7 +79,7 @@ func TestQoderThinkingParsersUseProtocolNativeFields(t *testing.T) {
 		"messages":[{"role":"user","content":"hello"}]
 	}`))
 	require.NoError(t, err)
-	require.Equal(t, qoderThinkingDirective{}, messages.thinking)
+	require.Equal(t, qoderThinkingDirective{}, messages.Thinking)
 }
 
 func TestBuildQoderAnthropicThinkingPayloadDefaultsToGlobalSite(t *testing.T) {
@@ -226,10 +226,10 @@ func TestQoderThinkingFlowsThroughAllEndpoints(t *testing.T) {
 				tokenProvider: &QoderTokenProvider{},
 				client:        client,
 			}
-			service.tokenProvider.sessions = map[int64]qoderSessionCacheEntry{
+			service.tokenProvider.qoderState().Sessions = map[int64]qoderSessionCacheEntry{
 				account.ID: {
-					credentialsHash: qoderCredentialsHash(account.Credentials),
-					session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
+					CredentialsHash: qoderCredentialsHash(account.Credentials),
+					Session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
 				},
 			}
 
@@ -347,10 +347,10 @@ func TestQoderThinkingUsesAccountMappedRouteKey(t *testing.T) {
 		tokenProvider: &QoderTokenProvider{},
 		client:        client,
 	}
-	service.tokenProvider.sessions = map[int64]qoderSessionCacheEntry{
+	service.tokenProvider.qoderState().Sessions = map[int64]qoderSessionCacheEntry{
 		account.ID: {
-			credentialsHash: qoderCredentialsHash(account.Credentials),
-			session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
+			CredentialsHash: qoderCredentialsHash(account.Credentials),
+			Session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
 		},
 	}
 	body := []byte(`{

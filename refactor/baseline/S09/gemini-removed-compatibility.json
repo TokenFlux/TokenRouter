@@ -1,0 +1,202 @@
+[
+  {
+    "file": "backend/internal/service/gemini_token_provider.go",
+    "symbol": [
+      "geminiTokenRefreshSkew",
+      "geminiTokenCacheSkew"
+    ],
+    "code": "const (\n\tgeminiTokenRefreshSkew = 3 * time.Minute\n\tgeminiTokenCacheSkew   = 5 * time.Minute\n)"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "legacyNativeGeminiUsage",
+    "code": "func legacyNativeGeminiUsage(usage *bridge.NativeGeminiUsage) *ClaudeUsage {\n\treturn gemininative.LegacyNativeGeminiUsage(usage)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "normalizeGeminiRequestForAIStudio",
+    "code": "// normalizeGeminiRequestForAIStudio 委托原生 Gemini 方言的纯转换，调用顺序由旧平台保留。\nfunc normalizeGeminiRequestForAIStudio(body []byte) []byte {\n\treturn bridge.NativeNormalizeGeminiRequestForAIStudio(body)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "looksLikeGeminiDailyQuota",
+    "code": "func looksLikeGeminiDailyQuota(message string) bool {\n\treturn gemininative.LooksLikeGeminiDailyQuota(message)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "isGeminiInlineImageMIMEType",
+    "code": "// isGeminiInlineImageMIMEType 委托原生 Gemini 方言的纯转换，调用顺序由旧平台保留。\nfunc isGeminiInlineImageMIMEType(mimeType string) bool {\n\treturn bridge.NativeIsGeminiInlineImageMIMEType(mimeType)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "handleNativeStreamingResponse",
+    "code": "func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Context, resp *http.Response, startTime time.Time, isOAuth bool) (*geminiNativeStreamResult, error) {\n\treturn s.geminiResponseAdapter(c).HandleNativeStreamingResponse(upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, startTime, isOAuth)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "estimateTokensForText",
+    "code": "func estimateTokensForText(s string) int { return gemininative.EstimateTokensForText(s) }"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": [
+      "geminiNativeStreamResult"
+    ],
+    "code": "type geminiNativeStreamResult = gemininative.NativeStreamResult"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "mergeCollectedGeminiParts",
+    "code": "func mergeCollectedGeminiParts(response map[string]any, collectedParts []any) map[string]any {\n\treturn gemininative.MergeCollectedGeminiParts(response, collectedParts)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "appendCollectedGeminiParts",
+    "code": "func appendCollectedGeminiParts(collected []any, parts []map[string]any) []any {\n\treturn gemininative.AppendCollectedGeminiParts(collected, parts)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "collectGeminiSSE",
+    "code": "func collectGeminiSSE(body io.Reader, isOAuth bool) (map[string]any, *ClaudeUsage, error) {\n\treturn gemininative.CollectGeminiSSE(body, isOAuth)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "randomHex",
+    "code": "func randomHex(nBytes int) string { return upstream.RandomHex(nBytes) }"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "writeSSE",
+    "code": "func writeSSE(w io.Writer, event string, data any) { gemininative.WriteSSE(w, event, data) }"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "mapGeminiStatusToClaudeErrorType",
+    "code": "func mapGeminiStatusToClaudeErrorType(status string) string {\n\treturn gatewayhttp.MapGeminiStatusToClaudeErrorType(status)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "sleepGeminiBackoff",
+    "code": "func sleepGeminiBackoff(attempt int) { gemininative.SleepGeminiBackoff(attempt) }"
+  },
+  {
+    "file": "backend/internal/service/gemini_messages_compat_service.go",
+    "symbol": "isGeminiSignatureRelatedError",
+    "code": "func isGeminiSignatureRelatedError(respBody []byte) bool {\n\treturn gemininative.IsGeminiSignatureRelatedError(respBody)\n}"
+  },
+  {
+    "file": "backend/internal/service/upstream_path_guard.go",
+    "symbol": "validateUpstreamPathSegment",
+    "code": "func validateUpstreamPathSegment(kind, segment string) error {\n\treturn upstream.ValidateUpstreamPathSegment(kind, segment)\n}"
+  },
+  {
+    "file": "backend/internal/service/upstream_path_guard.go",
+    "symbol": "isSafeUpstreamPathSegment",
+    "code": "func isSafeUpstreamPathSegment(segment string) bool {\n\treturn upstream.IsSafeUpstreamPathSegment(segment)\n}"
+  },
+  {
+    "file": "backend/internal/service/upstream_path_guard.go",
+    "symbol": "isSafeUpstreamPathSegmentByte",
+    "code": "func isSafeUpstreamPathSegmentByte(b byte) bool { return upstream.IsSafeUpstreamPathSegmentByte(b) }"
+  },
+  {
+    "file": "backend/internal/service/gemini_image_output_accounting.go",
+    "symbol": "geminiPartIsInlineImage",
+    "code": "func geminiPartIsInlineImage(part gjson.Result) bool {\n\treturn gemininative.GeminiPartIsInlineImage(part)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_chat_completions_compat_service.go",
+    "symbol": "handleOpenAICompatStreamingResponseFromGemini",
+    "code": "func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGemini(\n\tc *gin.Context,\n\tresp *http.Response,\n\tstartTime time.Time,\n\toriginalModel string,\n\tisOAuth bool,\n\tincludeUsage bool,\n\tprotocol geminiOpenAICompatProtocol,\n\tclientToolMapping apicompat.ResponsesClientToolMapping,\n) (*geminiStreamResult, error) {\n\treturn s.geminiResponseAdapter(c).HandleOpenAICompatStreamingResponseFromGemini(upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, startTime, originalModel, isOAuth, includeUsage, protocol, clientToolMapping)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_chat_completions_compat_service.go",
+    "symbol": "writeGeminiResponsesResponse",
+    "code": "func (s *GeminiMessagesCompatService) writeGeminiResponsesResponse(\n\tc *gin.Context,\n\tresp *http.Response,\n\tresponsesResp *protocolopenai.ResponsesResponse,\n\tclientToolMapping apicompat.ResponsesClientToolMapping,\n) error {\n\treturn s.geminiResponseAdapter(c).WriteGeminiResponsesResponse(upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, responsesResp, clientToolMapping)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_chat_completions_compat_service.go",
+    "symbol": "handleResponsesNonStreamingResponseFromGemini",
+    "code": "func (s *GeminiMessagesCompatService) handleResponsesNonStreamingResponseFromGemini(\n\tc *gin.Context,\n\tresp *http.Response,\n\toriginalModel string,\n\tisOAuth bool,\n\tclientToolMapping apicompat.ResponsesClientToolMapping,\n) (*ClaudeUsage, error) {\n\treturn s.geminiResponseAdapter(c).HandleResponsesNonStreamingResponseFromGemini(upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, originalModel, isOAuth, clientToolMapping)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_chat_completions_compat_service.go",
+    "symbol": "geminiResponseToResponses",
+    "code": "func geminiResponseToResponses(geminiResp map[string]any, originalModel string, rawData []byte, usageOverride *ClaudeUsage) (*protocolopenai.ResponsesResponse, *ClaudeUsage, error) {\n\treturn gemininative.GeminiResponseToResponses(geminiResp, originalModel, rawData, usageOverride)\n}"
+  },
+  {
+    "file": "backend/internal/service/gemini_chat_completions_compat_service.go",
+    "symbol": "handleChatCompletionsNonStreamingResponseFromGemini",
+    "code": "func (s *GeminiMessagesCompatService) handleChatCompletionsNonStreamingResponseFromGemini(\n\tc *gin.Context,\n\tresp *http.Response,\n\toriginalModel string,\n\tisOAuth bool,\n) (*ClaudeUsage, error) {\n\treturn s.geminiResponseAdapter(c).HandleChatCompletionsNonStreamingResponseFromGemini(upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, originalModel, isOAuth)\n}"
+  },
+  {
+    "file": "backend/internal/service/batch_image_provider_gemini.go",
+    "symbol": [
+      "geminiGenerationConfig"
+    ],
+    "code": "type geminiGenerationConfig = geminiwire.BatchGenerationConfig"
+  },
+  {
+    "file": "backend/internal/service/batch_image_provider_gemini.go",
+    "symbol": [
+      "geminiFileData"
+    ],
+    "code": "type geminiFileData = geminiwire.BatchFileData"
+  },
+  {
+    "file": "backend/internal/service/batch_image_provider_gemini.go",
+    "symbol": [
+      "geminiInlineData"
+    ],
+    "code": "type geminiInlineData = geminiwire.BatchInlineData"
+  },
+  {
+    "file": "backend/internal/service/batch_image_provider_gemini.go",
+    "symbol": [
+      "geminiPart"
+    ],
+    "code": "type geminiPart = geminiwire.BatchPart"
+  },
+  {
+    "file": "backend/internal/service/batch_image_provider_gemini.go",
+    "symbol": [
+      "geminiContent"
+    ],
+    "code": "type geminiContent = geminiwire.BatchContent"
+  },
+  {
+    "file": "backend/internal/service/batch_image_provider_gemini.go",
+    "symbol": [
+      "geminiGenerateRequest"
+    ],
+    "code": "type geminiGenerateRequest = geminiwire.BatchGenerateRequest"
+  },
+  {
+    "file": "backend/internal/service/batch_image_provider_gemini.go",
+    "symbol": [
+      "geminiJSONLLine"
+    ],
+    "code": "type geminiJSONLLine = geminiwire.BatchJSONLLine"
+  },
+  {
+    "file": "backend/internal/service/creative_executor_gemini.go",
+    "symbol": [
+      "creativeGeminiThinkingConfig"
+    ],
+    "code": "type creativeGeminiThinkingConfig = geminiwire.ImageThinkingConfig"
+  },
+  {
+    "file": "backend/internal/service/creative_executor_gemini.go",
+    "symbol": [
+      "creativeGeminiImageConfig"
+    ],
+    "code": "type creativeGeminiImageConfig = geminiwire.ImageConfig"
+  },
+  {
+    "file": "backend/internal/service/creative_executor_gemini.go",
+    "symbol": [
+      "creativeGeminiGenerationConfig"
+    ],
+    "code": "type creativeGeminiGenerationConfig = geminiwire.ImageGenerationConfig"
+  }
+]

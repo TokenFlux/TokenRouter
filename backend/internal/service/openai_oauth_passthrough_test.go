@@ -112,7 +112,13 @@ func (s *openAIPassthroughSettingRepoStub) Set(ctx context.Context, key, value s
 }
 
 func (s *openAIPassthroughSettingRepoStub) GetMultiple(ctx context.Context, keys []string) (map[string]string, error) {
-	panic("unexpected GetMultiple call")
+	values := make(map[string]string)
+	for _, key := range keys {
+		if value, ok := s.values[key]; ok {
+			values[key] = value
+		}
+	}
+	return values, nil
 }
 
 func (s *openAIPassthroughSettingRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
@@ -1933,6 +1939,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_NonCodexUAFallbackToCodexUA(t *te
 }
 
 func TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA(t *testing.T) {
+	resetGatewayForwardingSettingsCacheForTest(t)
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()

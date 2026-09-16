@@ -3,6 +3,8 @@ package service
 import (
 	"strings"
 
+	rawwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -231,21 +233,8 @@ func observeOpenAISSEBody(c *gin.Context, body string) {
 	})
 }
 
-// openAIChatCompletionServiceTierEventType 为 Chat Completions 的结束 chunk
-// 补出终止事件语义，使终态实际档位可以覆盖早期请求档位回显。
 func openAIChatCompletionServiceTierEventType(payload []byte) string {
-	if len(payload) == 0 {
-		return ""
-	}
-	if isOpenAIChatUsageOnlyStreamChunk(string(payload)) {
-		return "response.completed"
-	}
-	for _, choice := range gjson.GetBytes(payload, "choices").Array() {
-		if strings.TrimSpace(choice.Get("finish_reason").String()) != "" {
-			return "response.completed"
-		}
-	}
-	return ""
+	return rawwire.OpenAIChatCompletionServiceTierEventType(payload)
 }
 
 func firstValidTrimmedGJSONModel(payload []byte, paths ...string) string {

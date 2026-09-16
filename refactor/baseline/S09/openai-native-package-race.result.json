@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/upstream/openai/...",
+    "./internal/account",
+    "-run",
+    "Test(SessionStore|BuildAuthorizationURL|.*Codex|.*OpenAI|Relay|RunEntry|Unsupported)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 5.332,
+  "pass": 47,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-native-package-race.log.gz"
+}

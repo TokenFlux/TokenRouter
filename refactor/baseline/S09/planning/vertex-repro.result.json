@@ -1,0 +1,1 @@
+{"command": ["go", "test", "-count=1", "-json", "-tags=unit", "-overlay=/tmp/tokenrouter-s09-planning/vertex-overlay.json", "./internal/service", "-run", "^TestS09PlanningVertex"], "exit": 1, "seconds": 12.925801992416382}

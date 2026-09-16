@@ -3,6 +3,8 @@ package service
 import (
 	"net/http"
 	"strings"
+
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
 
 const (
@@ -29,11 +31,6 @@ func (a *Account) GetAnthropicAPIKeyAuthScheme() string {
 	}
 }
 
-// setAnthropicAPIKeyAuthHeader 按账号配置写入 Anthropic API Key 上游认证头。
 func setAnthropicAPIKeyAuthHeader(header http.Header, account *Account, token string) {
-	if account.GetAnthropicAPIKeyAuthScheme() == AnthropicAPIKeyAuthSchemeAuthorizationBearer {
-		setHeaderRaw(header, "authorization", "Bearer "+token)
-		return
-	}
-	setHeaderRaw(header, "x-api-key", token)
+	claude.SetAPIKeyAuthHeader(header, account.GetAnthropicAPIKeyAuthScheme() == AnthropicAPIKeyAuthSchemeAuthorizationBearer, token)
 }

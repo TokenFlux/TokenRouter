@@ -3,15 +3,16 @@ package service
 import (
 	"context"
 	"errors"
-	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // 两个未迁平台失败适配仍共用此时长，S09 清零。

@@ -6,8 +6,8 @@ import (
 	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // PricingService 是旧消费者的薄转接，全部运行状态由 provider 唯一持有。

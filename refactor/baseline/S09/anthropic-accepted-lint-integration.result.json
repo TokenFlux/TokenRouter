@@ -1,0 +1,19 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--build-tags=integration",
+    "--output.json.path=/tmp/s09-anthropic-accepted-integration.json",
+    "./..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 3.149,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-accepted-lint-integration.log.gz"
+}

@@ -2,14 +2,14 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/gin-gonic/gin"
@@ -51,31 +51,12 @@ type grokCredentialFailureClass struct {
 // GrokCredentialMutationSnapshot 兼容旧平台执行入口，值类型归账号模块。
 type GrokCredentialMutationSnapshot = accountcore.CredentialMutationSnapshot
 
-type grokCredentialFailureSnapshotError struct {
-	cause    error
-	snapshot GrokCredentialMutationSnapshot
-}
-
-func (e *grokCredentialFailureSnapshotError) Error() string { return e.cause.Error() }
-func (e *grokCredentialFailureSnapshotError) Unwrap() error { return e.cause }
-
 func withGrokCredentialFailureSnapshot(err error, account *Account) error {
-	if err == nil || account == nil || !account.IsGrokOAuth() {
-		return err
-	}
-	var existing *grokCredentialFailureSnapshotError
-	if errors.As(err, &existing) {
-		return err
-	}
-	return &grokCredentialFailureSnapshotError{cause: err, snapshot: grokCredentialMutationSnapshot(account)}
+	return accountcore.WithGrokCredentialFailureSnapshot(err, AccountRecordView(account))
 }
 
 func grokCredentialFailureSnapshot(err error) (GrokCredentialMutationSnapshot, bool) {
-	var snapshotErr *grokCredentialFailureSnapshotError
-	if !errors.As(err, &snapshotErr) || snapshotErr == nil {
-		return GrokCredentialMutationSnapshot{}, false
-	}
-	return snapshotErr.snapshot, true
+	return accountcore.GrokCredentialFailureSnapshot(err)
 }
 
 type grokCredentialConditionalStateRepository interface {
@@ -526,24 +507,7 @@ func (s *OpenAIGatewayService) grokCredentialMutationCommitted(accountID int64, 
 }
 
 func grokCredentialMutationSnapshot(account *Account) GrokCredentialMutationSnapshot {
-	if account == nil {
-		return GrokCredentialMutationSnapshot{}
-	}
-	credentialsJSON := "null"
-	if encoded, err := json.Marshal(account.Credentials); err == nil {
-		credentialsJSON = string(encoded)
-	}
-	snapshot := GrokCredentialMutationSnapshot{
-		CredentialsJSON: credentialsJSON,
-		AccessToken:     strings.TrimSpace(account.GetGrokAccessToken()),
-		RefreshToken:    strings.TrimSpace(account.GetGrokRefreshToken()),
-		TokenVersion:    account.GetCredentialAsInt64("_token_version"),
-	}
-	if account.ProxyID != nil {
-		proxyID := *account.ProxyID
-		snapshot.ProxyID = &proxyID
-	}
-	return snapshot
+	return accountcore.GrokCredentialMutationSnapshot(AccountRecordView(account))
 }
 
 func (s *OpenAIGatewayService) resolveGrokCredentialCASMiss(ctx context.Context, accountID int64, snapshot GrokCredentialMutationSnapshot) (string, error) {
@@ -625,10 +589,7 @@ func (s *OpenAIGatewayService) grokCredentialConcurrentlyRefreshedToken(ctx cont
 }
 
 func grokCredentialProxyIDsEqual(left, right *int64) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return *left == *right
+	return accountcore.GrokCredentialProxyIDsEqual(left, right)
 }
 
 func (s *OpenAIGatewayService) newGrokCredentialFailover(c *gin.Context, account *Account, class grokCredentialFailureClass) error {

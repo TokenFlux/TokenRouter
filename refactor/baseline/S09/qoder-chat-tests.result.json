@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/gateway/...",
+    "./internal/upstream/...",
+    "./internal/app/...",
+    "./internal/service",
+    "./internal/handler",
+    "./internal/server/routes",
+    "-run",
+    "Qoder|GatewayRoutes|MetadataUserID|StreamValidation"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.647,
+  "pass": 485,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/qoder-chat-tests.log.gz"
+}

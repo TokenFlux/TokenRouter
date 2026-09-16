@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "-parallel=1",
+    "./internal/upstream/openai",
+    "./internal/protocol/openai",
+    "./internal/protocol/bridge",
+    "./internal/service",
+    "-run",
+    "Test(.*(Grok|OpenAI|OpenAi|Codex|AgentIdentity|Live|ImagesURL|BackfillOpenAI|FirstOutput|RawChat|RawStream)|WSPool.*|.*ResponsesStreaming.*|CorrectTool.*|ImagesExecute.*|BuildUpstreamRequest.*)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 106.189,
+  "pass": 4360,
+  "fail": 0,
+  "skip": 2,
+  "log": "logs/openai-current-full-consumer-race.log.gz"
+}

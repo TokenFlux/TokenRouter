@@ -29,7 +29,7 @@ Claude 浏览器 OAuth 固定从 `https://claude.com/cai/oauth/authorize` 发起
 
 ## 协议分派
 
-Anthropic wire 类型与纯 Beta 常量由 `protocol/anthropic` 拥有，跨 Responses/Chat 的转换由 `protocol/bridge` 唯一实现，旧 apicompat 只保留兼容入口。`gateway/clientmeta` 只解析客户端字符串与版本；CLI 环境变量、最小版本选择、默认 Header 和许可裁决继续由原平台入口执行。
+Anthropic wire 类型与纯 Beta 常量由 `protocol/anthropic` 拥有，跨 Responses/Chat 的转换由 `protocol/bridge` 唯一实现，旧 apicompat 只保留兼容入口。`gateway/clientmeta` 只解析客户端字符串与版本；CLI 版本环境覆盖、默认 Header 和平台指纹常量由 `upstream/anthropic` 持有，仍在进程初始化时解析一次。入站许可裁决继续由调用方执行。
 
 Anthropic 原生入口是 `POST /v1/messages` 和 `POST /v1/messages/count_tokens`。同一 Anthropic 分组还可从 OpenAI Chat Completions 和 Responses 入口进入：处理器先把客户端形状归一化为 Anthropic 请求，按 attempt 选账号并转发，再把非流或 SSE 结果恢复成原协议。
 
@@ -85,3 +85,20 @@ API Key/Bedrock 可配置本地账号配额和亲和策略。可用的上游用�
 最终错误先经过平台分类，再应用管理员配置的[网关错误响应策略](gateway_error_policy.md)。错误正文、凭据、内部 project/region 和上游标识不得无条件返回客户端。排障应关联 request ID、requested/upstream model、账号 attempt、token refresh、代理/TLS 路由、限流恢复时间和结算记录。
 
 相关文档：[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[账号调度与缓存一致性](../architecture/account_scheduling_and_cache.md)、[账号维护](../operations/account_maintenance.md)。
+
+
+<a id="anthropic_native_execution"></a>
+## 原生执行与过渡装配
+
+`upstream/anthropic.Executor` 拥有单次账号内交换、签名/预算恢复及标准或 API Key 直通响应处理。两条恢复策略分别保留：API Key 直通不新增 400 请求体降级，也不补入旧路径没有的上游接受回调。`upstream/bedrock.Executor` 独立处理签名请求、来源区域和 AWS EventStream；具体平台之间不互相引用。
+
+请求指纹由原生 `RequestFingerprint` 与其 Redis Adapter 持有；旧 `RequestFingerprintService` 只投影账号 ID 和 masking 开关，`IdentityService` 名称仅为兼容别名，不表示用户登录身份。原 `fingerprint:`、`masked_session:` 键、TTL、UA 升级和遮罩语义保持。Claude 授权会话及完成编排由 account 持有，OAuth HTTP handler 位于 account/httpapi；实际交换及 usage HTTP 客户端位于原生平台包。
+
+旧网关仍绑定动态设置、账号观测、HTTP 错误改写与完成处理。流处理在原来的事件位置读取缓存分类投影，64 KiB Scanner 缓冲由唯一技术池复用。输出适配器带入已有 Header 和提交状态，保留等待心跳之后的重试边界。应用登记同步原生尝试，等待其释放响应体；超时不报告已排空。
+
+
+### 请求规则与执行观测的现有边界
+
+Beta 配置值和模型白名单、消息缓存断点、messages/count_tokens 请求构造由 `upstream/anthropic` 唯一实现；动态设置读取仍通过旧入站适配传入。纯 thinking/tool 字节修复在 `protocol/anthropic`，调用方决定适用模型及占位签名处理，平台之间不反向引用实现。
+
+Claude token 读取和回填、版本比较、刷新资格及凭据合并归 `account`，继续复用原缓存与刷新协调器。Vertex 交换已绑定 `upstream/vertex` 和 `upstream/internal/googleauth`；账号缓存协调由 account 拥有，详见 [Vertex 服务账号与对象流](gemini_upstream.md#vertex_service_account_execution)。新执行接口单独报告已观测用量（包括显式零）、语义输出、终态与旧 TTFT；旧通用网关仍拥有失败映射、成功专属处理及完成队列，不据新增观测改变既有结算规则。

@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -795,7 +796,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 	tlsProfile, tlsProfileKey := s.resolveOpenAIWSTLSProfile(account, tlsRouterMatch)
 	baseAcquireReq := openAIWSAcquireRequest{
-		Account: account,
+		Account: openAIWSPoolAccountView(account),
 		WSURL:   wsURL,
 		Headers: wsHeaders,
 		HeadersFactory: func(factoryCtx context.Context, headers http.Header) (http.Header, error) {

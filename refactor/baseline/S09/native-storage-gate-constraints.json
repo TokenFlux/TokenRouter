@@ -1,0 +1,388 @@
+{
+  "s09-anthropic-cli-version": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/upstream/anthropic/cli_version.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/rediscache",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/postgres",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      }
+    ]
+  },
+  "s09-anthropic-metadata-userid": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/upstream/anthropic/metadata_userid.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/rediscache",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/postgres",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      }
+    ]
+  },
+  "s09-anthropic-stream-rules": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/upstream/anthropic/stream_rules.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/rediscache",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/postgres",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      }
+    ]
+  },
+  "s09-anthropic-beta-modelmap": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/upstream/anthropic/beta_policy.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/modelmap$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/rediscache",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/postgres",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      }
+    ]
+  },
+  "upstream-anthropic": {
+    "list-mode": "strict",
+    "files": [
+      "!**/internal/upstream/anthropic/beta_policy.go",
+      "!**/internal/upstream/anthropic/rediscache/fingerprint.go",
+      "!**/internal/upstream/anthropic/stream_rules.go",
+      "!**/internal/upstream/anthropic/metadata_userid.go",
+      "!**/internal/upstream/anthropic/cli_version.go",
+      "**/internal/upstream/anthropic/**/*.go",
+      "**/internal/upstream/anthropic/*.go",
+      "!**/*_test.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/rediscache",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/postgres",
+        "desc": "平台核心不反向依赖其持久化 Adapter；具体文件只在 Adapter 角色许可。"
+      }
+    ]
+  },
+  "upstream-qoder": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/upstream/qoder/**/*.go",
+      "**/internal/upstream/qoder/*.go",
+      "!**/*_test.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/qoder",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s09-bedrock-sigv4": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/upstream/bedrock/signer.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/bedrock",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "github.com/aws/aws-sdk-go-v2/aws$",
+      "github.com/aws/aws-sdk-go-v2/aws/signer/v4$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "upstream-bedrock": {
+    "list-mode": "strict",
+    "files": [
+      "!**/internal/upstream/bedrock/signer.go",
+      "**/internal/upstream/bedrock/**/*.go",
+      "**/internal/upstream/bedrock/*.go",
+      "!**/*_test.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/bedrock",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  }
+}

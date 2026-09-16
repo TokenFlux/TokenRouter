@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/upstream/openai/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 5.063,
+  "pass": 121,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-native-current-race.log.gz"
+}

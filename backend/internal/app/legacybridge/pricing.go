@@ -3,8 +3,8 @@ package legacybridge
 import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // PricingModelCandidates 仅调用旧平台能力投影；供应商模型目录在 S09 提供目标接口后删除。

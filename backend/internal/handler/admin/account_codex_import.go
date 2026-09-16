@@ -3,12 +3,13 @@ package admin
 
 import (
 	context "context"
+	time "time"
+
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
-	openai "github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
+	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	gin "github.com/gin-gonic/gin"
-	time "time"
 )
 
 // 旧入口只投影依赖，算法、索引和状态都由账号模块持有。
@@ -39,16 +40,3 @@ type CodexSessionImportRequest = account.CodexSessionImportRequest
 type CodexSessionImportResult = account.CodexSessionImportResult
 type CodexSessionImportItem = account.CodexSessionImportItem
 type CodexSessionImportMessage = account.CodexSessionImportMessage
-
-// mergeCodexImportMap 为待迁供应商入口委托账号纯规则。
-func mergeCodexImportMap(existing, incoming map[string]any) map[string]any {
-	return account.MergeCodexImportMap(existing, incoming)
-}
-
-// sanitizeCodexImportCredentialExtras 为待迁供应商入口委托账号纯规则。
-func sanitizeCodexImportCredentialExtras(input map[string]any) map[string]any {
-	return account.SanitizeCodexImportCredentialExtras(input)
-}
-
-// codexTokenFingerprint 为待迁供应商入口委托账号纯规则。
-func codexTokenFingerprint(token string) string { return account.CodexTokenFingerprint(token) }

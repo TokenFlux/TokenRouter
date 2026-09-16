@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "-parallel=1",
+    "./internal/service",
+    "-run",
+    "TestS09WSUsageModelConcurrentDirections|TestWSPassthroughUsageMeta|TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA|TestOpenAIWSPassthroughTurnLifecycle"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 28.497,
+  "pass": 7,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-fixed-race.log.gz"
+}

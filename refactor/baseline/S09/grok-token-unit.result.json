@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account/...",
+    "./internal/upstream/grok",
+    "./internal/app",
+    "-run",
+    "Test.*Grok|TestSessionStore"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 39.543,
+  "pass": 954,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-token-unit.log.gz"
+}

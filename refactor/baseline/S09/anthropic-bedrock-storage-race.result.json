@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=integration",
+    "./internal/repository",
+    "./internal/service",
+    "-run",
+    "^(TestIdentityCacheSuite|Test.*Bedrock.*)$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 56.185,
+  "pass": 240,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-bedrock-storage-race.log.gz"
+}

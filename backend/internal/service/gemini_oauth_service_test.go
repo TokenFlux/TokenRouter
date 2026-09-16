@@ -4,15 +4,18 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 )
 
 // =====================
@@ -1170,6 +1173,10 @@ func TestGeminiOAuthService_RefreshAccountToken_CodeAssist_NoProjectID_AutoDetec
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, codeAssist, nil, &config.Config{})
+	// 账号用例只验证发现失败的原回退，网络解析由平台本地 HTTP 契约覆盖。
+	svc.Options.FetchProject = func(context.Context, string, string) (string, error) {
+		return "", errors.New("fixture resource manager unavailable")
+	}
 	svc.Start()
 	defer svc.Stop()
 
@@ -1220,6 +1227,10 @@ func TestGeminiOAuthService_RefreshAccountToken_CodeAssist_NoProjectID_FailsEmpt
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, codeAssist, nil, &config.Config{})
+	// 账号用例只验证发现失败的原回退，网络解析由平台本地 HTTP 契约覆盖。
+	svc.Options.FetchProject = func(context.Context, string, string) (string, error) {
+		return "", errors.New("fixture resource manager unavailable")
+	}
 	svc.Start()
 	defer svc.Stop()
 
@@ -1438,7 +1449,7 @@ func TestGeminiOAuthService_ExchangeCode_InvalidState(t *testing.T) {
 	defer svc.Stop()
 
 	// 手动创建 session（必须设置 CreatedAt，否则会因 TTL 过期被拒绝）
-	svc.sessionStore.Set("test-session", &geminicli.OAuthSession{
+	svc.sessionStore.Set("test-session", &accountcore.GeminiOAuthSession{
 		State:        "correct-state",
 		CodeVerifier: "verifier",
 		OAuthType:    "ai_studio",
@@ -1465,7 +1476,7 @@ func TestGeminiOAuthService_ExchangeCode_EmptyState(t *testing.T) {
 	svc.Start()
 	defer svc.Stop()
 
-	svc.sessionStore.Set("test-session", &geminicli.OAuthSession{
+	svc.sessionStore.Set("test-session", &accountcore.GeminiOAuthSession{
 		State:        "correct-state",
 		CodeVerifier: "verifier",
 		CreatedAt:    time.Now(),

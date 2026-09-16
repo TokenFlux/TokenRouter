@@ -13,9 +13,9 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
@@ -441,7 +441,7 @@ func TestWSResponseCreate_IngressFiltersServiceTierBeforeUpstream(t *testing.T) 
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	repo := &openAIFastPolicyRepoStub{values: map[string]string{}}
 	filterPolicyJSON, err := json.Marshal(openAIFastFilterPriorityPolicy())
@@ -561,7 +561,7 @@ func TestWSResponseCreate_IngressBlockSendsErrorEventAndSkipsUpstream(t *testing
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	blockSettings := &OpenAIFastPolicySettings{
 		Rules: []OpenAIFastPolicyRule{{

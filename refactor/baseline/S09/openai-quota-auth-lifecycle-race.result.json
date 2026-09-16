@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "-parallel=1",
+    "./internal/account",
+    "./internal/handler/admin",
+    "./internal/service",
+    "-run",
+    "Test(OpenAIQuotaLifecycle|OpenAIResetQuota|OpenAIRefreshQuota|NewOpenAIOAuthHandler|CreateShadow|OpenAIAuthorization|OpenAISessionStore|GetOpenAIUsage_SparkShadow)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 49.774,
+  "pass": 35,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-quota-auth-lifecycle-race.log.gz"
+}

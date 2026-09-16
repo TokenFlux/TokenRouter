@@ -1,0 +1,8 @@
+{
+  "pkg/claude/constants.go": "upstream/anthropic/constants.go",
+  "pkg/claude/cli_version.go": "upstream/anthropic/cli_version.go",
+  "pkg/claude/cli_version_test.go": "upstream/anthropic/cli_version_test.go",
+  "pkg/claude/constants_test.go": "upstream/anthropic/constants_test.go",
+  "pkg/anthropicfp/dateline_test.go": "upstream/anthropic/dateline_test.go",
+  "pkg/anthropicfp/dateline.go": "upstream/anthropic/dateline.go"
+}

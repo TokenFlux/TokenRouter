@@ -5,12 +5,13 @@ package service
 import (
 	"bytes"
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/stretchr/testify/require"
 )
 
 // stubSmartRetryCache 用于 handleSmartRetry 测试的 GatewayCache mock
@@ -128,10 +129,10 @@ func TestHandleSmartRetry_URLLevelRateLimit(t *testing.T) {
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionContinueURL, result.action)
-	require.Nil(t, result.resp)
-	require.Nil(t, result.err)
-	require.Nil(t, result.switchError)
+	require.Equal(t, smartRetryActionContinueURL, result.Action)
+	require.Nil(t, result.Resp)
+	require.Nil(t, result.Err)
+	require.Nil(t, result.SwitchError)
 }
 
 // TestHandleSmartRetry_LongDelay_ReturnsSwitchError 测试 retryDelay >= 阈值时返回 switchError
@@ -180,13 +181,13 @@ func TestHandleSmartRetry_LongDelay_ReturnsSwitchError(t *testing.T) {
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.Nil(t, result.resp, "should not return resp when switchError is set")
-	require.Nil(t, result.err)
-	require.NotNil(t, result.switchError, "should return switchError for long delay")
-	require.Equal(t, account.ID, result.switchError.OriginalAccountID)
-	require.Equal(t, "claude-sonnet-4-5", result.switchError.RateLimitedModel)
-	require.True(t, result.switchError.IsStickySession)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.Nil(t, result.Resp, "should not return resp when switchError is set")
+	require.Nil(t, result.Err)
+	require.NotNil(t, result.SwitchError, "should return switchError for long delay")
+	require.Equal(t, account.ID, result.SwitchError.OriginalAccountID)
+	require.Equal(t, "claude-sonnet-4-5", result.SwitchError.RateLimitedModel)
+	require.True(t, result.SwitchError.IsStickySession)
 
 	// 验证模型限流已设置
 	require.Len(t, repo.modelRateLimitCalls, 1)
@@ -247,11 +248,11 @@ func TestHandleSmartRetry_ShortDelay_SmartRetrySuccess(t *testing.T) {
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.NotNil(t, result.resp, "should return successful response")
-	require.Equal(t, http.StatusOK, result.resp.StatusCode)
-	require.Nil(t, result.err)
-	require.Nil(t, result.switchError, "should not return switchError on success")
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.NotNil(t, result.Resp, "should return successful response")
+	require.Equal(t, http.StatusOK, result.Resp.StatusCode)
+	require.Nil(t, result.Err)
+	require.Nil(t, result.SwitchError, "should not return switchError on success")
 	require.Len(t, upstream.calls, 1, "should have made one retry call")
 	require.Equal(t, "probe-client/9.9", upstream.userAgents[0])
 }
@@ -323,13 +324,13 @@ func TestHandleSmartRetry_ShortDelay_SmartRetryFailed_ReturnsSwitchError(t *test
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.Nil(t, result.resp, "should not return resp when switchError is set")
-	require.Nil(t, result.err)
-	require.NotNil(t, result.switchError, "should return switchError after smart retry failed")
-	require.Equal(t, account.ID, result.switchError.OriginalAccountID)
-	require.Equal(t, "gemini-3-flash", result.switchError.RateLimitedModel)
-	require.False(t, result.switchError.IsStickySession)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.Nil(t, result.Resp, "should not return resp when switchError is set")
+	require.Nil(t, result.Err)
+	require.NotNil(t, result.SwitchError, "should return switchError after smart retry failed")
+	require.Equal(t, account.ID, result.SwitchError.OriginalAccountID)
+	require.Equal(t, "gemini-3-flash", result.SwitchError.RateLimitedModel)
+	require.False(t, result.SwitchError.IsStickySession)
 
 	// 验证模型限流已设置：Gemini 同时写入精确模型和家族级 scope
 	require.Len(t, repo.modelRateLimitCalls, 2)
@@ -396,11 +397,11 @@ func TestHandleSmartRetry_503_ModelCapacityExhausted_RetrySuccess(t *testing.T) 
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.NotNil(t, result.resp, "should return successful response")
-	require.Equal(t, http.StatusOK, result.resp.StatusCode)
-	require.Nil(t, result.err)
-	require.Nil(t, result.switchError, "MODEL_CAPACITY_EXHAUSTED should not return switchError")
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.NotNil(t, result.Resp, "should return successful response")
+	require.Equal(t, http.StatusOK, result.Resp.StatusCode)
+	require.Nil(t, result.Err)
+	require.Nil(t, result.SwitchError, "MODEL_CAPACITY_EXHAUSTED should not return switchError")
 
 	// 不应设置模型限流
 	require.Empty(t, repo.modelRateLimitCalls, "MODEL_CAPACITY_EXHAUSTED should not set model rate limit")
@@ -454,9 +455,9 @@ func TestHandleSmartRetry_503_ModelCapacityExhausted_ContextCancel(t *testing.T)
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, []string{"https://ag-1.test"})
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.Error(t, result.err, "should return context error")
-	require.Nil(t, result.switchError, "should not return switchError on context cancel")
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.Error(t, result.Err, "should return context error")
+	require.Nil(t, result.SwitchError, "should not return switchError on context cancel")
 	require.Empty(t, repo.modelRateLimitCalls, "should not set model rate limit on context cancel")
 }
 
@@ -503,10 +504,10 @@ func TestHandleSmartRetry_NonAntigravityAccount_ContinuesDefaultLogic(t *testing
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionContinue, result.action, "non-Antigravity platform account should continue default logic")
-	require.Nil(t, result.resp)
-	require.Nil(t, result.err)
-	require.Nil(t, result.switchError)
+	require.Equal(t, smartRetryActionContinue, result.Action, "non-Antigravity platform account should continue default logic")
+	require.Nil(t, result.Resp)
+	require.Nil(t, result.Err)
+	require.Nil(t, result.SwitchError)
 }
 
 // TestHandleSmartRetry_NonModelRateLimit_ContinuesDefaultLogic 测试非模型限流响应走默认逻辑
@@ -552,10 +553,10 @@ func TestHandleSmartRetry_NonModelRateLimit_ContinuesDefaultLogic(t *testing.T) 
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionContinue, result.action, "non-model rate limit should continue default logic")
-	require.Nil(t, result.resp)
-	require.Nil(t, result.err)
-	require.Nil(t, result.switchError)
+	require.Equal(t, smartRetryActionContinue, result.Action, "non-model rate limit should continue default logic")
+	require.Nil(t, result.Resp)
+	require.Nil(t, result.Err)
+	require.Nil(t, result.SwitchError)
 }
 
 // TestHandleSmartRetry_ExactlyAtThreshold_ReturnsSwitchError 测试刚好等于阈值时返回 switchError
@@ -603,10 +604,10 @@ func TestHandleSmartRetry_ExactlyAtThreshold_ReturnsSwitchError(t *testing.T) {
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.Nil(t, result.resp)
-	require.NotNil(t, result.switchError, "exactly at threshold should return switchError")
-	require.Equal(t, "gemini-pro", result.switchError.RateLimitedModel)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.Nil(t, result.Resp)
+	require.NotNil(t, result.SwitchError, "exactly at threshold should return switchError")
+	require.Equal(t, "gemini-pro", result.SwitchError.RateLimitedModel)
 }
 
 // TestAntigravityRetryLoop_HandleSmartRetry_SwitchError_Propagates 测试 switchError 正确传播到上层
@@ -720,11 +721,11 @@ func TestHandleSmartRetry_NetworkError_ExhaustsRetry(t *testing.T) {
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.Nil(t, result.resp, "should not return resp when switchError is set")
-	require.NotNil(t, result.switchError, "should return switchError after network error exhausted retry")
-	require.Equal(t, account.ID, result.switchError.OriginalAccountID)
-	require.Equal(t, "claude-sonnet-4-5", result.switchError.RateLimitedModel)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.Nil(t, result.Resp, "should not return resp when switchError is set")
+	require.NotNil(t, result.SwitchError, "should return switchError after network error exhausted retry")
+	require.Equal(t, account.ID, result.SwitchError.OriginalAccountID)
+	require.Equal(t, "claude-sonnet-4-5", result.SwitchError.RateLimitedModel)
 	require.Len(t, upstream.calls, 1, "should have made one retry call")
 
 	// 验证模型限流已设置
@@ -778,11 +779,11 @@ func TestHandleSmartRetry_NoRetryDelay_UsesDefaultRateLimit(t *testing.T) {
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.Nil(t, result.resp, "should not return resp when switchError is set")
-	require.NotNil(t, result.switchError, "should return switchError for no retryDelay")
-	require.Equal(t, "claude-sonnet-4-5", result.switchError.RateLimitedModel)
-	require.True(t, result.switchError.IsStickySession)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.Nil(t, result.Resp, "should not return resp when switchError is set")
+	require.NotNil(t, result.SwitchError, "should return switchError for no retryDelay")
+	require.Equal(t, "claude-sonnet-4-5", result.SwitchError.RateLimitedModel)
+	require.True(t, result.SwitchError.IsStickySession)
 
 	// 验证模型限流已设置
 	require.Len(t, repo.modelRateLimitCalls, 1)
@@ -871,10 +872,10 @@ func TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_ClearsSession(t *
 
 	// 验证返回 switchError
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.NotNil(t, result.switchError)
-	require.True(t, result.switchError.IsStickySession, "switchError should carry IsStickySession=true")
-	require.Equal(t, account.ID, result.switchError.OriginalAccountID)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.NotNil(t, result.SwitchError)
+	require.True(t, result.SwitchError.IsStickySession, "switchError should carry IsStickySession=true")
+	require.Equal(t, account.ID, result.SwitchError.OriginalAccountID)
 
 	// 核心断言：DeleteSessionAccountID 被调用，且参数正确
 	require.Len(t, cache.deleteCalls, 1, "should call DeleteSessionAccountID exactly once")
@@ -958,9 +959,9 @@ func TestHandleSmartRetry_ShortDelay_NonStickySession_FailedRetry_NoDeleteSessio
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.NotNil(t, result.switchError)
-	require.False(t, result.switchError.IsStickySession)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.NotNil(t, result.SwitchError)
+	require.False(t, result.SwitchError.IsStickySession)
 
 	// 核心断言：sessionHash 为空时不应调用 DeleteSessionAccountID
 	require.Len(t, cache.deleteCalls, 0, "should NOT call DeleteSessionAccountID when sessionHash is empty")
@@ -1035,9 +1036,9 @@ func TestHandleSmartRetry_ShortDelay_StickySession_FailedRetry_NilCache_NoPanic(
 	require.NotPanics(t, func() {
 		result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 		require.NotNil(t, result)
-		require.Equal(t, smartRetryActionBreakWithResp, result.action)
-		require.NotNil(t, result.switchError)
-		require.True(t, result.switchError.IsStickySession)
+		require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+		require.NotNil(t, result.SwitchError)
+		require.True(t, result.SwitchError.IsStickySession)
 	})
 }
 
@@ -1099,10 +1100,10 @@ func TestHandleSmartRetry_ShortDelay_StickySession_SuccessRetry_NoDeleteSession(
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.NotNil(t, result.resp, "should return successful response")
-	require.Equal(t, http.StatusOK, result.resp.StatusCode)
-	require.Nil(t, result.switchError, "should not return switchError on success")
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.NotNil(t, result.Resp, "should return successful response")
+	require.Equal(t, http.StatusOK, result.Resp.StatusCode)
+	require.Nil(t, result.SwitchError, "should not return switchError on success")
 
 	// 核心断言：重试成功时不应清除粘性会话
 	require.Len(t, cache.deleteCalls, 0, "should NOT call DeleteSessionAccountID on successful retry")
@@ -1157,9 +1158,9 @@ func TestHandleSmartRetry_LongDelay_StickySession_ClearsSession(t *testing.T) {
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.Equal(t, smartRetryActionBreakWithResp, result.action)
-	require.NotNil(t, result.switchError)
-	require.True(t, result.switchError.IsStickySession)
+	require.Equal(t, smartRetryActionBreakWithResp, result.Action)
+	require.NotNil(t, result.SwitchError)
+	require.True(t, result.SwitchError.IsStickySession)
 
 	require.Len(t, cache.deleteCalls, 1, "long delay path should clear sticky session in handleSmartRetry")
 	require.Equal(t, int64(42), cache.deleteCalls[0].groupID)
@@ -1221,8 +1222,8 @@ func TestHandleSmartRetry_ShortDelay_NetworkError_StickySession_ClearsSession(t 
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.NotNil(t, result.switchError)
-	require.True(t, result.switchError.IsStickySession)
+	require.NotNil(t, result.SwitchError)
+	require.True(t, result.SwitchError.IsStickySession)
 
 	// 核心断言：网络错误耗尽重试后也应清除粘性绑定
 	require.Len(t, cache.deleteCalls, 1, "should call DeleteSessionAccountID after network error exhausts retry")
@@ -1305,8 +1306,8 @@ func TestHandleSmartRetry_ShortDelay_503_StickySession_FailedRetry_ClearsSession
 	result := svc.handleSmartRetry(params, resp, respBody, "https://ag-1.test", 0, availableURLs)
 
 	require.NotNil(t, result)
-	require.NotNil(t, result.switchError)
-	require.True(t, result.switchError.IsStickySession)
+	require.NotNil(t, result.SwitchError)
+	require.True(t, result.SwitchError.IsStickySession)
 
 	// 验证粘性绑定被清除
 	require.Len(t, cache.deleteCalls, 1)

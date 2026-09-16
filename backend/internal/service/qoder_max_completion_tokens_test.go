@@ -18,7 +18,7 @@ func TestQoderChatCompletionsRespectsMaxCompletionTokens(t *testing.T) {
 	req, err := parseQoderChatCompletionsPayload(body)
 
 	require.NoError(t, err)
-	require.Equal(t, 1000, req.maxTokens, "max_completion_tokens should take precedence")
+	require.Equal(t, 1000, req.MaxTokens, "max_completion_tokens should take precedence")
 }
 
 // TestQoderChatCompletionsFallsBackToMaxTokens 验证无 max_completion_tokens 时使用 max_tokens
@@ -32,7 +32,7 @@ func TestQoderChatCompletionsFallsBackToMaxTokens(t *testing.T) {
 	req, err := parseQoderChatCompletionsPayload(body)
 
 	require.NoError(t, err)
-	require.Equal(t, 2000, req.maxTokens, "should use max_tokens when max_completion_tokens absent")
+	require.Equal(t, 2000, req.MaxTokens, "should use max_tokens when max_completion_tokens absent")
 }
 
 // TestQoderChatCompletionsUsesDefaultWhenBothAbsent 验证两者都缺失时使用默认值
@@ -45,7 +45,7 @@ func TestQoderChatCompletionsUsesDefaultWhenBothAbsent(t *testing.T) {
 	req, err := parseQoderChatCompletionsPayload(body)
 
 	require.NoError(t, err)
-	require.Equal(t, qoderDefaultMaxTokens, req.maxTokens, "should use default when both absent")
+	require.Equal(t, qoderDefaultMaxTokens, req.MaxTokens, "should use default when both absent")
 }
 
 // TestQoderChatCompletionsIgnoresZeroMaxTokens 验证 max_tokens=0 时使用 max_completion_tokens
@@ -60,5 +60,5 @@ func TestQoderChatCompletionsIgnoresZeroMaxTokens(t *testing.T) {
 	req, err := parseQoderChatCompletionsPayload(body)
 
 	require.NoError(t, err)
-	require.Equal(t, 1000, req.maxTokens, "should ignore max_tokens when it's 0")
+	require.Equal(t, 1000, req.MaxTokens, "should ignore max_tokens when it's 0")
 }

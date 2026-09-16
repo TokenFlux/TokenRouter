@@ -1,0 +1,16 @@
+[
+  {
+    "label": "final-unit",
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle",
+    "status": "fail",
+    "tail": "=== RUN   TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle\n    openai_gateway_service_test.go:2218: \n        \tError Trace:\t/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/openai_gateway_service_test.go:2218\n        \tError:      \t\"data: {\\\"type\\\":\\\"response.created\\\",\\\"response\\\":{\\\"id\\\":\\\"resp_1\\\"}}\\n\\ndata: {\\\"type\\\":\\\"response.in_progress\\\",\\\"response\\\":{\\\"id\\\":\\\"resp_1\\\"}}\\n\\ndata: {\\\"type\\\":\\\"response.in_progress\\\",\\\"response\\\":{\\\"id\\\":\\\"resp_1\\\"}}\\n\\ndata: {\\\"type\\\":\\\"response.in_progress\\\",\\\"response\\\":{\\\"id\\\":\\\"resp_1\\\"}}\\n\\ndata: {\\\"type\\\":\\\"response.in_progress\\\",\\\"response\\\":{\\\"id\\\":\\\"resp_1\\\"}}\\n\\ndata: {\\\"type\\\":\\\"response.in_progress\\\",\\\"response\\\":{\\\"id\\\":\\\"resp_1\\\"}}\\n\\ndata: {\\\"type\\\":\\\"response.in_progress\\\",\\\"response\\\":{\\\"id\\\":\\\"resp_1\\\"}}\\n\\ndata: {\\\"type\\\":\\\"response.completed\\\",\\\"response\\\":{\\\"usage\\\":{\\\"input_tokens\\\":1,\\\"output_tokens\\\":2},\\\"output\\\":[]}}\\n\\n\" does not contain \":\\n\\n\"\n        \tTest:       \tTestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle\n--- FAIL: TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle (1.50s)\n"
+  },
+  {
+    "label": "final-integration",
+    "package": "github.com/TokenFlux/TokenRouter/internal/server/routes",
+    "test": "TestAuthRegisterRateLimitThresholdHitReturns429",
+    "status": "fail",
+    "tail": "=== RUN   TestAuthRegisterRateLimitThresholdHitReturns429\n    auth_rate_limit_integration_test.go:25: \n        \tError Trace:\t/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/auth_rate_limit_integration_test.go:52\n        \t            \t\t\t\t/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/auth_rate_limit_integration_test.go:25\n        \tError:      \tReceived unexpected error:\n        \t            \trun redis: generic container: start container: started hook: wait until ready: mapped port: check target: retries: 2, port: \"\", last err: get state: Get \"http://%2Fvar%2Frun%2Fdocker.sock/v1.51/containers/16f8dd93153d6ef93e608217e8dbb1701261f07068d84ab66d55fd5b077aaa19/json\": context deadline exceeded\n        \tTest:       \tTestAuthRegisterRateLimitThresholdHitReturns429\n--- FAIL: TestAuthRegisterRateLimitThresholdHitReturns429 (13.19s)\n"
+  }
+]

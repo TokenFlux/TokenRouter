@@ -2,25 +2,15 @@ package service
 
 import (
 	"context"
-	"crypto"
 	"crypto/ed25519"
-	"crypto/sha512"
-	"crypto/x509"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
-	"fmt"
-	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/httpclient"
-	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/nacl/box"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
+	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 const (
@@ -31,8 +21,6 @@ const (
 
 var openAIAgentIdentityAuthAPIBaseURL = agentIdentityAuthAPIBaseURL
 
-var agentIdentityTaskLocks sync.Map // 按账号 ID 共享 task 注册锁。
-
 type agentIdentityWSConnectionInvalidator interface {
 	InvalidateAgentIdentityWSConnections(accountID int64)
 }
@@ -41,13 +29,6 @@ type agentIdentityKey struct {
 	runtimeID  string
 	privateKey ed25519.PrivateKey
 	taskID     string
-}
-
-type agentIdentityTaskRegistrationResponse struct {
-	TaskID               string `json:"task_id"`
-	TaskIDCamel          string `json:"taskId"`
-	EncryptedTaskID      string `json:"encrypted_task_id"`
-	EncryptedTaskIDCamel string `json:"encryptedTaskId"`
 }
 
 type agentIdentityTaskRecoveredError struct{}
@@ -62,23 +43,7 @@ func agentIdentityPrivateKey(account *Account) (ed25519.PrivateKey, error) {
 	if account == nil {
 		return nil, errors.New("agent identity account is nil")
 	}
-	raw := strings.TrimSpace(account.GetCredential("agent_private_key"))
-	if raw == "" {
-		return nil, errors.New("agent identity private key is missing")
-	}
-	der, err := base64.StdEncoding.DecodeString(raw)
-	if err != nil {
-		return nil, errors.New("agent identity private key is not valid base64")
-	}
-	key, err := x509.ParsePKCS8PrivateKey(der)
-	if err != nil {
-		return nil, errors.New("agent identity private key is not valid PKCS#8")
-	}
-	privateKey, ok := key.(ed25519.PrivateKey)
-	if !ok || len(privateKey) != ed25519.PrivateKeySize {
-		return nil, errors.New("agent identity private key is not Ed25519")
-	}
-	return privateKey, nil
+	return native.ParseAgentIdentityPrivateKey(account.GetCredential("agent_private_key"))
 }
 
 // ValidateOpenAIAgentIdentityPrivateKey 校验 PKCS#8 Ed25519 私钥，但不返回或记录密钥材料。
@@ -105,67 +70,11 @@ func agentIdentityKeyFromAccount(account *Account) (agentIdentityKey, error) {
 }
 
 func buildAgentAssertion(key agentIdentityKey, now time.Time) (string, error) {
-	if key.runtimeID == "" || key.taskID == "" {
-		return "", errors.New("agent identity runtime or task id is missing")
-	}
-	timestamp := now.UTC().Format(time.RFC3339)
-	payload := []byte(key.runtimeID + ":" + key.taskID + ":" + timestamp)
-	signature, err := key.privateKey.Sign(nil, payload, crypto.Hash(0))
-	if err != nil {
-		return "", errors.New("failed to sign agent assertion")
-	}
-	envelope := map[string]string{
-		"agent_runtime_id": key.runtimeID,
-		"task_id":          key.taskID,
-		"timestamp":        timestamp,
-		"signature":        base64.StdEncoding.EncodeToString(signature),
-	}
-	encoded, err := json.Marshal(envelope)
-	if err != nil {
-		return "", errors.New("failed to serialize agent assertion")
-	}
-	return "AgentAssertion " + base64.RawURLEncoding.EncodeToString(encoded), nil
-}
-
-func signAgentTaskRegistration(key agentIdentityKey, timestamp time.Time) (string, string, error) {
-	if key.runtimeID == "" {
-		return "", "", errors.New("agent identity runtime id is missing")
-	}
-	formatted := timestamp.UTC().Format(time.RFC3339)
-	signature, err := key.privateKey.Sign(nil, []byte(key.runtimeID+":"+formatted), crypto.Hash(0))
-	if err != nil {
-		return "", "", errors.New("failed to sign agent task registration")
-	}
-	return formatted, base64.StdEncoding.EncodeToString(signature), nil
+	return native.BuildAgentAssertion(nativeAgentIdentityKey(key), now)
 }
 
 func decryptAgentTaskID(key agentIdentityKey, encoded string) (string, error) {
-	ciphertext, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
-	if err != nil {
-		return "", errors.New("encrypted agent task id is not valid base64")
-	}
-	seed := key.privateKey.Seed()
-	digest := sha512.Sum512(seed)
-	var curvePrivate [32]byte
-	copy(curvePrivate[:], digest[:32])
-	curvePrivate[0] &= 248
-	curvePrivate[31] &= 127
-	curvePrivate[31] |= 64
-	curvePublicBytes, err := curve25519.X25519(curvePrivate[:], curve25519.Basepoint)
-	if err != nil {
-		return "", errors.New("failed to derive agent identity decryption key")
-	}
-	var curvePublic [32]byte
-	copy(curvePublic[:], curvePublicBytes)
-	plaintext, ok := box.OpenAnonymous(nil, ciphertext, &curvePublic, &curvePrivate)
-	if !ok {
-		return "", errors.New("failed to decrypt encrypted agent task id")
-	}
-	taskID := strings.TrimSpace(string(plaintext))
-	if taskID == "" {
-		return "", errors.New("decrypted agent task id is empty")
-	}
-	return taskID, nil
+	return native.DecryptAgentTaskID(nativeAgentIdentityKey(key), encoded)
 }
 
 func registerAgentIdentityTask(ctx context.Context, account *Account) (string, error) {
@@ -173,137 +82,52 @@ func registerAgentIdentityTask(ctx context.Context, account *Account) (string, e
 	if err != nil {
 		return "", err
 	}
-	timestamp, signature, err := signAgentTaskRegistration(key, time.Now())
-	if err != nil {
-		return "", err
-	}
+	now := time.Now()
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	client, err := httpclient.GetClient(httpclient.Options{
-		ProxyURL:              proxyURL,
-		Timeout:               agentIdentityTaskRegistrationTimeout,
-		ResponseHeaderTimeout: 15 * time.Second,
-	})
-	if err != nil {
-		return "", errors.New("invalid proxy configuration for agent task registration")
-	}
-	body, err := json.Marshal(map[string]string{
-		"timestamp": timestamp,
-		"signature": signature,
-	})
-	if err != nil {
-		return "", errors.New("failed to serialize agent task registration")
-	}
-	targetURL := strings.TrimRight(strings.TrimSpace(openAIAgentIdentityAuthAPIBaseURL), "/") + "/v1/agent/" + url.PathEscape(key.runtimeID) + "/task/register"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, strings.NewReader(string(body)))
-	if err != nil {
-		return "", errors.New("failed to build agent task registration request")
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", errors.New("agent task registration request failed")
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return "", fmt.Errorf("agent task registration returned status %d", resp.StatusCode)
-	}
-	var result agentIdentityTaskRegistrationResponse
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 64*1024)).Decode(&result); err != nil {
-		return "", errors.New("agent task registration response is invalid")
-	}
-	if taskID := strings.TrimSpace(result.TaskID); taskID != "" {
-		return taskID, nil
-	}
-	if taskID := strings.TrimSpace(result.TaskIDCamel); taskID != "" {
-		return taskID, nil
-	}
-	encrypted := strings.TrimSpace(result.EncryptedTaskID)
-	if encrypted == "" {
-		encrypted = strings.TrimSpace(result.EncryptedTaskIDCamel)
-	}
-	if encrypted == "" {
-		return "", errors.New("agent task registration response omitted task id")
-	}
-	return decryptAgentTaskID(key, encrypted)
+	return native.RegisterAgentIdentityTask(ctx, nativeAgentIdentityKey(key), proxyURL, openAIAgentIdentityAuthAPIBaseURL, now)
 }
 
-func ensureAgentIdentityTaskForAccount(ctx context.Context, repo AccountRepository, wsInvalidator agentIdentityWSConnectionInvalidator, taskMu *sync.Mutex, account *Account, expectedTaskID string) error {
-	if account == nil || !account.IsOpenAIAgentIdentity() {
-		return nil
+// 兼容入口只转换记录和写回时机；锁、复查与登记规则由唯一账号协调器执行。
+func ensureAgentIdentityTaskForAccount(ctx context.Context, repo AccountRepository, wsInvalidator agentIdentityWSConnectionInvalidator, taskMu *sync.Mutex, value *Account, expectedTaskID string) error {
+	input := AccountRecordView(value)
+	originals := map[*acctcore.Record]*Account{input: value}
+	legacyValue := func(record *acctcore.Record) *Account {
+		if original, ok := originals[record]; ok {
+			return original
+		}
+		return AccountFromRecord(record)
 	}
-	credAccount := account
-	if account.IsShadow() {
-		resolved, err := resolveCredentialAccount(ctx, repo, account)
-		if err != nil {
+	options := acctcore.OpenAITaskOptions{
+		FallbackMutex: taskMu,
+		Register: func(ctx context.Context, record *acctcore.Record) (string, error) {
+			return registerAgentIdentityTask(ctx, legacyValue(record))
+		},
+		Persist: func(ctx context.Context, record *acctcore.Record, credentials map[string]any) error {
+			original := legacyValue(record)
+			err := persistAccountCredentials(ctx, repo, original, credentials)
+			record.Credentials = original.Credentials
 			return err
+		},
+	}
+	if repo != nil {
+		options.Read = func(ctx context.Context, id int64) (*acctcore.Record, error) {
+			original, err := repo.GetByID(ctx, id)
+			record := AccountRecordView(original)
+			originals[record] = original
+			return record, err
 		}
-		credAccount = resolved
-	}
-	if credAccount == nil || !credAccount.IsOpenAIAgentIdentity() {
-		return errors.New("agent identity credentials are unavailable")
-	}
-	currentTaskID := strings.TrimSpace(credAccount.GetCredential("task_id"))
-	if currentTaskID != "" && (expectedTaskID == "" || currentTaskID != expectedTaskID) {
-		return nil
-	}
-	if taskMu == nil {
-		return errors.New("agent identity task lock is unavailable")
-	}
-	sharedTaskMu := taskMu
-	if credAccount.ID > 0 {
-		candidate := &sync.Mutex{}
-		actual, _ := agentIdentityTaskLocks.LoadOrStore(credAccount.ID, candidate)
-		loadedTaskMu, ok := actual.(*sync.Mutex)
-		if !ok {
-			return errors.New("agent identity task lock has invalid type")
-		}
-		sharedTaskMu = loadedTaskMu
-	}
-	sharedTaskMu.Lock()
-	defer sharedTaskMu.Unlock()
-	// 共享锁内重新读取账号，避免不同请求持有旧快照时依次重复注册 task。
-	if repo != nil && credAccount.ID > 0 {
-		if refreshed, refreshErr := repo.GetByID(ctx, credAccount.ID); refreshErr == nil && refreshed != nil {
-			if refreshed.IsShadow() {
-				if resolved, resolveErr := resolveCredentialAccount(ctx, repo, refreshed); resolveErr == nil && resolved != nil {
-					refreshed = resolved
-				}
-			}
-			if refreshed.IsOpenAIAgentIdentity() {
-				credAccount = refreshed
-				if !account.IsShadow() {
-					account.Credentials = shallowCopyMap(credAccount.Credentials)
-				}
-			}
-		}
-	}
-	currentTaskID = strings.TrimSpace(credAccount.GetCredential("task_id"))
-	if currentTaskID != "" && (expectedTaskID == "" || currentTaskID != expectedTaskID) {
-		return nil
-	}
-	newTaskID, err := registerAgentIdentityTask(ctx, credAccount)
-	if err != nil {
-		return err
-	}
-	credentials := make(map[string]any, len(credAccount.Credentials)+1)
-	for key, value := range credAccount.Credentials {
-		credentials[key] = value
-	}
-	credentials["task_id"] = newTaskID
-	if err := persistAccountCredentials(ctx, repo, credAccount, credentials); err != nil {
-		return err
-	}
-	if !account.IsShadow() && account != credAccount {
-		account.Credentials = shallowCopyMap(credAccount.Credentials)
 	}
 	if wsInvalidator != nil {
-		wsInvalidator.InvalidateAgentIdentityWSConnections(credAccount.ID)
+		options.Invalidate = wsInvalidator.InvalidateAgentIdentityWSConnections
 	}
-	return nil
+	err := acctcore.SharedOpenAITaskCoordinator().Ensure(ctx, options, input, expectedTaskID)
+	if value != nil {
+		value.Credentials = input.Credentials
+	}
+	return err
 }
 
 func (s *OpenAIGatewayService) ensureAgentIdentityTask(ctx context.Context, account *Account, expectedTaskID string) error {
@@ -314,36 +138,7 @@ func (s *OpenAIGatewayService) ensureAgentIdentityTask(ctx context.Context, acco
 }
 
 func isAgentIdentityTaskInvalidHTTPResponse(statusCode int, body []byte) bool {
-	if statusCode != http.StatusUnauthorized {
-		return false
-	}
-	lower := strings.ToLower(string(body))
-	compact := strings.NewReplacer(" ", "", "\t", "", "\r", "", "\n", "").Replace(lower)
-	for _, marker := range []string{
-		`"code":"invalid_task_id"`,
-		`"code":"task_not_found"`,
-		`"code":"task_expired"`,
-		`"error":"invalid_task_id"`,
-	} {
-		if strings.Contains(compact, marker) {
-			return true
-		}
-	}
-	for _, marker := range []string{
-		"invalid task_id",
-		"invalid task id",
-		"task_id is invalid",
-		"task id is invalid",
-		"task not found",
-		"task expired",
-		"unknown task_id",
-		"unknown task id",
-	} {
-		if strings.Contains(lower, marker) {
-			return true
-		}
-	}
-	return false
+	return native.IsAgentTaskInvalidHTTPResponse(statusCode, body)
 }
 
 type agentIdentityTaskRecoveryContextKey struct{}
@@ -516,4 +311,9 @@ func (s *OpenAIGatewayService) redactAgentIdentitySensitiveBody(ctx context.Cont
 		return body
 	}
 	return redactAgentIdentitySensitiveBodyForAccount(ctx, s.accountRepo, account, body)
+}
+
+// 密钥只在原生执行边界作字段投影，不进入公开结果或日志。
+func nativeAgentIdentityKey(key agentIdentityKey) native.AgentIdentityKey {
+	return native.AgentIdentityKey{RuntimeID: key.runtimeID, PrivateKey: key.privateKey, TaskID: key.taskID}
 }

@@ -1,0 +1,116 @@
+[
+  {
+    "file": "internal/service/antigravity_gateway_compat.go",
+    "names": [
+      "antigravityCompatMaxTokens"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_gateway_service.go",
+    "names": [
+      "extractTextFromSSEResponse"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_health_compat.go",
+    "names": [
+      "internal500PenaltyTier3Threshold"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_health_compat.go",
+    "names": [
+      "creditsExhaustedDuration"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_payload_compat.go",
+    "names": [
+      "antigravityPassthroughErrorMessages"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_payload_compat.go",
+    "names": [
+      "isSignatureRelatedError"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_payload_compat.go",
+    "names": [
+      "isPassthroughErrorMessage"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_quota_fetcher.go",
+    "names": [
+      "forbiddenTypeForbidden"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_response_compat.go",
+    "names": [
+      "handleGeminiStreamToNonStreaming"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_response_compat.go",
+    "names": [
+      "handleClaudeStreamToNonStreaming"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_response_compat.go",
+    "names": [
+      "extractClaudeUsage"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_response_compat.go",
+    "names": [
+      "handleChatCompletionsNonStreamingFromAntigravity"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_response_compat.go",
+    "names": [
+      "handleResponsesNonStreamingFromAntigravity"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "names": [
+      "antigravitySmartRetryMinWait"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_subscription_service.go",
+    "names": [
+      "antigravitySubscriptionAbnormal"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_token_refresher.go",
+    "names": [
+      "antigravityForceTokenRefreshAtExtraKey"
+    ]
+  },
+  {
+    "file": "internal/service/gemini_messages_compat_service.go",
+    "names": [
+      "pickGeminiCollectResult"
+    ]
+  },
+  {
+    "file": "internal/service/gemini_messages_compat_service.go",
+    "names": [
+      "extractGeminiFinishReason"
+    ]
+  },
+  {
+    "file": "internal/service/gemini_messages_compat_service.go",
+    "names": [
+      "extractGeminiParts"
+    ]
+  }
+]

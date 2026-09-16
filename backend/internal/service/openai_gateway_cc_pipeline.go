@@ -4,20 +4,14 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // 本文件收敛三个 CC（Chat Completions）forwarder 之间重复的 HTTP 管线与 SSE
@@ -32,36 +26,12 @@ import (
 // （GLM effort 归一化、fast policy、Grok 分支、ClientDisconnect 语义等）仍留在
 // 调用方，属于有意保留的行为差异，不在此强行统一。
 
-// newUpstreamSSEScanner 构造读取上游 SSE 流的行扫描器，按配置放大单行上限。
 func (s *OpenAIGatewayService) newUpstreamSSEScanner(r io.Reader) *bufio.Scanner {
-	scanner := bufio.NewScanner(r)
 	maxLineSize := defaultMaxLineSize
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 		maxLineSize = s.cfg.Gateway.MaxLineSize
 	}
-	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
-	return scanner
-}
-
-// newStreamHeaderWriter 返回幂等的 SSE 响应头写入闭包：首次调用时透传过滤后的
-// 上游响应头并写入标准 SSE 头 + 200 状态码，后续调用为 no-op。延迟到首个事件
-// 写出前才提交响应头，使上游早期失败仍可改走 failover 或非流式错误响应。
-func (s *OpenAIGatewayService) newStreamHeaderWriter(c *gin.Context, upstream http.Header) func() {
-	headersWritten := false
-	return func() {
-		if headersWritten {
-			return
-		}
-		headersWritten = true
-		if s.responseHeaderFilter != nil {
-			responseheaders.WriteFilteredHeaders(c.Writer.Header(), upstream, s.responseHeaderFilter)
-		}
-		c.Writer.Header().Set("Content-Type", "text/event-stream")
-		c.Writer.Header().Set("Cache-Control", "no-cache")
-		c.Writer.Header().Set("Connection", "keep-alive")
-		c.Writer.Header().Set("X-Accel-Buffering", "no")
-		c.Writer.WriteHeader(http.StatusOK)
-	}
+	return nativeopenai.NewCompatSSEScanner(r, maxLineSize)
 }
 
 // readOpenAIUpstreamError 读取上游错误体并把 resp.Body 回卷为可重读的副本
@@ -177,13 +147,6 @@ func (s *OpenAIGatewayService) resolveCCFallbackTarget(ctx context.Context, acco
 	return apiKey, targetURL, nil
 }
 
-// sendCCUpstreamRequest 构建并发送 CC 上游请求：分离的上游 context、OpenAI HTTP
-// profile、标准头（含流式 Accept 切换）、客户端 header 白名单透传、自定义 UA 与
-// 账号级 header 覆写，最后经代理发出。传输层失败（DNS/TCP/TLS，无 HTTP 响应）
-// 统一由 handleOpenAIUpstreamTransportError 归一为 failover。
-//
-// OpenAI 账号统一通过 fork 的 UA 路由规则选择；userAgent 参数仅用于 Grok
-// 等非 OpenAI 平台的显式 UA。
 func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	ctx context.Context,
 	c *gin.Context,
@@ -196,193 +159,41 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	grokCacheIdentity string,
 	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
 ) (*http.Response, error) {
-	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-	upstreamReq, err := http.NewRequestWithContext(upstreamCtx, http.MethodPost, targetURL, bytes.NewReader(body))
-	releaseUpstreamCtx()
-	if err != nil {
-		return nil, fmt.Errorf("build upstream request: %w", err)
-	}
-	// 记录本次实际选择的协议端点，供错误日志和用量日志在没有
-	// OpenAIForwardResult（例如 503/传输失败）时使用。每次发送都覆盖，
-	// 避免 Gin context 在账号 failover 尝试之间残留旧端点。
-	SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
-	upstreamReq = upstreamReq.WithContext(WithHTTPUpstreamProfile(upstreamReq.Context(), HTTPUpstreamProfileOpenAI))
-	upstreamReq.Header.Set("Content-Type", "application/json")
-	upstreamReq.Header.Set("Authorization", "Bearer "+bearerToken)
-	if stream {
-		upstreamReq.Header.Set("Accept", "text/event-stream")
-	} else {
-		upstreamReq.Header.Set("Accept", "application/json")
-	}
-
-	// 透传白名单中的客户端 header。详见 openaiCCRawAllowedHeaders 的设计说明。
-	for key, values := range c.Request.Header {
-		lowerKey := strings.ToLower(key)
-		if openaiCCRawAllowedHeaders[lowerKey] {
-			for _, v := range values {
-				upstreamReq.Header.Add(key, v)
+	return nativeopenai.SendChatRequest(ctx, body, nativeopenai.CCRequestOptions{
+		URL: targetURL, Token: bearerToken, Stream: stream, Headers: c.Request.Header,
+		RequestContext:  detachUpstreamContext,
+		ObserveEndpoint: func() { SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions") },
+		AllowHeader:     func(name string) bool { return openaiCCRawAllowedHeaders[name] },
+		PrepareTransport: func(upstreamReq *http.Request) {
+			if len(tlsRouterMatch) == 0 {
+				tlsRouterMatch = []TLSFingerprintRouterMatchResult{s.matchTLSFingerprintRouter(c, account)}
 			}
-		}
-	}
-	if len(tlsRouterMatch) == 0 {
-		tlsRouterMatch = []TLSFingerprintRouterMatchResult{s.matchTLSFingerprintRouter(c, account)}
-	}
-	if account.Platform == PlatformGrok && userAgent != "" {
-		upstreamReq.Header.Set("user-agent", userAgent)
-	} else if account.Platform != PlatformGrok {
-		s.applyOpenAIUpstreamUserAgent(c.Request.Context(), c, account, upstreamReq, false, tlsRouterMatch[0])
-	}
+			if account.Platform == PlatformGrok && userAgent != "" {
+				upstreamReq.Header.Set("user-agent", userAgent)
+			} else if account.Platform != PlatformGrok {
+				s.applyOpenAIUpstreamUserAgent(c.Request.Context(), c, account, upstreamReq, false, tlsRouterMatch[0])
+			}
 
-	if account.Platform == PlatformGrok {
-		if account.IsGrokOAuth() {
-			applyGrokCLIHeaders(upstreamReq.Header)
-		}
-		applyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
-	}
-	// 账号级请求头覆写：放在所有内置默认头（含 Grok CLI 身份头）之后应用，
-	// 使配置值获得除共享传输层强制头之外的最高优先级。
-	account.ApplyHeaderOverrides(upstreamReq.Header)
-	applyOpenCodeSessionHeader(c, account, targetURL, upstreamReq.Header)
-
-	proxyURL := ""
-	if account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
-	resp, err := s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
-	}
-	return resp, nil
-}
-
-// ccStreamScanState 是 scanCCStream 返回的读取状态快照。
-type ccStreamScanState struct {
-	// Usage 为 include_usage chunk 中最近一次出现的用量（上游可能重复发送，
-	// 总是保留最新值）；终态事件中的用量由调用方在 finalize 阶段自行覆盖。
-	Usage OpenAIUsage
-	// FirstTokenMs 为首个实际输出 chunk（排除 usage-only chunk）的到达时延。
-	FirstTokenMs *int
-	// ServiceTier 为 SSE chunk 中无歧义的上游实际档位。
-	ServiceTier string
-	// SawDone 表示上游发出了 [DONE] 哨兵。
-	SawDone bool
-	// Err 为 scanner 读错误（客户端 context 取消不属于此类，会原样带出）。
-	// 非 nil 时调用方必须跳过 finalize 并返回 usage-incomplete 错误，避免
-	// 把上游截断伪装成正常收尾。
-	Err error
-}
-
-// scanCCStream 驱动两条 CC 回退路径共享的 SSE 读循环：提取 data 行、在 [DONE]
-// 哨兵处停止、保留最新 usage、记录首 token 时延，并把每个解析成功的 chunk 交给
-// emit 回调做各自的协议转换与写出。读错误按既有约定过滤 context 取消类噪声后
-// 记入 Warn 日志。
-func (s *OpenAIGatewayService) scanCCStream(
-	c *gin.Context,
-	resp *http.Response,
-	logPrefix string,
-	requestID string,
-	startTime time.Time,
-	emit func(*protocolopenai.ChatCompletionsChunk),
-) ccStreamScanState {
-	var st ccStreamScanState
-	tierObserver := &upstreamResponseModelObserver{}
-
-	scanner := s.newUpstreamSSEScanner(resp.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
-		payload, ok := extractOpenAISSEDataLine(line)
-		if !ok {
-			continue
-		}
-		payload = strings.TrimSpace(payload)
-		if payload == "" {
-			continue
-		}
-		if payload == "[DONE]" {
-			st.SawDone = true
-			break
-		}
-		tierObserver.ObserveOpenAI([]byte(payload), openAIChatCompletionServiceTierEventType([]byte(payload)))
-		// 观察上游 CC chunk 回显的 model / service_tier（计费以回显为准）。
-		// CC chunk 无 type 字段，按 untyped payload 观察（上游约束：只有终止
-		// 事件与无类型 body 报告实际处理档位）。
-		if observer := upstreamResponseModelObserverFromContext(c); observer != nil {
-			observer.ObserveOpenAI([]byte(payload), "")
-		}
-
-		if u := extractCCStreamUsage(payload); u != nil {
-			st.Usage = *u
-		}
-
-		var chunk protocolopenai.ChatCompletionsChunk
-		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
-			logger.L().Warn(logPrefix+": failed to parse chat stream chunk",
-				zap.Error(err),
-				zap.String("request_id", requestID),
-			)
-			// 单个无法解析的 chunk 不应阻断后续合法事件；最终工具参数由
-			// Responses 转换状态在收尾时单独校验。
-			continue
-		}
-		if st.FirstTokenMs == nil && !isOpenAIChatUsageOnlyStreamChunk(payload) && chatChunkStartsResponsesOutput(&chunk) {
-			ms := int(time.Since(startTime).Milliseconds())
-			st.FirstTokenMs = &ms
-		}
-		emit(&chunk)
-	}
-	st.ServiceTier = tierObserver.ServiceTier()
-
-	if err := scanner.Err(); err != nil {
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			logger.L().Warn(logPrefix+": stream read error",
-				zap.Error(err),
-				zap.String("request_id", requestID),
-			)
-		}
-		st.Err = err
-	}
-	return st
-}
-
-// logCCStreamMissingDoneSentinel 记录"上游未发 [DONE] 哨兵即结束"的 debug 日志。
-func logCCStreamMissingDoneSentinel(logPrefix, requestID string) {
-	logger.L().Debug(logPrefix+": upstream stream ended without done sentinel",
-		zap.String("request_id", requestID),
-	)
-}
-
-// readCCUpstreamJSONResponse 读取并解析 CC 非流式 JSON 响应，失败时以调用方
-// 端点格式回写错误；成功时顺带提取 usage。
-func (s *OpenAIGatewayService) readCCUpstreamJSONResponse(
-	c *gin.Context,
-	resp *http.Response,
-	writeError compatErrorWriter,
-) (*protocolopenai.ChatCompletionsResponse, OpenAIUsage, error) {
-	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
-	if err != nil {
-		if !errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
-			writeError(c, http.StatusBadGateway, "api_error", "Failed to read upstream response")
-		}
-		return nil, OpenAIUsage{}, fmt.Errorf("read upstream body: %w", err)
-	}
-
-	var ccResp protocolopenai.ChatCompletionsResponse
-	if err := json.Unmarshal(respBody, &ccResp); err != nil {
-		writeError(c, http.StatusBadGateway, "api_error", "Failed to parse upstream response")
-		return nil, OpenAIUsage{}, fmt.Errorf("parse chat completions response: %w", err)
-	}
-	observeOpenAIServiceTierInContext(c, respBody, "response.completed")
-	// 观察上游 CC JSON 回显的 model / service_tier（计费以回显为准）。
-	// CC JSON 无 type 字段，按 untyped payload 观察（上游约束）。
-	if observer := upstreamResponseModelObserverFromContext(c); observer != nil {
-		observer.ObserveOpenAI(respBody, "")
-	}
-
-	usage := OpenAIUsage{}
-	if parsed, ok := extractOpenAIUsageFromJSONBytes(respBody); ok {
-		usage = parsed
-	}
-	return &ccResp, usage, nil
+			if account.Platform == PlatformGrok {
+				if account.IsGrokOAuth() {
+					applyGrokCLIHeaders(upstreamReq.Header)
+				}
+				applyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
+			}
+		},
+		FinalizeHeaders: func(headers http.Header) {
+			account.ApplyHeaderOverrides(headers)
+			applyOpenCodeSessionHeader(c, account, targetURL, headers)
+		},
+		Do: func(req *http.Request) (*http.Response, error) {
+			proxyURL := ""
+			if account.Proxy != nil {
+				proxyURL = account.Proxy.URL()
+			}
+			return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
+		},
+		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false) },
+	})
 }
 
 // writeOpenAIResponsesFallbackError 以 /v1/responses 回退路径的既有错误格式回写

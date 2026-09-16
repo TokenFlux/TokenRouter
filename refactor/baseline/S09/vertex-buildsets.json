@@ -1,0 +1,196 @@
+[
+  {
+    "name": "normal",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "./internal/upstream/vertex/...",
+      "./internal/upstream/internal/googleauth/...",
+      "./internal/protocol/gemini/...",
+      "./internal/protocol/google/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 44,
+    "errors": [],
+    "data": "vertex-buildset-normal.json.gz"
+  },
+  {
+    "name": "unit",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=unit",
+      "./internal/upstream/vertex/...",
+      "./internal/upstream/internal/googleauth/...",
+      "./internal/protocol/gemini/...",
+      "./internal/protocol/google/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 44,
+    "errors": [],
+    "data": "vertex-buildset-unit.json.gz"
+  },
+  {
+    "name": "integration",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=integration",
+      "./internal/upstream/vertex/...",
+      "./internal/upstream/internal/googleauth/...",
+      "./internal/protocol/gemini/...",
+      "./internal/protocol/google/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 44,
+    "errors": [],
+    "data": "vertex-buildset-integration.json.gz"
+  },
+  {
+    "name": "wireinject",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=wireinject",
+      "./internal/upstream/vertex/...",
+      "./internal/upstream/internal/googleauth/...",
+      "./internal/protocol/gemini/...",
+      "./internal/protocol/google/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 44,
+    "errors": [],
+    "data": "vertex-buildset-wireinject.json.gz"
+  },
+  {
+    "name": "embed",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=embed",
+      "./internal/upstream/vertex/...",
+      "./internal/upstream/internal/googleauth/...",
+      "./internal/protocol/gemini/...",
+      "./internal/protocol/google/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 44,
+    "errors": [],
+    "data": "vertex-buildset-embed.json.gz"
+  },
+  {
+    "name": "e2e",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=e2e",
+      "./internal/upstream/vertex/...",
+      "./internal/upstream/internal/googleauth/...",
+      "./internal/protocol/gemini/...",
+      "./internal/protocol/google/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "CGO_ENABLED": "default"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 44,
+    "errors": [],
+    "data": "vertex-buildset-e2e.json.gz"
+  },
+  {
+    "name": "linux",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "./internal/upstream/vertex/...",
+      "./internal/upstream/internal/googleauth/...",
+      "./internal/protocol/gemini/...",
+      "./internal/protocol/google/...",
+      "./internal/account/...",
+      "./internal/gateway/...",
+      "./internal/app/..."
+    ],
+    "env": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "linux",
+      "CGO_ENABLED": "0"
+    },
+    "exit_code": 0,
+    "stderr": "",
+    "packages": 44,
+    "errors": [],
+    "data": "vertex-buildset-linux.json.gz"
+  }
+]

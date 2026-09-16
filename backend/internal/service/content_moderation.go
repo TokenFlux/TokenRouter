@@ -22,6 +22,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -3987,24 +3989,7 @@ func mergeContentModerationThresholds(base map[string]float64, override map[stri
 	return out
 }
 
-// IsOpenAICyberWarningText 判断上游错误文本是否属于 OpenAI cyber 风控拒绝。
-func IsOpenAICyberWarningText(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	if lower == "" {
-		return false
-	}
-	// 只用明确的 cyber 风控锚点命中，避免普通 usage policy/flagged 错误被当成 cyber 拒绝。
-	if strings.Contains(lower, "cybersecurity risk") ||
-		strings.Contains(lower, "chatgpt.com/cyber") ||
-		strings.Contains(lower, "cyber abuse") ||
-		strings.Contains(lower, "trusted access for cyber") {
-		return true
-	}
-	return strings.Contains(lower, "cyber") &&
-		(strings.Contains(lower, "risk") ||
-			strings.Contains(lower, "abuse") ||
-			strings.Contains(lower, "security work"))
-}
+func IsOpenAICyberWarningText(text string) bool { return nativeopenai.IsOpenAICyberWarningText(text) }
 
 func extractCyberWarningText(body []byte) string {
 	text := strings.TrimSpace(extractUpstreamErrorMessage(body))

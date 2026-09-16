@@ -234,7 +234,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(&openAIWSCaptureDialer{
+	pool.SetClientDialerForTest(&openAIWSCaptureDialer{
 		conn: &openAIWSCaptureConn{
 			events: [][]byte{
 				[]byte(`{"type":"error","error":{"code":"forbidden","type":"permission_error","message":"temporary forbidden"}}`),
@@ -375,7 +375,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(&openAIWSStatusErrorDialer{
+	pool.SetClientDialerForTest(&openAIWSStatusErrorDialer{
 		status: http.StatusForbidden,
 		err:    errors.New("temporary forbidden"),
 	})
@@ -489,7 +489,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 	captureConn.events[0] = []byte(strings.ReplaceAll(string(captureConn.events[0]), "PLACEHOLDER", strconv.FormatInt(resetAt, 10)))
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	account := Account{
 		ID:          503,
@@ -590,7 +590,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(&openAIWSStatusErrorDialer{
+	pool.SetClientDialerForTest(&openAIWSStatusErrorDialer{
 		status: http.StatusForbidden,
 		err:    errors.New("temporary forbidden"),
 	})
@@ -692,7 +692,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(&openAIWSCaptureDialer{
+	pool.SetClientDialerForTest(&openAIWSCaptureDialer{
 		conn: &openAIWSCaptureConn{
 			events: [][]byte{
 				[]byte(`{"type":"error","error":{"code":"forbidden","type":"permission_error","message":"temporary forbidden"}}`),

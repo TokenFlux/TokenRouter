@@ -3,15 +3,17 @@ package service
 
 import (
 	context "context"
-	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
-	provider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	gjson "github.com/tidwall/gjson"
-	sjson "github.com/tidwall/sjson"
 	"log/slog"
 	sync "sync"
 	time "time"
+
+	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	provider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
+	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	s09wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	gjson "github.com/tidwall/gjson"
+	sjson "github.com/tidwall/sjson"
 )
 
 type ChannelRepository = routing.ChannelRepository
@@ -114,19 +116,8 @@ func ReplaceModelInBody(body []byte, newModel string) []byte {
 	return newBody
 }
 
-// RemovePreviousResponseIDFromBody 删除请求体中的 previous_response_id，用于会话失配时改用完整 input 重建上下文。
 func RemovePreviousResponseIDFromBody(body []byte) []byte {
-	if len(body) == 0 {
-		return body
-	}
-	if !gjson.GetBytes(body, "previous_response_id").Exists() {
-		return body
-	}
-	newBody, err := sjson.DeleteBytes(body, "previous_response_id")
-	if err != nil {
-		return body
-	}
-	return newBody
+	return s09wire.RemovePreviousResponseIDFromBody(body)
 }
 
 func (s *ChannelService) Create(ctx context.Context, input *CreateChannelInput) (*Channel, error) {

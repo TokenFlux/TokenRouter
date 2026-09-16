@@ -1,9 +1,10 @@
 package service
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"strings"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 func normalizeOpenAIMessagesDispatchMappedModel(model string) string {

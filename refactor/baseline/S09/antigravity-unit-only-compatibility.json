@@ -1,0 +1,154 @@
+[
+  {
+    "file": "internal/service/antigravity_health_compat.go",
+    "symbol": [
+      "internal500PenaltyTier1Duration"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_health_compat.go",
+    "symbol": [
+      "internal500PenaltyTier2Duration"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_health_compat.go",
+    "symbol": "applyInternal500Penalty"
+  },
+  {
+    "file": "internal/service/antigravity_health_compat.go",
+    "symbol": "setModelRateLimitByModelName"
+  },
+  {
+    "file": "internal/service/antigravity_health_compat.go",
+    "symbol": "updateAccountModelRateLimitInCache"
+  },
+  {
+    "file": "internal/service/antigravity_quota_fetcher.go",
+    "symbol": "buildUsageInfo"
+  },
+  {
+    "file": "internal/service/antigravity_quota_fetcher.go",
+    "symbol": "normalizeTier"
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "smartRetryActionContinue"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "smartRetryActionBreakWithResp"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "smartRetryActionContinueURL"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": "handleSmartRetry"
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": "handleSingleAccountRetryInPlace"
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": "antigravityRetryLoop"
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravity429Unknown"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravity429RateLimited"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravity429QuotaExhausted"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": "classifyAntigravity429"
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": "injectEnabledCreditTypes"
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": "isAntigravityInternalServerError"
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravityMaxRetries"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravitySmartRetryMaxAttempts"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravitySingleAccountSmartRetryMaxAttempts"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravitySingleAccountSmartRetryMaxWait"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravitySingleAccountSmartRetryTotalMaxWait"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "smartRetryResult"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravityRetryLoopResult"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_retry_compat.go",
+    "symbol": [
+      "antigravity429Category"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_token_refresher.go",
+    "symbol": [
+      "antigravityForceTokenRefreshExtraKey"
+    ]
+  },
+  {
+    "file": "internal/service/antigravity_token_refresher.go",
+    "symbol": [
+      "antigravityForceTokenRefreshReasonExtraKey"
+    ]
+  }
+]

@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-	"strings"
 	"time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // TokenRefresher 定义平台特定的token刷新策略接口
@@ -37,38 +38,16 @@ func (r *ClaudeTokenRefresher) CacheKey(account *Account) string {
 	return ClaudeTokenCacheKey(account)
 }
 
-// CanRefresh 检查是否能处理此账号
-// 处理 anthropic 平台的 oauth 与 setup-token 类型账号。
-// 两者的 access_token 均为短期令牌（expires_in=28800，即 8h），到期都需刷新；
-// setup-token 之前被排除会导致其 access_token 过期后请求 401。
-// 此处与手动刷新入口（account.IsOAuth()）保持一致，实际是否刷新由 NeedsRefresh
-// 基于 expires_at 门控，并在分布式锁保护下执行，不会造成过度刷新。
 func (r *ClaudeTokenRefresher) CanRefresh(account *Account) bool {
-	return account.Platform == PlatformAnthropic && account.IsOAuth()
+	return accountcore.CanRefreshClaude(AccountRecordView(account))
 }
 
-// NeedsRefresh 检查token是否需要刷新
-// 基于 expires_at 字段判断是否在刷新窗口内
 func (r *ClaudeTokenRefresher) NeedsRefresh(account *Account, refreshWindow time.Duration) bool {
-	expiresAt := account.GetCredentialAsTime("expires_at")
-	if expiresAt == nil {
-		return false
-	}
-	return time.Until(*expiresAt) < refreshWindow
+	return accountcore.NeedsRefreshClaude(AccountRecordView(account), refreshWindow)
 }
 
-// Refresh 执行token刷新
-// 保留原有credentials中的所有字段，只更新token相关字段
 func (r *ClaudeTokenRefresher) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
-	tokenInfo, err := r.oauthService.RefreshAccountToken(ctx, account)
-	if err != nil {
-		return nil, err
-	}
-
-	newCredentials := BuildClaudeAccountCredentials(tokenInfo)
-	newCredentials = MergeCredentials(account.Credentials, newCredentials)
-
-	return newCredentials, nil
+	return accountcore.RefreshClaudeCredentials(ctx, AccountRecordView(account), r.oauthService.ClaudeAuthorization.RefreshAccountToken)
 }
 
 // OpenAITokenRefresher 处理 OpenAI OAuth token刷新
@@ -85,48 +64,23 @@ func NewOpenAITokenRefresher(openaiOAuthService *OpenAIOAuthService, accountRepo
 	}
 }
 
-// CacheKey 返回用于分布式锁的缓存键
 func (r *OpenAITokenRefresher) CacheKey(account *Account) string {
-	return OpenAITokenCacheKey(account)
+	return r.openAICore().CacheKey(AccountRecordView(account))
 }
 
-// CanRefresh 检查是否能处理此账号
 func (r *OpenAITokenRefresher) CanRefresh(account *Account) bool {
-	if account.IsCredentialShadow() {
-		return false
-	}
-	return account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth
+	return r.openAICore().CanRefresh(AccountRecordView(account))
 }
 
-// NeedsRefresh 检查token是否需要刷新
-// expires_at 缺失且处于限流状态时需要刷新，防止限流期间 token 静默过期
 func (r *OpenAITokenRefresher) NeedsRefresh(account *Account, refreshWindow time.Duration) bool {
-	if account.IsOpenAIPersonalAccessToken() {
-		return false
-	}
-	if strings.TrimSpace(account.GetOpenAIRefreshToken()) == "" {
-		return false
-	}
-	expiresAt := account.GetCredentialAsTime("expires_at")
-	if expiresAt == nil {
-		return account.IsRateLimited()
-	}
-
-	return time.Until(*expiresAt) < refreshWindow
+	return r.openAICore().NeedsRefresh(AccountRecordView(account), refreshWindow)
 }
 
-// Refresh 执行token刷新
-// 保留原有credentials中的所有字段，只更新token相关字段
 func (r *OpenAITokenRefresher) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
-	tokenInfo, err := r.openaiOAuthService.RefreshAccountToken(ctx, account)
-	if err != nil {
-		return nil, err
-	}
+	return r.openAICore().Refresh(ctx, AccountRecordView(account))
+}
 
-	// 使用服务提供的方法构建新凭证，并保留原有字段
-	newCredentials := r.openaiOAuthService.BuildAccountCredentials(tokenInfo)
-	newCredentials = MergeCredentials(account.Credentials, newCredentials)
-	newCredentials = NormalizeOpenAIPersonalAccessTokenCredentials(account, tokenInfo, newCredentials)
-
-	return newCredentials, nil
+// 旧刷新器只投影账号，不复制凭据合并规则或运行资源。
+func (r *OpenAITokenRefresher) openAICore() *accountcore.OpenAITokenRefresher {
+	return &accountcore.OpenAITokenRefresher{Authorization: r.openaiOAuthService.Core()}
 }

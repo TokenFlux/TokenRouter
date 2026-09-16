@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/upstream/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.582,
+  "pass": 146,
+  "fail": 0,
+  "skip": 2,
+  "log": "logs/qoder-executor-compile.log.gz"
+}

@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 type GeminiTokenRefresher struct {
@@ -19,28 +21,13 @@ func (r *GeminiTokenRefresher) CacheKey(account *Account) string {
 }
 
 func (r *GeminiTokenRefresher) CanRefresh(account *Account) bool {
-	return account.Platform == PlatformGemini && account.Type == AccountTypeOAuth
+	return accountcore.CanRefreshGemini(AccountRecordView(account))
 }
 
 func (r *GeminiTokenRefresher) NeedsRefresh(account *Account, refreshWindow time.Duration) bool {
-	if !r.CanRefresh(account) {
-		return false
-	}
-	expiresAt := account.GetCredentialAsTime("expires_at")
-	if expiresAt == nil {
-		return false
-	}
-	return time.Until(*expiresAt) < refreshWindow
+	return accountcore.NeedsRefreshGemini(AccountRecordView(account), refreshWindow)
 }
 
 func (r *GeminiTokenRefresher) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
-	tokenInfo, err := r.geminiOAuthService.RefreshAccountToken(ctx, account)
-	if err != nil {
-		return nil, err
-	}
-
-	newCredentials := r.geminiOAuthService.BuildAccountCredentials(tokenInfo)
-	newCredentials = MergeCredentials(account.Credentials, newCredentials)
-
-	return newCredentials, nil
+	return accountcore.RefreshGeminiCredentials(ctx, AccountRecordView(account), r.geminiOAuthService.GeminiAuthorization)
 }

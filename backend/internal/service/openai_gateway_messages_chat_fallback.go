@@ -9,11 +9,14 @@ import (
 	"strings"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -164,31 +167,8 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsAnthropic(
 	serviceTier *string,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
-	requestID := resp.Header.Get("x-request-id")
-	ccResp, usage, err := s.readCCUpstreamJSONResponse(c, resp, writeAnthropicError)
-	if err != nil {
-		return nil, err
-	}
-	anthropicResp := apicompat.ChatCompletionsResponseToAnthropic(ccResp, originalModel)
-
-	if s.responseHeaderFilter != nil {
-		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
-	}
-	c.JSON(http.StatusOK, anthropicResp)
-
-	return &OpenAIForwardResult{
-		RequestID:                   requestID,
-		UpstreamHeaders:             resp.Header,
-		Usage:                       usage,
-		Model:                       originalModel,
-		BillingModel:                billingModel,
-		UpstreamModel:               upstreamModel,
-		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
-		ReasoningEffort:             reasoningEffort,
-		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-		Stream:                      false,
-		Duration:                    time.Since(startTime),
-	}, nil
+	result, err := nativeopenai.ReadCCAsMessagesBuffered(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, nil, billingModel, upstreamModel, serviceTier, writeAnthropicError), originalModel, upstreamModel, reasoningEffort, startTime)
+	return chatForwardResult(result, billingModel), err
 }
 
 func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
@@ -201,110 +181,6 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 	serviceTier *string,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
-	requestID := resp.Header.Get("x-request-id")
-	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
-
-	anthropicState := apicompat.NewChatCompletionsToAnthropicStreamState(originalModel)
-	clientDisconnected := false
-
-	// 与 responses 兄弟不同：客户端断开后仍继续做事件转换（喂 anthropicState），
-	// 仅跳过写出，保证 finalize 阶段的 usage 汇总不受断开影响。
-	emitChunk := func(chunk *protocolopenai.ChatCompletionsChunk) {
-		hasToolCallDelta := chatCompletionsChunkHasToolCallDelta(chunk)
-		// 通过单个状态机将 CC chunk 直接转换为 Anthropic events。
-		anthropicEvents := apicompat.ChatCompletionsChunkToAnthropicEvents(chunk, anthropicState)
-		if hasToolCallDelta && len(anthropicEvents) == 0 {
-			// 工具参数聚合期间用标准事件维持下游活动，避免长参数流被误判为空闲。
-			anthropicEvents = append(anthropicEvents, protocolanthropic.AnthropicStreamEvent{Type: "ping"})
-		}
-		if clientDisconnected {
-			return
-		}
-		for _, aEvt := range anthropicEvents {
-			sse, err := apicompat.ResponsesAnthropicEventToSSE(aEvt)
-			if err != nil {
-				continue
-			}
-			writeStreamHeaders()
-			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
-				clientDisconnected = true
-				break
-			}
-		}
-		if !clientDisconnected && len(anthropicEvents) > 0 {
-			c.Writer.Flush()
-		}
-	}
-
-	scan := s.scanCCStream(c, resp, "openai messages chat fallback", requestID, startTime, emitChunk)
-	usage := scan.Usage
-
-	if scan.Err != nil {
-		// 上游读取中断时跳过收尾，避免合成 message_stop 掩盖截断，并返回
-		// usage incomplete，与 Responses fallback 保持一致。
-		return &OpenAIForwardResult{
-			RequestID:                   requestID,
-			UpstreamHeaders:             resp.Header,
-			Usage:                       usage,
-			Model:                       originalModel,
-			BillingModel:                billingModel,
-			UpstreamModel:               upstreamModel,
-			UpstreamResponseServiceTier: normalizeObservedOpenAIServiceTier(scan.ServiceTier),
-			ReasoningEffort:             reasoningEffort,
-			ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-			Stream:                      true,
-			Duration:                    time.Since(startTime),
-			FirstTokenMs:                scan.FirstTokenMs,
-			ClientDisconnect:            clientDisconnected,
-		}, fmt.Errorf("stream usage incomplete: %w", scan.Err)
-	}
-
-	// 收尾时关闭未结束的内容块，并发出 message_delta/message_stop。
-	finalEvents := apicompat.FinalizeChatCompletionsAnthropicStream(anthropicState)
-	if !clientDisconnected {
-		for _, aEvt := range finalEvents {
-			sse, err := apicompat.ResponsesAnthropicEventToSSE(aEvt)
-			if err != nil {
-				continue
-			}
-			writeStreamHeaders()
-			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
-				clientDisconnected = true
-				break
-			}
-		}
-		c.Writer.Flush()
-	}
-	if !scan.SawDone {
-		logCCStreamMissingDoneSentinel("openai messages chat fallback", requestID)
-	}
-
-	return &OpenAIForwardResult{
-		RequestID:                   requestID,
-		UpstreamHeaders:             resp.Header,
-		Usage:                       usage,
-		Model:                       originalModel,
-		BillingModel:                billingModel,
-		UpstreamModel:               upstreamModel,
-		UpstreamResponseServiceTier: normalizeObservedOpenAIServiceTier(scan.ServiceTier),
-		ReasoningEffort:             reasoningEffort,
-		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-		Stream:                      true,
-		Duration:                    time.Since(startTime),
-		FirstTokenMs:                scan.FirstTokenMs,
-		ClientDisconnect:            clientDisconnected,
-	}, nil
-}
-
-// chatCompletionsChunkHasToolCallDelta 判断当前分片是否携带工具调用增量。
-func chatCompletionsChunkHasToolCallDelta(chunk *protocolopenai.ChatCompletionsChunk) bool {
-	if chunk == nil {
-		return false
-	}
-	for _, choice := range chunk.Choices {
-		if len(choice.Delta.ToolCalls) > 0 {
-			return true
-		}
-	}
-	return false
+	result, err := nativeopenai.ReadCCAsMessagesStreaming(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, nil, billingModel, upstreamModel, serviceTier, writeAnthropicError), originalModel, upstreamModel, reasoningEffort, startTime)
+	return chatForwardResult(result, billingModel), err
 }

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 )
 

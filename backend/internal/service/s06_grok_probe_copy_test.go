@@ -2,9 +2,10 @@ package service
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/stretchr/testify/require"
 )
 
 // 共享 flight 的每次返回必须隔离额度指针、Header 和本地统计。

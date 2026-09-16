@@ -152,9 +152,9 @@ func TestOpenAIResetQuotaRecoversAccountBeforeRefreshingCache(t *testing.T) {
 	recoverer := &openAIAccountStateRecovererStub{}
 	adminService := recoveredOpenAIAccountStub()
 	handler := &OpenAIOAuthHandler{
-		adminService:     adminService,
-		quotaService:     quota,
-		rateLimitService: recoverer,
+		Admin:    legacyOpenAIOAuthAdmin{source: adminService},
+		Quota:    quota,
+		Recovery: recoverer,
 	}
 
 	status, envelope := performOpenAIQuotaResetRequest(t, handler, nil)
@@ -181,9 +181,9 @@ func TestOpenAIResetQuotaRecoveryFailureStopsPostProcessing(t *testing.T) {
 	recoverer := &openAIAccountStateRecovererStub{err: errors.New("recovery failed")}
 	adminService := recoveredOpenAIAccountStub()
 	handler := &OpenAIOAuthHandler{
-		adminService:     adminService,
-		quotaService:     quota,
-		rateLimitService: recoverer,
+		Admin:    legacyOpenAIOAuthAdmin{source: adminService},
+		Quota:    quota,
+		Recovery: recoverer,
 	}
 
 	status, envelope := performOpenAIQuotaResetRequest(t, handler, nil)
@@ -202,9 +202,9 @@ func TestOpenAIResetQuotaCacheFailureStillReturnsRecoveredAccount(t *testing.T) 
 	recoverer := &openAIAccountStateRecovererStub{}
 	adminService := recoveredOpenAIAccountStub()
 	handler := &OpenAIOAuthHandler{
-		adminService:     adminService,
-		quotaService:     quota,
-		rateLimitService: recoverer,
+		Admin:    legacyOpenAIOAuthAdmin{source: adminService},
+		Quota:    quota,
+		Recovery: recoverer,
 	}
 
 	status, envelope := performOpenAIQuotaResetRequest(t, handler, nil)
@@ -222,9 +222,9 @@ func TestOpenAIResetQuotaPostProcessingSurvivesClientCancellation(t *testing.T) 
 	recoverer := &openAIAccountStateRecovererStub{}
 	adminService := recoveredOpenAIAccountStub()
 	handler := &OpenAIOAuthHandler{
-		adminService:     adminService,
-		quotaService:     quota,
-		rateLimitService: recoverer,
+		Admin:    legacyOpenAIOAuthAdmin{source: adminService},
+		Quota:    quota,
+		Recovery: recoverer,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -245,8 +245,8 @@ func TestOpenAIRefreshQuotaPersistFailureStillReturnsUsage(t *testing.T) {
 	}
 	quota.cacheErr = errors.New("expiration details unavailable")
 	handler := &OpenAIOAuthHandler{
-		adminService: &openAIResetAdminServiceStub{},
-		quotaService: quota,
+		Admin: legacyOpenAIOAuthAdmin{source: &openAIResetAdminServiceStub{}},
+		Quota: quota,
 	}
 
 	status, envelope := performOpenAIQuotaRefreshRequest(t, handler)
@@ -263,6 +263,6 @@ func TestOpenAIRefreshQuotaPersistFailureStillReturnsUsage(t *testing.T) {
 func TestNewOpenAIOAuthHandlerKeepsNilQuotaCapabilitiesGuarded(t *testing.T) {
 	handler := NewOpenAIOAuthHandler(nil, newStubAdminService(), nil, nil)
 
-	require.Nil(t, handler.quotaService)
-	require.Nil(t, handler.rateLimitService)
+	require.Nil(t, handler.Quota)
+	require.Nil(t, handler.Recovery)
 }

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/app",
+    "-run",
+    "^TestS02ProcessModes$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 13.363,
+  "pass": 10,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-process-modes-order.log.gz"
+}

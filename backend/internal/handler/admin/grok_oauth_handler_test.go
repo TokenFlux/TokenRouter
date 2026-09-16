@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type grokQuotaHandlerAccountRepo struct {
@@ -368,39 +368,6 @@ func TestGrokSSOImportCredentialsDefaultsToOfficialBaseURL(t *testing.T) {
 	}, map[string]any{"base_url": "   "})
 	require.Equal(t, xai.DefaultCLIBaseURL, credentials["base_url"])
 	require.Equal(t, "at-2", credentials["access_token"])
-}
-
-type grokSSOPanicClient struct{}
-
-func (grokSSOPanicClient) ExchangeCode(context.Context, string, string, string, string, string) (*xai.TokenResponse, error) {
-	return nil, nil
-}
-
-func (grokSSOPanicClient) RefreshToken(context.Context, string, string, string) (*xai.TokenResponse, error) {
-	return nil, nil
-}
-
-func (grokSSOPanicClient) LoginWithPassword(context.Context, string, string, string) (*service.GrokPasswordLoginResult, error) {
-	return nil, nil
-}
-
-func (grokSSOPanicClient) ConvertSSOToBuild(_ context.Context, ssoToken, _ string) (*xai.TokenResponse, error) {
-	panic(ssoToken)
-}
-
-func TestGrokSSOImportWorkerRecoversPanicWithoutExposingToken(t *testing.T) {
-	const sensitiveToken = "sensitive-sso-token"
-	oauthService := service.NewGrokOAuthService(nil, grokSSOPanicClient{})
-	oauthService.Start()
-	defer oauthService.Stop()
-	h := &GrokOAuthHandler{grokOAuthService: oauthService}
-
-	// worker 必须把 panic 转换为失败项，同时不能在响应中回显令牌。
-	result := h.safeCreateAccountFromSSOToken(context.Background(), GrokSSOToOAuthRequest{}, sensitiveToken, 2, 3)
-	require.False(t, result.created)
-	require.Equal(t, 2, result.item.Index)
-	require.Equal(t, "internal worker panic", result.item.Error)
-	require.NotContains(t, result.item.Error, sensitiveToken)
 }
 
 func TestGrokOAuthHandlerReconcileDefaultsToDryRun(t *testing.T) {

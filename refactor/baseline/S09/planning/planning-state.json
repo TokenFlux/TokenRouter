@@ -1,0 +1,20 @@
+{
+  "head": "1d2519723af97970ff1a429e3d04cfa804f522b2",
+  "branch": "main",
+  "status": [
+    "?? .agents/plans/",
+    "?? diagnostics/tokenflux-3705-error-samples-20260826.csv",
+    "?? diagnostics/tokenflux-3705-ttft-analysis-20260826.md",
+    "?? diagnostics/tokenflux-3705-ttft-samples-20260826.csv",
+    "?? refactor/F01-structure.md",
+    "?? refactor/FRONTEND_REFACTOR_PLAN.md"
+  ],
+  "project_toolchain": "go1.27.0",
+  "system_go": "go1.27.1",
+  "golangci_lint": "2.13.2",
+  "docker": "29.5.2",
+  "source_count": 4353,
+  "recorded_at": "2026-09-14T00:00:04.327321+00:00",
+  "repository_mutations": false,
+  "approved_behavior": "Qoder 已输出并观测到 usage 后失败，仍按已观测用量结算一次，保留失败状态且不重新推理。"
+}

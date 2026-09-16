@@ -12,9 +12,9 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // InitializeDefaultSettings 初始化默认设置

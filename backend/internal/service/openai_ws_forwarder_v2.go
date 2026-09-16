@@ -206,7 +206,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	tlsProfile, tlsProfileKey := s.resolveOpenAIWSTLSProfile(account, tlsRouterMatch)
 
 	lease, err := s.getOpenAIWSConnPool().Acquire(acquireCtx, openAIWSAcquireRequest{
-		Account: account,
+		Account: openAIWSPoolAccountView(account),
 		WSURL:   wsURL,
 		Headers: wsHeaders,
 		HeadersFactory: func(factoryCtx context.Context, headers http.Header) (http.Header, error) {

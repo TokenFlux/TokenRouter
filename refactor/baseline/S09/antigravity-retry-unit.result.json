@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/upstream/antigravity",
+    "-run",
+    "Test.*Antigravity|Test.*SmartRetry|Test.*Credits|Test.*SingleAccount"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.269,
+  "pass": 11,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/antigravity-retry-unit.log.gz"
+}

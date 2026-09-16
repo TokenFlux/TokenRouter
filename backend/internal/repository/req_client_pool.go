@@ -11,11 +11,6 @@ import (
 
 type reqClientOptions = httpclient.ReqClientOptions
 
-// instrumentReqClient 保留 Claude OAuth 工厂的耗时装配入口。
-func instrumentReqClient(client *req.Client) *req.Client {
-	return httpclient.InstrumentReqClient(client)
-}
-
 func getSharedReqClient(opts reqClientOptions) (*req.Client, error) {
 	return httpclient.GetSharedReqClient(opts)
 }

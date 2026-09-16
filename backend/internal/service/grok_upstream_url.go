@@ -2,14 +2,11 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+	urlvalidator "github.com/TokenFlux/TokenRouter/internal/egress/urlpolicy"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 func grokBaseURLValidator(account *Account, cfg *config.Config) (xai.BaseURLValidator, error) {
@@ -57,13 +54,7 @@ func grokOperatorPolicyValidator(cfg *config.Config) xai.BaseURLValidator {
 }
 
 func redactedGrokBaseURLValidator(validator xai.BaseURLValidator) xai.BaseURLValidator {
-	return func(raw string) (string, error) {
-		validated, err := validator(raw)
-		if err != nil {
-			return "", errors.New("base URL rejected by URL security policy")
-		}
-		return validated, nil
-	}
+	return xai.RedactedBaseURLValidator(validator)
 }
 
 func buildGrokResponsesURL(account *Account, cfg *config.Config, settings ...*SettingService) (string, error) {
@@ -90,20 +81,12 @@ func buildGrokChatCompletionsURL(account *Account, cfg *config.Config, settings 
 	return xai.BuildChatCompletionsURLWithValidator(baseURL, validator)
 }
 
-// buildGrokBillingURL 解析 billing 探测端点：跟随账号的转发 base_url，
-// 未定制的账号仍指向官方 CLI 网关。
 func buildGrokBillingURL(account *Account, cfg *config.Config, weekly bool) (string, error) {
 	validator, err := grokBaseURLValidator(account, cfg)
 	if err != nil {
 		return "", err
 	}
-	baseURL := account.GetGrokBaseURL()
-	// 官方公共或区域 API 主机不提供 Grok Build 账单接口。
-	// 自定义中继可能同时代理推理与 CLI 账单路径，因此继续使用其配置主机。
-	if xai.IsOfficialBaseURL(baseURL) && !isGrokCLIProxyBaseURL(baseURL) {
-		baseURL = xai.DefaultCLIBaseURL
-	}
-	return xai.BuildBillingURLWithValidator(baseURL, weekly, validator)
+	return xai.BuildBillingEndpointURL(account.GetGrokBaseURL(), weekly, validator)
 }
 
 func buildGrokMediaURL(account *Account, cfg *config.Config, endpoint GrokMediaEndpoint, requestID string) (string, error) {
@@ -111,65 +94,13 @@ func buildGrokMediaURL(account *Account, cfg *config.Config, endpoint GrokMediaE
 	if err != nil {
 		return "", err
 	}
-	baseURL := account.GetGrokMediaBaseURL()
-	switch endpoint {
-	case GrokMediaEndpointImagesGenerations:
-		return xai.BuildImagesGenerationsURLWithValidator(baseURL, validator)
-	case GrokMediaEndpointImagesEdits:
-		return xai.BuildImagesEditsURLWithValidator(baseURL, validator)
-	case GrokMediaEndpointVideosGenerations:
-		return xai.BuildVideosGenerationsURLWithValidator(baseURL, validator)
-	case GrokMediaEndpointVideosEdits:
-		return xai.BuildVideosEditsURLWithValidator(baseURL, validator)
-	case GrokMediaEndpointVideosExtensions:
-		return xai.BuildVideosExtensionsURLWithValidator(baseURL, validator)
-	case GrokMediaEndpointVideoStatus:
-		return xai.BuildVideoURLWithValidator(baseURL, requestID, validator)
-	case GrokMediaEndpointVideoContent:
-		videoURL, err := xai.BuildVideoURLWithValidator(baseURL, requestID, validator)
-		if err != nil {
-			return "", err
-		}
-		return videoURL + "/content", nil
-	default:
-		return "", fmt.Errorf("unsupported grok media endpoint: %s", endpoint)
-	}
+	return xai.BuildMediaEndpointURL(account.GetGrokMediaBaseURL(), endpoint, requestID, validator)
 }
 
-// buildGrokVoiceURL 返回官方 xAI Voice API 端点。
-// Voice HTTP（/tts、/stt、/custom-voices）与 WebSocket（/realtime）仅由 api.x.ai 提供，
-// CLI 对话代理并未实现这些接口；当账号 base_url 指向 CLI 代理或为空时，回退到 DefaultBaseURL。
 func buildGrokVoiceURL(account *Account, cfg *config.Config, endpoint string) (string, error) {
 	validator, err := grokBaseURLValidator(account, cfg)
 	if err != nil {
 		return "", err
 	}
-	base := ""
-	if account != nil {
-		base = account.GetGrokMediaBaseURL()
-	}
-	if strings.TrimSpace(base) == "" || isGrokCLIProxyBaseURL(base) {
-		base = xai.DefaultBaseURL
-	}
-	validated, err := validator(base)
-	if err != nil {
-		return "", err
-	}
-	ep := strings.Trim(strings.TrimSpace(endpoint), "/")
-	if ep == "" {
-		return "", fmt.Errorf("voice endpoint is required")
-	}
-	parts := strings.Split(ep, "/")
-	encoded := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if strings.TrimSpace(part) == "" || part == "." || part == ".." {
-			return "", fmt.Errorf("invalid voice endpoint path")
-		}
-		encoded = append(encoded, url.PathEscape(part))
-	}
-	return strings.TrimRight(validated, "/") + "/" + strings.Join(encoded, "/"), nil
-}
-
-func isGrokCLIProxyBaseURL(raw string) bool {
-	return isGrokCLIProxyTarget(raw)
+	return xai.BuildVoiceEndpointURL(account.GetGrokMediaBaseURL(), endpoint, validator)
 }

@@ -1,0 +1,616 @@
+[
+  {
+    "file": "internal/service/account.go",
+    "symbols": [
+      "openAIAuthModeLegacyCredentialKey"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/account.go",
+    "symbols": [
+      "isOpenAIPersonalAccessTokenAuthMode"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_agent_identity.go",
+    "symbols": [
+      "signAgentTaskRegistration"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_codex_identity.go",
+    "symbols": [
+      "codexUpstreamMinVersion"
+    ],
+    "receiver": null,
+    "action": "unit-only compatibility"
+  },
+  {
+    "file": "internal/service/openai_codex_identity.go",
+    "symbols": [
+      "codexClientVersionMaxLen"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_codex_identity.go",
+    "symbols": [
+      "codexCanonicalUserAgent"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_codex_identity.go",
+    "symbols": [
+      "codexClientVersionFromUA"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_codex_identity.go",
+    "symbols": [
+      "replaceCodexUserAgentVersion"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_codex_pat_service.go",
+    "symbols": [
+      "openAICodexPATWhoamiResponse"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_codex_pat_service.go",
+    "symbols": [
+      "validateOpenAICodexPATWhoami"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "openAIImagePointerMatches"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "mergeOpenAIImagePointerInfos"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "mergeOpenAIImagePointerInfo"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "normalizeOpenAIImageBase64"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "collectOpenAIImageInlineAssets"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "walkOpenAIImageInlineAssets"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "isLikelyOpenAIImageDownloadURL"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "fetchOpenAIImageDownloadURL"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "downloadOpenAIImageBytes"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "isOpenAIImageTransientConversationNotFoundError"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "cloneHTTPHeader"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "headerToMap"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images.go",
+    "symbols": [
+      "dedupeStrings"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images_b64_backfill.go",
+    "symbols": [
+      "fetchOpenAIImageURLBase64"
+    ],
+    "receiver": "*OpenAIGatewayService",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_images_b64_backfill.go",
+    "symbols": [
+      "rejectPrivateImageHost"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_oauth_service.go",
+    "symbols": [
+      "refreshTokenWithClientID"
+    ],
+    "receiver": "*OpenAIOAuthService",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_oauth_service.go",
+    "symbols": [
+      "valueFromInt64Ptr"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_oauth_service.go",
+    "symbols": [
+      "resolveChatGPTSubscriptionAccountID"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_oauth_service.go",
+    "symbols": [
+      "normalizeOpenAIOAuthPlatform"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_privacy_service.go",
+    "symbols": [
+      "fillAccountInfo"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_privacy_service.go",
+    "symbols": [
+      "chatGPTAccountObjectID"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_privacy_service.go",
+    "symbols": [
+      "extractPlanType"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_privacy_service.go",
+    "symbols": [
+      "isUsableChatGPTAccountCandidate"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_privacy_service.go",
+    "symbols": [
+      "hasChatGPTAccountDeactivatedMarker"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_privacy_service.go",
+    "symbols": [
+      "extractEntitlementExpiresAt"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_token_provider.go",
+    "symbols": [
+      "openAITokenRefreshSkew",
+      "openAITokenCacheSkew",
+      "openAILockInitialWait",
+      "openAILockMaxWait",
+      "openAILockMaxAttempts",
+      "openAILockJitterRatio",
+      "openAILockWarnThresholdMs"
+    ],
+    "receiver": null,
+    "action": "unit-only compatibility"
+  },
+  {
+    "file": "internal/service/openai_token_provider.go",
+    "symbols": [
+      "disableAccountMissingRefreshToken"
+    ],
+    "receiver": "*OpenAITokenProvider",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_token_provider.go",
+    "symbols": [
+      "waitForTokenAfterLockRace"
+    ],
+    "receiver": "*OpenAITokenProvider",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_token_provider.go",
+    "symbols": [
+      "jitterLockWait"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_client.go",
+    "symbols": [
+      "openAIWSIdlePingCapable"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_client.go",
+    "symbols": [
+      "openAIWSTransportMetricsDialer"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_client.go",
+    "symbols": [
+      "coderOpenAIWSClientDialer"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSFakeDialer"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Dial"
+    ],
+    "receiver": "*openAIWSFakeDialer",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSFirstDialBlockingCaptureDialer"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "newOpenAIWSFirstDialBlockingCaptureDialer"
+    ],
+    "receiver": "",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSAlwaysFailDialer"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSPingBlockingConn"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSIdlePingUnsupportedConn"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "SupportsIdlePingWithoutReader"
+    ],
+    "receiver": "*openAIWSIdlePingUnsupportedConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "WriteJSON"
+    ],
+    "receiver": "*openAIWSPingBlockingConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "ReadMessage"
+    ],
+    "receiver": "*openAIWSPingBlockingConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Ping"
+    ],
+    "receiver": "*openAIWSPingBlockingConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Close"
+    ],
+    "receiver": "*openAIWSPingBlockingConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Dial"
+    ],
+    "receiver": "*openAIWSFirstDialBlockingCaptureDialer",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "DialCount"
+    ],
+    "receiver": "*openAIWSFirstDialBlockingCaptureDialer",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Dial"
+    ],
+    "receiver": "*openAIWSAlwaysFailDialer",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "DialCount"
+    ],
+    "receiver": "*openAIWSAlwaysFailDialer",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSWriteBlockingConn"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "WriteJSON"
+    ],
+    "receiver": "*openAIWSWriteBlockingConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "ReadMessage"
+    ],
+    "receiver": "*openAIWSWriteBlockingConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Ping"
+    ],
+    "receiver": "*openAIWSWriteBlockingConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Close"
+    ],
+    "receiver": "*openAIWSWriteBlockingConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSPingFailConn"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "WriteJSON"
+    ],
+    "receiver": "*openAIWSPingFailConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "ReadMessage"
+    ],
+    "receiver": "*openAIWSPingFailConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Ping"
+    ],
+    "receiver": "*openAIWSPingFailConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Close"
+    ],
+    "receiver": "*openAIWSPingFailConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSContextProbeConn"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "WriteJSON"
+    ],
+    "receiver": "*openAIWSContextProbeConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "ReadMessage"
+    ],
+    "receiver": "*openAIWSContextProbeConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Ping"
+    ],
+    "receiver": "*openAIWSContextProbeConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Close"
+    ],
+    "receiver": "*openAIWSContextProbeConn",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "openAIWSNilConnDialer"
+    ],
+    "receiver": null,
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/service/openai_ws_pool_test.go",
+    "symbols": [
+      "Dial"
+    ],
+    "receiver": "*openAIWSNilConnDialer",
+    "action": "remove zero-consumer forwarding/helper"
+  },
+  {
+    "file": "internal/upstream/openai/ws_pool.go",
+    "symbols": [
+      "modeRouterV2Enabled"
+    ],
+    "receiver": "*WSConnPool",
+    "action": "remove zero-consumer forwarding/helper"
+  }
+]

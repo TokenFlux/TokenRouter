@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai/...",
+    "./internal/service",
+    "-run",
+    "OpenAI.*(Error|Fail|Policy|Capacity|Transient|Passthrough|Output|TTFT)|Cyber|Passthrough.*OpenAI"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 40.405,
+  "pass": 823,
+  "fail": 0,
+  "skip": 1,
+  "log": "logs/openai-error-rules-unit2.log.gz"
+}

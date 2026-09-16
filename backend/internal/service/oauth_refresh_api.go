@@ -3,10 +3,10 @@ package service
 
 import (
 	context "context"
-	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	slog "log/slog"
-	strconv "strconv"
 	time "time"
+
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 type OAuthRefreshExecutor interface {
@@ -71,9 +71,7 @@ func (api *OAuthRefreshAPI) refreshWithAttemptSnapshot(ctx context.Context, valu
 	}
 	return &OAuthRefreshResult{Refreshed: result.Refreshed, NewCredentials: result.NewCredentials, Account: AccountFromRecord(result.Account), LockHeld: result.LockHeld}, err
 }
-func withOAuthRefreshRequestPath(ctx context.Context) context.Context {
-	return acctcore.WithRefreshRequestPath(ctx)
-}
+
 func MergeCredentials(oldCreds, newCreds map[string]any) map[string]any {
 	return acctcore.MergeCredentials(oldCreds, newCreds)
 }
@@ -151,22 +149,8 @@ func (p legacyRefreshExecutor) Refresh(ctx context.Context, v *acctcore.Record) 
 	return result, err
 }
 
-// BuildClaudeAccountCredentials 为 Claude 平台构建 OAuth credentials map
-// 消除 Claude 平台没有 BuildAccountCredentials 方法的问题
 func BuildClaudeAccountCredentials(tokenInfo *TokenInfo) map[string]any {
-	creds := map[string]any{
-		"access_token": tokenInfo.AccessToken,
-		"token_type":   tokenInfo.TokenType,
-		"expires_in":   strconv.FormatInt(tokenInfo.ExpiresIn, 10),
-		"expires_at":   strconv.FormatInt(tokenInfo.ExpiresAt, 10),
-	}
-	if tokenInfo.RefreshToken != "" {
-		creds["refresh_token"] = tokenInfo.RefreshToken
-	}
-	if tokenInfo.Scope != "" {
-		creds["scope"] = tokenInfo.Scope
-	}
-	return creds
+	return acctcore.BuildClaudeAccountCredentials(tokenInfo)
 }
 
 // oauthRefreshLocalLock 复用同一可取消互斥实现；网关故障隔离仍持有自己的锁表。

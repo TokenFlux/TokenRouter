@@ -17,19 +17,26 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/cespare/xxhash/v2"
+
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -37,31 +44,24 @@ import (
 )
 
 const (
-	claudeAPIURL            = "https://api.anthropic.com/v1/messages?beta=true"
-	claudeAPICountTokensURL = "https://api.anthropic.com/v1/messages/count_tokens?beta=true"
+	claudeAPIURL = claude.ClaudeAPIURL
+
+	claudeAPICountTokensURL = claude.ClaudeAPICountTokensURL
 	stickySessionTTL        = time.Hour // 粘性会话TTL
 	defaultMaxLineSize      = 500 * 1024 * 1024
 	// Canonical Claude Code banner. Keep it EXACT (no trailing whitespace/newlines)
 	// to match real Claude CLI traffic as closely as possible. When we need a visual
 	// separator between system blocks, we add "\n\n" at concatenation time.
-	claudeCodeSystemPrompt = "You are Claude Code, Anthropic's official CLI for Claude."
+
+	claudeCodeSystemPrompt = claude.ClaudeCodeSystemPrompt
 	// claudeCodeSystemPromptExpansion 是真实 Claude Code 主系统提示词中"与具体工具无关"
 	// 的通用段落（身份/用途总述 + 安全声明 + URL 告警 + Tone and style），逐字取自真实
 	// CLI（2.1.x 一致）。伪装路径用它把 system 块数从 2 提升到 3、体量贴近真实 CC，同时
 	// 刻意排除 # Doing tasks / # Using your tools / # Executing actions 等会污染被代理
 	// 用户行为的工具专属指令。
-	claudeCodeSystemPromptExpansion = `You are an interactive agent that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
 
-IMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.
-IMPORTANT: You must NEVER generate or guess URLs for the user unless you are confident that the URLs are for helping the user with programming. You may use URLs provided by the user in their messages or local files.
-
-# Tone and style
- - Only use emojis if the user explicitly requests it. Avoid using emojis in all communication unless asked.
- - Your responses should be short and concise.
- - When referencing specific functions or pieces of code include the pattern file_path:line_number to allow the user to easily navigate to the source code location.
- - When referencing GitHub issues or pull requests, use the owner/repo#123 format (e.g. anthropics/claude-code#100) so they render as clickable links.
- - Do not use a colon before tool calls. Your tool calls may not be shown directly in the output, so text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.`
-	maxCacheControlBlocks = 4 // Anthropic API 允许的最大 cache_control 块数量
+	claudeCodeSystemPromptExpansion = claude.ClaudeCodeSystemPromptExpansion
+	maxCacheControlBlocks           = claude.MaxCacheControlBlocks // Anthropic API 允许的最大 cache_control 块数量
 
 	defaultUserGroupRateCacheTTL           = billing.DefaultGroupRateCacheTTL
 	defaultModelsListCacheTTL              = 15 * time.Second
@@ -78,7 +78,7 @@ const (
 
 const (
 	cacheTTLTarget5m = "5m"
-	cacheTTLTarget1h = "1h"
+	cacheTTLTarget1h = claude.CacheTTLTarget1h
 )
 
 // ForceCacheBillingContextKey 强制缓存计费上下文键
@@ -197,26 +197,11 @@ func openAIStreamEventIsTerminalWithType(data, eventType string) bool {
 }
 
 func openAIStreamEventTypeIsTerminal(eventType string) bool {
-	switch strings.TrimSpace(eventType) {
-	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled", "error":
-		return true
-	default:
-		return false
-	}
+	return s09openai.OpenAIStreamEventTypeIsTerminal(eventType)
 }
 
 func anthropicStreamEventIsTerminal(eventName, data string) bool {
-	if strings.EqualFold(strings.TrimSpace(eventName), "message_stop") {
-		return true
-	}
-	trimmed := strings.TrimSpace(data)
-	if trimmed == "" {
-		return false
-	}
-	if trimmed == "[DONE]" {
-		return true
-	}
-	return gjson.Get(trimmed, "type").String() == "message_stop"
+	return claude.StreamEventIsTerminal(eventName, data)
 }
 
 func cloneStringSlice(src []string) []string {
@@ -407,18 +392,12 @@ func isClaudeCodeCredentialScopeError(msg string) bool {
 // sseDataRe matches SSE data lines with optional whitespace after colon.
 // Some upstream APIs return non-standard "data:" without space (should be "data: ").
 var (
-	sseDataRe            = regexp.MustCompile(`^data:\s*`)
 	claudeCliUserAgentRe = regexp.MustCompile(`(?i)^claude-cli/\d+\.\d+\.\d+`)
 
 	// claudeCodePromptPrefixes 用于检测 Claude Code 系统提示词的前缀列表
 	// 支持多种变体：标准版、Agent SDK 版、Explore Agent 版、Compact 版等
 	// 注意：前缀之间不应存在包含关系，否则会导致冗余匹配
-	claudeCodePromptPrefixes = []string{
-		"You are Claude Code, Anthropic's official CLI for Claude",             // 标准版 & Agent SDK 版（含 running within...）
-		"You are a Claude agent, built on Anthropic's Claude Agent SDK",        // Agent SDK 变体
-		"You are a file search specialist for Claude Code",                     // Explore Agent 版
-		"You are a helpful AI assistant tasked with summarizing conversations", // Compact 版
-	}
+
 )
 
 // ErrNoAvailableAccounts 表示没有可用的账号
@@ -427,30 +406,7 @@ var ErrNoAvailableAccounts = scheduler.ErrNoAvailableAccounts
 // ErrClaudeCodeOnly 表示分组仅允许 Claude Code 客户端访问
 var ErrClaudeCodeOnly = errors.New("this group only allows Claude Code clients")
 
-// allowedHeaders 白名单headers（参考CRS项目）
-var allowedHeaders = map[string]bool{
-	"accept":                                    true,
-	"x-stainless-retry-count":                   true,
-	"x-stainless-timeout":                       true,
-	"x-stainless-lang":                          true,
-	"x-stainless-package-version":               true,
-	"x-stainless-os":                            true,
-	"x-stainless-arch":                          true,
-	"x-stainless-runtime":                       true,
-	"x-stainless-runtime-version":               true,
-	"x-stainless-helper-method":                 true,
-	"anthropic-dangerous-direct-browser-access": true,
-	"anthropic-version":                         true,
-	"x-app":                                     true,
-	"anthropic-beta":                            true,
-	"accept-language":                           true,
-	"sec-fetch-mode":                            true,
-	"user-agent":                                true,
-	"content-type":                              true,
-	"accept-encoding":                           true,
-	"x-claude-code-session-id":                  true,
-	"x-client-request-id":                       true,
-}
+var allowedHeaders = claude.AllowedHeaders
 
 // ErrReasoningContentNotFound 表示按 reasoning item id 查询缓存时未命中。
 var ErrReasoningContentNotFound = errors.New("reasoning content not found")
@@ -570,24 +526,9 @@ type AccountSelectionResult struct {
 	AdvancedSchedulerFeedback *advancedSchedulerFeedbackConfig
 }
 
-// ClaudeUsage 表示Claude API返回的usage信息
-type ClaudeUsage struct {
-	InputTokens              int `json:"input_tokens"`
-	OutputTokens             int `json:"output_tokens"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
-	CacheCreation5mTokens    int // 5分钟缓存创建token（来自嵌套 cache_creation 对象）
-	CacheCreation1hTokens    int // 1小时缓存创建token（来自嵌套 cache_creation 对象）
-	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
-	// Speed 记录 Claude 实际返回的处理速度，"fast" 会映射到内部 priority 计费。
-	Speed string `json:"speed,omitempty"`
-}
+type ClaudeUsage = upstream.TokenUsage
 
-// ForwardResult 转发结果
-type AudioUsage struct {
-	Mode            string  // realtime | tts | stt
-	DurationOrUnits float64 // minutes / million-chars / hours
-}
+type AudioUsage = protocol.AudioUsage
 
 type ForwardResult struct {
 	RequestID string
@@ -696,13 +637,7 @@ func (e *UpstreamFailoverError) ShouldReportAccountScheduleFailure() bool {
 	return !e.IsCredentialFailure() || e.Scope == GatewayFailureScopeAccount
 }
 
-// sseStreamErrorEventError 表示上游 SSE 流体内出现 event:error 帧。
-// RawData 保留该事件 data: 行的原始内容，供上层写入 failover body 和 Ops 日志。
-type sseStreamErrorEventError struct {
-	RawData string
-}
-
-func (e *sseStreamErrorEventError) Error() string { return "have error in stream" }
+type sseStreamErrorEventError = claude.StreamErrorEventError
 
 // TempUnscheduleRetryableError 对非池账号的旧版特殊重试错误触发临时封禁。
 // 由 handler 层在同账号重试全部用尽、切换账号时调用；池模式只切号不写状态。
@@ -735,6 +670,7 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 
 // GatewayService handles API gateway operations
 type GatewayService struct {
+	nativeAttemptActivity func() (func(), error)
 	usageWindowSource     billing.WindowCostSource
 	accountRepo           AccountRepository
 	groupRepo             GroupRepository
@@ -751,7 +687,7 @@ type GatewayService struct {
 	usageBillingNow       func() time.Time // 用量计费时钟，测试可注入固定时间以覆盖峰值倍率。
 	rateLimitService      *RateLimitService
 	billingCacheService   *BillingCacheService
-	identityService       *IdentityService
+	identityService       *RequestFingerprintService
 	httpUpstream          HTTPUpstream
 	deferredService       *DeferredService
 	concurrencyService    *ConcurrencyService
@@ -793,7 +729,7 @@ func NewGatewayService(
 	billingService *BillingService,
 	rateLimitService *RateLimitService,
 	billingCacheService *BillingCacheService,
-	identityService *IdentityService,
+	identityService *RequestFingerprintService,
 	httpUpstream HTTPUpstream,
 	deferredService *DeferredService,
 	claudeTokenProvider *ClaudeTokenProvider,
@@ -1000,13 +936,7 @@ func (s *GatewayService) extractCacheableContent(parsed *ParsedRequest) string {
 	return systemText
 }
 
-func parseRawJSONView(raw []byte) gjson.Result {
-	if len(raw) == 0 {
-		return gjson.Result{}
-	}
-	// 这里只做同步只读解析，避免 gjson.ParseBytes 为大 messages/contents 复制整段 raw。
-	return gjson.Parse(*(*string)(unsafe.Pointer(&raw)))
-}
+func parseRawJSONView(raw []byte) gjson.Result { return wirejson.ParseView(raw) }
 
 func extractTextFromSystemRaw(raw []byte) string {
 	system := parseRawJSONView(raw)
@@ -1544,4 +1474,9 @@ func (s *GatewayService) ExpireRuntimeCaches() {
 			s.modelListCore().Expire()
 		}
 	}
+}
+
+// BindNativeAttemptActivity 由组合根统一等待已迁原生执行，构造期间绑定且不启动任务。
+func (s *GatewayService) BindNativeAttemptActivity(enter func() (func(), error)) {
+	s.nativeAttemptActivity = enter
 }

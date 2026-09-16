@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "TestOpenAI.*(FirstOutput|InvalidEncrypted|CompactFallback|RejectedField|TransportError|ForwardFirstOutput|AgentIdentity)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 20.454,
+  "pass": 49,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-native-http-exchange-unit.log.gz"
+}

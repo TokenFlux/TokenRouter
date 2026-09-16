@@ -407,7 +407,11 @@ func RegisterGatewayRoutes(
 				return
 			}
 			if getGroupPlatform(c) == service.PlatformQoder {
-				h.QoderGateway.ChatCompletions(c)
+				if h.QoderChat != nil {
+					h.QoderChat.ChatCompletions(c)
+				} else {
+					h.QoderGateway.ChatCompletions(c)
+				}
 				return
 			}
 			h.Gateway.ChatCompletions(c)
@@ -575,7 +579,11 @@ func RegisterGatewayRoutes(
 			return
 		}
 		if getGroupPlatform(c) == service.PlatformQoder {
-			h.QoderGateway.ChatCompletions(c)
+			if h.QoderChat != nil {
+				h.QoderChat.ChatCompletions(c)
+			} else {
+				h.QoderGateway.ChatCompletions(c)
+			}
 			return
 		}
 		h.Gateway.ChatCompletions(c)

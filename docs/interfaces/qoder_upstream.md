@@ -134,6 +134,20 @@ Qoder 账号的 `model_mapping` 与其他平台使用相同的重写规则：
 
 TokenRouter 不读取客户端声明的上下文上限。Chat Completions、Responses 和 Anthropic Messages 的输出 Token 字段仍只控制输出。客户端继续拥有自己的模型目录、压缩阈值和截断行为；`/v1/models` 和 `/models` 不公开非标准上下文元数据。
 
+<a id="qoder_execution_boundary"></a>
+## 平台执行与输出边界
+
+Qoder 原生客户端、站点/模型能力、签名、报文转换和会话增量状态由 `upstream/qoder` 唯一拥有。`Executor.Execute` 接收本次协议、已投影目标和同步输出端口；平台不读取 Gin、旧账号实体或配置对象。旧 `QoderGatewayService` 只投影账号/传输及结果，并转交账号错误副作用。只供显式导入和 opt-in 测试使用的本地凭据读取隔离在 `upstream/qoder/localauth`，正常服务不自动读取本机 Qoder 登录资料。
+
+HTTP 适配器拥有实际写入和 Flush，转换器逐段输出，不聚合整条 SSE。流中已发生服务并已收到 usage 后，上游继续报错时会同时返回部分结果与错误；完成入口使用这些已观测计量结算一次，保持失败响应、失败反馈及原会话回滚，不把失败绑定为成功会话，也不重新推理或估算缺失用量。尚未发生服务或未观测用量的失败不生成这类部分结算。
+
+在准备和取得凭据之后、发起推理之前检查原请求取消，取消后不启动新的推理。已经进入上游的流式请求仍脱离客户端取消，在原十五分钟执行预算内收集尾部 usage；非流保持取消传播。响应体由平台执行关闭，账号与用户 Lease 由请求编排完成释放。
+
+
+账号授权的十分钟会话、完成认领、pending 和成功重放由 `account.QoderAuthorization` 持有，`account/provider` 只投影原生交换结果。刷新资格及新旧凭据合并属于 account，实际站点交换属于 upstream；持久化继续经过既有刷新协调和身份 CAS。
+
+运行时凭据缓存由 `account.QoderSessions` 唯一持有，保留身份世代和 90 秒共享构建预算。单个等待者取消不影响其他等待者；应用停止会取消共享构建、等待已进入操作并拒绝迟到回填。旧授权和 token provider 入口只做委托。授权 HTTP 实现位于 `account/httpapi`，URL、管理员中间件、state 和冻结代理语义保持。
+
 ## 计费范围
 
 Qoder 与其他平台使用同一套价格解析规则，不再要求公开别名或路由键必须手工定价。先按渠道的 `billing_model_source` 选定请求模型、渠道映射模型或上游模型，再对该模型解析价格；不会跨这三种身份寻找另一行价格。

@@ -9,8 +9,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/tidwall/gjson"
-
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
 )
 
@@ -83,7 +82,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 	shouldMimicClaudeCode := account.IsOAuth() && !isClaudeCodeCT
 
 	if shouldMimicClaudeCode {
-		normalizeOpts := claudeOAuthNormalizeOptions{stripSystemCacheControl: true}
+		normalizeOpts := claudeOAuthNormalizeOptions{StripSystemCacheControl: true}
 		var normalizedBody []byte
 		normalizedBody, reqModel = normalizeClaudeOAuthRequestBody(body, reqModel, normalizeOpts)
 		if err := replaceBody(normalizedBody); err != nil {
@@ -382,239 +381,13 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	body []byte,
 	token string,
 ) (*http.Request, error) {
-	body = stripDeferredToolCacheControl(body)
-	targetURL := claudeAPICountTokensURL
-	baseURL := account.GetBaseURL()
-	if baseURL != "" {
-		validatedURL, err := s.validateUpstreamBaseURL(baseURL)
-		if err != nil {
-			return nil, err
-		}
-		targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
-	}
-
-	body = sanitizeCountTokensRequestBody(body)
-
-	// 同 buildUpstreamRequestAnthropicAPIKeyPassthrough：能力维度 sanitize。
-	clientBeta := ""
-	if c != nil && c.Request != nil {
-		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
-	}
-	// 账号覆写了 anthropic-beta 时，覆写值即最终上游值：净化以覆写值为准
-	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
-		clientBeta = beta
-	}
-	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
-		body = sanitized
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	if c != nil && c.Request != nil {
-		for key, values := range c.Request.Header {
-			lowerKey := strings.ToLower(strings.TrimSpace(key))
-			if !allowedHeaders[lowerKey] {
-				continue
-			}
-			wireKey := resolveWireCasing(key)
-			for _, v := range values {
-				addHeaderRaw(req.Header, wireKey, v)
-			}
-		}
-	}
-
-	req.Header.Del("authorization")
-	req.Header.Del("x-api-key")
-	req.Header.Del("x-goog-api-key")
-	req.Header.Del("cookie")
-	setAnthropicAPIKeyAuthHeader(req.Header, account, token)
-
-	if req.Header.Get("content-type") == "" {
-		req.Header.Set("content-type", "application/json")
-	}
-	if req.Header.Get("anthropic-version") == "" {
-		req.Header.Set("anthropic-version", "2023-06-01")
-	}
-
-	// 账号级请求头覆写（最终生效，覆盖上面所有来源的同名头）
-	account.ApplyHeaderOverrides(req.Header)
-
-	return req, nil
+	o := s.countTokensRequestOptions(ctx, c, account, "", "apikey", false, true)
+	return claude.BuildCountTokensRequestPassthrough(ctx, body, token, o)
 }
 
-// buildCountTokensRequest 构建 count_tokens 上游请求
 func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token, tokenType, modelID string, mimicClaudeCode bool) (*http.Request, []byte, error) {
-	body = stripDeferredToolCacheControl(body)
-	// 确定目标 URL
-	targetURL := claudeAPICountTokensURL
-	if account.Type == AccountTypeAPIKey {
-		baseURL := account.GetBaseURL()
-		if baseURL != "" {
-			validatedURL, err := s.validateUpstreamBaseURL(baseURL)
-			if err != nil {
-				return nil, nil, err
-			}
-			targetURL = validatedURL + "/v1/messages/count_tokens?beta=true"
-		}
-	} else if account.IsCustomBaseURLEnabled() {
-		customURL := account.GetCustomBaseURL()
-		if customURL == "" {
-			return nil, nil, fmt.Errorf("custom_base_url is enabled but not configured for account %d", account.ID)
-		}
-		validatedURL, err := s.validateUpstreamBaseURL(customURL)
-		if err != nil {
-			return nil, nil, err
-		}
-		targetURL = s.buildCustomRelayURL(validatedURL, "/v1/messages/count_tokens", account)
-	}
-
-	clientHeaders := http.Header{}
-	if c != nil && c.Request != nil {
-		clientHeaders = c.Request.Header
-	}
-
-	// OAuth 账号：应用统一指纹和重写 userID（受设置开关控制）
-	// 如果启用了会话ID伪装，会在重写后替换 session 部分为固定值
-	ctEnableFP, ctEnableMPT := true, false
-	if s.settingService != nil {
-		ctEnableFP, ctEnableMPT, _ = s.settingService.GetGatewayForwardingSettings(ctx)
-	}
-	var ctFingerprint *Fingerprint
-	if account.IsOAuth() && s.identityService != nil {
-		fp, err := s.identityService.GetOrCreateFingerprint(ctx, account.ID, clientHeaders)
-		if err == nil {
-			ctFingerprint = fp
-			if !ctEnableMPT {
-				accountUUID := account.GetExtraString("account_uuid")
-				if accountUUID != "" && fp.ClientID != "" {
-					if newBody, err := s.identityService.RewriteUserIDWithMasking(ctx, body, account, accountUUID, fp.ClientID, fp.UserAgent); err == nil && len(newBody) > 0 {
-						body = newBody
-					}
-				}
-			}
-		}
-	}
-
-	// 禁用指纹统一不会禁用伪装强制头，计费版本仍要跟随实际出站 UA。
-	var billingFingerprint *Fingerprint
-	if ctEnableFP {
-		billingFingerprint = ctFingerprint
-	}
-	if billingUA := effectiveBillingUserAgent(tokenType, mimicClaudeCode, billingFingerprint); billingUA != "" {
-		body = syncBillingHeaderVersion(body, billingUA)
-	}
-
-	// === 计算最终 anthropic-beta header（先于 body sanitize）===
-	// 顺序约束同 buildUpstreamRequest。
-	ctEffectiveDropSet := mergeDropSets(s.getBetaPolicyFilterSet(ctx, c, account, modelID))
-	finalBetaHeader, finalBetaShouldSet := s.computeFinalCountTokensAnthropicBeta(
-		tokenType, mimicClaudeCode, modelID, clientHeaders, body, ctEffectiveDropSet,
-	)
-
-	// 账号覆写了 anthropic-beta 时，覆写值即最终上游值：净化以覆写值为准
-	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
-		finalBetaHeader, finalBetaShouldSet = beta, true
-	}
-
-	// 能力维度 body sanitize：与最终 anthropic-beta header 对称
-	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, finalBetaHeader); changed {
-		body = sanitized
-	}
-	body = sanitizeCountTokensRequestBody(body)
-
-	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(body))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// 设置认证头（保持原始大小写）
-	if tokenType == "oauth" {
-		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
-	} else {
-		setAnthropicAPIKeyAuthHeader(req.Header, account, token)
-	}
-
-	// 白名单透传 headers（恢复真实 wire casing）
-	for key, values := range clientHeaders {
-		lowerKey := strings.ToLower(key)
-		if allowedHeaders[lowerKey] {
-			wireKey := resolveWireCasing(key)
-			for _, v := range values {
-				addHeaderRaw(req.Header, wireKey, v)
-			}
-		}
-	}
-
-	// OAuth 账号：应用指纹到请求头（受设置开关控制）
-	if ctEnableFP && ctFingerprint != nil {
-		s.identityService.ApplyFingerprint(req, ctFingerprint)
-	}
-
-	// 确保必要的 headers 存在（保持原始大小写）
-	if getHeaderRaw(req.Header, "content-type") == "" {
-		setHeaderRaw(req.Header, "content-type", "application/json")
-	}
-	if getHeaderRaw(req.Header, "anthropic-version") == "" {
-		setHeaderRaw(req.Header, "anthropic-version", "2023-06-01")
-	}
-	if tokenType == "oauth" {
-		applyClaudeOAuthHeaderDefaults(req)
-	}
-
-	// OAuth + mimic Claude Code：强制注入 CLI 指纹 header
-	if tokenType == "oauth" && mimicClaudeCode {
-		applyClaudeCodeMimicHeaders(req, false)
-	}
-
-	// 写入最终 anthropic-beta header（Del 一次避免白名单透传值残留）
-	deleteHeaderAllForms(req.Header, "anthropic-beta")
-	if finalBetaShouldSet {
-		setHeaderRaw(req.Header, "anthropic-beta", finalBetaHeader)
-	}
-
-	// 同步 X-Claude-Code-Session-Id 头：取 body 中已处理的 metadata.user_id 的 session_id 覆盖
-	if sessionHeader := getHeaderRaw(req.Header, "X-Claude-Code-Session-Id"); sessionHeader != "" {
-		if uid := gjson.GetBytes(body, "metadata.user_id").String(); uid != "" {
-			if parsed := ParseMetadataUserID(uid); parsed != nil {
-				setHeaderRaw(req.Header, "X-Claude-Code-Session-Id", parsed.SessionID)
-			}
-		}
-	}
-
-	// 账号级请求头覆写（仅 anthropic/openai api_key 账号启用时生效；OAuth 路径 no-op）
-	account.ApplyHeaderOverrides(req.Header)
-
-	if c != nil && tokenType == "oauth" {
-		c.Set(claudeMimicDebugInfoKey, buildClaudeMimicDebugLine(req, body, account, tokenType, mimicClaudeCode))
-	}
-	if s.debugClaudeMimicEnabled() {
-		logClaudeMimicDebug(req, body, account, tokenType, mimicClaudeCode)
-	}
-
-	return req, body, nil
-}
-
-func sanitizeCountTokensRequestBody(body []byte) []byte {
-	out := body
-	for _, path := range []string{
-		"temperature",
-		"top_p",
-		"top_k",
-		"stream",
-		"stop_sequences",
-		"stop",
-		// Anthropic 的 /v1/messages/count_tokens 只接受请求输入字段。
-		// max_tokens 是生成参数，OAuth mimic 可能为普通 messages 请求注入它，不能发送到该端点。
-		"max_tokens",
-	} {
-		if next, ok := deleteJSONPathBytes(out, path); ok {
-			out = next
-		}
-	}
-	return out
+	o := s.countTokensRequestOptions(ctx, c, account, modelID, tokenType, mimicClaudeCode, false)
+	return claude.BuildCountTokensRequest(ctx, body, token, tokenType, modelID, mimicClaudeCode, o)
 }
 
 // countTokensError 返回 count_tokens 错误响应

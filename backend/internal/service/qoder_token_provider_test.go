@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/stretchr/testify/require"
 )
 
@@ -306,12 +306,12 @@ func TestQoderTokenProviderRebuildsExpiredCNPATSession(t *testing.T) {
 
 	first, err := provider.GetSession(context.Background(), account)
 	require.NoError(t, err)
-	require.Equal(t, expiresAt, provider.sessions[account.ID].expiresAt)
+	require.Equal(t, expiresAt, provider.qoderState().Sessions[account.ID].ExpiresAt)
 
 	// 模拟已缓存的 OpenAPI token 到期，下一次读取必须重新执行 PAT exchange。
-	entry := provider.sessions[account.ID]
-	entry.expiresAt = time.Now().Add(-time.Second)
-	provider.sessions[account.ID] = entry
+	entry := provider.qoderState().Sessions[account.ID]
+	entry.ExpiresAt = time.Now().Add(-time.Second)
+	provider.qoderState().Sessions[account.ID] = entry
 	second, err := provider.GetSession(context.Background(), account)
 
 	require.NoError(t, err)
@@ -353,11 +353,11 @@ func TestQoderTokenProviderSingleflightsConcurrentExpiredCNPATSession(t *testing
 
 	_, err := provider.GetSession(context.Background(), account)
 	require.NoError(t, err)
-	provider.mu.Lock()
-	entry := provider.sessions[account.ID]
-	entry.expiresAt = time.Now().Add(-time.Second)
-	provider.sessions[account.ID] = entry
-	provider.mu.Unlock()
+	provider.qoderState().Mu.Lock()
+	entry := provider.qoderState().Sessions[account.ID]
+	entry.ExpiresAt = time.Now().Add(-time.Second)
+	provider.qoderState().Sessions[account.ID] = entry
+	provider.qoderState().Mu.Unlock()
 	blockRebuild.Store(true)
 
 	const workers = 32
@@ -468,7 +468,7 @@ func TestQoderTokenProviderSingleflightSeparatesWaiterCancellation(t *testing.T)
 
 func TestQoderTokenProviderDetachedBuildHasHardTimeout(t *testing.T) {
 	provider := NewQoderTokenProvider()
-	provider.sessionBuildTimeout = 20 * time.Millisecond
+	provider.qoderState().SessionBuildTimeout = 20 * time.Millisecond
 	provider.exchangeCNPAT = func(ctx context.Context, _ string, _ *qoder.MachineIdentity) (*qoder.AuthIdentity, time.Time, error) {
 		<-ctx.Done()
 		return nil, time.Time{}, ctx.Err()
@@ -566,9 +566,9 @@ func TestQoderTokenProviderInvalidateDoesNotReturnOrCacheInflightSession(t *test
 	require.Nil(t, stale.session)
 	require.ErrorIs(t, stale.err, errQoderSessionBuildInvalidated)
 
-	provider.mu.Lock()
-	cached := provider.sessions[account.ID].session
-	provider.mu.Unlock()
+	provider.qoderState().Mu.Lock()
+	cached := provider.qoderState().Sessions[account.ID].Session
+	provider.qoderState().Mu.Unlock()
 	require.Same(t, second, cached)
 	require.Equal(t, int32(2), exchangeCalls.Load())
 }
@@ -609,11 +609,11 @@ func TestQoderTokenProviderDoesNotMergeDifferentCredentialHashes(t *testing.T) {
 	close(releaseOld)
 	require.ErrorIs(t, <-oldResult, errQoderSessionBuildInvalidated)
 
-	provider.mu.Lock()
-	cached := provider.sessions[newAccount.ID]
-	provider.mu.Unlock()
-	require.Equal(t, qoderCredentialsHash(newAccount.Credentials), cached.credentialsHash)
-	require.Same(t, newSession, cached.session)
+	provider.qoderState().Mu.Lock()
+	cached := provider.qoderState().Sessions[newAccount.ID]
+	provider.qoderState().Mu.Unlock()
+	require.Equal(t, qoderCredentialsHash(newAccount.Credentials), cached.CredentialsHash)
+	require.Same(t, newSession, cached.Session)
 	require.Equal(t, int32(2), exchangeCalls.Load())
 }
 
@@ -644,13 +644,13 @@ func TestQoderTokenProviderDoesNotRegressToOlderCredentialVersion(t *testing.T) 
 	require.Same(t, latest, fromStaleSnapshot)
 	require.Equal(t, int32(1), exchangeCalls.Load())
 
-	provider.mu.Lock()
-	cached := provider.sessions[newAccount.ID]
-	currentState := provider.accountStates[newAccount.ID]
-	provider.mu.Unlock()
-	require.Equal(t, qoderCredentialsHash(newAccount.Credentials), currentState.credentialsHash)
-	require.Equal(t, int64(2), currentState.credentialVersion)
-	require.Same(t, latest, cached.session)
+	provider.qoderState().Mu.Lock()
+	cached := provider.qoderState().Sessions[newAccount.ID]
+	currentState := provider.qoderState().AccountStates[newAccount.ID]
+	provider.qoderState().Mu.Unlock()
+	require.Equal(t, qoderCredentialsHash(newAccount.Credentials), currentState.CredentialsHash)
+	require.Equal(t, int64(2), currentState.CredentialVersion)
+	require.Same(t, latest, cached.Session)
 }
 
 func TestQoderTokenProviderAuthoritativeInvalidationBlocksUnobservedStaleVersion(t *testing.T) {
@@ -681,11 +681,11 @@ func TestQoderTokenProviderAuthoritativeInvalidationBlocksUnobservedStaleVersion
 	require.Equal(t, "cosy-new-pat", fromStaleSnapshot.Identity.SecurityOauthToken)
 	require.Equal(t, int32(2), exchangeCalls.Load())
 
-	provider.mu.Lock()
-	currentState := provider.accountStates[staleAccount.ID]
-	provider.mu.Unlock()
-	require.Equal(t, int64(2), currentState.credentialVersion)
-	require.Equal(t, qoderCredentialsHash(refreshedAccount.Credentials), currentState.credentialsHash)
+	provider.qoderState().Mu.Lock()
+	currentState := provider.qoderState().AccountStates[staleAccount.ID]
+	provider.qoderState().Mu.Unlock()
+	require.Equal(t, int64(2), currentState.CredentialVersion)
+	require.Equal(t, qoderCredentialsHash(refreshedAccount.Credentials), currentState.CredentialsHash)
 }
 
 func TestQoderTokenProviderAuthoritativeInvalidationRejectsOlderSnapshot(t *testing.T) {
@@ -712,13 +712,13 @@ func TestQoderTokenProviderAuthoritativeInvalidationRejectsOlderSnapshot(t *test
 	require.NoError(t, err)
 	provider.InvalidateAccount(olderAccount)
 
-	provider.mu.Lock()
-	cached := provider.sessions[latestAccount.ID]
-	currentState := provider.accountStates[latestAccount.ID]
-	provider.mu.Unlock()
-	require.Same(t, latestSession, cached.session)
-	require.Equal(t, int64(3), currentState.credentialVersion)
-	require.Equal(t, qoderCredentialsHash(latestAccount.Credentials), currentState.credentialsHash)
+	provider.qoderState().Mu.Lock()
+	cached := provider.qoderState().Sessions[latestAccount.ID]
+	currentState := provider.qoderState().AccountStates[latestAccount.ID]
+	provider.qoderState().Mu.Unlock()
+	require.Same(t, latestSession, cached.Session)
+	require.Equal(t, int64(3), currentState.CredentialVersion)
+	require.Equal(t, qoderCredentialsHash(latestAccount.Credentials), currentState.CredentialsHash)
 
 	fromOlderSnapshot, err := provider.GetSession(context.Background(), olderAccount)
 	require.NoError(t, err)
@@ -781,11 +781,11 @@ func TestQoderTokenProviderAuthoritativeNewerVersionOverridesOlderUpdatedAt(t *t
 	require.Equal(t, "cosy-v3-pat", fromStaleSnapshot.Identity.SecurityOauthToken)
 	require.Equal(t, int32(2), exchangeCalls.Load())
 
-	provider.mu.Lock()
-	currentState := provider.accountStates[currentAccount.ID]
-	provider.mu.Unlock()
-	require.Equal(t, int64(3), currentState.credentialVersion)
-	require.Equal(t, qoderCredentialsHash(refreshedAccount.Credentials), currentState.credentialsHash)
+	provider.qoderState().Mu.Lock()
+	currentState := provider.qoderState().AccountStates[currentAccount.ID]
+	provider.qoderState().Mu.Unlock()
+	require.Equal(t, int64(3), currentState.CredentialVersion)
+	require.Equal(t, qoderCredentialsHash(refreshedAccount.Credentials), currentState.CredentialsHash)
 }
 
 func TestQoderTokenProviderOlderCredentialVersionJoinsNewerInflightBuild(t *testing.T) {
@@ -865,9 +865,9 @@ func TestQoderTokenProviderUpdatesSnapshotForSameCredentials(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, first, second)
 
-	provider.mu.Lock()
-	storedSnapshot := provider.accountStates[latestAccount.ID].accountSnapshot
-	provider.mu.Unlock()
+	provider.qoderState().Mu.Lock()
+	storedSnapshot := provider.qoderState().AccountStates[latestAccount.ID].AccountSnapshot
+	provider.qoderState().Mu.Unlock()
 	require.NotNil(t, storedSnapshot)
 	require.Equal(t, "new-proxy.example", storedSnapshot.Proxy.Host)
 }

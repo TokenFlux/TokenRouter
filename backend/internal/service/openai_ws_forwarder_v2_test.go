@@ -54,7 +54,7 @@ func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testi
 			}
 			captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 			pool := newOpenAIWSConnPool(cfg)
-			pool.setClientDialerForTest(captureDialer)
+			pool.SetClientDialerForTest(captureDialer)
 
 			svc := &OpenAIGatewayService{
 				cfg:              cfg,

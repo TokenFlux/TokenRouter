@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/upstream/openai",
+    "-run",
+    "Test.*(OpenAIOAuth|CodexPAT|PersonalAccessToken|ChatGPT)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 20.086,
+  "pass": 103,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-authorization-unit.log.gz"
+}

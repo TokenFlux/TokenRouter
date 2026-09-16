@@ -21,6 +21,7 @@ func provideQueuesRuntime(
 	ollamaCloudUsage *account.OllamaCloudUsageService,
 	auditLog *service.AuditLogService,
 	grokQuota *service.GrokQuotaService,
+	openaiQuota *service.OpenAIQuotaService,
 	manager *lifecycle.Manager,
 	deferred *service.DeferredService,
 	contentModeration *service.ContentModerationService,
@@ -118,5 +119,7 @@ func provideQueuesRuntime(
 		return nil
 	}})
 	manager.Register(lifecycle.Hook{Name: "GrokQuotaProbes", StopOrder: 25, Stop: grokQuota.StopContext})
+	// 直接管理查询与平台额度消费同样在共享依赖关闭前取消并等待。
+	manager.Register(lifecycle.Hook{Name: "OpenAIQuotaService", StopOrder: 35, Stop: openaiQuota.StopContext})
 	return &queuesRuntimeReady{}
 }

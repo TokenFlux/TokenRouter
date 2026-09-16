@@ -3,14 +3,15 @@ package service
 
 import (
 	context "context"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	antigravity "github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	claude "github.com/TokenFlux/TokenRouter/internal/pkg/claude"
-	geminicli "github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	openai "github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	qoder "github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
-	xai "github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	antigravity "github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 func (s *adminServiceImpl) ListGroups(ctx context.Context, page, pageSize int, platform, status, search string, isExclusive *bool, sortBy, sortOrder string) ([]Group, int64, error) {

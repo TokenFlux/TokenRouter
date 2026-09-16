@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -586,8 +587,8 @@ func TestQoderConversationKeyPrefersExplicitSessionOverClaudeCodeStableSeed(t *t
 	c.Request.Header.Set("X-Claude-Code-Session-Id", "header-session")
 
 	request := qoderPayloadRequest{
-		model:    "deepseek-v4-pro",
-		messages: []qoderMessage{{Role: "user", Text: "inspect"}},
+		Model:    "deepseek-v4-pro",
+		Messages: []qoderMessage{{Role: "user", Text: "inspect"}},
 	}
 
 	key, source := qoderConversationKey(c, &Account{ID: 7}, "anthropic_messages", request)
@@ -604,9 +605,9 @@ func TestQoderConversationKeyPrefersMetadataOverClaudeCodeStableSeed(t *testing.
 	c.Request.Header.Set("User-Agent", "claude-cli/2.1.177 (external, cli)")
 
 	request := qoderPayloadRequest{
-		model:          "deepseek-v4-pro",
-		metadataUserID: FormatMetadataUserID("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", "session-123", "2.1.80"),
-		messages:       []qoderMessage{{Role: "user", Text: "inspect"}},
+		Model:          "deepseek-v4-pro",
+		MetadataUserID: FormatMetadataUserID("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", "session-123", "2.1.80"),
+		Messages:       []qoderMessage{{Role: "user", Text: "inspect"}},
 	}
 
 	key, source := qoderConversationKey(c, &Account{ID: 7}, "anthropic_messages", request)
@@ -699,10 +700,10 @@ func TestQoderGatewayAllowsExplicitPreviewCompatibilityMapping(t *testing.T) {
 		tokenProvider: &QoderTokenProvider{},
 		client:        client,
 	}
-	svc.tokenProvider.sessions = map[int64]qoderSessionCacheEntry{
+	svc.tokenProvider.qoderState().Sessions = map[int64]qoderSessionCacheEntry{
 		account.ID: {
-			credentialsHash: qoderCredentialsHash(account.Credentials),
-			session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
+			CredentialsHash: qoderCredentialsHash(account.Credentials),
+			Session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
 		},
 	}
 	body := []byte(`{"model":"qwen3.8-max-preview","messages":[{"role":"user","content":"hi"}],"stream":true}`)
@@ -995,9 +996,9 @@ func TestQoderGatewayResponsesPreviousResponseIDIsScopedByAccount(t *testing.T) 
 	account, svc, client := newQoderGatewayForwardTestService()
 	account2 := *account
 	account2.ID = account.ID + 1
-	svc.tokenProvider.sessions[account2.ID] = qoderSessionCacheEntry{
-		credentialsHash: qoderCredentialsHash(account2.Credentials),
-		session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token-2"}},
+	svc.tokenProvider.qoderState().Sessions[account2.ID] = qoderSessionCacheEntry{
+		CredentialsHash: qoderCredentialsHash(account2.Credentials),
+		Session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token-2"}},
 	}
 
 	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
@@ -1153,12 +1154,12 @@ func TestQoderResponsesPayloadPreservesControlRoleInputAsSystemPrompt(t *testing
 	}`))
 
 	require.NoError(t, err)
-	require.Contains(t, request.system, "top-level instructions")
-	require.Contains(t, request.system, "system item")
-	require.Contains(t, request.system, "developer item")
-	require.Len(t, request.messages, 1)
-	require.Equal(t, "user", request.messages[0].Role)
-	require.Equal(t, "hello", request.messages[0].Text)
+	require.Contains(t, request.System, "top-level instructions")
+	require.Contains(t, request.System, "system item")
+	require.Contains(t, request.System, "developer item")
+	require.Len(t, request.Messages, 1)
+	require.Equal(t, "user", request.Messages[0].Role)
+	require.Equal(t, "hello", request.Messages[0].Text)
 }
 
 func TestQoderResponsesPayloadSkipsReasoningAndUnknownOutputItems(t *testing.T) {
@@ -1174,14 +1175,14 @@ func TestQoderResponsesPayloadSkipsReasoningAndUnknownOutputItems(t *testing.T) 
 	}`))
 
 	require.NoError(t, err)
-	require.Len(t, request.messages, 3)
-	require.Equal(t, "user", request.messages[0].Role)
-	require.Equal(t, "latest sha?", request.messages[0].Text)
-	require.Equal(t, "assistant", request.messages[1].Role)
-	require.Len(t, qoderAnySlice(request.messages[1].Raw["tool_calls"]), 1)
-	require.Equal(t, "tool", request.messages[2].Role)
-	require.Equal(t, "call_a", request.messages[2].ToolCallID)
-	require.Equal(t, "deadbeef", request.messages[2].Text)
+	require.Len(t, request.Messages, 3)
+	require.Equal(t, "user", request.Messages[0].Role)
+	require.Equal(t, "latest sha?", request.Messages[0].Text)
+	require.Equal(t, "assistant", request.Messages[1].Role)
+	require.Len(t, qoderAnySlice(request.Messages[1].Raw["tool_calls"]), 1)
+	require.Equal(t, "tool", request.Messages[2].Role)
+	require.Equal(t, "call_a", request.Messages[2].ToolCallID)
+	require.Equal(t, "deadbeef", request.Messages[2].Text)
 }
 
 func TestQoderResponsesPayloadDropsUnansweredParallelFunctionCall(t *testing.T) {
@@ -1196,13 +1197,13 @@ func TestQoderResponsesPayloadDropsUnansweredParallelFunctionCall(t *testing.T) 
 	}`))
 
 	require.NoError(t, err)
-	require.Len(t, request.messages, 3)
-	toolCalls := qoderAnySlice(request.messages[1].Raw["tool_calls"])
+	require.Len(t, request.Messages, 3)
+	toolCalls := qoderAnySlice(request.Messages[1].Raw["tool_calls"])
 	require.Len(t, toolCalls, 1)
 	toolCall := toolCalls[0].(map[string]any)
 	require.Equal(t, "call_a", toolCall["id"])
-	require.Equal(t, "tool", request.messages[2].Role)
-	require.Equal(t, "call_a", request.messages[2].ToolCallID)
+	require.Equal(t, "tool", request.Messages[2].Role)
+	require.Equal(t, "call_a", request.Messages[2].ToolCallID)
 }
 
 func TestQoderResponsesPayloadDropsOrphanFunctionCallOutput(t *testing.T) {
@@ -1215,9 +1216,9 @@ func TestQoderResponsesPayloadDropsOrphanFunctionCallOutput(t *testing.T) {
 	}`))
 
 	require.NoError(t, err)
-	require.Len(t, request.messages, 1)
-	require.Equal(t, "user", request.messages[0].Role)
-	require.Equal(t, "hello", request.messages[0].Text)
+	require.Len(t, request.Messages, 1)
+	require.Equal(t, "user", request.Messages[0].Role)
+	require.Equal(t, "hello", request.Messages[0].Text)
 }
 
 func TestQoderGatewayAssemblesResponsesKeepsNoIndexNamedParallelFunctionCalls(t *testing.T) {
@@ -2610,16 +2611,16 @@ func TestQoderConversationStoreExpiresState(t *testing.T) {
 	store := newQoderConversationStore(5 * time.Millisecond)
 	messages := []qoderMessage{{Role: "user", Text: "hello"}}
 
-	plan := store.plan("key", "", nil, messages)
+	plan := store.Plan("key", "", nil, messages)
 	require.NotNil(t, plan)
-	plan.commit()
+	plan.Commit()
 
 	time.Sleep(10 * time.Millisecond)
 
-	next := store.plan("key", "", nil, messages)
-	require.False(t, next.reused)
-	require.True(t, next.includeSystem)
-	require.Len(t, next.messagesToSend, 1)
+	next := store.Plan("key", "", nil, messages)
+	require.False(t, next.Reused)
+	require.True(t, next.IncludeSystem)
+	require.Len(t, next.MessagesToSend, 1)
 }
 
 func TestQoderGatewayAnthropicToolUseResultSendsIncrementalTail(t *testing.T) {
@@ -4022,16 +4023,15 @@ func TestQoderGatewayRefreshAccountSessionPersistsCredentialsAndInvalidatesCache
 	repo := &qoderRefreshAccountRepoStub{
 		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
 	}
-	provider := &QoderTokenProvider{
-		sessions: map[int64]qoderSessionCacheEntry{
-			account.ID: {
-				credentialsHash: "old-hash",
-				session: &qoder.SessionContext{
-					Identity: &qoder.AuthIdentity{SecurityOauthToken: "old-token"},
-					Machine:  &qoder.MachineIdentity{MachineID: "machine-1"},
-				},
+	provider := &QoderTokenProvider{Core: &qoderSessionState{Sessions: map[int64]qoderSessionCacheEntry{
+		account.ID: {
+			CredentialsHash: "old-hash",
+			Session: &qoder.SessionContext{
+				Identity: &qoder.AuthIdentity{SecurityOauthToken: "old-token"},
+				Machine:  &qoder.MachineIdentity{MachineID: "machine-1"},
 			},
 		},
+	}},
 	}
 	refresher := NewQoderTokenRefresher(nil)
 	refresher.refreshSession = func(_ context.Context, refreshToken, securityOauthToken string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
@@ -4061,7 +4061,7 @@ func TestQoderGatewayRefreshAccountSessionPersistsCredentialsAndInvalidatesCache
 	require.Equal(t, "new-token", repo.updatedCredentials["security_oauth_token"])
 	require.Equal(t, "new-refresh", repo.updatedCredentials["refresh_token"])
 	require.NotNil(t, repo.updatedCredentials["_token_version"])
-	_, cached := provider.sessions[account.ID]
+	_, cached := provider.qoderState().Sessions[account.ID]
 	require.False(t, cached)
 }
 
@@ -4216,9 +4216,9 @@ func TestQoderGatewayRefreshAccountSessionWaitsForLockHolderRotation(t *testing.
 		raceAccount: &rotatedAccount,
 	}
 	provider := NewQoderTokenProvider()
-	provider.sessions[account.ID] = qoderSessionCacheEntry{
-		credentialsHash: qoderCredentialsHash(account.Credentials),
-		session:         &qoder.SessionContext{},
+	provider.qoderState().Sessions[account.ID] = qoderSessionCacheEntry{
+		CredentialsHash: qoderCredentialsHash(account.Credentials),
+		Session:         &qoder.SessionContext{},
 	}
 	svc := &QoderGatewayService{
 		tokenProvider: provider,
@@ -4236,7 +4236,7 @@ func TestQoderGatewayRefreshAccountSessionWaitsForLockHolderRotation(t *testing.
 	require.Equal(t, "new-token", refreshed.GetCredential("security_oauth_token"))
 	require.Equal(t, "new-refresh", refreshed.GetCredential("refresh_token"))
 	require.GreaterOrEqual(t, repo.getByIDCalls, 2)
-	_, cached := provider.sessions[account.ID]
+	_, cached := provider.qoderState().Sessions[account.ID]
 	require.False(t, cached)
 }
 
@@ -4259,9 +4259,9 @@ func TestQoderGatewayRefreshAccountSessionLockHeldReturnsRefreshInProgressWithou
 		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
 	}
 	provider := NewQoderTokenProvider()
-	provider.sessions[account.ID] = qoderSessionCacheEntry{
-		credentialsHash: qoderCredentialsHash(account.Credentials),
-		session:         &qoder.SessionContext{},
+	provider.qoderState().Sessions[account.ID] = qoderSessionCacheEntry{
+		CredentialsHash: qoderCredentialsHash(account.Credentials),
+		Session:         &qoder.SessionContext{},
 	}
 	svc := &QoderGatewayService{
 		tokenProvider: provider,
@@ -4276,7 +4276,7 @@ func TestQoderGatewayRefreshAccountSessionLockHeldReturnsRefreshInProgressWithou
 
 	require.Nil(t, refreshed)
 	require.ErrorIs(t, err, ErrQoderRefreshInProgress)
-	_, cached := provider.sessions[account.ID]
+	_, cached := provider.qoderState().Sessions[account.ID]
 	require.True(t, cached)
 	require.Equal(t, "old-token", repo.accounts[0].GetCredential("security_oauth_token"))
 }
@@ -4863,10 +4863,10 @@ func newQoderGatewayForwardTestService() (*Account, *QoderGatewayService, *qoder
 			"data: {\"body\":\"[DONE]\"}\n\n",
 	}
 	provider := &QoderTokenProvider{}
-	provider.sessions = map[int64]qoderSessionCacheEntry{
+	provider.qoderState().Sessions = map[int64]qoderSessionCacheEntry{
 		account.ID: {
-			credentialsHash: qoderCredentialsHash(account.Credentials),
-			session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
+			CredentialsHash: qoderCredentialsHash(account.Credentials),
+			Session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
 		},
 	}
 	return account, &QoderGatewayService{
@@ -5247,4 +5247,15 @@ func (r *qoderRefreshAccountRepoStub) UpdateOAuthCredentialsIfUnchanged(ctx cont
 	}
 	err = r.UpdateCredentials(ctx, version.ID, credentials)
 	return err == nil, err
+}
+
+// 测试旧预算契约的入口，生产只使用原生 Execute。
+func qoderForwardContext(ctx context.Context, stream bool) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if stream {
+		ctx = context.WithoutCancel(ctx)
+	}
+	return context.WithTimeout(ctx, qoderStreamTimeout)
 }

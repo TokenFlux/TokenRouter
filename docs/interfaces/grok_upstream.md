@@ -30,12 +30,17 @@ TokenRouter 支持 Grok OAuth 订阅账号和标准 xAI API Key 账号，并通�
 
 Grok 分组支持 Anthropic Messages、OpenAI Responses 和 Chat Completions，新建时默认启用 Responses 与 Chat；三项都可关闭，迁移前已有分组启用三项。文本协议禁用时会在账号选择、计费、重试和 fallback 前返回协议原生 `403`。
 
+原生 Responses 保留一次同账号的密文/Compact 解码恢复；Chat→Responses 与图片辅助请求继续单次交换。HTTP 提交、关闭重试窗口、语义输出和 TTFT 是独立观测。新执行结果可与错误共存，但旧 Grok 失败入口的结算规则保持不变，不能仅凭响应 ID、前导事件或部分观察执行成功专属后置操作。
+
 Grok Responses 上游可能注入严格客户端不认识的 `event: ping` 帧。流式转发会把 data 未声明冲突事件类型的 ping 改写为 `: ping` SSE 注释，既保留连接活性，也避免中断 Grok CLI 或 Codex CLI；普通事件、未知字段帧和终止用量事件保持原样进入公共流处理链路。
 
 Responses WebSocket 是 Grok/OpenAI 的原生传输能力，不由兼容 Responses 开关扩展到其它平台。图片和视频继续使用独立媒体资格与分组策略，不受文本协议集合直接控制。
 
 <a id="grok_account_contract"></a>
 ## 账号配置
+
+S09 当前已将供应商 OAuth/SSO 交换、模型与额度解析迁入 `upstream/grok`，账号授权和令牌读取分别由 `account.GrokAuthorization`、`GrokTokenSource` 与 `GrokTokenRefresher` 执行。账号通过 `protocol/grok` 报文与注入端口调用供应商，不持有其具体客户端。`account/rediscache` 使用原 Redis 会话技术实现；原 service/repository 构造入口保留投影和委托。管理员 Grok 授权和 SSO 导入 HTTP 已由 `account/httpapi` 接入；导入队列、配额探测与模型观测共用账号运行时。Responses（包括 Chat 桥接和 Composer 图片辅助请求）、媒体与 Voice 的单次执行由原生执行器持有响应关闭，Realtime 和视频内容分别通过独立连接/流式资源接口释放。共享 OpenAI 客户端响应适配、完整入站重试和资金完成仍由原调用链提供，不能把单次 Execute 当作第二套全局重试。
+
 
 管理员可在控制台选择 OAuth 或 API Key 创建账号。OAuth 账号可通过浏览器授权、refresh token 或 SSO cookie 创建和重新授权；创建 Grok 分组并绑定账号后，用户即可生成分组 API Key。OAuth state 和 PKCE 会话优先保存在 Redis，并通过一次性消费标记阻止多实例重复兑换；Redis 写入失败时才使用进程内短期回退。SSO cookie、邮箱密码等临时输入只能用于兑换 Build OAuth token，不能写入账号凭据、响应或日志。
 
@@ -102,7 +107,7 @@ Grok Build CLI 的模型配置必须指向 TokenRouter 对外地址（以 `/v1` 
 - `grok-imagine-video`
 - `grok-imagine-video-1.5`
 
-文本 Responses 的 `grok`、`grok-latest` 使用运行时默认文本模型，未配置时为 `grok-4.6`；带明确版本的 `grok-4.5-latest`、`grok-4.6-latest` 分别归一化为对应版本。模型市场目录查询复用这套已知文本别名，不启用 GPT/Claude 跨客户端映射，其它内置别名及历史协议 ID 兼容规则由 `internal/pkg/xai/models.go` 维护。模型列表默认展示当前目录，并结合账号模型映射/范围和 API Key 别名；未知模型保持透传，以支持管理员配置的 xAI 兼容上游。未知 Grok 文本族在没有显式定价时按现有 `grok-4.6` 静态价回退，该计费回退不代表继承能力；图片、视频、Voice 和搜索等非文本族不会误用该价格。
+文本 Responses 的 `grok`、`grok-latest` 使用运行时默认文本模型，未配置时为 `grok-4.6`；带明确版本的 `grok-4.5-latest`、`grok-4.6-latest` 分别归一化为对应版本。模型市场目录查询复用这套已知文本别名，不启用 GPT/Claude 跨客户端映射，其它内置别名及历史协议 ID 兼容规则由 `internal/upstream/grok/models.go` 维护。模型列表默认展示当前目录，并结合账号模型映射/范围和 API Key 别名；未知模型保持透传，以支持管理员配置的 xAI 兼容上游。未知 Grok 文本族在没有显式定价时按现有 `grok-4.6` 静态价回退，该计费回退不代表继承能力；图片、视频、Voice 和搜索等非文本族不会误用该价格。
 
 ## 环境变量
 

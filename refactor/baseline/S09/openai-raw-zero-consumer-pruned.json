@@ -1,0 +1,68 @@
+[
+  {
+    "file": "internal/service/openai_gateway_cc_tool_call_identity.go",
+    "symbols": [
+      "stripEmptyChatToolCallIdentityFromSSELine"
+    ],
+    "unit_only": true
+  },
+  {
+    "file": "internal/service/openai_gateway_cc_tool_call_identity.go",
+    "symbols": [
+      "stripEmptyChatToolCallIdentity"
+    ],
+    "unit_only": true
+  },
+  {
+    "file": "internal/service/openai_gateway_chat_completions_raw.go",
+    "symbols": [
+      "isOpenAIChatUsageOnlyStreamChunk"
+    ],
+    "unit_only": true
+  },
+  {
+    "file": "internal/service/openai_gateway_chat_completions_raw.go",
+    "symbols": [
+      "extractCCStreamUsage"
+    ],
+    "unit_only": false
+  },
+  {
+    "file": "internal/service/openai_gateway_messages_chat_fallback.go",
+    "symbols": [
+      "chatCompletionsChunkHasToolCallDelta"
+    ],
+    "unit_only": false
+  },
+  {
+    "file": "internal/service/openai_gateway_response_handling.go",
+    "symbols": [
+      "openAIUsageFromGJSON"
+    ],
+    "unit_only": false
+  },
+  {
+    "file": "internal/service/openai_gateway_response_handling.go",
+    "symbols": [
+      "bodyHasSSEFraming"
+    ],
+    "unit_only": false
+  },
+  {
+    "file": "internal/service/openai_raw_stream_truncation.go",
+    "symbols": [
+      "openAIRawStreamTerminalState"
+    ],
+    "unit_only": true
+  },
+  {
+    "file": "internal/service/openai_stream_read_error.go",
+    "symbols": [
+      "openAIUpstreamStreamReadError"
+    ],
+    "unit_only": false
+  },
+  {
+    "empty_removed": "backend/internal/service/openai_gateway_cc_tool_call_identity.go"
+  }
+]

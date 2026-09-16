@@ -4,22 +4,15 @@ import (
 	"fmt"
 	"strings"
 	"time"
-)
 
-// gateway.stream_data_interval_timeout 为 0 时使用该 Grok 流空闲默认值，
-// 既容纳慢推理模型，又能及时释放挂起连接。
-const defaultGrokStreamIdleTimeout = 180 * time.Second
+	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+)
 
 // Grok 流空闲失败后使用较短冷却，使账号可较快恢复且不会立刻在切换循环中被重新选中。
 const grokStreamIdleCooldown = 2 * time.Minute
 
-// resolveGrokStreamIdleTimeout 返回 Grok 上游读取空闲超时；优先使用正数全局设置，
-// 否则使用 Grok 默认值，使挂起 SSE 仍可触发切换。
 func resolveGrokStreamIdleTimeout(cfgStreamIntervalSec int) time.Duration {
-	if cfgStreamIntervalSec > 0 {
-		return time.Duration(cfgStreamIntervalSec) * time.Second
-	}
-	return defaultGrokStreamIdleTimeout
+	return nativegrok.ResolveStreamIdleTimeout(cfgStreamIntervalSec)
 }
 
 // grokStreamIdleFailoverError 构造响应提交前可见的切换错误，使挂起 Grok 流能更换 OAuth 账号。

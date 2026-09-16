@@ -1,0 +1,42 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=5",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "^TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter$"
+  ],
+  "exit": 0,
+  "seconds": 7.019031763076782,
+  "events": [
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter",
+      "Action": "pass"
+    },
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter",
+      "Action": "pass"
+    },
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter",
+      "Action": "pass"
+    },
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter",
+      "Action": "pass"
+    },
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter",
+      "Action": "pass"
+    }
+  ]
+}

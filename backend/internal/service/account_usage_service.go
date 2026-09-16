@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log"
 	"log/slog"
 	"math"
@@ -16,13 +15,16 @@ import (
 	"sync"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	anthropic "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
 	httppool "github.com/TokenFlux/TokenRouter/internal/pkg/httpclient"
-	openaipkg "github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	openaipkg "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 type UsageLogRepository interface {
@@ -136,14 +138,7 @@ type ClaudeUsageWindow = accountcore.ClaudeUsageWindow
 // ClaudeUsageResponse 兼容旧消费入口，展示模型由账号模块唯一拥有。
 type ClaudeUsageResponse = accountcore.ClaudeUsageResponse
 
-// ClaudeUsageFetchOptions 包含获取 Claude 用量数据所需的所有选项
-type ClaudeUsageFetchOptions struct {
-	AccessToken string                  // OAuth access token
-	ProxyURL    string                  // 代理 URL（可选）
-	AccountID   int64                   // 账号 ID（用于连接池隔离）
-	TLSProfile  *tlsfingerprint.Profile // TLS 指纹 Profile（nil 表示不启用）
-	Fingerprint *Fingerprint            // 缓存的指纹信息（User-Agent 等）
-}
+type ClaudeUsageFetchOptions = anthropic.UsageFetchOptions
 
 // ClaudeUsageFetcher fetches usage data from Anthropic OAuth API
 type ClaudeUsageFetcher interface {

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "-parallel=1",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "Test(OpenAIWS|WSPool|OpenAIGatewayService_.*WS|S09WSUsage|OpenAIAgentIdentity|AgentIdentity)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 66.56,
+  "pass": 278,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-pool-consumer-race.log.gz"
+}

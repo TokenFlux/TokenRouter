@@ -1,0 +1,29 @@
+{
+  "normal": {
+    "baseline": 1,
+    "current": 1,
+    "added": [],
+    "removed": [],
+    "baseline_file": "../S08/final-lint-normal.json",
+    "log": "logs/qoder-lint-normal.log.gz",
+    "normalization": "仅去除文本输出不保留的消息尾部空白；路径、规则和消息正文逐项比较，重复诊断按数量保留"
+  },
+  "unit": {
+    "baseline": 285,
+    "current": 285,
+    "added": [],
+    "removed": [],
+    "baseline_file": "../S08/final-lint-unit.json",
+    "log": "logs/qoder-lint-unit.log.gz",
+    "normalization": "仅去除文本输出不保留的消息尾部空白；路径、规则和消息正文逐项比较，重复诊断按数量保留"
+  },
+  "integration": {
+    "baseline": 17,
+    "current": 17,
+    "added": [],
+    "removed": [],
+    "baseline_file": "../S08/final-lint-integration.json",
+    "log": "logs/qoder-post-activity-lint.log.gz",
+    "normalization": "仅去除文本输出不保留的消息尾部空白；路径、规则和消息正文逐项比较，重复诊断按数量保留"
+  }
+}

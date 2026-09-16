@@ -1,42 +1,13 @@
+// 旧账号套餐入口委托 account 的唯一规则。
 package service
 
 import (
-	"strings"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
-const antigravitySubscriptionAbnormal = "abnormal"
+type AntigravitySubscriptionResult = account.AntigravitySubscriptionResult
 
-// AntigravitySubscriptionResult 表示订阅检测后的规范化结果。
-type AntigravitySubscriptionResult struct {
-	PlanType           string
-	SubscriptionStatus string
-	SubscriptionError  string
-}
-
-// NormalizeAntigravitySubscription 从 LoadCodeAssistResponse 提取 plan_type + 异常状态。
-// 使用 GetTier()（返回 tier ID）+ TierIDToPlanType 映射。
 func NormalizeAntigravitySubscription(resp *antigravity.LoadCodeAssistResponse) AntigravitySubscriptionResult {
-	if resp == nil {
-		return AntigravitySubscriptionResult{PlanType: "Free"}
-	}
-	tierID := resp.GetTier()
-	planType := antigravity.TierIDToPlanType(tierID)
-	if len(resp.IneligibleTiers) > 0 {
-		if planType == "" || planType == "Free" {
-			planType = "Abnormal"
-		}
-		result := AntigravitySubscriptionResult{
-			PlanType:           planType,
-			SubscriptionStatus: antigravitySubscriptionAbnormal,
-		}
-		if resp.IneligibleTiers[0] != nil {
-			result.SubscriptionError = strings.TrimSpace(resp.IneligibleTiers[0].ReasonMessage)
-		}
-		return result
-	}
-	return AntigravitySubscriptionResult{
-		PlanType: planType,
-	}
+	return account.NormalizeAntigravitySubscription(resp)
 }

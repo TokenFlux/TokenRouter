@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/upstream/antigravity",
+    "-run",
+    "Test.*Antigravity|Test.*Internal500|Test.*Credits|Test.*ModelRateLimit"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 29.139,
+  "pass": 366,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/antigravity-health-unit.log.gz"
+}

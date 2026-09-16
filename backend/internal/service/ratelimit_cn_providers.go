@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"net/http"
-	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/kimi"
 )
 
 // 国产供应商（kimi/zhipu/deepseek）的响应式冷却辅助。
@@ -16,7 +18,7 @@ import (
 //     用量监控写入统一快照），而非默认的秒级兜底。
 
 // kimiConcurrentRequestLimitMessage 是 Kimi 账号并发限制的精确上游文案。
-const kimiConcurrentRequestLimitMessage = "You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."
+const kimiConcurrentRequestLimitMessage = kimi.ConcurrentRequestLimitMessage
 
 // cnConcurrencyLimitReasonPrefix 标记 Kimi 并发限制导致的临时停调，
 // 供恢复任务与其它账号状态来源区分。
@@ -26,7 +28,7 @@ const cnConcurrencyLimitReasonPrefix = "cn_concurrency_limit"
 // 避免把其它权限错误或其它国产平台的相似文案误判为可恢复状态。
 func isCNProviderConcurrencyLimit403(account *Account, upstreamMsg string) bool {
 	return account != nil && account.Platform == PlatformKimi &&
-		strings.TrimSpace(upstreamMsg) == kimiConcurrentRequestLimitMessage
+		kimi.IsConcurrencyLimitMessage(upstreamMsg)
 }
 
 func (s *RateLimitService) handleCNProviderConcurrencyLimit403(
@@ -36,18 +38,8 @@ func (s *RateLimitService) handleCNProviderConcurrencyLimit403(
 	s.HealthCore().ApplyCNConcurrencyLimit(ctx, AccountRecordView(account), cnConcurrencyLimitReasonPrefix+": "+kimiConcurrentRequestLimitMessage)
 }
 
-// cnProviderResponseIndicatesInsufficientBalance 通过响应体文案识别余额不足
-// （智谱 payg 无独立余额端点，仅能靠响应文案识别）。
 func cnProviderResponseIndicatesInsufficientBalance(body []byte) bool {
-	if len(body) == 0 {
-		return false
-	}
-	s := strings.ToLower(string(body))
-	return strings.Contains(s, "余额不足") ||
-		strings.Contains(s, "insufficient balance") ||
-		strings.Contains(s, "insufficient_credit") ||
-		strings.Contains(s, "balance is not enough") ||
-		strings.Contains(s, "no enough balance")
+	return upstream.CNResponseIndicatesInsufficientBalance(body)
 }
 
 func (s *RateLimitService) handleCNProviderInsufficientBalance(

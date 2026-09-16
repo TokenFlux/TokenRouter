@@ -1,17 +1,18 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -55,7 +56,7 @@ func logOpenAIInstructionsRequiredDebug(
 		zap.Int("upstream_status_code", upstreamStatusCode),
 		zap.String("upstream_error_message", msg),
 		zap.String("request_user_agent", userAgent),
-		zap.Bool("codex_official_client_match", openai.IsCodexOfficialClientByHeaders(userAgent, originator)),
+		zap.Bool("codex_official_client_match", nativeopenai.IsCodexOfficialClientByHeaders(userAgent, originator)),
 	}
 	fields = appendCodexCLIOnlyRejectedRequestFields(fields, c, requestBody)
 
@@ -117,146 +118,26 @@ func isOpenAIInstructionsRequiredError(upstreamStatusCode int, upstreamMsg strin
 }
 
 func isOpenAITransientProcessingError(upstreamStatusCode int, upstreamMsg string, upstreamBody []byte) bool {
-	if upstreamStatusCode < http.StatusBadRequest {
-		return false
-	}
-
-	hasOpenAIServerOverloadedCode := func(payload []byte) bool {
-		code := strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "error.code").String()))
-		if code == "" {
-			code = strings.ToLower(strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String()))
-		}
-		return code == "server_is_overloaded" || code == "slow_down"
-	}
-
-	if len(upstreamBody) > 0 && hasOpenAIServerOverloadedCode(upstreamBody) {
-		return true
-	}
-	if isOpenAICapacityShedMessage(upstreamMsg) ||
-		isOpenAICapacityShedMessage(gjson.GetBytes(upstreamBody, "error.message").String()) ||
-		isOpenAICapacityShedMessage(gjson.GetBytes(upstreamBody, "response.error.message").String()) ||
-		(!gjson.ValidBytes(upstreamBody) && isOpenAICapacityShedMessage(string(upstreamBody))) {
-		return true
-	}
-	if upstreamStatusCode != http.StatusBadRequest && upstreamStatusCode != http.StatusServiceUnavailable {
-		return false
-	}
-	if upstreamStatusCode != http.StatusBadRequest {
-		return false
-	}
-
-	match := func(text string) bool {
-		lower := strings.ToLower(strings.TrimSpace(text))
-		if lower == "" {
-			return false
-		}
-		if strings.Contains(lower, "an error occurred while processing your request") {
-			return true
-		}
-		if strings.Contains(lower, "selected model is at capacity") {
-			return true
-		}
-		return strings.Contains(lower, "you can retry your request") &&
-			strings.Contains(lower, "help.openai.com") &&
-			strings.Contains(lower, "request id")
-	}
-
-	if match(upstreamMsg) {
-		return true
-	}
-	if len(upstreamBody) == 0 {
-		return false
-	}
-	if match(gjson.GetBytes(upstreamBody, "error.message").String()) {
-		return true
-	}
-	if match(gjson.GetBytes(upstreamBody, "response.error.message").String()) ||
-		match(gjson.GetBytes(upstreamBody, "message").String()) {
-		return true
-	}
-	// A valid JSON error may echo arbitrary request content. Only its explicit
-	// error fields are authoritative; scan the whole body only for non-JSON
-	// providers that return a plain-text error response.
-	return !gjson.ValidBytes(upstreamBody) && match(string(upstreamBody))
+	return nativeopenai.IsOpenAITransientProcessingError(upstreamStatusCode, upstreamMsg, upstreamBody)
 }
 
 // OpenAIPropertyNameAboveMaxLengthCode 是 OpenAI 对超长参数属性名返回的稳定错误码。
-const OpenAIPropertyNameAboveMaxLengthCode = "property_name_above_max_length"
+const OpenAIPropertyNameAboveMaxLengthCode = nativeopenai.OpenAIPropertyNameAboveMaxLengthCode
 
-// isOpenAIClientInvalidRequestError 仅识别已确认由客户端参数触发的 OpenAI 400。
-// 不能只判断 invalid_request_error，否则会把网关字段转换错误也排除出 SLA。
 func isOpenAIClientInvalidRequestError(upstreamStatusCode int, upstreamMsg string, upstreamBody []byte) bool {
-	if upstreamStatusCode != http.StatusBadRequest || len(upstreamBody) == 0 {
-		return false
-	}
-	if isOpenAITransientProcessingError(upstreamStatusCode, upstreamMsg, upstreamBody) {
-		return false
-	}
-	errType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(upstreamBody, "error.type").String()))
-	errCode := strings.ToLower(strings.TrimSpace(gjson.GetBytes(upstreamBody, "error.code").String()))
-	return errType == "invalid_request_error" && errCode == OpenAIPropertyNameAboveMaxLengthCode
+	return nativeopenai.IsOpenAIClientInvalidRequestError(upstreamStatusCode, upstreamMsg, upstreamBody)
 }
 
-// isOpenAICapacityShedMessage 识别没有稳定错误码时的上游容量降载文案。
 func isOpenAICapacityShedMessage(text string) bool {
-	lower := strings.ToLower(strings.TrimSpace(text))
-	return strings.Contains(lower, "server is overloaded") ||
-		strings.Contains(lower, "servers are overloaded") ||
-		strings.Contains(lower, "servers are currently overloaded")
+	return nativeopenai.IsOpenAICapacityShedMessage(text)
 }
 
 func isOpenAIRequestScopedCapacityShed(upstreamMsg string, upstreamBody []byte) bool {
-	return isOpenAIUpstreamCapacityShedEvent(upstreamBody) ||
-		isOpenAICapacityShedMessage(upstreamMsg) ||
-		(!gjson.ValidBytes(upstreamBody) && isOpenAICapacityShedMessage(string(upstreamBody)))
+	return nativeopenai.IsOpenAIRequestScopedCapacityShed(upstreamMsg, upstreamBody)
 }
 
 func isOpenAIContextWindowError(upstreamMsg string, upstreamBody []byte) bool {
-	match := func(text string) bool {
-		lower := strings.ToLower(strings.TrimSpace(text))
-		if lower == "" {
-			return false
-		}
-		if strings.Contains(lower, "context_too_large") || strings.Contains(lower, "context_length_exceeded") {
-			return true
-		}
-		if strings.Contains(lower, "maximum context length") || strings.Contains(lower, "max context length") {
-			return true
-		}
-		hasExceeded := strings.Contains(lower, "exceed") || strings.Contains(lower, "too large") || strings.Contains(lower, "too long")
-		if strings.Contains(lower, "context window") && hasExceeded {
-			return true
-		}
-		if strings.Contains(lower, "context length") && hasExceeded {
-			return true
-		}
-		return strings.Contains(lower, "token limit") &&
-			strings.Contains(lower, "context") &&
-			hasExceeded
-	}
-
-	if match(upstreamMsg) {
-		return true
-	}
-	if len(upstreamBody) == 0 {
-		return false
-	}
-	for _, path := range []string{
-		"error.message",
-		"response.error.message",
-		"message",
-		"error.code",
-		"response.error.code",
-		"code",
-	} {
-		if match(gjson.GetBytes(upstreamBody, path).String()) {
-			return true
-		}
-	}
-	// Do not let echoed request content in a structured JSON error change the
-	// retry/client-status classification. Plain-text upstream errors remain
-	// supported by scanning the whole body only when it is not valid JSON.
-	return !gjson.ValidBytes(upstreamBody) && match(string(upstreamBody))
+	return nativeopenai.IsOpenAIContextWindowError(upstreamMsg, upstreamBody)
 }
 
 func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool {
@@ -388,41 +269,12 @@ const (
 	OpenAIHTTPContinuationUnsupportedReason = GatewayFailureReason("openai_http_continuation_unsupported")
 )
 
-// isOpenAIUpstreamAccessStateError recognizes provider-side credential state
-// failures only from explicit structured codes. Free-form messages may contain
-// echoed user input, including inside stream terminal error.message fields.
 func isOpenAIUpstreamAccessStateError(_ string, body []byte) bool {
-	if len(body) == 0 || !gjson.ValidBytes(body) {
-		return false
-	}
-	for _, path := range []string{"error.code", "response.error.code", "detail.code", "code"} {
-		if isOpenAIUpstreamAccessStateCode(gjson.GetBytes(body, path).String()) {
-			return true
-		}
-	}
-	return false
+	return nativeopenai.IsOpenAIUpstreamAccessStateError("", body)
 }
 
-func isOpenAIUpstreamAccessStateCode(value string) bool {
-	value = strings.ToLower(strings.TrimSpace(value))
-	if value == "deactivated_workspace" {
-		return true
-	}
-	for _, subject := range []string{"workspace", "account", "organization", "org"} {
-		for _, state := range []string{"deactivated", "disabled", "suspended"} {
-			if value == subject+"_"+state || value == state+"_"+subject {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// isOpenAIHTTPUpstreamAccessStateError is deliberately status-independent:
-// known provider codes are durable evidence, while 401/403 messages without
-// such a code must flow through the existing authentication/403 policies.
 func isOpenAIHTTPUpstreamAccessStateError(_ int, _ string, body []byte) bool {
-	return isOpenAIUpstreamAccessStateError("", body)
+	return nativeopenai.IsOpenAIHTTPUpstreamAccessStateError(0, "", body)
 }
 
 func openAICapacityShedClientMessage(upstreamMsg string, body []byte) string {
@@ -452,19 +304,7 @@ func (e *UpstreamFailoverError) IsOpenAICapacityShed() bool {
 	return e != nil && e.RequestScopedTransient && isOpenAIRequestScopedCapacityShed("", e.ResponseBody)
 }
 
-func marshalOpenAIUpstreamJSON(v any) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	out := buf.Bytes()
-	if len(out) > 0 && out[len(out)-1] == '\n' {
-		out = out[:len(out)-1]
-	}
-	return out, nil
-}
+func marshalOpenAIUpstreamJSON(v any) ([]byte, error) { return wirejson.Marshal(v) }
 
 func openAIUpstreamErrorBodyReadLimitForConfig(cfg *config.Config) int64 {
 	limit := openAIUpstreamErrorBodyReadLimit

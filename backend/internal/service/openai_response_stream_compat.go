@@ -1,0 +1,190 @@
+// 原入站适配只投影一次尝试的配置、HTTP 观察和账号副作用；逐帧状态由原生读取器持有。
+package service
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+	"github.com/gin-gonic/gin"
+)
+
+func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, c *gin.Context, account *Account, reasoningEffort string) native.StreamOptions {
+	observer := upstreamResponseModelObserverFromContext(c)
+	if observer == nil {
+		observer = beginUpstreamResponseModelObservation(c)
+	}
+	options := native.StreamOptions{
+
+		NativeOpenAI: account != nil && account.Platform == PlatformOpenAI,
+
+		StageFirstOutput: account != nil && account.Platform == PlatformOpenAI,
+
+		CodexFailureTerminal: account != nil && account.IsOpenAIOAuthLike(),
+
+		GrokIdlePolicy: account != nil && account.Platform == PlatformGrok,
+
+		MaxLineSize: defaultMaxLineSize,
+
+		TTFTMode: func() string { return s.openAITTFTMode(ctx) },
+
+		Observe: observer.ObserveOpenAI,
+
+		Logf: func(format string, values ...any) { logger.LegacyPrintf("service.openai_gateway", format, values...) },
+
+		IsCommitted: func() bool { return IsResponseCommitted(c) },
+
+		MarkCommitted: func() { MarkResponseCommitted(c) },
+
+		ClientOutputStarted: func(started bool) bool { return openAIStreamClientOutputStarted(c, started) },
+
+		StagedHeadersCommitted: func(headers http.Header) { s.noteStagedOpenAICodexTurnStateCommitted(c, account, headers) },
+
+		ClearDisconnect: func() { s.clearOpenAIProxyStreamDisconnect(account) },
+
+		RecordDisconnect: func(err error, requestID string) { s.recordOpenAIProxyStreamDisconnect(account, err, requestID) },
+
+		TerminalSideEffects: func(body []byte, message string, headers http.Header, model string) {
+			s.handleOpenAIStreamTerminalAccountSideEffects(c, account, body, message, headers, model)
+		},
+
+		Failover: func(requestID string, body []byte, message string) error {
+			return s.newOpenAIStreamFailoverError(c, account, false, requestID, body, message)
+		},
+
+		FailoverWithModel: func(requestID string, body []byte, message, model string, headers http.Header) error {
+			return s.newOpenAIStreamFailoverErrorWithModel(c, account, false, requestID, body, message, model, headers)
+		},
+
+		MarkSafeFailover: func(err error) {
+			if failure, ok := err.(*UpstreamFailoverError); ok {
+				failure.SafeToFailoverAfterWrite = true
+			}
+		},
+
+		RecordError: func(requestID, kind string, body []byte, message string) {
+			s.recordOpenAIStreamUpstreamError(c, account, false, requestID, kind, body, message)
+		},
+
+		CompactFallback: func(body []byte, message string) error { return newOpenAICompactFallbackSignal(c, body, message) },
+
+		ErrorRule: func(body []byte, message string) (int, string, string, bool) {
+			return applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, body, message)
+		},
+
+		CapacitySuppressed: func(requestID, eventType string) {
+			logOpenAICapacityFailoverSuppressed(ctx, account, "native_sse", requestID, eventType)
+		},
+
+		MarkCyber: func(value native.CyberObservation) {
+			MarkOpsCyberPolicy(c, CyberPolicyMark{
+				Code:           value.Code,
+				Message:        value.Message,
+				Body:           value.Body,
+				UpstreamStatus: value.UpstreamStatus,
+				UpstreamInTok:  value.UpstreamInTok,
+				UpstreamOutTok: value.UpstreamOutTok,
+			})
+		},
+
+		ToolCorrector: s.toolCorrector,
+
+		RestoreClientTools: func(body []byte) ([]byte, error) { return restoreGrokResponsesClientToolPayload(c, body) },
+
+		RestoreNamespace: func(body []byte) ([]byte, error) { return restoreOpenAIResponsesNamespacePayload(c, body) },
+
+		RestoreToolNames: func(body []byte, eventType string) []byte {
+			return restoreCodexToolNamesFromSSEContext(c, body, eventType)
+		},
+
+		EmptyCompleted: func(requestID string) error {
+			return newOpenAIResponsesEmptyCompletedFailoverError(c, account, requestID)
+		},
+
+		CountSearch: countGrokNativeSearchCallsInSSEDataDedup,
+
+		StreamTimeout: func(model string) {
+			if s.rateLimitService != nil {
+				s.rateLimitService.HandleStreamTimeout(ctx, account, model)
+			}
+		},
+
+		IdleCooldown: func() { s.tempUnscheduleGrok(ctx, account, grokStreamIdleCooldown, "grok stream idle timeout") },
+
+		IdleFailover: func(interval time.Duration) error { return grokStreamIdleFailoverError(account, interval) },
+
+		FirstOutputError: func(start time.Time, model, effort string, timeout time.Duration, phase string, headers http.Header) error {
+			return s.newOpenAIFirstOutputTimeoutError(ctx, c, account, start, model, effort, timeout, phase, headers)
+		},
+
+		KeepaliveBytes: func(count int) { recordOpenAIStreamKeepaliveBytes(c, count) },
+
+		BuildOpenAIResponseFailedSSE: buildOpenAIResponseFailedSSE,
+
+		WrapOpenAIUpstreamWarningIfCyber: wrapOpenAIUpstreamWarningIfCyber,
+
+		TruncateString: truncateString,
+
+		OpenAIStreamDataStartsTTFT: openAIStreamDataStartsTTFT,
+
+		OpenAIStreamEventIsTerminalWithType: openAIStreamEventIsTerminalWithType,
+	}
+	if account != nil {
+		options.AccountID = account.ID
+	}
+	if options.NativeOpenAI {
+		options.FirstOutputTimeout = s.openAIFirstOutputTimeout(reasoningEffort)
+	}
+	if s.cfg != nil {
+		if s.cfg.Gateway.MaxLineSize > 0 {
+			options.MaxLineSize = s.cfg.Gateway.MaxLineSize
+		}
+		if s.cfg.Gateway.StreamDataIntervalTimeout > 0 {
+			options.StreamInterval = time.Duration(s.cfg.Gateway.StreamDataIntervalTimeout) * time.Second
+		}
+		if s.cfg.Gateway.StreamKeepaliveInterval > 0 {
+			options.KeepaliveInterval = time.Duration(s.cfg.Gateway.StreamKeepaliveInterval) * time.Second
+		}
+	}
+	if options.GrokIdlePolicy {
+		seconds := 0
+		if s.cfg != nil {
+			seconds = s.cfg.Gateway.StreamDataIntervalTimeout
+		}
+		options.StreamInterval = resolveGrokStreamIdleTimeout(seconds)
+	}
+	options.PrepareHeaders = func(headers http.Header, staged bool, output http.Header) http.Header {
+		var pending http.Header
+		if staged {
+			if s.responseHeaderFilter != nil {
+				pending = responseheaders.FilterHeaders(headers, s.responseHeaderFilter)
+			} else if requestID := strings.TrimSpace(headers.Get("x-request-id")); requestID != "" {
+				pending = http.Header{"X-Request-Id": {requestID}}
+			}
+		} else if s.responseHeaderFilter != nil {
+			responseheaders.WriteFilteredHeaders(output, headers, s.responseHeaderFilter)
+		}
+		if staged {
+			stageOpenAICodexTurnState(&pending, headers)
+		} else {
+			s.relayOpenAICodexTurnState(c, account, headers)
+		}
+		return pending
+	}
+	options.MarkTime = func(moment native.StreamTime) {
+		switch moment {
+		case native.StreamTimeFlush:
+			MarkOpsTimestamp(c, ctxkey.FirstDownstreamFlushAt)
+		case native.StreamTimeData:
+			MarkOpsTimestamp(c, ctxkey.FirstSSEDataAt)
+		case native.StreamTimeVisible:
+			MarkOpsTimestamp(c, ctxkey.FirstVisibleOutputAt)
+		}
+	}
+	return options
+}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
@@ -39,7 +40,7 @@ type AdminHandlers struct {
 	GeminiOAuth           *admin.GeminiOAuthHandler
 	AntigravityOAuth      *admin.AntigravityOAuthHandler
 	QoderOAuth            *admin.QoderOAuthHandler
-	GrokOAuth             *admin.GrokOAuthHandler
+	GrokOAuth             *accounthttp.GrokOAuthHandler
 	Proxy                 *egresshttp.ProxyHandler
 	Redeem                *billinghttpapi.AdminRedeemHandler
 	Promo                 *admin.PromoHandler
@@ -65,6 +66,7 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
+	QoderChat        *gatewayhttp.QoderChatHandler
 	PublicUsage      *usagehttp.PublicUsageHandler
 	Plans            *billinghttpapi.PlanHandler
 	PlatformQuota    *billinghttpapi.QuotaHandler

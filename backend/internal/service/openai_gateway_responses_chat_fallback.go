@@ -10,10 +10,13 @@ import (
 	"strings"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -143,32 +146,8 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 	serviceTier *string,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
-	requestID := resp.Header.Get("x-request-id")
-	ccResp, usage, err := s.readCCUpstreamJSONResponse(c, resp, writeOpenAIResponsesFallbackError)
-	if err != nil {
-		return nil, err
-	}
-	responsesResp := apicompat.ChatCompletionsResponseToResponses(ccResp, originalModel, customTools, functionTools, toolSearch, namespaceTools)
-	s.cacheReasoningItemsFromOutput(responsesResp.Output)
-
-	if s.responseHeaderFilter != nil {
-		responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
-	}
-	c.JSON(http.StatusOK, responsesResp)
-
-	return &OpenAIForwardResult{
-		RequestID:                   requestID,
-		UpstreamHeaders:             resp.Header,
-		Usage:                       usage,
-		Model:                       originalModel,
-		BillingModel:                billingModel,
-		UpstreamModel:               upstreamModel,
-		UpstreamResponseServiceTier: observedUpstreamResponseServiceTier(c),
-		ReasoningEffort:             reasoningEffort,
-		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-		Stream:                      false,
-		Duration:                    time.Since(startTime),
-	}, nil
+	result, err := nativeopenai.ReadCCAsResponsesBuffered(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, nil, billingModel, upstreamModel, serviceTier, writeOpenAIResponsesFallbackError), originalModel, upstreamModel, reasoningEffort, startTime, customTools, functionTools, toolSearch, namespaceTools)
+	return chatForwardResult(result, billingModel), err
 }
 
 func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
@@ -185,123 +164,12 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	serviceTier *string,
 	startTime time.Time,
 ) (*OpenAIForwardResult, error) {
-	requestID := resp.Header.Get("x-request-id")
-	writeStreamHeaders := s.newStreamHeaderWriter(c, resp.Header)
-
-	state := apicompat.NewChatCompletionsToResponsesStreamState(originalModel)
-	state.CustomTools = customTools
-	state.FunctionTools = functionTools
-	state.ToolSearchDeclared = toolSearch
-	state.NamespaceTools = namespaceTools
-	clientDisconnected := false
-
-	writeEvents := func(events []protocolopenai.ResponsesStreamEvent) {
-		if clientDisconnected || len(events) == 0 {
-			return
-		}
-		writeStreamHeaders()
-		for _, event := range events {
-			sse, err := apicompat.ResponsesEventToSSE(event)
-			if err != nil {
-				logger.L().Warn("openai responses chat fallback: failed to marshal stream event",
-					zap.Error(err),
-					zap.String("request_id", requestID),
-				)
-				continue
-			}
-			if _, err := fmt.Fprint(c.Writer, sse); err != nil {
-				clientDisconnected = true
-				logger.L().Debug("openai responses chat fallback: client disconnected, continuing to drain upstream for billing",
-					zap.Error(err),
-					zap.String("request_id", requestID),
-				)
-				return
-			}
-		}
-		c.Writer.Flush()
-	}
-
-	scan := s.scanCCStream(c, resp, "openai responses chat fallback", requestID, startTime, func(chunk *protocolopenai.ChatCompletionsChunk) {
-		events := apicompat.ChatCompletionsChunkToResponsesEvents(chunk, state)
-		s.cacheReasoningItemsFromEvents(events)
-		writeEvents(events)
-	})
-
-	if scan.Err != nil {
-		return &OpenAIForwardResult{
-			RequestID:                   requestID,
-			UpstreamHeaders:             resp.Header,
-			Usage:                       scan.Usage,
-			Model:                       originalModel,
-			BillingModel:                billingModel,
-			UpstreamModel:               upstreamModel,
-			UpstreamResponseServiceTier: normalizeObservedOpenAIServiceTier(scan.ServiceTier),
-			ReasoningEffort:             reasoningEffort,
-			ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-			Stream:                      true,
-			Duration:                    time.Since(startTime),
-			FirstTokenMs:                scan.FirstTokenMs,
-		}, fmt.Errorf("stream usage incomplete: %w", scan.Err)
-	}
-	if err := state.ValidateToolCallArguments(); err != nil {
-		return &OpenAIForwardResult{
-			RequestID:                   requestID,
-			UpstreamHeaders:             resp.Header,
-			Usage:                       scan.Usage,
-			Model:                       originalModel,
-			BillingModel:                billingModel,
-			UpstreamModel:               upstreamModel,
-			UpstreamResponseServiceTier: normalizeObservedOpenAIServiceTier(scan.ServiceTier),
-			ReasoningEffort:             reasoningEffort,
-			ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-			Stream:                      true,
-			Duration:                    time.Since(startTime),
-			FirstTokenMs:                scan.FirstTokenMs,
-		}, fmt.Errorf("invalid tool call arguments from upstream: %w", err)
-	}
-
-	finalEvents := apicompat.FinalizeChatCompletionsResponsesStream(state)
-	s.cacheReasoningItemsFromEvents(finalEvents)
-	writeEvents(finalEvents)
-	if !clientDisconnected {
-		writeStreamHeaders()
-		if _, err := fmt.Fprint(c.Writer, "data: [DONE]\n\n"); err != nil {
-			clientDisconnected = true
-		}
-		if !clientDisconnected {
-			c.Writer.Flush()
-		}
-	}
-	if !scan.SawDone {
-		logCCStreamMissingDoneSentinel("openai responses chat fallback", requestID)
-	}
-
-	return &OpenAIForwardResult{
-		RequestID:                   requestID,
-		UpstreamHeaders:             resp.Header,
-		Usage:                       scan.Usage,
-		Model:                       originalModel,
-		BillingModel:                billingModel,
-		UpstreamModel:               upstreamModel,
-		UpstreamResponseServiceTier: normalizeObservedOpenAIServiceTier(scan.ServiceTier),
-		ReasoningEffort:             reasoningEffort,
-		ServiceTier:                 resolvedOpenAIUpstreamServiceTier(c, serviceTier),
-		Stream:                      true,
-		Duration:                    time.Since(startTime),
-		FirstTokenMs:                scan.FirstTokenMs,
-	}, nil
+	result, err := nativeopenai.ReadCCAsResponsesStreaming(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, nil, billingModel, upstreamModel, serviceTier, writeOpenAIResponsesFallbackError), originalModel, upstreamModel, reasoningEffort, startTime, customTools, functionTools, toolSearch, namespaceTools)
+	return chatForwardResult(result, billingModel), err
 }
 
 func chatChunkStartsResponsesOutput(chunk *protocolopenai.ChatCompletionsChunk) bool {
-	if chunk == nil {
-		return false
-	}
-	for _, choice := range chunk.Choices {
-		if choice.Delta.Content != nil || choice.Delta.ReasoningText() != nil || len(choice.Delta.ToolCalls) > 0 {
-			return true
-		}
-	}
-	return false
+	return protocolopenai.ChatChunkStartsResponsesOutput(chunk)
 }
 
 const responsesReasoningCacheTTL = 7 * 24 * time.Hour

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 31.254,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-current-lint.log.gz"
+}

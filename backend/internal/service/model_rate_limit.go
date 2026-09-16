@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
 	"strings"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 )
 
@@ -98,10 +101,7 @@ func (a *Account) modelRateLimitKeysForRequest(ctx context.Context, requestedMod
 	return keys
 }
 
-// isAnthropicFableModel 判断是否为 Fable 模型家族（claude-fable-5、claude-fable-5[1m] 等变体）
-func isAnthropicFableModel(model string) bool {
-	return strings.Contains(strings.ToLower(model), "fable")
-}
+func isAnthropicFableModel(model string) bool { return claude.IsAnthropicFableModel(model) }
 
 func openAIImageGenerationRateLimitApplies(ctx context.Context, requestedModel, modelKey string) bool {
 	if isOpenAIImageGenerationModel(requestedModel) || isOpenAIImageGenerationModel(modelKey) {

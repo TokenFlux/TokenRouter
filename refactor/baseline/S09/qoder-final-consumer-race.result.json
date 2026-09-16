@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/app",
+    "./internal/service",
+    "./internal/handler/...",
+    "./internal/upstream/qoder/...",
+    "-run",
+    "Qoder"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 68.519,
+  "pass": 560,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/qoder-final-consumer-race.log.gz"
+}

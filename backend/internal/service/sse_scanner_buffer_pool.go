@@ -1,29 +1,11 @@
+// 旧扫描入口复用唯一技术缓冲池，不复制 sync.Pool。
 package service
 
-import "sync"
+import native "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
-const sseScannerBuf64KSize = 64 * 1024
+const sseScannerBuf64KSize = native.SSEScannerBuf64KSize
 
-type sseScannerBuf64K [sseScannerBuf64KSize]byte
+type sseScannerBuf64K = native.SSEScannerBuf64K
 
-var sseScannerBuf64KPool = sync.Pool{
-	New: func() any {
-		return new(sseScannerBuf64K)
-	},
-}
-
-func getSSEScannerBuf64K() *sseScannerBuf64K {
-	v := sseScannerBuf64KPool.Get()
-	buf, ok := v.(*sseScannerBuf64K)
-	if !ok || buf == nil {
-		return new(sseScannerBuf64K)
-	}
-	return buf
-}
-
-func putSSEScannerBuf64K(buf *sseScannerBuf64K) {
-	if buf == nil {
-		return
-	}
-	sseScannerBuf64KPool.Put(buf)
-}
+func getSSEScannerBuf64K() *sseScannerBuf64K    { return native.GetSSEScannerBuf64K() }
+func putSSEScannerBuf64K(buf *sseScannerBuf64K) { native.PutSSEScannerBuf64K(buf) }

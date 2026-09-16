@@ -2,14 +2,15 @@
 package service
 
 import (
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	domain "github.com/TokenFlux/TokenRouter/internal/domain"
-	xai "github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	slog "log/slog"
 	url "net/url"
 	strings "strings"
 	time "time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	domain "github.com/TokenFlux/TokenRouter/internal/domain"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type Account struct {
@@ -86,11 +87,6 @@ const GrokMediaEligibleExtraKey = accountcore.GrokMediaEligibleExtraKey
 
 const OpenAIAuthModePersonalAccessToken = accountcore.OpenAIAuthModePersonalAccessToken
 const openAIAuthModeCredentialKey = accountcore.OpenAIAuthModeCredentialKey
-const openAIAuthModeLegacyCredentialKey = accountcore.OpenAIAuthModeLegacyCredentialKey
-
-func isOpenAIPersonalAccessTokenAuthMode(value string) bool {
-	return accountcore.IsOpenAIPersonalAccessTokenAuthMode(value)
-}
 
 type TempUnschedulableRule = accountcore.TempUnschedulableRule
 

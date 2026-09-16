@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "Test(OpenAI.*(FirstOutput|SSE|Streaming|TTFT)|.*StreamingResponse.*|.*ResponsesStreaming.*|CorrectTool.*)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.582,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-native-stream-unit.log.gz"
+}

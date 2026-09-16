@@ -8,15 +8,11 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"go.uber.org/zap"
 )
 
-// CreativeOutput 是执行器返回的一张输出图片。
-type CreativeOutput struct {
-	Index int
-	Bytes []byte
-	Mime  string
-}
+type CreativeOutput = upstream.ImageOutput
 
 // CreativeExecuteResult 是任务执行结果，由 CreativeRunExecutor 返回。
 type CreativeExecuteResult struct {

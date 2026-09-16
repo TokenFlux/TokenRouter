@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -792,7 +792,7 @@ func TestOpenAIGatewayService_BuildOpenAIWSHeadersDeviceModePreservesNamespacedC
 	)
 
 	require.NoError(t, err)
-	require.Equal(t, ids.installationID, headers.Get("x-codex-installation-id"))
+	require.Equal(t, ids.InstallationID, headers.Get("x-codex-installation-id"))
 	require.NotEqual(t, "client-installation", headers.Get("x-codex-installation-id"))
 	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "window", "client-window"), headers.Get("x-codex-window-id"))
 	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "session", "client-session"), headers.Get("session-id"))
@@ -842,7 +842,7 @@ func TestOpenAIGatewayService_Forward_WSv2_RewriteModelAndToolCallsOnCompletedEv
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -900,7 +900,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedIsNotSchedulingSuccess(
 		[]byte(`{"type":"response.failed","response":{"id":"resp_failed_1","model":"gpt-5.5","error":{"code":"server_error","message":"Internal error"}}}`),
 	}}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
+	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -951,7 +951,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedCustomStatusFailsOver(t
 		[]byte(`{"type":"response.failed","response":{"id":"resp_failed_policy","model":"gpt-5.5","error":{"status_code":422,"code":"configured","message":"configured failure"}}}`),
 	}}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
+	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 	repo := &openAIWSPolicyRepo{}
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -1143,7 +1143,7 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -1216,7 +1216,7 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthSanitizesInvalidNativeToolItemID
 	}}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -1311,7 +1311,7 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthOriginatorCompatibility(t *testi
 			}
 			captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 			pool := newOpenAIWSConnPool(cfg)
-			pool.setClientDialerForTest(captureDialer)
+			pool.SetClientDialerForTest(captureDialer)
 
 			svc := &OpenAIGatewayService{
 				cfg:              cfg,
@@ -1373,7 +1373,7 @@ func TestOpenAIGatewayService_Forward_WSv2_HeaderSessionFallbackFromPromptCacheK
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -1438,7 +1438,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseDoneUsageParsed(t *testing.T)
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -1637,7 +1637,7 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 	// 主动淘汰连接，模拟下一次请求发生重连。
 	connID, hasConn := store.GetResponseConn(result1.RequestID)
 	require.True(t, hasConn)
-	svc.getOpenAIWSConnPool().evictConn(account.ID, connID)
+	svc.getOpenAIWSConnPool().EvictConnection(account.ID, connID)
 
 	rec2 := httptest.NewRecorder()
 	c2, _ := gin.CreateTestContext(rec2)
@@ -1683,7 +1683,7 @@ func TestOpenAIGatewayService_Forward_WSv2_GeneratePrewarm(t *testing.T) {
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -1746,8 +1746,8 @@ func TestOpenAIGatewayService_PrewarmReadHonorsParentContext(t *testing.T) {
 		readDelay: 200 * time.Millisecond,
 	}, nil, nil, "")
 	lease := &openAIWSConnLease{
-		accountID: account.ID,
-		conn:      conn,
+		AccountID: account.ID,
+		Conn:      conn,
 	}
 	payload := map[string]any{
 		"type":  "response.create",
@@ -1797,7 +1797,7 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnMetadataInPayloadOnConnReuse(t *t
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
@@ -2099,7 +2099,7 @@ func TestOpenAIGatewayService_Forward_WSv2ReadTimeoutAppliesPerRead(t *testing.T
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
-	pool.setClientDialerForTest(captureDialer)
+	pool.SetClientDialerForTest(captureDialer)
 
 	upstream := &httpUpstreamRecorder{
 		resp: &http.Response{

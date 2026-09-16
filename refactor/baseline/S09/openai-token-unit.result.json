@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "-run",
+    "Test.*OpenAIToken|Test.*OpenAI.*Refresh|Test.*CodexPAT|Test.*OpenAISetupToken"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 20.144,
+  "pass": 52,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-token-unit.log.gz"
+}

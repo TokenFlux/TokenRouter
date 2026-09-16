@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/upstream/openai",
+    "-run",
+    "^TestEmbeddingsExecutorLocalTLSAndResourceOwnership$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.855,
+  "pass": 3,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-native-embeddings-tls-race.log.gz"
+}

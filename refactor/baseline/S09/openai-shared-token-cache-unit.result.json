@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/repository",
+    "./internal/service",
+    "-run",
+    "GeminiTokenCache|OpenAIToken|TokenCacheKey|TokenCacheInvalidator"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 12.837,
+  "pass": 89,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-shared-token-cache-unit.log.gz"
+}

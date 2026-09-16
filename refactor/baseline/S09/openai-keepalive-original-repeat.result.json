@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=10",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "^TestOpenAIStreamingPreambleKeepaliveUsesDownstreamIdle$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 26.724,
+  "pass": 10,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-keepalive-original-repeat.log.gz"
+}

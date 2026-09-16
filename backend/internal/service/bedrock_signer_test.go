@@ -20,7 +20,7 @@ func TestNewBedrockSignerFromAccount_DefaultRegion(t *testing.T) {
 	signer, err := NewBedrockSignerFromAccount(account)
 	require.NoError(t, err)
 	require.NotNil(t, signer)
-	assert.Equal(t, defaultBedrockRegion, signer.region)
+	assert.Equal(t, defaultBedrockRegion, signer.Region)
 }
 
 func TestFilterBetaTokens(t *testing.T) {

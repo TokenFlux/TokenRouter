@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +13,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
@@ -23,12 +25,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/platform/liveattestation"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai/liveattestation"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
-	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -44,7 +45,7 @@ const (
 	// 与真实 Codex TUI 的 User-Agent 结构对齐：
 	// {originator}/{version} ({OS} {OS_version}; {arch}) {terminal}
 	// 缺少 OS/架构/终端后缀的形态易被上游指纹识别为非官方客户端。
-	codexCLIUserAgent = openai.CodexDefaultOriginator + "/" + codexCLIVersion + " (Ubuntu 22.4.0; x86_64) xterm-256color"
+	codexCLIUserAgent = openai.CodexCLIUserAgent
 	// codex_cli_only 拒绝时单个请求头日志长度上限（字符）
 	codexCLIOnlyHeaderValueMaxBytes = 256
 
@@ -59,7 +60,7 @@ const (
 	openAIWSRetryJitterRatioDefault    = 0.2
 	openAICompactSessionSeedKey        = "openai_compact_session_seed"
 	openAIUpstreamEndpointContextKey   = "openai_actual_upstream_endpoint"
-	codexCLIVersion                    = "0.144.1"
+	codexCLIVersion                    = openai.CodexCLIVersion
 	// Codex 限额快照仅用于后台展示/诊断，不需要每个成功请求都立即落库。
 	openAICodexSnapshotPersistMinInterval = 30 * time.Second
 	// 配额自动暂停时，超过该时长仍未刷新的 used% 快照视为陈旧，不再据此暂停账号。
@@ -138,113 +139,11 @@ var codexCLIOnlyDebugHeaderWhitelist = []string{
 	"X-Real-IP",
 }
 
-// OpenAICodexUsageSnapshot represents Codex API usage limits from response headers
-type OpenAICodexUsageSnapshot struct {
-	PrimaryUsedPercent          *float64 `json:"primary_used_percent,omitempty"`
-	PrimaryResetAfterSeconds    *int     `json:"primary_reset_after_seconds,omitempty"`
-	PrimaryWindowMinutes        *int     `json:"primary_window_minutes,omitempty"`
-	SecondaryUsedPercent        *float64 `json:"secondary_used_percent,omitempty"`
-	SecondaryResetAfterSeconds  *int     `json:"secondary_reset_after_seconds,omitempty"`
-	SecondaryWindowMinutes      *int     `json:"secondary_window_minutes,omitempty"`
-	PrimaryOverSecondaryPercent *float64 `json:"primary_over_secondary_percent,omitempty"`
-	UpdatedAt                   string   `json:"updated_at,omitempty"`
-}
+type OpenAICodexUsageSnapshot = protocolopenai.OpenAICodexUsageSnapshot
 
-// NormalizedCodexLimits contains normalized 5h/7d rate limit data
-type NormalizedCodexLimits struct {
-	Used5hPercent   *float64
-	Reset5hSeconds  *int
-	Window5hMinutes *int
-	Used7dPercent   *float64
-	Reset7dSeconds  *int
-	Window7dMinutes *int
-}
+type NormalizedCodexLimits = protocolopenai.NormalizedCodexLimits
 
-// Normalize converts primary/secondary fields to canonical 5h/7d fields.
-// Strategy: Compare window_minutes to determine which is 5h vs 7d.
-// Returns nil if snapshot is nil or has no useful data.
-func (s *OpenAICodexUsageSnapshot) Normalize() *NormalizedCodexLimits {
-	if s == nil {
-		return nil
-	}
-
-	result := &NormalizedCodexLimits{}
-
-	primaryMins := 0
-	secondaryMins := 0
-	hasPrimaryWindow := false
-	hasSecondaryWindow := false
-
-	if s.PrimaryWindowMinutes != nil {
-		primaryMins = *s.PrimaryWindowMinutes
-		hasPrimaryWindow = true
-	}
-	if s.SecondaryWindowMinutes != nil {
-		secondaryMins = *s.SecondaryWindowMinutes
-		hasSecondaryWindow = true
-	}
-
-	// Determine mapping based on window_minutes
-	use5hFromPrimary := false
-	use7dFromPrimary := false
-
-	if hasPrimaryWindow && hasSecondaryWindow {
-		// Both known: smaller window is 5h, larger is 7d
-		if primaryMins < secondaryMins {
-			use5hFromPrimary = true
-		} else {
-			use7dFromPrimary = true
-		}
-	} else if hasPrimaryWindow {
-		// Only primary known: classify by threshold (<=360 min = 6h -> 5h window)
-		if primaryMins <= 360 {
-			use5hFromPrimary = true
-		} else {
-			use7dFromPrimary = true
-		}
-	} else if hasSecondaryWindow {
-		// Only secondary known: classify by threshold
-		if secondaryMins <= 360 {
-			// 5h from secondary, so primary (if any data) is 7d
-			use7dFromPrimary = true
-		} else {
-			// 7d from secondary, so primary (if any data) is 5h
-			use5hFromPrimary = true
-		}
-	} else {
-		// No window_minutes: fall back to legacy assumption (primary=7d, secondary=5h)
-		use7dFromPrimary = true
-	}
-
-	// Assign values
-	if use5hFromPrimary {
-		result.Used5hPercent = s.PrimaryUsedPercent
-		result.Reset5hSeconds = s.PrimaryResetAfterSeconds
-		result.Window5hMinutes = s.PrimaryWindowMinutes
-		result.Used7dPercent = s.SecondaryUsedPercent
-		result.Reset7dSeconds = s.SecondaryResetAfterSeconds
-		result.Window7dMinutes = s.SecondaryWindowMinutes
-	} else if use7dFromPrimary {
-		result.Used7dPercent = s.PrimaryUsedPercent
-		result.Reset7dSeconds = s.PrimaryResetAfterSeconds
-		result.Window7dMinutes = s.PrimaryWindowMinutes
-		result.Used5hPercent = s.SecondaryUsedPercent
-		result.Reset5hSeconds = s.SecondaryResetAfterSeconds
-		result.Window5hMinutes = s.SecondaryWindowMinutes
-	}
-
-	return result
-}
-
-// OpenAIUsage represents OpenAI API response usage
-type OpenAIUsage struct {
-	InputTokens              int `json:"input_tokens"`
-	ImageInputTokens         int `json:"image_input_tokens,omitempty"`
-	OutputTokens             int `json:"output_tokens"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
-	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
-}
+type OpenAIUsage = protocolopenai.ForwardUsage
 
 // OpenAIForwardResult represents the result of forwarding
 type OpenAIForwardResult struct {
@@ -461,6 +360,7 @@ var ErrNoAvailableCompactAccounts = scheduler.ErrNoAvailableCompactAccounts
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	nativeAttemptActivity func() (func(), error)
 	liveObserverMu        sync.Mutex
 	liveObserverStopped   bool
 	liveObserverCancels   map[string]context.CancelFunc
@@ -1221,18 +1121,8 @@ func getAPIKeyIDFromContext(c *gin.Context) int64 {
 	return apiKey.ID
 }
 
-// isolateOpenAISessionID 将 apiKeyID 混入 session 标识符，
-// 确保不同 API Key 的用户即使使用相同的原始 session_id/conversation_id，
-// 到达上游的标识符也不同，防止跨用户会话碰撞。
 func isolateOpenAISessionID(apiKeyID int64, raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	h := xxhash.New()
-	_, _ = fmt.Fprintf(h, "k%d:", apiKeyID)
-	_, _ = h.WriteString(raw)
-	return fmt.Sprintf("%016x", h.Sum64())
+	return upstream.IsolateSessionID(apiKeyID, raw)
 }
 
 func logCodexCLIOnlyDetection(ctx context.Context, c *gin.Context, account *Account, apiKeyID int64, result CodexClientRestrictionDetectionResult, body []byte) {
@@ -1315,14 +1205,7 @@ func snapshotCodexCLIOnlyHeaders(header http.Header) map[string]string {
 	return result
 }
 
-func hashSensitiveValueForLog(raw string) string {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(value))
-	return hex.EncodeToString(sum[:8])
-}
+func hashSensitiveValueForLog(raw string) string { return upstream.HashSensitiveValueForLog(raw) }
 
 // GetAccessToken gets the access token for an OpenAI account
 func (s *OpenAIGatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
@@ -1700,4 +1583,9 @@ func (s *OpenAIGatewayService) ExpireRuntimeCaches() {
 			s.userGroupRateResolver.DeleteExpired()
 		}
 	}
+}
+
+// BindNativeAttemptActivity 将平台尝试绑定到应用唯一活动拥有者。
+func (s *OpenAIGatewayService) BindNativeAttemptActivity(enter func() (func(), error)) {
+	s.nativeAttemptActivity = enter
 }

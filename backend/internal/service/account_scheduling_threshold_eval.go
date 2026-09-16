@@ -2,12 +2,12 @@
 package service
 
 import (
-	account "github.com/TokenFlux/TokenRouter/internal/account"
 	time "time"
+
+	account "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // EvaluateAccountSchedulingThreshold 只投影账号，纯规则已迁入 account。
 func EvaluateAccountSchedulingThreshold(v *Account, thresholds map[string]int, now time.Time) account.AccountSchedulingThresholdDecision {
 	return account.EvaluateAccountSchedulingThreshold(AccountRecordView(v), thresholds, now)
 }
-func parseSchedulingTime(raw string) (time.Time, error) { return account.ParseSchedulingTime(raw) }

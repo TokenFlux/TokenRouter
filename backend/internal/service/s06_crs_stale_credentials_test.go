@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
 )

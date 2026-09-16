@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/grok",
+    "./internal/repository",
+    "./internal/account/rediscache",
+    "-run",
+    "Test.*Grok|TestSessionStore"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 12.005,
+  "pass": 19,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-native-client-unit.log.gz"
+}

@@ -1,13 +1,15 @@
 // 本文件维护 account 的所属能力；兼容入口复用唯一实现。
 package account
 
-const UpstreamUsageAdapterSub2API = "sub2api"
-const UpstreamUsageAdapterNewAPI = "new_api"
-const UpstreamUsageAdapterZivv = "zivv"
-const UpstreamUsageAdapterKimiCoding = "kimi_coding"
-const UpstreamUsageAdapterZhipuCoding = "zhipu_coding"
-const UpstreamUsageAdapterKimiBalance = "kimi_balance"
-const UpstreamUsageAdapterDeepseekBalance = "deepseek_balance"
+import "github.com/TokenFlux/TokenRouter/internal/upstream/usageview"
+
+const UpstreamUsageAdapterSub2API = usageview.UpstreamUsageAdapterSub2API
+const UpstreamUsageAdapterNewAPI = usageview.UpstreamUsageAdapterNewAPI
+const UpstreamUsageAdapterZivv = usageview.UpstreamUsageAdapterZivv
+const UpstreamUsageAdapterKimiCoding = usageview.UpstreamUsageAdapterKimiCoding
+const UpstreamUsageAdapterZhipuCoding = usageview.UpstreamUsageAdapterZhipuCoding
+const UpstreamUsageAdapterKimiBalance = usageview.UpstreamUsageAdapterKimiBalance
+const UpstreamUsageAdapterDeepseekBalance = usageview.UpstreamUsageAdapterDeepseekBalance
 const NewAPIUserAccessTokenCredentialKey = "new_api_user_access_token"
 const NewAPIUserIDCredentialKey = "new_api_user_id"
 const UpstreamUsageDefaultAdapter = UpstreamUsageAdapterSub2API

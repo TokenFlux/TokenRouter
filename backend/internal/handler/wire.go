@@ -1,6 +1,7 @@
 package handler
 
 import (
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 
 	opshttp "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
@@ -41,7 +42,7 @@ func ProvideAdminHandlers(
 	openaiOAuthHandler *admin.OpenAIOAuthHandler,
 	geminiOAuthHandler *admin.GeminiOAuthHandler,
 	antigravityOAuthHandler *admin.AntigravityOAuthHandler,
-	grokOAuthHandler *admin.GrokOAuthHandler,
+	grokOAuthHandler *accounthttp.GrokOAuthHandler,
 	qoderOAuthHandler *admin.QoderOAuthHandler,
 	proxyHandler *egresshttp.ProxyHandler,
 	redeemHandler *billinghttpapi.AdminRedeemHandler,
@@ -181,6 +182,7 @@ func ProvideHandlers(
 	gatewayHandler *GatewayHandler,
 	openaiGatewayHandler *OpenAIGatewayHandler,
 	qoderGatewayHandler *QoderGatewayHandler,
+	qoderChat *gatewayhttp.QoderChatHandler,
 	settingHandler *SettingHandler,
 	totpHandler *TotpHandler,
 	passkeyHandler *PasskeyHandler,
@@ -208,6 +210,7 @@ func ProvideHandlers(
 		Gateway:          gatewayHandler,
 		OpenAIGateway:    openaiGatewayHandler,
 		QoderGateway:     qoderGatewayHandler,
+		QoderChat:        qoderChat,
 		Setting:          settingHandler,
 		Totp:             totpHandler,
 		Passkey:          passkeyHandler,
@@ -246,7 +249,6 @@ var ProviderSet = wire.NewSet(
 	admin.NewDataManagementHandler,
 	admin.NewBackupHandler,
 	admin.NewOAuthHandler,
-	admin.NewOpenAIOAuthHandler,
 	admin.NewGeminiOAuthHandler,
 	admin.NewAntigravityOAuthHandler,
 	admin.NewQoderOAuthHandler,

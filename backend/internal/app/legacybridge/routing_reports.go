@@ -2,10 +2,11 @@ package legacybridge
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/platform/liveattestation"
+	"time"
+
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-	"time"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai/liveattestation"
 )
 
 // GroupUsageReports 只投影原聚合结果；用量计算和查询顺序在 S08 迁移。

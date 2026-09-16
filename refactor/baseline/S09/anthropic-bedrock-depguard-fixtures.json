@@ -1,0 +1,450 @@
+[
+  {
+    "name": "anthropic-legal-adapters",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/anthropic/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.422,
+    "log": "logs/gate-anthropic-legal-adapters-normal.log.gz"
+  },
+  {
+    "name": "bedrock-legal-signer",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/bedrock/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.359,
+    "log": "logs/gate-bedrock-legal-signer-normal.log.gz"
+  },
+  {
+    "name": "anthropic-new-file-no-exception",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta",
+    "matched": true,
+    "seconds": 0.393,
+    "log": "logs/gate-anthropic-new-file-no-exception-normal.log.gz"
+  },
+  {
+    "name": "anthropic-old-file-storage-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.391,
+    "log": "logs/gate-anthropic-old-file-storage-denied-normal.log.gz"
+  },
+  {
+    "name": "anthropic-moved-exception-expired",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta",
+    "matched": true,
+    "seconds": 0.389,
+    "log": "logs/gate-anthropic-moved-exception-expired-normal.log.gz"
+  },
+  {
+    "name": "anthropic-platform-peer-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/bedrock",
+    "matched": true,
+    "seconds": 0.391,
+    "log": "logs/gate-anthropic-platform-peer-denied-normal.log.gz"
+  },
+  {
+    "name": "anthropic-protocol-new-unsafe-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/protocol/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "unsafe",
+    "matched": true,
+    "seconds": 0.31,
+    "log": "logs/gate-anthropic-protocol-new-unsafe-denied-normal.log.gz"
+  },
+  {
+    "name": "anthropic-protocol-repair-io-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/protocol/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "net/http",
+    "matched": true,
+    "seconds": 0.327,
+    "log": "logs/gate-anthropic-protocol-repair-io-denied-normal.log.gz"
+  },
+  {
+    "name": "anthropic-legal-adapters",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/anthropic/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.382,
+    "log": "logs/gate-anthropic-legal-adapters-unit.log.gz"
+  },
+  {
+    "name": "bedrock-legal-signer",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/bedrock/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.358,
+    "log": "logs/gate-bedrock-legal-signer-unit.log.gz"
+  },
+  {
+    "name": "anthropic-new-file-no-exception",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta",
+    "matched": true,
+    "seconds": 0.388,
+    "log": "logs/gate-anthropic-new-file-no-exception-unit.log.gz"
+  },
+  {
+    "name": "anthropic-old-file-storage-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.385,
+    "log": "logs/gate-anthropic-old-file-storage-denied-unit.log.gz"
+  },
+  {
+    "name": "anthropic-moved-exception-expired",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta",
+    "matched": true,
+    "seconds": 0.382,
+    "log": "logs/gate-anthropic-moved-exception-expired-unit.log.gz"
+  },
+  {
+    "name": "anthropic-platform-peer-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/bedrock",
+    "matched": true,
+    "seconds": 0.384,
+    "log": "logs/gate-anthropic-platform-peer-denied-unit.log.gz"
+  },
+  {
+    "name": "anthropic-protocol-new-unsafe-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/protocol/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "unsafe",
+    "matched": true,
+    "seconds": 0.31,
+    "log": "logs/gate-anthropic-protocol-new-unsafe-denied-unit.log.gz"
+  },
+  {
+    "name": "anthropic-protocol-repair-io-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/protocol/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "net/http",
+    "matched": true,
+    "seconds": 0.335,
+    "log": "logs/gate-anthropic-protocol-repair-io-denied-unit.log.gz"
+  },
+  {
+    "name": "anthropic-legal-adapters",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/anthropic/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.386,
+    "log": "logs/gate-anthropic-legal-adapters-integration.log.gz"
+  },
+  {
+    "name": "bedrock-legal-signer",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/bedrock/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.358,
+    "log": "logs/gate-bedrock-legal-signer-integration.log.gz"
+  },
+  {
+    "name": "anthropic-new-file-no-exception",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta",
+    "matched": true,
+    "seconds": 0.387,
+    "log": "logs/gate-anthropic-new-file-no-exception-integration.log.gz"
+  },
+  {
+    "name": "anthropic-old-file-storage-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.386,
+    "log": "logs/gate-anthropic-old-file-storage-denied-integration.log.gz"
+  },
+  {
+    "name": "anthropic-moved-exception-expired",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta",
+    "matched": true,
+    "seconds": 0.382,
+    "log": "logs/gate-anthropic-moved-exception-expired-integration.log.gz"
+  },
+  {
+    "name": "anthropic-platform-peer-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/bedrock",
+    "matched": true,
+    "seconds": 0.386,
+    "log": "logs/gate-anthropic-platform-peer-denied-integration.log.gz"
+  },
+  {
+    "name": "anthropic-protocol-new-unsafe-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/protocol/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "unsafe",
+    "matched": true,
+    "seconds": 0.31,
+    "log": "logs/gate-anthropic-protocol-new-unsafe-denied-integration.log.gz"
+  },
+  {
+    "name": "anthropic-protocol-repair-io-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/protocol/anthropic"
+    ],
+    "exit_code": 1,
+    "expected": "net/http",
+    "matched": true,
+    "seconds": 0.357,
+    "log": "logs/gate-anthropic-protocol-repair-io-denied-integration.log.gz"
+  }
+]

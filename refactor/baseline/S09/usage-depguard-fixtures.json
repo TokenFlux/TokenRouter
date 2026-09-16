@@ -1,0 +1,450 @@
+[
+  {
+    "name": "usage-legal-provider",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account/provider"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.344,
+    "log": "logs/gate-usage-legal-provider-normal.log.gz"
+  },
+  {
+    "name": "usage-legal-ollama",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/ollama"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.287,
+    "log": "logs/gate-usage-legal-ollama-normal.log.gz"
+  },
+  {
+    "name": "usage-new-core-file",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.372,
+    "log": "logs/gate-usage-new-core-file-normal.log.gz"
+  },
+  {
+    "name": "usage-old-file-gin-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.381,
+    "log": "logs/gate-usage-old-file-gin-denied-normal.log.gz"
+  },
+  {
+    "name": "usage-moved-exception-expired",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.366,
+    "log": "logs/gate-usage-moved-exception-expired-normal.log.gz"
+  },
+  {
+    "name": "usage-platform-peer-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/kimi"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/zhipu",
+    "matched": true,
+    "seconds": 0.289,
+    "log": "logs/gate-usage-platform-peer-denied-normal.log.gz"
+  },
+  {
+    "name": "usage-native-redis-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/deepseek"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.293,
+    "log": "logs/gate-usage-native-redis-denied-normal.log.gz"
+  },
+  {
+    "name": "usage-exact-leaf-denies-child",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview/s09fixture",
+    "matched": true,
+    "seconds": 0.376,
+    "log": "logs/gate-usage-exact-leaf-denies-child-normal.log.gz"
+  },
+  {
+    "name": "usage-legal-provider",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account/provider"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.322,
+    "log": "logs/gate-usage-legal-provider-unit.log.gz"
+  },
+  {
+    "name": "usage-legal-ollama",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/ollama"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.283,
+    "log": "logs/gate-usage-legal-ollama-unit.log.gz"
+  },
+  {
+    "name": "usage-new-core-file",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.372,
+    "log": "logs/gate-usage-new-core-file-unit.log.gz"
+  },
+  {
+    "name": "usage-old-file-gin-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.389,
+    "log": "logs/gate-usage-old-file-gin-denied-unit.log.gz"
+  },
+  {
+    "name": "usage-moved-exception-expired",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.373,
+    "log": "logs/gate-usage-moved-exception-expired-unit.log.gz"
+  },
+  {
+    "name": "usage-platform-peer-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/kimi"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/zhipu",
+    "matched": true,
+    "seconds": 0.291,
+    "log": "logs/gate-usage-platform-peer-denied-unit.log.gz"
+  },
+  {
+    "name": "usage-native-redis-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/deepseek"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.298,
+    "log": "logs/gate-usage-native-redis-denied-unit.log.gz"
+  },
+  {
+    "name": "usage-exact-leaf-denies-child",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview/s09fixture",
+    "matched": true,
+    "seconds": 0.37,
+    "log": "logs/gate-usage-exact-leaf-denies-child-unit.log.gz"
+  },
+  {
+    "name": "usage-legal-provider",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account/provider"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.324,
+    "log": "logs/gate-usage-legal-provider-integration.log.gz"
+  },
+  {
+    "name": "usage-legal-ollama",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/ollama"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.284,
+    "log": "logs/gate-usage-legal-ollama-integration.log.gz"
+  },
+  {
+    "name": "usage-new-core-file",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.368,
+    "log": "logs/gate-usage-new-core-file-integration.log.gz"
+  },
+  {
+    "name": "usage-old-file-gin-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/gin-gonic/gin",
+    "matched": true,
+    "seconds": 0.377,
+    "log": "logs/gate-usage-old-file-gin-denied-integration.log.gz"
+  },
+  {
+    "name": "usage-moved-exception-expired",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview",
+    "matched": true,
+    "seconds": 0.368,
+    "log": "logs/gate-usage-moved-exception-expired-integration.log.gz"
+  },
+  {
+    "name": "usage-platform-peer-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/kimi"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/zhipu",
+    "matched": true,
+    "seconds": 0.293,
+    "log": "logs/gate-usage-platform-peer-denied-integration.log.gz"
+  },
+  {
+    "name": "usage-native-redis-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/deepseek"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.299,
+    "log": "logs/gate-usage-native-redis-denied-integration.log.gz"
+  },
+  {
+    "name": "usage-exact-leaf-denies-child",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/usageview/s09fixture",
+    "matched": true,
+    "seconds": 0.374,
+    "log": "logs/gate-usage-exact-leaf-denies-child-integration.log.gz"
+  }
+]

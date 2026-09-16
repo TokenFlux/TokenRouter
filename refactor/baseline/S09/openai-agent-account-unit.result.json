@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "-run",
+    "Test(.*AgentIdentity|.*Credential.*Shadow|.*ResolveCredential|.*SparkShadow)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.16,
+  "pass": 45,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-agent-account-unit.log.gz"
+}

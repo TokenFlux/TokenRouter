@@ -1,0 +1,10 @@
+{
+  "deleted_files": 101,
+  "remaining_matches": [
+    "          - \"!**/internal/app/legacybridge/account_ollama.go\"",
+    "          - \"!**/internal/app/legacybridge/account_upstream_usage.go\"",
+    "          - \"**/internal/app/legacybridge/account_ollama.go\"",
+    "          - \"**/internal/app/legacybridge/account_upstream_usage.go\""
+  ],
+  "after_cleanup_matches": []
+}

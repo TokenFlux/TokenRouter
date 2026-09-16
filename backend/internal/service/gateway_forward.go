@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"io"
 	"log/slog"
 	"net/http"
@@ -13,8 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -67,28 +72,6 @@ func retryBackoffDelay(attempt int) time.Duration {
 	return delay
 }
 
-func sleepWithContext(ctx context.Context, d time.Duration) error {
-	if d <= 0 {
-		return nil
-	}
-	timer := time.NewTimer(d)
-	defer func() {
-		if !timer.Stop() {
-			select {
-			case <-timer.C:
-			default:
-			}
-		}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
-}
-
 // Forward 转发请求到Claude API
 func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) (*ForwardResult, error) {
 	startTime := time.Now()
@@ -124,6 +107,13 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		return s.forwardBedrock(ctx, c, account, parsed, startTime)
 	}
 
+	if s.nativeAttemptActivity != nil {
+		done, err := s.nativeAttemptActivity()
+		if err != nil {
+			return nil, err
+		}
+		defer done()
+	}
 	if account.Platform == PlatformAnthropic && c != nil {
 		policy := s.evaluateBetaPolicy(ctx, c.GetHeader("anthropic-beta"), account, parsed.Model)
 		if policy.blockErr != nil {
@@ -202,7 +192,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		// system 被重写时保留 CC prompt 的 cache_control: ephemeral（匹配真实 Claude Code 行为）；
 		// 未重写时（注入开关关闭）剥离客户端 cache_control，与原有行为一致。
 		// 两种情况下 enforceCacheControlLimit 都会兜底处理上限。
-		normalizeOpts := claudeOAuthNormalizeOptions{stripSystemCacheControl: !systemRewritten}
+		normalizeOpts := claudeOAuthNormalizeOptions{StripSystemCacheControl: !systemRewritten}
 		if s.identityService != nil && c != nil {
 			fp, err := s.identityService.GetOrCreateFingerprint(ctx, account.ID, c.Request.Header)
 			if err == nil && fp != nil {
@@ -210,8 +200,8 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 				_, mimicMPT, _ := s.settingService.GetGatewayForwardingSettings(ctx)
 				if !mimicMPT {
 					if metadataUserID := s.buildOAuthMetadataUserID(parsed, account, fp); metadataUserID != "" {
-						normalizeOpts.injectMetadata = true
-						normalizeOpts.metadataUserID = metadataUserID
+						normalizeOpts.InjectMetadata = true
+						normalizeOpts.MetadataUserID = metadataUserID
 					}
 				}
 			}
@@ -303,245 +293,37 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		}
 	}
 
+	exchangeOptions := s.anthropicExchangeOptions(ctx, c, account, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode, proxyURL, tlsProfile, replaceBody)
 	var resp *http.Response
 	lastWireBody := body
-	retryStart := time.Now()
-	for attempt := 1; attempt <= maxRetryAttempts; attempt++ {
-
-		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, reqStream)
-		upstreamReq, wireBody, err := s.buildUpstreamRequest(upstreamCtx, c, account, body, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
-		releaseUpstreamCtx()
-		if err != nil {
-			return nil, err
-		}
-
-		lastWireBody = wireBody
-
-		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
-		if err != nil {
-			if resp != nil && resp.Body != nil {
-				_ = resp.Body.Close()
-			}
-			return nil, s.handleUpstreamTransportError(ctx, c, account, err, OpsUpstreamErrorEvent{
-				UpstreamURL: safeUpstreamURL(upstreamReq.URL.String()),
-			})
-		}
-
-		if resp.StatusCode == 400 {
-			respBody, readErr := s.readUpstreamErrorBody(resp)
-			if readErr == nil {
-				_ = resp.Body.Close()
-
-				if s.shouldRectifySignatureError(ctx, account, respBody, reqModel) {
-					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-						Platform:           account.Platform,
-						AccountID:          account.ID,
-						AccountName:        account.Name,
-						UpstreamStatusCode: resp.StatusCode,
-						UpstreamRequestID:  resp.Header.Get("x-request-id"),
-						UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
-						Kind:               "signature_error",
-						Message:            extractUpstreamErrorMessage(respBody),
-						Detail: func() string {
-							if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-								return truncateString(string(respBody), s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
-							}
-							return ""
-						}(),
-					})
-
-					looksLikeToolSignatureError := func(msg string) bool {
-						m := strings.ToLower(msg)
-						return strings.Contains(m, "tool_use") ||
-							strings.Contains(m, "tool_result") ||
-							strings.Contains(m, "functioncall") ||
-							strings.Contains(m, "function_call") ||
-							strings.Contains(m, "functionresponse") ||
-							strings.Contains(m, "function_response")
-					}
-
-					if time.Since(retryStart) >= maxRetryElapsed {
-						resp.Body = io.NopCloser(bytes.NewReader(respBody))
-						break
-					}
-					logger.LegacyPrintf("service.gateway", "[warn] Account %d: thinking blocks have invalid signature, retrying with filtered blocks", account.ID)
-
-					filteredBody := FilterThinkingBlocksForRetry(body, reqModel)
-					retryCtx, releaseRetryCtx := detachStreamUpstreamContext(ctx, reqStream)
-					retryReq, retryWireBody, buildErr := s.buildUpstreamRequest(retryCtx, c, account, filteredBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
-					releaseRetryCtx()
-					if buildErr == nil {
-						retryResp, retryErr := s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
-						if retryErr == nil {
-							if retryResp.StatusCode < 400 {
-
-								lastWireBody = retryWireBody
-								if err := replaceBody(retryWireBody); err != nil {
-									_ = retryResp.Body.Close()
-									return nil, err
-								}
-								logger.LegacyPrintf("service.gateway", "Account %d: thinking block retry succeeded (blocks downgraded)", account.ID)
-								resp = retryResp
-								break
-							}
-
-							retryRespBody, retryReadErr := s.readUpstreamErrorBody(retryResp)
-							_ = retryResp.Body.Close()
-							if retryReadErr == nil && retryResp.StatusCode == 400 && s.isSignatureErrorPattern(ctx, account, retryRespBody) {
-								appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-									Platform:           account.Platform,
-									AccountID:          account.ID,
-									AccountName:        account.Name,
-									UpstreamStatusCode: retryResp.StatusCode,
-									UpstreamRequestID:  retryResp.Header.Get("x-request-id"),
-									UpstreamURL:        safeUpstreamURL(retryReq.URL.String()),
-									Kind:               "signature_retry_thinking",
-									Message:            extractUpstreamErrorMessage(retryRespBody),
-									Detail: func() string {
-										if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-											return truncateString(string(retryRespBody), s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
-										}
-										return ""
-									}(),
-								})
-								msg2 := extractUpstreamErrorMessage(retryRespBody)
-								if looksLikeToolSignatureError(msg2) && time.Since(retryStart) < maxRetryElapsed {
-									logger.LegacyPrintf("service.gateway", "Account %d: signature retry still failing and looks tool-related, retrying with tool blocks downgraded", account.ID)
-									filteredBody2 := FilterSignatureSensitiveBlocksForRetry(body, reqModel)
-									retryCtx2, releaseRetryCtx2 := detachStreamUpstreamContext(ctx, reqStream)
-									retryReq2, retryWireBody2, buildErr2 := s.buildUpstreamRequest(retryCtx2, c, account, filteredBody2, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
-									releaseRetryCtx2()
-									if buildErr2 == nil {
-										retryResp2, retryErr2 := s.httpUpstream.DoWithTLS(retryReq2, proxyURL, account.ID, account.Concurrency, tlsProfile)
-										if retryErr2 == nil {
-											if retryResp2.StatusCode < 400 {
-
-												lastWireBody = retryWireBody2
-												if err := replaceBody(retryWireBody2); err != nil {
-													_ = retryResp2.Body.Close()
-													return nil, err
-												}
-											}
-											resp = retryResp2
-											break
-										}
-										if retryResp2 != nil && retryResp2.Body != nil {
-											_ = retryResp2.Body.Close()
-										}
-										appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-											Platform:           account.Platform,
-											AccountID:          account.ID,
-											AccountName:        account.Name,
-											UpstreamStatusCode: 0,
-											UpstreamURL:        safeUpstreamURL(retryReq2.URL.String()),
-											Kind:               "signature_retry_tools_request_error",
-											Message:            sanitizeUpstreamErrorMessage(retryErr2.Error()),
-										})
-										logger.LegacyPrintf("service.gateway", "Account %d: tool-downgrade signature retry failed: %v", account.ID, retryErr2)
-									} else {
-										logger.LegacyPrintf("service.gateway", "Account %d: tool-downgrade signature retry build failed: %v", account.ID, buildErr2)
-									}
-								}
-							}
-
-							resp = &http.Response{
-								StatusCode: retryResp.StatusCode,
-								Header:     retryResp.Header.Clone(),
-								Body:       io.NopCloser(bytes.NewReader(retryRespBody)),
-							}
-							break
-						}
-						if retryResp != nil && retryResp.Body != nil {
-							_ = retryResp.Body.Close()
-						}
-						logger.LegacyPrintf("service.gateway", "Account %d: signature error retry failed: %v", account.ID, retryErr)
-					} else {
-						logger.LegacyPrintf("service.gateway", "Account %d: signature error retry build request failed: %v", account.ID, buildErr)
-					}
-
-					resp.Body = io.NopCloser(bytes.NewReader(respBody))
-					break
-				}
-
-				errMsg := extractUpstreamErrorMessage(respBody)
-				if isThinkingBudgetConstraintError(errMsg) && s.settingService.IsBudgetRectifierEnabled(ctx) {
-					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-						Platform:           account.Platform,
-						AccountID:          account.ID,
-						AccountName:        account.Name,
-						UpstreamStatusCode: resp.StatusCode,
-						UpstreamRequestID:  resp.Header.Get("x-request-id"),
-						UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
-						Kind:               "budget_constraint_error",
-						Message:            errMsg,
-						Detail: func() string {
-							if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-								return truncateString(string(respBody), s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
-							}
-							return ""
-						}(),
-					})
-
-					rectifiedBody, applied := RectifyThinkingBudget(body)
-					if applied && time.Since(retryStart) < maxRetryElapsed {
-						logger.LegacyPrintf("service.gateway", "Account %d: detected budget_tokens constraint error, retrying with rectified budget (budget_tokens=%d, max_tokens=%d)", account.ID, BudgetRectifyBudgetTokens, BudgetRectifyMaxTokens)
-						budgetRetryCtx, releaseBudgetRetryCtx := detachStreamUpstreamContext(ctx, reqStream)
-						budgetRetryReq, budgetWireBody, buildErr := s.buildUpstreamRequest(budgetRetryCtx, c, account, rectifiedBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
-						releaseBudgetRetryCtx()
-						if buildErr == nil {
-							budgetRetryResp, retryErr := s.httpUpstream.DoWithTLS(budgetRetryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
-							if retryErr == nil {
-								if budgetRetryResp.StatusCode < 400 {
-
-									lastWireBody = budgetWireBody
-									if err := replaceBody(budgetWireBody); err != nil {
-										_ = budgetRetryResp.Body.Close()
-										return nil, err
-									}
-								}
-								resp = budgetRetryResp
-								break
-							}
-							if budgetRetryResp != nil && budgetRetryResp.Body != nil {
-								_ = budgetRetryResp.Body.Close()
-							}
-							logger.LegacyPrintf("service.gateway", "Account %d: budget rectifier retry failed: %v", account.ID, retryErr)
-						} else {
-							logger.LegacyPrintf("service.gateway", "Account %d: budget rectifier retry build failed: %v", account.ID, buildErr)
-						}
-					}
-				}
-
-				resp.Body = io.NopCloser(bytes.NewReader(respBody))
-			}
-		}
-
-		if resp.StatusCode >= 400 && resp.StatusCode != 400 && s.shouldRetryUpstreamError(account, resp.StatusCode) {
-			if attempt < maxRetryAttempts {
-				elapsed := time.Since(retryStart)
-				if elapsed >= maxRetryElapsed {
-					break
-				}
-
-				delay := retryBackoffDelay(attempt)
-				remaining := maxRetryElapsed - elapsed
-				if delay > remaining {
-					delay = remaining
-				}
-				if delay <= 0 {
-					break
-				}
-
+	var earlyResult *ForwardResult
+	stopped := false
+	var streamResult *streamingResult
+	writerSizeBeforeStream := 0
+	before := func(ctx context.Context, response *http.Response, wire []byte) (bool, error) {
+		resp = response
+		lastWireBody = wire
+		early := func(result *ForwardResult, err error) (bool, error) { earlyResult = result; return true, err }
+		if resp.StatusCode >= 400 && s.shouldRetryUpstreamError(account, resp.StatusCode) {
+			if s.shouldFailoverUpstreamError(resp.StatusCode) {
 				respBody, _ := s.readUpstreamErrorBody(resp)
 				_ = resp.Body.Close()
+				resp.Body = io.NopCloser(bytes.NewReader(respBody))
+
+				logger.LegacyPrintf("service.gateway", "[Forward] Upstream error (retry exhausted, failover): Account=%d(%s) Status=%d RequestID=%s Body=%s",
+					account.ID, account.Name, resp.StatusCode, resp.Header.Get("x-request-id"), truncateString(string(respBody), 1000))
+
+				decision := s.handleRetryExhaustedSideEffects(ctx, resp, account, reqModel)
+				if decision.ShouldReturnGenericError() {
+					return early(s.handleErrorResponse(ctx, resp, c, account, reqModel))
+				}
 				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 					Platform:           account.Platform,
 					AccountID:          account.ID,
 					AccountName:        account.Name,
 					UpstreamStatusCode: resp.StatusCode,
 					UpstreamRequestID:  resp.Header.Get("x-request-id"),
-					UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
-					Kind:               "retry",
+					Kind:               "retry_exhausted_failover",
 					Message:            extractUpstreamErrorMessage(respBody),
 					Detail: func() string {
 						if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -550,50 +332,33 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 						return ""
 					}(),
 				})
-				logger.LegacyPrintf("service.gateway", "Account %d: upstream error %d, retry %d/%d after %v (elapsed=%v/%v)",
-					account.ID, resp.StatusCode, attempt, maxRetryAttempts, delay, elapsed, maxRetryElapsed)
-				if err := sleepWithContext(ctx, delay); err != nil {
-					return nil, err
+				return true, &UpstreamFailoverError{
+					StatusCode:             resp.StatusCode,
+					ResponseBody:           respBody,
+					RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
 				}
-				continue
 			}
-
-			break
+			return early(s.handleRetryExhaustedError(ctx, resp, c, account, reqModel))
 		}
 
-		if account.Platform == PlatformGemini && resp.StatusCode < 400 && s.cfg != nil && s.cfg.Gateway.GeminiDebugResponseHeaders {
-			logger.LegacyPrintf("service.gateway", "[DEBUG] Gemini API Response Headers for account %d:", account.ID)
-			for k, v := range resp.Header {
-				logger.LegacyPrintf("service.gateway", "[DEBUG]   %s: %v", k, v)
-			}
-		}
-		break
-	}
-	if resp == nil || resp.Body == nil {
-		return nil, errors.New("upstream request failed: empty response")
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode >= 400 && s.shouldRetryUpstreamError(account, resp.StatusCode) {
-		if s.shouldFailoverUpstreamError(resp.StatusCode) {
+		if resp.StatusCode >= 400 && s.shouldFailoverUpstreamError(resp.StatusCode) {
 			respBody, _ := s.readUpstreamErrorBody(resp)
 			_ = resp.Body.Close()
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
-			logger.LegacyPrintf("service.gateway", "[Forward] Upstream error (retry exhausted, failover): Account=%d(%s) Status=%d RequestID=%s Body=%s",
+			logger.LegacyPrintf("service.gateway", "[Forward] Upstream error (failover): Account=%d(%s) Status=%d RequestID=%s Body=%s",
 				account.ID, account.Name, resp.StatusCode, resp.Header.Get("x-request-id"), truncateString(string(respBody), 1000))
 
-			decision := s.handleRetryExhaustedSideEffects(ctx, resp, account, reqModel)
+			decision := s.handleFailoverSideEffects(ctx, resp, account, reqModel)
 			if decision.ShouldReturnGenericError() {
-				return s.handleErrorResponse(ctx, resp, c, account, reqModel)
+				return early(s.handleErrorResponse(ctx, resp, c, account, reqModel))
 			}
 			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 				Platform:           account.Platform,
 				AccountID:          account.ID,
-				AccountName:        account.Name,
 				UpstreamStatusCode: resp.StatusCode,
 				UpstreamRequestID:  resp.Header.Get("x-request-id"),
-				Kind:               "retry_exhausted_failover",
+				Kind:               "failover",
 				Message:            extractUpstreamErrorMessage(respBody),
 				Detail: func() string {
 					if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
@@ -602,120 +367,95 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					return ""
 				}(),
 			})
-			return nil, &UpstreamFailoverError{
+			return true, &UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
 				RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
 			}
 		}
-		return s.handleRetryExhaustedError(ctx, resp, c, account, reqModel)
-	}
+		if resp.StatusCode >= 400 {
 
-	if resp.StatusCode >= 400 && s.shouldFailoverUpstreamError(resp.StatusCode) {
-		respBody, _ := s.readUpstreamErrorBody(resp)
-		_ = resp.Body.Close()
-		resp.Body = io.NopCloser(bytes.NewReader(respBody))
+			if resp.StatusCode == 400 && s.cfg != nil && s.cfg.Gateway.FailoverOn400 {
+				respBody, readErr := s.readUpstreamErrorBody(resp)
+				if readErr != nil {
 
-		logger.LegacyPrintf("service.gateway", "[Forward] Upstream error (failover): Account=%d(%s) Status=%d RequestID=%s Body=%s",
-			account.ID, account.Name, resp.StatusCode, resp.Header.Get("x-request-id"), truncateString(string(respBody), 1000))
-
-		decision := s.handleFailoverSideEffects(ctx, resp, account, reqModel)
-		if decision.ShouldReturnGenericError() {
-			return s.handleErrorResponse(ctx, resp, c, account, reqModel)
-		}
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			UpstreamStatusCode: resp.StatusCode,
-			UpstreamRequestID:  resp.Header.Get("x-request-id"),
-			Kind:               "failover",
-			Message:            extractUpstreamErrorMessage(respBody),
-			Detail: func() string {
-				if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-					return truncateString(string(respBody), s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
+					return early(s.handleErrorResponse(ctx, resp, c, account, reqModel))
 				}
-				return ""
-			}(),
-		})
-		return nil, &UpstreamFailoverError{
-			StatusCode:             resp.StatusCode,
-			ResponseBody:           respBody,
-			RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
-		}
-	}
-	if resp.StatusCode >= 400 {
+				_ = resp.Body.Close()
+				resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
-		if resp.StatusCode == 400 && s.cfg != nil && s.cfg.Gateway.FailoverOn400 {
-			respBody, readErr := s.readUpstreamErrorBody(resp)
-			if readErr != nil {
-
-				return s.handleErrorResponse(ctx, resp, c, account, reqModel)
-			}
-			_ = resp.Body.Close()
-			resp.Body = io.NopCloser(bytes.NewReader(respBody))
-
-			if s.shouldFailoverOn400(respBody) {
-				upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
-				upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
-				upstreamDetail := ""
-				if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-					maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
-					if maxBytes <= 0 {
-						maxBytes = 2048
+				if s.shouldFailoverOn400(respBody) {
+					upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
+					upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+					upstreamDetail := ""
+					if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
+						maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+						if maxBytes <= 0 {
+							maxBytes = 2048
+						}
+						upstreamDetail = truncateString(string(respBody), maxBytes)
 					}
-					upstreamDetail = truncateString(string(respBody), maxBytes)
-				}
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-					Platform:           account.Platform,
-					AccountID:          account.ID,
-					AccountName:        account.Name,
-					UpstreamStatusCode: resp.StatusCode,
-					UpstreamRequestID:  resp.Header.Get("x-request-id"),
-					Kind:               "failover_on_400",
-					Message:            upstreamMsg,
-					Detail:             upstreamDetail,
-				})
+					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+						Platform:           account.Platform,
+						AccountID:          account.ID,
+						AccountName:        account.Name,
+						UpstreamStatusCode: resp.StatusCode,
+						UpstreamRequestID:  resp.Header.Get("x-request-id"),
+						Kind:               "failover_on_400",
+						Message:            upstreamMsg,
+						Detail:             upstreamDetail,
+					})
 
-				if s.cfg.Gateway.LogUpstreamErrorBody {
-					logger.LegacyPrintf("service.gateway",
-						"Account %d: 400 error, attempting failover: %s",
-						account.ID,
-						truncateForLog(respBody, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes),
-					)
-				} else {
-					logger.LegacyPrintf("service.gateway", "Account %d: 400 error, attempting failover", account.ID)
-				}
-				decision := s.handleFailoverSideEffects(ctx, resp, account, reqModel)
-				if decision.ShouldReturnGenericError() {
-					return s.handleErrorResponse(ctx, resp, c, account, reqModel)
-				}
-				return nil, &UpstreamFailoverError{
-					StatusCode:             resp.StatusCode,
-					ResponseBody:           respBody,
-					RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
+					if s.cfg.Gateway.LogUpstreamErrorBody {
+						logger.LegacyPrintf("service.gateway",
+							"Account %d: 400 error, attempting failover: %s",
+							account.ID,
+							truncateForLog(respBody, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes),
+						)
+					} else {
+						logger.LegacyPrintf("service.gateway", "Account %d: 400 error, attempting failover", account.ID)
+					}
+					decision := s.handleFailoverSideEffects(ctx, resp, account, reqModel)
+					if decision.ShouldReturnGenericError() {
+						return early(s.handleErrorResponse(ctx, resp, c, account, reqModel))
+					}
+					return true, &UpstreamFailoverError{
+						StatusCode:             resp.StatusCode,
+						ResponseBody:           respBody,
+						RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
+					}
 				}
 			}
+			return early(s.handleErrorResponse(ctx, resp, c, account, reqModel))
 		}
-		return s.handleErrorResponse(ctx, resp, c, account, reqModel)
-	}
 
-	if !bytes.Equal(lastWireBody, body) {
+		if !bytes.Equal(lastWireBody, body) {
 
-		if err := replaceBody(lastWireBody); err != nil {
-			return nil, err
+			if err := replaceBody(lastWireBody); err != nil {
+				return true, err
+			}
 		}
-	}
 
-	if parsed.OnUpstreamAccepted != nil {
-		parsed.OnUpstreamAccepted()
+		return false, nil
 	}
-
-	var usage *ClaudeUsage
-	var firstTokenMs *int
-	var clientDisconnect bool
+	target := &claude.Target{AccountID: account.ID, Model: reqModel, Exchange: exchangeOptions, Response: s.anthropicResponseOptions(ctx, c, account, reqModel, false), StartedAt: startTime, MimicClaudeCode: shouldMimicClaudeCode, BeforeResponse: func(ctx context.Context, resp *http.Response, wire []byte) (bool, error) {
+		var err error
+		stopped, err = before(ctx, resp, wire)
+		return stopped, err
+	}, OnWireBody: func(wire []byte) { lastWireBody = wire }, Accepted: func() {
+		if parsed.OnUpstreamAccepted != nil {
+			parsed.OnUpstreamAccepted()
+		}
+	}, BeforeStream: func() { writerSizeBeforeStream = c.Writer.Size() }, OnStream: func(result *claude.StreamResult, _ error) {
+		if result != nil {
+			streamResult = &streamingResult{usage: result.Usage, firstTokenMs: result.FirstTokenMs, clientDisconnect: result.ClientDisconnect}
+		}
+	}}
+	attempt, err := (claude.Executor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocolcore.ProtocolAnthropicMessages, Body: body, ResponseModel: originalModel, Stream: reqStream, Target: target}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	if stopped {
+		return earlyResult, err
+	}
 	if reqStream {
-		writerSizeBeforeStream := c.Writer.Size()
-		streamResult, err := s.handleStreamingResponse(ctx, resp, c, account, startTime, originalModel, reqModel, shouldMimicClaudeCode)
 		if err != nil {
 			var sseErr *sseStreamErrorEventError
 			if errors.As(err, &sseErr) {
@@ -796,22 +536,15 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			}
 			return nil, err
 		}
-		usage = streamResult.usage
-		firstTokenMs = streamResult.firstTokenMs
-		clientDisconnect = streamResult.clientDisconnect
-	} else {
-		usage, err = s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, reqModel)
-		if err != nil {
-			return nil, err
-		}
+	} else if err != nil {
+		return nil, err
 	}
-	if usage == nil {
-		usage = &ClaudeUsage{}
+	usage := &attempt.Usage
+	firstTokenMs := attempt.FirstTokenMs
+	clientDisconnect := attempt.ClientDisconnect
+	if resp == nil {
+		return nil, err
 	}
-	if strings.TrimSpace(usage.Speed) == "" && strings.EqualFold(strings.TrimSpace(gjson.GetBytes(lastWireBody, "speed").String()), "fast") {
-		usage.Speed = "fast"
-	}
-
 	return &ForwardResult{
 		RequestID:                   resp.Header.Get("x-request-id"),
 		UpstreamHeaders:             resp.Header,

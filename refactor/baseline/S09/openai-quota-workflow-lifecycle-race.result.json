@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/account",
+    "-run",
+    "^TestOpenAIQuota(Actions|Lifecycle)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.344,
+  "pass": 4,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-quota-workflow-lifecycle-race.log.gz"
+}

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "CountTokens|InputTokens"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 10.533,
+  "pass": 75,
+  "fail": 0,
+  "skip": 1,
+  "log": "logs/openai-count-query-unit.log.gz"
+}

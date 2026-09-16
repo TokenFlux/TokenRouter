@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai/...",
+    "./internal/service",
+    "-run",
+    "OpenAI.*Image|Images.*OpenAI"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 10.914,
+  "pass": 309,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-images-execute-unit.log.gz"
+}

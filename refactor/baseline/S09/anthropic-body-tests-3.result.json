@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/service",
+    "./internal/upstream/anthropic",
+    "-run",
+    "Claude|Anthropic|ToolName|ToolMap|CacheControl|Fingerprint|SystemPrompt"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.521,
+  "pass": 3,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-body-tests-3.log.gz"
+}

@@ -1,0 +1,26 @@
+{
+  "stage": "S09.3",
+  "status": "passed",
+  "behavior_results": [
+    "gemini-final-normal.result.json",
+    "gemini-final-consumer-race.result.json",
+    "gemini-final-storage-race.result.json",
+    "gemini-media-race.result.json",
+    "gemini-resource-local-unit.result.json"
+  ],
+  "lint": "gemini-lint-comparison.json",
+  "direction_fixtures": "gemini-depguard-fixtures.json",
+  "buildsets": "gemini-buildsets.json",
+  "symbols": [
+    "gemini-symbols-normal.json.gz",
+    "gemini-symbols-unit.json.gz",
+    "gemini-symbols-integration.json.gz"
+  ],
+  "wire": "gemini-image-wire.result.json",
+  "limitations": [
+    "消费者 race 使用 -parallel=1 隔离已登记 Gin 全局设置竞争，测试内并发保持。",
+    "T01 与 I01 的失败记录保留至 OpenAI 子步骤处理；不称宽泛选择集合通过。",
+    "真实供应商及完整进程、阶段全量测试仍待收尾。"
+  ],
+  "next": "S09.4 Vertex"
+}

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/upstream/grok",
+    "-run",
+    "Test.*Grok"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 20.144,
+  "pass": 953,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/grok-chat-execute-unit2.log.gz"
+}

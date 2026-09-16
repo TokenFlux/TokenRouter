@@ -1,0 +1,394 @@
+[
+  {
+    "name": "vertex-legal-native",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/vertex/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.409,
+    "log": "logs/gate-vertex-legal-native-normal.log.gz"
+  },
+  {
+    "name": "vertex-legal-googleauth",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/internal/googleauth"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.383,
+    "log": "logs/gate-vertex-legal-googleauth-normal.log.gz"
+  },
+  {
+    "name": "vertex-new-file-no-exception",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/googleauth",
+    "matched": true,
+    "seconds": 0.39,
+    "log": "logs/gate-vertex-new-file-no-exception-normal.log.gz"
+  },
+  {
+    "name": "vertex-old-file-redis-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.396,
+    "log": "logs/gate-vertex-old-file-redis-denied-normal.log.gz"
+  },
+  {
+    "name": "vertex-moved-exception-expired",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/googleauth",
+    "matched": true,
+    "seconds": 0.39,
+    "log": "logs/gate-vertex-moved-exception-expired-normal.log.gz"
+  },
+  {
+    "name": "vertex-platform-peer-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/gemini",
+    "matched": true,
+    "seconds": 0.383,
+    "log": "logs/gate-vertex-platform-peer-denied-normal.log.gz"
+  },
+  {
+    "name": "vertex-core-platform-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/vertex",
+    "matched": true,
+    "seconds": 0.474,
+    "log": "logs/gate-vertex-core-platform-denied-normal.log.gz"
+  },
+  {
+    "name": "vertex-legal-native",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/vertex/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.382,
+    "log": "logs/gate-vertex-legal-native-unit.log.gz"
+  },
+  {
+    "name": "vertex-legal-googleauth",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/internal/googleauth"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.404,
+    "log": "logs/gate-vertex-legal-googleauth-unit.log.gz"
+  },
+  {
+    "name": "vertex-new-file-no-exception",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/googleauth",
+    "matched": true,
+    "seconds": 0.413,
+    "log": "logs/gate-vertex-new-file-no-exception-unit.log.gz"
+  },
+  {
+    "name": "vertex-old-file-redis-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.409,
+    "log": "logs/gate-vertex-old-file-redis-denied-unit.log.gz"
+  },
+  {
+    "name": "vertex-moved-exception-expired",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/googleauth",
+    "matched": true,
+    "seconds": 0.392,
+    "log": "logs/gate-vertex-moved-exception-expired-unit.log.gz"
+  },
+  {
+    "name": "vertex-platform-peer-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/gemini",
+    "matched": true,
+    "seconds": 0.393,
+    "log": "logs/gate-vertex-platform-peer-denied-unit.log.gz"
+  },
+  {
+    "name": "vertex-core-platform-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=unit",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/vertex",
+    "matched": true,
+    "seconds": 0.484,
+    "log": "logs/gate-vertex-core-platform-denied-unit.log.gz"
+  },
+  {
+    "name": "vertex-legal-native",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/vertex/..."
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.384,
+    "log": "logs/gate-vertex-legal-native-integration.log.gz"
+  },
+  {
+    "name": "vertex-legal-googleauth",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/internal/googleauth"
+    ],
+    "exit_code": 0,
+    "expected": null,
+    "matched": true,
+    "seconds": 0.359,
+    "log": "logs/gate-vertex-legal-googleauth-integration.log.gz"
+  },
+  {
+    "name": "vertex-new-file-no-exception",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/googleauth",
+    "matched": true,
+    "seconds": 0.371,
+    "log": "logs/gate-vertex-new-file-no-exception-integration.log.gz"
+  },
+  {
+    "name": "vertex-old-file-redis-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/redis/go-redis/v9",
+    "matched": true,
+    "seconds": 0.376,
+    "log": "logs/gate-vertex-old-file-redis-denied-integration.log.gz"
+  },
+  {
+    "name": "vertex-moved-exception-expired",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/googleauth",
+    "matched": true,
+    "seconds": 0.38,
+    "log": "logs/gate-vertex-moved-exception-expired-integration.log.gz"
+  },
+  {
+    "name": "vertex-platform-peer-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/upstream/vertex"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/gemini",
+    "matched": true,
+    "seconds": 0.388,
+    "log": "logs/gate-vertex-platform-peer-denied-integration.log.gz"
+  },
+  {
+    "name": "vertex-core-platform-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--build-tags=integration",
+      "./internal/account"
+    ],
+    "exit_code": 1,
+    "expected": "github.com/TokenFlux/TokenRouter/internal/upstream/vertex",
+    "matched": true,
+    "seconds": 0.478,
+    "log": "logs/gate-vertex-core-platform-denied-integration.log.gz"
+  }
+]

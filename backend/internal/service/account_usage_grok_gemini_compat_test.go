@@ -5,10 +5,11 @@ package service
 
 import (
 	context "context"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	xai "github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	slog "log/slog"
 	time "time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // 旧断言委托新账号用例，不在生产保留无调用包装。

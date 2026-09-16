@@ -1,6 +1,6 @@
 package repository
 
-import "github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
+import geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 
 // NewGeminiDriveClient creates a concrete DriveClient for Google Drive API operations.
 // Returned as geminicli.DriveClient interface for DI (Strategy A).

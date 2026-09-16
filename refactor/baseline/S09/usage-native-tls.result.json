@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/account/provider",
+    "-run",
+    "^TestNativeUsageAdaptersLocalTLS$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 3.592,
+  "pass": 4,
+  "fail": 4,
+  "skip": 0,
+  "log": "logs/usage-native-tls.log.gz"
+}

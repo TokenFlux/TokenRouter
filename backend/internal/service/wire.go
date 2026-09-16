@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	accountredis "github.com/TokenFlux/TokenRouter/internal/account/rediscache"
+
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/google/uuid"
@@ -13,8 +15,7 @@ import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 )
@@ -23,7 +24,7 @@ func ProvideGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthCli
 	svc := NewGrokOAuthService(proxyRepo, oauthClient, cfg)
 	// Wire 层允许直接依赖 Redis，在这里装配跨实例单次消费的会话存储。
 	if redisClient != nil {
-		svc = svc.WithSessionStore(xai.NewRedisSessionStore(redisClient))
+		svc = svc.WithSessionStore(accountredis.NewGrokSessionStore(redisClient))
 	}
 	return svc
 }
@@ -721,7 +722,7 @@ var ProviderSet = wire.NewSet(
 	NewNotificationEmailService,
 	ProvideEmailQueueService,
 	NewUsageRecordWorkerPool,
-	NewIdentityService,
+	NewRequestFingerprintService,
 
 	ProvideTokenRefreshService,
 	wire.Bind(new(GrokOAuthReconciler), new(*TokenRefreshService)),

@@ -10,10 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,10 +35,6 @@ const (
 	// AntigravityCredentialRejectedReason 标识上游拒绝已刷新 OAuth 凭据。
 	AntigravityCredentialRejectedReason GatewayFailureReason = "antigravity_oauth_credential_rejected"
 )
-
-// antigravityCompatMaxTokens 限制兼容层发送给 Anthropic 上游的最大输出 token，
-// 避免客户端的大数值超过 Antigravity 接口可接受的范围。
-const antigravityCompatMaxTokens = 64000
 
 type antigravityCompatRequest struct {
 	protocol          antigravityCompatProtocol
@@ -166,19 +166,6 @@ func (s *AntigravityGatewayService) validateAntigravityCompatAccount(c *gin.Cont
 	)
 }
 
-func preserveChatCompletionTokenLimit(request *protocolopenai.ChatCompletionsRequest, claudeRequest *protocolanthropic.AnthropicRequest) {
-	if request == nil || claudeRequest == nil {
-		return
-	}
-	limit := request.MaxTokens
-	if request.MaxCompletionTokens != nil {
-		limit = request.MaxCompletionTokens
-	}
-	if limit != nil && *limit > 0 {
-		claudeRequest.MaxTokens = min(*limit, antigravityCompatMaxTokens)
-	}
-}
-
 // prepareAntigravityCompatTools 保留 fork 的工具名混淆与缓存断点语义，并刷新回程映射。
 func prepareAntigravityCompatTools(c *gin.Context, body []byte) []byte {
 	rewrite := buildToolNameRewriteFromBody(body)
@@ -200,7 +187,7 @@ func (s *AntigravityGatewayService) forwardAntigravityCompat(
 		return nil, err
 	}
 
-	result, err := s.antigravityRetryLoop(antigravityRetryLoopParams{
+	retry, params := s.antigravityRetryAdapter(antigravityRetryLoopParams{
 		ctx:             call.ctx,
 		prefix:          call.prefix,
 		account:         account,
@@ -218,11 +205,32 @@ func (s *AntigravityGatewayService) forwardAntigravityCompat(
 		groupID:         0,
 		sessionHash:     "",
 	})
-	if err != nil {
-		return nil, s.handleAntigravityCompatTransportError(c, err)
+	mode := antigravity.ModeChatResponse
+	wireProtocol := protocol.ProtocolOpenAIChatCompletions
+	if request.protocol == antigravityCompatResponses {
+		mode = antigravity.ModeResponsesResponse
+		wireProtocol = protocol.ProtocolOpenAIResponses
 	}
-
-	return s.consumeAntigravityCompatResponse(call.ctx, c, account, call, result.resp)
+	target := &antigravity.Target{AccountID: account.ID, Model: call.billingModel, Mode: mode, StartedAt: request.startTime, IncludeUsage: request.includeUsage, ClientTools: request.clientToolMapping, Response: s.antigravityResponseAdapter(c).Options, Enter: s.nativeAttemptActivity,
+		Exchange: func(context.Context) (*http.Response, error) {
+			result, err := retry.AntigravityRetryLoop(params)
+			if err != nil {
+				return nil, s.handleAntigravityCompatTransportError(c, err)
+			}
+			return result.Resp, nil
+		},
+		BeforeResponse: func(ctx context.Context, resp *http.Response) (bool, error) {
+			if resp.StatusCode >= http.StatusBadRequest {
+				return true, s.handleAntigravityCompatHTTPError(ctx, c, account, call, resp)
+			}
+			return false, nil
+		},
+	}
+	result, err := (antigravity.Executor{}).Execute(call.ctx, upstream.AttemptInput{Protocol: wireProtocol, Body: call.geminiBody, ResponseModel: request.originalModel, Stream: request.clientStream, Target: target}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	if err != nil {
+		return nil, err
+	}
+	return &ForwardResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Usage: result.Usage, Model: request.originalModel, UpstreamModel: call.billingModel, Stream: request.clientStream, Duration: result.Duration, FirstTokenMs: result.FirstTokenMs, ReasoningEffort: request.reasoningEffort, ClientDisconnect: result.ClientDisconnect}, nil
 }
 
 func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
@@ -310,38 +318,6 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 	return antigravity.TransformClaudeToGeminiWithOptions(claudeRequest, projectID, mappedModel, options)
 }
 
-func enableMixedGeminiToolInvocations(body []byte) ([]byte, error) {
-	var request map[string]any
-	if err := json.Unmarshal(body, &request); err != nil {
-		return nil, err
-	}
-
-	var hasGoogleSearch, hasFunctionDeclarations bool
-	if tools, ok := request["tools"].([]any); ok {
-		for _, rawTool := range tools {
-			tool, ok := rawTool.(map[string]any)
-			if !ok {
-				continue
-			}
-			_, hasSearch := tool["googleSearch"]
-			declarations, hasFunctions := tool["functionDeclarations"].([]any)
-			hasGoogleSearch = hasGoogleSearch || hasSearch
-			hasFunctionDeclarations = hasFunctionDeclarations || hasFunctions && len(declarations) > 0
-		}
-	}
-	if !hasGoogleSearch || !hasFunctionDeclarations {
-		return body, nil
-	}
-
-	toolConfig, _ := request["toolConfig"].(map[string]any)
-	if toolConfig == nil {
-		toolConfig = make(map[string]any)
-		request["toolConfig"] = toolConfig
-	}
-	toolConfig["includeServerSideToolInvocations"] = true
-	return json.Marshal(request)
-}
-
 func antigravityCompatProxyURL(account *Account) string {
 	if account.ProxyID == nil || account.Proxy == nil {
 		return ""
@@ -360,80 +336,6 @@ func (s *AntigravityGatewayService) handleAntigravityCompatTransportError(c *gin
 		return s.writeAntigravityCompatError(c, http.StatusBadGateway, "client_disconnected", "Client disconnected before upstream response")
 	}
 	return s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed after retries")
-}
-
-func (s *AntigravityGatewayService) consumeAntigravityCompatResponse(
-	ctx context.Context,
-	c *gin.Context,
-	account *Account,
-	call *antigravityCompatUpstreamCall,
-	resp *http.Response,
-) (*ForwardResult, error) {
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode >= http.StatusBadRequest {
-		return nil, s.handleAntigravityCompatHTTPError(ctx, c, account, call, resp)
-	}
-
-	requestID := resp.Header.Get("x-request-id")
-	if requestID != "" {
-		c.Header("x-request-id", requestID)
-	}
-	streamResult, err := s.consumeAntigravityCompatSuccess(c, call, resp)
-	if err != nil {
-		return nil, err
-	}
-	if streamResult.usage == nil {
-		streamResult.usage = &ClaudeUsage{}
-	}
-
-	return &ForwardResult{
-		RequestID:        requestID,
-		UpstreamHeaders:  resp.Header,
-		Usage:            *streamResult.usage,
-		Model:            call.request.originalModel,
-		UpstreamModel:    call.billingModel,
-		Stream:           call.request.clientStream,
-		Duration:         time.Since(call.request.startTime),
-		FirstTokenMs:     streamResult.firstTokenMs,
-		ReasoningEffort:  call.request.reasoningEffort,
-		ClientDisconnect: streamResult.clientDisconnect,
-	}, nil
-}
-
-func (s *AntigravityGatewayService) consumeAntigravityCompatSuccess(
-	c *gin.Context,
-	call *antigravityCompatUpstreamCall,
-	resp *http.Response,
-) (*antigravityStreamResult, error) {
-	if call.request.clientStream {
-		if call.request.protocol == antigravityCompatChatCompletions {
-			return s.handleChatCompletionsStreamingFromAntigravity(
-				c,
-				resp,
-				call.request.startTime,
-				call.request.originalModel,
-				call.request.includeUsage,
-			)
-		}
-		return s.handleResponsesStreamingFromAntigravity(
-			c,
-			resp,
-			call.request.startTime,
-			call.request.originalModel,
-			call.request.clientToolMapping,
-		)
-	}
-
-	if call.request.protocol == antigravityCompatChatCompletions {
-		return s.handleChatCompletionsNonStreamingFromAntigravity(c, resp, call.request.startTime, call.request.originalModel)
-	}
-	return s.handleResponsesNonStreamingFromAntigravity(
-		c,
-		resp,
-		call.request.startTime,
-		call.request.originalModel,
-		call.request.clientToolMapping,
-	)
 }
 
 func (s *AntigravityGatewayService) handleAntigravityCompatHTTPError(
@@ -545,61 +447,6 @@ func (s *AntigravityGatewayService) writeMappedAntigravityCompatError(
 		},
 	})
 	return fmt.Errorf("upstream error: %d %s", upstreamStatus, message)
-}
-
-func (s *AntigravityGatewayService) handleChatCompletionsNonStreamingFromAntigravity(
-	c *gin.Context,
-	resp *http.Response,
-	startTime time.Time,
-	originalModel string,
-) (*antigravityStreamResult, error) {
-	claudeResponse, result, err := s.collectClaudeStreamResponse(resp, startTime, originalModel)
-	if err != nil {
-		return nil, s.mapAntigravityCompatCollectionError(c, err)
-	}
-	var anthropicResponse protocolanthropic.AnthropicResponse
-	if json.Unmarshal(claudeResponse, &anthropicResponse) != nil {
-		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
-	}
-	responsesResponse := apicompat.AnthropicToResponsesResponse(&anthropicResponse)
-	chatResponse := apicompat.ResponsesToChatCompletions(responsesResponse, originalModel)
-	payload, err := json.Marshal(chatResponse)
-	if err != nil {
-		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to serialize upstream response")
-	}
-	payload = reverseToolNamesIfPresent(c, payload)
-	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
-	return result, nil
-}
-
-func (s *AntigravityGatewayService) handleResponsesNonStreamingFromAntigravity(
-	c *gin.Context,
-	resp *http.Response,
-	startTime time.Time,
-	originalModel string,
-	clientToolMapping apicompat.ResponsesClientToolMapping,
-) (*antigravityStreamResult, error) {
-	claudeResponse, result, err := s.collectClaudeStreamResponse(resp, startTime, originalModel)
-	if err != nil {
-		return nil, s.mapAntigravityCompatCollectionError(c, err)
-	}
-	var anthropicResponse protocolanthropic.AnthropicResponse
-	if json.Unmarshal(claudeResponse, &anthropicResponse) != nil {
-		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
-	}
-	responsesResponse := apicompat.AnthropicToResponsesResponse(&anthropicResponse)
-	responsesResponse.Model = originalModel
-	payload, err := json.Marshal(responsesResponse)
-	if err != nil {
-		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to serialize upstream response")
-	}
-	payload = reverseToolNamesIfPresent(c, payload)
-	payload, _, err = apicompat.RestoreResponsesClientToolPayload(payload, clientToolMapping)
-	if err != nil {
-		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to restore client tools")
-	}
-	c.Data(http.StatusOK, "application/json; charset=utf-8", payload)
-	return result, nil
 }
 
 func (s *AntigravityGatewayService) mapAntigravityCompatCollectionError(c *gin.Context, err error) error {

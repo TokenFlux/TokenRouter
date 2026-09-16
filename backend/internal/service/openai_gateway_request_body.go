@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +8,10 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
+	s09wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
@@ -132,241 +135,19 @@ func deleteOpenAIResponsesNoneReasoningEffortFromObject(account *Account, body m
 	}
 }
 
-// normalizeDeepSeekResponsesRequestBody 适配无状态 CN Responses 端点：
-// 强制 store=false 并清除 previous_response_id（DeepSeek / Kimi 官方
-// Responses 均不支持服务端状态存储，携带这些字段会被拒绝）。
-// 非原生 Responses 协议账号原样返回。
 func normalizeDeepSeekResponsesRequestBody(account *Account, body []byte) []byte {
 	if account == nil || !account.UsesNativeCNResponses() {
 		return body
 	}
-	normalized, err := sjson.SetBytes(body, "store", false)
-	if err != nil {
-		return body
-	}
-	if stripped, err := sjson.DeleteBytes(normalized, "previous_response_id"); err == nil {
-		normalized = stripped
-	}
-	return normalized
+	return s09wire.StatelessResponsesRequest(body)
 }
 
-// trimOpenAIEncryptedReasoningItems 清理一次性解密错误恢复中的账号绑定状态：
-// reasoning 保留可复用骨架，加密 compaction 则必须整项删除。
 func trimOpenAIEncryptedReasoningItems(reqBody map[string]any) bool {
-	if len(reqBody) == 0 {
-		return false
-	}
-
-	inputValue, has := reqBody["input"]
-	if !has {
-		return false
-	}
-
-	switch input := inputValue.(type) {
-	case []any:
-		filtered := input[:0]
-		changed := false
-		for _, item := range input {
-			nextItem, itemChanged, keep := sanitizeEncryptedReasoningInputItem(item)
-			if itemChanged {
-				changed = true
-			}
-			if !keep {
-				continue
-			}
-			filtered = append(filtered, nextItem)
-		}
-		if !changed {
-			return false
-		}
-		if len(filtered) == 0 {
-			delete(reqBody, "input")
-			return true
-		}
-		reqBody["input"] = filtered
-		return true
-	case []map[string]any:
-		filtered := input[:0]
-		changed := false
-		for _, item := range input {
-			nextItem, itemChanged, keep := sanitizeEncryptedReasoningInputItem(item)
-			if itemChanged {
-				changed = true
-			}
-			if !keep {
-				continue
-			}
-			nextMap, ok := nextItem.(map[string]any)
-			if !ok {
-				filtered = append(filtered, item)
-				continue
-			}
-			filtered = append(filtered, nextMap)
-		}
-		if !changed {
-			return false
-		}
-		if len(filtered) == 0 {
-			delete(reqBody, "input")
-			return true
-		}
-		reqBody["input"] = filtered
-		return true
-	case map[string]any:
-		nextItem, changed, keep := sanitizeEncryptedReasoningInputItem(input)
-		if !changed {
-			return false
-		}
-		if !keep {
-			delete(reqBody, "input")
-			return true
-		}
-		nextMap, ok := nextItem.(map[string]any)
-		if !ok {
-			return false
-		}
-		reqBody["input"] = nextMap
-		return true
-	default:
-		return false
-	}
+	return s09wire.TrimEncryptedReasoningItems(reqBody)
 }
 
-func sanitizeEncryptedReasoningInputItem(item any) (next any, changed bool, keep bool) {
-	inputItem, ok := item.(map[string]any)
-	if !ok {
-		return item, false, true
-	}
-
-	itemType, _ := inputItem["type"].(string)
-	switch strings.TrimSpace(itemType) {
-	case "compaction", "compaction_summary":
-		if _, encrypted := inputItem["encrypted_content"]; encrypted {
-			return nil, true, false
-		}
-		return item, false, true
-	case "reasoning":
-	default:
-		return item, false, true
-	}
-
-	if _, has := inputItem["encrypted_content"]; has {
-		delete(inputItem, "encrypted_content")
-		changed = true
-	}
-
-	// xAI 422: "content": null 导致 untagged enum 反序列化失败
-	if v, has := inputItem["content"]; has && v == nil {
-		delete(inputItem, "content")
-		changed = true
-	}
-
-	if !changed {
-		return item, false, true
-	}
-	if len(inputItem) == 1 {
-		return nil, true, false
-	}
-	return inputItem, true, true
-}
-
-// SanitizeOpenAICrossModeFailoverReasoning 从 canonical 请求体派生跨模式重试请求，
-// 完整删除带 provider 私有 encrypted_content 的 reasoning 项及其关联的 id/summary。
-// 使用 UseNumber 保留请求中大整数的精确 JSON 表示，且不会修改传入的字节切片。
 func SanitizeOpenAICrossModeFailoverReasoning(body []byte) (sanitized []byte, changed bool, err error) {
-	if len(body) == 0 {
-		return body, false, nil
-	}
-	if !gjson.GetBytes(body, "input").Exists() {
-		return body, false, nil
-	}
-
-	var decoded map[string]any
-	if err := decodeOpenAIJSONUseNumber(body, &decoded); err != nil {
-		return body, false, fmt.Errorf("decode cross-mode failover body: %w", err)
-	}
-	if !dropOpenAIEncryptedReasoningInputItems(decoded) {
-		return body, false, nil
-	}
-	out, marshalErr := marshalOpenAIUpstreamJSON(decoded)
-	if marshalErr != nil {
-		return body, false, fmt.Errorf("serialize cross-mode failover body: %w", marshalErr)
-	}
-	return out, true, nil
-}
-
-// dropOpenAIEncryptedReasoningInputItems 删除带 encrypted_content 的 reasoning 项，
-// 并返回请求体是否发生变化。没有加密字段的普通 reasoning 必须原样保留。
-func dropOpenAIEncryptedReasoningInputItems(reqBody map[string]any) bool {
-	if len(reqBody) == 0 {
-		return false
-	}
-	inputValue, has := reqBody["input"]
-	if !has {
-		return false
-	}
-
-	switch input := inputValue.(type) {
-	case []any:
-		filtered := input[:0]
-		changed := false
-		for _, item := range input {
-			if isOpenAIEncryptedReasoningInputItem(item) {
-				changed = true
-				continue
-			}
-			filtered = append(filtered, item)
-		}
-		if !changed {
-			return false
-		}
-		if len(filtered) == 0 {
-			delete(reqBody, "input")
-			return true
-		}
-		reqBody["input"] = filtered
-		return true
-	case []map[string]any:
-		filtered := input[:0]
-		changed := false
-		for _, item := range input {
-			if isOpenAIEncryptedReasoningInputItem(item) {
-				changed = true
-				continue
-			}
-			filtered = append(filtered, item)
-		}
-		if !changed {
-			return false
-		}
-		if len(filtered) == 0 {
-			delete(reqBody, "input")
-			return true
-		}
-		reqBody["input"] = filtered
-		return true
-	case map[string]any:
-		if isOpenAIEncryptedReasoningInputItem(input) {
-			delete(reqBody, "input")
-			return true
-		}
-		return false
-	default:
-		return false
-	}
-}
-
-func isOpenAIEncryptedReasoningInputItem(item any) bool {
-	inputItem, ok := item.(map[string]any)
-	if !ok {
-		return false
-	}
-	itemType, _ := inputItem["type"].(string)
-	if strings.TrimSpace(itemType) != "reasoning" {
-		return false
-	}
-	_, has := inputItem["encrypted_content"]
-	return has
+	return nativeopenai.SanitizeOpenAICrossModeFailoverReasoning(body)
 }
 
 // IsOpenAIResponsesCompactPath 判断请求是否指向旧版 /responses/compact 端点或其可转发子路径。
@@ -392,203 +173,19 @@ func isOpenAIResponsesCompactPath(c *gin.Context) bool {
 }
 
 func normalizeOpenAICompactRequestBody(body []byte) ([]byte, bool, error) {
-	if len(body) == 0 {
-		return body, false, nil
-	}
-	normalized := []byte(`{}`)
-	// Keep the current Codex /compact schema while still dropping request-scoped
-	// fields such as prompt_cache_key, store, and stream.
-	for _, field := range []string{
-		"model",
-		"input",
-		"instructions",
-		"tools",
-		"parallel_tool_calls",
-		"reasoning",
-		"service_tier",
-		"text",
-		"previous_response_id",
-	} {
-		value := gjson.GetBytes(body, field)
-		if !value.Exists() {
-			continue
-		}
-		next, err := sjson.SetRawBytes(normalized, field, []byte(value.Raw))
-		if err != nil {
-			return body, false, fmt.Errorf("normalize compact body %s: %w", field, err)
-		}
-		normalized = next
-	}
-	if next, removed, err := normalizeOpenAIParallelToolCallsWithoutTools(normalized, false); err != nil {
-		return body, false, err
-	} else if removed {
-		normalized = next
-	}
-
-	if bytes.Equal(bytes.TrimSpace(body), bytes.TrimSpace(normalized)) {
-		return body, false, nil
-	}
-	return normalized, true, nil
+	return nativeopenai.NormalizeOpenAICompactRequestBody(body)
 }
 
 func normalizeOpenAIParallelToolCallsWithoutTools(body []byte, responsesLite bool) ([]byte, bool, error) {
-	if responsesLite {
-		return body, false, nil
-	}
-	parallel := gjson.GetBytes(body, "parallel_tool_calls")
-	if !parallel.Exists() {
-		return body, false, nil
-	}
-	if openAIRequestBodyHasTools(body) {
-		return body, false, nil
-	}
-	normalized, err := sjson.DeleteBytes(body, "parallel_tool_calls")
-	if err != nil {
-		return body, false, fmt.Errorf("normalize parallel_tool_calls without tools: %w", err)
-	}
-	return normalized, true, nil
+	return nativeopenai.NormalizeOpenAIParallelToolCallsWithoutTools(body, responsesLite)
 }
 
-// openAIRequestBodyHasTools 同时识别顶层 tools 和 input[].additional_tools。
-func openAIRequestBodyHasTools(body []byte) bool {
-	if tools := gjson.GetBytes(body, "tools"); tools.IsArray() && len(tools.Array()) > 0 {
-		return true
-	}
-	for _, item := range gjson.GetBytes(body, "input").Array() {
-		if strings.TrimSpace(item.Get("type").String()) != "additional_tools" {
-			continue
-		}
-		if tools := item.Get("tools"); tools.IsArray() && len(tools.Array()) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// normalizeOpenAIResponsesReasoningContentReplay 在历史记录发送到真实 OpenAI Responses
-// 端点前移除不可移植的 reasoning.content 数组。兼容供应商可能返回可见推理块，
-// 而 OpenAI 在回放该项时只接受空数组。
-//
-// 保留 reasoning 项及其可移植字段（summary、encrypted_content、id 和不透明扩展字段）。
-// 调用方仅对 OpenAI 目标启用此归一化，兼容供应商仍可消费自身的 content。
 func normalizeOpenAIResponsesReasoningContentReplay(body []byte) ([]byte, bool, error) {
-	input := gjson.GetBytes(body, "input")
-	if !input.IsArray() {
-		return body, false, nil
-	}
-
-	needsNormalization := false
-	input.ForEach(func(_, item gjson.Result) bool {
-		if strings.TrimSpace(item.Get("type").String()) != "reasoning" {
-			return true
-		}
-		content := item.Get("content")
-		if content.IsArray() && len(content.Array()) > 0 {
-			needsNormalization = true
-			return false
-		}
-		return true
-	})
-	if !needsNormalization {
-		return body, false, nil
-	}
-
-	var reqBody map[string]any
-	if err := decodeOpenAIJSONUseNumber(body, &reqBody); err != nil {
-		return body, false, fmt.Errorf("normalize OpenAI reasoning content replay: %w", err)
-	}
-	items, ok := reqBody["input"].([]any)
-	if !ok {
-		return body, false, nil
-	}
-	changed := false
-	for _, rawItem := range items {
-		item, ok := rawItem.(map[string]any)
-		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "reasoning" {
-			continue
-		}
-		content, ok := item["content"].([]any)
-		if !ok || len(content) == 0 {
-			continue
-		}
-		delete(item, "content")
-		changed = true
-	}
-	if !changed {
-		return body, false, nil
-	}
-	normalized, err := marshalOpenAIUpstreamJSON(reqBody)
-	if err != nil {
-		return body, false, fmt.Errorf("serialize normalized OpenAI reasoning content replay: %w", err)
-	}
-	return normalized, true, nil
+	return nativeopenai.NormalizeOpenAIResponsesReasoningContentReplay(body)
 }
 
 func normalizeOpenAIAPIKeyStoreFalseReasoningReplay(body []byte, knownStoreFalse bool) ([]byte, bool, error) {
-	if !knownStoreFalse && gjson.GetBytes(body, "store").Type != gjson.False {
-		return body, false, nil
-	}
-	input := gjson.GetBytes(body, "input")
-	if !input.IsArray() {
-		return body, false, nil
-	}
-
-	var reqBody map[string]any
-	if err := decodeOpenAIJSONUseNumber(body, &reqBody); err != nil {
-		return body, false, fmt.Errorf("normalize API-key store=false reasoning replay: %w", err)
-	}
-	items, ok := reqBody["input"].([]any)
-	if !ok {
-		return body, false, nil
-	}
-	filtered := make([]any, 0, len(items))
-	changed := false
-	for _, rawItem := range items {
-		item, ok := rawItem.(map[string]any)
-		if !ok {
-			filtered = append(filtered, rawItem)
-			continue
-		}
-		typ := strings.TrimSpace(firstNonEmptyString(item["type"]))
-		id := strings.TrimSpace(firstNonEmptyString(item["id"]))
-		switch typ {
-		case "reasoning":
-			encryptedContent, hasEncryptedContent := item["encrypted_content"].(string)
-			if !hasEncryptedContent || strings.TrimSpace(encryptedContent) == "" {
-				changed = true
-				continue
-			}
-			if strings.HasPrefix(id, "rs_") {
-				delete(item, "id")
-				changed = true
-			}
-			if summary, ok := item["summary"]; !ok || summary == nil {
-				item["summary"] = []any{}
-				changed = true
-			}
-		case "item_reference":
-			if strings.HasPrefix(id, "rs_") {
-				changed = true
-				continue
-			}
-		}
-		if shouldStripOpenAIResponsesNonPairCallID(typ) {
-			if _, hasCallID := item["call_id"]; hasCallID {
-				delete(item, "call_id")
-				changed = true
-			}
-		}
-		filtered = append(filtered, item)
-	}
-	if !changed {
-		return body, false, nil
-	}
-	reqBody["input"] = filtered
-	normalized, err := marshalOpenAIUpstreamJSON(reqBody)
-	if err != nil {
-		return body, false, fmt.Errorf("serialize API-key store=false reasoning replay: %w", err)
-	}
-	return normalized, true, nil
+	return nativeopenai.NormalizeOpenAIAPIKeyStoreFalseReasoningReplay(body, knownStoreFalse)
 }
 
 func normalizeOpenAICodexCompactReasoningEffortForAccount(c *gin.Context, account *Account, body []byte) ([]byte, bool, error) {
@@ -694,38 +291,11 @@ func appendOpenAIResponsesRequestPathSuffix(baseURL, suffix string) string {
 }
 
 func (s *OpenAIGatewayService) replaceModelInResponseBody(body []byte, fromModel, toModel string) []byte {
-	// 使用 gjson/sjson 精确替换 model 字段，避免全量 JSON 反序列化
-	if m := gjson.GetBytes(body, "model"); m.Exists() && m.Str == fromModel {
-		newBody, err := sjson.SetBytes(body, "model", toModel)
-		if err != nil {
-			return body
-		}
-		return newBody
-	}
-	return body
+	return s09wire.ReplaceModelInResponseBody(body, fromModel, toModel)
 }
 
-// getOpenAIReasoningEffortFromReqBody 只提取请求中显式给出的档位。
-// 显式值代表客户端真实请求，记录时不应再按模型名称推测上游能力；模型后缀
-// 推导由 deriveOpenAIReasoningEffortFromModel 单独处理并继续保留能力门槛。
 func getOpenAIReasoningEffortFromReqBody(reqBody map[string]any) (value string, present bool) {
-	if reqBody == nil {
-		return "", false
-	}
-
-	// Primary: reasoning.effort
-	if reasoning, ok := reqBody["reasoning"].(map[string]any); ok {
-		if effort, ok := reasoning["effort"].(string); ok {
-			return normalizeOpenAIReasoningEffort(effort), true
-		}
-	}
-
-	// Fallback: some clients may use a flat field.
-	if effort, ok := reqBody["reasoning_effort"].(string); ok {
-		return normalizeOpenAIReasoningEffort(effort), true
-	}
-
-	return "", false
+	return nativeopenai.GetOpenAIReasoningEffortFromReqBody(reqBody)
 }
 
 func deriveOpenAIReasoningEffortFromModel(model string) string {
@@ -918,52 +488,11 @@ func (v openAIRequestView) ApplyPatches() ([]byte, error) {
 }
 
 func setOpenAIRequestMapPath(reqBody map[string]any, path string, value any) {
-	path = strings.TrimSpace(path)
-	if reqBody == nil || path == "" {
-		return
-	}
-	parts := strings.Split(path, ".")
-	current := reqBody
-	for _, part := range parts[:len(parts)-1] {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			return
-		}
-		next, _ := current[part].(map[string]any)
-		if next == nil {
-			next = map[string]any{}
-			current[part] = next
-		}
-		current = next
-	}
-	last := strings.TrimSpace(parts[len(parts)-1])
-	if last != "" {
-		current[last] = value
-	}
+	nativeopenai.SetOpenAIRequestMapPath(reqBody, path, value)
 }
 
 func deleteOpenAIRequestMapPath(reqBody map[string]any, path string) {
-	path = strings.TrimSpace(path)
-	if reqBody == nil || path == "" {
-		return
-	}
-	parts := strings.Split(path, ".")
-	current := reqBody
-	for _, part := range parts[:len(parts)-1] {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			return
-		}
-		next, _ := current[part].(map[string]any)
-		if next == nil {
-			return
-		}
-		current = next
-	}
-	last := strings.TrimSpace(parts[len(parts)-1])
-	if last != "" {
-		delete(current, last)
-	}
+	nativeopenai.DeleteOpenAIRequestMapPath(reqBody, path)
 }
 
 func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, promptCacheKey string) {
@@ -971,113 +500,16 @@ func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, p
 	return view.Model, view.Stream, view.PromptCacheKey
 }
 
-func normalizeOpenAIOAuthResponsesCompatibilityFields(reqBody map[string]any) bool {
-	if reqBody == nil {
-		return false
-	}
-	changed := false
-	if prompt, exists := reqBody["prompt"]; exists {
-		if input, hasInput := reqBody["input"]; !hasInput || input == nil {
-			if prompt != nil {
-				reqBody["input"] = prompt
-			}
-		}
-		delete(reqBody, "prompt")
-		changed = true
-	}
-	if _, exists := reqBody["commands"]; exists {
-		delete(reqBody, "commands")
-		changed = true
-	}
-	return changed
-}
-
 func normalizeOpenAIOAuthResponsesCompatibilityBody(body []byte) ([]byte, bool, error) {
-	if len(body) == 0 {
-		return body, false, nil
-	}
-	normalized := body
-	changed := false
-	prompt := gjson.GetBytes(normalized, "prompt")
-	if prompt.Exists() {
-		input := gjson.GetBytes(normalized, "input")
-		if prompt.Type != gjson.Null && (!input.Exists() || input.Type == gjson.Null) {
-			next, err := sjson.SetRawBytes(normalized, "input", []byte(prompt.Raw))
-			if err != nil {
-				return body, false, fmt.Errorf("normalize oauth responses prompt: %w", err)
-			}
-			normalized = next
-		}
-		next, err := sjson.DeleteBytes(normalized, "prompt")
-		if err != nil {
-			return body, false, fmt.Errorf("normalize oauth responses delete prompt: %w", err)
-		}
-		normalized = next
-		changed = true
-	}
-	if gjson.GetBytes(normalized, "commands").Exists() {
-		next, err := sjson.DeleteBytes(normalized, "commands")
-		if err != nil {
-			return body, false, fmt.Errorf("normalize oauth responses delete commands: %w", err)
-		}
-		normalized = next
-		changed = true
-	}
-	return normalized, changed, nil
+	return s09wire.NormalizeOpenAIOAuthResponsesCompatibilityBody(body)
 }
 
 func normalizeOpenAIResponsesReasoningMode(body []byte) ([]byte, bool, error) {
-	if len(body) == 0 {
-		return body, false, nil
-	}
-	mode := gjson.GetBytes(body, "reasoning.mode")
-	if !mode.Exists() || mode.Type != gjson.String {
-		return body, false, nil
-	}
-	updated := body
-	effort := gjson.GetBytes(body, "reasoning.effort")
-	if (!effort.Exists() || effort.Type == gjson.Null || strings.TrimSpace(effort.String()) == "") &&
-		strings.EqualFold(strings.TrimSpace(mode.String()), "pro") {
-		var err error
-		updated, err = sjson.SetBytes(updated, "reasoning.effort", "max")
-		if err != nil {
-			return body, false, fmt.Errorf("set reasoning effort for mode=pro: %w", err)
-		}
-	}
-	updated, err := sjson.DeleteBytes(updated, "reasoning.mode")
-	if err != nil {
-		return body, false, fmt.Errorf("delete unsupported reasoning.mode: %w", err)
-	}
-	if reasoning := gjson.GetBytes(updated, "reasoning"); reasoning.Exists() && reasoning.IsObject() && len(reasoning.Map()) == 0 {
-		updated, err = sjson.DeleteBytes(updated, "reasoning")
-		if err != nil {
-			return body, false, fmt.Errorf("delete empty reasoning object: %w", err)
-		}
-	}
-	return updated, true, nil
+	return nativeopenai.NormalizeOpenAIResponsesReasoningMode(body)
 }
 
 func normalizeOpenAIResponseFormatSchemasBody(body []byte) ([]byte, bool, error) {
-	if len(body) == 0 {
-		return body, false, nil
-	}
-	textFormat := strings.TrimSpace(gjson.GetBytes(body, "text.format.type").String())
-	responseFormat := strings.TrimSpace(gjson.GetBytes(body, "response_format.type").String())
-	if textFormat != "json_schema" && responseFormat != "json_schema" {
-		return body, false, nil
-	}
-	var reqBody map[string]any
-	if err := decodeOpenAIJSONUseNumber(body, &reqBody); err != nil {
-		return body, false, fmt.Errorf("normalize responses schema body: %w", err)
-	}
-	if !normalizeOpenAIResponseFormatSchemas(reqBody) {
-		return body, false, nil
-	}
-	normalized, err := json.Marshal(reqBody)
-	if err != nil {
-		return body, false, fmt.Errorf("serialize normalized responses schema body: %w", err)
-	}
-	return normalized, true, nil
+	return nativeopenai.NormalizeOpenAIResponseFormatSchemasBody(body)
 }
 
 func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Account, responsesLite bool) ([]byte, bool, error) {
@@ -1214,133 +646,15 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 	return normalized, changed, nil
 }
 
-// normalizeOpenAIPassthroughOAuthBody 将透传 OAuth 请求体收敛为旧链路关键行为：
-// 1) 删除 ChatGPT internal API 不支持的顶层 Responses 参数
-// 2) store=false 3) 非 compact 保持 stream=true；compact 强制 stream=false
 func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, bool, error) {
-	if len(body) == 0 {
-		return body, false, nil
-	}
-
-	normalized, changed, err := normalizeOpenAIOAuthResponsesCompatibilityBody(body)
-	if err != nil {
-		return body, false, err
-	}
-	if reasoningBody, reasoningChanged, reasoningErr := normalizeOpenAIResponsesReasoningMode(normalized); reasoningErr != nil {
-		return body, false, reasoningErr
-	} else if reasoningChanged {
-		normalized = reasoningBody
-		changed = true
-	}
-
-	for _, field := range openAIChatGPTInternalUnsupportedFields {
-		if value := gjson.GetBytes(normalized, field); !value.Exists() {
-			continue
-		}
-		next, err := sjson.DeleteBytes(normalized, field)
-		if err != nil {
-			return body, false, fmt.Errorf("normalize passthrough body delete %s: %w", field, err)
-		}
-		normalized = next
-		changed = true
-	}
-	if schemaBody, schemaChanged, schemaErr := normalizeOpenAIResponseFormatSchemasBody(normalized); schemaErr != nil {
-		return body, false, schemaErr
-	} else if schemaChanged {
-		normalized = schemaBody
-		changed = true
-	}
-
-	// ChatGPT internal API 要求 input 必须是条目数组。
-	if inputResult := gjson.GetBytes(normalized, "input"); inputResult.Exists() {
-		switch {
-		case inputResult.Type == gjson.String:
-			text := inputResult.String()
-			var inputValue any
-			if strings.TrimSpace(text) != "" {
-				inputValue = []any{map[string]any{
-					"type": "message", "role": "user", "content": text,
-				}}
-			} else {
-				inputValue = []any{}
-			}
-			next, err := sjson.SetBytes(normalized, "input", inputValue)
-			if err != nil {
-				return body, false, fmt.Errorf("normalize passthrough body input string: %w", err)
-			}
-			normalized = next
-			changed = true
-		case inputResult.Type == gjson.JSON && !inputResult.IsArray():
-			next, err := sjson.SetRawBytes(normalized, "input", []byte("["+inputResult.Raw+"]"))
-			if err != nil {
-				return body, false, fmt.Errorf("normalize passthrough body input object: %w", err)
-			}
-			normalized = next
-			changed = true
-		}
-	}
-
-	if compact {
-		if store := gjson.GetBytes(normalized, "store"); store.Exists() {
-			next, err := sjson.DeleteBytes(normalized, "store")
-			if err != nil {
-				return body, false, fmt.Errorf("normalize passthrough body delete store: %w", err)
-			}
-			normalized = next
-			changed = true
-		}
-		if stream := gjson.GetBytes(normalized, "stream"); stream.Exists() {
-			next, err := sjson.DeleteBytes(normalized, "stream")
-			if err != nil {
-				return body, false, fmt.Errorf("normalize passthrough body delete stream: %w", err)
-			}
-			normalized = next
-			changed = true
-		}
-	} else {
-		if store := gjson.GetBytes(normalized, "store"); !store.Exists() || store.Type != gjson.False {
-			next, err := sjson.SetBytes(normalized, "store", false)
-			if err != nil {
-				return body, false, fmt.Errorf("normalize passthrough body store=false: %w", err)
-			}
-			normalized = next
-			changed = true
-		}
-		if stream := gjson.GetBytes(normalized, "stream"); !stream.Exists() || stream.Type != gjson.True {
-			next, err := sjson.SetBytes(normalized, "stream", true)
-			if err != nil {
-				return body, false, fmt.Errorf("normalize passthrough body stream=true: %w", err)
-			}
-			normalized = next
-			changed = true
-		}
-	}
-
-	return normalized, changed, nil
+	return nativeopenai.NormalizeOpenAIPassthroughOAuthBody(body, compact)
 }
 
 func detectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byte) string {
-	if !isOpenAICodexModel(reqModel) {
-		return ""
-	}
-
-	instructions := gjson.GetBytes(body, "instructions")
-	if !instructions.Exists() {
-		return ""
-	}
-	if instructions.Type != gjson.String {
-		return "instructions_not_string"
-	}
-	if strings.TrimSpace(instructions.String()) == "" {
-		return "instructions_empty"
-	}
-	return ""
+	return nativeopenai.DetectOpenAIPassthroughInstructionsRejectReason(reqModel, body)
 }
 
-// isOpenAICodexModel 判断请求模型是否属于需要 Codex 指令语义的模型族。
-func isOpenAICodexModel(model string) bool {
-	return strings.Contains(strings.ToLower(strings.TrimSpace(model)), "codex")
-}
+func isOpenAICodexModel(model string) bool { return nativeopenai.IsOpenAICodexModel(model) }
 
 // extractOpenAIReasoningEffortFromBody 按优先级传入模型候选（如 upstreamModel,
 // billingModel, originalModel）。显式 effort 只做格式归一化并如实记录；body 未携带
@@ -1938,196 +1252,23 @@ func buildOpenAIFastPolicyBlockedWSEvent(err *OpenAIFastBlockedError) []byte {
 }
 
 func openAIRequestBodyMayContainImageInput(body []byte) bool {
-	if len(body) == 0 {
-		return false
-	}
-	input := gjson.GetBytes(body, "input")
-	messages := gjson.GetBytes(body, "messages.#-1")
-	return openAIJSONValueMayContainImageInput(input) || openAIJSONValueMayContainImageInput(messages)
+	return nativeopenai.OpenAIRequestBodyMayContainImageInput(body)
 }
 
 func openAIJSONValueMayContainImageInput(value gjson.Result) bool {
-	if !value.Exists() {
-		return false
-	}
-	if value.IsArray() {
-		found := false
-		value.ForEach(func(_, item gjson.Result) bool {
-			if openAIJSONValueMayContainImageInput(item) {
-				found = true
-				return false
-			}
-			return true
-		})
-		return found
-	}
-	if value.IsObject() {
-		if strings.TrimSpace(value.Get("type").String()) == "input_image" || value.Get("image_url").Exists() {
-			return true
-		}
-		return openAIJSONValueMayContainImageInput(value.Get("content"))
-	}
-	return false
+	return s09wire.JSONValueMayContainImageInput(value)
 }
 
 func openAIRequestBodyMayContainEmptyBase64InputImage(body []byte) bool {
-	if len(body) == 0 || !openAIRequestBodyMayContainInputImageToken(body) {
-		return false
-	}
-	input := gjson.GetBytes(body, "input")
-	if !input.Exists() {
-		return false
-	}
-	return openAIJSONValueMayContainEmptyBase64InputImage(input)
-}
-
-func openAIRequestBodyMayContainInputImageToken(body []byte) bool {
-	if bytes.Contains(body, []byte("input_image")) {
-		return true
-	}
-	// JSON 字符串任意字符都可能被 unicode escape，遇到 \u 时交给 gjson 解码后的结构扫描兜底。
-	return bytes.Contains(body, []byte("\\u"))
-}
-
-func openAIJSONValueMayContainEmptyBase64InputImage(value gjson.Result) bool {
-	if !value.Exists() {
-		return false
-	}
-	if value.IsArray() {
-		found := false
-		value.ForEach(func(_, item gjson.Result) bool {
-			if openAIJSONValueMayContainEmptyBase64InputImage(item) {
-				found = true
-				return false
-			}
-			return true
-		})
-		return found
-	}
-	if value.IsObject() {
-		if strings.TrimSpace(value.Get("type").String()) == "input_image" && isEmptyBase64DataURI(value.Get("image_url").String()) {
-			return true
-		}
-		return openAIJSONValueMayContainEmptyBase64InputImage(value.Get("content"))
-	}
-	return false
+	return nativeopenai.OpenAIRequestBodyMayContainEmptyBase64InputImage(body)
 }
 
 func sanitizeEmptyBase64InputImagesInOpenAIBody(body []byte) ([]byte, bool, error) {
-	if !openAIRequestBodyMayContainEmptyBase64InputImage(body) {
-		return body, false, nil
-	}
-
-	var reqBody map[string]any
-	if err := json.Unmarshal(body, &reqBody); err != nil {
-		return body, false, fmt.Errorf("sanitize request body: %w", err)
-	}
-	if !sanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(reqBody) {
-		return body, false, nil
-	}
-	normalized, err := marshalOpenAIUpstreamJSON(reqBody)
-	if err != nil {
-		return body, false, fmt.Errorf("serialize sanitized request body: %w", err)
-	}
-	return normalized, true, nil
+	return nativeopenai.SanitizeEmptyBase64InputImagesInOpenAIBody(body)
 }
 
 func sanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(reqBody map[string]any) bool {
-	if reqBody == nil {
-		return false
-	}
-	input, ok := reqBody["input"]
-	if !ok {
-		return false
-	}
-	normalizedInput, changed := sanitizeEmptyBase64InputImagesInOpenAIInput(input)
-	if !changed {
-		return false
-	}
-	reqBody["input"] = normalizedInput
-	return true
-}
-
-func sanitizeEmptyBase64InputImagesInOpenAIInput(input any) (any, bool) {
-	items, ok := input.([]any)
-	if !ok {
-		return input, false
-	}
-
-	normalizedItems := make([]any, 0, len(items))
-	changed := false
-	for _, item := range items {
-		itemMap, ok := item.(map[string]any)
-		if !ok {
-			normalizedItems = append(normalizedItems, item)
-			continue
-		}
-		if shouldDropEmptyBase64InputImagePart(itemMap) {
-			changed = true
-			continue
-		}
-		content, ok := itemMap["content"]
-		if !ok {
-			normalizedItems = append(normalizedItems, itemMap)
-			continue
-		}
-		parts, ok := content.([]any)
-		if !ok {
-			normalizedItems = append(normalizedItems, itemMap)
-			continue
-		}
-
-		normalizedParts := make([]any, 0, len(parts))
-		itemChanged := false
-		for _, part := range parts {
-			if shouldDropEmptyBase64InputImagePart(part) {
-				changed = true
-				itemChanged = true
-				continue
-			}
-			normalizedParts = append(normalizedParts, part)
-		}
-		if itemChanged {
-			if len(normalizedParts) == 0 {
-				continue
-			}
-			itemMap["content"] = normalizedParts
-		}
-		normalizedItems = append(normalizedItems, itemMap)
-	}
-	if !changed {
-		return input, false
-	}
-	return normalizedItems, true
-}
-
-func shouldDropEmptyBase64InputImagePart(part any) bool {
-	partMap, ok := part.(map[string]any)
-	if !ok {
-		return false
-	}
-	typeValue, _ := partMap["type"].(string)
-	if strings.TrimSpace(typeValue) != "input_image" {
-		return false
-	}
-	imageURL, _ := partMap["image_url"].(string)
-	return isEmptyBase64DataURI(imageURL)
-}
-
-func isEmptyBase64DataURI(raw string) bool {
-	if !strings.HasPrefix(raw, "data:") {
-		return false
-	}
-	rest := strings.TrimPrefix(raw, "data:")
-	semicolonIdx := strings.Index(rest, ";")
-	if semicolonIdx < 0 {
-		return false
-	}
-	rest = rest[semicolonIdx+1:]
-	if !strings.HasPrefix(rest, "base64,") {
-		return false
-	}
-	return strings.TrimSpace(strings.TrimPrefix(rest, "base64,")) == ""
+	return nativeopenai.SanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(reqBody)
 }
 
 func getOpenAIRequestBodyMap(_ *gin.Context, body []byte) (map[string]any, error) {
@@ -2188,25 +1329,5 @@ func CanonicalRequestedReasoningEffortFromReqBody(reqBody map[string]any, modelC
 }
 
 func normalizeOpenAIReasoningEffort(raw string) string {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	if value == "" {
-		return ""
-	}
-
-	// 兼容客户端常见的 x-high / x_high / x high 写法。
-	value = strings.NewReplacer("-", "", "_", "", " ", "").Replace(value)
-
-	switch value {
-	case "none", "minimal":
-		return ""
-	case "low", "medium", "high":
-		return value
-	case "xhigh", "extrahigh":
-		return "xhigh"
-	case "max":
-		return value
-	default:
-		// 只记录已知档位，避免未知客户端字段污染使用记录。
-		return ""
-	}
+	return s09wire.NormalizeRecordedReasoningEffort(raw)
 }

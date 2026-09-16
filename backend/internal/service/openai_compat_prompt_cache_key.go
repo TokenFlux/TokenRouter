@@ -173,16 +173,5 @@ func deriveAnthropicCacheControlPromptCacheKey(req *protocolanthropic.AnthropicR
 }
 
 func normalizeCompatSeedJSON(v json.RawMessage) string {
-	if len(v) == 0 {
-		return ""
-	}
-	var tmp any
-	if err := json.Unmarshal(v, &tmp); err != nil {
-		return string(v)
-	}
-	out, err := json.Marshal(tmp)
-	if err != nil {
-		return string(v)
-	}
-	return string(out)
+	return protocolopenai.NormalizeCompatSeedJSON(v)
 }

@@ -4,8 +4,8 @@ package service
 import (
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	domain "github.com/TokenFlux/TokenRouter/internal/domain"
-	geminicli "github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	qoder "github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	qoder "github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // legacyAccountModelDefaults 只投影旧平台目录；S09 改绑来源，不复制映射或状态。

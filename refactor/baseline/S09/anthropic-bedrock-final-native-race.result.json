@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/upstream/anthropic/...",
+    "./internal/upstream/bedrock/...",
+    "./internal/account",
+    "-run",
+    "^(TestExecute|TestClaudeAuthorization|TestFingerprint|Test.*Metadata|Test.*Dateline|Test.*CLI)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 4.329,
+  "pass": 49,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/anthropic-bedrock-final-native-race.log.gz"
+}

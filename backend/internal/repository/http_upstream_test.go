@@ -16,8 +16,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -287,8 +287,8 @@ func TestHTTPUpstreamDoFallsBackToOfficialGrokAPIOnCLIAccessDenied(t *testing.T)
 
 func TestGrokAccessDeniedFallbackRecognizesChatEndpointPermissionDenied(t *testing.T) {
 	var hosts []string
-	transport := &grokAccessDeniedFallbackTransport{
-		base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	transport := &xai.AccessDeniedFallbackTransport{
+		Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			hosts = append(hosts, req.URL.Hostname())
 			if req.URL.Hostname() == grokCLIProxyHost {
 				return &http.Response{
@@ -401,8 +401,8 @@ func TestIsGrokCLIAccessDeniedFallbackCandidateRequiresAuthenticatedReplayableCL
 }
 
 func TestHTTPUpstreamDoDoesNotFallbackForGrokEntitlementDenial(t *testing.T) {
-	transport := &grokAccessDeniedFallbackTransport{
-		base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+	transport := &xai.AccessDeniedFallbackTransport{
+		Base: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusForbidden,
 				Header:     make(http.Header),

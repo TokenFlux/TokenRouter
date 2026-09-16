@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/oauth"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/oauth"
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -90,8 +90,8 @@ func (s *ClaudeOAuthServiceSuite) TestGetOrganizationUUID() {
 			client, ok := NewClaudeOAuthClient().(*claudeOAuthService)
 			require.True(s.T(), ok, "type assertion failed")
 			s.client = client
-			s.client.baseURL = "http://in-process"
-			s.client.clientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
+			s.client.BaseURL = "http://in-process"
+			s.client.ClientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
 
 			got, err := s.client.GetOrganizationUUID(context.Background(), "sess", "")
 
@@ -168,8 +168,8 @@ func (s *ClaudeOAuthServiceSuite) TestGetAuthorizationCode() {
 			client, ok := NewClaudeOAuthClient().(*claudeOAuthService)
 			require.True(s.T(), ok, "type assertion failed")
 			s.client = client
-			s.client.baseURL = "http://in-process"
-			s.client.clientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
+			s.client.BaseURL = "http://in-process"
+			s.client.ClientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
 
 			code, err := s.client.GetAuthorizationCode(context.Background(), "sess", "org-1", oauth.ScopeInference, "cc", "st", "")
 
@@ -273,8 +273,8 @@ func (s *ClaudeOAuthServiceSuite) TestExchangeCodeForToken() {
 			client, ok := NewClaudeOAuthClient().(*claudeOAuthService)
 			require.True(s.T(), ok, "type assertion failed")
 			s.client = client
-			s.client.tokenURL = "http://in-process/token"
-			s.client.clientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
+			s.client.TokenURL = "http://in-process/token"
+			s.client.ClientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
 
 			resp, err := s.client.ExchangeCodeForToken(context.Background(), tt.code, "ver", "", "", tt.isSetupToken)
 
@@ -369,8 +369,8 @@ func (s *ClaudeOAuthServiceSuite) TestRefreshToken() {
 			client, ok := NewClaudeOAuthClient().(*claudeOAuthService)
 			require.True(s.T(), ok, "type assertion failed")
 			s.client = client
-			s.client.tokenURL = "http://in-process/token"
-			s.client.clientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
+			s.client.TokenURL = "http://in-process/token"
+			s.client.ClientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
 
 			resp, err := s.client.RefreshToken(context.Background(), "rt", "")
 

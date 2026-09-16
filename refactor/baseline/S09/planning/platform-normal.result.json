@@ -1,0 +1,37 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/pkg/qoder/...",
+    "./internal/pkg/claude/...",
+    "./internal/pkg/anthropicfp/...",
+    "./internal/pkg/oauth/...",
+    "./internal/pkg/gemini/...",
+    "./internal/pkg/geminicli/...",
+    "./internal/pkg/antigravity/...",
+    "./internal/pkg/openai/...",
+    "./internal/pkg/xai/...",
+    "./internal/service/openai_ws_v2/..."
+  ],
+  "exit": 0,
+  "seconds": 6.881726980209351,
+  "events": {
+    "pass": 422,
+    "fail": 0,
+    "skip": 2
+  },
+  "nonpass": [
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+      "Test": "TestRealAPI",
+      "Action": "skip"
+    },
+    {
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+      "Test": "TestReadLocalAuthFromDisk",
+      "Action": "skip"
+    }
+  ]
+}

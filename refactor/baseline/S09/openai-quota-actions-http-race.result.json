@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "-parallel=1",
+    "./internal/account",
+    "./internal/handler/admin",
+    "-run",
+    "Test(OpenAIQuota|OpenAIResetQuota|OpenAIRefreshQuota|NewOpenAIOAuthHandler|CreateShadow)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 28.891,
+  "pass": 12,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-quota-actions-http-race.log.gz"
+}

@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-parallel=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account/...",
+    "./internal/upstream/gemini/...",
+    "./internal/upstream/qoder",
+    "./internal/gateway",
+    "./internal/infra/httpclient",
+    "-run",
+    "^(Test.*Gemini.*|Test.*Qoder.*|Test.*Creative.*|Test.*EmptyParts.*|Test.*TokenVersion.*|Test.*ResourceManager.*|TestGenerateImagesLocalWireAndLastOutput|TestBatchClientLocalTLSAndStreamCancellation|Test.*ReqClient.*)$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 65.745,
+  "pass": 1108,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/gemini-final-consumer-race.log.gz"
+}

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/upstream/openai",
+    "./internal/service",
+    "-run",
+    "Test(.*Image.*|.*Backfill.*|.*AgentIdentity.*)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 12.861,
+  "pass": 857,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/openai-image-resources-unit2.log.gz"
+}
