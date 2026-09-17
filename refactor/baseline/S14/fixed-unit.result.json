@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=3",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/backup/...",
+    "./internal/ops/maintenance",
+    "-run",
+    "Test(S14|SystemOperationLock)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 21.807,
+  "events": {
+    "pass": 39,
+    "fail": 0,
+    "skip": 0
+  }
+}

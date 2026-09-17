@@ -1,0 +1,20 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--output.json.path=/tmp/s14-final-lint-integration.json",
+    "--build-tags=integration",
+    "./..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 25.482,
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  }
+}

@@ -58,6 +58,6 @@ Ops 的构造与启动分离，app 在完整绑定后启动采样、聚合、告
 <a id="ops_release_and_maintenance"></a>
 ## 发布查询与维护命令
 
-发布查询由 ops 的 ReleaseQuery 和 GitHub provider 提供，继续使用原版本比较、回退候选过滤及二十分钟缓存。代理初始化失败、GitHub Token 的受信任范围、重定向与超时策略保持；下载校验、替换二进制、执行回滚、系统操作锁和重启仍由旧维护用例编排。
+发布查询由 ops 的 ReleaseQuery 和 GitHub provider 提供，继续使用原版本比较、回退候选过滤及二十分钟缓存。代理初始化失败、GitHub Token 的受信任范围、重定向与超时策略保持；下载校验与二进制替换由 Ops 的技术 Adapter 执行；ops/maintenance 拥有更新/回退、系统操作锁和重启请求编排。实际退出继续由唯一 app/lifecycle 执行。
 
 `cleanup-ingress-reject-logs` 使用精简 bootstrap 装配 Ops 的分类与清理能力，不启动完整 worker。默认 dry-run，沿用 `--before`、`--batch-size`、`--execute`、原输出及 `ingress-reject-v1` 分类版本；它只清理匹配的分析事件。

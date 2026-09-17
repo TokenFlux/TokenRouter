@@ -263,6 +263,17 @@ func TestS02ProcessModes(t *testing.T) {
 			require.Less(t, strings.Index(logs, "stopped UsageCleanupService"), strings.Index(logs, "stopped DashboardAggregationService"))
 			require.Less(t, strings.Index(logs, "stopped OpsErrorLogWorkers"), strings.Index(logs, "stopped OpsSystemLogSink"))
 
+			// S14 先取消维护，再等待 HTTP 与任务，最后关闭存储。
+			for _, name := range []string{"BackupAdmission", "SystemMaintenanceAdmission"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped HTTPRequests"), name)
+			}
+			for _, name := range []string{"BackupService", "SystemMaintenanceOperations"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Ent"), name)
+			}
+
 			// S10 搜索、审核与通知队列由唯一实例管理，在请求结束后且存储关闭前退出。
 			for _, name := range []string{"WebSearchRuntime", "ContentModerationService", "EmailQueueService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
@@ -346,6 +357,46 @@ func TestS02ProcessModes(t *testing.T) {
 			require.Equal(t, id, claims.UserID)
 			require.Equal(t, "admin", claims.Role)
 		}
+	})
+
+	t.Run("cleanup-minimal", func(t *testing.T) {
+		tool := filepath.Join(t.TempDir(), "cleanup-ingress-reject-logs")
+		build := exec.Command("go", "build", "-o", tool, "./cmd/cleanup-ingress-reject-logs")
+		build.Dir = backendRoot
+		build.Env = append(os.Environ(), "GOTOOLCHAIN=go1.27.0")
+		output, e := build.CombinedOutput()
+		require.NoError(t, e, string(output))
+		var id int64
+		require.NoError(t, fixture.db.QueryRow(`INSERT INTO ops_error_logs(error_phase,error_type,status_code,error_body,created_at) VALUES('auth','auth',401,'{"code":"API_KEY_REQUIRED"}',NOW()-INTERVAL '1 hour') RETURNING id`).Scan(&id))
+		defer func() { _, e := fixture.db.Exec("DELETE FROM ops_error_logs WHERE id=$1", id); require.NoError(t, e) }()
+		before := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+		for _, execute := range []bool{false, true} {
+			dir, env := configFor(t, "standard", "s02_contracts", freeServerPort(t))
+			args := []string{"--before", before}
+			if execute {
+				args = append(args, "--execute")
+			}
+			process := startTestProcess(t, tool, dir, env, args...)
+			require.NoError(t, process.wait(t, 30*time.Second), process.output.text())
+			text := process.output.text()
+			require.NotContains(t, text, "[Lifecycle] started")
+			require.Contains(t, text, "reason=missing_key")
+			var count int
+			require.NoError(t, fixture.db.QueryRow("SELECT COUNT(*) FROM ops_error_logs WHERE id=$1", id).Scan(&count))
+			if execute {
+				require.Contains(t, text, "mode=execute")
+				require.Zero(t, count)
+			} else {
+				require.Contains(t, text, "mode=dry-run")
+				require.Contains(t, text, "deleted=0")
+				require.Equal(t, 1, count)
+			}
+		}
+		dir, env := configFor(t, "standard", "s02_contracts", freeServerPort(t))
+		invalid := startTestProcess(t, tool, dir, env)
+		require.Error(t, invalid.wait(t, 30*time.Second))
+		require.Contains(t, invalid.output.text(), "--before is required")
+		require.NotContains(t, invalid.output.text(), "[Lifecycle] started")
 	})
 
 	t.Run("bootstrap-failure-closes-connection", func(t *testing.T) {

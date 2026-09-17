@@ -1,0 +1,881 @@
+{
+  "checked": 175,
+  "missing": [],
+  "links": [
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "#运行组件",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "#依赖层次",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "#启动与关闭",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "#数据所有权",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "#http-与前端交付",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "#多实例与故障边界",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "#backup_and_maintenance",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "../domains/payments_and_entitlements.md#退款",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "../project_overview.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "../operations/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "../domains/routing_and_billing.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "../operations/account_maintenance.md",
+      "valid": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "link": "../operations/upstream_transport_security.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "#配置分层",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "#进程配置来源",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "#首次初始化",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "#数据库运行时设置",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "#领域配置",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "#前端变量",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "#新增配置检查",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "../domains/creative_studio.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "tf_cli_web_import.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "http_api.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "../architecture/system_architecture.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "../operations/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "link": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#全局入口",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#路由族",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#api-key-结算策略接口",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#分组客户端协议",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#认证方式",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#外部支付管理集成",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#响应与错误",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#请求关联",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "#变更规则",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "../domains/creative_studio.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "../operations/observability_and_data_lifecycle.md#data_cleanup",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "../domains/creative_studio.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "protocol_capabilities.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "../guides/payments/admin_integration_api.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "upstream_account_matrix.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "gateway_error_policy.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "../domains/identity_and_tenancy.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "../architecture/gateway_request_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "../domains/payments_and_entitlements.md",
+      "valid": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "link": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "#构建与运行形态",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "#初始化与启动",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "#migration_execution",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "#新增与同步迁移",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "#升级与恢复",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "#数据共享功能下线",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "../../.github/workflows/release.yml",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "../guides/deployment/index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "../../deploy/DOCKER.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "../guides/deployment/apple_container.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "../guides/deployment/datamanagementd.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "../architecture/system_architecture.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "../interfaces/configuration.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "link": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "#工具链与本地运行",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "#代码边界",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "#生成代码与迁移",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "#验证策略",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "#提交与文档",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "#同步上游",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "#发布",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "deployment_and_migrations.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "../index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "../project_overview.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "../architecture/system_architecture.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "../interfaces/configuration.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "deployment_and_migrations.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "link": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "#数据面的职责",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "#专题路由",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "#关联与脱敏",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "#后台运行时",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "#聚合与查询",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "#清理与留存",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "#创作台数据生命周期",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "#备份与恢复范围",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "ops_monitoring_and_alerting.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "pre_aggregation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "account_maintenance.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "../domains/content_moderation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "../domains/platform_quotas.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "../domains/creative_studio.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "ops_monitoring_and_alerting.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "../domains/routing_and_billing.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "deployment_and_migrations.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "../interfaces/configuration.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "index.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/observability_and_data_lifecycle.md",
+      "link": "deployment_and_migrations.md#maintenance_execution",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "observability_and_data_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "#信号流水线",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "#实时与历史查询",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "#告警评估",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "#计划报告",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "#健康与失效语义",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "#ops_release_and_maintenance",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "pre_aggregation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "../interfaces/gateway_error_policy.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "../architecture/system_architecture.md#startup_and_shutdown",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "../interfaces/configuration.md#notification_delivery",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "observability_and_data_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "pre_aggregation.md",
+      "valid": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "link": "account_maintenance.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/S14-backup-setup-maintenance.md",
+      "link": "baseline/S14/README.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/S14-backup-setup-maintenance.md",
+      "link": "baseline/S14/completion-evidence.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/S14-backup-setup-maintenance.md",
+      "link": "baseline/S14/contract-matrix.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/S14-backup-setup-maintenance.md",
+      "link": "baseline/S14/migration-files.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/S14-backup-setup-maintenance.md",
+      "link": "baseline/S14/funds-and-lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/S14-backup-setup-maintenance.md",
+      "link": "baseline/S14/handoff.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#1-目标与约束",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#2-最终目录",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#3-模块关系与接口设计",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#4-旧包逐项映射",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#5-混合包的内部拆分",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#6-多步迁移计划",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#7-每次实施的方法与验收",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#8-最终完成标准",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "#9-roadmap",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../backend/internal/service/qoder_gateway_service_test.go",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../backend/internal/handler/qoder_gateway_handler_test.go",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "STAGE_PLAN_TEMPLATE.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/architecture/system_architecture.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/architecture/gateway_request_lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/architecture/account_scheduling_and_cache.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/interfaces/protocol_capabilities.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/interfaces/upstream_account_matrix.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/domains/identity_and_tenancy.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/domains/routing_and_billing.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/domains/payments_and_entitlements.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/domains/creative_studio.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/domains/batch_image_jobs.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/operations/development_workflow.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "../docs/operations/deployment_and_migrations.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S00-baseline.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S01-foundation.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S02-app-lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S03-protocol-capability-pricing.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S04-billing-transactions.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S05-identity-team-apikey.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S06-egress-routing-account.md#s06_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S07-scheduler-leases.md#s07_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S08-usage-audit-ops.md#s08_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S09-upstream-gateway.md#s09_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S10-notification-site-moderation-search.md#s10_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S11-gateway-orchestration.md#s11_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S12-promotion-payment.md#s12_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S13-creative-batchimage.md#s13_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/BACKEND_PACKAGE_TARGET.md",
+      "link": "S14-backup-setup-maintenance.md#s14_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "../../S14-backup-setup-maintenance.md#s14_completion",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "planning/planning-summary.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "completion-evidence.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "contract-matrix.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "final-lint-comparison.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "depguard-fixtures.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "build-selection-results.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "migration-files.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "source-facts.json.gz",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "references-normal.json.gz",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "references-unit.json.gz",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "references-integration.json.gz",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "funds-and-lifecycle.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "dependency-exceptions.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "handoff.md",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "integrity-checkpoint.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "wire-idempotence.json",
+      "valid": true
+    },
+    {
+      "source": "refactor/baseline/S14/README.md",
+      "link": "skipped-tests.json",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/backup/provider/pg.go",
+      "link": "docs/operations/deployment_and_migrations.md#maintenance_execution",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/backup/runtime.go",
+      "link": "docs/architecture/system_architecture.md#backup_and_maintenance",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/ops/maintenance/operations.go",
+      "link": "docs/operations/deployment_and_migrations.md#maintenance_execution",
+      "valid": true
+    }
+  ]
+}

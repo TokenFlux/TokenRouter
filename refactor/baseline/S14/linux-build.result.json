@@ -1,0 +1,21 @@
+{
+  "command": [
+    "env",
+    "GOOS=linux",
+    "GOARCH=amd64",
+    "CGO_ENABLED=0",
+    "go",
+    "build",
+    "-o",
+    "bin/server-linux-amd64",
+    "./cmd/server"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 9.581,
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  }
+}

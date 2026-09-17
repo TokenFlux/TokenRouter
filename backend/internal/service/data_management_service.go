@@ -1,95 +1,30 @@
 package service
 
 import (
-	"context"
-	"strings"
 	"time"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/backup"
 )
 
-const (
-	DefaultDataManagementAgentSocketPath = "/tmp/sub2api-datamanagement.sock"
-	LegacyBackupAgentSocketPath          = "/tmp/sub2api-backup.sock"
+type DataManagementAgentHealth = backup.DataManagementAgentHealth
+type DataManagementAgentInfo = backup.DataManagementAgentInfo
+type DataManagementService = backup.DataManagementService
 
-	DataManagementDeprecatedReason         = "DATA_MANAGEMENT_DEPRECATED"
-	DataManagementAgentSocketMissingReason = "DATA_MANAGEMENT_AGENT_SOCKET_MISSING"
-	DataManagementAgentUnavailableReason   = "DATA_MANAGEMENT_AGENT_UNAVAILABLE"
+var DefaultDataManagementAgentSocketPath = backup.DefaultDataManagementAgentSocketPath
+var LegacyBackupAgentSocketPath = backup.LegacyBackupAgentSocketPath
+var DataManagementDeprecatedReason = backup.DataManagementDeprecatedReason
+var DataManagementAgentSocketMissingReason = backup.DataManagementAgentSocketMissingReason
+var DataManagementAgentUnavailableReason = backup.DataManagementAgentUnavailableReason
+var DefaultBackupAgentSocketPath = backup.DefaultDataManagementAgentSocketPath
+var BackupAgentSocketMissingReason = backup.BackupAgentSocketMissingReason
+var BackupAgentUnavailableReason = backup.BackupAgentUnavailableReason
+var ErrDataManagementDeprecated = backup.ErrDataManagementDeprecated
+var ErrDataManagementAgentSocketMissing = backup.ErrDataManagementAgentSocketMissing
+var ErrDataManagementAgentUnavailable = backup.ErrDataManagementAgentUnavailable
+var ErrBackupAgentSocketMissing = backup.ErrDataManagementAgentSocketMissing
+var ErrBackupAgentUnavailable = backup.ErrBackupAgentUnavailable
 
-	// Deprecated: keep old names for compatibility.
-	DefaultBackupAgentSocketPath   = DefaultDataManagementAgentSocketPath
-	BackupAgentSocketMissingReason = DataManagementAgentSocketMissingReason
-	BackupAgentUnavailableReason   = DataManagementAgentUnavailableReason
-)
-
-var (
-	ErrDataManagementDeprecated = infraerrors.ServiceUnavailable(
-		DataManagementDeprecatedReason,
-		"data management feature is deprecated",
-	)
-	ErrDataManagementAgentSocketMissing = infraerrors.ServiceUnavailable(
-		DataManagementAgentSocketMissingReason,
-		"data management agent socket is missing",
-	)
-	ErrDataManagementAgentUnavailable = infraerrors.ServiceUnavailable(
-		DataManagementAgentUnavailableReason,
-		"data management agent is unavailable",
-	)
-
-	// Deprecated: keep old names for compatibility.
-	ErrBackupAgentSocketMissing = ErrDataManagementAgentSocketMissing
-	ErrBackupAgentUnavailable   = ErrDataManagementAgentUnavailable
-)
-
-type DataManagementAgentHealth struct {
-	Enabled    bool
-	Reason     string
-	SocketPath string
-	Agent      *DataManagementAgentInfo
-}
-
-type DataManagementAgentInfo struct {
-	Status        string
-	Version       string
-	UptimeSeconds int64
-}
-
-type DataManagementService struct {
-	socketPath string
-}
-
-func NewDataManagementService() *DataManagementService {
-	return NewDataManagementServiceWithOptions(DefaultDataManagementAgentSocketPath, 500*time.Millisecond)
-}
-
-func NewDataManagementServiceWithOptions(socketPath string, dialTimeout time.Duration) *DataManagementService {
-	_ = dialTimeout
-	path := strings.TrimSpace(socketPath)
-	if path == "" {
-		path = DefaultDataManagementAgentSocketPath
-	}
-	return &DataManagementService{
-		socketPath: path,
-	}
-}
-
-func (s *DataManagementService) SocketPath() string {
-	if s == nil || strings.TrimSpace(s.socketPath) == "" {
-		return DefaultDataManagementAgentSocketPath
-	}
-	return s.socketPath
-}
-
-func (s *DataManagementService) GetAgentHealth(ctx context.Context) DataManagementAgentHealth {
-	_ = ctx
-	return DataManagementAgentHealth{
-		Enabled:    false,
-		Reason:     DataManagementDeprecatedReason,
-		SocketPath: s.SocketPath(),
-	}
-}
-
-func (s *DataManagementService) EnsureAgentEnabled(ctx context.Context) error {
-	_ = ctx
-	return ErrDataManagementDeprecated.WithMetadata(map[string]string{"socket_path": s.SocketPath()})
+func NewDataManagementService() *DataManagementService { return backup.NewDataManagementService() }
+func NewDataManagementServiceWithOptions(path string, timeout time.Duration) *DataManagementService {
+	return backup.NewDataManagementServiceWithOptions(path, timeout)
 }

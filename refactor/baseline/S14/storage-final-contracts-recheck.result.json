@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=integration",
+    "-p=4",
+    "./internal/repository",
+    "./internal/app/bootstrap",
+    "-run",
+    "^Test(S14|EnsureSimpleModeDefaultGroups)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 17.625,
+  "events": {
+    "pass": 11,
+    "fail": 0,
+    "skip": 0
+  }
+}

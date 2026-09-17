@@ -169,3 +169,5 @@ npx --yes pnpm@9 --dir frontend run build
 相关文档：[项目总览](../project_overview.md)、[系统架构](../architecture/system_architecture.md)、[配置边界](../interfaces/configuration.md)、[部署与数据库迁移](deployment_and_migrations.md)、[运维目录](index.md)。
 
 推广与支付的依赖门禁已覆盖新核心、HTTP、PostgreSQL 和 app。原 payment 根包 Ent/config/Wire 许可已删除；billing 值、套餐 HTTP 复用和微信身份辅助分别按实际文件/import 许可，新文件与迁出文件不继承许可。资金验证使用真实 PostgreSQL，分别检查 Promo、返利转入、订单履约及退款短事务；退款渠道使用本地夹具，不进行真实付款/退款。回退新退款代码前保留并核实 `REFUND_PREPARED` 事实，不能仅替换二进制后重发渠道退款。
+
+备份/维护验证只对隔离 PostgreSQL、本地 S3/HTTP 夹具及临时可执行文件操作。恢复至少覆盖真实成功提交、SQL 失败回滚、输入中断及取消；系统锁覆盖同业务 ID 的不同认领代次。二进制替换测试不得使用测试进程或部署实例的真实路径。初始化与两个维护命令应验证退出前释放连接，并保持 Wire 可重复生成、Ent 与已发布 SQL 不变。

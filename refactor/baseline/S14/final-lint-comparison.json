@@ -1,0 +1,35 @@
+{
+  "normal": {
+    "baseline_count": 1,
+    "current_count": 1,
+    "added": [],
+    "removed": [],
+    "path_mapping": {
+      "internal/service/backup_service_test.go": "internal/backup/backup_test.go",
+      "internal/service/backup_archive_test.go": "internal/backup/provider/parts_test.go",
+      "internal/repository/backup_s3_store_test.go": "internal/backup/provider/s3_test.go"
+    }
+  },
+  "unit": {
+    "baseline_count": 283,
+    "current_count": 283,
+    "added": [],
+    "removed": [],
+    "path_mapping": {
+      "internal/service/backup_service_test.go": "internal/backup/backup_test.go",
+      "internal/service/backup_archive_test.go": "internal/backup/provider/parts_test.go",
+      "internal/repository/backup_s3_store_test.go": "internal/backup/provider/s3_test.go"
+    }
+  },
+  "integration": {
+    "baseline_count": 17,
+    "current_count": 17,
+    "added": [],
+    "removed": [],
+    "path_mapping": {
+      "internal/service/backup_service_test.go": "internal/backup/backup_test.go",
+      "internal/service/backup_archive_test.go": "internal/backup/provider/parts_test.go",
+      "internal/repository/backup_s3_store_test.go": "internal/backup/provider/s3_test.go"
+    }
+  }
+}

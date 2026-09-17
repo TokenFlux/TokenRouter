@@ -274,8 +274,6 @@ var ProviderSet = wire.NewSet(
 	// Admin handlers
 	admin.NewUserHandler,
 	sitehttpapi.NewAdminAnnouncementHandler,
-	admin.NewDataManagementHandler,
-	admin.NewBackupHandler,
 	admin.NewOAuthHandler,
 	admin.NewGeminiOAuthHandler,
 	admin.NewAntigravityOAuthHandler,
@@ -283,7 +281,6 @@ var ProviderSet = wire.NewSet(
 	billinghttpapi.NewAdminRedeemHandler,
 	ProvideAdminSettingHandler,
 	opshttp.NewOpsHandler,
-	ProvideSystemHandler,
 	billinghttpapi.NewAdminSubscriptionHandler,
 	admin.NewUserAttributeHandler,
 	admin.NewAdminAPIKeyHandler,

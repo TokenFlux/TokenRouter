@@ -16,6 +16,7 @@ import (
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/ops/maintenance"
 	opspostgres "github.com/TokenFlux/TokenRouter/internal/ops/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/ops/provider"
 	opsredis "github.com/TokenFlux/TokenRouter/internal/ops/rediscache"
@@ -69,7 +70,7 @@ func provideReleaseQuery(cache ops.UpdateCache, client service.GitHubReleaseClie
 	return ops.NewReleaseQuery(cache, client, info.Version, info.BuildType)
 }
 func provideUpdateMaintenance(query *ops.ReleaseQuery, client service.GitHubReleaseClient) *service.UpdateService {
-	return service.WrapUpdateQuery(query, client)
+	return maintenance.NewUpdateService(query, provider.NewBinaryInstaller(client, nil))
 }
 func provideOpsOptions(cfg *config.Config) *ops.Options {
 	if cfg == nil {

@@ -1,0 +1,939 @@
+{
+  "groups": [
+    {
+      "contract": "B01 启停屏障",
+      "patterns": [
+        "^TestS14B01RepeatedStartAndStop$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B01RepeatedStartAndStop",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B01RepeatedStartAndStop",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B01RepeatedStartAndStop",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B01RepeatedStartAndStop",
+          "evidence": "native-final-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "B02 回源取消、等待和清理预算",
+      "patterns": [
+        "^TestS14B02StopCancelsWarmup$",
+        "^TestS14B02StopBudget$",
+        "^TestS14B02CleanupUsesShutdownBudget$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02StopCancelsWarmup",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02StopCancelsWarmup",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02StopCancelsWarmup",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02StopCancelsWarmup",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02StopBudget",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02StopBudget",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02StopBudget",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02StopBudget",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02CleanupUsesShutdownBudget",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B02CleanupUsesShutdownBudget",
+          "evidence": "native-final-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "B03 目录边界及原链接语义",
+      "patterns": [
+        "^TestS14B03LocalRoots$",
+        "^TestS14B03PathReplacement$",
+        "^TestS14B03DeleteInnerLinkPreservesTarget$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03LocalRoots",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03LocalRoots",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03LocalRoots",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03LocalRoots",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03PathReplacement",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03PathReplacement",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03PathReplacement",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03PathReplacement",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03DeleteInnerLinkPreservesTarget",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS14B03DeleteInnerLinkPreservesTarget",
+          "evidence": "native-final-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "B04 真实 SQL、输入、取消与 dump 恢复",
+      "patterns": [
+        "^TestS14B04RestoreSQLFailure$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+          "Test": "TestS14B04RestoreSQLFailure",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+          "Test": "TestS14B04RestoreSQLFailure",
+          "evidence": "storage-final-contracts-recheck"
+        }
+      ]
+    },
+    {
+      "contract": "B05 所有者代次与原续租",
+      "patterns": [
+        "^TestS14B05SystemLockOwnership$",
+        "^TestS14B05SameOperationReclaimed$",
+        "^TestSystemOperationLockService_RenewLease$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+          "Test": "TestS14B05SystemLockOwnership",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+          "Test": "TestS14B05SystemLockOwnership",
+          "evidence": "storage-final-contracts-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/maintenance",
+          "Test": "TestS14B05SameOperationReclaimed",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/maintenance",
+          "Test": "TestS14B05SameOperationReclaimed",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/maintenance",
+          "Test": "TestS14B05SameOperationReclaimed",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/maintenance",
+          "Test": "TestS14B05SameOperationReclaimed",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/maintenance",
+          "Test": "TestSystemOperationLockService_RenewLease",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/maintenance",
+          "Test": "TestSystemOperationLockService_RenewLease",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/maintenance",
+          "Test": "TestSystemOperationLockService_RenewLease",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/maintenance",
+          "Test": "TestSystemOperationLockService_RenewLease",
+          "evidence": "native-final-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "B06 恢复前持久登记",
+      "patterns": [
+        "^TestS14B06RestoreMustRegister$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B06RestoreMustRegister",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B06RestoreMustRegister",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B06RestoreMustRegister",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestS14B06RestoreMustRegister",
+          "evidence": "native-final-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "归档格式与分卷",
+      "patterns": [
+        "^TestBackupService_CreateBackup_SplitsSpooledPutArchive$",
+        "^TestBackupService_RestoreBackup_SplitPartsWithLegacyS3Keys$",
+        "^TestSpoolNextBackupPart_"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_CreateBackup_SplitsSpooledPutArchive",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_CreateBackup_SplitsSpooledPutArchive",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_RestoreBackup_SplitPartsWithLegacyS3Keys",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_RestoreBackup_SplitPartsWithLegacyS3Keys",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestSpoolNextBackupPart_ReassemblesExactBytes",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestSpoolNextBackupPart_RejectsInvalidInput",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestSpoolNextBackupPart_EmptyInputCreatesNoFile",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestSpoolNextBackupPart_CancelledContextRemovesTemporaryFile",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestSpoolNextBackupPart_ReassemblesExactBytes",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestSpoolNextBackupPart_RejectsInvalidInput",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestSpoolNextBackupPart_EmptyInputCreatesNoFile",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestSpoolNextBackupPart_CancelledContextRemovesTemporaryFile",
+          "evidence": "native-final-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "S3 与配置兼容",
+      "patterns": [
+        "^TestS3BackupStoreUpload",
+        "^TestBackupService_S3ConfigEncryption$",
+        "^TestBackupService_UpdateStorageConfig_LocalPreservesS3Config$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadFileWithProgressUsesConcurrentMultipart",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSizedUsesSinglePut",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadFileWithProgressReturnsPartialProgressOnCancel",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadMultipartDoesNotReadWholeBackup",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFile",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFileOnCancel",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFileOnReadError",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadFileWithProgressUsesConcurrentMultipart",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSizedUsesSinglePut",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadFileWithProgressReturnsPartialProgressOnCancel",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadMultipartDoesNotReadWholeBackup",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFile",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFileOnCancel",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFileOnReadError",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadFileWithProgressUsesConcurrentMultipart",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSizedUsesSinglePut",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadFileWithProgressReturnsPartialProgressOnCancel",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadMultipartDoesNotReadWholeBackup",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFile",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFileOnCancel",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFileOnReadError",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadFileWithProgressUsesConcurrentMultipart",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSizedUsesSinglePut",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadFileWithProgressReturnsPartialProgressOnCancel",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadMultipartDoesNotReadWholeBackup",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFile",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFileOnCancel",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/provider",
+          "Test": "TestS3BackupStoreUploadSpooledPutRemovesTemporaryFileOnReadError",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_S3ConfigEncryption",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_S3ConfigEncryption",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_UpdateStorageConfig_LocalPreservesS3Config",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_UpdateStorageConfig_LocalPreservesS3Config",
+          "evidence": "native-final-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "保留清理与恢复记录",
+      "patterns": [
+        "^TestBackupService_DeleteBackup_PartFailureKeepsRecord$",
+        "^TestRecoverStaleRecords"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_DeleteBackup_PartFailureKeepsRecord",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestBackupService_DeleteBackup_PartFailureKeepsRecord",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestRecoverStaleRecords",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestRecoverStaleRecords_CleansRegisteredParts",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestRecoverStaleRecords",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup",
+          "Test": "TestRecoverStaleRecords_CleansRegisteredParts",
+          "evidence": "native-final-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "初始化与模式",
+      "patterns": [
+        "^TestS02ProcessModes/cli-setup$",
+        "^TestS02ProcessModes/auto-setup$",
+        "^TestS02ProcessModes/setup-server-only$",
+        "^TestEnsureSimpleModeDefaultGroups_"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/cli-setup",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/cli-setup",
+          "evidence": "process-modes-final"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/auto-setup",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/auto-setup",
+          "evidence": "process-modes-final"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/setup-server-only",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/setup-server-only",
+          "evidence": "process-modes-final"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_CreatesMissingDefaults",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_BackfillsOnlyAutoCreatedGrokDefault",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_PreservesExplicitFalse/operator_managed_default",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_PreservesExplicitFalse/disabled_auto-created_default",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_PreservesExplicitFalse",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_IgnoresSoftDeletedGroups",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_AntigravityNeedsTwoGroupsOnlyByCount",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_CreatesMissingDefaults",
+          "evidence": "storage-final-contracts-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_BackfillsOnlyAutoCreatedGrokDefault",
+          "evidence": "storage-final-contracts-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_PreservesExplicitFalse/operator_managed_default",
+          "evidence": "storage-final-contracts-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_PreservesExplicitFalse/disabled_auto-created_default",
+          "evidence": "storage-final-contracts-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_PreservesExplicitFalse",
+          "evidence": "storage-final-contracts-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_IgnoresSoftDeletedGroups",
+          "evidence": "storage-final-contracts-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestEnsureSimpleModeDefaultGroups_AntigravityNeedsTwoGroupsOnlyByCount",
+          "evidence": "storage-final-contracts-recheck"
+        }
+      ]
+    },
+    {
+      "contract": "迁移与持久密钥",
+      "patterns": [
+        "^TestMigrationsRunner_ConcurrentInstancesSerializeOnSessionLock$",
+        "^TestApplyMigrationsFS_ChecksumMismatchRejected$",
+        "^TestGetOrCreateGeneratedSecuritySecretConcurrentCreation$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+          "Test": "TestMigrationsRunner_ConcurrentInstancesSerializeOnSessionLock",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/infra/postgres",
+          "Test": "TestApplyMigrationsFS_ChecksumMismatchRejected",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/infra/postgres",
+          "Test": "TestApplyMigrationsFS_ChecksumMismatchRejected",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/infra/postgres",
+          "Test": "TestApplyMigrationsFS_ChecksumMismatchRejected",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestGetOrCreateGeneratedSecuritySecretConcurrentCreation",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestGetOrCreateGeneratedSecuritySecretConcurrentCreation",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+          "Test": "TestGetOrCreateGeneratedSecuritySecretConcurrentCreation",
+          "evidence": "final-integration-recheck"
+        }
+      ]
+    },
+    {
+      "contract": "更新、回退与重启",
+      "patterns": [
+        "^TestS14BinaryInstallAndRollback$",
+        "^TestSystemHandlerPerformUpdateSurvivesClientDisconnect$",
+        "^TestSystemHandlerRestartPreservesResponse$",
+        "^TestRestarterPlatformDelayAndClose/"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/provider",
+          "Test": "TestS14BinaryInstallAndRollback",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/provider",
+          "Test": "TestS14BinaryInstallAndRollback",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/provider",
+          "Test": "TestS14BinaryInstallAndRollback",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/ops/provider",
+          "Test": "TestS14BinaryInstallAndRollback",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+          "Test": "TestSystemHandlerPerformUpdateSurvivesClientDisconnect",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+          "Test": "TestSystemHandlerPerformUpdateSurvivesClientDisconnect",
+          "evidence": "restart-http-race"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+          "Test": "TestSystemHandlerRestartPreservesResponse",
+          "evidence": "restart-http-race"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/linux",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/darwin",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/windows",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/linux",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/darwin",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/windows",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/linux",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/darwin",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+          "Test": "TestRestarterPlatformDelayAndClose/windows",
+          "evidence": "final-integration-recheck"
+        }
+      ]
+    },
+    {
+      "contract": "恢复 HTTP 与下线兼容",
+      "patterns": [
+        "^TestS14RestorePasswordBoundary/",
+        "^TestDataManagementHandler_"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestS14RestorePasswordBoundary/missing-password",
+          "evidence": "backup-http-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestS14RestorePasswordBoundary/missing-subject",
+          "evidence": "backup-http-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestS14RestorePasswordBoundary/wrong-password",
+          "evidence": "backup-http-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestS14RestorePasswordBoundary/valid-password-enters-use-case",
+          "evidence": "backup-http-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_AgentHealthAlways200",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_NonHealthRouteReturns503WhenDisabled",
+          "evidence": "final-normal-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_AgentHealthAlways200",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_NonHealthRouteReturns503WhenDisabled",
+          "evidence": "final-unit"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_AgentHealthAlways200",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_NonHealthRouteReturns503WhenDisabled",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_AgentHealthAlways200",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_NonHealthRouteReturns503WhenDisabled",
+          "evidence": "native-final-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_AgentHealthAlways200",
+          "evidence": "backup-http-contracts"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/backup/httpapi",
+          "Test": "TestDataManagementHandler_NonHealthRouteReturns503WhenDisabled",
+          "evidence": "backup-http-contracts"
+        }
+      ]
+    },
+    {
+      "contract": "维护命令",
+      "patterns": [
+        "^TestS02ProcessModes/jwtgen-minimal$",
+        "^TestS02ProcessModes/cleanup-minimal$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/jwtgen-minimal",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/jwtgen-minimal",
+          "evidence": "process-modes-final"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/cleanup-minimal",
+          "evidence": "process-modes-final"
+        }
+      ]
+    },
+    {
+      "contract": "进程与关闭",
+      "patterns": [
+        "^TestS02ProcessModes/standard-sigterm$",
+        "^TestS02ProcessModes/simple-sigterm$",
+        "^TestS02ProcessModes/bootstrap-failure-closes-connection$",
+        "^TestS02ProcessModes/listen-failure-cleans-resources$"
+      ],
+      "tests": [
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/standard-sigterm",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/standard-sigterm",
+          "evidence": "process-modes-final"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/simple-sigterm",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/simple-sigterm",
+          "evidence": "process-modes-final"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/bootstrap-failure-closes-connection",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/bootstrap-failure-closes-connection",
+          "evidence": "process-modes-final"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/listen-failure-cleans-resources",
+          "evidence": "final-integration-recheck"
+        },
+        {
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/listen-failure-cleans-resources",
+          "evidence": "process-modes-final"
+        }
+      ]
+    }
+  ],
+  "missing": []
+}

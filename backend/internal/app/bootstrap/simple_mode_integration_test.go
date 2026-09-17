@@ -176,3 +176,6 @@ func TestEnsureSimpleModeDefaultGroups_AntigravityNeedsTwoGroupsOnlyByCount(t *t
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, count, 2)
 }
+
+// 持久化夹具保留既有自动创建标记，生产规则已归 routing 初始化。
+const simpleModeDefaultGroupDescription = "Auto-created default group"

@@ -1,0 +1,26 @@
+{
+  "lint": {
+    "exit_code": 0,
+    "output": "golangci-lint has version 2.13.2 built with go1.27.0 from 27774aa on 2026-08-27T22:52:01Z"
+  },
+  "docker": {
+    "exit_code": 0,
+    "output": "29.5.2"
+  },
+  "pg_dump": {
+    "exit_code": 0,
+    "output": "pg_dump (PostgreSQL) 18.3 (Homebrew)"
+  },
+  "psql": {
+    "exit_code": 0,
+    "output": "psql (PostgreSQL) 18.3 (Homebrew)"
+  },
+  "system_go": {
+    "exit_code": 0,
+    "output": "go version go1.27.1 darwin/arm64"
+  },
+  "project_go": {
+    "exit_code": 0,
+    "output": "go version go1.27.0 darwin/arm64"
+  }
+}

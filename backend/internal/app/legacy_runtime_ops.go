@@ -24,7 +24,6 @@ func provideOpsRuntime(
 	opsSystemLogSink *ops.OpsSystemLogSink,
 	opsService *ops.OpsService,
 	opsIngressReject *ops.OpsIngressRejectAggregator,
-	backupSvc *service.BackupService,
 	manager *lifecycle.Manager,
 	dashboardAggregation *service.DashboardAggregationService,
 ) *opsRuntimeReady {
@@ -118,18 +117,6 @@ func provideOpsRuntime(
 			if health := opsIngressReject.Health(); health.PendingBatches != 0 {
 				return fmt.Errorf("ingress reject drain incomplete: %d batches, %d rows", health.PendingBatches, health.PendingRows)
 			}
-		}
-		return nil
-	}})
-
-	manager.Register(lifecycle.Hook{Name: "BackupService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
-		if backupSvc != nil {
-			backupSvc.Start()
-		}
-		return nil
-	}, Stop: func(ctx context.Context) error {
-		if backupSvc != nil {
-			backupSvc.Stop()
 		}
 		return nil
 	}})

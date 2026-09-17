@@ -3,8 +3,6 @@ package setup
 import (
 	"context"
 	"crypto/rand"
-	"crypto/tls"
-	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -14,11 +12,10 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	_ "github.com/lib/pq"
-	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
@@ -84,23 +81,9 @@ type SetupConfig struct {
 	MigrationTimeoutSeconds int            `json:"migration_timeout_seconds" yaml:"migration_timeout_seconds,omitempty"`
 }
 
-type DatabaseConfig struct {
-	Host     string `json:"host" yaml:"host"`
-	Port     int    `json:"port" yaml:"port"`
-	User     string `json:"user" yaml:"user"`
-	Password string `json:"password" yaml:"password"`
-	DBName   string `json:"dbname" yaml:"dbname"`
-	SSLMode  string `json:"sslmode" yaml:"sslmode"`
-}
+type DatabaseConfig = bootstrap.SetupDatabaseConfig
 
-type RedisConfig struct {
-	Host      string `json:"host" yaml:"host"`
-	Port      int    `json:"port" yaml:"port"`
-	Username  string `json:"username" yaml:"username"`
-	Password  string `json:"password" yaml:"password"`
-	DB        int    `json:"db" yaml:"db"`
-	EnableTLS bool   `json:"enable_tls" yaml:"enable_tls"`
-}
+type RedisConfig = bootstrap.SetupRedisConfig
 
 type AdminConfig struct {
 	Email    string `json:"email"`
@@ -130,22 +113,8 @@ type adminBootstrapDecision struct {
 }
 
 func decideAdminBootstrap(totalUsers, adminUsers int64) adminBootstrapDecision {
-	if adminUsers > 0 {
-		return adminBootstrapDecision{
-			shouldCreate: false,
-			reason:       adminBootstrapReasonAdminExists,
-		}
-	}
-	if totalUsers > 0 {
-		return adminBootstrapDecision{
-			shouldCreate: false,
-			reason:       adminBootstrapReasonUsersExistWithoutAdmin,
-		}
-	}
-	return adminBootstrapDecision{
-		shouldCreate: true,
-		reason:       adminBootstrapReasonEmptyDatabase,
-	}
+	create, reason := identity.DecideAdminBootstrap(totalUsers, adminUsers)
+	return adminBootstrapDecision{shouldCreate: create, reason: reason}
 }
 
 // skipSetupEnabled 解析显式跳过首次安装向导的环境开关。
@@ -179,121 +148,13 @@ func NeedsSetup() bool {
 	return true
 }
 
-func buildPostgresDSN(cfg *DatabaseConfig, dbName string) string {
-	return fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, dbName, cfg.SSLMode,
-	)
-}
-
 func buildDatabaseConnectionDSNs(cfg *DatabaseConfig) (bootstrapDSN, targetDSN string) {
-	return buildPostgresDSN(cfg, "postgres"), buildPostgresDSN(cfg, cfg.DBName)
+	return bootstrap.BuildDatabaseConnectionDSNs(cfg)
 }
-
-// 测试数据库连接，并在目标数据库不存在时创建它。
 func TestDatabaseConnection(cfg *DatabaseConfig) error {
-	// 先连接维护数据库，否则目标数据库尚未创建时会直接连接失败。
-	defaultDSN, targetDSN := buildDatabaseConnectionDSNs(cfg)
-
-	db, err := sql.Open("postgres", defaultDSN)
-	if err != nil {
-		return fmt.Errorf("failed to connect to PostgreSQL: %w", err)
-	}
-
-	defer func() {
-		if db == nil {
-			return
-		}
-		if err := db.Close(); err != nil {
-			logger.LegacyPrintf("setup", "failed to close postgres connection: %v", err)
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		return fmt.Errorf("ping failed: %w", err)
-	}
-
-	// Check if target database exists
-	var exists bool
-	row := db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)", cfg.DBName)
-	if err := row.Scan(&exists); err != nil {
-		return fmt.Errorf("failed to check database existence: %w", err)
-	}
-
-	// 目标数据库不存在时创建它。
-	if !exists {
-		// 注意：数据库名不能参数化，依赖前置输入校验保障安全。
-		_, err := db.ExecContext(ctx, fmt.Sprintf("CREATE DATABASE %s", cfg.DBName))
-		if err != nil {
-			return fmt.Errorf("failed to create database '%s': %w", cfg.DBName, err)
-		}
-		logger.LegacyPrintf("setup", "Database '%s' created successfully", cfg.DBName)
-	}
-
-	// 再连接目标数据库，验证创建后的真实可用性。
-	if err := db.Close(); err != nil {
-		logger.LegacyPrintf("setup", "failed to close postgres connection: %v", err)
-	}
-	db = nil
-
-	targetDB, err := sql.Open("postgres", targetDSN)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database '%s': %w", cfg.DBName, err)
-	}
-
-	defer func() {
-		if err := targetDB.Close(); err != nil {
-			logger.LegacyPrintf("setup", "failed to close postgres connection: %v", err)
-		}
-	}()
-
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel2()
-
-	if err := targetDB.PingContext(ctx2); err != nil {
-		return fmt.Errorf("ping target database failed: %w", err)
-	}
-
-	return nil
+	return bootstrap.TestSetupDatabaseConnection(cfg)
 }
-
-// TestRedisConnection tests the Redis connection
-func TestRedisConnection(cfg *RedisConfig) error {
-	opts := &redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Username: cfg.Username,
-		Password: cfg.Password,
-		DB:       cfg.DB,
-	}
-
-	if cfg.EnableTLS {
-		opts.TLSConfig = &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			ServerName: cfg.Host,
-		}
-	}
-
-	rdb := redis.NewClient(opts)
-	defer func() {
-		if err := rdb.Close(); err != nil {
-			logger.LegacyPrintf("setup", "failed to close redis client: %v", err)
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("ping failed: %w", err)
-	}
-
-	return nil
-}
-
-// Install performs the installation with the given configuration
+func TestRedisConnection(cfg *RedisConfig) error { return bootstrap.TestSetupRedisConnection(cfg) }
 func Install(cfg *SetupConfig) error {
 	// Security check: prevent re-installation if already installed
 	if !NeedsSetup() {
@@ -349,28 +210,8 @@ func createInstallLock() error {
 }
 
 func initializeDatabase(cfg *SetupConfig) error {
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Database.Host, cfg.Database.Port, cfg.Database.User,
-		cfg.Database.Password, cfg.Database.DBName, cfg.Database.SSLMode,
-	)
-
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := db.Close(); err != nil {
-			logger.LegacyPrintf("setup", "failed to close postgres connection: %v", err)
-		}
-	}()
-
-	migrationCtx, cancel := context.WithTimeout(context.Background(), cfg.migrationTimeout())
-	defer cancel()
-	return bootstrap.ApplyMigrations(migrationCtx, db)
+	return bootstrap.InitializeSetupDatabase(context.Background(), &cfg.Database, cfg.migrationTimeout())
 }
-
 func (cfg *SetupConfig) migrationTimeout() time.Duration {
 	if cfg != nil && cfg.MigrationTimeoutSeconds > 0 {
 		return time.Duration(cfg.MigrationTimeoutSeconds) * time.Second
@@ -379,81 +220,16 @@ func (cfg *SetupConfig) migrationTimeout() time.Duration {
 }
 
 func createAdminUser(cfg *SetupConfig) (bool, string, error) {
-	dsn := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Database.Host, cfg.Database.Port, cfg.Database.User,
-		cfg.Database.Password, cfg.Database.DBName, cfg.Database.SSLMode,
-	)
-
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return false, "", err
-	}
-
-	defer func() {
-		if err := db.Close(); err != nil {
-			logger.LegacyPrintf("setup", "failed to close postgres connection: %v", err)
-		}
-	}()
-
-	// 使用超时上下文避免安装流程因数据库异常而长时间阻塞。
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var totalUsers int64
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(1) FROM users").Scan(&totalUsers); err != nil {
-		return false, "", err
-	}
-	var adminUsers int64
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(1) FROM users WHERE role = $1", service.RoleAdmin).Scan(&adminUsers); err != nil {
-		return false, "", err
-	}
-	decision := decideAdminBootstrap(totalUsers, adminUsers)
-	if !decision.shouldCreate {
-		return false, decision.reason, nil
-	}
-
-	if strings.TrimSpace(cfg.Admin.Password) == "" {
-		password, genErr := generateSecret(16)
-		if genErr != nil {
-			return false, "", fmt.Errorf("failed to generate admin password: %w", genErr)
+	return bootstrap.InitializeSetupAdmin(context.Background(), &cfg.Database, identity.InitialAdminInput{Email: cfg.Admin.Email, Password: cfg.Admin.Password, Concurrency: setupDefaultAdminConcurrency(), Now: time.Now}, func() (string, error) {
+		password, err := generateSecret(16)
+		if err != nil {
+			return "", err
 		}
 		cfg.Admin.Password = password
-		fmt.Printf("Generated admin password (one-time): %s\n", cfg.Admin.Password)
+		fmt.Printf("Generated admin password (one-time): %s\n", password)
 		fmt.Println("IMPORTANT: Save this password! It will not be shown again.")
-	}
-
-	admin := &service.User{
-		Email:       cfg.Admin.Email,
-		Role:        service.RoleAdmin,
-		Status:      service.StatusActive,
-		Balance:     0,
-		Concurrency: setupDefaultAdminConcurrency(),
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-
-	if err := admin.SetPassword(cfg.Admin.Password); err != nil {
-		return false, "", err
-	}
-
-	_, err = db.ExecContext(
-		ctx,
-		`INSERT INTO users (email, password_hash, role, balance, concurrency, status, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		admin.Email,
-		admin.PasswordHash,
-		admin.Role,
-		admin.Balance,
-		admin.Concurrency,
-		admin.Status,
-		admin.CreatedAt,
-		admin.UpdatedAt,
-	)
-	if err != nil {
-		return false, "", err
-	}
-	return true, decision.reason, nil
+		return password, nil
+	})
 }
 
 func writeConfigFile(cfg *SetupConfig) error {

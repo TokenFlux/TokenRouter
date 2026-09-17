@@ -1,0 +1,130 @@
+[
+  {
+    "Time": "2026-09-17T15:59:45.335726+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "Test": "TestRealAPI",
+    "Elapsed": 0,
+    "evidence": "final-normal-recheck"
+  },
+  {
+    "Time": "2026-09-17T15:59:45.335754+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "Test": "TestReadLocalAuthFromDisk",
+    "Elapsed": 0,
+    "evidence": "final-normal-recheck"
+  },
+  {
+    "Time": "2026-09-17T16:00:01.633895+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+    "Elapsed": 0,
+    "evidence": "final-normal-recheck"
+  },
+  {
+    "Time": "2026-09-17T16:00:20.228139+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+    "Elapsed": 0,
+    "evidence": "final-normal-recheck"
+  },
+  {
+    "Time": "2026-09-17T16:02:16.901875+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+    "Test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference",
+    "Elapsed": 0,
+    "evidence": "final-unit"
+  },
+  {
+    "Time": "2026-09-17T16:02:20.102478+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+    "Test": "TestDialerBasicConnection",
+    "Elapsed": 0,
+    "evidence": "final-unit"
+  },
+  {
+    "Time": "2026-09-17T16:02:20.102505+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+    "Test": "TestJA3Fingerprint",
+    "Elapsed": 0,
+    "evidence": "final-unit"
+  },
+  {
+    "Time": "2026-09-17T16:02:20.105113+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+    "Test": "TestAllProfiles",
+    "Elapsed": 0,
+    "evidence": "final-unit"
+  },
+  {
+    "Time": "2026-09-17T16:03:11.987337+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "Test": "TestRealAPI",
+    "Elapsed": 0,
+    "evidence": "final-unit"
+  },
+  {
+    "Time": "2026-09-17T16:03:11.987355+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "Test": "TestReadLocalAuthFromDisk",
+    "Elapsed": 0,
+    "evidence": "final-unit"
+  },
+  {
+    "Time": "2026-09-17T16:04:13.789345+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+    "Elapsed": 0,
+    "evidence": "final-unit"
+  },
+  {
+    "Time": "2026-09-17T16:04:33.619868+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+    "Elapsed": 0,
+    "evidence": "final-unit"
+  },
+  {
+    "Time": "2026-09-17T16:13:24.776647+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "Test": "TestRealAPI",
+    "Elapsed": 0,
+    "evidence": "final-integration-recheck"
+  },
+  {
+    "Time": "2026-09-17T16:13:24.776662+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "Test": "TestReadLocalAuthFromDisk",
+    "Elapsed": 0,
+    "evidence": "final-integration-recheck"
+  },
+  {
+    "Time": "2026-09-17T16:13:38.990184+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+    "Elapsed": 0,
+    "evidence": "final-integration-recheck"
+  },
+  {
+    "Time": "2026-09-17T16:13:57.543598+08:00",
+    "Action": "skip",
+    "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+    "Elapsed": 0,
+    "evidence": "final-integration-recheck"
+  }
+]

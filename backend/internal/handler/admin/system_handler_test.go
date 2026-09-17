@@ -339,3 +339,25 @@ func TestSystemHandlerGetRollbackVersionsError(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }
+
+// 重启 HTTP 仍先返回原响应形状，实际延迟和平台分支由 lifecycle 单独验证。
+type s14RestartRecorder struct{ calls int }
+
+func (r *s14RestartRecorder) RequestRestart() error { r.calls++; return nil }
+func TestSystemHandlerRestartPreservesResponse(t *testing.T) {
+	service.SetDefaultIdempotencyCoordinator(nil)
+	t.Cleanup(func() { service.SetDefaultIdempotencyCoordinator(nil) })
+	repo := newMemoryIdempotencyRepoStub()
+	lock := service.NewSystemOperationLockService(repo, service.IdempotencyConfig{ProcessingTimeout: time.Hour, SystemOperationTTL: time.Hour})
+	restart := &s14RestartRecorder{}
+	handler := NewSystemHandler(&systemHandlerUpdateServiceStub{}, lock, restart)
+	router := gin.New()
+	router.POST("/api/v1/admin/system/restart", handler.RestartService)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/admin/system/restart", nil))
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Contains(t, response.Body.String(), "Service restart initiated")
+	require.Contains(t, response.Body.String(), "operation_id")
+	require.Equal(t, 1, restart.calls)
+	requireSystemLockStatus(t, repo, service.IdempotencyStatusSucceeded)
+}

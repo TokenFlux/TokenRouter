@@ -67,8 +67,6 @@ var ProviderSet = wire.NewSet(
 	// Encryptors
 
 	// Backup infrastructure
-	NewPgDumper,
-	NewS3BackupStoreFactory,
 
 	// HTTP service ports (DI Strategy A: return interface directly)
 	ProvidePricingRemoteClient,

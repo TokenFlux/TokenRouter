@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "./internal/backup/httpapi"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.292,
+  "events": {
+    "pass": 8,
+    "fail": 0,
+    "skip": 0
+  }
+}

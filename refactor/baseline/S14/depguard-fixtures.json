@@ -1,0 +1,1374 @@
+[
+  {
+    "name": "legal-core",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.375,
+    "log": "logs/gate-legal-core-normal.log.gz"
+  },
+  {
+    "name": "legal-maintenance",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/ops/maintenance"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.389,
+    "log": "logs/gate-legal-maintenance-normal.log.gz"
+  },
+  {
+    "name": "legal-provider",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup/provider"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.41,
+    "log": "logs/gate-legal-provider-normal.log.gz"
+  },
+  {
+    "name": "legal-http",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.395,
+    "log": "logs/gate-legal-http-normal.log.gz"
+  },
+  {
+    "name": "legal-app",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/app"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.67,
+    "log": "logs/gate-legal-app-normal.log.gz"
+  },
+  {
+    "name": "new-core-file",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/robfig/cron/v3",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/robfig/cron/v3' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/robfig/cron/v3\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.374,
+    "log": "logs/gate-new-core-file-normal.log.gz"
+  },
+  {
+    "name": "core-config",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.377,
+    "log": "logs/gate-core-config-normal.log.gz"
+  },
+  {
+    "name": "core-file-io",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "os",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'os' is not allowed from list 's14-maintenance-core-no-io': 文件和环境读取归技术 Adapter 或 app。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"os\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "文件和环境读取归技术 Adapter 或 app。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.392,
+    "log": "logs/gate-core-file-io-normal.log.gz"
+  },
+  {
+    "name": "new-app-file",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/app"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "expected_file": "internal/app/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/service' is not allowed from list 'app': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/service\""
+        ],
+        "Pos": {
+          "Filename": "internal/app/zz_s14_gate.go",
+          "Offset": 48,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.607,
+    "log": "logs/gate-new-app-file-normal.log.gz"
+  },
+  {
+    "name": "http-database",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "database/sql",
+    "expected_file": "internal/backup/httpapi/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'database/sql' is not allowed from list 'backup-httpapi': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"database/sql\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/httpapi/zz_s14_gate.go",
+          "Offset": 52,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.395,
+    "log": "logs/gate-http-database-normal.log.gz"
+  },
+  {
+    "name": "core-reverse",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/ops/maintenance"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/ops/provider",
+    "expected_file": "internal/ops/maintenance/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/ops/provider' is not allowed from list 'core-ops'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/ops/provider\""
+        ],
+        "Pos": {
+          "Filename": "internal/ops/maintenance/zz_s14_gate.go",
+          "Offset": 56,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.43,
+    "log": "logs/gate-core-reverse-normal.log.gz"
+  },
+  {
+    "name": "old-file-new-dependency",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/gin-gonic/gin",
+    "expected_file": "internal/backup/runtime.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/gin-gonic/gin' is not allowed from list 's14-backup-runtime-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/gin-gonic/gin\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/runtime.go",
+          "Offset": 26,
+          "Line": 4,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.38,
+    "log": "logs/gate-old-file-new-dependency-normal.log.gz"
+  },
+  {
+    "name": "moved-permission-expired",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/robfig/cron/v3",
+    "expected_file": "internal/backup/zz_s14_moved.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/robfig/cron/v3' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "\t\"github.com/robfig/cron/v3\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_moved.go",
+          "Offset": 119,
+          "Line": 10,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.367,
+    "log": "logs/gate-moved-permission-expired-normal.log.gz"
+  },
+  {
+    "name": "normal-adapter",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.399,
+    "log": "logs/gate-normal-adapter-normal.log.gz"
+  },
+  {
+    "name": "legal-core",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.399,
+    "log": "logs/gate-legal-core-unit.log.gz"
+  },
+  {
+    "name": "legal-maintenance",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/ops/maintenance"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.389,
+    "log": "logs/gate-legal-maintenance-unit.log.gz"
+  },
+  {
+    "name": "legal-provider",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup/provider"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.426,
+    "log": "logs/gate-legal-provider-unit.log.gz"
+  },
+  {
+    "name": "legal-http",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.435,
+    "log": "logs/gate-legal-http-unit.log.gz"
+  },
+  {
+    "name": "legal-app",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/app"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.64,
+    "log": "logs/gate-legal-app-unit.log.gz"
+  },
+  {
+    "name": "new-core-file",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/robfig/cron/v3",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/robfig/cron/v3' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/robfig/cron/v3\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.402,
+    "log": "logs/gate-new-core-file-unit.log.gz"
+  },
+  {
+    "name": "core-config",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.452,
+    "log": "logs/gate-core-config-unit.log.gz"
+  },
+  {
+    "name": "core-file-io",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "os",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'os' is not allowed from list 's14-maintenance-core-no-io': 文件和环境读取归技术 Adapter 或 app。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"os\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "文件和环境读取归技术 Adapter 或 app。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.413,
+    "log": "logs/gate-core-file-io-unit.log.gz"
+  },
+  {
+    "name": "new-app-file",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/app"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "expected_file": "internal/app/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/service' is not allowed from list 'app': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/service\""
+        ],
+        "Pos": {
+          "Filename": "internal/app/zz_s14_gate.go",
+          "Offset": 48,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.605,
+    "log": "logs/gate-new-app-file-unit.log.gz"
+  },
+  {
+    "name": "http-database",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "database/sql",
+    "expected_file": "internal/backup/httpapi/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'database/sql' is not allowed from list 'backup-httpapi': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"database/sql\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/httpapi/zz_s14_gate.go",
+          "Offset": 52,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.387,
+    "log": "logs/gate-http-database-unit.log.gz"
+  },
+  {
+    "name": "core-reverse",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/ops/maintenance"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/ops/provider",
+    "expected_file": "internal/ops/maintenance/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/ops/provider' is not allowed from list 'core-ops'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/ops/provider\""
+        ],
+        "Pos": {
+          "Filename": "internal/ops/maintenance/zz_s14_gate.go",
+          "Offset": 56,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.426,
+    "log": "logs/gate-core-reverse-unit.log.gz"
+  },
+  {
+    "name": "old-file-new-dependency",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/gin-gonic/gin",
+    "expected_file": "internal/backup/runtime.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/gin-gonic/gin' is not allowed from list 's14-backup-runtime-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/gin-gonic/gin\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/runtime.go",
+          "Offset": 26,
+          "Line": 4,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.405,
+    "log": "logs/gate-old-file-new-dependency-unit.log.gz"
+  },
+  {
+    "name": "moved-permission-expired",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/robfig/cron/v3",
+    "expected_file": "internal/backup/zz_s14_moved.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/robfig/cron/v3' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "\t\"github.com/robfig/cron/v3\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_moved.go",
+          "Offset": 119,
+          "Line": 10,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.386,
+    "log": "logs/gate-moved-permission-expired-unit.log.gz"
+  },
+  {
+    "name": "normal-adapter",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=unit",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.385,
+    "log": "logs/gate-normal-adapter-unit.log.gz"
+  },
+  {
+    "name": "legal-core",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.37,
+    "log": "logs/gate-legal-core-integration.log.gz"
+  },
+  {
+    "name": "legal-maintenance",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/ops/maintenance"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.395,
+    "log": "logs/gate-legal-maintenance-integration.log.gz"
+  },
+  {
+    "name": "legal-provider",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup/provider"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.381,
+    "log": "logs/gate-legal-provider-integration.log.gz"
+  },
+  {
+    "name": "legal-http",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.4,
+    "log": "logs/gate-legal-http-integration.log.gz"
+  },
+  {
+    "name": "legal-app",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/app"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.657,
+    "log": "logs/gate-legal-app-integration.log.gz"
+  },
+  {
+    "name": "new-core-file",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/robfig/cron/v3",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/robfig/cron/v3' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/robfig/cron/v3\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.379,
+    "log": "logs/gate-new-core-file-integration.log.gz"
+  },
+  {
+    "name": "core-config",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.379,
+    "log": "logs/gate-core-config-integration.log.gz"
+  },
+  {
+    "name": "core-file-io",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "os",
+    "expected_file": "internal/backup/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'os' is not allowed from list 's14-maintenance-core-no-io': 文件和环境读取归技术 Adapter 或 app。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"os\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_gate.go",
+          "Offset": 51,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "文件和环境读取归技术 Adapter 或 app。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.407,
+    "log": "logs/gate-core-file-io-integration.log.gz"
+  },
+  {
+    "name": "new-app-file",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/app"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "expected_file": "internal/app/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/service' is not allowed from list 'app': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/service\""
+        ],
+        "Pos": {
+          "Filename": "internal/app/zz_s14_gate.go",
+          "Offset": 48,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.611,
+    "log": "logs/gate-new-app-file-integration.log.gz"
+  },
+  {
+    "name": "http-database",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "database/sql",
+    "expected_file": "internal/backup/httpapi/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'database/sql' is not allowed from list 'backup-httpapi': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"database/sql\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/httpapi/zz_s14_gate.go",
+          "Offset": 52,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.39,
+    "log": "logs/gate-http-database-integration.log.gz"
+  },
+  {
+    "name": "core-reverse",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/ops/maintenance"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/ops/provider",
+    "expected_file": "internal/ops/maintenance/zz_s14_gate.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/ops/provider' is not allowed from list 'core-ops'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/ops/provider\""
+        ],
+        "Pos": {
+          "Filename": "internal/ops/maintenance/zz_s14_gate.go",
+          "Offset": 56,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.423,
+    "log": "logs/gate-core-reverse-integration.log.gz"
+  },
+  {
+    "name": "old-file-new-dependency",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/gin-gonic/gin",
+    "expected_file": "internal/backup/runtime.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/gin-gonic/gin' is not allowed from list 's14-backup-runtime-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/gin-gonic/gin\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/runtime.go",
+          "Offset": 26,
+          "Line": 4,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.383,
+    "log": "logs/gate-old-file-new-dependency-integration.log.gz"
+  },
+  {
+    "name": "moved-permission-expired",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup"
+    ],
+    "exit_code": 1,
+    "matched": true,
+    "expected_import": "github.com/robfig/cron/v3",
+    "expected_file": "internal/backup/zz_s14_moved.go",
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/robfig/cron/v3' is not allowed from list 'core-backup'",
+        "Severity": "",
+        "SourceLines": [
+          "\t\"github.com/robfig/cron/v3\""
+        ],
+        "Pos": {
+          "Filename": "internal/backup/zz_s14_moved.go",
+          "Offset": 119,
+          "Line": 10,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.378,
+    "log": "logs/gate-moved-permission-expired-integration.log.gz"
+  },
+  {
+    "name": "normal-adapter",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s14-fixture.json",
+      "--build-tags=integration",
+      "./internal/backup/httpapi"
+    ],
+    "exit_code": 0,
+    "matched": true,
+    "expected_import": null,
+    "expected_file": null,
+    "issues": [],
+    "seconds": 0.394,
+    "log": "logs/gate-normal-adapter-integration.log.gz"
+  }
+]

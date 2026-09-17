@@ -104,7 +104,7 @@ Usage cleanup 是管理员显式创建的持久任务，必须提供时间范围
 
 ## 备份与恢复范围
 
-BackupService 使用 PostgreSQL dump，并把产物流式写入本地或 S3 兼容存储；配置、记录、定时调度和恢复受维护锁保护。默认内容策略会排除 `backupContentTableDataGroups` 归类的 usage records、Ops logs、专项 audit history 和 runtime data，四类都必须显式选择。备份显示 completed 只证明已写出所选内容，不代表这些类别全部存在于文件中。
+backup 使用 PostgreSQL dump，并把产物流式写入本地或 S3 兼容存储；配置、记录、定时调度和恢复受维护锁保护。默认内容策略会排除 `backupContentTableDataGroups` 归类的 usage records、Ops logs、专项 audit history 和 runtime data，四类都必须显式选择。备份显示 completed 只证明已写出所选内容，不代表这些类别全部存在于文件中。
 
 S3 的 `multipart` 上传模式把 gzip 流作为一个对象低内存上传，适合兼容标准 multipart 签名的存储；`spooled_put` 面向只能可靠接受已知长度 `PutObject` 的兼容服务。后者超过 4 GiB 时边压缩边封装独立分卷，临时磁盘只保留当前一卷；备份记录保存每卷顺序、对象键、大小和 SHA-256。任一卷上传失败、服务重启或删除失败时，必须尝试清理全部已登记对象，并在清理不完整时保留可诊断记录。
 
@@ -115,3 +115,5 @@ S3 的 `multipart` 上传模式把 gzip 流作为一个对象低内存上传，�
 敏感 S3 配置入库前依赖稳定的加密密钥；临时生成的密钥不能用于保存新 secret。备份保留清理必须同时删除产物和记录，并在删除失败时保留可诊断状态。
 
 相关文档：[运维监控与告警](ops_monitoring_and_alerting.md)、[路由与计费](../domains/routing_and_billing.md)、[部署与数据库迁移](deployment_and_migrations.md)、[配置边界](../interfaces/configuration.md)、[运维目录](index.md)。
+
+本地备份文件操作先核对真实目标，再通过同一个受根目录约束的句柄执行读取、创建或删除；根内符号链接保留，根外目标被拒绝。配置中的本地根路径不对外扩展可访问范围。恢复错误与运行记录写入错误分开报告：running 登记失败不得启动恢复，已提交恢复的最终记录失败不会撤销数据库变化。具体关闭与恢复保证见[维护执行](deployment_and_migrations.md#maintenance_execution)。

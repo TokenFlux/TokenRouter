@@ -9,7 +9,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	"github.com/TokenFlux/TokenRouter/internal/repository"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
@@ -32,7 +31,6 @@ func provideSettingsStore(repo service.SettingRepository) *settings.Store { retu
 func provideAnnouncementExpiry(repo site.AnnouncementRepository) *site.AnnouncementExpiryService {
 	return site.NewAnnouncementExpiryService(repo, time.Minute)
 }
-func provideRestartRequester(restarter *lifecycle.Restarter) admin.RestartRequester { return restarter }
 func provideApplication(server *http.Server, manager *lifecycle.Manager, _ *runtimeReady, opsService *service.OpsService, _ *errorQueueReady) *Application {
 	lifecycle.TrackRequests(server, manager)
 	manager.Register(lifecycle.Hook{Name: "OpsWSRuntime", StartOrder: 983, StopOrder: 17, Stop: func(context.Context) error { opsService.Realtime().Stop(); return nil }})

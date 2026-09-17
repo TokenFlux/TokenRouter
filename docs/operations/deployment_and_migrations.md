@@ -29,7 +29,7 @@
 
 逐步操作见 [中文部署指南](../guides/deployment/index.md)、[Docker 镜像说明](../../deploy/DOCKER.md) 和 [Apple Container 指南](../guides/deployment/apple_container.md)。这些是部署者手册，不替代本文的工程约束。
 
-管理后台的数据管理功能还依赖一个通过 Unix Socket 通信的可选 `datamanagementd` 进程。本仓库保留主进程客户端、systemd unit 和安装脚本，但当前检出内容不包含 `datamanagement/` 源码目录，因此根 Makefile 的构建目标和安装脚本的 `--source` 模式不能在本仓库单独完成构建。只有在另行取得兼容二进制或完整源码时才应启用；现成二进制的部署步骤见 [datamanagementd 指南](../guides/deployment/datamanagementd.md)。
+旧 data management 接口已下线：`backup` 的兼容入口固定返回 `DATA_MANAGEMENT_DEPRECATED`，不会连接 Unix Socket 或启动 gRPC 调用。仓库中的旧安装脚本与 [datamanagementd 指南](../guides/deployment/datamanagementd.md) 是历史部署资料，不代表当前服务仍启用守护进程。当前备份与恢复使用独立的 backup 模块。
 
 ## 初始化与启动
 
@@ -69,6 +69,13 @@
 - `schema_migrations` 文件名与预期一致，未修改既有文件 checksum。
 
 ## 升级与恢复
+
+<a id="maintenance_execution"></a>
+备份配置、记录、定时与恢复编排由 backup 拥有，`backup/provider` 管理 dump/psql、压缩分卷、本地文件和 S3。系统更新与回退由 ops/maintenance 编排，技术 Adapter 在可执行文件所在目录下载并替换；版本查询继续复用 Ops 的唯一发布查询实例。更新仍可在浏览器断开后继续，应用退出则取消下载等准备工作；一旦进入二进制替换临界区，必须完成替换或恢复原文件。
+
+备份停止时立即拒绝新任务并取消启动回源、cron 与在途任务，随后在应用剩余后台预算内等待子进程及清理。超时保留未完成状态，不表示 drain 成功。恢复使用开启 `ON_ERROR_STOP` 的单事务 psql；输入流损坏先取消进程再关闭标准输入，避免把不完整输入的 EOF 当作提交条件。异步恢复只有成功保存 running 记录后才会启动。最终数据库提交后若状态保存失败，不能据此声称数据库已回滚。
+
+系统维护锁使用原幂等表和 scope/key，processing 记录的 response_body 保存独立所有者令牌，续租和释放同时比较业务操作 ID 与令牌。旧无令牌记录在原锁窗口内继续阻止认领，过期后可接管；普通 HTTP 幂等记录不使用这套维护认领接口。回退旧二进制前应停止并等待维护操作，不在数据库恢复或二进制替换途中切换实现。
 
 升级前先创建并实际验证 PostgreSQL 备份，同时保存 Redis/对象存储中业务要求恢复的数据。后台备份服务可把数据库 dump 流式写入本地或 S3 兼容存储，并用维护锁串行化备份/恢复；敏感存储配置需要稳定的安全密钥。备份内容策略可能排除大体量历史表，恢复目标必须先核对备份范围。
 

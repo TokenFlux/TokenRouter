@@ -1,0 +1,156 @@
+[
+  {
+    "variant": "normal",
+    "command": [
+      "go",
+      "list",
+      "-json",
+      "-test",
+      "./..."
+    ],
+    "environment": {
+      "GOTOOLCHAIN": "go1.27.0"
+    },
+    "exit_code": 0,
+    "packages": 564,
+    "seconds": 1.067,
+    "stderr": "",
+    "data": "build-selection-normal.json.gz"
+  },
+  {
+    "variant": "unit",
+    "command": [
+      "go",
+      "list",
+      "-json",
+      "-test",
+      "-tags=unit",
+      "./..."
+    ],
+    "environment": {
+      "GOTOOLCHAIN": "go1.27.0"
+    },
+    "exit_code": 0,
+    "packages": 599,
+    "seconds": 1.189,
+    "stderr": "",
+    "data": "build-selection-unit.json.gz"
+  },
+  {
+    "variant": "integration",
+    "command": [
+      "go",
+      "list",
+      "-json",
+      "-test",
+      "-tags=integration",
+      "./..."
+    ],
+    "environment": {
+      "GOTOOLCHAIN": "go1.27.0"
+    },
+    "exit_code": 0,
+    "packages": 567,
+    "seconds": 1.114,
+    "stderr": "",
+    "data": "build-selection-integration.json.gz"
+  },
+  {
+    "variant": "wireinject",
+    "command": [
+      "go",
+      "list",
+      "-json",
+      "-test",
+      "-tags=wireinject",
+      "./..."
+    ],
+    "environment": {
+      "GOTOOLCHAIN": "go1.27.0"
+    },
+    "exit_code": 0,
+    "packages": 564,
+    "seconds": 1.092,
+    "stderr": "",
+    "data": "build-selection-wireinject.json.gz"
+  },
+  {
+    "variant": "embed",
+    "command": [
+      "go",
+      "list",
+      "-json",
+      "-test",
+      "-tags=embed",
+      "./..."
+    ],
+    "environment": {
+      "GOTOOLCHAIN": "go1.27.0"
+    },
+    "exit_code": 0,
+    "packages": 566,
+    "seconds": 1.129,
+    "stderr": "",
+    "data": "build-selection-embed.json.gz"
+  },
+  {
+    "variant": "e2e",
+    "command": [
+      "go",
+      "list",
+      "-json",
+      "-test",
+      "-tags=e2e",
+      "./..."
+    ],
+    "environment": {
+      "GOTOOLCHAIN": "go1.27.0"
+    },
+    "exit_code": 0,
+    "packages": 567,
+    "seconds": 1.105,
+    "stderr": "",
+    "data": "build-selection-e2e.json.gz"
+  },
+  {
+    "variant": "darwin",
+    "command": [
+      "go",
+      "list",
+      "-json",
+      "-test",
+      "./..."
+    ],
+    "environment": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "darwin",
+      "GOARCH": "arm64"
+    },
+    "exit_code": 0,
+    "packages": 564,
+    "seconds": 1.082,
+    "stderr": "",
+    "data": "build-selection-darwin.json.gz"
+  },
+  {
+    "variant": "linux",
+    "command": [
+      "go",
+      "list",
+      "-json",
+      "-test",
+      "./..."
+    ],
+    "environment": {
+      "GOTOOLCHAIN": "go1.27.0",
+      "GOOS": "linux",
+      "GOARCH": "amd64",
+      "CGO_ENABLED": "0"
+    },
+    "exit_code": 0,
+    "packages": 566,
+    "seconds": 1.091,
+    "stderr": "",
+    "data": "build-selection-linux.json.gz"
+  }
+]

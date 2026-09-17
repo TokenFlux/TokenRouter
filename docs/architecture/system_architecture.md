@@ -10,6 +10,7 @@
 - [数据所有权](#数据所有权)：判断 PostgreSQL、Redis 和对象存储的职责。
 - [HTTP 与前端交付](#http-与前端交付)：修改 server、路由或嵌入式前端时读取。
 - [多实例与故障边界](#多实例与故障边界)：修改锁、缓存或降级策略时读取。
+- [备份与系统维护装配](#backup_and_maintenance)：修改备份、系统操作或精简初始化的装配时读取。
 
 ## 运行组件
 
@@ -138,3 +139,10 @@ Gin engine 的顺序为 Recovery、可信代理设置、全局日志/客户端�
 出站、路由与账号的运行接口分别为 EgressPolicy、RoutePlan 和 AccountSnapshot。策略与模型配置跨请求边界提供独立副本；候选协议和账号映射在原 attempt/使用时点重新求值。account 的刷新协调、管理/用量查询、周期维护与 Deferred 由 app 持有并登记停止，egress 的采集监听仍按需开启。`account/postgres`、`routing/postgres`、`egress/postgres` 拥有各自存储，Redis 健康计数与 TLS 缓存在所属 Adapter 中；共享 SQL/Redis/HTTP 池仍只有原技术实例。
 
 分组管理直接读取 AccountStore 与 KeyStore，容量查询直接读取账号轻量投影，身份/Key/billing 的分组和渠道读取直接绑定 routing。平台目录、旧请求上下文设置和调度反馈仍通过 app/legacybridge 提供。`account_groups`、代理联动及账号资金重置由同连接参与能力协作，不新增事务 context；配置更新不覆盖独立消费与运行字段。具体契约见[路由与计费](../domains/routing_and_billing.md)、[账号维护](../operations/account_maintenance.md)和[出站传输](../operations/upstream_transport_security.md)。
+
+<a id="backup_and_maintenance"></a>
+## 备份与系统维护装配
+
+app 构造唯一 backup 核心、归档执行器、动态存储工厂、ops/maintenance 更新用例与系统操作锁。维护的停止认领和取消先于 HTTP 请求等待，维护收尾及备份任务等待完成后才关闭共享 SQL/Redis。旧 service/repository/handler 入口只提供已登记的构造投影或委托，不持有第二个 cron、存储缓存或操作锁。
+
+setup 只调用 app/bootstrap 的连接测试、迁移和身份初始化能力；identity/postgres 拥有首次管理员及 simple 管理员并发补齐，routing/postgres 拥有 simple 默认分组。它们不走普通注册或管理用例，不触发赠送、通知或后台 worker。两个维护命令在主体返回前关闭已取得连接，再由 main 决定退出码。

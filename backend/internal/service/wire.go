@@ -708,8 +708,6 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
 	ProvideSettingService,
-	NewDataManagementService,
-	ProvideBackupService,
 
 	NewRequestFingerprintService,
 
@@ -722,7 +720,6 @@ var ProviderSet = wire.NewSet(
 	NewUsageCache,
 	NewDigestSessionStore,
 	ProvideIdempotencyCoordinator,
-	ProvideSystemOperationLockService,
 	ProvideIdempotencyCleanupService,
 )
 

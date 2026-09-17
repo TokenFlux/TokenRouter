@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=embed",
+    "./internal/web/...",
+    "./internal/site/httpapi/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.658,
+  "events": {
+    "pass": 106,
+    "fail": 0,
+    "skip": 0
+  }
+}

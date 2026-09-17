@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"sort"
 	"time"
 
@@ -19,36 +20,44 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Print(err)
+		os.Exit(1)
+	}
+}
+
+// run 在返回错误前完成已取得资源的释放。
+func run() error {
 	beforeRaw := flag.String("before", "", "required RFC3339 cutoff; only older rows are considered")
 	execute := flag.Bool("execute", false, "delete matched rows (default is dry-run)")
 	batchSize := flag.Int("batch-size", 5000, "scan/delete batch size (1-5000)")
 	flag.Parse()
 
 	if *beforeRaw == "" {
-		log.Fatal("--before is required")
+		return fmt.Errorf("--before is required")
 	}
 	before, err := time.Parse(time.RFC3339, *beforeRaw)
 	if err != nil {
-		log.Fatalf("invalid --before: %v", err)
+		return fmt.Errorf("invalid --before: %v", err)
 	}
 	if *batchSize < 1 || *batchSize > 5000 {
-		log.Fatal("--batch-size must be between 1 and 5000")
+		return fmt.Errorf("--batch-size must be between 1 and 5000")
 	}
 
 	cfg, err := config.LoadForBootstrap()
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		return fmt.Errorf("load config: %v", err)
 	}
 	client, db, err := bootstrap.InitEnt(context.Background(), cfg)
 	if err != nil {
-		log.Fatalf("initialize database: %v", err)
+		return fmt.Errorf("initialize database: %v", err)
 	}
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
 	counts, scanned, matched, deleted, err := ops.CleanupHistoricalIngress(ctx, opspostgres.NewHistoricalIngressCleanup(db), before, *batchSize, *execute)
 	if err != nil {
-		log.Fatalf("cleanup failed: %v", err)
+		return fmt.Errorf("cleanup failed: %v", err)
 	}
 
 	digest := sha256.Sum256([]byte(ops.HistoricalIngressClassifierVersion))
@@ -69,4 +78,5 @@ func main() {
 	if *execute && deleted > 0 {
 		fmt.Println("cleanup complete; schedule VACUUM (ANALYZE) ops_error_logs during normal maintenance")
 	}
+	return nil
 }

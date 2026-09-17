@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/backup/...",
+    "./internal/ops/maintenance",
+    "./internal/ops/provider",
+    "./internal/setup",
+    "./internal/app/bootstrap"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 9.873,
+  "events": {
+    "pass": 219,
+    "fail": 0,
+    "skip": 0
+  }
+}

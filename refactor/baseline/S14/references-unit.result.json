@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "run",
+    "../refactor/baseline/S14/tools/symbol_references.go",
+    "-tags",
+    "unit",
+    "-root",
+    "/Users/daodaoneko/GolandProjects/TokenRouter",
+    "-files",
+    "/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S14/source-files.json",
+    "-output",
+    "/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S14/references-unit.json.gz"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 4.401,
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  }
+}

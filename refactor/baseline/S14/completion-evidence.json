@@ -1,0 +1,414 @@
+{
+  "stage": "S14",
+  "completed_at": "2026-09-17T08:40:48.318084+00:00",
+  "head": "165284ddf9a4141bc6df5ae897f3aeaf3f3fe1a1",
+  "commands": {
+    "final-normal-recheck": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 194.693,
+      "events": {
+        "pass": 11765,
+        "fail": 0,
+        "skip": 4
+      }
+    },
+    "final-unit": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 262.902,
+      "events": {
+        "pass": 19813,
+        "fail": 0,
+        "skip": 8
+      }
+    },
+    "final-integration-recheck": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=integration",
+        "-p=4",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 201.713,
+      "events": {
+        "pass": 12748,
+        "fail": 0,
+        "skip": 4
+      }
+    },
+    "native-final-contracts": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-race",
+        "-json",
+        "-tags=unit",
+        "./internal/backup/...",
+        "./internal/ops/maintenance",
+        "./internal/ops/provider"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 8.617,
+      "events": {
+        "pass": 143,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "storage-final-contracts-recheck": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-race",
+        "-json",
+        "-tags=integration",
+        "-p=4",
+        "./internal/repository",
+        "./internal/app/bootstrap",
+        "-run",
+        "^Test(S14|EnsureSimpleModeDefaultGroups)"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 17.625,
+      "events": {
+        "pass": 11,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "process-modes-final": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=integration",
+        "-p=4",
+        "-run",
+        "^TestS02ProcessModes$",
+        "./internal/app"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 25.165,
+      "events": {
+        "pass": 11,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "restart-http-race": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-race",
+        "-json",
+        "-tags=unit",
+        "-run",
+        "^TestSystemHandler",
+        "./internal/handler/admin"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 13.218,
+      "events": {
+        "pass": 11,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "backup-http-contracts": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-race",
+        "-json",
+        "./internal/backup/httpapi"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 3.292,
+      "events": {
+        "pass": 8,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "backend-build": {
+      "command": [
+        "make",
+        "build"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 9.041,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "frontend-tests": {
+      "command": [
+        "make",
+        "-C",
+        "..",
+        "test-frontend"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 29.437,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "frontend-build": {
+      "command": [
+        "make",
+        "-C",
+        "..",
+        "build-frontend"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 24.671,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "embed-build": {
+      "command": [
+        "go",
+        "build",
+        "-tags=embed",
+        "-o",
+        "bin/server-embed",
+        "./cmd/server"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 4.027,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "linux-build": {
+      "command": [
+        "env",
+        "GOOS=linux",
+        "GOARCH=amd64",
+        "CGO_ENABLED=0",
+        "go",
+        "build",
+        "-o",
+        "bin/server-linux-amd64",
+        "./cmd/server"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 9.581,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "jwtgen-build": {
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "bin/jwtgen",
+        "./cmd/jwtgen"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.062,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "cleanup-command-build": {
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "bin/cleanup-ingress-reject-logs",
+        "./cmd/cleanup-ingress-reject-logs"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.175,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "real-embed-tests": {
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=embed",
+        "./internal/web/...",
+        "./internal/site/httpapi/..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 3.658,
+      "events": {
+        "pass": 106,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "wire-idempotence": {
+      "command": [
+        "go",
+        "generate",
+        "./cmd/server"
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.983,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    },
+    "final-source-build": {
+      "command": [
+        "go",
+        "build",
+        "./cmd/..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 7.069,
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      }
+    }
+  },
+  "lint": {
+    "normal": {
+      "baseline_count": 1,
+      "current_count": 1,
+      "added": [],
+      "removed": [],
+      "path_mapping": {
+        "internal/service/backup_service_test.go": "internal/backup/backup_test.go",
+        "internal/service/backup_archive_test.go": "internal/backup/provider/parts_test.go",
+        "internal/repository/backup_s3_store_test.go": "internal/backup/provider/s3_test.go"
+      }
+    },
+    "unit": {
+      "baseline_count": 283,
+      "current_count": 283,
+      "added": [],
+      "removed": [],
+      "path_mapping": {
+        "internal/service/backup_service_test.go": "internal/backup/backup_test.go",
+        "internal/service/backup_archive_test.go": "internal/backup/provider/parts_test.go",
+        "internal/repository/backup_s3_store_test.go": "internal/backup/provider/s3_test.go"
+      }
+    },
+    "integration": {
+      "baseline_count": 17,
+      "current_count": 17,
+      "added": [],
+      "removed": [],
+      "path_mapping": {
+        "internal/service/backup_service_test.go": "internal/backup/backup_test.go",
+        "internal/service/backup_archive_test.go": "internal/backup/provider/parts_test.go",
+        "internal/repository/backup_s3_store_test.go": "internal/backup/provider/s3_test.go"
+      }
+    }
+  },
+  "gate_cases": 42,
+  "build_variants": 8,
+  "contract_groups": 15,
+  "references": {
+    "normal": {
+      "symbols": 1207,
+      "complete": true,
+      "diagnostics": []
+    },
+    "unit": {
+      "symbols": 1404,
+      "complete": true,
+      "diagnostics": []
+    },
+    "integration": {
+      "symbols": 1242,
+      "complete": true,
+      "diagnostics": []
+    }
+  },
+  "committed": false,
+  "limits": [
+    "原有跳过不计行为通过；未连接生产数据库或真实云存储",
+    "Linux 为交叉构建；平台重启分支由参数化 Restarter 测试验证，真实进程测试在当前 Darwin 主机运行",
+    "恢复不同时恢复 Redis/对象存储；重维护锁不暂停所有业务写入"
+  ],
+  "integrity": {
+    "head": "165284ddf9a4141bc6df5ae897f3aeaf3f3fe1a1",
+    "branch": "main",
+    "index": "",
+    "protected_files": 8530,
+    "changed_protected_files": [],
+    "original_untracked": 50,
+    "missing_original_untracked": [],
+    "plan_prefix_bytes": 13952,
+    "plan_prefix_unchanged": true
+  },
+  "doc_links": {
+    "checked": 175,
+    "missing": []
+  },
+  "diff_check": {
+    "new_text_files_checked": 126,
+    "issues": [],
+    "fixtures_left": []
+  }
+}

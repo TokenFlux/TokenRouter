@@ -165,3 +165,5 @@ Vite 在构建/dev server 启动时读取 `VITE_API_BASE_URL`、`VITE_WS_BASE_UR
 相关文档：[HTTP 接口边界](http_api.md)、[系统架构](../architecture/system_architecture.md)、[部署与迁移](../operations/index.md)、[接口目录](index.md)。
 
 支付配置的唯一实现位于 `payment.ConfigService`，实例读取与批量用量查询在 payment/postgres，provider factory、加密键及 `PAYMENT_RESUME_SIGNING_KEY` 投影由 app 提供。热刷新整体读取失败保留旧注册表；首次读取失败允许后续重试。配置键、缺省、旧密文及续接 fallback 密钥不变；订阅套餐仍调用 billing，用例不再通过旧支付仓储桥接。
+
+setup 的数据库与 Redis 连接测试由精简 bootstrap 执行，原输入字段、DSN 生成、超时及文件写入顺序保持；首次管理员由 identity 的初始化能力写入，simple 默认分组由 routing 初始化。备份 Options 只接收数据库名、本地根目录、时钟、日志和加密配置标记，完整连接凭据只传给归档技术 Adapter；S3 凭据仍按运行时设置读取。
