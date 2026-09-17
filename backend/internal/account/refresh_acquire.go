@@ -15,7 +15,7 @@ func (api *OAuthRefreshAPI) acquireRefreshLock(ctx context.Context, accountID in
 		return nil, false, fmt.Errorf("oauth refresh local lock: %w", err)
 	}
 
-	if err := ctx.Err(); err != nil {
+	if err := api.checkRefreshActive(ctx); err != nil {
 		localMu.Unlock()
 		return nil, false, err
 	}

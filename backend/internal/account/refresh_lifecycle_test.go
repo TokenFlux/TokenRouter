@@ -98,3 +98,47 @@ func TestRefreshStopTimeoutDoesNotReportDrainOrPersistLateResult(t *testing.T) {
 	// 第一次停止已超时，后续即使任务退出也不能改写那次停止的结果。
 	require.Same(t, err, api.StopContext(context.Background()))
 }
+
+// 停止屏障先于逐项取消生效；即使等待者尚未收到取消，也不能取得刷新执行权。
+func TestRefreshLockRejectsStoppedOwnerBeforeCancellationArrives(t *testing.T) {
+	api := NewOAuthRefreshAPI(&lifecycleRefreshRepository{}, nil, RefreshOptions{})
+	ctx, finish, err := api.beginRefresh(context.Background())
+	require.NoError(t, err)
+	cancelEntered := make(chan struct{})
+	allowCancel := make(chan struct{})
+	defer close(allowCancel)
+	defer finish()
+
+	// 固定取消传播的间隙，避免依赖 goroutine 调度或 map 遍历顺序。
+	api.activity.mu.Lock()
+	for id, cancel := range api.activity.active {
+		api.activity.active[id] = func() {
+			close(cancelEntered)
+			<-allowCancel
+			cancel()
+		}
+	}
+	api.activity.mu.Unlock()
+	stopCtx, cancelStop := context.WithTimeout(context.Background(), time.Second)
+	defer cancelStop()
+	stopped := make(chan error, 1)
+	go func() {
+		stopped <- api.StopContext(stopCtx)
+	}()
+	t.Cleanup(func() {
+		require.NoError(t, <-stopped)
+	})
+	<-cancelEntered
+	require.NoError(t, ctx.Err(), "等待者的逐项取消尚未执行")
+
+	release, held, err := api.acquireRefreshLock(ctx, 1, "lifecycle:account")
+	if release != nil {
+		release()
+	}
+	require.ErrorIs(t, err, context.Canceled)
+	require.False(t, held)
+	// 拒绝执行时也必须归还本地锁。
+	lock := api.getLocalLock("lifecycle:account")
+	require.NoError(t, lock.Lock(stopCtx))
+	lock.Unlock()
+}

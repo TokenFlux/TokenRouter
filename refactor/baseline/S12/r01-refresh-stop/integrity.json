@@ -1,0 +1,17 @@
+{
+  "changed_files": [
+    "backend/internal/account/refresh_acquire.go",
+    "backend/internal/account/refresh_lifecycle.go",
+    "backend/internal/account/refresh_lifecycle_test.go",
+    "docs/operations/account_maintenance.md",
+    "refactor/BACKEND_PACKAGE_TARGET.md",
+    "refactor/S12-promotion-payment.md",
+    "refactor/baseline/S12/README.md",
+    "refactor/baseline/S12/verification.md"
+  ],
+  "original_untracked_preserved": 50,
+  "links_checked": 44,
+  "plan_body_sha256": "25e8c5ffbb5bac951dbf6fa91f588141ada6812f94a452f67a4ce0de57bb6842",
+  "staged": false,
+  "note": "SQL、Ent、Wire、旧阶段冻结资料均不在差异中；本次修复未提交。原始日志以 gzip 保留，包括原断言输出的空白。"
+}

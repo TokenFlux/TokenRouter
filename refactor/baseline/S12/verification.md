@@ -1,6 +1,6 @@
-# S12 验证记录（验收待定）
+# S12 验证记录
 
-代码迁移、B01—B06 和相关装配已接入生产路径。S12 尚未标记完成：普通全量中有一项清单外账号刷新失败，已请求调整计划，未自行追加复现或修复。所有中间失败均保留，不用后续通过覆盖原事实。
+代码迁移、B01—B06 和相关装配已接入生产路径。S12 提交后，用户授权针对 R01 复现和最小修复；[修复与补验](r01-refresh-stop/README.md)通过，唯一待验项已关闭。所有中间失败均保留，不用后续通过覆盖原事实。
 
 ## 固定修复与行为证据
 
@@ -21,7 +21,7 @@
 
 | 集合 | 结果/证据 |
 | --- | --- |
-| 普通全量 | [11,751 pass / 1 fail / 4 skip](final-normal.result.json)，清单外账号刷新项待决定；未为刷绿而单独重试 |
+| 普通全量 | 原 [11,751 pass / 1 fail / 4 skip](final-normal.result.json) 保留；R01 修复后 [11,754 pass / 0 fail / 4 skip](r01-refresh-stop/results.json) |
 | 当前完整 unit | [19,782 pass / 0 fail / 8 skip](current-full-unit.result.json) |
 | 当前完整 integration | [12,722 pass / 0 fail / 4 skip](current-full-integration.result.json) |
 | 精确旧服务消费者 race | [按迁移文件选择 256 个入口](service-race-selection.json)，[451 pass / 0 fail / 0 skip](exact-service-race.result.json) |
@@ -38,7 +38,7 @@ Go JSON 事件数包含父子测试，集合重叠，不能相加。编译、跳
 
 ## 清单外观察与限制
 
-- **R01（待计划决定）**：[账号刷新当次观察](unplanned-account-refresh-observation.json)。普通全量 `TestManagedRefreshSharesLockAndStopWithBackground` 在停止后观察到一次执行，断言要求零；account 源码未改。只存证，未在原 HEAD 专门复现，也未修复。后续约定 unit 通过不视为该观察已解决。
+- **R01（已关闭）**：[账号刷新原观察](unplanned-account-refresh-observation.json)保留。用户明确授权后，在原 HEAD 相关文件 overlay 下确定性复现，并增加取得账号锁后的停止屏障检查；[原失败、修复及补验](r01-refresh-stop/README.md)独立归档。原断言不变，未扩展排查。
 - **R02（仅登记，S13 规划输入）**：[误匹配的创作测试 race](unplanned-creative-race-observation.json)。一条带 `Provider` 的宽泛匹配选中了非 S12 的创作并行测试，其替身报告竞争。误选命令的失败保留；未额外复现/修复，随后使用迁移文件明确列出的测试入口。
 - 沿用真实供应商/硬件/外部 TLS/E2E 限制；没有真实付款或退款。S07 outbox 周期重建恢复边界与单服务进程范围不变。
 - 退款必要事实不能删除。降级前须处理或登记未完成退款，不得仅回退二进制后盲目重发渠道退款。
@@ -48,4 +48,4 @@ Go JSON 事件数包含父子测试，集合重叠，不能相加。编译、跳
 - [Wire 再生成无差异](wire-idempotence.json)。普通/unit/integration/wireinject/embed/e2e/Darwin/Linux 的 [go list 选择](build-selection-results.json)全部退出 0；跨平台选择和构建不计作跨平台行为执行。
 - [normal](final-symbol-references-normal.json.gz)、[unit](final-symbol-references-unit.json.gz)、[integration](final-symbol-references-integration.json.gz) 静态符号/接口实现/消费者清点均无诊断；反射和字符串引用不冒充完整静态调用图，Wire、生命周期名及文档另见账本。
 - [完整性](final-integrity.json)：7,852 个受保护文件无变，原 50 个无关未跟踪文件保留，HEAD/main 和空索引保持，计划原文摘要不变，跟踪与新增文本的 diff 检查通过。
-- 所有本阶段代码保持未提交。S12 状态为待验，完成数保持 12 / 17；账号刷新范围问题未获授权前，不继续专门复现或修复。
+- S12 迁移已按用户要求提交为 `f7f970c3d`。R01 后续修复及补验尚未提交；验收事项关闭后状态更新为已完成、13 / 17。未推送。原 unit/integration 全量证据与本次定向 race 分开记录，不宣称再次执行了两组全量。
