@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/handler",
+    "./internal/handler/admin",
+    "-run",
+    "(?i)(Payment|Affiliate|Promo|Refund|Wechat)"
+  ],
+  "exit_code": 0,
+  "seconds": 44.536,
+  "pass": 211,
+  "fail": 0,
+  "skip": 0
+}

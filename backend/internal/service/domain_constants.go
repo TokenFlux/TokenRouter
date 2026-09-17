@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
-
 	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -38,16 +38,16 @@ const (
 
 // Affiliate rebate settings
 const (
-	AffiliateRebateRateDefault          = 20.0
-	AffiliateRebateRateMin              = 0.0
-	AffiliateRebateRateMax              = 100.0
-	AffiliateEnabledDefault             = false // 邀请返利总开关默认关闭
-	AffiliateRebateFreezeHoursDefault   = 0     // 0 表示不冻结
-	AffiliateRebateFreezeHoursMax       = 720   // 最大 30 天
-	AffiliateRebateDurationDaysDefault  = 0     // 0 表示永久有效
-	AffiliateRebateDurationDaysMax      = 3650  // 约 10 年
-	AffiliateRebatePerInviteeCapDefault = 0.0   // 推理积分上限，0 表示无上限
-	AdminRechargeRebateEnabledDefault   = false // 管理员充值默认不产生返利
+	AffiliateRebateRateDefault          = promotion.AffiliateRebateRateDefault
+	AffiliateRebateRateMin              = promotion.AffiliateRebateRateMin
+	AffiliateRebateRateMax              = promotion.AffiliateRebateRateMax
+	AffiliateEnabledDefault             = promotion.AffiliateEnabledDefault
+	AffiliateRebateFreezeHoursDefault   = promotion.AffiliateRebateFreezeHoursDefault
+	AffiliateRebateFreezeHoursMax       = promotion.AffiliateRebateFreezeHoursMax
+	AffiliateRebateDurationDaysDefault  = promotion.AffiliateRebateDurationDaysDefault
+	AffiliateRebateDurationDaysMax      = promotion.AffiliateRebateDurationDaysMax
+	AffiliateRebatePerInviteeCapDefault = promotion.AffiliateRebatePerInviteeCapDefault
+	AdminRechargeRebateEnabledDefault   = promotion.AdminRechargeRebateEnabledDefault
 )
 
 // Platform constants

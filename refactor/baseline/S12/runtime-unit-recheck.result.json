@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/payment/...",
+    "./internal/service",
+    "./internal/app",
+    "-run",
+    "Test.*(Payment|Order|Refund|Webhook|RedeemAction|AffiliateRebate|Lease|Reconcile)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.064,
+  "pass": 345,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/runtime-unit-recheck.log.gz"
+}

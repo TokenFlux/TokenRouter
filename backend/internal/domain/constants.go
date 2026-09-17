@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -69,8 +71,8 @@ const RedeemTypeInvitation = billing.RedeemTypeInvitation
 
 // PromoCode status constants
 const (
-	PromoCodeStatusActive   = "active"
-	PromoCodeStatusDisabled = "disabled"
+	PromoCodeStatusActive   = promotion.PromoCodeStatusActive
+	PromoCodeStatusDisabled = promotion.PromoCodeStatusDisabled
 )
 
 const AdjustmentTypeAdminBalance = billing.AdjustmentTypeAdminBalance

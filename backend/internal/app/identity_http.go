@@ -3,6 +3,13 @@ package app
 
 import (
 	context "context"
+	slog "log/slog"
+	strings "strings"
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/payment"
+	paymenthttp "github.com/TokenFlux/TokenRouter/internal/payment/httpapi"
+
 	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
@@ -11,22 +18,18 @@ import (
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	provider "github.com/TokenFlux/TokenRouter/internal/identity/provider"
-	payment "github.com/TokenFlux/TokenRouter/internal/payment"
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 	gin "github.com/gin-gonic/gin"
-	slog "log/slog"
-	strings "strings"
-	"time"
 )
 
 // identityHTTP 固定新身份 HTTP 和旧支付授权适配，路由保留原 URL 与中间件。
 type identityHTTP struct {
 	*identityhttp.AuthenticationHandler
-	*handler.WeChatPaymentHandler
+	*paymenthttp.WeChatPaymentHandler
 }
 
-func provideIdentityHTTP(g *identityAuthGraph, users *identity.UserService, cfg *config.Config, settings *service.SettingService, promo *service.PromoService, redeems *service.RedeemService, totp *identity.TotpService, attributes *identity.UserAttributeService, tasks *lifecycle.Tasks) handler.AuthEndpoints {
+func provideIdentityHTTP(g *identityAuthGraph, users *identity.UserService, cfg *config.Config, settings *service.SettingService, promo *service.PromoService, redeems *service.RedeemService, totp *identity.TotpService, attributes *identity.UserAttributeService, tasks *lifecycle.Tasks, payments *payment.Runtime) handler.AuthEndpoints {
 	runtime := legacybridge.IdentityHTTPSettings{Service: settings}
 	flow := &identity.PendingFlow{Store: identitypostgres.NewPendingRepository(g.Client, time.Now), Database: &identitypostgres.PendingFlowDatabase{Client: g.Client, Auth: g.Core, Profiles: users}, Auth: g.Core, Profiles: users}
 	var pending *identityhttp.PendingHandler
@@ -40,9 +43,9 @@ func provideIdentityHTTP(g *identityAuthGraph, users *identity.UserService, cfg 
 		LogoutPending: func(c *gin.Context) {
 			pending.ConsumePendingOAuthSessionOnLogout(c)
 			identityhttp.ClearOAuthLoginCookies(c)
-			handler.ClearWeChatPaymentCookies(c)
+			paymenthttp.ClearWeChatPaymentCookies(c)
 		},
-		PreviewPromotion: legacybridge.IdentityPromotionPreview(promo),
+		PreviewPromotion: identityPromotionPreview(promo),
 	})
 	bind := identityhttp.NewOAuthBindHandler(session, identity.NewOAuthBindingSigner(strings.TrimSpace(cfg.JWT.Secret)))
 	clients := &provider.DingTalkClients{}
@@ -58,15 +61,16 @@ func provideIdentityHTTP(g *identityAuthGraph, users *identity.UserService, cfg 
 		Google:  identityhttp.NewGoogleOneTapHandler(pending, provider.GoogleAPIIDTokenVerifier{}, identityhttp.GoogleOneTapHTTPOptions{LoadConfig: runtime.GoogleOneTap, RegistrationEnabled: settings.IsRegistrationEnabled}),
 		WeChat:  wechat, DingTalk: identityhttp.NewDingTalkHandler(pending, bind, syncer, identityhttp.DingTalkHTTPOptions{LoadConfig: runtime.DingTalk, RegistrationEnabled: settings.IsRegistrationEnabled}),
 	}
-	pay := handler.NewWeChatPaymentHandler(handler.WeChatPaymentHTTPOptions{Config: wechat.GetConfig, CallbackURL: func(ctx context.Context, c *gin.Context) string {
+	pay := paymenthttp.NewWeChatPaymentHandler(paymenthttp.WeChatPaymentHTTPOptions{Config: wechat.GetConfig, CallbackURL: func(ctx context.Context, c *gin.Context) string {
 		return identityhttp.ResolveWeChatOAuthAbsoluteURL(runtime.APIBaseURL(ctx), c, "/api/v1/auth/oauth/wechat/payment/callback")
-	}, TokenURL: provider.DefaultWeChatTokenURL, Resume: func() *service.PaymentResumeService {
-		var legacyKey []byte
-		if key, e := payment.ProvideEncryptionKey(cfg); e == nil {
-			legacyKey = []byte(key)
+	}, Exchange: func(ctx context.Context, cfg identity.WeChatOAuthOptions, code string) (paymenthttp.WeChatPaymentToken, error) {
+		token, err := provider.ExchangeWeChatOAuthCode(ctx, provider.WeChatOptions{AppID: cfg.AppID, AppSecret: cfg.AppSecret, TokenURL: provider.DefaultWeChatTokenURL}, code)
+		if err != nil {
+			return paymenthttp.WeChatPaymentToken{}, err
 		}
-		return service.NewLegacyAwarePaymentResumeService(legacyKey)
-	}})
+		return paymenthttp.WeChatPaymentToken{OpenID: token.OpenID, Scope: token.Scope}, nil
+	}, Resume: func() *payment.PaymentResumeService { return payments.ResumeService() },
+	})
 	return &identityHTTP{auth, pay}
 }
 

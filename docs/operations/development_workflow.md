@@ -165,3 +165,5 @@ npx --yes pnpm@9 --dir frontend run build
 发布前确保目标提交已推送、CI 通过、数据库迁移可滚动升级且备份已验证。发布后检查 Release、镜像、二进制、VERSION 回写和部署 smoke test；tag 只标识代码版本，不替代迁移/恢复检查。
 
 相关文档：[项目总览](../project_overview.md)、[系统架构](../architecture/system_architecture.md)、[配置边界](../interfaces/configuration.md)、[部署与数据库迁移](deployment_and_migrations.md)、[运维目录](index.md)。
+
+推广与支付的依赖门禁已覆盖新核心、HTTP、PostgreSQL 和 app。原 payment 根包 Ent/config/Wire 许可已删除；billing 值、套餐 HTTP 复用和微信身份辅助分别按实际文件/import 许可，新文件与迁出文件不继承许可。资金验证使用真实 PostgreSQL，分别检查 Promo、返利转入、订单履约及退款短事务；退款渠道使用本地夹具，不进行真实付款/退款。回退新退款代码前保留并核实 `REFUND_PREPARED` 事实，不能仅替换二进制后重发渠道退款。

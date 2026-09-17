@@ -40,7 +40,7 @@ RequestLogger
 
 订阅、兑换、平台额度和套餐的用户/管理员 handler 与 DTO 位于 `billing/httpapi`，原路由汇总直接绑定这些实例。URL、认证/幂等中间件顺序、reason、CSV 和分页排序保持原契约；额度 HTTP 不直接读取仓储，用户存在性由用例的只读端口处理。管理员套餐保留原 Ent 的字段省略及 `edges` 形状，公开套餐使用独立投影。
 
-用户资料、会话、七类身份、强认证与用户管理 HTTP 位于 `identity/httpapi`，团队位于 `team/httpapi`，Key 生命周期和凭据入口位于 `apikey/httpapi`。app 组合同一组身份处理器供原路由调用；微信支付 OAuth 单独接入原路径。HTTP 适配保留历史 DTO 形状与凭据差异，安全 `Principal` 和 Key 的 `AccessSnapshot` 分别表达身份与付款/成员上下文；旧 context 读取入口只作兼容投影。
+用户资料、会话、七类身份、强认证与用户管理 HTTP 位于 `identity/httpapi`，团队位于 `team/httpapi`，Key 生命周期和凭据入口位于 `apikey/httpapi`。app 组合同一组身份处理器供原路由调用；微信支付 OAuth 在 payment/httpapi 单独接入原路径。HTTP 适配保留历史 DTO 形状与凭据差异，安全 `Principal` 和 Key 的 `AccessSnapshot` 分别表达身份与付款/成员上下文；旧 context 读取入口只作兼容投影。
 
 用量与 Dashboard 的用户/管理员入口位于 `usage/httpapi`；`/v1/usage` 及 Antigravity 用量自省直接绑定新的公开 handler，保留 quota_limited/unrestricted、日期范围、余额/指定订阅区别及 best-effort 统计。审计入口位于 `audit/httpapi`，清空的原 TOTP 与管理员 API Key 拒绝规则继续有效；Ops 管理与实时入口位于 `ops/httpapi`。路由路径、中间件顺序、JSON/CSV、分页、ETag/304 和 WebSocket 子协议保持原契约，具体留痕保证见[清理与留存](../operations/observability_and_data_lifecycle.md#data_cleanup)。
 
@@ -81,9 +81,12 @@ Markdown 正文要求 JWT 和菜单可见性，管理员页面只向管理员开
 <a id="payment_admin_recovery"></a>
 ## 支付管理恢复
 
-管理员支付订单提供两条恢复接口，均受管理员认证、面板限流和审计中间件保护：
+支付、推广与 Promo 路由分别直接绑定 payment/httpapi 和 promotion/httpapi；原 URL、中间件、凭据与 DTO 边界保持。Webhook 仍按原始 body/query/Header 验签。
+
+管理员支付订单提供以下恢复接口，均受管理员认证、面板限流和审计中间件保护：
 
 - `POST /api/v1/admin/payment/orders/{id}/force-expire` 接受必填 JSON 字段 `reason`（1 至 500 个字符）。仅当前为 `PENDING` 的订单可被无上游调用地写为 `EXPIRED`，成功响应 `data.message=force_expired`；订单不存在返回 `NOT_FOUND`，状态竞争返回 `ORDER_STATUS_CHANGED`（409）。此操作的迟到付款仍通过正常 webhook 恢复。
+- 原退款查单操作同时接受 `REFUND_PENDING` 和有有效准备记录的 `REFUNDING`。页面开放同一个查单按钮；接口只查询既有渠道退款，不重发退款。恢复记录不足、矛盾或渠道无法确认时返回明确人工核实错误，不能把错误当作退款未发生。
 - `POST /api/v1/admin/payment/providers/test` 接受 `provider_key`、`config` 和可选 `instance_id`。当前仅支持 `easypay`；带实例 ID 时服务端按更新规则合并未回传的敏感字段，再以随机订单号执行只读查单。接口不保存草稿、不创建订单，成功只返回 `data.reachable=true`，不会返回上游 body、URL 细节或凭据。
 
 普通取消在无法确认上游支付状态时返回 `PAYMENT_STATUS_UNAVAILABLE`（503），而不是泛化 500。若一个 provider instance 仍拥有强制过期且未恢复的订单，删除接口返回 `FORCED_EXPIRED_ORDERS`（409）；管理员应停用并保留该实例以接收迟到回调。

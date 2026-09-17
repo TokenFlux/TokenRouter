@@ -3,7 +3,7 @@ package payment
 import (
 	"sync"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // Registry is a thread-safe registry mapping PaymentType to Provider.
@@ -82,4 +82,17 @@ func (r *Registry) Clear() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.providers = make(map[PaymentType]Provider)
+}
+
+// Replace 发布完整候选表，读取者不会看到 Clear 与逐项 Register 之间的空窗。
+func (r *Registry) Replace(providers []Provider) {
+	next := make(map[PaymentType]Provider)
+	for _, provider := range providers {
+		for _, kind := range provider.SupportedTypes() {
+			next[kind] = provider
+		}
+	}
+	r.mu.Lock()
+	r.providers = next
+	r.mu.Unlock()
 }

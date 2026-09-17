@@ -38,3 +38,14 @@ func (p *RedeemParticipant) ApplyBalance(ctx context.Context, id int64, amount f
 func (p *RedeemParticipant) ApplyConcurrency(ctx context.Context, id int64, delta int) error {
 	return p.mutations.ApplyConcurrency(dbent.NewTxContext(ctx, p.tx), id, delta)
 }
+
+// DeductRefundBalance 复用原非负实际扣减 SQL，调用方事务拥有者负责提交。
+func (r *BalanceStore) DeductRefundBalance(ctx context.Context, id int64, amount float64) (float64, error) {
+	_, deducted, err := DeductAvailableBalance(ctx, clientFromContext(ctx, r.client), id, amount)
+	return deducted, err
+}
+
+// CompensateRefundBalance 保留旧退款补偿的正数累计充值语义。
+func (r *BalanceStore) CompensateRefundBalance(ctx context.Context, id int64, amount float64) error {
+	return r.UpdateBalance(ctx, id, amount)
+}

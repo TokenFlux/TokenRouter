@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/payment/..."
+  ],
+  "exit_code": 0,
+  "seconds": 3.356,
+  "pass": 108,
+  "fail": 0,
+  "skip": 0
+}

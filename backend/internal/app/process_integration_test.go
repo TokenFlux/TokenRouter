@@ -264,6 +264,14 @@ func TestS02ProcessModes(t *testing.T) {
 			}
 			require.Less(t, strings.Index(logs, "stopped ContentModerationService"), strings.Index(logs, "stopped EmailQueueService"))
 
+			// S12 支付生产者先退出，再等待通知任务，最后关闭共享存储。
+			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started PaymentOrderExpiryService"))
+			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped PaymentOrderExpiryService"))
+			require.Contains(t, logs, "[Lifecycle] stopped LegacyBackgroundTasks")
+			for _, pair := range [][2]string{{"HTTPRequests", "PaymentOrderExpiryService"}, {"PaymentOrderExpiryService", "LegacyBackgroundTasks"}, {"LegacyBackgroundTasks", "EmailQueueService"}, {"EmailQueueService", "Redis"}, {"PaymentOrderExpiryService", "Ent"}} {
+				require.Less(t, strings.Index(logs, "stopped "+pair[0]), strings.Index(logs, "stopped "+pair[1]), pair)
+			}
+
 			// S11 完整请求与原生尝试共用入口屏障；授权/额度资源仍先于 Redis/SQL 停止。
 			for _, name := range []string{"GatewayRequestsAndAttempts", "QoderRequestsAndAttempts", "QoderCredentialSessions", "OpenAIQuotaActions", "OpenAIQuotaService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)

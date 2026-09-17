@@ -2,6 +2,8 @@
 package app
 
 import (
+	"time"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -10,7 +12,6 @@ import (
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
-	"time"
 )
 
 // identityAuthGraph 固定身份核心和事务适配，所有新旧入口共享同一对象。
@@ -64,7 +65,7 @@ func provideIdentityAuthGraph(
 		deps.Promo = promoService
 	}
 	if affiliateService != nil {
-		deps.Affiliate = legacybridge.IdentityAffiliate{Service: affiliateService}
+		deps.Affiliate = identityPromotion{Service: affiliateService}
 	}
 	state := identitypostgres.NewAuthState(entClient, deps)
 	core := identity.NewAuthService(deps, &identitypostgres.AuthRepository{State: state})

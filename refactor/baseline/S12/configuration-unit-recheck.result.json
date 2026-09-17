@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/payment/...",
+    "./internal/service",
+    "./internal/handler/...",
+    "-run",
+    "(?i)(Payment|Provider|Method|Currency|Fee|Amount|Resume|Refund|Wechat|Affiliate|Promo)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 3.572,
+  "pass": 110,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/configuration-unit-recheck.log.gz"
+}

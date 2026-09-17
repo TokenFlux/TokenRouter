@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/promotion/...",
+    "./internal/service",
+    "./internal/handler",
+    "./internal/repository",
+    "-run",
+    "(?i)(Affiliate|Payment|Promo)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 3.619,
+  "pass": 20,
+  "fail": 1,
+  "skip": 0,
+  "log": "logs/affiliate-first-unit.log.gz"
+}

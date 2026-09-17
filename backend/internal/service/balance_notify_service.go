@@ -3,7 +3,6 @@ package service
 
 import (
 	"context"
-	time "time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/notification"
@@ -91,8 +90,6 @@ func (d quotaDim) billingDimension() billing.QuotaNotifyDimension {
 const quotaDimDaily = "daily"
 const quotaDimWeekly = "weekly"
 const quotaDimTotal = "total"
-
-const emailSendTimeout = 30 * time.Second
 
 func (s *BalanceNotifyService) CheckBalanceAfterDeduction(ctx context.Context, user *User, oldBalance, cost float64) {
 	s.native().CheckBalanceAfterDeduction(ctx, BillingUserSummary(user), oldBalance, cost)

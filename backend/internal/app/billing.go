@@ -6,6 +6,8 @@ import (
 	sql "database/sql"
 	"time"
 
+	paymentpostgres "github.com/TokenFlux/TokenRouter/internal/payment/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -51,7 +53,7 @@ func provideBillingFunds(store *billingpostgres.SettlementStore) *billing.Funds 
 }
 
 func provideBillingRedeem(repo billing.RedeemCodeRepository, users *identitypostgres.UserStore, subs *billing.SubscriptionService, cache billing.RedeemCache, eligibility *billing.Eligibility, client *dbent.Client, auth service.APIKeyAuthCacheInvalidator, affiliate *service.AffiliateService, tasks *lifecycle.Tasks) *billing.RedeemService {
-	return billing.NewRedeemService(repo, billingIdentityUsers{Repository: users}, subs, cache, eligibility, billingpostgres.NewRedeemMutations(client, billingpostgres.RedeemWriters{Balances: billingpostgres.NewBalanceStore(client), Concurrency: identitypostgres.NewConcurrencyStore(client)}), auth, legacybridge.RedeemAffiliate{Service: affiliate}, billing.RedeemRuntime{Now: time.Now, Observe: logging.LegacyPrintf, Background: func(name string, fn func()) { tasks.Go(name, fn) }})
+	return billing.NewRedeemService(repo, billingIdentityUsers{Repository: users}, subs, cache, eligibility, billingpostgres.NewRedeemMutations(client, billingpostgres.RedeemWriters{Balances: billingpostgres.NewBalanceStore(client), Concurrency: identitypostgres.NewConcurrencyStore(client)}), auth, affiliate, billing.RedeemRuntime{Now: time.Now, Observe: logging.LegacyPrintf, Background: func(name string, fn func()) { tasks.Go(name, fn) }})
 }
 
 func provideRedeemAdministration(repo billing.RedeemCodeRepository, client *dbent.Client) *billing.RedeemAdmin {
@@ -61,8 +63,8 @@ func provideBalanceAdjuster(client *dbent.Client) billing.BalanceAdjuster {
 	return billingpostgres.NewBalanceStore(client)
 }
 
-func provideBillingPlans(client *dbent.Client) *billing.Plans {
-	return billing.NewPlans(billingpostgres.NewPlanStore(client), legacybridge.PlanOrders{Client: client})
+func provideBillingPlans(client *dbent.Client, orders *paymentpostgres.InstanceStore) *billing.Plans {
+	return billing.NewPlans(billingpostgres.NewPlanStore(client), orders)
 }
 
 // provideSubscriptionExpiry 注入旧通知与锁策略，构造期间不启动后台任务。

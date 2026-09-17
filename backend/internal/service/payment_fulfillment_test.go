@@ -1300,3 +1300,8 @@ func TestExecuteSubscriptionFulfillmentDoesNotDuplicateWorkAfterLegacySuccessAud
 
 var _ AffiliateRepository = (*paymentFulfillmentAffiliateRepoStub)(nil)
 var _ SettingRepository = (*paymentFulfillmentSettingRepoStub)(nil)
+
+// 替身同步执行事务回调；真实行锁行为由 PostgreSQL 集成验证。
+func (r *paymentFulfillmentAffiliateRepoStub) WithLockedInviter(ctx context.Context, _ int64, fn func(context.Context) error) error {
+	return fn(ctx)
+}

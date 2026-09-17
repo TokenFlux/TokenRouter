@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^Test(PromotionApplyCode|Affiliate)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 48.048,
+  "pass": 12,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/promotion-storage-race.log.gz"
+}

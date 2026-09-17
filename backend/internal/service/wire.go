@@ -670,8 +670,6 @@ func ProvideAPIKeyService(
 var ProviderSet = wire.NewSet(
 	// 核心服务
 	NewProxyService,
-	NewAffiliateService,
-	NewPromoService,
 	NewQoderTokenProvider,
 	NewQoderGatewayService,
 	ProvideOpenAIGatewayTLSFingerprintRouterServices,
@@ -731,9 +729,6 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCoordinator,
 	ProvideSystemOperationLockService,
 	ProvideIdempotencyCleanupService,
-	ProvidePaymentConfigService,
-	ProvidePaymentService,
-	ProvidePaymentOrderExpiryService,
 )
 
 // ProvideContentModerationService 创建内容审计服务并注入代理仓储。

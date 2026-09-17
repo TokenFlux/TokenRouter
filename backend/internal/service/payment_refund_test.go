@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -194,7 +195,7 @@ func TestExecuteRefundUsesActualAvailableBalanceDeduction(t *testing.T) {
 	}}
 	plan := &RefundPlan{
 		OrderID: order.ID, Order: order, RefundAmount: 100, GatewayAmount: 100,
-		Reason: "concurrent spend", Force: true, DeductionType: payment.DeductionTypeBalance, BalanceToDeduct: 100,
+		Reason: "concurrent spend", Force: true, DeductBalance: true, DeductionType: payment.DeductionTypeBalance, BalanceToDeduct: 100,
 	}
 
 	result, err := (&PaymentService{entClient: client, userRepo: repo}).ExecuteRefund(ctx, plan)
@@ -354,6 +355,7 @@ func TestFinishRefundPendingMarksOrderPendingAndRollsBackDeduction(t *testing.T)
 		BalanceToDeduct: 40,
 	}
 
+	recordPreparedRefundForTest(t, ctx, client, plan)
 	result, err := svc.finishRefund(ctx, plan, &payment.RefundResponse{RefundID: "rf_pending", Status: payment.ProviderStatusPending})
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -422,10 +424,12 @@ func TestFinishRefundSuccessStatusesFinalize(t *testing.T) {
 				RefundAmount:    100,
 				GatewayAmount:   100,
 				Reason:          "final success",
+				DeductBalance:   true,
 				DeductionType:   payment.DeductionTypeBalance,
 				BalanceToDeduct: 100,
 			}
 
+			recordPreparedRefundForTest(t, ctx, client, plan)
 			result, err := svc.finishRefund(ctx, plan, &payment.RefundResponse{Status: status})
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -707,4 +711,18 @@ type refundQueryProviderTestDouble struct {
 
 func (p *refundQueryProviderTestDouble) QueryRefund(context.Context, payment.RefundQueryRequest) (*payment.RefundResponse, error) {
 	return p.refundResponse, nil
+}
+
+// 结束阶段夹具明确包含已经提交的准备事实，保持原补偿与结果断言。
+func recordPreparedRefundForTest(t *testing.T, ctx context.Context, client *dbent.Client, p *RefundPlan) {
+	t.Helper()
+	_, err := client.PaymentOrder.UpdateOneID(p.OrderID).SetRefundAmount(p.RefundAmount).SetRefundReason(p.Reason).SetForceRefund(p.Force).Save(ctx)
+	require.NoError(t, err)
+	o, err := client.PaymentOrder.Get(ctx, p.OrderID)
+	require.NoError(t, err)
+	receipt := payment.RefundReceipt{Version: 1, OperationID: "fixture-prepared", OrderID: p.OrderID, OperationVersion: o.UpdatedAt, PreviousStatus: OrderStatusCompleted, RefundAmount: p.RefundAmount, GatewayAmount: p.GatewayAmount, Reason: p.Reason, Force: p.Force, RefundPendingDetail: payment.RefundPendingDetail{DeductBalance: p.DeductBalance, DeductionType: p.DeductionType, BalanceDeducted: p.BalanceToDeduct, SubDaysDeducted: p.SubDaysToDeduct, SubscriptionID: p.SubscriptionID}}
+	data, err := json.Marshal(receipt)
+	require.NoError(t, err)
+	_, err = client.PaymentAuditLog.Create().SetOrderID(strconv.FormatInt(p.OrderID, 10)).SetAction("REFUND_PREPARED").SetOperator("admin").SetDetail(string(data)).Save(ctx)
+	require.NoError(t, err)
 }

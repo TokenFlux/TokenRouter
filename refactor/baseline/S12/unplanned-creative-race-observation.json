@@ -1,0 +1,1162 @@
+{
+  "status": "record only; Provider regex accidentally selected S13 test, no reproduction or fix added",
+  "files": {
+    "backend/internal/service/creative_public.go": {
+      "before": "1439cfd6806cc5f468a0335e25e90c4e5dd7182f9255e5800897c0e1eb4f610f",
+      "current": "1439cfd6806cc5f468a0335e25e90c4e5dd7182f9255e5800897c0e1eb4f610f"
+    },
+    "backend/internal/service/creative_public_test.go": {
+      "before": "a6111ee4dac2c6cfdd0bb7af9bf941d53f7674d6bc8cb82da68ec51b10d0e1f4",
+      "current": "a6111ee4dac2c6cfdd0bb7af9bf941d53f7674d6bc8cb82da68ec51b10d0e1f4"
+    },
+    "backend/internal/service/creative_worker_runtime_test.go": {
+      "before": "8b2a3ec64a0519c450566360dd684511d5d8607d7a09e9c2a337de38ae326891",
+      "current": "8b2a3ec64a0519c450566360dd684511d5d8607d7a09e9c2a337de38ae326891"
+    }
+  },
+  "events": [
+    {
+      "Time": "2026-09-17T02:01:14.379535+08:00",
+      "Action": "run",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.379601+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "=== RUN   TestCreativeWorkerRuntimeParallelProviderExecution\n",
+      "OutputType": "frame"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381913+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "==================\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381938+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "WARNING: DATA RACE\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381948+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "Read at 0x00c000c00f40 by goroutine 179:\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381956+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*creativeFakeRunRepo).TransitionCreativeRunStatus()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381962+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public_test.go:148 +0x294\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381969+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SettleRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381978+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1811 +0x918\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381986+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SettleRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.381995+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1811 +0x918\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382049+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SucceedRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382057+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1782 +0xf3c\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382062+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382067+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:480 +0x24f0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382073+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382079+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:460 +0x1684\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382084+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/scheduler.(*ConcurrencyService).AcquireUserSlot()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38209+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/scheduler/concurrency.go:806 +0xa0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382094+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382098+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:394 +0xe48\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382101+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).runOnce()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38211+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:284 +0x594\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382114+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).RunUntilStopped()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382117+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:193 +0xa8\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382121+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).runWorkerHandle()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382124+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:240 +0xc0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382128+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).reconcileWorkersLocked.gowrap1()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382131+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:208 +0x48\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38214+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382144+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "Previous write at 0x00c000c00f40 by goroutine 180:\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382148+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*creativeFakeRunRepo).TransitionCreativeRunStatus()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382153+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public_test.go:148 +0x318\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382157+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SettleRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382161+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1811 +0x918\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38217+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SettleRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382176+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1811 +0x918\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382181+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SucceedRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382186+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1782 +0xf3c\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382192+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382195+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:480 +0x24f0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382199+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382203+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:460 +0x1684\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382206+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/scheduler.(*ConcurrencyService).AcquireUserSlot()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38221+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/scheduler/concurrency.go:806 +0xa0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382213+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382228+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:394 +0xe48\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382232+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).runOnce()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382235+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:284 +0x594\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382238+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).RunUntilStopped()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382241+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:193 +0xa8\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382244+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).runWorkerHandle()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382248+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:240 +0xc0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382251+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).reconcileWorkersLocked.gowrap1()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382254+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:208 +0x48\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382257+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38226+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "Goroutine 179 (running) created at:\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382263+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).reconcileWorkersLocked()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382267+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:208 +0x114\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38227+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).Start()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382273+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:115 +0x564\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382276+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.TestCreativeWorkerRuntimeParallelProviderExecution()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382279+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime_test.go:288 +0x1244\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382282+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  testing.tRunner()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382286+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2193 +0x164\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38229+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  testing.(*T).Run.gowrap1()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382303+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2258 +0x34\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382306+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38231+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "Goroutine 180 (running) created at:\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382315+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).reconcileWorkersLocked()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382319+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:208 +0x114\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38233+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).Start()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382334+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:115 +0x564\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382338+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.TestCreativeWorkerRuntimeParallelProviderExecution()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382341+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime_test.go:288 +0x1244\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382344+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  testing.tRunner()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382349+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2193 +0x164\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382354+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  testing.(*T).Run.gowrap1()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382357+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2258 +0x34\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382361+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "==================\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382371+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "==================\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382374+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "WARNING: DATA RACE\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382378+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "Read at 0x00c0008af260 by goroutine 179:\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382381+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  runtime.growslice()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382384+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/runtime/slice.go:178 +0x0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382388+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*creativeFakeRunRepo).TransitionCreativeRunStatus()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382391+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public_test.go:148 +0x2c0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382394+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SettleRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382397+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1811 +0x918\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.3824+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SettleRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382409+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1811 +0x918\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382412+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SucceedRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382416+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1782 +0xf3c\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382422+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382425+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:480 +0x24f0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382429+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382432+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:460 +0x1684\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382435+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/scheduler.(*ConcurrencyService).AcquireUserSlot()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382438+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/scheduler/concurrency.go:806 +0xa0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382442+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382446+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:394 +0xe48\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382449+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).runOnce()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382452+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:284 +0x594\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382457+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).RunUntilStopped()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38246+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:193 +0xa8\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382464+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).runWorkerHandle()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382468+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:240 +0xc0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382473+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).reconcileWorkersLocked.gowrap1()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382476+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:208 +0x48\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38248+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382485+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "Previous write at 0x00c0008af260 by goroutine 180:\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38249+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*creativeFakeRunRepo).TransitionCreativeRunStatus()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382494+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public_test.go:148 +0x2dc\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.3825+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SettleRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382504+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1811 +0x918\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382518+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SettleRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382522+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1811 +0x918\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382526+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativePublicService).SucceedRun()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38253+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_public.go:1782 +0xf3c\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382533+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382541+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:480 +0x24f0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382545+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382549+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:460 +0x1684\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382552+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/scheduler.(*ConcurrencyService).AcquireUserSlot()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382556+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/scheduler/concurrency.go:806 +0xa0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38256+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).process()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382564+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:394 +0xe48\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382567+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).runOnce()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38257+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:284 +0x594\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382573+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeRunWorker).RunUntilStopped()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382576+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker.go:193 +0xa8\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38258+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).runWorkerHandle()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382583+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:240 +0xc0\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382586+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).reconcileWorkersLocked.gowrap1()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382589+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:208 +0x48\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382593+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382596+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "Goroutine 179 (running) created at:\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.3826+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).reconcileWorkersLocked()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382604+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:208 +0x114\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382609+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).Start()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382614+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:115 +0x564\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382618+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.TestCreativeWorkerRuntimeParallelProviderExecution()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382624+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime_test.go:288 +0x1244\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382629+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  testing.tRunner()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382634+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2193 +0x164\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382639+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  testing.(*T).Run.gowrap1()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382644+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2258 +0x34\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382648+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.38265+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "Goroutine 180 (running) created at:\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382654+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).reconcileWorkersLocked()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382661+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:208 +0x114\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382665+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.(*CreativeWorkerRuntime).Start()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382669+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime.go:115 +0x564\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382672+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  github.com/TokenFlux/TokenRouter/internal/service.TestCreativeWorkerRuntimeParallelProviderExecution()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382675+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/service/creative_worker_runtime_test.go:288 +0x1244\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382683+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  testing.tRunner()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382686+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2193 +0x164\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382689+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "  testing.(*T).Run.gowrap1()\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382692+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "      /Users/daodaoneko/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2258 +0x34\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382695+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "==================\n"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382702+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "    testing.go:1865: race detected during execution of test\n",
+      "OutputType": "error"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382709+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Output": "--- FAIL: TestCreativeWorkerRuntimeParallelProviderExecution (0.00s)\n",
+      "OutputType": "frame"
+    },
+    {
+      "Time": "2026-09-17T02:01:14.382713+08:00",
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Test": "TestCreativeWorkerRuntimeParallelProviderExecution",
+      "Elapsed": 0
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/payment/...",
+    "./internal/handler",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(Payment|Webhook|Refund|WeChat)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 9.379,
+  "pass": 81,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/payment-wechat-http-unit.log.gz"
+}

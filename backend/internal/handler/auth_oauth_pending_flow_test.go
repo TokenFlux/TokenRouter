@@ -3441,3 +3441,8 @@ func (oauthPendingFlowTotpEncryptorStub) Decrypt(ciphertext string) (string, err
 func (s *oauthPendingFlowRefreshTokenCacheStub) ConsumeRefreshToken(context.Context, string) (bool, error) {
 	return false, nil
 }
+
+// 替身同步执行事务回调；真实行锁行为由 PostgreSQL 集成验证。
+func (r *oauthPendingFlowAffiliateRepo) WithLockedInviter(ctx context.Context, _ int64, fn func(context.Context) error) error {
+	return fn(ctx)
+}

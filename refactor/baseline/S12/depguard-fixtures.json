@@ -1,0 +1,1722 @@
+[
+  {
+    "name": "legal-promotion-core",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-promotion-core-normal.json",
+      "./internal/promotion"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.36,
+    "log": "logs/gate-legal-promotion-core-normal.log.gz"
+  },
+  {
+    "name": "legal-payment-core",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-payment-core-normal.json",
+      "./internal/payment"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.391,
+    "log": "logs/gate-legal-payment-core-normal.log.gz"
+  },
+  {
+    "name": "legal-http",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-http-normal.json",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.581,
+    "log": "logs/gate-legal-http-normal.log.gz"
+  },
+  {
+    "name": "legal-postgres",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-postgres-normal.json",
+      "./internal/payment/postgres"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.429,
+    "log": "logs/gate-legal-postgres-normal.log.gz"
+  },
+  {
+    "name": "legal-app",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-app-normal.json",
+      "./internal/app"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.602,
+    "log": "logs/gate-legal-app-normal.log.gz"
+  },
+  {
+    "name": "new-file-no-permission",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-file-no-permission-normal.json",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing",
+    "expected_file": "internal/payment/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/billing\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.394,
+    "log": "logs/gate-new-file-no-permission-normal.log.gz"
+  },
+  {
+    "name": "core-http-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-http-denied-normal.json",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "net/http",
+    "expected_file": "internal/payment/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'net/http' is not allowed from list 'core-payment': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"net/http\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.398,
+    "log": "logs/gate-core-http-denied-normal.log.gz"
+  },
+  {
+    "name": "core-config-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-config-denied-normal.json",
+      "./internal/promotion"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/promotion/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-promotion'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/promotion/zz_s12_gate.go",
+          "Offset": 75,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.37,
+    "log": "logs/gate-core-config-denied-normal.log.gz"
+  },
+  {
+    "name": "new-app-file-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-app-file-denied-normal.json",
+      "./internal/app"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "expected_file": "internal/app/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/service' is not allowed from list 'app': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/service\""
+        ],
+        "Pos": {
+          "Filename": "internal/app/zz_s12_gate.go",
+          "Offset": 69,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.618,
+    "log": "logs/gate-new-app-file-denied-normal.log.gz"
+  },
+  {
+    "name": "retired-payment-wire-permission",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-retired-payment-wire-permission-normal.json",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/payment/wire.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/wire.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.404,
+    "log": "logs/gate-retired-payment-wire-permission-normal.log.gz"
+  },
+  {
+    "name": "http-storage-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-http-storage-denied-normal.json",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 1,
+    "expected_import": "database/sql",
+    "expected_file": "internal/payment/httpapi/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'database/sql' is not allowed from list 'payment-httpapi': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"database/sql\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/httpapi/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.541,
+    "log": "logs/gate-http-storage-denied-normal.log.gz"
+  },
+  {
+    "name": "protocol-stdlib-preserved",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-protocol-stdlib-preserved-normal.json",
+      "./internal/protocol/openai"
+    ],
+    "exit_code": 1,
+    "expected_import": "crypto/sha256",
+    "expected_file": "internal/protocol/openai/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'crypto/sha256' is not allowed from list 'protocol-openai'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"crypto/sha256\""
+        ],
+        "Pos": {
+          "Filename": "internal/protocol/openai/zz_s12_gate.go",
+          "Offset": 72,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.398,
+    "log": "logs/gate-protocol-stdlib-preserved-normal.log.gz"
+  },
+  {
+    "name": "existing-file-new-import-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-existing-file-new-import-denied-normal.json",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/gin-gonic/gin",
+    "expected_file": "internal/payment/order.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/gin-gonic/gin' is not allowed from list 's12-internal-payment-order-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/gin-gonic/gin\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/order.go",
+          "Offset": 108,
+          "Line": 5,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.414,
+    "log": "logs/gate-existing-file-new-import-denied-normal.log.gz"
+  },
+  {
+    "name": "moved-file-exception-expires",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-moved-file-exception-expires-normal.json",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing",
+    "expected_file": "internal/payment/zz_s12_moved.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "\t\"github.com/TokenFlux/TokenRouter/internal/billing\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_moved.go",
+          "Offset": 117,
+          "Line": 7,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.392,
+    "log": "logs/gate-moved-file-exception-expires-normal.log.gz"
+  },
+  {
+    "name": "core-to-app-denied",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-to-app-denied-normal.json",
+      "./internal/payment/zz_s12_leaf"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/app",
+    "expected_file": "internal/payment/zz_s12_leaf/child.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/app' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/app\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_leaf/child.go",
+          "Offset": 71,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.558,
+    "log": "logs/gate-core-to-app-denied-normal.log.gz"
+  },
+  {
+    "name": "exact-import-rejects-subpackage",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-exact-import-rejects-subpackage-normal.json",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child",
+    "expected_file": "internal/payment/order.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child' is not allowed from list 's12-internal-payment-order-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/order.go",
+          "Offset": 108,
+          "Line": 5,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.399,
+    "log": "logs/gate-exact-import-rejects-subpackage-normal.log.gz"
+  },
+  {
+    "name": "new-legal-http-adapter",
+    "tag": "normal",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-legal-http-adapter-normal.json",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.544,
+    "log": "logs/gate-new-legal-http-adapter-normal.log.gz"
+  },
+  {
+    "name": "legal-promotion-core",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-promotion-core-unit.json",
+      "--build-tags=unit",
+      "./internal/promotion"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.404,
+    "log": "logs/gate-legal-promotion-core-unit.log.gz"
+  },
+  {
+    "name": "legal-payment-core",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-payment-core-unit.json",
+      "--build-tags=unit",
+      "./internal/payment"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.471,
+    "log": "logs/gate-legal-payment-core-unit.log.gz"
+  },
+  {
+    "name": "legal-http",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-http-unit.json",
+      "--build-tags=unit",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.606,
+    "log": "logs/gate-legal-http-unit.log.gz"
+  },
+  {
+    "name": "legal-postgres",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-postgres-unit.json",
+      "--build-tags=unit",
+      "./internal/payment/postgres"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.463,
+    "log": "logs/gate-legal-postgres-unit.log.gz"
+  },
+  {
+    "name": "legal-app",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-app-unit.json",
+      "--build-tags=unit",
+      "./internal/app"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.619,
+    "log": "logs/gate-legal-app-unit.log.gz"
+  },
+  {
+    "name": "new-file-no-permission",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-file-no-permission-unit.json",
+      "--build-tags=unit",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing",
+    "expected_file": "internal/payment/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/billing\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.401,
+    "log": "logs/gate-new-file-no-permission-unit.log.gz"
+  },
+  {
+    "name": "core-http-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-http-denied-unit.json",
+      "--build-tags=unit",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "net/http",
+    "expected_file": "internal/payment/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'net/http' is not allowed from list 'core-payment': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"net/http\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.41,
+    "log": "logs/gate-core-http-denied-unit.log.gz"
+  },
+  {
+    "name": "core-config-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-config-denied-unit.json",
+      "--build-tags=unit",
+      "./internal/promotion"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/promotion/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-promotion'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/promotion/zz_s12_gate.go",
+          "Offset": 75,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.378,
+    "log": "logs/gate-core-config-denied-unit.log.gz"
+  },
+  {
+    "name": "new-app-file-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-app-file-denied-unit.json",
+      "--build-tags=unit",
+      "./internal/app"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "expected_file": "internal/app/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/service' is not allowed from list 'app': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/service\""
+        ],
+        "Pos": {
+          "Filename": "internal/app/zz_s12_gate.go",
+          "Offset": 69,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.617,
+    "log": "logs/gate-new-app-file-denied-unit.log.gz"
+  },
+  {
+    "name": "retired-payment-wire-permission",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-retired-payment-wire-permission-unit.json",
+      "--build-tags=unit",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/payment/wire.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/wire.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.408,
+    "log": "logs/gate-retired-payment-wire-permission-unit.log.gz"
+  },
+  {
+    "name": "http-storage-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-http-storage-denied-unit.json",
+      "--build-tags=unit",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 1,
+    "expected_import": "database/sql",
+    "expected_file": "internal/payment/httpapi/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'database/sql' is not allowed from list 'payment-httpapi': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"database/sql\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/httpapi/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.533,
+    "log": "logs/gate-http-storage-denied-unit.log.gz"
+  },
+  {
+    "name": "protocol-stdlib-preserved",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-protocol-stdlib-preserved-unit.json",
+      "--build-tags=unit",
+      "./internal/protocol/openai"
+    ],
+    "exit_code": 1,
+    "expected_import": "crypto/sha256",
+    "expected_file": "internal/protocol/openai/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'crypto/sha256' is not allowed from list 'protocol-openai'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"crypto/sha256\""
+        ],
+        "Pos": {
+          "Filename": "internal/protocol/openai/zz_s12_gate.go",
+          "Offset": 72,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.383,
+    "log": "logs/gate-protocol-stdlib-preserved-unit.log.gz"
+  },
+  {
+    "name": "existing-file-new-import-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-existing-file-new-import-denied-unit.json",
+      "--build-tags=unit",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/gin-gonic/gin",
+    "expected_file": "internal/payment/order.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/gin-gonic/gin' is not allowed from list 's12-internal-payment-order-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/gin-gonic/gin\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/order.go",
+          "Offset": 108,
+          "Line": 5,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.422,
+    "log": "logs/gate-existing-file-new-import-denied-unit.log.gz"
+  },
+  {
+    "name": "moved-file-exception-expires",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-moved-file-exception-expires-unit.json",
+      "--build-tags=unit",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing",
+    "expected_file": "internal/payment/zz_s12_moved.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "\t\"github.com/TokenFlux/TokenRouter/internal/billing\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_moved.go",
+          "Offset": 117,
+          "Line": 7,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.392,
+    "log": "logs/gate-moved-file-exception-expires-unit.log.gz"
+  },
+  {
+    "name": "core-to-app-denied",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-to-app-denied-unit.json",
+      "--build-tags=unit",
+      "./internal/payment/zz_s12_leaf"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/app",
+    "expected_file": "internal/payment/zz_s12_leaf/child.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/app' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/app\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_leaf/child.go",
+          "Offset": 71,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.547,
+    "log": "logs/gate-core-to-app-denied-unit.log.gz"
+  },
+  {
+    "name": "exact-import-rejects-subpackage",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-exact-import-rejects-subpackage-unit.json",
+      "--build-tags=unit",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child",
+    "expected_file": "internal/payment/order.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child' is not allowed from list 's12-internal-payment-order-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/order.go",
+          "Offset": 108,
+          "Line": 5,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.399,
+    "log": "logs/gate-exact-import-rejects-subpackage-unit.log.gz"
+  },
+  {
+    "name": "new-legal-http-adapter",
+    "tag": "unit",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-legal-http-adapter-unit.json",
+      "--build-tags=unit",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.53,
+    "log": "logs/gate-new-legal-http-adapter-unit.log.gz"
+  },
+  {
+    "name": "legal-promotion-core",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-promotion-core-integration.json",
+      "--build-tags=integration",
+      "./internal/promotion"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.346,
+    "log": "logs/gate-legal-promotion-core-integration.log.gz"
+  },
+  {
+    "name": "legal-payment-core",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-payment-core-integration.json",
+      "--build-tags=integration",
+      "./internal/payment"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.395,
+    "log": "logs/gate-legal-payment-core-integration.log.gz"
+  },
+  {
+    "name": "legal-http",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-http-integration.json",
+      "--build-tags=integration",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.527,
+    "log": "logs/gate-legal-http-integration.log.gz"
+  },
+  {
+    "name": "legal-postgres",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-postgres-integration.json",
+      "--build-tags=integration",
+      "./internal/payment/postgres"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.431,
+    "log": "logs/gate-legal-postgres-integration.log.gz"
+  },
+  {
+    "name": "legal-app",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-legal-app-integration.json",
+      "--build-tags=integration",
+      "./internal/app"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.636,
+    "log": "logs/gate-legal-app-integration.log.gz"
+  },
+  {
+    "name": "new-file-no-permission",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-file-no-permission-integration.json",
+      "--build-tags=integration",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing",
+    "expected_file": "internal/payment/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/billing\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.395,
+    "log": "logs/gate-new-file-no-permission-integration.log.gz"
+  },
+  {
+    "name": "core-http-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-http-denied-integration.json",
+      "--build-tags=integration",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "net/http",
+    "expected_file": "internal/payment/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'net/http' is not allowed from list 'core-payment': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"net/http\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.398,
+    "log": "logs/gate-core-http-denied-integration.log.gz"
+  },
+  {
+    "name": "core-config-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-config-denied-integration.json",
+      "--build-tags=integration",
+      "./internal/promotion"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/promotion/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-promotion'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/promotion/zz_s12_gate.go",
+          "Offset": 75,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.367,
+    "log": "logs/gate-core-config-denied-integration.log.gz"
+  },
+  {
+    "name": "new-app-file-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-app-file-denied-integration.json",
+      "--build-tags=integration",
+      "./internal/app"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "expected_file": "internal/app/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/service' is not allowed from list 'app': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/service\""
+        ],
+        "Pos": {
+          "Filename": "internal/app/zz_s12_gate.go",
+          "Offset": 69,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.626,
+    "log": "logs/gate-new-app-file-denied-integration.log.gz"
+  },
+  {
+    "name": "retired-payment-wire-permission",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-retired-payment-wire-permission-integration.json",
+      "--build-tags=integration",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "expected_file": "internal/payment/wire.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/config' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/config\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/wire.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.414,
+    "log": "logs/gate-retired-payment-wire-permission-integration.log.gz"
+  },
+  {
+    "name": "http-storage-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-http-storage-denied-integration.json",
+      "--build-tags=integration",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 1,
+    "expected_import": "database/sql",
+    "expected_file": "internal/payment/httpapi/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'database/sql' is not allowed from list 'payment-httpapi': 按职责禁止该依赖；使用纯契约或由外层适配。",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"database/sql\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/httpapi/zz_s12_gate.go",
+          "Offset": 73,
+          "Line": 3,
+          "Column": 8
+        },
+        "SuggestedFixes": [
+          {
+            "Message": "按职责禁止该依赖；使用纯契约或由外层适配。",
+            "TextEdits": null
+          }
+        ],
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.543,
+    "log": "logs/gate-http-storage-denied-integration.log.gz"
+  },
+  {
+    "name": "protocol-stdlib-preserved",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-protocol-stdlib-preserved-integration.json",
+      "--build-tags=integration",
+      "./internal/protocol/openai"
+    ],
+    "exit_code": 1,
+    "expected_import": "crypto/sha256",
+    "expected_file": "internal/protocol/openai/zz_s12_gate.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'crypto/sha256' is not allowed from list 'protocol-openai'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"crypto/sha256\""
+        ],
+        "Pos": {
+          "Filename": "internal/protocol/openai/zz_s12_gate.go",
+          "Offset": 72,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.403,
+    "log": "logs/gate-protocol-stdlib-preserved-integration.log.gz"
+  },
+  {
+    "name": "existing-file-new-import-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-existing-file-new-import-denied-integration.json",
+      "--build-tags=integration",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/gin-gonic/gin",
+    "expected_file": "internal/payment/order.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/gin-gonic/gin' is not allowed from list 's12-internal-payment-order-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/gin-gonic/gin\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/order.go",
+          "Offset": 108,
+          "Line": 5,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.426,
+    "log": "logs/gate-existing-file-new-import-denied-integration.log.gz"
+  },
+  {
+    "name": "moved-file-exception-expires",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-moved-file-exception-expires-integration.json",
+      "--build-tags=integration",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing",
+    "expected_file": "internal/payment/zz_s12_moved.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "\t\"github.com/TokenFlux/TokenRouter/internal/billing\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_moved.go",
+          "Offset": 117,
+          "Line": 7,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.4,
+    "log": "logs/gate-moved-file-exception-expires-integration.log.gz"
+  },
+  {
+    "name": "core-to-app-denied",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-core-to-app-denied-integration.json",
+      "--build-tags=integration",
+      "./internal/payment/zz_s12_leaf"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/app",
+    "expected_file": "internal/payment/zz_s12_leaf/child.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/app' is not allowed from list 'core-payment'",
+        "Severity": "",
+        "SourceLines": [
+          "import _ \"github.com/TokenFlux/TokenRouter/internal/app\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/zz_s12_leaf/child.go",
+          "Offset": 71,
+          "Line": 3,
+          "Column": 8
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.591,
+    "log": "logs/gate-core-to-app-denied-integration.log.gz"
+  },
+  {
+    "name": "exact-import-rejects-subpackage",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-exact-import-rejects-subpackage-integration.json",
+      "--build-tags=integration",
+      "./internal/payment"
+    ],
+    "exit_code": 1,
+    "expected_import": "github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child",
+    "expected_file": "internal/payment/order.go",
+    "matched": true,
+    "issues": [
+      {
+        "FromLinter": "depguard",
+        "Text": "import 'github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child' is not allowed from list 's12-internal-payment-order-go'",
+        "Severity": "",
+        "SourceLines": [
+          " _ \"github.com/TokenFlux/TokenRouter/internal/billing/zz_s12_child\""
+        ],
+        "Pos": {
+          "Filename": "internal/payment/order.go",
+          "Offset": 108,
+          "Line": 5,
+          "Column": 2
+        },
+        "ExpectNoLint": false,
+        "ExpectedNoLintLinter": ""
+      }
+    ],
+    "seconds": 0.395,
+    "log": "logs/gate-exact-import-rejects-subpackage-integration.log.gz"
+  },
+  {
+    "name": "new-legal-http-adapter",
+    "tag": "integration",
+    "command": [
+      "golangci-lint",
+      "run",
+      "--enable-only=depguard",
+      "--timeout=5m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s12-fixture-new-legal-http-adapter-integration.json",
+      "--build-tags=integration",
+      "./internal/payment/httpapi"
+    ],
+    "exit_code": 0,
+    "expected_import": null,
+    "expected_file": null,
+    "matched": true,
+    "issues": [],
+    "seconds": 0.555,
+    "log": "logs/gate-new-legal-http-adapter-integration.log.gz"
+  }
+]

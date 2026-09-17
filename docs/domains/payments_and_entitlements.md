@@ -25,7 +25,7 @@
 | `RedeemCode` | 一次或有限次数的权益发放凭据 | 类型、值/套餐、有效期、最大次数、状态及用户兑换记录 |
 | `PaymentOrder` | 外部资金事件与内部权益发放的协调记录 | 金额、币种/费用、订单类型、提供商与商品快照、状态、时间点和退款字段 |
 
-billing 拥有余额原子调整、订阅/套餐及兑换规则；SQL/Ent 实现在 billing/postgres，相关 HTTP/DTO 在 billing/httpapi。旧 AdminService 保留用户管理及调账后的尽力返利/记录编排，旧 PaymentConfigService 保留支付配置并委托套餐用例。用户/管理员套餐分别保持公开展示与历史 Ent JSON 形状。
+billing 拥有余额原子调整、订阅/套餐及兑换规则；SQL/Ent 实现在 billing/postgres，相关 HTTP/DTO 在 billing/httpapi。payment 拥有支付配置、订单、渠道绑定、查单/履约和退款编排；promotion 拥有邀请码、返利和 Promo。旧聚合名称只作投影和委托，套餐规则仍由 billing 唯一拥有。用户/管理员套餐分别保持公开展示与历史 Ent JSON 形状。
 
 订阅计划是可变商品配置，用户订阅才是已发放权益。购买订单保存计划快照，履约使用下单时的价格/权益语义，不能因管理员后来修改或删除套餐而改变已付款订单。余额订单与订阅订单共享支付确认流程，但进入不同履约分支。
 
@@ -39,6 +39,8 @@ billing 拥有余额原子调整、订阅/套餐及兑换规则；SQL/Ent 实现
 - `order_type`，以及订阅订单的 `plan_id` 与 `plan_snapshot`。
 - `provider_instance_id`、`provider_key` 和 `provider_snapshot`，使回调、查单与退款仍使用原订单对应实例。
 - 客户端来源、过期时间、外部 trade number、invoice/receipt 信息及完整状态时间点。
+
+`payment.ConfigService`、`ProviderBindings` 和选择器由 app 唯一装配，具体渠道构造与密钥/环境投影不进入核心。首次实例读取失败不标记已加载；刷新先构造完整候选表再原子发布，整体读取失败保留旧表并允许重试，单个坏配置仍按原规则跳过。
 
 提供商实例决定支持的支付类型、模式、限额、排序和退款能力。删除或修改当前实例不能把历史订单重新解释为另一个实例；解析旧订单时才允许按保存的 provider key 或兼容注册表回退。
 
@@ -88,13 +90,25 @@ Webhook 路由不依赖用户 JWT，因此提供商验签、订单绑定和金�
 
 订阅订单调用 `AssignOrExtendSubscription`，把 `source_order_id` 设为订单 ID。服务在事务中锁定用户行后再次查询来源订单和最新同套餐订阅，使同一用户的并发发放先串行再扩展时间链；已有来源订单订阅则直接复用，因此 webhook、查单、人工 retry 和后台 reconcile 不会为同一订单重复发放。当前同套餐尚未过期时，新订阅从上一份 `expires_at` 开始并进入 `pending`，而不是覆盖或并行消耗。
 
+`payment.OrderExpiry` 的 Start/Stop 幂等，停止不可逆；运行 context 贯穿锁、查询与渠道请求，取消后不进入下一项或阶段。app 保持立即首轮、原周期和 leader key/Redis→数据库回退，后台总预算 30 秒，超时不等于排空成功。
+
 支付审计日志记录下单后的重要动作、operator 和详情。通知邮件等副作用在完成后异步派发，失败不能回滚已发权益；需要凭订单完成状态和审计动作避免重复通知。
 
 ## 退款
 
 退款只从允许的已完成余额订单及配置为可退款的 provider instance 发起，用户自助退款还要满足实例 `allow_user_refund` 和业务资格。退款状态族包括 `REFUND_REQUESTED`、`REFUNDING`、`REFUND_PENDING`、`PARTIALLY_REFUNDED`、`REFUNDED` 和 `REFUND_FAILED`。
 
-调用提供商退款前后都使用条件状态迁移和查单恢复。Stripe 退款使用订单号与最小货币单位退款额组成稳定幂等键，同金额重试不得创建第二笔渠道退款，不同金额则保持独立。提供商返回 pending 时保留可查询状态；渠道最终确认成功后，订单认领、权益回收、状态更新和成功审计必须在同一事务内提交，避免并发查单重复扣减或留下半完成状态。最终金额必须与累计退款和订单金额一致。
+`payment.RefundWorkflow` 协调 `payment/postgres.RefundStore` 的短事务，通过 app 注入 billing 的原 Ent 同连接参与能力。退款仍先扣权益，明确失败或待确认时补偿；渠道调用不持数据库事务。
+
+1. 准备事务锁定并认领订单，写实际预扣和 `REFUND_PREPARED` 恢复记录。记录有格式版本、本地操作标识、订单版本、扣减意图/实际值及订阅信息；任一步失败整体回滚，不调用渠道。
+2. 渠道在事务外执行。Stripe 仍用订单号与最小货币单位退款额组成原幂等键，本地操作标识不参与渠道编码。
+3. 明确失败或 pending 的补偿、订单状态和必要审计同事务提交。补偿或审计失败保留准备扣减和 `REFUNDING`，返回错误，不能按已成功补偿处理。
+4. 即时成功只提交成功状态和成功审计，不再次扣减。该事务失败时外部退款可能已经完成，本地保留准备事实并返回错误。
+5. pending 最终成功在同一事务内复核认领状态、版本及退款身份，再回收权益、更新状态和写成功审计。迟到失败不能覆盖较新的成功结果。
+
+原管理员退款查单入口也接受有有效恢复记录的 `REFUNDING`，只查已发生的渠道操作并幂等完成，不重新发起退款。旧 `REFUND_PENDING` 字段继续兼容；缺失、损坏或矛盾的恢复资料，以及不支持渠道查单或结果不明时，明确要求人工核实，不能按默认零扣减完成。普通支付过程审计仍尽力写入，退款正确性依赖的记录必须持久化。原 `(order_id, action)` 唯一索引不变：同一动作的后续尝试更新当前版本，并将旧详情原样归档到 `history`，记录操作标识与时间，不能删除旧退款事实。旧 pending 中显式 `deductBalance=false` 保持其优先级，不能把“缺少该字段”解释为同一个意思。
+
+回退到不识别准备记录的旧版本前，必须先处理或登记未完成退款；不得删除这些事实后盲目重试。
 
 余额退款在非强制模式下发现余额不足时返回 `require_force`，只有管理员明确确认后才允许继续；强制退款也只能原子扣除当时可用的非负余额，并将实际扣减额写入结果和审计。订阅相关退款需要识别由 `source_order_id` 发放的订阅及其 active/pending 状态。强制退款属于明确的管理员操作，必须审计其理由，不能成为普通错误恢复路径。首次尝试返回 `require_force` 时，管理端保持退款弹窗、展示服务端警告，并且只有管理员显式勾选强制确认后才能携带 `force` 重试；关闭或重新打开弹窗必须清除上一次确认状态。
 
@@ -139,3 +153,5 @@ Webhook 路由不依赖用户 JWT，因此提供商验签、订单绑定和金�
 - 权益变更后同步失效 Billing/API Key 认证缓存，并为状态、金额和操作者写审计记录。
 
 相关资料：[支付配置与运营指南](../guides/payments/configuration.md)、[外部支付集成 API](../guides/payments/admin_integration_api.md)。相关 Project Doc：[路由与结算](routing_and_billing.md)、[用户平台额度](platform_quotas.md)、[推广与返利](promotions_and_affiliates.md)、[身份与租户](identity_and_tenancy.md)、[领域目录](index.md)。
+
+实现入口：[下单](../../backend/internal/payment/checkout.go)、[状态与履约](../../backend/internal/payment/fulfillment.go)、[退款](../../backend/internal/payment/refund_workflow.go)、[闭合退款存储](../../backend/internal/payment/postgres/refund.go)、[HTTP](../../backend/internal/payment/httpapi/user.go)、[装配](../../backend/internal/app/payment_refund.go)。

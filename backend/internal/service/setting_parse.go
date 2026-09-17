@@ -10,11 +10,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
 	"github.com/TokenFlux/TokenRouter/internal/site"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
@@ -1035,18 +1038,7 @@ func parseCreativeWorkerCount(value string) int {
 	return count
 }
 
-func clampAffiliateRebateRate(value float64) float64 {
-	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return AffiliateRebateRateDefault
-	}
-	if value < AffiliateRebateRateMin {
-		return AffiliateRebateRateMin
-	}
-	if value > AffiliateRebateRateMax {
-		return AffiliateRebateRateMax
-	}
-	return value
-}
+func clampAffiliateRebateRate(value float64) float64 { return promotion.ClampRebateRate(value) }
 
 func isFalseSettingValue(value string) bool {
 	switch strings.ToLower(strings.TrimSpace(value)) {
@@ -1058,20 +1050,7 @@ func isFalseSettingValue(value string) bool {
 }
 
 func normalizeVisibleMethodSettingSource(method, source string, enabled bool) (string, error) {
-	_ = enabled
-	source = strings.TrimSpace(source)
-	if source == "" {
-		return "", nil
-	}
-
-	normalized := NormalizeVisibleMethodSource(method, source)
-	if normalized == "" {
-		return "", infraerrors.BadRequest(
-			"INVALID_PAYMENT_VISIBLE_METHOD_SOURCE",
-			fmt.Sprintf("%s source must be one of the supported payment providers", method),
-		)
-	}
-	return normalized, nil
+	return payment.NormalizeVisibleMethodSettingSource(method, source, enabled)
 }
 
 func (s *SettingService) advancedSchedulerEffectiveLBTopK() string {

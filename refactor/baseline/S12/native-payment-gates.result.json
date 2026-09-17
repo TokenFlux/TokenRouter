@@ -1,0 +1,19 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=10m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/payment/...",
+    "./internal/promotion/...",
+    "./internal/app/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 9.541,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/native-payment-gates.log.gz"
+}

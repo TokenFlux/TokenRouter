@@ -1,0 +1,1038 @@
+{
+  "s12-app-payment-infrastructure": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/app/payment_infrastructure.go"
+    ],
+    "allow": [
+      "github.com/TokenFlux/TokenRouter/migrations$",
+      "$gostd",
+      "entgo.io/ent",
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/wire$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/lib/pq",
+      "github.com/natefinch/lumberjack$",
+      "github.com/redis/go-redis/v9",
+      "github.com/refraction-networking/utls$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "gopkg.in/natefinch/lumberjack.v2$",
+      "github.com/TokenFlux/TokenRouter/internal/service$"
+    ],
+    "deny": [
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/repository",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/handler",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/domain",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/model",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/service/",
+        "desc": "仅此装配文件许可旧根包，子包不继承。"
+      }
+    ]
+  },
+  "s12-app-payment-refund": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/app/payment_refund.go"
+    ],
+    "allow": [
+      "github.com/TokenFlux/TokenRouter/migrations$",
+      "$gostd",
+      "entgo.io/ent",
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/wire$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/lib/pq",
+      "github.com/natefinch/lumberjack$",
+      "github.com/redis/go-redis/v9",
+      "github.com/refraction-networking/utls$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "gopkg.in/natefinch/lumberjack.v2$",
+      "github.com/TokenFlux/TokenRouter/internal/service$"
+    ],
+    "deny": [
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/repository",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/handler",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/domain",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/model",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/service/",
+        "desc": "仅此装配文件许可旧根包，子包不继承。"
+      }
+    ]
+  },
+  "s12-app-payment_http-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/app/payment_http.go"
+    ],
+    "allow": [
+      "github.com/TokenFlux/TokenRouter/migrations$",
+      "$gostd",
+      "entgo.io/ent",
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/wire$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/lib/pq",
+      "github.com/natefinch/lumberjack$",
+      "github.com/redis/go-redis/v9",
+      "github.com/refraction-networking/utls$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "gopkg.in/natefinch/lumberjack.v2$",
+      "github.com/TokenFlux/TokenRouter/internal/service$"
+    ],
+    "deny": [
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/repository",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/handler",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/domain",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/model",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/service/",
+        "desc": "仅此装配文件许可旧根包，子包不继承。"
+      }
+    ]
+  },
+  "s12-app-payment_expiry-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/app/payment_expiry.go"
+    ],
+    "allow": [
+      "github.com/TokenFlux/TokenRouter/migrations$",
+      "$gostd",
+      "entgo.io/ent",
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/wire$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/lib/pq",
+      "github.com/natefinch/lumberjack$",
+      "github.com/redis/go-redis/v9",
+      "github.com/refraction-networking/utls$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "gopkg.in/natefinch/lumberjack.v2$",
+      "github.com/TokenFlux/TokenRouter/internal/service$",
+      "github.com/google/uuid$"
+    ],
+    "deny": [
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/repository",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/handler",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/domain",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/model",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/service/",
+        "desc": "仅此装配文件许可旧根包，子包不继承。"
+      }
+    ]
+  },
+  "s12-internal-promotion-postgres-affiliate-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/promotion/postgres/affiliate.go"
+    ],
+    "allow": [
+      "$gostd",
+      "entgo.io/ent",
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/infra/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion/postgres",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/lib/pq",
+      "github.com/natefinch/lumberjack$",
+      "github.com/redis/go-redis/v9",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "gopkg.in/natefinch/lumberjack.v2$",
+      "github.com/TokenFlux/TokenRouter/internal/identity$"
+    ]
+  },
+  "s12-internal-promotion-postgres-participants-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/promotion/postgres/participants.go"
+    ],
+    "allow": [
+      "$gostd",
+      "entgo.io/ent",
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/infra/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion/postgres",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/lib/pq",
+      "github.com/natefinch/lumberjack$",
+      "github.com/redis/go-redis/v9",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "gopkg.in/natefinch/lumberjack.v2$",
+      "github.com/TokenFlux/TokenRouter/internal/identity$"
+    ]
+  },
+  "s12-app-promotion": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/app/promotion.go"
+    ],
+    "allow": [
+      "github.com/TokenFlux/TokenRouter/migrations$",
+      "$gostd",
+      "entgo.io/ent",
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/wire$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/lib/pq",
+      "github.com/natefinch/lumberjack$",
+      "github.com/redis/go-redis/v9",
+      "github.com/refraction-networking/utls$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "gopkg.in/natefinch/lumberjack.v2$",
+      "github.com/TokenFlux/TokenRouter/internal/service$"
+    ],
+    "deny": [
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/repository",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/handler",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/domain",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/model",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/internal/service/",
+        "desc": "仅此装配文件许可旧根包，子包不继承。"
+      }
+    ]
+  },
+  "s12-internal-promotion-user_view-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/promotion/user_view.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/identity/contact$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-promotion-postgres-promo_user_view-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/promotion/postgres/promo_user_view.go"
+    ],
+    "allow": [
+      "$gostd",
+      "entgo.io/ent",
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/infra/",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion/postgres",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/andybalholm/brotli$",
+      "github.com/google/uuid$",
+      "github.com/imroc/req/v3$",
+      "github.com/klauspost/compress/",
+      "github.com/lib/pq",
+      "github.com/natefinch/lumberjack$",
+      "github.com/redis/go-redis/v9",
+      "github.com/refraction-networking/utls$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "go.uber.org/zap",
+      "golang.org/x/mod/semver$",
+      "golang.org/x/net/",
+      "gopkg.in/natefinch/lumberjack.v2$",
+      "github.com/TokenFlux/TokenRouter/internal/identity/contact$"
+    ]
+  },
+  "s12-internal-promotion-httpapi-promo_dto-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/promotion/httpapi/promo_dto.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/server/clientip$",
+      "github.com/TokenFlux/TokenRouter/internal/server/httpx$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/gin-gonic/gin$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/identity$",
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "entgo.io/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/ent",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-promotion-httpapi-user_handler-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/promotion/httpapi/user_handler.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/server/clientip$",
+      "github.com/TokenFlux/TokenRouter/internal/server/httpx$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/gin-gonic/gin$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "entgo.io/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/ent",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-configuration-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/configuration.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-configuration_ports-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/configuration_ports.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-visible_methods-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/visible_methods.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/settings$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-order-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/order.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-refund_workflow-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/refund_workflow.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-refund_prepare-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/refund_prepare.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-checkout_draft-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/checkout_draft.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-fulfillment-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/fulfillment.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-fulfillment_ports-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/fulfillment_ports.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "deny": [
+      {
+        "pkg": "net/http",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "net/rpc",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-httpapi-admin-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/httpapi/admin.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/payment/httpapi",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/server/clientip$",
+      "github.com/TokenFlux/TokenRouter/internal/server/httpx$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/gin-gonic/gin$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$",
+      "github.com/TokenFlux/TokenRouter/internal/billing/httpapi$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "entgo.io/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/ent",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-httpapi-user-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/httpapi/user.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/payment/httpapi",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/server/clientip$",
+      "github.com/TokenFlux/TokenRouter/internal/server/httpx$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/gin-gonic/gin$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$",
+      "github.com/TokenFlux/TokenRouter/internal/billing/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "entgo.io/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/ent",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  },
+  "s12-internal-payment-httpapi-wechat-go": {
+    "list-mode": "strict",
+    "files": [
+      "**/internal/payment/httpapi/wechat.go"
+    ],
+    "allow": [
+      "$gostd",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$",
+      "github.com/TokenFlux/TokenRouter/internal/payment$",
+      "github.com/TokenFlux/TokenRouter/internal/payment/httpapi",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logredact$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/pagination$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/timezone$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol$",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/",
+      "github.com/TokenFlux/TokenRouter/internal/routing/capability$",
+      "github.com/TokenFlux/TokenRouter/internal/scheduler/policy$",
+      "github.com/TokenFlux/TokenRouter/internal/server/clientip$",
+      "github.com/TokenFlux/TokenRouter/internal/server/httpx$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream$",
+      "github.com/gin-gonic/gin$",
+      "github.com/google/uuid$",
+      "github.com/shopspring/decimal$",
+      "github.com/tidwall/gjson$",
+      "github.com/tidwall/sjson$",
+      "github.com/TokenFlux/TokenRouter/internal/identity$",
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/oauth$"
+    ],
+    "deny": [
+      {
+        "pkg": "database/sql",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/redis/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "entgo.io/",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      },
+      {
+        "pkg": "github.com/TokenFlux/TokenRouter/ent",
+        "desc": "按职责禁止该依赖；使用纯契约或由外层适配。"
+      }
+    ]
+  }
+}

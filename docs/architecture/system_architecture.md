@@ -24,7 +24,7 @@
        /        |          \
 面板/API    网关处理器    后台运行时
        \        |          /
-       service / payment 与已迁用例
+       service 与已迁用例
           |             |
  repository/基础设施   上游供应商
        |       |        |
@@ -43,7 +43,7 @@
 | 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
 | 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
 | 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress`、`scheduler`、`usage`、`audit`、`ops`、`notification`、`moderation`、`search` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略、调度/并发/会话选择、用量/观测、通知、审核与搜索 |
-| 旧业务图 | `internal/service`、`payment`、`repository` | 尚未迁移的业务规则、事务和适配实现；原 provider set 继续参与构造 |
+| 旧业务图 | `internal/service`、`repository` | 尚未迁移的业务规则、事务和适配实现；原 provider set 继续参与构造 |
 | 平台执行 | `internal/upstream` 与各平台子包 | 供应商交换、原生报文、媒体、单次执行和连接资源；业务凭据写入由 account 提供 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
 | HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
@@ -67,6 +67,8 @@ notification 拥有模板、语言/退订、投递协调、队列与 SMTP Adapte
 `repository.NewHTTPUpstream` 仍解释配置与平台策略，`infra/httpclient.UpstreamPool` 拥有客户端缓存和请求释放。OpenAI HTTP/2 回退策略由 egress 提供，Grok CLI Header 与可重放 403 回退由 upstream/grok 提供；旧适配层负责技术参数投影。修改 provider 后运行保留的 Wire 生成命令，不编辑生成文件，也不因纯装配变化运行 Ent 生成。
 
 <a id="startup_and_shutdown"></a>
+promotion 拥有邀请码/关系、返利、转入余额及 Promo，payment 拥有配置、渠道绑定、下单、查单、履约和退款。各自 HTTP/PostgreSQL Adapter 只负责传输与存储；billing 同连接参与资金写入，notification 接收已确定的支付事件。app 持有唯一配置、注册表、选择器、订单用例与后台任务，旧 service/handler 名称只保留兼容投影。退款渠道调用位于短事务之间，恢复记录使用既有支付审计表，具体保证见[支付与权益](../domains/payments_and_entitlements.md#退款)。
+
 ## 启动与关闭
 
 主入口保持三条互斥路径：`-version` 只输出构建信息，`-setup` 执行 CLI 安装；未安装时执行 AUTO_SETUP 或启动独立 setup server；已配置时构造完整应用。setup 的迁移调用精简 bootstrap，不构造业务 worker。

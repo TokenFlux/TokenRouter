@@ -211,13 +211,6 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 	return service.GroupFromRouting(routingpostgres.GroupFromEnt(g))
 }
 
-func derefString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func (r *apiKeyRepository) APIKeyRepository() keycore.APIKeyRepository { return r.KeyStore }
 
 func repositoryKeysFromView(v []keycore.APIKey) []service.APIKey {

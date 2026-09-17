@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/payment/...",
+    "./internal/service",
+    "-run",
+    "Test.*(Payment|Order|Refund|Webhook|RedeemAction|AffiliateRebate|Lease)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 16.73,
+  "pass": 316,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/fulfillment-unit.log.gz"
+}

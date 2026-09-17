@@ -1,0 +1,1728 @@
+[
+  {
+    "old": "backend/internal/handler/admin/payment_handler.go",
+    "symbol": "parseIDParam",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/admin/payment_handler.go",
+    "symbol": "sanitizeAdminPaymentOrdersForResponse",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/admin/payment_handler.go",
+    "symbol": "parsePaymentDashboardRange",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "readCookieDecoded",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "redirectWithFragment",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "redirectOAuthError",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatPaymentClearCookie",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatPaymentSetCookie",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "parseWeChatPaymentPlanID",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "decodeWeChatPaymentOAuthContext",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "encodeWeChatPaymentOAuthContext",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "normalizeWeChatPaymentRedirectPath",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "normalizeWeChatPaymentScope",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "normalizeWeChatPaymentType",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": [
+      "wechatPaymentOAuthContext"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "isWeChatBrowser",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "sanitizePaymentOrderForResponse",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "sanitizePaymentOrdersForResponse",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "isMobile",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "requireAuth",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "publicOrderStatusPaid",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "buildPublicOrderVerifyResult",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "buildPublicOrderResult",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "applyWeChatPaymentResumeClaims",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "cloneInt64Float64Map",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": "parseFeatures",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": [
+      "checkoutPlan"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_handler.go",
+    "symbol": [
+      "checkoutInfoResponse"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": "writeSuccessResponse",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_webhook_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": [
+      "wxpaySuccessMessage"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": [
+      "wxpaySuccessCode"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": [
+      "wxpaySuccessResponse"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_webhook_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": "verifyNotificationWithProviders",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_webhook_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": "extractStripeOutTradeNo",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_webhook_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": "extractOutTradeNo",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_webhook_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": "shouldAcknowledgeWebhookProviderLookupError",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_webhook_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": [
+      "webhookLogTruncateLen"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_webhook_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/handler/payment_webhook_handler.go",
+    "symbol": [
+      "maxWebhookBodySize"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/handler/payment_webhook_handler_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/repository/api_key_repo.go",
+    "symbol": "derefString",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/repository/error_translate.go",
+    "symbol": "clientFromContext",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/repository/pagination.go",
+    "symbol": "paginationResultFromTotal",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/balance_notify_service.go",
+    "symbol": [
+      "emailSendTimeout"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_amounts.go",
+    "symbol": "calculateGatewayRefundAmount",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_amounts_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_amounts.go",
+    "symbol": "paymentOrderPurchasedReasoningPoints",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_amounts.go",
+    "symbol": "normalizeSubscriptionUSDToCNYRate",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_amounts.go",
+    "symbol": "normalizeBalanceRechargeMultiplier",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_amounts.go",
+    "symbol": [
+      "defaultBalanceRechargeMultiplier"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_limits.go",
+    "symbol": "pcInstanceEasyPayCustomMethodDisplayName",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_limits.go",
+    "symbol": "pcAggregateMethodDisplayName",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_limits.go",
+    "symbol": [
+      "easyPayCustomMethodDisplayConfig"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_limits.go",
+    "symbol": "pcInstancePaymentCurrency",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_limits.go",
+    "symbol": "pcApplyEffectiveMethodFee",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_limits.go",
+    "symbol": "pcApplyEnabledVisibleMethodInstances",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "encryptConfig",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "countForcedExpiredOrders",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "decryptConfig",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_config_providers_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "mergeConfig",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "easyPayCustomMethodTypeConflictsWithBuiltin",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "validateEasyPayCustomMethods",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_config_providers_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": [
+      "easyPayCustomMethodConfig"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": [
+      "easyPayCustomMethodCodePattern"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "validateProviderRequest",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_config_providers_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": [
+      "validProviderKeys"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "countPendingOrders",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "providerConfigFieldValue",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "hasPendingOrderProtectedConfigChange",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "isSensitiveProviderConfigField",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_config_providers_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": [
+      "providerPendingOrderProtectedConfigFields"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": [
+      "pendingOrderStatuses"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "decryptAndMaskConfig",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_providers.go",
+    "symbol": "validateProviderConfig",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "visibleMethodShouldBeExposed",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "joinTypes",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_config_service_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "splitTypes",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "derefStr",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "formatPositiveInt",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "formatNonNegativeFloat",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "formatPositiveFloatExact",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "formatPositiveFloat",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "formatBoolOrEmpty",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "pcRound2",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "pcValidRate2",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "pcValidMoney2",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "isSupportedMethodFeeMethod",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "formatMethodFeeSettings",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "parseMethodFeeSettings",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "getStripePublishableKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": "pcEnvBoolOverride",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": [
+      "defaultMaxPendingOrders"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_config_service.go",
+    "symbol": [
+      "defaultOrderTimeoutMin"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_currency.go",
+    "symbol": "paymentProviderConfigCurrency",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_document.go",
+    "symbol": "getOrderPaymentDocument",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "markFailed",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "affiliateRebateBasePoints",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "applyAffiliateRebateForOrder",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "hasAuditLog",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "doSub",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "sendSubscriptionPurchaseSuccessNotification",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "sendBalanceRechargeSuccessNotification",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "dispatchPaymentFulfillmentNotification",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "markCompleted",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "doBalance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "resolveRedeemAction",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": [
+      "redeemActionSkipCompleted"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": [
+      "redeemActionRedeem"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": [
+      "redeemActionCreate"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": [
+      "redeemAction"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "acquirePaymentFulfillmentLease",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "executeFulfillment",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "toPaid",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "expectedNotificationProviderKey",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "validateProviderNotificationMetadata",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "isValidProviderAmount",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "paymentAmountToleranceForCurrency",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "markPaymentFailed",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "markPaymentProcessing",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "confirmPayment",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "validatePaymentNotificationOrder",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "parseLegacyPaymentOrderID",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": "findPaymentNotificationOrder",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": [
+      "paymentFulfillmentLease"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment.go",
+    "symbol": [
+      "paymentFulfillmentLeaseDuration"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment_projection.go",
+    "symbol": "paymentFulfillmentLeaseLegacy",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_projection_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_fulfillment_projection.go",
+    "symbol": "paymentFulfillmentLeaseValue",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_fulfillment_projection_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_instance_projection.go",
+    "symbol": "paymentInstanceGroups",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_lifecycle_projection.go",
+    "symbol": "legacyPaymentOrderLifecycle",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "normalizePaymentRedirectPath",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "paymentRedirectPathFromURL",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "buildWeChatPaymentOAuthStartURL",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "classifyCreatePaymentError",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "requiresWeChatJSAPICompatibleSelection",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "validateCreateOrderAmountCurrency",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "calculateSubscriptionGatewayBaseAmount",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "validateSelectedCreateOrderInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "buildWeChatOAuthRequiredResponse",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "applyPaymentProductNameAffix",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "hasPaymentProductNameAffix",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "selectedInstanceSupportedTypes",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "removePostgresTextNUL",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "persistCreatePaymentResponse",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "invokeProvider",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "requestNeedsWeChatJSAPICompatibility",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "prepareCreateOrderSelectionContext",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "selectCreateOrderInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "paymentOrderSnapshotWxpayAppID",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "buildPaymentOrderProviderSnapshot",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "createOrderInTx",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "validateSubOrder",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order.go",
+    "symbol": "validateOrderInput",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "psStringValue",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "createProviderFromInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "paymentOrderFallbackProviderKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "paymentOrderAllowsRegistryFallback",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "getOrderProvider",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "maybeAuditStaleProcessingOrder",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "reconcilePageIDs",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "nextReconcilePageIDs",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "reconcilePaidFulfillmentOrdersAt",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "reconcileProcessingOrdersAt",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "shouldRetryTimedOutOrder",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "expireTimedOutOrdersAt",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "normalizeOrderLookupOutTradeNo",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "paymentOrderShouldPersistUpstreamTradeNo",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "paymentOrderQueryReference",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "requeryPaidOrderOnce",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "applyQueriedPaymentStatus",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "queryPaymentOrderWithProvider",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "queryPaymentOrderProvider",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "checkPaid",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "paymentStatusUnavailableError",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "recordPaymentCancelFailure",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "finalizePendingOrder",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "processingCancellationResult",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "cancelCore",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "cancelRateLimitWindowStart",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": "checkCancelRateLimit",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "paymentExpiryRetryDelay"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "processingStaleAfter"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "fulfillmentRetryDelay"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "fulfillmentReconcileLimit"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "processingReconcileLimit"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "pendingPaymentReconcileLimit"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "checkPaidResultUncertain"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "checkPaidResultFailed"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "checkPaidResultProcessing"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "checkPaidResultCancelled"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_lifecycle_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "checkPaidResultAlreadyPaid"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "rateLimitModeFixed"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "rateLimitUnitHour"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "rateLimitUnitMinute"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_lifecycle.go",
+    "symbol": [
+      "rateLimitUnitDay"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_provider_snapshot.go",
+    "symbol": "providerMerchantIdentityMetadata",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_provider_snapshot.go",
+    "symbol": "validateProviderSnapshotMetadata",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_provider_snapshot.go",
+    "symbol": "expectedNotificationProviderKeyForOrder",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_order_provider_snapshot_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_order_provider_snapshot.go",
+    "symbol": "resolveSnapshotOrderProviderInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_provider_snapshot.go",
+    "symbol": "psSnapshotIntValue",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_provider_snapshot.go",
+    "symbol": "psSnapshotStringValue",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_provider_snapshot.go",
+    "symbol": "psOrderProviderSnapshot",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_order_provider_snapshot.go",
+    "symbol": [
+      "paymentOrderProviderSnapshot"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "refundResponseID",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "latestRefundPendingDetail",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": [
+      "refundPendingAuditDetail"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "finalizeRefundFailed",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "refundFinalizePlan",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "finalizePendingRefundSuccess",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "finishRefund",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "validateRefundProviderResponse",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "formatGatewayRefundAmount",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "gwRefund",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "paymentOrderSubscriptionValidityDays",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "prepDeduct",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "validateRefundRequest",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "psLegacyOrderMatchesInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "psFilterLegacyOrderProviderInstances",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "resolveUniqueLegacyOrderProviderInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "getRefundOrderProviderInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_refund.go",
+    "symbol": "getOrderProviderInstance",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_refund_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_resume_lookup.go",
+    "symbol": "invalidResumeTokenMatchError",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": "signPaymentResumePayload",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": "validatePaymentResumeExpiry",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": "splitHostPortDefault",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": "sameOriginHost",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": "buildPaymentReturnURL",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_resume_service_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": "allowedReturnURLHost",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": "visibleMethodSourceSettingKey",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_resume_service_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": "visibleMethodEnabledSettingKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": [
+      "wechatPaymentResumeTokenTTL"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": [
+      "paymentResumeTokenTTL"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": [
+      "paymentResumeNotConfiguredMessage"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": [
+      "paymentResumeNotConfiguredCode"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": [
+      "wechatPaymentResumeTokenType"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_resume_service_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_resume_service.go",
+    "symbol": [
+      "paymentResultReturnPath"
+    ],
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "applyPagination",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "psStartOfDayUTC",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "psSliceContains",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "parsePaymentResumeSigningKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "psTrimBillingInfo",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "psNilIfEmpty",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "psErrMsg",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "psIsRefundStatus",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "loadProviders",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "generateRandomString",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": "generateOutTradeNo",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_service.go",
+    "symbol": [
+      "defaultPageSize",
+      "maxPageSize",
+      "topUsersLimit",
+      "amountToleranceCNY",
+      "orderIDPrefix"
+    ],
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_service_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "roundAmount",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "roundCurrencyAmounts",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "buildTopUsers",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_stats_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "purchaseDistributionKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "buildPurchaseDistribution",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "loadPaymentDashboardPlanNames",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "buildMethodDistribution",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_stats_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "startOfPaymentStatsDay",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "buildDailySeries",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_stats_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "paymentDashboardReasoningPointPurchase",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "computeReasoningPointPurchaseUnitPrice",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "computeBasicStats",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_stats_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_stats.go",
+    "symbol": "fillPaymentDashboardTodayStats",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "resolveEnabledVisibleMethodInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "resolveVisibleMethodProviderKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "resolveVisibleMethodSourceProviderKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "validateVisibleMethodEnablementConflicts",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "selectVisibleMethodInstanceByProviderKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "distinctVisibleMethodProviderKeys",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "filterVisibleMethodInstancesByProviderKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "filterEnabledVisibleMethodInstances",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "providerSupportsVisibleMethod",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_visible_method_instances.go",
+    "symbol": "enabledVisibleMethodsForProvider",
+    "disposition": "unit signature projection only; S15/S16",
+    "compatibility_file": "backend/internal/service/payment_visible_method_instances_s12_compat_test.go"
+  },
+  {
+    "old": "backend/internal/service/payment_webhook_provider.go",
+    "symbol": "getEnabledWebhookProvidersByKey",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_webhook_provider.go",
+    "symbol": "psHasPinnedProviderInstance",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_webhook_provider.go",
+    "symbol": "webhookRegistryFallbackAllowed",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  },
+  {
+    "old": "backend/internal/service/payment_webhook_provider.go",
+    "symbol": "getPinnedOrderProvider",
+    "disposition": "deleted after all test consumers cleared",
+    "compatibility_file": null
+  }
+]

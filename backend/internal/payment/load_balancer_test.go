@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
-
-	dbent "github.com/TokenFlux/TokenRouter/ent"
 )
 
 func TestInstanceSupportsType(t *testing.T) {
@@ -118,8 +116,8 @@ func TestGetInstanceChannelLimitsFallsBackToLegacyDirectAliases(t *testing.T) {
 // Helper to build test PaymentProviderInstance values
 // ---------------------------------------------------------------------------
 
-func testInstance(id int64, providerKey, limits string) *dbent.PaymentProviderInstance {
-	return &dbent.PaymentProviderInstance{
+func testInstance(id int64, providerKey, limits string) *ProviderInstance {
+	return &ProviderInstance{
 		ID:          id,
 		ProviderKey: providerKey,
 		Limits:      limits,
@@ -354,7 +352,7 @@ func TestGetInstanceChannelLimits(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		inst        *dbent.PaymentProviderInstance
+		inst        *ProviderInstance
 		paymentType PaymentType
 		want        ChannelLimits
 	}{

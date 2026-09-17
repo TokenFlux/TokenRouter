@@ -107,12 +107,12 @@ func provideCoreRuntime(
 
 	manager.Register(lifecycle.Hook{Name: "PaymentOrderExpiryService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if paymentOrderExpiry != nil {
-			paymentOrderExpiry.Start()
+			paymentOrderExpiry.StartContext(ctx)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if paymentOrderExpiry != nil {
-			paymentOrderExpiry.Stop()
+			return paymentOrderExpiry.StopContext(ctx)
 		}
 		return nil
 	}})

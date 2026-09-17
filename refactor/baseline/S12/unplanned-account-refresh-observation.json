@@ -1,0 +1,80 @@
+{
+  "status": "plan adjustment requested; no extra reproduction or fix authorized yet",
+  "test": "TestManagedRefreshSharesLockAndStopWithBackground",
+  "account_go_files_checked": 358,
+  "changed_account_files": [],
+  "events": [
+    {
+      "Time": "2026-09-17T01:30:49.856307+08:00",
+      "Action": "run",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/account",
+      "Test": "TestManagedRefreshSharesLockAndStopWithBackground"
+    },
+    {
+      "Time": "2026-09-17T01:30:49.85631+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/account",
+      "Test": "TestManagedRefreshSharesLockAndStopWithBackground",
+      "Output": "=== RUN   TestManagedRefreshSharesLockAndStopWithBackground\n",
+      "OutputType": "frame"
+    },
+    {
+      "Time": "2026-09-17T01:30:49.85641+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/account",
+      "Test": "TestManagedRefreshSharesLockAndStopWithBackground",
+      "Output": "    refresh_managed_test.go:44: \n",
+      "OutputType": "error"
+    },
+    {
+      "Time": "2026-09-17T01:30:49.856565+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/account",
+      "Test": "TestManagedRefreshSharesLockAndStopWithBackground",
+      "Output": "        \tError Trace:\t/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/refresh_managed_test.go:44\n",
+      "OutputType": "error-continue"
+    },
+    {
+      "Time": "2026-09-17T01:30:49.856577+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/account",
+      "Test": "TestManagedRefreshSharesLockAndStopWithBackground",
+      "Output": "        \tError:      \tShould be zero, but was 1\n",
+      "OutputType": "error-continue"
+    },
+    {
+      "Time": "2026-09-17T01:30:49.856582+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/account",
+      "Test": "TestManagedRefreshSharesLockAndStopWithBackground",
+      "Output": "        \tTest:       \tTestManagedRefreshSharesLockAndStopWithBackground\n",
+      "OutputType": "error-continue"
+    },
+    {
+      "Time": "2026-09-17T01:30:49.856587+08:00",
+      "Action": "output",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/account",
+      "Test": "TestManagedRefreshSharesLockAndStopWithBackground",
+      "Output": "--- FAIL: TestManagedRefreshSharesLockAndStopWithBackground (0.00s)\n",
+      "OutputType": "frame"
+    },
+    {
+      "Time": "2026-09-17T01:30:49.856591+08:00",
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/account",
+      "Test": "TestManagedRefreshSharesLockAndStopWithBackground",
+      "Elapsed": 0
+    }
+  ],
+  "baseline_head": "fb052edc2dc76e9350de84414fc8d4fda3482191",
+  "subsequent_planned_runs": [
+    {
+      "result": "current-full-unit.result.json",
+      "note": "same test passed as part of planned full unit suite; no targeted reproduction performed"
+    },
+    {
+      "result": "current-full-integration.result.json",
+      "note": "same test passed as part of planned full integration suite; failure not considered resolved"
+    }
+  ]
+}

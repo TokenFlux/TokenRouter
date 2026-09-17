@@ -1043,6 +1043,8 @@ func TestReconcilePaidFulfillmentOrdersRetriesAfterQueryRecoveryFailure(t *testi
 	require.NotNil(t, failed.PaidAt)
 
 	svc.subscriptionSvc = &SubscriptionService{}
+	// 新运行图的依赖在构造时固定；恢复夹具重新装配，持久订单保持不变。
+	svc.BindOrderLifecycle(payment.NewOrderLifecycle(svc.paymentFulfillment(), svc.paymentResume(), nil))
 	recovered, err = svc.reconcilePaidFulfillmentOrdersAt(ctx, time.Now().Add(fulfillmentRetryDelay+time.Minute))
 	require.NoError(t, err)
 	require.Equal(t, 1, recovered)

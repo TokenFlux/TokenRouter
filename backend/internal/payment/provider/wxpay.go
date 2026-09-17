@@ -118,14 +118,8 @@ func (w *Wxpay) SupportedTypes() []payment.PaymentType {
 	return []payment.PaymentType{payment.TypeWxpay}
 }
 
-// ResolveWxpayJSAPIAppID returns the AppID that JSAPI prepay will use for a
-// given provider config. A dedicated MP AppID takes precedence over the base
-// merchant AppID.
 func ResolveWxpayJSAPIAppID(config map[string]string) string {
-	if appID := strings.TrimSpace(config["mpAppId"]); appID != "" {
-		return appID
-	}
-	return strings.TrimSpace(config["appId"])
+	return payment.ResolveWxpayJSAPIAppID(config)
 }
 
 func formatPEM(key, keyType string) string {

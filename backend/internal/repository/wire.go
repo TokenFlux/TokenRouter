@@ -40,7 +40,6 @@ func ProvideCreativeManagedKeyRepository(client *ent.Client, sqlDB *sql.DB) serv
 var ProviderSet = wire.NewSet(
 	NewGroupAvailabilityProbeRepository,
 	NewRedeemCodeRepository,
-	NewPromoCodeRepository,
 	NewBatchImageRepository,
 	NewCreativeRunRepository,
 	NewCreativeRunOutboxRepository,
@@ -52,7 +51,6 @@ var ProviderSet = wire.NewSet(
 
 	NewUserSubscriptionRepository,
 	NewUserGroupRateRepository,
-	NewAffiliateRepository,
 	NewUserPlatformQuotaRepository, // T14: user × platform quota
 
 	// Cache implementations

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "./internal/payment/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.893,
+  "pass": 108,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/payment-foundation-race.log.gz"
+}

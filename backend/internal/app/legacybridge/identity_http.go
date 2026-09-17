@@ -3,10 +3,11 @@ package legacybridge
 
 import (
 	context "context"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
-	strings "strings"
 )
 
 // IdentityHTTPSettings 只投影原运行时设置，各入口保持自己的读取时机。
@@ -64,12 +65,4 @@ func (s IdentityHTTPSettings) WeChatFrontend(ctx context.Context) string {
 		return strings.TrimSpace(v.FrontendRedirectURL)
 	}
 	return identityhttp.WechatOAuthDefaultFrontendCB
-}
-
-// IdentityPromotionPreview 调用原推广用例并投影 HTTP 所需展示值。
-func IdentityPromotionPreview(s *service.PromoService) func(context.Context, string) identityhttp.PromotionPreview {
-	return func(ctx context.Context, code string) identityhttp.PromotionPreview {
-		v := s.PreviewRegistrationPromotion(ctx, code)
-		return identityhttp.PromotionPreview{Valid: v.Valid, BonusAmount: v.BonusAmount, ErrorCode: v.ErrorCode}
-	}
 }

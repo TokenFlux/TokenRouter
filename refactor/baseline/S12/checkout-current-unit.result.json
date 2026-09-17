@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/payment/...",
+    "./internal/service",
+    "-run",
+    "Test.*(Payment|Order|Refund|Webhook)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 13.23,
+  "pass": 269,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/checkout-current-unit.log.gz"
+}

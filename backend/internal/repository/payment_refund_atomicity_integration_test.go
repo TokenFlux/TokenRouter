@@ -13,11 +13,14 @@ import (
 	"testing"
 	"time"
 
+	paymentpostgres "github.com/TokenFlux/TokenRouter/internal/payment/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
+
 	stripe "github.com/stripe/stripe-go/v85"
 )
 
@@ -94,7 +97,7 @@ func TestPaymentRefundPostgresAtomicity(t *testing.T) {
 				SetOperator("admin").SetDetail(`{"refundID":"re_s00","deductBalance":true,"balanceDeducted":50,"deductionRollbackOK":true}`).Save(ctx)
 			require.NoError(t, err)
 			svc := service.NewPaymentService(client, payment.NewRegistry(),
-				payment.NewDefaultLoadBalancer(client, nil), nil, nil, nil,
+				payment.NewDefaultLoadBalancer(paymentpostgres.NewInstanceStore(client), nil), nil, nil, nil,
 				NewUserRepository(client, integrationDB), nil, nil)
 
 			if concurrent {

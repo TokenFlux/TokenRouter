@@ -1,0 +1,22 @@
+[
+  {
+    "file": "internal/payment/load_balancer.go",
+    "rule": "core-payment-legacy-internal-payment-load_balancer-go"
+  },
+  {
+    "file": "internal/payment/registry.go",
+    "rule": "core-payment-legacy-internal-payment-registry-go"
+  },
+  {
+    "file": "internal/payment/wire.go",
+    "rule": "core-payment-legacy-internal-payment-wire-go"
+  },
+  {
+    "file": "internal/payment/load_balancer_test.go",
+    "rule": "core-payment-legacy-internal-payment-load_balancer_test-go"
+  },
+  {
+    "file": "internal/payment/wire_test.go",
+    "rule": "core-payment-legacy-internal-payment-wire_test-go"
+  }
+]

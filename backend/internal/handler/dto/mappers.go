@@ -2,16 +2,27 @@
 package dto
 
 import (
+	promotionhttp "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	accountdto "github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
+
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
+
 	identitydto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
+
 	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	usagedto "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto"
 )
 
@@ -213,34 +224,9 @@ func BulkAssignResultFromService(r *service.BulkAssignResult) *BulkAssignResult 
 	return billinghttpapi.BulkAssignResultFromService(r)
 }
 
-func PromoCodeFromService(pc *service.PromoCode) *PromoCode {
-	if pc == nil {
-		return nil
-	}
-	return &PromoCode{
-		ID:          pc.ID,
-		Code:        pc.Code,
-		BonusAmount: pc.BonusAmount,
-		MaxUses:     pc.MaxUses,
-		UsedCount:   pc.UsedCount,
-		Status:      pc.Status,
-		ExpiresAt:   pc.ExpiresAt,
-		Notes:       pc.Notes,
-		CreatedAt:   pc.CreatedAt,
-		UpdatedAt:   pc.UpdatedAt,
-	}
+func PromoCodeFromService(v *service.PromoCode) *PromoCode {
+	return promotionhttp.PromoCodeFromService(v)
 }
-
-func PromoCodeUsageFromService(u *service.PromoCodeUsage) *PromoCodeUsage {
-	if u == nil {
-		return nil
-	}
-	return &PromoCodeUsage{
-		ID:          u.ID,
-		PromoCodeID: u.PromoCodeID,
-		UserID:      u.UserID,
-		BonusAmount: u.BonusAmount,
-		UsedAt:      u.UsedAt,
-		User:        UserFromServiceShallow(u.User),
-	}
+func PromoCodeUsageFromService(v *service.PromoCodeUsage) *PromoCodeUsage {
+	return promotionhttp.PromoCodeUsageFromService(v)
 }

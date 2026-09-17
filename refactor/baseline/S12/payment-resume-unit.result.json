@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/payment/...",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "(?i)(Resume|Canonical|ReturnURL|VisibleMethod|WeChatPayment)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 4.654,
+  "pass": 2,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/payment-resume-unit.log.gz"
+}

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=3",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "-overlay=/tmp/tokenrouter-s12-planning/unit-overlay.json",
+    "./internal/service",
+    "-run",
+    "^TestS12Planning"
+  ],
+  "exit_code": 1,
+  "seconds": 5.604,
+  "pass": 0,
+  "fail": 15,
+  "skip": 0
+}

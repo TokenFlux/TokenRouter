@@ -1,0 +1,52 @@
+{
+  "approved": "全部纳入，保留先扣权益、失败或待确认回退的时序",
+  "discovery_closed": true,
+  "issues": [
+    {
+      "id": "B01",
+      "issue": "支付后台重复启动/停止后重开",
+      "tests": [
+        "TestS12PlanningExpiryRepeatedStart",
+        "TestS12PlanningExpiryStartAfterStop"
+      ]
+    },
+    {
+      "id": "B02",
+      "issue": "停止不取消在途工作",
+      "tests": [
+        "TestS12PlanningExpiryStopCancelsQuery"
+      ]
+    },
+    {
+      "id": "B03",
+      "issue": "渠道注册表失败后不重试/丢失旧发布",
+      "tests": [
+        "TestS12PlanningProvidersFailedInitialLoadRetries",
+        "TestS12PlanningProvidersFailedRefreshPreservesPublished"
+      ]
+    },
+    {
+      "id": "B04",
+      "issue": "迟到退款失败覆盖成功",
+      "tests": [
+        "TestS12PlanningStaleRefundFailureOverwritesSuccess"
+      ]
+    },
+    {
+      "id": "B05",
+      "issue": "退款恢复/成功审计不可靠",
+      "tests": [
+        "TestS12PlanningPendingRefundAuditLossSkipsDeduction",
+        "TestS12PlanningImmediateRefundAuditFailureIsNotReported"
+      ]
+    },
+    {
+      "id": "B06",
+      "issue": "并发返利突破上限",
+      "tests": [
+        "TestS12PlanningAffiliateCapConcurrentOrders"
+      ]
+    }
+  ],
+  "outside_scope": "计划确认后不主动查找新历史问题；偶遇只记录，阻塞验收先请求调整计划"
+}

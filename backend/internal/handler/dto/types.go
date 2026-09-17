@@ -3,12 +3,20 @@ package dto
 import (
 	"time"
 
+	promotionhttp "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
+
 	accountdto "github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
+
 	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
+
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
+
 	identitydto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
+
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+
 	usagedto "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto"
 )
 
@@ -79,27 +87,5 @@ type AdminUserSubscription = billinghttpapi.AdminUserSubscription
 
 type BulkAssignResult = billinghttpapi.BulkAssignResult
 
-// PromoCode 注册优惠码
-type PromoCode struct {
-	ID          int64      `json:"id"`
-	Code        string     `json:"code"`
-	BonusAmount float64    `json:"bonus_amount"`
-	MaxUses     int        `json:"max_uses"`
-	UsedCount   int        `json:"used_count"`
-	Status      string     `json:"status"`
-	ExpiresAt   *time.Time `json:"expires_at"`
-	Notes       string     `json:"notes"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-}
-
-// PromoCodeUsage 优惠码使用记录
-type PromoCodeUsage struct {
-	ID          int64     `json:"id"`
-	PromoCodeID int64     `json:"promo_code_id"`
-	UserID      int64     `json:"user_id"`
-	BonusAmount float64   `json:"bonus_amount"`
-	UsedAt      time.Time `json:"used_at"`
-
-	User *User `json:"user,omitempty"`
-}
+type PromoCode = promotionhttp.PromoCode
+type PromoCodeUsage = promotionhttp.PromoCodeUsage

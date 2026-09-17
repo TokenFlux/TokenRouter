@@ -3,14 +3,14 @@ package handler
 
 import (
 	context "context"
+	strings "strings"
+
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	provider "github.com/TokenFlux/TokenRouter/internal/identity/provider"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	gin "github.com/gin-gonic/gin"
-	url "net/url"
-	strings "strings"
 )
 
 const (
@@ -61,14 +61,6 @@ func linuxDoParseUserInfo(body string, cfg config.LinuxDoConnectConfig) (email s
 	return provider.LinuxDoParseUserInfo(body, linuxDoProviderOptions(cfg))
 }
 
-func redirectOAuthError(c *gin.Context, frontendCallback string, code string, message string, description string) {
-	identityhttp.RedirectOAuthError(c, frontendCallback, code, message, description)
-}
-
-func redirectWithFragment(c *gin.Context, frontendCallback string, fragment url.Values) {
-	identityhttp.RedirectOAuthFragment(c, frontendCallback, fragment)
-}
-
 func firstNonEmpty(values ...string) string { return identity.OAuthFirstNonEmpty(values...) }
 
 func parseOAuthProviderError(body string) (providerErr string, providerDesc string) {
@@ -90,10 +82,6 @@ func isRequestHTTPS(c *gin.Context) bool { return identityhttp.IsRequestHTTPS(c)
 func encodeCookieValue(value string) string { return identityhttp.EncodeCookieValue(value) }
 
 func decodeCookieValue(value string) (string, error) { return identityhttp.DecodeCookieValue(value) }
-
-func readCookieDecoded(c *gin.Context, name string) (string, error) {
-	return identityhttp.ReadCookieDecoded(c, name)
-}
 
 func buildBearerAuthorization(tokenType, accessToken string) (string, error) {
 	return provider.BuildBearerAuthorization(tokenType, accessToken)

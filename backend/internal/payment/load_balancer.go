@@ -4,14 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync/atomic"
 	"time"
-
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
-	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
 )
 
 // Strategy represents a load balancing strategy for provider instance selection.
@@ -40,9 +35,10 @@ type LoadBalancer interface {
 
 // DefaultLoadBalancer implements LoadBalancer using database queries.
 type DefaultLoadBalancer struct {
-	db            *dbent.Client
+	source        InstanceSource
 	encryptionKey []byte
 	counter       atomic.Uint64
+	runtime       SelectionRuntime
 }
 
 type contextKey string
@@ -50,8 +46,15 @@ type contextKey string
 const wxpayJSAPIAppIDContextKey contextKey = "payment.wxpay.jsapi_app_id"
 
 // NewDefaultLoadBalancer creates a new load balancer.
-func NewDefaultLoadBalancer(db *dbent.Client, encryptionKey []byte) *DefaultLoadBalancer {
-	return &DefaultLoadBalancer{db: db, encryptionKey: encryptionKey}
+func NewDefaultLoadBalancer(source InstanceSource, encryptionKey []byte, runtime ...SelectionRuntime) *DefaultLoadBalancer {
+	options := SelectionRuntime{Now: time.Now}
+	if len(runtime) > 0 {
+		options = runtime[0]
+		if options.Now == nil {
+			options.Now = time.Now
+		}
+	}
+	return &DefaultLoadBalancer{source: source, encryptionKey: encryptionKey, runtime: options}
 }
 
 func WithWxpayJSAPIAppID(ctx context.Context, appID string) context.Context {
@@ -72,7 +75,7 @@ func wxpayJSAPIAppIDFromContext(ctx context.Context) string {
 
 // instanceCandidate pairs an instance with its pre-fetched daily usage.
 type instanceCandidate struct {
-	inst      *dbent.PaymentProviderInstance
+	inst      *ProviderInstance
 	dailyUsed float64 // 包含待支付和渠道处理中的订单
 }
 
@@ -101,9 +104,9 @@ func (lb *DefaultLoadBalancer) SelectInstance(
 	candidates := lb.attachDailyUsage(ctx, instances)
 
 	// Step 3: filter by limits.
-	available := filterByLimits(candidates, paymentType, orderAmount)
+	available := filterByLimits(candidates, paymentType, orderAmount, lb.runtime.Observe)
 	if len(available) == 0 {
-		slog.Warn("all instances exceeded limits, using full candidate list",
+		lb.observe("warn", "all instances exceeded limits, using full candidate list",
 			"provider", providerKey, "payment_type", paymentType,
 			"order_amount", orderAmount, "count", len(candidates))
 		available = candidates
@@ -122,20 +125,13 @@ func (lb *DefaultLoadBalancer) queryEnabledInstances(
 	ctx context.Context,
 	providerKey string,
 	paymentType PaymentType,
-) ([]*dbent.PaymentProviderInstance, error) {
-	query := lb.db.PaymentProviderInstance.Query().
-		Where(paymentproviderinstance.Enabled(true))
-	if providerKey != "" {
-		query = query.Where(paymentproviderinstance.ProviderKey(providerKey))
-	}
-	instances, err := query.
-		Order(dbent.Asc(paymentproviderinstance.FieldSortOrder)).
-		All(ctx)
+) ([]*ProviderInstance, error) {
+	instances, err := lb.source.EnabledInstances(ctx, providerKey)
 	if err != nil {
 		return nil, fmt.Errorf("query provider instances: %w", err)
 	}
 
-	var matched []*dbent.PaymentProviderInstance
+	var matched []*ProviderInstance
 	expectedWxpayJSAPIAppID := wxpayJSAPIAppIDFromContext(ctx)
 	for _, inst := range instances {
 		// Stripe 按 provider_key 匹配，兼容旧 supported_types 子方式和新的服务商级 "stripe" 配置。
@@ -147,7 +143,7 @@ func (lb *DefaultLoadBalancer) queryEnabledInstances(
 			if expectedWxpayJSAPIAppID != "" && normalizeVisibleMethodSupportType(paymentType) == TypeWxpay && inst.ProviderKey == TypeWxpay {
 				config, cfgErr := lb.decryptConfig(inst.Config)
 				if cfgErr != nil {
-					slog.Warn("skip wxpay instance with unreadable config during jsapi filtering", "instance_id", inst.ID, "error", cfgErr)
+					lb.observe("warn", "skip wxpay instance with unreadable config during jsapi filtering", "instance_id", inst.ID, "error", cfgErr)
 					continue
 				}
 				if resolveWxpayJSAPIAppID(config) != expectedWxpayJSAPIAppID {
@@ -167,9 +163,9 @@ func (lb *DefaultLoadBalancer) queryEnabledInstances(
 // 占用量包含待支付和渠道处理中的订单，避免实例容量被超额分配。
 func (lb *DefaultLoadBalancer) attachDailyUsage(
 	ctx context.Context,
-	instances []*dbent.PaymentProviderInstance,
+	instances []*ProviderInstance,
 ) []instanceCandidate {
-	todayStart := startOfDay(time.Now())
+	todayStart := startOfDay(lb.runtime.Now())
 
 	// Collect instance IDs.
 	ids := make([]string, len(instances))
@@ -177,31 +173,9 @@ func (lb *DefaultLoadBalancer) attachDailyUsage(
 		ids[i] = fmt.Sprintf("%d", inst.ID)
 	}
 
-	// Batch query: sum pay_amount grouped by provider_instance_id.
-	type row struct {
-		InstanceID string  `json:"provider_instance_id"`
-		Sum        float64 `json:"sum"`
-	}
-	var rows []row
-	err := lb.db.PaymentOrder.Query().
-		Where(
-			paymentorder.ProviderInstanceIDIn(ids...),
-			paymentorder.StatusIn(
-				OrderStatusPending, OrderStatusProcessing, OrderStatusPaid,
-				OrderStatusCompleted, OrderStatusRecharging,
-			),
-			paymentorder.CreatedAtGTE(todayStart),
-		).
-		GroupBy(paymentorder.FieldProviderInstanceID).
-		Aggregate(dbent.Sum(paymentorder.FieldPayAmount)).
-		Scan(ctx, &rows)
+	usageMap, err := lb.source.DailyUsage(ctx, ids, todayStart)
 	if err != nil {
-		slog.Warn("batch daily usage query failed, treating all as zero", "error", err)
-	}
-
-	usageMap := make(map[string]float64, len(rows))
-	for _, r := range rows {
-		usageMap[r.InstanceID] = r.Sum
+		lb.observe("warn", "batch daily usage query failed, treating all as zero", "error", err)
 	}
 
 	candidates := make([]instanceCandidate, len(instances))
@@ -217,23 +191,24 @@ func (lb *DefaultLoadBalancer) attachDailyUsage(
 // filterByLimits removes instances that cannot accommodate the order:
 //   - orderAmount outside single-transaction [min, max]
 //   - daily remaining capacity (limit - used) < orderAmount
-func filterByLimits(candidates []instanceCandidate, paymentType PaymentType, orderAmount float64) []instanceCandidate {
+func filterByLimits(candidates []instanceCandidate, paymentType PaymentType, orderAmount float64, observers ...SelectionObserver) []instanceCandidate {
+	observe := selectionObserver(observers)
 	var result []instanceCandidate
 	for _, c := range candidates {
 		cl := getInstanceChannelLimits(c.inst, paymentType)
 
 		if cl.SingleMin > 0 && orderAmount < cl.SingleMin {
-			slog.Info("order below instance single min, skipping",
+			observe("info", "order below instance single min, skipping",
 				"instance_id", c.inst.ID, "order", orderAmount, "min", cl.SingleMin)
 			continue
 		}
 		if cl.SingleMax > 0 && orderAmount > cl.SingleMax {
-			slog.Info("order above instance single max, skipping",
+			observe("info", "order above instance single max, skipping",
 				"instance_id", c.inst.ID, "order", orderAmount, "max", cl.SingleMax)
 			continue
 		}
 		if cl.DailyLimit > 0 && c.dailyUsed+orderAmount > cl.DailyLimit {
-			slog.Info("instance daily remaining insufficient, skipping",
+			observe("info", "instance daily remaining insufficient, skipping",
 				"instance_id", c.inst.ID, "used", c.dailyUsed,
 				"order", orderAmount, "limit", cl.DailyLimit)
 			continue
@@ -245,7 +220,7 @@ func filterByLimits(candidates []instanceCandidate, paymentType PaymentType, ord
 }
 
 // getInstanceChannelLimits returns the channel limits for a specific payment type.
-func getInstanceChannelLimits(inst *dbent.PaymentProviderInstance, paymentType PaymentType) ChannelLimits {
+func getInstanceChannelLimits(inst *ProviderInstance, paymentType PaymentType) ChannelLimits {
 	if inst.Limits == "" {
 		return ChannelLimits{}
 	}
@@ -291,7 +266,7 @@ func pickLeastAmount(candidates []instanceCandidate) instanceCandidate {
 	return best
 }
 
-func (lb *DefaultLoadBalancer) buildSelection(selected *dbent.PaymentProviderInstance) (*InstanceSelection, error) {
+func (lb *DefaultLoadBalancer) buildSelection(selected *ProviderInstance) (*InstanceSelection, error) {
 	config, err := lb.decryptConfig(selected.Config)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt instance %d config: %w", selected.ID, err)
@@ -340,33 +315,20 @@ func (lb *DefaultLoadBalancer) decryptConfig(stored string) (map[string]string, 
 			}
 		}
 	}
-	slog.Warn("payment provider config unreadable, treating as empty for re-entry",
+	lb.observe("warn", "payment provider config unreadable, treating as empty for re-entry",
 		"stored_len", len(stored))
 	return nil, nil
 }
 
 // GetInstanceDailyAmount returns the total completed order amount for an instance today.
 func (lb *DefaultLoadBalancer) GetInstanceDailyAmount(ctx context.Context, instanceID string) (float64, error) {
-	todayStart := startOfDay(time.Now())
+	todayStart := startOfDay(lb.runtime.Now())
 
-	var result []struct {
-		Sum float64 `json:"sum"`
-	}
-	err := lb.db.PaymentOrder.Query().
-		Where(
-			paymentorder.ProviderInstanceID(instanceID),
-			paymentorder.StatusIn(OrderStatusCompleted, OrderStatusPaid, OrderStatusRecharging),
-			paymentorder.PaidAtGTE(todayStart),
-		).
-		Aggregate(dbent.Sum(paymentorder.FieldPayAmount)).
-		Scan(ctx, &result)
+	amount, err := lb.source.PaidDailyAmount(ctx, instanceID, todayStart)
 	if err != nil {
 		return 0, fmt.Errorf("query daily amount: %w", err)
 	}
-	if len(result) > 0 {
-		return result[0].Sum, nil
-	}
-	return 0, nil
+	return amount, nil
 }
 
 func startOfDay(t time.Time) time.Time {
@@ -420,7 +382,7 @@ func resolveWxpayJSAPIAppID(config map[string]string) string {
 
 // GetInstanceConfig 解密并返回 provider 实例配置；不可读配置会返回可写的空配置。
 func (lb *DefaultLoadBalancer) GetInstanceConfig(ctx context.Context, instanceID int64) (map[string]string, error) {
-	inst, err := lb.db.PaymentProviderInstance.Get(ctx, instanceID)
+	inst, err := lb.source.Instance(ctx, instanceID)
 	if err != nil {
 		return nil, fmt.Errorf("get instance %d: %w", instanceID, err)
 	}
@@ -432,4 +394,17 @@ func (lb *DefaultLoadBalancer) GetInstanceConfig(ctx context.Context, instanceID
 		config = map[string]string{}
 	}
 	return config, nil
+}
+
+// 观察端口不安装日志后端，app 保留原级别和字段。
+func (lb *DefaultLoadBalancer) observe(level, message string, attrs ...any) {
+	if lb.runtime.Observe != nil {
+		lb.runtime.Observe(level, message, attrs...)
+	}
+}
+func selectionObserver(values []SelectionObserver) SelectionObserver {
+	if len(values) > 0 && values[0] != nil {
+		return values[0]
+	}
+	return func(string, string, ...any) {}
 }

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/payment/...",
+    "./internal/service",
+    "-run",
+    "Test.*(Refund|Payment|Webhook|Dashboard|BuildDaily|BuildTop|ComputeBasic|Currency)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.933,
+  "pass": 189,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/query-refund-unit.log.gz"
+}

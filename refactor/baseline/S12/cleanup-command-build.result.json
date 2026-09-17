@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-o",
+    "bin/cleanup-ingress-reject-logs",
+    "./cmd/cleanup-ingress-reject-logs"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.438,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/cleanup-command-build.log.gz"
+}

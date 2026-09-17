@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	paymentpostgres "github.com/TokenFlux/TokenRouter/internal/payment/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/stretchr/testify/require"
@@ -53,7 +55,7 @@ func encryptWebhookProviderConfig(t *testing.T, config map[string]string) string
 }
 
 func newWebhookProviderTestLoadBalancer(client *dbent.Client) payment.LoadBalancer {
-	return payment.NewDefaultLoadBalancer(client, []byte(webhookProviderTestEncryptionKey))
+	return payment.NewDefaultLoadBalancer(paymentpostgres.NewInstanceStore(client), []byte(webhookProviderTestEncryptionKey))
 }
 
 func encryptValidWebhookWxpayConfig(t *testing.T, suffix string) string {

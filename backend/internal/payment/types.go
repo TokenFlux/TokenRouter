@@ -294,3 +294,6 @@ type DocumentProvider interface {
 type MerchantIdentityProvider interface {
 	MerchantIdentityMetadata() map[string]string
 }
+
+// EncryptionKey 只区分装配参数；配置解码与验证由 app 拥有。
+type EncryptionKey []byte

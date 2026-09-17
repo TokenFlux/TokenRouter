@@ -3,6 +3,7 @@ package postgres
 
 import (
 	context "context"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
@@ -172,4 +173,14 @@ func scanBalanceChange(ctx context.Context, client *dbent.Client, query string, 
 		return billing.BalanceChange{}, false, err
 	}
 	return change, true, rows.Err()
+}
+
+// CreditAffiliateTransfer 保留返利转入同时增加余额与累计充值的原规则，仅参与调用方事务。
+func (r *BalanceStore) CreditAffiliateTransfer(ctx context.Context, id int64, amount float64) error {
+	return r.UpdateBalance(ctx, id, amount)
+}
+
+// CreditRegistrationPromo 保留旧 Promo 的 UpdateBalance 语义：正数同步累计充值。
+func (r *BalanceStore) CreditRegistrationPromo(ctx context.Context, id int64, amount float64) error {
+	return r.UpdateBalance(ctx, id, amount)
 }
