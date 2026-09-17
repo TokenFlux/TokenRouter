@@ -4,9 +4,14 @@ package repository
 import (
 	context "context"
 	sql "database/sql"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
+	batchpostgres "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+	creativepostgres "github.com/TokenFlux/TokenRouter/internal/creative/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -17,7 +22,14 @@ type usageBillingRepository struct {
 
 // NewUsageBillingRepository 保留旧 Wire 入口，S04 装配更新后由 app 提供新实例。
 func NewUsageBillingRepository(_ *dbent.Client, db *sql.DB) service.UsageBillingRepository {
-	store := billingpostgres.NewSettlementStore(db, EnqueueAccountQuotaChangedInTx)
+	store := billingpostgres.NewSettlementStore(db, EnqueueAccountQuotaChangedInTx, billingpostgres.TaskProjectionFactories{
+		creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpostgres.TaskProjection {
+			return creativepostgres.NewFundingParticipant(tx, ref.ID)
+		},
+		batchimage.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpostgres.TaskProjection {
+			return batchpostgres.NewFundingParticipant(tx, ref.ID)
+		},
+	})
 	return NewUsageBillingAdapter(store, billing.NewFunds(store))
 }
 func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBillingCommand) (*service.UsageBillingApplyResult, error) {
@@ -64,3 +76,6 @@ func (r *usageBillingRepository) ReleaseBatchImageBalance(ctx context.Context, c
 func NewUsageBillingAdapter(store *billingpostgres.SettlementStore, funds *billing.Funds) service.UsageBillingRepository {
 	return &usageBillingRepository{inner: store, funds: funds}
 }
+
+// BillingFunds 向已迁任务交还 app 的唯一资金入口，避免再经过旧任务类型转换。
+func (r *usageBillingRepository) BillingFunds() *billing.Funds { return r.funds }

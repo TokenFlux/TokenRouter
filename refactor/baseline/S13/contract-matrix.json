@@ -1,0 +1,698 @@
+{
+  "counts_are_events_not_distinct_tests": true,
+  "contracts": [
+    {
+      "id": "B01",
+      "contract": "不可逆启动/停止",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "runtime-fixed-race.result.json",
+          "events": "runtime-fixed-race.events.json.gz",
+          "pass_events": 9,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13StoppedRuntimesRejectStart",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13StoppedRuntimesRejectStart/batchimage",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13StoppedRuntimesRejectStart/creative"
+          ]
+        },
+        {
+          "command": "final-unit-recheck.result.json",
+          "events": "final-unit-recheck.events.json.gz",
+          "pass_events": 3,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13StoppedRuntimesRejectStart",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13StoppedRuntimesRejectStart/batchimage",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13StoppedRuntimesRejectStart/creative"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B02",
+      "contract": "重复停止等待同一工作",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "runtime-fixed-race.result.json",
+          "events": "runtime-fixed-race.events.json.gz",
+          "pass_events": 3,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13RepeatedStopWaitsForSameWork"
+          ]
+        },
+        {
+          "command": "final-unit-recheck.result.json",
+          "events": "final-unit-recheck.events.json.gz",
+          "pass_events": 1,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13RepeatedStopWaitsForSameWork"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B03",
+      "contract": "清理立即停止信号稳定",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "runtime-fixed-race.result.json",
+          "events": "runtime-fixed-race.events.json.gz",
+          "pass_events": 3,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13CleanupImmediateStop"
+          ]
+        },
+        {
+          "command": "final-unit-recheck.result.json",
+          "events": "final-unit-recheck.events.json.gz",
+          "pass_events": 1,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13CleanupImmediateStop"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B04-storage",
+      "contract": "真实 Redis 旧持有者操作拒绝",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "tasks-integration-race.result.json",
+          "events": "tasks-integration-race.events.json.gz",
+          "pass_events": 3,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13BatchImageLostOwner",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13BatchImageLostOwner/old_ack_preserves_successor",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13BatchImageLostOwner/renewal_reports_loss"
+          ]
+        },
+        {
+          "command": "final-integration-recheck.result.json",
+          "events": "final-integration-recheck.events.json.gz",
+          "pass_events": 3,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13BatchImageLostOwner",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13BatchImageLostOwner/old_ack_preserves_successor",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13BatchImageLostOwner/renewal_reports_loss"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B04-worker",
+      "contract": "失去/无法确认租约取消 processor，禁止迟到队列修改",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "b04-worker-cancellation-race.result.json",
+          "events": "b04-worker-cancellation-race.events.json.gz",
+          "pass_events": 12,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/batchimage::TestWorkerLostLeaseCancelsProcessingWithoutQueueMutation",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage::TestWorkerLostLeaseCancelsProcessingWithoutQueueMutation/heartbeat_owner_lost",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage::TestWorkerLostLeaseCancelsProcessingWithoutQueueMutation/redis_cannot_confirm_owner",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage::TestWorkerLostLeaseCancelsProcessingWithoutQueueMutation/refresh_owner_lost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B05-fact",
+      "contract": "成功事实/outbox 原子回滚与结果丢失",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "tasks-integration-race.result.json",
+          "events": "tasks-integration-race.events.json.gz",
+          "pass_events": 1,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13ProviderOutcomeRollbackAndDeliveryLost"
+          ]
+        },
+        {
+          "command": "final-integration-recheck.result.json",
+          "events": "final-integration-recheck.events.json.gz",
+          "pass_events": 1,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13ProviderOutcomeRollbackAndDeliveryLost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B05-inference",
+      "contract": "保存失败不能再次推理、保持一次资金效果",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "final-unit-recheck.result.json",
+          "events": "final-unit-recheck.events.json.gz",
+          "pass_events": 5,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeSucceedRunIdempotentSettlement",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeWorkerCancelRace",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeWorkerRecoversPersistedProviderOutput",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeWorkerRetriesTransientOutputFailure",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13CreativeOutputFailureMustNotInferAgain"
+          ]
+        },
+        {
+          "command": "task-core-unit-recheck.result.json",
+          "events": "task-core-unit-recheck.events.json.gz",
+          "pass_events": 5,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeSucceedRunIdempotentSettlement",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeWorkerCancelRace",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeWorkerRecoversPersistedProviderOutput",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeWorkerRetriesTransientOutputFailure",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestS13CreativeOutputFailureMustNotInferAgain"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "B05-delivery",
+      "contract": "读取故障/明确丢失、保存重试上限与取消",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "b05-delivery-contracts-race.result.json",
+          "events": "b05-delivery-contracts-race.events.json.gz",
+          "pass_events": 7,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/creative::TestResultDeliveryCancellationStopsSaving",
+            "github.com/TokenFlux/TokenRouter/internal/creative::TestResultDeliveryDistinguishesUnavailableFromMissing",
+            "github.com/TokenFlux/TokenRouter/internal/creative::TestResultDeliveryDistinguishesUnavailableFromMissing/confirmed_missing",
+            "github.com/TokenFlux/TokenRouter/internal/creative::TestResultDeliveryDistinguishesUnavailableFromMissing/redis_unavailable",
+            "github.com/TokenFlux/TokenRouter/internal/creative::TestResultDeliveryRetriesOnlySaveAfterDurableFact",
+            "github.com/TokenFlux/TokenRouter/internal/creative::TestResultDeliveryRetriesOnlySaveAfterDurableFact/exhausted",
+            "github.com/TokenFlux/TokenRouter/internal/creative::TestResultDeliveryRetriesOnlySaveAfterDurableFact/retry_then_saved"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T01",
+      "contract": "并行真实执行的测试替身同步",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "creative-executor-race-recheck.result.json",
+          "events": "creative-executor-race-recheck.events.json.gz",
+          "pass_events": 3,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeWorkerRuntimeParallelProviderExecution"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "creative-api",
+      "contract": "工作区/用户/幂等/托管 Key/输入约束",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "final-unit-recheck.result.json",
+          "events": "final-unit-recheck.events.json.gz",
+          "pass_events": 34,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreateRunIdempotency",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeCreateRunPersistsOnlyMetadata",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeEnabledGate",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeEnabledGate/运行时关闭时_CreateRun_拒绝",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeEnabledGate/运行时关闭时_ListModels_返回空列表",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeEnabledGate/运行时开启时_ListModels_正常返回",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeEnabledGate/进程配置关闭时运行时开关无法打开",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeOwnershipEnforced",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestCreativeWorkspaceScopeIsolation",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestEnsureCreativeManagedKey",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestNormalizeCreativeWorkspaceID",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/Gemini_3.1_支持_512_和思考强度但保持单输出",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/Grok_2.0_质量比例通过且固定单输出",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/OpenAI_模型参数通过且固定单输出",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/edit_必须带源图",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/gemini_edit_不接受_mask",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/gemini_inpaint_直接拒绝",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/generate_参考图数量超限",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/grok_edit_支持单图且最多三张源图",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/grok_平台不支持_inpaint",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/inpaint_缺_mask",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/mask_尺寸不一致",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/mask_非_PNG",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/prompt_超长",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/分组未开启图片生成",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/单文件超限",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/合法_inpaint_通过且默认值生效",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/固定_PNG_输出且不接受输出格式参数",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/总输入超限",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/支持模型缺省参数自动选择产品默认值",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/模型不存在",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/非_inpaint_不允许_mask",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestValidateCreateParams/非法_MIME"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "task-funds",
+      "contract": "同连接投影、精度、历史快照、窗口和删除 Key/成员重放",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "tasks-integration-race.result.json",
+          "events": "tasks-integration-race.events.json.gz",
+          "pass_events": 11,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13NativeCreativeFundingReplay",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13TaskFundingProjectionRollback",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageAllowanceReserveCaptureAndRelease",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageLegacyJobChargesActualAmount",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageMemberAllowanceSerializesConcurrentReserve",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImagePartialSubscriptionUsesBalanceRate",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageReleaseAfterKeyDeletedAndMemberLeft",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageReleaseKeepsNewWindowConservative",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageReleaseOnlyUpdatesReservedMembership",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageUnlimitedKeyReleaseKeepsExistingUsage"
+          ]
+        },
+        {
+          "command": "final-integration-recheck.result.json",
+          "events": "final-integration-recheck.events.json.gz",
+          "pass_events": 11,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13NativeCreativeFundingReplay",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestS13TaskFundingProjectionRollback",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageAllowanceReserveCaptureAndRelease",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageLegacyJobChargesActualAmount",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageMemberAllowanceSerializesConcurrentReserve",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImagePartialSubscriptionUsesBalanceRate",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageReleaseAfterKeyDeletedAndMemberLeft",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageReleaseKeepsNewWindowConservative",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageReleaseOnlyUpdatesReservedMembership",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageSubscriptionFirstReserveAndCapture",
+            "github.com/TokenFlux/TokenRouter/internal/repository::TestUsageBillingRepositoryBatchImageUnlimitedKeyReleaseKeepsExistingUsage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "batch-workflow",
+      "contract": "提交/取消/索引/下载/清理/供应商",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "final-unit-recheck.result.json",
+          "events": "final-unit-recheck.events.json.gz",
+          "pass_events": 155,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageDownloadLimiter_AcquireDenyReleaseAndTTL",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_DuplicateEnqueueReturnsAlreadyQueued",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_HeartbeatOnlyRefreshesExistingActiveMember",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_JobLockRefreshExtendsTTLOnlyForHolder",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_JobLockReleaseOnlyDeletesMatchingToken",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_MoveDueDelayedToReadyMovesDueJobs",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_RecoverStaleActiveMovesStaleJobsToReady",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_RequeueAfterMovesJobFromActiveToDelayed",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_ReserveAtomicallyMovesJobToActive",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_ReserveDropsInvalidPayload",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache::TestBatchImageQueue_ReserveReturnsEmptyAfterTimeout",
+            "github.com/TokenFlux/TokenRouter/internal/billing/postgres::TestBatchImageHoldClaimRequestID",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageBalanceHoldKeepsAPIKeyBillingSnapshot",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageBillingRecoveryService_EnqueuesRetryWhenReleaseFails",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageBillingRecoveryService_ReleasesStaleUnsubmittedHold",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageBillingRecoveryService_SkipsJobRefreshedByHeartbeat",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_DeleteOutputsForOwner",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_DeleteOutputsForOwner/deletes_completed_output_and_returns_public_dto",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_DeleteOutputsForOwner/non_owner_returns_not_found",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_DeleteOutputsForOwner/not_completed_returns_not_ready",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_DeleteOutputsForOwner/provider_not_found_is_success",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_DeleteOutputsForOwner/provider_transient_error_is_sanitized_and_records_failure",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_DeleteOutputsForOwner/repeated_delete_is_idempotent",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_DeleteOutputsForOwner/unsafe_cleanup_path_is_not_swallowed",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_InputOutputAndWorker",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_InputOutputAndWorker/input_cleanup_marks_input_only",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_InputOutputAndWorker/output_cleanup_for_failed_job_keeps_status",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageCleanupService_InputOutputAndWorker/worker_processes_due_jobs_and_continues_after_failure",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadAfterOutputDeletedReturnsGone",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadFilenames",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_OpenItemContent",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_OpenItemContent/failed_item",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_OpenItemContent/missing_item",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_OpenItemContent/non_owner",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_OpenItemContent/not_completed",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_OpenItemContent/out_of_range",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_OpenItemContent/output_deleted",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_OpenItemContent/streams_image_bytes_with_safe_headers_data",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_StreamZip",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_StreamZip/limiter_denial_returns_public_limit_error",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_StreamZip/rejects_too_many_zip_items_before_opening_output",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageDownloadService_StreamZip/streams_zip_with_images_manifest_and_errors",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageHoldFingerprintIgnoresMutableAllowanceState",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageMVPFlow",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePipelineProcessor_FailsAndReleasesAfterSettlementRetryLimit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePipelineProcessor_RequeuesTransientSettlementFailure",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePipelineProcessor_SettlesQueuedSettlingJob",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePricingSnapshotUsesOneGroupVersion",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_StatusFlow",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_StatusFlow/cancelled_provider_marks_job_cancelled",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_StatusFlow/failed_provider_marks_job_failed",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_StatusFlow/queued_status_requeues",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_StatusFlow/running_status_updates_and_requeues",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_StatusFlow/succeeded_indexes_and_settles_from_submitted",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_StatusFlow/transient_provider_get_error_requeues",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_ValidationAndTerminalCases",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_ValidationAndTerminalCases/missing_account_id",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_ValidationAndTerminalCases/missing_provider",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_ValidationAndTerminalCases/missing_provider_job_name",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderProcessor_ValidationAndTerminalCases/terminal_job_returns_without_provider_call",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderRegistry_ReturnsGeminiAPI",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageProviderRegistry_ReturnsVertex",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_List",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_ListModels",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_ListModels/expands_wildcard_mappings_against_batch_image_candidates",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_ListModels/filters_models_without_batch_image_pricing",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_ListModels/rejects_when_group_disables_batch_image",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_ListModels/requires_explicit_account_model_mapping",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_ListModels/returns_priced_models_from_selected_account_group",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_StatusItemsAndCancel",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_StatusItemsAndCancel/cancel_active_job_calls_provider_and_waits_for_confirmed_terminal_state",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_StatusItemsAndCancel/cancel_hides_provider_raw_errors_behind_public_error",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_StatusItemsAndCancel/cancel_terminal_job_is_idempotent",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_StatusItemsAndCancel/items_are_filtered_paginated_and_sanitized",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_StatusItemsAndCancel/status_is_owner_scoped_and_maps_public_status",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/accepts_valid_request_stores_refs_and_enqueues_once",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/applies_channel_and_account_model_mappings_before_provider_submit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/combines_user_group_image_rate_account_rate_discount_and_hold_margin",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/expands_output_count_into_separate_billable_items",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/generates_custom_ids_deterministically",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/group_batch_image_disabled_rejects_before_provider_submit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/group_pricing_load_failure_rejects_before_provider_submit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/idempotency_conflict_rejects_changed_request",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/idempotency_returns_same_batch_without_provider_resubmit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/insufficient_balance_rejects_before_provider_submit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/persists_composite_route_identity_and_separates_idempotency",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/preferred_subscription_failure_rejects_before_provider_submit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/preferred_subscription_failure_rejects_before_provider_submit/group_not_allowed",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/preferred_subscription_failure_rejects_before_provider_submit/quota_exhausted",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/preferred_subscription_failure_rejects_before_provider_submit/unavailable",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/pricing_missing_rejects_before_provider_submit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/provider_failure_marks_failed_and_does_not_enqueue",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/provider_failure_with_release_failure_enqueues_billing_retry",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/public_response_does_not_expose_internals",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/queue_failure_is_recorded_after_provider_submit",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/rejects_too_many_items",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/rejects_too_many_output_images",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/rejects_too_many_reference_images_across_request",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/rejects_too_much_inline_reference_image_data_across_request",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/rejects_when_disabled",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/selects_batch_pricing_model_from_channel_billing_source",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/selects_requested_provider",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/uses_configured_group_1k_image_price_for_batch_image_base_price",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/uses_subscription_plan_group_rate_before_user_balance_rate",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/bad_reference_mime",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/duplicate_custom_ids",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/empty_items",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/empty_prompt",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/missing_model",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/prompt_too_long",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/reference_requires_data_or_file_uri",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/too_many_outputs_per_item",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/too_many_reference_images_for_flash",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/unsupported_provider",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImagePublicService_Submit/validates_request_fields/vertex_rejects_2k",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageResultIndexer_EmptyInvalidAndDuplicateOutput",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageResultIndexer_EmptyInvalidAndDuplicateOutput/duplicate_custom_id",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageResultIndexer_EmptyInvalidAndDuplicateOutput/empty",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageResultIndexer_EmptyInvalidAndDuplicateOutput/invalid_json",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageResultIndexer_ReconcilesMissingAndUnknownCustomIDs",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageResultIndexer_WritesCountsAndReplacesItems",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementBillingRequestIDs",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementManifestHash",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementOutputExpiration",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementRetryExhaustedReleaseIsIdempotentAfterTransitionFailure",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_BillingFailureLeavesSettlingAndRecordsError",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_CompletedJobReturnsAlreadySettledWithoutBilling",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_CostExceedingHoldDoesNotCharge",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_CostExceedsHoldExhaustsAndReleases",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_IdempotentAfterBillingCrash",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_InvalidCountsExhaustsAndReleases",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_RecordsSubscriptionFirstBilling",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_SettlesAndChargesSuccessfulImagesOnly",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_UsesSubmittedPricingSnapshot",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors/counts_exceed_item_count",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors/invalid_status",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors/manifest_conflict",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors/missing_account",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors/missing_api_key",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors/negative_fail_count",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors/negative_success_count",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ValidationErrors/pricing_missing",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageSettlementService_ZeroSuccessCanComplete",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageWorkerRuntime_QueueDisabledDoesNotStart",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageWorkerRuntime_QueueEnabledStartsAndStops",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageWorkerRuntime_StartupDoesNotCreateRedisBatchImageKeys",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageWorker_AcksTerminalResult",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageWorker_ProcessesJobOnce",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageWorker_RequeuesNonTerminalResultWithRequestedDelay",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageWorker_RequeuesOnProcessorError",
+            "github.com/TokenFlux/TokenRouter/internal/service::TestBatchImageWorker_RequeuesWhenJobLockNotAcquired",
+            "github.com/TokenFlux/TokenRouter/migrations::TestBatchImageInternalModelMigration"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "http",
+      "contract": "HTTP 输入次序、主体与下载关闭",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "native-http-contracts.result.json",
+          "events": "native-http-contracts.events.json.gz",
+          "pass_events": 2,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi::TestBatchHTTPDownloadClosesStream",
+            "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi::TestBatchHTTPSubmitProjectionAndParseOrder"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "shutdown",
+      "contract": "HTTP 活动未完成时不关闭依赖",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "task-activity-order-race.result.json",
+          "events": "task-activity-order-race.events.json.gz",
+          "pass_events": 3,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/app::TestTaskHTTPActivityTimeoutRetainsStorage"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "process",
+      "contract": "真实 standard/simple SIGTERM 任务关闭顺序",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "process-modes-recheck.result.json",
+          "events": "process-modes-recheck.events.json.gz",
+          "pass_events": 2,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/app::TestS02ProcessModes/simple-sigterm",
+            "github.com/TokenFlux/TokenRouter/internal/app::TestS02ProcessModes/standard-sigterm"
+          ]
+        },
+        {
+          "command": "final-integration-recheck.result.json",
+          "events": "final-integration-recheck.events.json.gz",
+          "pass_events": 2,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/app::TestS02ProcessModes/simple-sigterm",
+            "github.com/TokenFlux/TokenRouter/internal/app::TestS02ProcessModes/standard-sigterm"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "embed",
+      "contract": "真实前端产物嵌入注入",
+      "verified": true,
+      "evidence": [
+        {
+          "command": "real-embed-test.result.json",
+          "events": "real-embed-test.events.json.gz",
+          "pass_events": 106,
+          "fail_events": 0,
+          "skip_events": 0,
+          "tests": [
+            "github.com/TokenFlux/TokenRouter/internal/site/httpapi::TestAdminAnnouncementListSortDefaults",
+            "github.com/TokenFlux/TokenRouter/internal/site/httpapi::TestAdminAnnouncementListSortParams",
+            "github.com/TokenFlux/TokenRouter/internal/site/httpapi::TestAdminAnnouncementReadStatusSortDefaults",
+            "github.com/TokenFlux/TokenRouter/internal/site/httpapi::TestAdminAnnouncementReadStatusSortParams",
+            "github.com/TokenFlux/TokenRouter/internal/site/httpapi::TestPageHTTPBoundaryAndVisibility",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestEmbeddedFrontendBypassesBareVideoAPIRoutes",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestEmbeddedFrontendModelsRouteNegotiation",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestEmbeddedFrontendModelsRouteNegotiation/Codex_模型请求",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestEmbeddedFrontendModelsRouteNegotiation/JSON_API_请求",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestEmbeddedFrontendModelsRouteNegotiation/JSON_优先的混合请求",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestEmbeddedFrontendModelsRouteNegotiation/带_API_Key_的请求",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestEmbeddedFrontendModelsRouteNegotiation/浏览器页面导航",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_InjectSettings",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_InjectSettings/handles_complex_settings",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_InjectSettings/injects_before_head_close",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_InjectSettings/injects_settings_with_nonce_placeholder",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_InvalidateCache",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_InvalidateCache/handles_nil_cache",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_InvalidateCache/handles_nil_server",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_InvalidateCache/invalidates_cache",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/serves_index_for_spa_routes",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/serves_index_for_spa_routes//",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/serves_index_for_spa_routes//dashboard",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/serves_index_for_spa_routes//settings/profile",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/serves_index_for_spa_routes//users/123",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/serves_model_marketplace_for_browser_navigation",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/serves_static_files",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_alpha_search_post_route",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//antigravity/test",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//api/v1/users",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//backend-api/codex/responses",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//backend-api/codex/responses/compact",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//health",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//models",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//responses",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//responses/compact",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//setup/init",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//v1/models",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_api_routes//v1beta/chat",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_Middleware/skips_responses_compact_post_routes",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_ServeIndexHTML",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_ServeIndexHTML/caches_html_content",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_ServeIndexHTML/fallback_on_settings_error",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_ServeIndexHTML/returns_304_for_matching_etag",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_ServeIndexHTML/serves_html_with_nonce",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_ServeIndexHTML/sets_cache_control_header",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestFrontendServer_ServeIndexHTML/sets_etag_header",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestHTMLCache",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestHTMLCache/etag_changes_with_settings",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestHTMLCache/etag_format",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestHTMLCache/invalidate_clears_cache",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestHTMLCache/new_cache_returns_nil",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestHTMLCache/set_and_get",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestHasEmbeddedFrontend",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestHasEmbeddedFrontend/returns_true_when_frontend_embedded",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteFavicon",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteFavicon/escapes_logo_url_for_html",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteFavicon/rejects_unsafe_logo_urls",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteFavicon/replaces_favicon_with_site_logo",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteFavicon/supports_relative_and_data_image_urls",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/escapes_ampersand_in_site_name",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/escapes_html_in_site_name",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/preserves_rest_of_html",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/replaces_title_with_site_name",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/returns_unchanged_when_invalid_json",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/returns_unchanged_when_no_title_tag",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/returns_unchanged_when_site_name_empty",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/returns_unchanged_when_site_name_missing",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestInjectSiteTitle/returns_unchanged_when_title_has_attributes",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestNewFrontendServer",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestNewFrontendServer/creates_server_successfully",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestNewFrontendServer/reads_base_html",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestNonceHTMLPlaceholder",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestNonceHTMLPlaceholder/constant_value",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestOverrideFilesNeverReceiveImmutableCacheHeaders",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestOverrideFilesNeverReceiveImmutableCacheHeaders/frontend_server_override",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestOverrideFilesNeverReceiveImmutableCacheHeaders/legacy_override",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestReplaceNoncePlaceholder",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestReplaceNoncePlaceholder/handles_empty_html",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestReplaceNoncePlaceholder/handles_empty_nonce",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestReplaceNoncePlaceholder/no_placeholder_returns_unchanged",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestReplaceNoncePlaceholder/replaces_multiple_placeholders",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestReplaceNoncePlaceholder/replaces_single_placeholder",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/serves_index_html_for_root",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/serves_index_html_for_spa_routes",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/serves_index_html_for_spa_routes//dashboard",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/serves_index_html_for_spa_routes//settings",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/serves_index_html_for_spa_routes//users/123",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/serves_model_marketplace_for_browser_navigation",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/serves_static_files",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//antigravity/test",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//api/users",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//backend-api/codex/responses",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//backend-api/codex/responses/compact",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//health",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//models",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//responses",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//responses/compact",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//setup/init",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//v1/models",
+            "github.com/TokenFlux/TokenRouter/internal/web::TestServeEmbeddedFrontend/skips_api_routes//v1beta/chat"
+          ]
+        }
+      ]
+    }
+  ],
+  "missing_or_skipped": []
+}

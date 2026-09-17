@@ -275,10 +275,19 @@ func TestCreativeSucceedRunRequiresTransientOutput(t *testing.T) {
 				Index: 0, Success: true, Bytes: outputBytes, Mime: "image/png",
 			}})
 
-			require.ErrorIs(t, err, ErrCreativeTransientFailed)
-			require.Equal(t, CreativeRunStatusRunning, repo.runs[runID].Status)
-			require.Equal(t, CreativeRunOutputStatusPending, repo.outputs[runID][0].Status)
-			require.Equal(t, 0, svc.BillingRepo.(*creativeFakeBillingRepo).captureN)
+			billingRepo, ok := svc.BillingRepo.(*creativeFakeBillingRepo)
+			require.True(t, ok)
+			if test.name == "empty output" {
+				require.ErrorIs(t, err, ErrCreativeTransientFailed)
+				require.Equal(t, CreativeRunStatusRunning, repo.runs[runID].Status)
+				require.Equal(t, CreativeRunOutputStatusPending, repo.outputs[runID][0].Status)
+				require.Zero(t, billingRepo.captureN)
+			} else {
+				// 已发生服务但无法交付时，保持一次计费，绝不能假报 succeeded。
+				require.NoError(t, err)
+				require.Equal(t, CreativeRunStatusResultLost, repo.runs[runID].Status)
+				require.Equal(t, 1, billingRepo.captureN)
+			}
 		})
 	}
 }

@@ -6,11 +6,12 @@ import (
 	hex "encoding/hex"
 	errors "errors"
 	fmt "fmt"
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	decimal "github.com/shopspring/decimal"
 	math "math"
 	strings "strings"
 	time "time"
+
+	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	decimal "github.com/shopspring/decimal"
 )
 
 var ErrUsageBillingRequestIDRequired = errors.New("usage billing request_id is required")
@@ -486,18 +487,14 @@ func CloneBillingAllocation(allocation BillingAllocation, amount float64) Billin
 	return cloned
 }
 
-// TaskKind 限定本阶段接入的任务投影，S13 由所属存储适配替换。
-type TaskKind uint8
+// TaskScope 是装配时登记的任务投影命名空间，资金核心不解释具体任务种类。
+type TaskScope string
 
-const (
-	TaskBatchImage TaskKind = iota
-	TaskCreative
-)
-
-// TaskReference 只标识任务，不把任务表名带入资金核心。
+// TaskReference 显式携带原预占动作 ID；新增路由字段不参与历史指纹。
 type TaskReference struct {
-	Kind TaskKind
-	ID   string
+	Scope            TaskScope
+	ID               string
+	ReserveRequestID string
 }
 
 const taskCostEpsilon = 0.00000001

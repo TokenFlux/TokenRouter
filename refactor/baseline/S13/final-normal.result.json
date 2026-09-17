@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 197.014,
+  "pass": 11757,
+  "fail": 0,
+  "skip": 4,
+  "log": "logs/final-normal.log.gz"
+}

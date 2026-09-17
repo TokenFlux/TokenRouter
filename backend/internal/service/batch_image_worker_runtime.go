@@ -1,26 +1,29 @@
+// 兼容构造委托 batchimage 生命周期，S15/S16 清理。
 package service
 
 import (
 	"context"
-	"sync"
 
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 )
 
 type BatchImageWorkerRuntime struct {
+	*batchimage.Runtime
 	worker          *BatchImageWorker
 	billingRecovery *BatchImageBillingRecoveryService
-	cfg             *config.Config
-
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	done   chan struct{}
 }
 
 func NewBatchImageWorkerRuntime(worker *BatchImageWorker, cfg *config.Config) *BatchImageWorkerRuntime {
-	return &BatchImageWorkerRuntime{worker: worker, cfg: cfg}
+	r := &BatchImageWorkerRuntime{worker: worker}
+	enabled := worker != nil && cfg != nil && cfg.BatchImage.QueueEnabled
+	var loops []func(context.Context)
+	if worker != nil {
+		loops = []func(context.Context){worker.Run, worker.RunDelayedMover, worker.RunStaleActiveRecovery, r.runBillingRecovery}
+	}
+	r.Runtime = batchimage.NewRuntime("batch image worker", enabled, loops...)
+	return r
 }
-
 func ProvideBatchImageWorkerRuntime(
 	repo BatchImageRepository,
 	accountRepo AccountRepository,
@@ -30,11 +33,12 @@ func ProvideBatchImageWorkerRuntime(
 	pricing *BatchImageModelPricingResolver,
 	authCache APIKeyAuthCacheInvalidator,
 	cfg *config.Config,
+	registries ...*BatchImageProviderRegistry,
 ) *BatchImageWorkerRuntime {
 	processor := &BatchImagePipelineProcessor{
 		ProviderProcessor: &BatchImageProviderProcessor{
 			Repo:             repo,
-			ProviderRegistry: NewBatchImageProviderRegistryFromConfig(cfg),
+			ProviderRegistry: batchRegistryFromOptions(cfg, registries),
 			AccountResolver:  &BatchImageAccountRepositoryResolver{Repo: accountRepo},
 			BillingRepo:      billingRepo,
 			AuthCache:        authCache,
@@ -60,51 +64,11 @@ func ProvideBatchImageWorkerRuntime(
 
 	return runtime
 }
-
-func (r *BatchImageWorkerRuntime) Start() {
-	if r == nil || r.worker == nil || r.cfg == nil || !r.cfg.BatchImage.QueueEnabled {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.cancel != nil {
-		return
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	r.cancel = cancel
-	r.done = done
-
-	var wg sync.WaitGroup
-	wg.Add(4)
-	go func() {
-		defer wg.Done()
-		r.worker.Run(ctx)
-	}()
-	go func() {
-		defer wg.Done()
-		r.worker.RunDelayedMover(ctx)
-	}()
-	go func() {
-		defer wg.Done()
-		r.worker.RunStaleActiveRecovery(ctx)
-	}()
-	go func() {
-		defer wg.Done()
-		r.runBillingRecovery(ctx)
-	}()
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
-}
-
 func (r *BatchImageWorkerRuntime) runBillingRecovery(ctx context.Context) {
 	if r == nil || r.worker == nil || r.billingRecovery == nil {
 		return
 	}
-	interval := r.worker.opts.RecoveryInterval
+	interval := r.worker.Options().RecoveryInterval
 	for {
 		if err := ctx.Err(); err != nil {
 			return
@@ -112,32 +76,4 @@ func (r *BatchImageWorkerRuntime) runBillingRecovery(ctx context.Context) {
 		_, _ = r.billingRecovery.ReleaseStaleUnsubmittedOnce(ctx)
 		sleepOrDone(ctx, interval)
 	}
-}
-
-func (r *BatchImageWorkerRuntime) Stop() {
-	if r == nil {
-		return
-	}
-	r.mu.Lock()
-	cancel := r.cancel
-	done := r.done
-	r.cancel = nil
-	r.done = nil
-	r.mu.Unlock()
-
-	if cancel != nil {
-		cancel()
-	}
-	if done != nil {
-		<-done
-	}
-}
-
-func (r *BatchImageWorkerRuntime) Running() bool {
-	if r == nil {
-		return false
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.cancel != nil
 }

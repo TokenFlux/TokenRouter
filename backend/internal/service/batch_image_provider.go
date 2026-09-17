@@ -2,14 +2,11 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"net/http"
-	"strings"
-	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
 
 type BatchImageProvider interface {
@@ -23,18 +20,11 @@ type BatchImageProvider interface {
 }
 
 type BatchImageProviderRegistry struct {
-	providers map[string]BatchImageProvider
+	inner *batchimage.Registry[BatchImageProvider]
 }
 
 func NewBatchImageProviderRegistry(providers ...BatchImageProvider) *BatchImageProviderRegistry {
-	r := &BatchImageProviderRegistry{providers: make(map[string]BatchImageProvider, len(providers))}
-	for _, provider := range providers {
-		if provider == nil || strings.TrimSpace(provider.Name()) == "" {
-			continue
-		}
-		r.providers[provider.Name()] = provider
-	}
-	return r
+	return &BatchImageProviderRegistry{inner: batchimage.NewRegistry(providers...)}
 }
 
 func NewDefaultBatchImageProviderRegistry() *BatchImageProviderRegistry {
@@ -55,126 +45,55 @@ func (r *BatchImageProviderRegistry) Get(provider string) (BatchImageProvider, b
 	if r == nil {
 		return nil, false
 	}
-	p, ok := r.providers[provider]
-	return p, ok
+	return r.inner.Get(provider)
 }
 
 func (r *BatchImageProviderRegistry) MustGet(provider string) (BatchImageProvider, error) {
-	p, ok := r.Get(provider)
-	if !ok {
+	if r == nil {
 		return nil, ErrBatchImageInvalidProvider
 	}
-	return p, nil
+	return r.inner.MustGet(provider)
 }
 
-type BatchImageInput struct {
-	BatchID     string
-	Model       string
-	DisplayName string
-	Items       []BatchImageInputItem
+type BatchImageInput = batchimage.BatchImageInput
 
-	ResponseMimeType string
-	AspectRatio      string
-	ImageSize        string
+type BatchImageInputItem = batchimage.BatchImageInputItem
 
-	Metadata map[string]string
-}
+type BatchImageReference = batchimage.BatchImageReference
 
-type BatchImageInputItem struct {
-	CustomID string
-	Prompt   string
+type BatchProviderJob = batchimage.BatchProviderJob
 
-	ReferenceImages []BatchImageReference
-}
+type BatchProviderInternalState = batchimage.BatchProviderInternalState
 
-type BatchImageReference struct {
-	ID       string
-	Type     string
-	MimeType string
-	Data     []byte
-	FileURI  string
-}
+const BatchProviderStateQueued = batchimage.BatchProviderStateQueued
+const BatchProviderStateRunning = batchimage.BatchProviderStateRunning
+const BatchProviderStateSucceeded = batchimage.BatchProviderStateSucceeded
+const BatchProviderStateFailed = batchimage.BatchProviderStateFailed
+const BatchProviderStateCancelled = batchimage.BatchProviderStateCancelled
+const BatchProviderStateExpired = batchimage.BatchProviderStateExpired
 
-type BatchProviderJob struct {
-	ProviderJobName   string
-	ProviderInputRef  string
-	ProviderOutputRef string
-	RawState          string
-}
+type BatchProviderStatus = batchimage.BatchProviderStatus
 
-type BatchProviderInternalState string
+type CleanupTarget = batchimage.CleanupTarget
 
-const (
-	BatchProviderStateQueued    BatchProviderInternalState = "queued"
-	BatchProviderStateRunning   BatchProviderInternalState = "running"
-	BatchProviderStateSucceeded BatchProviderInternalState = "succeeded"
-	BatchProviderStateFailed    BatchProviderInternalState = "failed"
-	BatchProviderStateCancelled BatchProviderInternalState = "cancelled"
-	BatchProviderStateExpired   BatchProviderInternalState = "expired"
-)
+const CleanupTargetInput = batchimage.CleanupTargetInput
+const CleanupTargetOutput = batchimage.CleanupTargetOutput
+const CleanupTargetAll = batchimage.CleanupTargetAll
 
-type BatchProviderStatus struct {
-	RawState string
+var ErrBatchImageProviderUnsupportedAccount = batchimage.ErrBatchImageProviderUnsupportedAccount
+var ErrBatchImageProviderMissingAPIKey = batchimage.ErrBatchImageProviderMissingAPIKey
+var ErrBatchImageProviderMissingServiceAccount = batchimage.ErrBatchImageProviderMissingServiceAccount
+var ErrBatchImageProviderMissingJobName = batchimage.ErrBatchImageProviderMissingJobName
+var ErrBatchImageProviderMissingResultRef = batchimage.ErrBatchImageProviderMissingResultRef
+var ErrBatchImageProviderInlineResultUnsupported = batchimage.ErrBatchImageProviderInlineResultUnsupported
+var ErrBatchImageProviderInvalidInput = batchimage.ErrBatchImageProviderInvalidInput
+var ErrBatchImageProviderUnsafeCleanupPath = batchimage.ErrBatchImageProviderUnsafeCleanupPath
+var ErrUnsupportedCleanupTarget = batchimage.ErrUnsupportedCleanupTarget
 
-	InternalState BatchProviderInternalState
-	Done          bool
-
-	ProviderOutputRef string
-
-	ErrorCode    string
-	ErrorMessage string
-
-	SuggestedRequeueAfter time.Duration
-}
-
-type CleanupTarget string
-
-const (
-	CleanupTargetInput  CleanupTarget = "input"
-	CleanupTargetOutput CleanupTarget = "output"
-	CleanupTargetAll    CleanupTarget = "all"
-)
-
-var (
-	ErrBatchImageProviderUnsupportedAccount      = infraerrors.New(http.StatusBadRequest, "BATCH_IMAGE_PROVIDER_UNSUPPORTED_ACCOUNT", "batch image provider does not support this account")
-	ErrBatchImageProviderMissingAPIKey           = infraerrors.New(http.StatusBadRequest, "BATCH_IMAGE_PROVIDER_MISSING_API_KEY", "batch image provider account is missing api key")
-	ErrBatchImageProviderMissingServiceAccount   = infraerrors.New(http.StatusBadRequest, "BATCH_IMAGE_PROVIDER_MISSING_SERVICE_ACCOUNT", "batch image provider account is missing service account credentials")
-	ErrBatchImageProviderMissingJobName          = infraerrors.New(http.StatusBadRequest, "BATCH_IMAGE_PROVIDER_MISSING_JOB_NAME", "batch image provider job name is missing")
-	ErrBatchImageProviderMissingResultRef        = infraerrors.New(http.StatusBadRequest, "BATCH_IMAGE_PROVIDER_MISSING_RESULT_REF", "batch image provider result reference is missing")
-	ErrBatchImageProviderInlineResultUnsupported = infraerrors.New(http.StatusBadRequest, "GEMINI_INLINE_BATCH_RESULT_UNSUPPORTED", "Gemini inline batch result is not supported")
-	ErrBatchImageProviderInvalidInput            = infraerrors.New(http.StatusBadRequest, "BATCH_IMAGE_PROVIDER_INVALID_INPUT", "invalid batch image provider input")
-	ErrBatchImageProviderUnsafeCleanupPath       = infraerrors.New(http.StatusBadRequest, "VERTEX_UNSAFE_CLEANUP_PATH", "unsafe batch image cleanup path")
-	ErrUnsupportedCleanupTarget                  = infraerrors.New(http.StatusBadRequest, "BATCH_IMAGE_PROVIDER_UNSUPPORTED_CLEANUP_TARGET", "unsupported batch image cleanup target")
-)
-
-func batchImageProviderJobName(job *BatchImageJob) string {
-	if job == nil || job.ProviderJobName == nil {
-		return ""
+// 显式传入时复用 app 的唯一注册表；旧独立构造保持默认行为。
+func batchRegistryFromOptions(cfg *config.Config, registries []*BatchImageProviderRegistry) *BatchImageProviderRegistry {
+	if len(registries) > 0 {
+		return registries[0]
 	}
-	return strings.TrimSpace(*job.ProviderJobName)
-}
-
-func batchImageProviderInputRef(job *BatchImageJob) string {
-	if job == nil || job.ProviderInputRef == nil {
-		return ""
-	}
-	return strings.TrimSpace(*job.ProviderInputRef)
-}
-
-func batchImageProviderOutputRef(job *BatchImageJob) string {
-	if job == nil || job.ProviderOutputRef == nil {
-		return ""
-	}
-	return strings.TrimSpace(*job.ProviderOutputRef)
-}
-
-func batchImageProviderAPIKey(account *Account) string {
-	if account == nil {
-		return ""
-	}
-	return strings.TrimSpace(account.GetCredential("api_key"))
-}
-
-func batchImageProviderInputError(format string, args ...any) error {
-	return ErrBatchImageProviderInvalidInput.WithCause(fmt.Errorf(format, args...))
+	return NewBatchImageProviderRegistryFromConfig(cfg)
 }

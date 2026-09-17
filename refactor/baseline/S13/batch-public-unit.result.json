@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "^Test(BatchImage|Media)",
+    "./internal/service",
+    "./internal/batchimage/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.04,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/batch-public-unit.log.gz"
+}

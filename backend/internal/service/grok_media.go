@@ -31,7 +31,6 @@ const GrokMediaEndpointVideosEdits = nativegrok.GrokMediaEndpointVideosEdits
 const GrokMediaEndpointVideosExtensions = nativegrok.GrokMediaEndpointVideosExtensions
 const GrokMediaEndpointVideoStatus = nativegrok.GrokMediaEndpointVideoStatus
 const GrokMediaEndpointVideoContent = nativegrok.GrokMediaEndpointVideoContent
-const grokMediaMaxEditSourceImages = nativegrok.GrokMediaMaxEditSourceImages
 
 type GrokMediaRequestInfo = nativegrok.GrokMediaRequestInfo
 

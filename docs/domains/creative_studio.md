@@ -89,6 +89,7 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 
 `POST .../outputs/{index}/ack` 用于客户端确认输出已保存到本地：先把输出标记为 `acked`，再删除对应临时输出键，删除失败由 transient reconciler 重试，重复 ack 幂等成功。只有结算完成并进入可交付终态的 run 才能读取/ack 输出。
 
+<a id="creative_task_lifecycle"></a>
 ## 生命周期
 
 任务状态机（`creative_run_outbox` 持久化 provisioning、settle、release 动作）：
@@ -109,7 +110,7 @@ succeeded -> result_lost
 
 worker 从 Redis 预留任务后先读取用户最新并发配置，并通过现有用户并发槽位执行一次非阻塞准入；随后由平台对应的现有账号调度器选择账号并预占账号槽位。两类槽位任一暂时不可用时，任务保持 `queued`，不增加执行次数、不改变计费预占，按约 1 秒短延迟重排以释放 worker。只有用户和账号都准入后才幂等推进 `running`，provider 返回结果后在结算前持久化真实执行账号；执行前检查任务是否已处于 `cancelled`。历史竞态任务若 provider 已成功，仍按实际成功输出捕获费用并记录用量，但终态保持 `cancelled`，绝不回写为 `succeeded`。
 
-执行错误的重试边界：网络层错误、429 与 5xx 视为可重试，按 `max_execute_attempts`（默认 3，含首次）递增尝试并重排；其余 4xx 不可重试直接进入 `release_pending`。provider 成功后先保存 Redis 输出元数据并进入 `provider_succeeded`，后续只重试 settle/capture/usage log，不重新调用 provider；结算失败保持 `settlement_pending`，绝不 ACK 非终态任务。
+执行错误的重试边界：网络层错误、429 与 5xx 视为可重试，按 `max_execute_attempts`（默认 3，含首次）递增尝试并重排；其余 4xx 不可重试直接进入 `release_pending`。provider 成功后先原子记录成功元数据与 outbox，后续只恢复结果保存与 settle/capture/usage log，不重新调用 provider；结算失败保持 `settlement_pending`，绝不 ACK 非终态任务。
 
 ## 幂等
 
@@ -129,7 +130,7 @@ worker 从 Redis 预留任务后先读取用户最新并发配置，并通过现
 
 ## 计费
 
-创作台的旧资金入口将命令投影为 billing 的受控任务引用，并委托唯一 `Funds.Reserve/Capture/Release`。billing/postgres 仍在资金事务内更新 `creative_runs` 的冻结分配和预记标记；任务状态机、提供商执行和恢复仍留创作台，迁移不改原请求 ID 或历史指纹。创作台按所选尺寸基础单价估价，快照订阅/余额倍率；没有批量折扣与账号倍率。质量、背景和思考强度不参与创作台价格计算，输出格式不参与价格计算且不由客户端指定，实际 MIME 以供应商返回为准。每次任务固定只生成一张图片。资金动作的请求 ID 前缀固定，全部经 `usage_billing_dedup` 幂等：
+创作台资金规则由 `creative.Funding` 拥有，调用唯一 `billing.Funds.Reserve/Capture/Release`。`creative/postgres.FundingParticipant` 使用 billing 本次 SQL 事务写入冻结分配和预记标记；billing 不再选择任务表。app 登记任务 scope 与参与工厂，引用显式携带原预占动作 ID，新字段不加入历史指纹。创作台按所选尺寸基础单价估价，快照订阅/余额倍率；没有批量折扣与账号倍率。质量、背景和思考强度不参与创作台价格计算，输出格式不参与价格计算且不由客户端指定，实际 MIME 以供应商返回为准。每次任务固定只生成一张图片。资金动作的请求 ID 前缀固定，全部经 `usage_billing_dedup` 幂等：
 
 ```text
 creative_hold:{run_id}      创建任务时预占
@@ -157,9 +158,9 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 | `creative:mask:{run_id}` | mask 字节 | TTL 或 `DeleteRunTransient` |
 | `creative:output:{run_id}:{index}` | 单张生成图字节 | TTL、ack 即删或 `DeleteRunTransient` |
 
-输出保存时同时把 `transient_expires_at` 写入输出元数据，客户端据此知道取回截止时间；ack 立即删除对应输出键。worker 只有在输出字节成功写入 transient store 后才会把任务标记为 `provider_succeeded` 并创建 settle outbox，capture 与终态提交完成后才进入 `succeeded`；Redis 写入失败会保持可重试状态，避免出现成功状态却没有可取图片的任务。
+输出保存时同时把 `transient_expires_at` 写入输出元数据，客户端据此知道取回截止时间；ack 立即删除对应输出键。`creative.ResultDelivery` 先在 PostgreSQL 的同一事务记录供应商成功时间、实际账号、输出元数据和 settle outbox，再保存 Redis 输出；成功事实不等于可交付成功。保存最多三次、间隔一秒、总预算五秒，停止或租约丢失终止保存。保存耗尽或明确丢失时按已成功图片捕获一次费用并进入 `result_lost`，不会重新推理；Redis 读取故障保留待恢复，不直接当作永久丢失。只有结果可读取且结算完成时才进入 `succeeded`。
 
-队列协调（`creative:queue:*`）与批量图片同构：ready 列表、delayed 有序集合、active 有序集合、单任务 inflight 键（默认 TTL 7 天）、单任务锁键（默认 TTL 300 秒）；入队与预留用 Lua 脚本原子执行。每次领取生成 lease token，心跳、锁续期、重排、ACK 和 stale recovery 都校验 token；失去租约的 worker 取消执行 context，不得写任务、输出、计费或队列状态。`creative_run_outbox` reconciler 负责 provisioning/settle/release 恢复，transient reconciler 负责终态 Redis 清理。`creative.queue_enabled` 默认开启，应用启动时运行 `creative_worker_count` 个任务 worker（默认 128）、一个 delayed mover、一个 stale active recovery 和两个 reconciler；worker 数量通过管理端功能设置热更新，详见[接口](../interfaces/http_api.md)。
+队列协调（`creative:queue:*`）与批量图片同构：ready 列表、delayed 有序集合、active 有序集合、单任务 inflight 键（默认 TTL 7 天）、单任务锁键（默认 TTL 300 秒）；入队与预留用 Lua 脚本原子执行。每次领取生成 lease token，心跳、锁续期、重排、ACK 和 stale recovery 都校验 token；失去租约的 worker 取消执行 context，不得写任务、输出、计费或队列状态。`creative_run_outbox` reconciler 负责 provisioning/settle/release 恢复，transient reconciler 负责终态 Redis 清理。队列、临时存储和元数据实现分别位于 `creative/rediscache`、`creative/postgres`，创建与目录位于 `creative.Public`，单次尝试位于 `creative.Executor`，结果推进、恢复与公开查询位于 `creative.Results`/`Queries`，平台请求由 `creative/provider` 使用绑定的技术能力执行。app 固定唯一生产实例，旧服务入口仅作兼容投影。`creative.queue_enabled` 默认开启，应用启动时运行 `creative_worker_count` 个任务 worker（默认 128）、一个 delayed mover、一个 stale active recovery 和两个 reconciler；worker 数量通过管理端功能设置热更新，详见[接口](../interfaces/http_api.md)。
 
 ## 审核无留存
 

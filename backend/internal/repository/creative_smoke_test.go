@@ -160,6 +160,8 @@ func (r *smokeFakeRunRepo) UpdateCreativeRunOutput(ctx context.Context, runID st
 			output.MimeType = &mimeType
 			output.ByteSize = &byteSize
 			output.TransientExpiresAt = transientExpiresAt
+			output.ErrorCode = &errorCode
+			output.ErrorMessage = &errorMessage
 			return nil
 		}
 	}
@@ -491,4 +493,31 @@ func smokeTestPNG(t *testing.T) []byte {
 	var buf bytes.Buffer
 	require.NoError(t, png.Encode(&buf, img))
 	return buf.Bytes()
+}
+
+// 新成功事实端口沿用本冒烟测试的内存仓储；真正的原子回滚由 PostgreSQL 回归覆盖。
+func (r *smokeFakeRunRepo) RecordProviderOutcome(ctx context.Context, id string, accountID int64, outputs []service.CreativeRunOutput, now time.Time) error {
+	run, err := r.GetCreativeRunByRunID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if run.ProviderResultRecordedAt != nil {
+		return nil
+	}
+	snapshots := make([]*service.CreativeRunOutput, len(outputs))
+	for i := range outputs {
+		value := outputs[i]
+		snapshots[i] = &value
+	}
+	r.outputs[id] = snapshots
+	return r.MarkCreativeRunProviderSucceeded(ctx, id, accountID, now)
+}
+func (r *smokeFakeRunRepo) CompleteProviderOutcome(ctx context.Context, id string, cost float64, lost bool, now time.Time) error {
+	if err := r.MarkCreativeRunSucceeded(ctx, id, cost, now); err != nil {
+		return err
+	}
+	if lost {
+		r.runs[id].Status = service.CreativeRunStatusResultLost
+	}
+	return nil
 }

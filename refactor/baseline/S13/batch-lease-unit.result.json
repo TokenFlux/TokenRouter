@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "^TestBatchImage(Worker|Queue)",
+    "./internal/service",
+    "./internal/repository"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 32.13,
+  "pass": 17,
+  "fail": 1,
+  "skip": 0,
+  "log": "logs/batch-lease-unit.log.gz"
+}

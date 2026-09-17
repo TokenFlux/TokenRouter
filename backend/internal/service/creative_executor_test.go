@@ -277,7 +277,7 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 		{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, encoded)))},
 		{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, encoded)))},
 	}}
-	executor := &CreativeExecutor{gateway: &OpenAIGatewayService{httpUpstream: upstream}}
+	executor := NewCreativeExecutor(nil, nil, nil, &OpenAIGatewayService{httpUpstream: upstream}, nil, nil, nil)
 	account := &Account{
 		ID:       41,
 		Platform: PlatformGrok,
@@ -403,7 +403,7 @@ func TestBuildCreativeGeminiRequest(t *testing.T) {
 // TestCreativeGeminiInpaintIsRejectedBeforeUpstream 校验历史 Gemini inpaint 任务不会触发上游请求。
 func TestCreativeGeminiInpaintIsRejectedBeforeUpstream(t *testing.T) {
 	upstream := &httpUpstreamRecorder{}
-	executor := &CreativeExecutor{gateway: &OpenAIGatewayService{httpUpstream: upstream}}
+	executor := NewCreativeExecutor(nil, nil, nil, &OpenAIGatewayService{httpUpstream: upstream}, nil, nil, nil)
 	_, err := executor.executeGemini(context.Background(), CreativeRun{Operation: CreativeOperationInpaint}, CreativeRunPayload{}, &Account{ID: 1}, "gemini-3.1-flash-image")
 	require.Error(t, err)
 	require.False(t, IsRetryableCreativeError(err))

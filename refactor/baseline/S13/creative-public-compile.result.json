@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-json",
+    "-run",
+    "^$",
+    "./internal/creative/...",
+    "./internal/service",
+    "./internal/apikey"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 18.136,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/creative-public-compile.log.gz"
+}

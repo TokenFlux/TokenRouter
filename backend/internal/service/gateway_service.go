@@ -31,7 +31,6 @@ import (
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
@@ -1065,37 +1064,6 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 
 	// 写入文件（调试用，并发写入可能交错但不影响可读性）
 	_, _ = f.WriteString(buf.String())
-}
-
-func cloneBillingAllocations(allocations []domain.BillingAllocation) []domain.BillingAllocation {
-	if len(allocations) == 0 {
-		return nil
-	}
-	cloned := make([]domain.BillingAllocation, 0, len(allocations))
-	for i := range allocations {
-		allocation := allocations[i]
-		if allocation.SubscriptionID != nil {
-			subscriptionID := *allocation.SubscriptionID
-			allocation.SubscriptionID = &subscriptionID
-		}
-		if allocation.PlanID != nil {
-			planID := *allocation.PlanID
-			allocation.PlanID = &planID
-		}
-		cloned = append(cloned, allocation)
-	}
-	return cloned
-}
-
-func firstAllocatedSubscriptionID(allocations []domain.BillingAllocation) *int64 {
-	for i := range allocations {
-		if allocations[i].Type != domain.BillingAllocationTypeSubscription || allocations[i].SubscriptionID == nil {
-			continue
-		}
-		subscriptionID := *allocations[i].SubscriptionID
-		return &subscriptionID
-	}
-	return nil
 }
 
 // ExpireRuntimeCaches 由应用拥有的时间轮调用，保留原缓存到期清理频率。

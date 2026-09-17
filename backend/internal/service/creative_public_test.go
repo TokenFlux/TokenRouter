@@ -714,10 +714,10 @@ func TestValidateCreateParams(t *testing.T) {
 		params.Background = "transparent"
 		validated, err := svc.validateCreateParams(context.Background(), 7, &params)
 		require.NoError(t, err)
-		require.Equal(t, 1, validated.outputCount)
-		require.Equal(t, "16:9", validated.aspectRatio)
-		require.Equal(t, "auto", validated.quality)
-		require.Equal(t, "transparent", validated.background)
+		require.Equal(t, 1, validated.OutputCount)
+		require.Equal(t, "16:9", validated.AspectRatio)
+		require.Equal(t, "auto", validated.Quality)
+		require.Equal(t, "transparent", validated.Background)
 	})
 
 	t.Run("固定 PNG 输出且不接受输出格式参数", func(t *testing.T) {
@@ -728,9 +728,9 @@ func TestValidateCreateParams(t *testing.T) {
 		params.Background = "transparent"
 		validated, err := svc.validateCreateParams(context.Background(), 7, &params)
 		require.NoError(t, err)
-		require.Equal(t, "1:1", validated.aspectRatio)
-		require.Equal(t, "medium", validated.quality)
-		require.Equal(t, "transparent", validated.background)
+		require.Equal(t, "1:1", validated.AspectRatio)
+		require.Equal(t, "medium", validated.Quality)
+		require.Equal(t, "transparent", validated.Background)
 
 		params.OutputCount = 11
 		_, err = svc.validateCreateParams(context.Background(), 7, &params)
@@ -746,9 +746,9 @@ func TestValidateCreateParams(t *testing.T) {
 		params.Quality = "low"
 		validated, err := svc.validateCreateParams(context.Background(), 7, &params)
 		require.NoError(t, err)
-		require.Equal(t, "low", validated.quality)
-		require.Equal(t, "21:9", validated.aspectRatio)
-		require.Equal(t, 1, validated.outputCount)
+		require.Equal(t, "low", validated.Quality)
+		require.Equal(t, "21:9", validated.AspectRatio)
+		require.Equal(t, 1, validated.OutputCount)
 	})
 
 	t.Run("支持模型缺省参数自动选择产品默认值", func(t *testing.T) {
@@ -758,8 +758,8 @@ func TestValidateCreateParams(t *testing.T) {
 		params.Model = "grok-imagine-image-2.0"
 		validated, err := svc.validateCreateParams(context.Background(), 7, &params)
 		require.NoError(t, err)
-		require.Equal(t, "auto", validated.aspectRatio)
-		require.Equal(t, "medium", validated.quality)
+		require.Equal(t, "auto", validated.AspectRatio)
+		require.Equal(t, "medium", validated.Quality)
 
 		svc = newCreativeTestService()
 		configureOpenAICreativeTestService(svc)
@@ -767,16 +767,16 @@ func TestValidateCreateParams(t *testing.T) {
 		params.Model = "gpt-image-2"
 		validated, err = svc.validateCreateParams(context.Background(), 7, &params)
 		require.NoError(t, err)
-		require.Equal(t, "1:1", validated.aspectRatio)
-		require.Equal(t, "medium", validated.quality)
-		require.Equal(t, "auto", validated.background)
+		require.Equal(t, "1:1", validated.AspectRatio)
+		require.Equal(t, "medium", validated.Quality)
+		require.Equal(t, "auto", validated.Background)
 
 		svc = newCreativeTestService()
 		params = validCreateParams()
 		validated, err = svc.validateCreateParams(context.Background(), 7, &params)
 		require.NoError(t, err)
-		require.Equal(t, "1:1", validated.aspectRatio)
-		require.Equal(t, "minimal", validated.thinkingLevel)
+		require.Equal(t, "1:1", validated.AspectRatio)
+		require.Equal(t, "minimal", validated.ThinkingLevel)
 	})
 
 	t.Run("Gemini 3.1 支持 512 和思考强度但保持单输出", func(t *testing.T) {
@@ -787,8 +787,8 @@ func TestValidateCreateParams(t *testing.T) {
 		params.ThinkingLevel = "high"
 		validated, err := svc.validateCreateParams(context.Background(), 7, &params)
 		require.NoError(t, err)
-		require.Equal(t, "512", validated.imageSize)
-		require.Equal(t, "high", validated.thinkingLevel)
+		require.Equal(t, "512", validated.ImageSize)
+		require.Equal(t, "high", validated.ThinkingLevel)
 
 		params.OutputCount = 2
 		_, err = svc.validateCreateParams(context.Background(), 7, &params)
@@ -992,10 +992,10 @@ func TestValidateCreateParams(t *testing.T) {
 		params.Mask = &CreativeInputImage{Bytes: makeTestPNG(t, 8, 8), Mime: "image/png"}
 		validated, err := svc.validateCreateParams(context.Background(), 7, &params)
 		require.NoError(t, err)
-		require.Equal(t, "1K", validated.imageSize)
-		require.Equal(t, 1, validated.outputCount)
-		require.NotEmpty(t, validated.fingerprint)
-		require.NotEmpty(t, validated.promptHash)
+		require.Equal(t, "1K", validated.ImageSize)
+		require.Equal(t, 1, validated.OutputCount)
+		require.NotEmpty(t, validated.Fingerprint)
+		require.NotEmpty(t, validated.PromptHash)
 	})
 }
 
@@ -1192,7 +1192,7 @@ func TestCreativeGeminiNanoBananaCandidates(t *testing.T) {
 		require.True(t, isCreativeGeminiImageModel(model), "模型 %q 应识别为 Gemini 生图模型", model)
 		require.True(t, creativePlatformImageModel(PlatformGemini, model), "模型 %q 应通过执行器图片模型校验", model)
 		capabilities := creativeCapabilitiesForModel(PlatformGemini, model)
-		require.NotEmpty(t, capabilities.aspectRatios, "模型 %q 应暴露 Gemini 图片能力", model)
+		require.NotEmpty(t, capabilities.AspectRatios, "模型 %q 应暴露 Gemini 图片能力", model)
 	}
 	require.False(t, isCreativeGeminiImageModel("nano-banana"), "不完整的 nano-banana 名称不应被识别")
 
@@ -1227,4 +1227,31 @@ func TestCreativeModelSettingsFilterAndCreateValidation(t *testing.T) {
 	params.SourceImages = []CreativeInputImage{{Bytes: makeTestPNG(t, 8, 8), Mime: "image/png"}}
 	_, err = svc.validateCreateParams(context.Background(), 7, &params)
 	require.NoError(t, err)
+}
+
+// 测试存储模拟闭合成功事实操作；真实回滚由 PostgreSQL 集成测试验证。
+func (r *creativeFakeRunRepo) RecordProviderOutcome(ctx context.Context, id string, accountID int64, outputs []CreativeRunOutput, now time.Time) error {
+	run, err := r.GetCreativeRunByRunID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if run.ProviderResultRecordedAt != nil {
+		return nil
+	}
+	for _, output := range outputs {
+		if err := r.UpdateCreativeRunOutput(ctx, id, output.OutputIndex, output.Status, creativeDerefString(output.MimeType), creativeDerefInt64(output.ByteSize), output.TransientExpiresAt, creativeDerefString(output.ErrorCode), creativeDerefString(output.ErrorMessage)); err != nil {
+			return err
+		}
+	}
+	return r.MarkCreativeRunProviderSucceeded(ctx, id, accountID, now)
+}
+func (r *creativeFakeRunRepo) CompleteProviderOutcome(ctx context.Context, id string, cost float64, lost bool, now time.Time) error {
+	if err := r.MarkCreativeRunSucceeded(ctx, id, cost, now); err != nil {
+		return err
+	}
+	run := r.runs[id]
+	if lost && run.Status != CreativeRunStatusCancelled {
+		run.Status = CreativeRunStatusResultLost
+	}
+	return nil
 }

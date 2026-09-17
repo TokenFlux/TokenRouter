@@ -269,8 +269,6 @@ var ProviderSet = wire.NewSet(
 	NewTotpHandler,
 	NewPasskeyHandler,
 	ProvideSettingHandler,
-	NewBatchImageHandler,
-	NewCreativeHandler,
 	NewTeamHandler,
 
 	// Admin handlers

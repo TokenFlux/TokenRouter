@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
+	batchpg "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/require"
 
@@ -35,7 +38,7 @@ func TestReserveUsageBillingBatchImageBalance_MovesAvailableToFrozen(t *testing.
 		WillReturnRows(sqlmock.NewRows([]string{"balance", "frozen_balance"}).AddRow(7.5, 2.5))
 	mock.ExpectCommit()
 
-	result, err := reserveUsageBillingBatchImageBalance(ctx, tx, &billing.TaskFundsCommand{UserID: 42, HoldAmount: 2.5})
+	result, err := reserveUsageBillingTaskBalance(ctx, tx, &billing.TaskFundsCommand{UserID: 42, HoldAmount: 2.5})
 	require.NoError(t, err)
 	require.NotNil(t, result.NewBalance)
 	require.NotNil(t, result.FrozenBalance)
@@ -62,7 +65,7 @@ func TestReserveUsageBillingBatchImageBalance_InsufficientBalance(t *testing.T) 
 		WillReturnRows(sqlmock.NewRows([]string{"?column?"}).AddRow(1))
 	mock.ExpectRollback()
 
-	_, err = reserveUsageBillingBatchImageBalance(ctx, tx, &billing.TaskFundsCommand{UserID: 42, HoldAmount: 10})
+	_, err = reserveUsageBillingTaskBalance(ctx, tx, &billing.TaskFundsCommand{UserID: 42, HoldAmount: 10})
 	require.ErrorIs(t, err, billing.ErrTaskInsufficientBalance)
 	require.NoError(t, tx.Rollback())
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -104,10 +107,10 @@ func TestReserveUsageBillingBatchImageBilling_UsesBalanceRateAfterPartialSubscri
 	mock.ExpectCommit()
 
 	groupID := int64(7)
-	result, err := reserveUsageBillingBatchImageBilling(ctx, tx, &billing.TaskFundsCommand{
+	result, err := reserveUsageBillingTaskBilling(ctx, tx, batchpg.NewFundingParticipant(tx, "imgbatch_partial_rate"), &billing.TaskFundsCommand{
 		UserID:                          42,
 		GroupID:                         &groupID,
-		Task:                            billing.TaskReference{ID: "imgbatch_partial_rate"},
+		Task:                            batchimage.FundingReference("imgbatch_partial_rate"),
 		HoldAmount:                      0.5,
 		PricingSnapshotVersion:          2,
 		BaseAmountUSD:                   1,
@@ -159,9 +162,9 @@ func TestReserveUsageBillingBatchImageBilling_StrictSubscriptionRejectsPartialHo
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectRollback()
 
-	_, err = reserveUsageBillingBatchImageBilling(ctx, tx, &billing.TaskFundsCommand{
+	_, err = reserveUsageBillingTaskBilling(ctx, tx, batchpg.NewFundingParticipant(tx, "imgbatch_strict_subscription"), &billing.TaskFundsCommand{
 		UserID:                  42,
-		Task:                    billing.TaskReference{ID: "imgbatch_strict_subscription"},
+		Task:                    batchimage.FundingReference("imgbatch_strict_subscription"),
 		HoldAmount:              0.5,
 		APIKeyBillingMode:       billing.APIKeyBillingModeSubscription,
 		PreferredSubscriptionID: &preferredID,
@@ -281,7 +284,7 @@ func TestCaptureUsageBillingBatchImageBalance_ReleasesRemainder(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"balance", "frozen_balance"}).AddRow(9.75, 0.0))
 	mock.ExpectCommit()
 
-	result, err := captureUsageBillingBatchImageBalance(ctx, tx, &billing.TaskFundsCommand{UserID: 42, HoldAmount: 1, ActualAmount: 0.25})
+	result, err := captureUsageBillingTaskBalance(ctx, tx, &billing.TaskFundsCommand{UserID: 42, HoldAmount: 1, ActualAmount: 0.25})
 	require.NoError(t, err)
 	require.InDelta(t, 9.75, *result.NewBalance, 0.000001)
 	require.InDelta(t, 0.0, *result.FrozenBalance, 0.000001)
@@ -300,7 +303,7 @@ func TestCaptureUsageBillingBatchImageBalance_RejectsActualCostOverHold(t *testi
 	require.NoError(t, err)
 	mock.ExpectRollback()
 
-	_, err = captureUsageBillingBatchImageBalance(ctx, tx, &billing.TaskFundsCommand{UserID: 42, HoldAmount: 0.5, ActualAmount: 1})
+	_, err = captureUsageBillingTaskBalance(ctx, tx, &billing.TaskFundsCommand{UserID: 42, HoldAmount: 0.5, ActualAmount: 1})
 	require.ErrorIs(t, err, billing.ErrTaskSettlementCostExceedsHold)
 	require.NoError(t, tx.Rollback())
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -323,7 +326,7 @@ func TestReleaseUsageBillingBatchImageBalance_ReturnsFrozenToAvailable(t *testin
 		WillReturnRows(sqlmock.NewRows([]string{"balance", "frozen_balance"}).AddRow(10.0, 0.0))
 	mock.ExpectCommit()
 
-	result, err := releaseUsageBillingBatchImageBilling(ctx, tx, &billing.TaskFundsCommand{UserID: 42, APIKeyID: 7, Task: billing.TaskReference{ID: "imgbatch_release"}, HoldAmount: 1})
+	result, err := releaseUsageBillingTaskBilling(ctx, tx, &billing.TaskFundsCommand{UserID: 42, APIKeyID: 7, Task: batchimage.FundingReference("imgbatch_release"), HoldAmount: 1})
 	require.NoError(t, err)
 	require.InDelta(t, 10.0, *result.NewBalance, 0.000001)
 	require.InDelta(t, 0.0, *result.FrozenBalance, 0.000001)
@@ -350,7 +353,7 @@ func TestReleaseUsageBillingBatchImageBalance_SkipsWhenHoldNeverReserved(t *test
 		WillReturnError(sql.ErrNoRows)
 	mock.ExpectCommit()
 
-	result, err := releaseUsageBillingBatchImageBilling(ctx, tx, &billing.TaskFundsCommand{UserID: 42, APIKeyID: 7, Task: billing.TaskReference{ID: "imgbatch_phantom"}, HoldAmount: 1})
+	result, err := releaseUsageBillingTaskBilling(ctx, tx, &billing.TaskFundsCommand{UserID: 42, APIKeyID: 7, Task: batchimage.FundingReference("imgbatch_phantom"), HoldAmount: 1})
 	require.NoError(t, err)
 	require.Nil(t, result.NewBalance)
 	require.Nil(t, result.FrozenBalance)

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "^Test.*(BatchImage|ModelAlias)",
+    "./internal/handler",
+    "./internal/batchimage/httpapi"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 5.208,
+  "pass": 1,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/batch-http-unit-recheck.log.gz"
+}

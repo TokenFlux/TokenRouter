@@ -79,6 +79,8 @@ gateway 的请求值与固定 `Execute` 契约位于 `gateway/execution`；该�
 
 删除迁出文件的专用 depguard 规则时，必须同步移除普通角色中的对应排除项，否则旧路径可能变成未被任何角色匹配的空洞。验证覆盖删除后恢复同名文件、旧文件新增禁止 import、同目录新文件及非法子包，不能只检查迁出后的正向 lint。
 
+creative、batchimage 的核心、HTTP、PostgreSQL、Redis 与平台 Adapter 使用各自角色门禁。任务资金引用的 scope 只在 app 注册，所属存储参与者不得开启或提交自己的事务；真实 PostgreSQL 测试必须覆盖投影失败整体回滚和旧请求 ID 重放。平台及 GCS 测试使用本地夹具，不能用真实收费生成替代回归。成功元数据、输出保存和资金效果分别核验，输出保存失败不能重新调用供应商；临时 Redis 故障也不能直接断言结果永久丢失。
+
 所有手写代码都要写必要注释，注释使用中文；生成文件不手改。注释应解释约束、失败语义或非显然原因，不复述语句。跨模块不变量应同步到 Project Doc，并在关键手写入口添加唯一 `@project-doc` 锚点。
 
 前端使用 Vue 3、TypeScript、Pinia、Vue Router、Vue I18n 和项目组件。修改界面时：

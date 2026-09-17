@@ -487,8 +487,6 @@ func (a *Account) GetClaudeUserID() string {
 	return view.GetClaudeUserID()
 }
 
-func matchWildcard(pattern, str string) bool { return accountcore.MatchWildcard(pattern, str) }
-
 func (a *Account) IsCustomErrorCodesEnabled() bool {
 	var view *accountcore.Record
 	if a != nil {

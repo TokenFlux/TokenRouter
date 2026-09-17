@@ -12,11 +12,13 @@ import (
 	"testing"
 	"time"
 
+	native "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres"
+
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
-func newBatchImageRepositoryWithSQL(t *testing.T, sqlq batchImageSQLExecutor) (*batchImageRepository, int64) {
+func newBatchImageRepositoryWithSQL(t *testing.T, sqlq native.SQLExecutor) (*native.Repository, int64) {
 	t.Helper()
 	// billing_user_id 新增外键后，每个事务都创建真实付款用户，避免用悬空固定 ID 掩盖数据契约。
 	var userID int64
@@ -26,7 +28,7 @@ func newBatchImageRepositoryWithSQL(t *testing.T, sqlq batchImageSQLExecutor) (*
 		RETURNING id
 	`, batchImageTestID(t, "user")+"@example.com").Scan(&userID)
 	require.NoError(t, err)
-	return &batchImageRepository{sql: sqlq}, userID
+	return native.NewRepositoryWithSQL(sqlq), userID
 }
 
 func TestBatchImageRepository_CreateJobAndDuplicates(t *testing.T) {

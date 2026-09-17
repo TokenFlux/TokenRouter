@@ -7,7 +7,6 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 type APIKeyModelRedirectTrace = modeltrace.APIKeyModelRedirectTrace
@@ -41,7 +40,4 @@ func RegisterAPIKeyModelRedirectStage(ctx context.Context, model string) {
 	if trace, ok := modeltrace.FromContext(ctx); ok {
 		trace.RegisterModel(model)
 	}
-}
-func buildModelMappingChain(models ...string) string {
-	return routing.BuildModelMappingChain(models...)
 }

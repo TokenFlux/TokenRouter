@@ -22,20 +22,20 @@ func (f *Funds) Settle(ctx context.Context, cmd *UsageBillingCommand) (*UsageBil
 	return f.store.Apply(ctx, cmd)
 }
 func (f *Funds) Reserve(ctx context.Context, cmd *TaskFundsCommand) (*TaskFundsResult, error) {
-	if cmd != nil && cmd.Task.Kind != TaskBatchImage && cmd.Task.Kind != TaskCreative {
-		return nil, fmt.Errorf("unsupported billing task kind: %d", cmd.Task.Kind)
+	if cmd != nil && (cmd.Task.Scope == "" || cmd.Task.ReserveRequestID == "") {
+		return nil, fmt.Errorf("billing task reference is incomplete: %s", cmd.Task.Scope)
 	}
 	return f.store.Reserve(ctx, cmd)
 }
 func (f *Funds) Capture(ctx context.Context, cmd *TaskFundsCommand) (*TaskFundsResult, error) {
-	if cmd != nil && cmd.Task.Kind != TaskBatchImage && cmd.Task.Kind != TaskCreative {
-		return nil, fmt.Errorf("unsupported billing task kind: %d", cmd.Task.Kind)
+	if cmd != nil && (cmd.Task.Scope == "" || cmd.Task.ReserveRequestID == "") {
+		return nil, fmt.Errorf("billing task reference is incomplete: %s", cmd.Task.Scope)
 	}
 	return f.store.Capture(ctx, cmd)
 }
 func (f *Funds) Release(ctx context.Context, cmd *TaskFundsCommand) (*TaskFundsResult, error) {
-	if cmd != nil && cmd.Task.Kind != TaskBatchImage && cmd.Task.Kind != TaskCreative {
-		return nil, fmt.Errorf("unsupported billing task kind: %d", cmd.Task.Kind)
+	if cmd != nil && (cmd.Task.Scope == "" || cmd.Task.ReserveRequestID == "") {
+		return nil, fmt.Errorf("billing task reference is incomplete: %s", cmd.Task.Scope)
 	}
 	return f.store.Release(ctx, cmd)
 }

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "^TestBatchImageWorker",
+    "./internal/service"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 13.297,
+  "pass": 8,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/batch-worker-unit.log.gz"
+}

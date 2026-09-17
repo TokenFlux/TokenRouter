@@ -114,17 +114,6 @@ func (h *GatewayHandler) Messages(c *gin.Context) { h.NewMessagesHTTPHandler().M
 // 仅未绑定分组的兼容调用会在没有显式结果时回退平台默认模型。
 func (h *GatewayHandler) Models(c *gin.Context) { h.NewModelsHTTPHandler().Models(c) }
 
-// compositePreferredSubscription 返回复合 Key 严格指定套餐的认证快照。
-// 快照缺失时采用拒绝展示的策略，避免任意模型列表入口泄露套餐外映射。
-func compositePreferredSubscription(c *gin.Context, apiKey *service.APIKey) (*service.UserSubscription, bool) {
-	return (&GatewayHandler{}).NewModelsHTTPHandler().CompositePreferredSubscription(c, service.APIKeyView(apiKey))
-}
-
-// compositeGroupAvailableToUser 使用认证快照过滤已停用、已撤销授权或套餐外的复合映射。
-func compositeGroupAvailableToUser(apiKey *service.APIKey, preferredSubscription *service.UserSubscription, group *service.Group) bool {
-	return gatewayhttp.CompositeGroupAvailableToUser(service.APIKeyView(apiKey), preferredSubscription, service.APIKeyGroupView(group))
-}
-
 func filterModelsByCustomList(availableModels, fallbackModels, selectedModels []string) []string {
 	return gatewayhttp.FilterModelsByCustomList(availableModels, fallbackModels, selectedModels)
 }

@@ -157,7 +157,7 @@ Qoder 流式已经进入上游后使用完成释放：客户端断开停止下�
 
 上游转发产生可计量 usage 后，handler 把解析出的 token/图片/视频用量、客户端与上游模型、endpoint、账号、订阅快照、请求标识和渠道映射交给有界 UsageRecord worker pool。Anthropic 网关与 OpenAI 兼容的 Messages、Responses、Chat 三条链在终止事件前中断时，只要 service 随错误返回了部分结果，handler 仍提交其中已观测的 usage；无结果不生成记录，`UpstreamFailoverError` 不携带部分结果，避免重试成功后双重计费。国产供应商原生 Anthropic 转 Responses 的流在客户端写失败后停止下游输出，但继续排水上游并推进状态机，直到读到末尾 `message_delta` 的最终 token 或达到有界读超时。OpenAI OAuth 图片响应在 HTTP 成功后若发生上游 body 传输中断，仅在尚未向客户端写出真实图片内容时按 502 进入账号策略和 failover；JSON keepalive 空白不算真实输出，客户端取消、deadline、响应体超限以及首字节后的中断不会换号。worker 使用脱离已结束请求取消信号但受自身超时约束的 Context；队列策略可以同步回退或丢弃，并通过指标/日志暴露压力，不能为每个请求创建无界 goroutine。
 
-完成执行器的唯一实现位于 `gateway/completion`，配置由 app 投影，旧 UsageRecordWorkerPool 名称为类型别名。停止同时等待排队任务和已经接受的同步溢出任务；扩缩容与停止共用屏障，停止后不能重开。显式 drop/sample/sync 与 mandatory 兜底仍保留原入口语义，完成记录与结算编排也由 `gateway/completion.Recorder` 唯一实现，旧 RecordUsage 入口只投影和委托。app 在开放入口前绑定 Forward/OpenAI 完成器；已迁 HTTP 提交点先固化模型、主体和资金输入，再交给队列。媒体与 WS turn 同样在入队前取得快照；任务模块仍保留自己的完成资格和 S13 交接边界。
+完成执行器的唯一实现位于 `gateway/completion`，配置由 app 投影，旧 UsageRecordWorkerPool 名称为类型别名。停止同时等待排队任务和已经接受的同步溢出任务；扩缩容与停止共用屏障，停止后不能重开。显式 drop/sample/sync 与 mandatory 兜底仍保留原入口语义，完成记录与结算编排也由 `gateway/completion.Recorder` 唯一实现，旧 RecordUsage 入口只投影和委托。app 在开放入口前绑定 Forward/OpenAI 完成器；已迁 HTTP 提交点先固化模型、主体和资金输入，再交给队列。媒体与 WS turn 同样在入队前取得快照；creative 与 batchimage 独立拥有任务完成资格、预占/捕获/释放及恢复，不进入网关完成队列。任务生成阶段通过 scheduler.Lease 管理用户与账号槽，供应商返回后即释放，结果交付与结算不占槽。
 
 标准模式中的共同顺序为：
 

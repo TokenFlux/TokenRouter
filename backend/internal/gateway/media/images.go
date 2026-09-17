@@ -114,17 +114,12 @@ func IsImageGenerationModel(model string) bool {
 	return IsGPTImageGenerationModel(model) || IsGrokImageGenerationModel(model)
 }
 
-// IsGPTImageGenerationModel 判断模型是否属于 GPT 原生生图模型族。
 func IsGPTImageGenerationModel(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	return strings.HasPrefix(model, "gpt-image-")
+	return nativeupstream.IsGPTImageGenerationModel(model)
 }
 
 func IsGrokImageGenerationModel(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	return model == "grok-imagine" ||
-		model == "grok-imagine-edit" ||
-		strings.HasPrefix(model, "grok-imagine-image")
+	return nativeupstream.IsGrokImageGenerationModel(model)
 }
 
 func ValidateImageModel(model string) error {

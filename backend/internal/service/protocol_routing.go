@@ -3,7 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"slices"
+
+	"github.com/TokenFlux/TokenRouter/internal/creative"
 
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
@@ -137,23 +138,10 @@ func supportsOpenAIRequestCapability(ctx context.Context, account *Account, capa
 	return account.SupportsOpenAIEndpointCapability(capability)
 }
 
-// 创作台复用相同业务协议；已创建任务的读取与清理不经过此准入。
 func creativeOperationProtocol(platform, operation string) domain.ProtocolID {
-	if platform == PlatformGemini {
-		return domain.ProtocolGeminiGenerateContent
-	}
-	if operation == CreativeOperationGenerate {
-		return domain.ProtocolImagesGenerations
-	}
-	return domain.ProtocolImagesEdits
+	return creative.OperationProtocol(platform, operation)
 }
 
 func creativeOperationsForGroup(group *Group) []string {
-	operations := creativeOperationsForPlatform(group.Platform)
-	if group.ResponsesImagePolicy == "" && group.ProtocolFallbacks == nil {
-		return operations
-	}
-	return slices.DeleteFunc(operations, func(operation string) bool {
-		return !group.AllowsClientProtocol(creativeOperationProtocol(group.Platform, operation))
-	})
+	return creative.OperationsForGroup(group.Platform, group.ResponsesImagePolicy != "" || group.ProtocolFallbacks != nil, group.AllowsClientProtocol)
 }

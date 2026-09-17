@@ -42,11 +42,11 @@
 | --- | --- | --- |
 | 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
 | 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
-| 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress`、`scheduler`、`usage`、`audit`、`ops`、`notification`、`moderation`、`search` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略、调度/并发/会话选择、用量/观测、通知、审核与搜索 |
+| 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress`、`scheduler`、`usage`、`audit`、`ops`、`notification`、`moderation`、`search`、`creative`、`batchimage` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略、调度/并发/会话选择、用量/观测、通知、审核、搜索及创作/批量任务 |
 | 旧业务图 | `internal/service`、`repository` | 尚未迁移的业务规则、事务和适配实现；原 provider set 继续参与构造 |
 | 平台执行 | `internal/upstream` 与各平台子包 | 供应商交换、原生报文、媒体、单次执行和连接资源；业务凭据写入由 account 提供 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
-| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
+| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`creative/httpapi`、`batchimage/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
 
 settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `SettingService` 继续解释业务设置和维护领域缓存。idempotency 的核心、观察出口与 SQL Adapter 已独立，旧默认入口只委托唯一实例。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；旧 domain 公告类型只作为 Ent 生成代码引用的别名。
 
@@ -61,6 +61,8 @@ settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `Setting
 `upstream` 按平台持有供应商认证交换、签名、原生请求/响应、媒体和连接资源；通用 wire 仍使用 protocol。账号授权会话、凭据缓存与条件写入由 account 拥有。HTTP、SSE、WebSocket、Live、计数与模型入口直接绑定 gateway/httpapi；文本、媒体和会话编排分别由 gateway/text、media、ws、live 拥有。Qoder Chat 继续使用固定 gateway.Execute，Messages/Responses 显式保留其字节提交和等待契约差异。平台执行的混合适配随 S11 逐批收敛，保持每请求唯一账号尝试循环。每次上游执行只接收明确投影，通过同步输出端口写出，完整输入授权、结算与完成队列不下沉到具体平台。
 
 notification 拥有模板、语言/退订、投递协调、队列与 SMTP Adapter；identity 拥有验证码和重置凭据，billing/account/业务用例先确定通知事件，通知模块不反向查询资金或账号。site 同时拥有公告、页面权限和公开信息投影，文件读取位于 site/filesystem；web 只接收公开投影。moderation 的规则、裁决、观测和记录使用自己的核心与 Adapter，用户写入通过 identity 命令或同连接参与能力完成。search 拥有配置发布、供应商选择和额度意图，Brave/Tavily HTTP 与 Redis 状态分别进入 Adapter；gateway/searchtools 拥有工具协议与合成结果，gateway/completion 保持原完成资格、资金与分析事实的次序。
+
+creative 与 batchimage 各自拥有任务创建、状态、恢复、结果读取和完成资格；HTTP、PostgreSQL、Redis 与平台 Adapter 分离。app 固定两个 Public 核心，批量任务提交、轮询、下载和清理共享一个 provider registry；两类任务仍保留独立队列与素材生命周期。资金只调用 billing.Funds，任务表更新通过本次 SQL Tx 的参与者完成。创作台先持久化供应商成功元数据与 outbox，再短暂重试 Redis 输出保存；结果不可交付时按已确认成功捕获资金并记为 result_lost，不重新推理。
 
 `pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型与计算；`server/httpx`、`server/clientip` 拥有 HTTP 适配。旧 pkg/util 入口保留必要的类型别名和委托，不复制实现或状态。
 
@@ -82,6 +84,8 @@ Wire 构造对象并登记资源后，lifecycle 才启动后台工作。时间�
 billing 的余额/Key 缓存队列、平台额度 flusher 和订阅过期提醒由 app 绑定到现有生命周期。提醒保留立即首轮、每分钟扫描和既有 Redis/数据库 leader 策略，停止时取消并等待在途操作。没有生产消费者的订阅维护队列不会因迁包自动启动。
 
 搜索运行时先于 HTTP 开放初始化，所有配置代次共享在途计数；配置替换只退役旧客户端的空闲连接，不取消已进入的搜索。关闭时停止新搜索并等待额度清理。审核先封闭队列并等待；邮件队列在通知生产者之后排空，预算耗尽会取消 SMTP 并报告未完成项。HTTP 五秒与后台三十秒总预算保持独立，超时不能被报告成排空成功。
+
+任务 HTTP 的提交、下载与管理调用由 TaskRequestsAndDownloads 关闭屏障跟踪。HTTP 退出后先封闭新调用、等待已有调用，再停止任务拉取与恢复循环。worker 停止不可逆，重复停止共享结果；创作台生成阶段的用户/账号槽由 scheduler.Lease 逆序释放。任何阶段超时都保留后续共享依赖，不能把预算结束描述成任务全部完成。
 
 identity 的会话、TOTP、资料操作和 pending 存取，以及 apikey 的过期、活动时间、滥用限制与 outbox 取时，由 app 在构造时注入系统时钟函数。各原取时点继续独立读取，JWT 库内验证与签发使用相同来源；团队与成员额度的日期对象继续保留原时区和 DST 边界。
 

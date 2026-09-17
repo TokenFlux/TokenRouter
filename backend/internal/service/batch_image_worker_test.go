@@ -131,11 +131,12 @@ func (q *fakeBatchImageQueue) TryAcquireJobLock(context.Context, string, time.Du
 	if !q.lockAcquired {
 		return nil, false, nil
 	}
-	return fakeBatchImageLock{release: func() { q.releaseCount++ }}, true, nil
+	return fakeBatchImageLock{release: func() { q.releaseCount++ }, queue: q}, true, nil
 }
 
 type fakeBatchImageLock struct {
 	release func()
+	queue   *fakeBatchImageQueue
 }
 
 func (l fakeBatchImageLock) Release(context.Context) error {
@@ -154,4 +155,15 @@ type fakeBatchImageProcessor struct {
 func (p *fakeBatchImageProcessor) Process(_ context.Context, batchID string) (BatchImageProcessResult, error) {
 	p.processed = append(p.processed, batchID)
 	return p.result, p.err
+}
+
+// 测试锁也通过自己持有的任务执行队列写入，保留旧数量断言。
+func (l fakeBatchImageLock) Heartbeat(ctx context.Context) error {
+	return l.queue.Heartbeat(ctx, l.queue.reserved.BatchID)
+}
+func (l fakeBatchImageLock) Ack(ctx context.Context) error {
+	return l.queue.Ack(ctx, l.queue.reserved.BatchID)
+}
+func (l fakeBatchImageLock) RequeueAfter(ctx context.Context, d time.Duration) error {
+	return l.queue.RequeueAfter(ctx, l.queue.reserved.BatchID, d)
 }

@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -26,7 +27,7 @@ func provideJobsRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if batchImageCleanup != nil {
-			batchImageCleanup.Stop()
+			return batchImageCleanup.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -37,7 +38,7 @@ func provideJobsRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if batchImageWorker != nil {
-			batchImageWorker.Stop()
+			return batchImageWorker.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -48,7 +49,7 @@ func provideJobsRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if creativeWorker != nil {
-			creativeWorker.Stop()
+			return creativeWorker.StopContext(ctx)
 		}
 		return nil
 	}})

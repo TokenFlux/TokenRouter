@@ -1057,24 +1057,7 @@ func (s *ResponseAdapter) ExtractImageInputSize(body []byte) string {
 	return ""
 }
 
-// IsImageGenerationModel 判断模型是否为图片生成模型
-// 支持的模型：gemini-3.1-flash-image, gemini-3-pro-image, gemini-2.5-flash-image 等
-func IsImageGenerationModel(model string) bool {
-	modelLower := strings.ToLower(model)
-	// 移除 models/ 前缀
-	modelLower = strings.TrimPrefix(modelLower, "models/")
-
-	// 精确匹配或前缀匹配
-	return modelLower == "gemini-3.1-flash-image" ||
-		modelLower == "gemini-3.1-flash-image-preview" ||
-		strings.HasPrefix(modelLower, "gemini-3.1-flash-image-") ||
-		modelLower == "gemini-3-pro-image" ||
-		modelLower == "gemini-3-pro-image-preview" ||
-		strings.HasPrefix(modelLower, "gemini-3-pro-image-") ||
-		modelLower == "gemini-2.5-flash-image" ||
-		modelLower == "gemini-2.5-flash-image-preview" ||
-		strings.HasPrefix(modelLower, "gemini-2.5-flash-image-")
-}
+func IsImageGenerationModel(model string) bool { return upstream.IsGeminiImageGenerationModel(model) }
 
 func (s *ResponseAdapter) observeRaw(data []byte) {
 	if s.Options.ObserveRaw != nil {

@@ -1,0 +1,14 @@
+{
+  "head": "611eec21439efff507fd7215158fde84786a4f6e",
+  "head_unchanged": true,
+  "branch": "main",
+  "index_unchanged": true,
+  "protected_files": 8176,
+  "changed_protected_files": [],
+  "original_untracked": 50,
+  "missing_original_untracked": [],
+  "plan_prefix_bytes": 15662,
+  "plan_prefix_sha256": "372f925465bc3567abf04d248f315996c0446f3444ac06a6a567b0f9768e1f3a",
+  "plan_prefix_unchanged": true,
+  "wire_changed_only_as_generated": true
+}

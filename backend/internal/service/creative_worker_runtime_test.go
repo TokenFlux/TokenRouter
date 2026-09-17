@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -141,7 +142,11 @@ type parallelCreativeRunRepo struct {
 func (r *parallelCreativeRunRepo) GetCreativeRunByRunID(ctx context.Context, runID string) (*CreativeRun, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.creativeFakeRunRepo.GetCreativeRunByRunID(ctx, runID)
+	v, err := r.creativeFakeRunRepo.GetCreativeRunByRunID(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	return cloneCreativeParallelValue(v), nil
 }
 
 func (r *parallelCreativeRunRepo) MarkCreativeRunRunning(ctx context.Context, runID string, accountID int64, now time.Time) error {
@@ -171,7 +176,11 @@ func (r *parallelCreativeRunRepo) UpdateCreativeRunOutput(ctx context.Context, r
 func (r *parallelCreativeRunRepo) ListCreativeRunOutputs(ctx context.Context, runID string) ([]*CreativeRunOutput, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.creativeFakeRunRepo.ListCreativeRunOutputs(ctx, runID)
+	v, err := r.creativeFakeRunRepo.ListCreativeRunOutputs(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	return cloneCreativeParallelValue(v), nil
 }
 
 // parallelCreativeTransient 保护并行结算写入的输出 map。
@@ -299,6 +308,12 @@ func TestCreativeWorkerRuntimeParallelProviderExecution(t *testing.T) {
 		t.Fatal("两个创作台任务未同时进入 provider")
 	}
 	executor.allow()
+	// 并行成功契约等待两条链完成，再单独验证停止；停止取消由专门回归覆盖。
+	require.Eventually(t, func() bool {
+		first, e1 := repo.GetCreativeRunByRunID(context.Background(), "crun_parallel_1")
+		second, e2 := repo.GetCreativeRunByRunID(context.Background(), "crun_parallel_2")
+		return e1 == nil && e2 == nil && first.Status == CreativeRunStatusSucceeded && second.Status == CreativeRunStatusSucceeded
+	}, 2*time.Second, time.Millisecond)
 	runtime.Stop()
 
 	first, err := repo.GetCreativeRunByRunID(context.Background(), "crun_parallel_1")
@@ -307,4 +322,135 @@ func TestCreativeWorkerRuntimeParallelProviderExecution(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, CreativeRunStatusSucceeded, first.Status)
 	require.Equal(t, CreativeRunStatusSucceeded, second.Status)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) CreateCreativeRun(ctx context.Context, params CreateCreativeRunParams) (*CreativeRun, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.CreateCreativeRun(ctx, params)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) GetCreativeRunByRunIDForOwner(ctx context.Context, scope CreativeRunScope, runID string) (*CreativeRun, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.GetCreativeRunByRunIDForOwner(ctx, scope, runID)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) GetCreativeRunByIdempotencyKey(ctx context.Context, scope CreativeRunScope, key string) (*CreativeRun, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.GetCreativeRunByIdempotencyKey(ctx, scope, key)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) ListCreativeRunsForOwner(ctx context.Context, scope CreativeRunScope, filter CreativeRunFilter) ([]*CreativeRun, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.ListCreativeRunsForOwner(ctx, scope, filter)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) TransitionCreativeRunStatus(ctx context.Context, runID, toStatus string, opts CreativeRunTransitionOptions) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.TransitionCreativeRunStatus(ctx, runID, toStatus, opts)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) GetCreativeRunOutput(ctx context.Context, runID string, outputIndex int) (*CreativeRunOutput, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.GetCreativeRunOutput(ctx, runID, outputIndex)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) MarkCreativeRunOutputAcked(ctx context.Context, runID string, outputIndex int, now time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.MarkCreativeRunOutputAcked(ctx, runID, outputIndex, now)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) ListCreativeRunsDueForTransientCleanup(ctx context.Context, cutoff time.Time, limit int) ([]*CreativeRun, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.ListCreativeRunsDueForTransientCleanup(ctx, cutoff, limit)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) IncrementCreativeRunAttempt(ctx context.Context, runID string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.IncrementCreativeRunAttempt(ctx, runID)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) IncrementCreativeRunSettlementAttempt(ctx context.Context, runID string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.IncrementCreativeRunSettlementAttempt(ctx, runID)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) IncrementCreativeRunReleaseAttempt(ctx context.Context, runID string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.IncrementCreativeRunReleaseAttempt(ctx, runID)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) SetCreativeRunProvisioningPhase(ctx context.Context, runID, phase string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.SetCreativeRunProvisioningPhase(ctx, runID, phase)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) MarkCreativeRunProviderSucceeded(ctx context.Context, runID string, accountID int64, now time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.MarkCreativeRunProviderSucceeded(ctx, runID, accountID, now)
+}
+
+// 并行替身的所有仓储入口共用同一把锁。
+func (r *parallelCreativeRunRepo) SetCreativeRunReconcileError(ctx context.Context, runID, message string, next time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.SetCreativeRunReconcileError(ctx, runID, message, next)
+}
+
+// 测试读取模拟真实仓储的独立查询结果，避免锁外读写同一可变实体。
+func cloneCreativeParallelValue[T any](v T) T {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	var result T
+	if err := json.Unmarshal(raw, &result); err != nil {
+		panic(err)
+	}
+	return result
+}
+
+// 新增闭合操作也必须参与并行替身的同一同步边界。
+func (r *parallelCreativeRunRepo) RecordProviderOutcome(ctx context.Context, id string, accountID int64, outputs []CreativeRunOutput, now time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.RecordProviderOutcome(ctx, id, accountID, outputs, now)
+}
+func (r *parallelCreativeRunRepo) CompleteProviderOutcome(ctx context.Context, id string, cost float64, lost bool, now time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.creativeFakeRunRepo.CompleteProviderOutcome(ctx, id, cost, lost, now)
+}
+
+// B05 的交付确认增加输出读取，读取必须与并行替身的保存共用屏障。
+func (s *parallelCreativeTransient) LoadOutput(ctx context.Context, runID string, index int) ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := s.creativeFakeTransient.LoadOutput(ctx, runID, index)
+	return append([]byte(nil), data...), err
 }

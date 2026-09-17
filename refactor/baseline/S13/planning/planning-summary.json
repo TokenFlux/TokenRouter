@@ -1,0 +1,51 @@
+{
+  "head": "611eec21439efff507fd7215158fde84786a4f6e",
+  "tracked_files_unchanged": 13842,
+  "repository_modified": false,
+  "fixed_issues": {
+    "B01": "creative/batchimage runtimes restart after Stop",
+    "B02": "batchimage repeated Stop returns before accepted work ends",
+    "B03": "batch cleanup immediate Stop closes nil channel",
+    "B04": "batchimage lock renewal ignores lost token; stale ACK removes successor active record",
+    "B05": "creative output Redis failure repeats successful inference",
+    "T01": "parallel creative fake repository omits synchronization for inherited mutation methods"
+  },
+  "decisions": {
+    "B01_B02_B03_T01": "用户选择全部纳入",
+    "B04": "用户选择纳入最小修复，现有 token / 缓存格式，不扩展多实例承诺",
+    "B05": "用户选择不重推理，按成功服务计费；无法交付为 result_lost"
+  },
+  "results": {
+    "normal": {
+      "events": {
+        "pass": 2
+      },
+      "failed_tests": []
+    },
+    "unit-race": {
+      "events": {
+        "pass": 360,
+        "fail": 1
+      },
+      "failed_tests": [
+        "TestCreativeWorkerRuntimeStatus"
+      ]
+    },
+    "integration-race": {
+      "events": {
+        "pass": 19
+      },
+      "failed_tests": []
+    },
+    "batch-lease-original": {
+      "events": {
+        "fail": 9
+      },
+      "failed_tests": [
+        "TestS13BatchImageLostOwner",
+        "TestS13BatchImageLostOwner/old_ack_preserves_successor",
+        "TestS13BatchImageLostOwner/renewal_reports_loss"
+      ]
+    }
+  }
+}

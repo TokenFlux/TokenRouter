@@ -19,16 +19,23 @@ import (
 )
 
 type SettlementStore struct {
-	db            *sql.DB
-	accountOutbox AccountQuotaOutbox
+	db              *sql.DB
+	accountOutbox   AccountQuotaOutbox
+	taskProjections TaskProjectionFactories
 }
 
 // AccountQuotaOutbox 是账号额度跨阈值时参与同一 SQL 事务的窄接口；S07 改绑新账号适配。
 type AccountQuotaOutbox func(context.Context, *sql.Tx, int64) error
 
 // NewSettlementStore 构造唯一闭合资金存储，不启动后台任务。
-func NewSettlementStore(sqlDB *sql.DB, outbox AccountQuotaOutbox) *SettlementStore {
-	return &SettlementStore{db: sqlDB, accountOutbox: outbox}
+func NewSettlementStore(sqlDB *sql.DB, outbox AccountQuotaOutbox, factories ...TaskProjectionFactories) *SettlementStore {
+	projections := make(TaskProjectionFactories)
+	for _, set := range factories {
+		for scope, factory := range set {
+			projections[scope] = factory
+		}
+	}
+	return &SettlementStore{db: sqlDB, accountOutbox: outbox, taskProjections: projections}
 }
 
 func (r *SettlementStore) Apply(ctx context.Context, cmd *billing.UsageBillingCommand) (_ *billing.UsageBillingApplyResult, err error) {
@@ -273,30 +280,36 @@ func (r *SettlementStore) claimUsageBillingRequest(ctx context.Context, tx *sql.
 }
 
 func (r *SettlementStore) Reserve(ctx context.Context, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
-	return r.applyBatchImageBalanceHold(ctx, cmd, batchImageAllowanceReserve, reserveUsageBillingBatchImageBilling)
+	return r.applyTaskBalanceHold(ctx, cmd, taskAllowanceReserve, func(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, projection TaskProjection) (*billing.TaskFundsResult, error) {
+		return reserveUsageBillingTaskBilling(ctx, tx, projection, cmd)
+	})
 }
 
 func (r *SettlementStore) Capture(ctx context.Context, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
-	return r.applyBatchImageBalanceHold(ctx, cmd, batchImageAllowanceCapture, captureUsageBillingBatchImageBilling)
+	return r.applyTaskBalanceHold(ctx, cmd, taskAllowanceCapture, func(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, projection TaskProjection) (*billing.TaskFundsResult, error) {
+		return captureUsageBillingTaskBilling(ctx, tx, cmd)
+	})
 }
 
 func (r *SettlementStore) Release(ctx context.Context, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
-	return r.applyBatchImageBalanceHold(ctx, cmd, batchImageAllowanceRelease, releaseUsageBillingBatchImageBilling)
+	return r.applyTaskBalanceHold(ctx, cmd, taskAllowanceRelease, func(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, projection TaskProjection) (*billing.TaskFundsResult, error) {
+		return releaseUsageBillingTaskBilling(ctx, tx, cmd)
+	})
 }
 
-type batchImageAllowanceOperation int
+type taskAllowanceOperation int
 
 const (
-	batchImageAllowanceReserve batchImageAllowanceOperation = iota
-	batchImageAllowanceCapture
-	batchImageAllowanceRelease
+	taskAllowanceReserve taskAllowanceOperation = iota
+	taskAllowanceCapture
+	taskAllowanceRelease
 )
 
-func (r *SettlementStore) applyBatchImageBalanceHold(
+func (r *SettlementStore) applyTaskBalanceHold(
 	ctx context.Context,
 	cmd *billing.TaskFundsCommand,
-	operation batchImageAllowanceOperation,
-	apply func(context.Context, *sql.Tx, *billing.TaskFundsCommand) (*billing.TaskFundsResult, error),
+	operation taskAllowanceOperation,
+	apply func(context.Context, *sql.Tx, *billing.TaskFundsCommand, TaskProjection) (*billing.TaskFundsResult, error),
 ) (_ *billing.TaskFundsResult, err error) {
 	if cmd == nil {
 		return &billing.TaskFundsResult{}, nil
@@ -304,15 +317,18 @@ func (r *SettlementStore) applyBatchImageBalanceHold(
 	if r == nil || r.db == nil {
 		return nil, errors.New("usage billing repository db is nil")
 	}
+	if r.taskProjections[cmd.Task.Scope] == nil {
+		return nil, fmt.Errorf("unsupported billing task scope: %s", cmd.Task.Scope)
+	}
 	cmd.Normalize()
 	if cmd.RequestID == "" {
 		return nil, billing.ErrUsageBillingRequestIDRequired
 	}
-	original := cloneBatchImageBalanceHoldCommand(cmd)
+	original := cloneTaskBalanceHoldCommand(cmd)
 
-	result, err := postgresinfra.RetryDeadlock(ctx, batchImageAllowanceOperationName(operation), 0, func() (*billing.TaskFundsResult, error) {
-		attemptCmd := cloneBatchImageBalanceHoldCommand(&original)
-		attemptResult, attemptErr := r.applyBatchImageBalanceHoldOnce(ctx, &attemptCmd, operation, apply)
+	result, err := postgresinfra.RetryDeadlock(ctx, taskAllowanceOperationName(operation), 0, func() (*billing.TaskFundsResult, error) {
+		attemptCmd := cloneTaskBalanceHoldCommand(&original)
+		attemptResult, attemptErr := r.applyTaskBalanceHoldOnce(ctx, &attemptCmd, operation, apply)
 		if attemptErr == nil {
 			*cmd = attemptCmd
 		}
@@ -321,12 +337,12 @@ func (r *SettlementStore) applyBatchImageBalanceHold(
 	return result, err
 }
 
-// applyBatchImageBalanceHoldOnce 执行一次完整批量图片计费事务。
-func (r *SettlementStore) applyBatchImageBalanceHoldOnce(
+// applyTaskBalanceHoldOnce 执行一次完整任务计费事务。
+func (r *SettlementStore) applyTaskBalanceHoldOnce(
 	ctx context.Context,
 	cmd *billing.TaskFundsCommand,
-	operation batchImageAllowanceOperation,
-	apply func(context.Context, *sql.Tx, *billing.TaskFundsCommand) (*billing.TaskFundsResult, error),
+	operation taskAllowanceOperation,
+	apply func(context.Context, *sql.Tx, *billing.TaskFundsCommand, TaskProjection) (*billing.TaskFundsResult, error),
 ) (_ *billing.TaskFundsResult, err error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -343,13 +359,21 @@ func (r *SettlementStore) applyBatchImageBalanceHoldOnce(
 		return nil, err
 	}
 	if !applied {
-		return batchImageBillingResultForCommand(cmd, operation), nil
+		return taskBillingResultForCommand(cmd, operation), nil
 	}
 	if err := lockUsageBillingUser(ctx, tx, cmd.UserID); err != nil {
 		return nil, err
 	}
 
-	result, err := apply(ctx, tx, cmd)
+	factory := r.taskProjections[cmd.Task.Scope]
+	if factory == nil {
+		return nil, fmt.Errorf("unsupported billing task scope: %s", cmd.Task.Scope)
+	}
+	projection := factory(tx, cmd.Task)
+	if projection == nil {
+		return nil, errors.New("billing task projection is nil")
+	}
+	result, err := apply(ctx, tx, cmd, projection)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +381,7 @@ func (r *SettlementStore) applyBatchImageBalanceHoldOnce(
 		result = &billing.TaskFundsResult{}
 	}
 	result.Applied = true
-	if err := applyBatchImageAllowance(ctx, tx, cmd, operation); err != nil {
+	if err := applyTaskAllowance(ctx, tx, cmd, operation, projection); err != nil {
 		return nil, err
 	}
 
@@ -368,8 +392,8 @@ func (r *SettlementStore) applyBatchImageBalanceHoldOnce(
 	return result, nil
 }
 
-// cloneBatchImageBalanceHoldCommand 隔离失败尝试中的命令变更，保证重试从相同输入开始。
-func cloneBatchImageBalanceHoldCommand(cmd *billing.TaskFundsCommand) billing.TaskFundsCommand {
+// cloneTaskBalanceHoldCommand 隔离失败尝试中的命令变更，保证重试从相同输入开始。
+func cloneTaskBalanceHoldCommand(cmd *billing.TaskFundsCommand) billing.TaskFundsCommand {
 	if cmd == nil {
 		return billing.TaskFundsCommand{}
 	}
@@ -378,53 +402,53 @@ func cloneBatchImageBalanceHoldCommand(cmd *billing.TaskFundsCommand) billing.Ta
 	return cloned
 }
 
-// batchImageAllowanceOperationName 返回稳定的重试日志操作名。
-func batchImageAllowanceOperationName(operation batchImageAllowanceOperation) string {
+// taskAllowanceOperationName 返回稳定的重试日志操作名。
+func taskAllowanceOperationName(operation taskAllowanceOperation) string {
 	switch operation {
-	case batchImageAllowanceReserve:
+	case taskAllowanceReserve:
 		return "usage_billing_batch_image_reserve"
-	case batchImageAllowanceCapture:
+	case taskAllowanceCapture:
 		return "usage_billing_batch_image_capture"
-	case batchImageAllowanceRelease:
+	case taskAllowanceRelease:
 		return "usage_billing_batch_image_release"
 	default:
 		return "usage_billing_batch_image_unknown"
 	}
 }
 
-func applyBatchImageAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, operation batchImageAllowanceOperation) error {
+func applyTaskAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, operation taskAllowanceOperation, projection TaskProjection) error {
 	if cmd == nil || (cmd.HoldAmount <= 0 && cmd.BaseAmountUSD <= 0) {
 		return nil
 	}
 	switch operation {
-	case batchImageAllowanceReserve:
+	case taskAllowanceReserve:
 		reservedAt := cmd.ReservedAt
 		if reservedAt.IsZero() {
 			reservedAt = time.Now()
 		}
-		if err := reserveBatchImageAPIKeyAllowance(ctx, tx, cmd.APIKeyID, cmd.HoldAmount, reservedAt); err != nil {
+		if err := reserveTaskAPIKeyAllowance(ctx, tx, cmd.APIKeyID, cmd.HoldAmount, reservedAt); err != nil {
 			return err
 		}
-		if err := reserveBatchImageMemberAllowance(ctx, tx, cmd, cmd.HoldAmount); err != nil {
+		if err := reserveTaskMemberAllowance(ctx, tx, cmd, cmd.HoldAmount); err != nil {
 			return err
 		}
-		return setBatchImageAllowanceReserved(ctx, tx, cmd, true)
-	case batchImageAllowanceCapture:
+		return projection.SetAllowanceReserved(ctx, true)
+	case taskAllowanceCapture:
 		if cmd.AllowanceReserved {
 			adjustment := cmd.HoldAmount - cmd.ActualAmount
 			if adjustment > 0 {
-				if err := rollbackBatchImageAllowanceBestEffort(ctx, tx, cmd.Task.ID, func() error {
-					if err := releaseBatchImageAPIKeyAllowance(ctx, tx, cmd.APIKeyID, adjustment, cmd.ReservedAt); err != nil {
+				if err := rollbackTaskAllowanceBestEffort(ctx, tx, cmd.Task.ID, func() error {
+					if err := releaseTaskAPIKeyAllowance(ctx, tx, cmd.APIKeyID, adjustment, cmd.ReservedAt); err != nil {
 						return err
 					}
-					return releaseBatchImageMemberAllowance(ctx, tx, cmd, adjustment)
+					return releaseTaskMemberAllowance(ctx, tx, cmd, adjustment)
 				}); err != nil {
 					return err
 				}
 			}
 		} else if cmd.ActualAmount > 0 {
 			// 滚动升级期间的旧任务没有预记标记，结算时按实际金额补记。
-			if err := chargeLegacyBatchImageAPIKey(ctx, tx, cmd.APIKeyID, cmd.ActualAmount); err != nil {
+			if err := chargeLegacyTaskAPIKey(ctx, tx, cmd.APIKeyID, cmd.ActualAmount); err != nil {
 				return err
 			}
 			if cmd.TeamID != nil && cmd.ActorUserID > 0 && cmd.ActorUserID != cmd.UserID {
@@ -433,27 +457,27 @@ func applyBatchImageAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.Task
 				}
 			}
 		}
-		return setBatchImageAllowanceReserved(ctx, tx, cmd, false)
-	case batchImageAllowanceRelease:
+		return projection.SetAllowanceReserved(ctx, false)
+	case taskAllowanceRelease:
 		if cmd.AllowanceReserved {
-			if err := rollbackBatchImageAllowanceBestEffort(ctx, tx, cmd.Task.ID, func() error {
-				if err := releaseBatchImageAPIKeyAllowance(ctx, tx, cmd.APIKeyID, cmd.HoldAmount, cmd.ReservedAt); err != nil {
+			if err := rollbackTaskAllowanceBestEffort(ctx, tx, cmd.Task.ID, func() error {
+				if err := releaseTaskAPIKeyAllowance(ctx, tx, cmd.APIKeyID, cmd.HoldAmount, cmd.ReservedAt); err != nil {
 					return err
 				}
-				return releaseBatchImageMemberAllowance(ctx, tx, cmd, cmd.HoldAmount)
+				return releaseTaskMemberAllowance(ctx, tx, cmd, cmd.HoldAmount)
 			}); err != nil {
 				return err
 			}
 		}
-		return setBatchImageAllowanceReserved(ctx, tx, cmd, false)
+		return projection.SetAllowanceReserved(ctx, false)
 	default:
 		return nil
 	}
 }
 
-// rollbackBatchImageAllowanceBestEffort 用保存点隔离额度回退故障。
+// rollbackTaskAllowanceBestEffort 用保存点隔离额度回退故障。
 // 回退失败时保留偏保守计数，但不能连带撤销已经完成的余额结算。
-func rollbackBatchImageAllowanceBestEffort(ctx context.Context, tx *sql.Tx, batchID string, rollback func() error) error {
+func rollbackTaskAllowanceBestEffort(ctx context.Context, tx *sql.Tx, batchID string, rollback func() error) error {
 	const savepoint = "batch_image_allowance_rollback"
 	if _, err := tx.ExecContext(ctx, "SAVEPOINT "+savepoint); err != nil {
 		return err
@@ -472,49 +496,15 @@ func rollbackBatchImageAllowanceBestEffort(ctx context.Context, tx *sql.Tx, batc
 	return err
 }
 
-func setBatchImageAllowanceReserved(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, reserved bool) error {
-	table, idColumn, err := batchImageBillingEntityTable(cmd)
-	if err != nil {
-		return err
-	}
-	result, err := tx.ExecContext(ctx, fmt.Sprintf(
-		`UPDATE %s SET allowance_reserved = $2, updated_at = NOW() WHERE %s = $1`, table, idColumn,
-	), strings.TrimSpace(cmd.Task.ID), reserved)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return billing.ErrTaskNotFound
-	}
-	return nil
-}
-
-// batchImageBillingEntityTable 返回计费命令对应的任务表与标识列。
-// 表名只能取白名单内的两个值：批量图片作业用 batch_image_jobs，创作台任务用 creative_runs。
-func batchImageBillingEntityTable(cmd *billing.TaskFundsCommand) (table string, idColumn string, err error) {
-	if cmd != nil && cmd.Task.Kind == billing.TaskCreative {
-		return "creative_runs", "run_id", nil
-	}
-	return "batch_image_jobs", "batch_id", nil
-}
-
-// batchImageHoldClaimRequestID 返回预占认领（dedup）记录的 request id：
-// 创作台任务用 creative_hold 前缀，批量图片作业沿用 batch_image_hold 前缀。
-func batchImageHoldClaimRequestID(cmd *billing.TaskFundsCommand) string {
-	if cmd != nil && cmd.Task.Kind == billing.TaskCreative {
-		return "creative_hold:" + strings.TrimSpace(cmd.Task.ID)
-	}
+// taskHoldClaimRequestID 只读取所属模块提供的历史预占动作 ID。
+func taskHoldClaimRequestID(cmd *billing.TaskFundsCommand) string {
 	if cmd == nil {
 		return ""
 	}
-	return "batch_image_hold:" + strings.TrimSpace(cmd.Task.ID)
+	return cmd.Task.ReserveRequestID
 }
 
-func reserveBatchImageAPIKeyAllowance(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64, reservedAt time.Time) error {
+func reserveTaskAPIKeyAllowance(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64, reservedAt time.Time) error {
 	var id int64
 	// 预记和回退必须使用同一时间点，否则数据库 NOW() 晚于任务创建时间时会误判为跨窗口。
 	err := tx.QueryRowContext(ctx, `
@@ -540,10 +530,10 @@ func reserveBatchImageAPIKeyAllowance(ctx context.Context, tx *sql.Tx, apiKeyID 
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	return batchImageAPIKeyAllowanceError(ctx, tx, apiKeyID, amount)
+	return taskAPIKeyAllowanceError(ctx, tx, apiKeyID, amount)
 }
 
-func batchImageAPIKeyAllowanceError(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) error {
+func taskAPIKeyAllowanceError(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) error {
 	var status string
 	var ownerDisabled bool
 	var quota, quotaUsed, limit5h, limit1d, limit7d, usage5h, usage1d, usage7d float64
@@ -588,7 +578,7 @@ func effectiveSQLWindowUsage(usage float64, start sql.NullTime, duration time.Du
 	return usage
 }
 
-func reserveBatchImageMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, amount float64) error {
+func reserveTaskMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, amount float64) error {
 	if cmd.TeamID == nil || cmd.ActorUserID <= 0 || cmd.ActorUserID == cmd.UserID {
 		return nil
 	}
@@ -617,10 +607,10 @@ func reserveBatchImageMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *bill
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	return batchImageMemberAllowanceError(ctx, tx, *cmd.TeamID, cmd.ActorUserID, amount, dailyStart, weeklyStart, monthlyStart)
+	return taskMemberAllowanceError(ctx, tx, *cmd.TeamID, cmd.ActorUserID, amount, dailyStart, weeklyStart, monthlyStart)
 }
 
-func batchImageMemberAllowanceError(ctx context.Context, tx *sql.Tx, teamID, userID int64, amount float64, dailyStart, weeklyStart, monthlyStart time.Time) error {
+func taskMemberAllowanceError(ctx context.Context, tx *sql.Tx, teamID, userID int64, amount float64, dailyStart, weeklyStart, monthlyStart time.Time) error {
 	var role string
 	var dailyLimit, weeklyLimit, monthlyLimit, dailyUsage, weeklyUsage, monthlyUsage float64
 	var dailyWindow, weeklyWindow, monthlyWindow sql.NullTime
@@ -658,7 +648,7 @@ func effectiveNaturalWindowUsage(usage float64, window sql.NullTime, expectedSta
 	return usage
 }
 
-func releaseBatchImageAPIKeyAllowance(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64, reservedAt time.Time) error {
+func releaseTaskAPIKeyAllowance(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64, reservedAt time.Time) error {
 	_, err := tx.ExecContext(ctx, `
 		UPDATE api_keys SET
 			quota_used = GREATEST(0, quota_used - $1),
@@ -671,7 +661,7 @@ func releaseBatchImageAPIKeyAllowance(ctx context.Context, tx *sql.Tx, apiKeyID 
 	return err
 }
 
-func releaseBatchImageMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, amount float64) error {
+func releaseTaskMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, amount float64) error {
 	if cmd.TeamID == nil || cmd.ActorUserID <= 0 || cmd.ActorUserID == cmd.UserID {
 		return nil
 	}
@@ -686,7 +676,7 @@ func releaseBatchImageMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *bill
 	return err
 }
 
-func chargeLegacyBatchImageAPIKey(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) error {
+func chargeLegacyTaskAPIKey(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) error {
 	_, err := tx.ExecContext(ctx, `
 		UPDATE api_keys SET
 			quota_used = quota_used + $1,
@@ -1150,8 +1140,8 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 	return newBalance, deductedAmount, nil
 }
 
-// reserveUsageBillingBatchImageBilling 先预占订阅额度，再冻结未覆盖的按量余额。
-func reserveUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
+// reserveUsageBillingTaskBilling 先预占订阅额度，再冻结未覆盖的按量余额。
+func reserveUsageBillingTaskBilling(ctx context.Context, tx *sql.Tx, projection TaskProjection, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
 	result := &billing.TaskFundsResult{}
 	if cmd == nil || (cmd.HoldAmount <= 0 && cmd.BaseAmountUSD <= 0) {
 		return result, nil
@@ -1181,11 +1171,11 @@ func reserveUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 	if usageBillingUsesBaseAmount(allocationCommand) {
 		balanceAmount = remainingBase * usageBillingNonNegativeRate(cmd.BalanceRateMultiplier)
 	}
-	balanceAmount = normalizeBatchImageBalanceAmount(balanceAmount)
+	balanceAmount = normalizeTaskBalanceAmount(balanceAmount)
 
 	balanceCommand := *cmd
 	balanceCommand.HoldAmount = balanceAmount
-	balanceResult, err := reserveUsageBillingBatchImageBalance(ctx, tx, &balanceCommand)
+	balanceResult, err := reserveUsageBillingTaskBalance(ctx, tx, &balanceCommand)
 	if err != nil {
 		return nil, err
 	}
@@ -1219,17 +1209,17 @@ func reserveUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 	}
 	// 第二版指纹不依赖最终预占金额，可以在 claim 后把额度口径改为真实混合预占金额。
 	cmd.HoldAmount = result.HoldAmountUSD
-	if err := persistBatchImageBillingHold(ctx, tx, cmd, balanceAmount, allocations, result.HoldAmountUSD, result.EstimatedAmountUSD); err != nil {
+	if err := projection.SaveReservation(ctx, balanceAmount, allocations, result.HoldAmountUSD, result.EstimatedAmountUSD); err != nil {
 		return nil, err
 	}
 	return result, nil
 }
 
-// captureUsageBillingBatchImageBilling 保留实际费用，并释放未使用的订阅与余额预占。
-func captureUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
+// captureUsageBillingTaskBilling 保留实际费用，并释放未使用的订阅与余额预占。
+func captureUsageBillingTaskBilling(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
 	// 新任务必须证明预占已提交；升级前已冻结但没有 dedup 记录的旧任务仍允许安全消费冻结额。
 	if cmd != nil && cmd.HoldAmount > 0 && (cmd.AllowanceReserved || cmd.BalanceHoldAmount > 0 || len(cmd.SubscriptionHoldAllocations) > 0) {
-		held, err := batchImageHoldClaimExists(ctx, tx, batchImageHoldClaimRequestID(cmd), cmd.APIKeyID)
+		held, err := taskHoldClaimExists(ctx, tx, taskHoldClaimRequestID(cmd), cmd.APIKeyID)
 		if err != nil {
 			return nil, err
 		}
@@ -1242,14 +1232,14 @@ func captureUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 		return nil, err
 	}
 	cmd.ActualAmount = plan.ActualAmountUSD
-	if err := releaseBatchImageSubscriptionAllocations(ctx, tx, cmd, plan.SubscriptionReleases); err != nil {
+	if err := releaseTaskSubscriptionAllocations(ctx, tx, cmd, plan.SubscriptionReleases); err != nil {
 		return nil, err
 	}
 
 	balanceCommand := *cmd
 	balanceCommand.HoldAmount = plan.BalanceHoldAmount
 	balanceCommand.ActualAmount = plan.BalanceAmountUSD
-	balanceResult, err := captureUsageBillingBatchImageBalance(ctx, tx, &balanceCommand)
+	balanceResult, err := captureUsageBillingTaskBalance(ctx, tx, &balanceCommand)
 	if err != nil {
 		return nil, err
 	}
@@ -1265,12 +1255,12 @@ func captureUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 	return balanceResult, nil
 }
 
-// releaseUsageBillingBatchImageBilling 释放失败或取消任务的全部订阅与余额预占。
-func releaseUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
+// releaseUsageBillingTaskBilling 释放失败或取消任务的全部订阅与余额预占。
+func releaseUsageBillingTaskBilling(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
 	if cmd == nil {
 		return &billing.TaskFundsResult{}, nil
 	}
-	held, err := batchImageHoldClaimExists(ctx, tx, batchImageHoldClaimRequestID(cmd), cmd.APIKeyID)
+	held, err := taskHoldClaimExists(ctx, tx, taskHoldClaimRequestID(cmd), cmd.APIKeyID)
 	if err != nil {
 		return nil, err
 	}
@@ -1278,46 +1268,15 @@ func releaseUsageBillingBatchImageBilling(ctx context.Context, tx *sql.Tx, cmd *
 		logger.LegacyPrintf("repository.usage_billing", "[BatchImage] release skipped, hold was never reserved: batch=%s", cmd.Task.ID)
 		return &billing.TaskFundsResult{}, nil
 	}
-	if err := releaseBatchImageSubscriptionAllocations(ctx, tx, cmd, cmd.SubscriptionHoldAllocations); err != nil {
+	if err := releaseTaskSubscriptionAllocations(ctx, tx, cmd, cmd.SubscriptionHoldAllocations); err != nil {
 		return nil, err
 	}
 	balanceAmount := billing.EffectiveTaskBalanceHoldAmount(cmd)
-	return releaseUsageBillingBatchImageFrozenBalance(ctx, tx, cmd.UserID, balanceAmount)
+	return releaseUsageBillingTaskFrozenBalance(ctx, tx, cmd.UserID, balanceAmount)
 }
 
-func persistBatchImageBillingHold(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, balanceAmount float64, allocations []billing.BillingAllocation, holdAmount, estimatedAmount float64) error {
-	encoded, err := json.Marshal(allocations)
-	if err != nil {
-		return err
-	}
-	table, idColumn, err := batchImageBillingEntityTable(cmd)
-	if err != nil {
-		return err
-	}
-	result, err := tx.ExecContext(ctx, fmt.Sprintf(`
-		UPDATE %s
-		SET balance_hold_amount = $2,
-			subscription_hold_allocations = $3::jsonb,
-			hold_amount = $4,
-			estimated_cost = $5,
-			updated_at = NOW()
-		WHERE %s = $1
-	`, table, idColumn), strings.TrimSpace(cmd.Task.ID), balanceAmount, string(encoded), holdAmount, estimatedAmount)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return billing.ErrTaskNotFound
-	}
-	return nil
-}
-
-// releaseBatchImageSubscriptionAllocations 仅回退仍处于原预占窗口内的订阅用量。
-func releaseBatchImageSubscriptionAllocations(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, allocations []billing.BillingAllocation) error {
+// releaseTaskSubscriptionAllocations 仅回退仍处于原预占窗口内的订阅用量。
+func releaseTaskSubscriptionAllocations(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, allocations []billing.BillingAllocation) error {
 	if cmd == nil {
 		return nil
 	}
@@ -1356,12 +1315,12 @@ func releaseBatchImageSubscriptionAllocations(ctx context.Context, tx *sql.Tx, c
 	return nil
 }
 
-func batchImageBillingResultForCommand(cmd *billing.TaskFundsCommand, operation batchImageAllowanceOperation) *billing.TaskFundsResult {
+func taskBillingResultForCommand(cmd *billing.TaskFundsCommand, operation taskAllowanceOperation) *billing.TaskFundsResult {
 	result := &billing.TaskFundsResult{Applied: false}
 	if cmd == nil {
 		return result
 	}
-	if operation == batchImageAllowanceCapture {
+	if operation == taskAllowanceCapture {
 		plan, err := billing.PlanTaskCapture(cmd)
 		if err != nil {
 			return result
@@ -1374,7 +1333,7 @@ func batchImageBillingResultForCommand(cmd *billing.TaskFundsCommand, operation 
 		result.BillingAllocations = plan.BillingAllocations
 		return result
 	}
-	if operation != batchImageAllowanceReserve {
+	if operation != taskAllowanceReserve {
 		return result
 	}
 	for _, allocation := range cmd.SubscriptionHoldAllocations {
@@ -1402,7 +1361,7 @@ func batchImageBillingResultForCommand(cmd *billing.TaskFundsCommand, operation 
 	return result
 }
 
-func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
+func reserveUsageBillingTaskBalance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
 	if cmd.HoldAmount <= 0 {
 		return &billing.TaskFundsResult{}, nil
 	}
@@ -1429,9 +1388,9 @@ func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	return nil, billing.ErrTaskInsufficientBalance
 }
 
-func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
-	holdAmount := normalizeBatchImageBalanceAmount(cmd.HoldAmount)
-	actualAmount := normalizeBatchImageBalanceAmount(cmd.ActualAmount)
+func captureUsageBillingTaskBalance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand) (*billing.TaskFundsResult, error) {
+	holdAmount := normalizeTaskBalanceAmount(cmd.HoldAmount)
+	actualAmount := normalizeTaskBalanceAmount(cmd.ActualAmount)
 	if holdAmount <= 0 && actualAmount <= 0 {
 		return &billing.TaskFundsResult{}, nil
 	}
@@ -1463,8 +1422,8 @@ func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	return nil, errors.New("batch image frozen balance is insufficient")
 }
 
-func releaseUsageBillingBatchImageFrozenBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (*billing.TaskFundsResult, error) {
-	amount = normalizeBatchImageBalanceAmount(amount)
+func releaseUsageBillingTaskFrozenBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (*billing.TaskFundsResult, error) {
+	amount = normalizeTaskBalanceAmount(amount)
 	if amount <= 0 {
 		return &billing.TaskFundsResult{}, nil
 	}
@@ -1491,14 +1450,14 @@ func releaseUsageBillingBatchImageFrozenBalance(ctx context.Context, tx *sql.Tx,
 	return nil, errors.New("batch image frozen balance is insufficient")
 }
 
-// normalizeBatchImageBalanceAmount 对齐 users.balance 的 DECIMAL(20,8) 精度，避免浮点尾差导致冻结额比较失败。
-func normalizeBatchImageBalanceAmount(amount float64) float64 {
+// normalizeTaskBalanceAmount 对齐 users.balance 的 DECIMAL(20,8) 精度，避免浮点尾差导致冻结额比较失败。
+func normalizeTaskBalanceAmount(amount float64) float64 {
 	return math.Round(amount*1e8) / 1e8
 }
 
-// batchImageHoldClaimExists 检查 hold request id 是否已在 dedup（或归档）表中被 claim，
+// taskHoldClaimExists 检查 hold request id 是否已在 dedup（或归档）表中被 claim，
 // 即该 batch 的冻结操作确实成功提交过。
-func batchImageHoldClaimExists(ctx context.Context, tx *sql.Tx, holdRequestID string, apiKeyID int64) (bool, error) {
+func taskHoldClaimExists(ctx context.Context, tx *sql.Tx, holdRequestID string, apiKeyID int64) (bool, error) {
 	var exists int
 	err := tx.QueryRowContext(ctx, `
 		SELECT 1

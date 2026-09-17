@@ -3,9 +3,12 @@ package service
 
 import (
 	context "context"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	domain "github.com/TokenFlux/TokenRouter/internal/domain"
 	time "time"
+
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+	domain "github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 var ErrUsageBillingRequestIDRequired = billing.ErrUsageBillingRequestIDRequired
@@ -90,11 +93,11 @@ func (c *BatchImageBalanceHoldCommand) BillingCommand() *billing.TaskFundsComman
 	if c == nil {
 		return nil
 	}
-	kind := billing.TaskBatchImage
+	reference := batchimage.FundingReference(c.BatchID)
 	if c.CreativeEntity {
-		kind = billing.TaskCreative
+		reference = creative.FundingReference(c.BatchID)
 	}
-	return &billing.TaskFundsCommand{Task: billing.TaskReference{Kind: kind, ID: c.BatchID},
+	return &billing.TaskFundsCommand{Task: reference,
 		RequestID:                       c.RequestID,
 		APIKeyID:                        c.APIKeyID,
 		RequestFingerprint:              c.RequestFingerprint,
@@ -154,11 +157,6 @@ func (c *BatchImageBalanceHoldCommand) Normalize() {
 	c.SubscriptionHoldAllocations = cmd.SubscriptionHoldAllocations
 	c.AllowanceReserved = cmd.AllowanceReserved
 	c.ReservedAt = cmd.ReservedAt
-}
-
-// cloneBatchImageBillingAllocation 委托唯一分配快照复制逻辑，S13 删除旧入口。
-func cloneBatchImageBillingAllocation(v domain.BillingAllocation, amount float64) domain.BillingAllocation {
-	return billing.CloneBillingAllocation(v, amount)
 }
 
 // UpdateBillingCommand 回写唯一资金实现产生的预占快照，保留旧任务恢复语义。

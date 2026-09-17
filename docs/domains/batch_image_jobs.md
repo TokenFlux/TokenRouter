@@ -170,11 +170,13 @@ Redis 结构：
 - 队列幂等键：`batch_image.idempotency_key_prefix`
 - 由下载限流器管理的下载限制键
 
-worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行。只有 Redis 队列预留返回具体批量作业 ID 后才读取数据库。
+`batchimage.Public` 拥有提交、目录、查询及取消，`PipelineProcessor` 在轮询/索引与结算之间推进，`Cleanup` 和 `Download` 分别拥有清理及输出读取。HTTP 位于 `batchimage/httpapi`，元数据与队列位于 PostgreSQL/Redis Adapter，平台操作位于 `batchimage/provider`。app 将同一注册表注入提交、轮询、下载及清理；旧入口只转换已有消费者需要的形状。
+
+worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行。只有 Redis 队列预留返回具体批量作业 ID 后才读取数据库。队列由 `batchimage/rediscache` 唯一实现；取得任务锁后，心跳、ACK 和重排通过持有者句柄原子比较现有锁 token。续期不匹配或无法确认所有权时取消本轮推进，旧 worker 不得清除接管者的活动记录。数据键、字符串 token 与 TTL 不变，也不构成 Redis/PostgreSQL 的分布式事务。
 
 ## 计费
 
-旧作业资金入口委托 `billing.Funds` 的 `Reserve/Capture/Release`，与创作台共用唯一资金实现。billing/postgres 暂时拥有两类任务表的明确投影，与资金分配和 allowance 标记同事务提交；任务状态机和供应商执行仍由旧作业模块拥有。v1/v2/v3 快照、原请求 ID、指纹以及删除 Key/退出成员后的释放规则保持兼容。
+旧作业资金入口委托 `billing.Funds` 的 `Reserve/Capture/Release`，与创作台共用唯一资金实现。任务表投影由所属模块的 PostgreSQL 参与者提供，billing 通过 app 登记的工厂在同一 SQL 事务调用，资金分配和 allowance 标记仍一次提交；任务状态机和供应商执行仍由旧作业模块拥有。v1/v2/v3 快照、原请求 ID、指纹以及删除 Key/退出成员后的释放规则保持兼容。
 
 计费规则：
 
@@ -195,6 +197,8 @@ worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行
 生产环境准确价格通过模型定价配置解析，本文不定义价格数值。
 
 ## 清理
+
+批量 worker 与清理使用 `batchimage.Runtime` 管理运行 context 和固定完成信号；Stop 不可逆，重复停止共享结果，并按应用剩余预算报告未完成工作。
 
 默认值：
 

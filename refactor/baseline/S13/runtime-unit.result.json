@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "^(TestCreativeWorkerRuntime(StartStopAndScale|WorkerCount)|TestBatchImageWorkerRuntime_)",
+    "./internal/service"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 28.57,
+  "pass": 5,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/runtime-unit.log.gz"
+}

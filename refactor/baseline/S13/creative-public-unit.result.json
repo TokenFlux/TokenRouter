@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "^Test(Creative|NormalizeCreative|BuildCreative|EnsureCreative|S13Creative)",
+    "./internal/service",
+    "./internal/creative/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 57.88,
+  "pass": 87,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/creative-public-unit.log.gz"
+}

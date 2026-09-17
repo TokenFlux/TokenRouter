@@ -1,0 +1,28 @@
+{
+  "tracked_checks": [
+    {
+      "kind": "tracked",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "kind": "index",
+      "command": [
+        "git",
+        "diff",
+        "--cached",
+        "--check"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "new_text_files_checked": 239,
+  "binary_artifacts_not_subject_to_whitespace": 219,
+  "issues": []
+}

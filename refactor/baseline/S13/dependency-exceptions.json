@@ -1,0 +1,210 @@
+[
+  {
+    "file": "internal/creative/run.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "reason": "任务元数据只引用资金值类型和受控动作标识，事务实现由 app 注入"
+  },
+  {
+    "file": "internal/creative/funding.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "reason": "任务元数据只引用资金值类型和受控动作标识，事务实现由 app 注入"
+  },
+  {
+    "file": "internal/batchimage/job.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "reason": "任务元数据只引用资金值类型和受控动作标识，事务实现由 app 注入"
+  },
+  {
+    "file": "internal/batchimage/funding.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "reason": "任务元数据只引用资金值类型和受控动作标识，事务实现由 app 注入"
+  },
+  {
+    "file": "internal/creative/postgres/funding.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "reason": "所属任务表参与调用方原 SQL 事务，输入仅为资金值类型"
+  },
+  {
+    "file": "internal/batchimage/postgres/funding.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "reason": "所属任务表参与调用方原 SQL 事务，输入仅为资金值类型"
+  },
+  {
+    "file": "internal/batchimage/postgres/job.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$",
+      "github.com/TokenFlux/TokenRouter/internal/apikey$"
+    ],
+    "reason": "保留原资金来源规范化和 Key 错误，不引用旧服务"
+  },
+  {
+    "file": "internal/billing/postgres/repo_unit_test.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/batchimage$",
+      "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres$"
+    ],
+    "reason": "任务表单测使用真实参与者，原 SQL 和金额断言保持"
+  },
+  {
+    "file": "internal/creative/worker.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/scheduler$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/creative/billing.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/creative/results.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$",
+      "github.com/TokenFlux/TokenRouter/internal/usage$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/creative/public.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$",
+      "github.com/TokenFlux/TokenRouter/internal/routing$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/modelmap$",
+      "golang.org/x/image/webp$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/batchimage/billing.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/batchimage/settlement.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$",
+      "github.com/TokenFlux/TokenRouter/internal/routing$",
+      "github.com/TokenFlux/TokenRouter/internal/usage$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/batchimage/public.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing$",
+      "github.com/TokenFlux/TokenRouter/internal/apikey$",
+      "github.com/TokenFlux/TokenRouter/internal/routing$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/modelmap$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/creative/httpapi/handler.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/batchimage/httpapi/handler.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/apikey$",
+      "github.com/TokenFlux/TokenRouter/internal/billing$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/logger$",
+      "go.uber.org/zap$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/creative/provider/gemini.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/upstream/gemini$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/creative/provider/grok.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/upstream/grok$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/creative/provider/target.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/upstream/gemini$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/grok$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/creative/provider/values.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/upstream/grok$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/batchimage/provider/account_projection.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/account$",
+      "github.com/TokenFlux/TokenRouter/internal/routing$",
+      "github.com/TokenFlux/TokenRouter/internal/upstream/vertex$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/batchimage/provider/gemini.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/upstream/gemini$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/batchimage/provider/vertex.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/upstream/vertex$"
+    ],
+    "reason": "任务用例仅消费已迁模块值与窄端口；平台技术依赖留 Adapter，来源 S13.1—S13.4"
+  },
+  {
+    "file": "internal/app/tasks.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/service$",
+      "github.com/TokenFlux/TokenRouter/internal/handler$"
+    ],
+    "reason": "组合根绑定唯一任务实例及旧消费者投影；S15/S16 清理旧类型"
+  },
+  {
+    "file": "internal/app/task_activity_test.go",
+    "imports": [
+      "github.com/gin-gonic/gin$"
+    ],
+    "reason": "实际任务 HTTP 的关闭与共享依赖保留回归"
+  },
+  {
+    "file": "internal/batchimage/httpapi/handler_test.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/apikey$"
+    ],
+    "reason": "任务 HTTP 凭据投影与下载资源关闭契约"
+  }
+]

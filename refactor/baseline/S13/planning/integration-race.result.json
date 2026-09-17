@@ -1,0 +1,1 @@
+{"command": ["go", "test", "-C", "backend", "-count=1", "-race", "-json", "-tags=integration", "-run", "^Test(BatchImageRepository|UsageBillingRepositoryBatchImage)", "./internal/repository"], "exit_code": 0}

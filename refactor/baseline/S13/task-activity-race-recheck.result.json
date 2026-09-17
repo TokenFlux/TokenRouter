@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-run",
+    "^TestTaskHTTPActivity",
+    "./internal/app"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.515,
+  "pass": 1,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/task-activity-race-recheck.log.gz"
+}

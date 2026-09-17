@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "^Test(Creative|BatchImage|Media)",
+    "./internal/service",
+    "./internal/creative/...",
+    "./internal/batchimage/...",
+    "./internal/routing"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 23.846,
+  "pass": 256,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/final-task-rule-unit.log.gz"
+}

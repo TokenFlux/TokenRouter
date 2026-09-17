@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=3",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "^(TestS13(Stopped|Repeated|Cleanup)|TestCreativeWorkerRuntime)",
+    "./internal/service"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 26.652,
+  "pass": 27,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/runtime-fixed-race.log.gz"
+}

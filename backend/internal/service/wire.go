@@ -108,7 +108,7 @@ func ProvideCreativeRunOutboxRepositories(repo CreativeRunOutboxRepository) []Cr
 	return []CreativeRunOutboxRepository{repo}
 }
 
-// ProvideBatchImageCleanupService 创建并启动批量图片清理服务。
+// ProvideBatchImageCleanupService 保留兼容构造，不在构造期间启动清理。
 func ProvideBatchImageCleanupService(repo BatchImageRepository, accountRepo AccountRepository, cfg *config.Config) *BatchImageCleanupService {
 	svc := NewBatchImageCleanupService(repo, accountRepo, cfg)
 
@@ -677,11 +677,6 @@ var ProviderSet = wire.NewSet(
 	NewCodexInviteResetService,
 	ProvideOpenAIQuotaService,
 	ProvideBatchImageModelPricingResolver,
-	NewBatchImagePublicService,
-	NewBatchImageDownloadService,
-	ProvideBatchImageCleanupService,
-	ProvideBatchImageWorkerRuntime,
-	NewCreativePublicService,
 	wire.Bind(new(CreativeSettingReader), new(*SettingService)),
 	ProvideCreativeUserRepository,
 	ProvideCreativeGroupRepository,

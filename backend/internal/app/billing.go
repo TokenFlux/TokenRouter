@@ -6,6 +6,11 @@ import (
 	sql "database/sql"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
+	batchpostgres "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+	creativepostgres "github.com/TokenFlux/TokenRouter/internal/creative/postgres"
+
 	paymentpostgres "github.com/TokenFlux/TokenRouter/internal/payment/postgres"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
@@ -46,7 +51,14 @@ func provideBillingSubscriptions(groups *routingpostgres.GroupStore, repo billin
 	return billing.NewSubscriptionService(billingGroups{Repository: groups}, repo, billingpostgres.NewSubscriptionMutations(client), billing.DateRuntime{Now: time.Now, Calendar: &calendar})
 }
 func provideSettlementStore(db *sql.DB) *billingpostgres.SettlementStore {
-	return billingpostgres.NewSettlementStore(db, schedulerpostgres.EnqueueAccountQuotaChangedInTx)
+	return billingpostgres.NewSettlementStore(db, schedulerpostgres.EnqueueAccountQuotaChangedInTx, billingpostgres.TaskProjectionFactories{
+		creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpostgres.TaskProjection {
+			return creativepostgres.NewFundingParticipant(tx, ref.ID)
+		},
+		batchimage.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpostgres.TaskProjection {
+			return batchpostgres.NewFundingParticipant(tx, ref.ID)
+		},
+	})
 }
 func provideBillingFunds(store *billingpostgres.SettlementStore) *billing.Funds {
 	return billing.NewFunds(store)

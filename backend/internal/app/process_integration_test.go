@@ -200,6 +200,15 @@ func TestS02ProcessModes(t *testing.T) {
 			for _, name := range []string{"HTTPRequests", "DeferredService", "TimingWheelService", "UsageLogBatchers", "Redis", "Ent"} {
 				require.Contains(t, logs, "[Lifecycle] stopped "+name)
 			}
+			// S13 的任务入口先等待完整提交/下载，再停止 worker、恢复与清理，最后才关闭存储。
+			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped TaskRequestsAndDownloads"))
+			require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped TaskRequestsAndDownloads"))
+			for _, name := range []string{"CreativeWorkerRuntime", "BatchImageWorkerRuntime", "BatchImageCleanupService"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped TaskRequestsAndDownloads"), strings.Index(logs, "stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
+			}
 			// S04 的资金运行组件各启动一次，所有资金队列完成后才关闭 Redis。
 			for _, name := range []string{"BillingCacheService", "UserPlatformQuotaUsageFlusher", "SubscriptionExpiryService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name))
