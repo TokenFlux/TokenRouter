@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/server/routes/..."
+  ],
+  "exit": 1,
+  "events": {},
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/server/routes",
+      null
+    ]
+  ],
+  "seconds": 4.429325103759766
+}

@@ -3,6 +3,8 @@ package app
 import (
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	batchhttp "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -96,4 +98,9 @@ func provideS13TaskActivity(manager *lifecycle.Manager) *taskRequestActivity {
 	activity := &taskRequestActivity{lifecycle.NewOperations("TaskRequestsAndDownloads")}
 	manager.Register(lifecycle.Hook{Name: "TaskRequestsAndDownloads", StopOrder: 16, Stop: activity.StopContext})
 	return activity
+}
+
+// provideCreativeSettingsCore 返回 S13 已构造的同一实例，不重复装配任务状态。
+func provideCreativeSettingsCore(value *service.CreativePublicService) *creative.Public {
+	return value.Core
 }

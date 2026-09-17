@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./..."
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 11794,
+    "skip": 4
+  },
+  "failures": [],
+  "seconds": 196.84338784217834
+}

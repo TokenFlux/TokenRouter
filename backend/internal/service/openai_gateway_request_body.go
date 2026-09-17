@@ -239,46 +239,13 @@ func resolveOpenAICompactSessionID(c *gin.Context) string {
 // IsForwardableOpenAIResponsesRequestPath 负责。这样即便将来新增路由漏挂守卫，
 // 拼进上游 URL 的也只会是合规片段。
 func openAIResponsesRequestPathSuffix(c *gin.Context) string {
-	suffix, ok := sanitizedUpstreamPathSuffix(rawOpenAIResponsesRequestPathSuffix(c))
-	if !ok {
-		return ""
-	}
-	return suffix
+	return gatewayhttp.OpenAIResponsesRequestPathSuffix(c)
 }
-
-// IsForwardableOpenAIResponsesRequestPath 判断入站请求携带的 /responses 子路径
-// 是否可以安全转发。路由层用它在鉴权后、调度前直接拒绝畸形子路径。
 func IsForwardableOpenAIResponsesRequestPath(c *gin.Context) bool {
-	_, ok := sanitizedUpstreamPathSuffix(rawOpenAIResponsesRequestPathSuffix(c))
-	return ok
+	return gatewayhttp.IsForwardableOpenAIResponsesRequestPath(c)
 }
-
-// IsOpenAIResponsesInputTokensRequestPath 判断请求是否指向原生 Responses 输入 token 预检端点。
 func IsOpenAIResponsesInputTokensRequestPath(c *gin.Context) bool {
-	return openAIResponsesRequestPathSuffix(c) == "/input_tokens"
-}
-
-// rawOpenAIResponsesRequestPathSuffix 仅做提取，不做任何安全判断。
-func rawOpenAIResponsesRequestPathSuffix(c *gin.Context) string {
-	if c == nil || c.Request == nil || c.Request.URL == nil {
-		return ""
-	}
-	normalizedPath := strings.TrimRight(strings.TrimSpace(c.Request.URL.Path), "/")
-	if normalizedPath == "" {
-		return ""
-	}
-	idx := strings.LastIndex(normalizedPath, "/responses")
-	if idx < 0 {
-		return ""
-	}
-	suffix := normalizedPath[idx+len("/responses"):]
-	if suffix == "" || suffix == "/" {
-		return ""
-	}
-	if !strings.HasPrefix(suffix, "/") {
-		return ""
-	}
-	return suffix
+	return gatewayhttp.IsOpenAIResponsesInputTokensRequestPath(c)
 }
 
 func appendOpenAIResponsesRequestPathSuffix(baseURL, suffix string) string {

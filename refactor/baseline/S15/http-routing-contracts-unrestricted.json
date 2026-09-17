@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/server/...",
+    "./internal/payment/httpapi/...",
+    "./internal/handler/admin/..."
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 1073
+  },
+  "failures": [],
+  "seconds": 20.59999990463257
+}

@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|Grant|DefaultSub|DefaultPlatform|AuthSource",
+    "./internal/identity",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 1,
+  "events": {
+    "pass": 321
+  },
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      null
+    ]
+  ],
+  "seconds": 17.591896057128906
+}

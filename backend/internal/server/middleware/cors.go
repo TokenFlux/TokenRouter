@@ -6,14 +6,14 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpconfig"
 	"github.com/gin-gonic/gin"
 )
 
 var corsWarningOnce sync.Once
 
 // CORS 跨域中间件
-func CORS(cfg config.CORSConfig) gin.HandlerFunc {
+func CORS(cfg httpconfig.CORSConfig) gin.HandlerFunc {
 	allowedOrigins := normalizeOrigins(cfg.AllowedOrigins)
 	allowAll := false
 	for _, origin := range allowedOrigins {

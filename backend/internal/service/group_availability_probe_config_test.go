@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
 
@@ -120,8 +122,8 @@ func TestNormalizeGroupAvailabilityProbeConfigForAdminWriteReturnsBadRequest(t *
 		MaxRetries: groupAvailabilityProbeRetryPointer(maxGroupAvailabilityProbeMaxRetries + 1),
 	})
 
-	if infraerrors.Code(err) != http.StatusBadRequest {
-		t.Fatalf("normalizeGroupAvailabilityProbeConfigForAdminWrite() status = %d, want %d", infraerrors.Code(err), http.StatusBadRequest)
+	if s15httpx.ErrorCode(err) != http.StatusBadRequest {
+		t.Fatalf("normalizeGroupAvailabilityProbeConfigForAdminWrite() status = %d, want %d", s15httpx.ErrorCode(err), http.StatusBadRequest)
 	}
 	if infraerrors.Reason(err) != invalidGroupAvailabilityProbeConfigReason {
 		t.Fatalf("normalizeGroupAvailabilityProbeConfigForAdminWrite() reason = %q, want %q", infraerrors.Reason(err), invalidGroupAvailabilityProbeConfigReason)

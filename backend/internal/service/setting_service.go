@@ -2,17 +2,31 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
-	"strconv"
-	"strings"
 	"sync"
-	"sync/atomic"
-	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	"github.com/TokenFlux/TokenRouter/internal/moderation"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
+
+	"github.com/TokenFlux/TokenRouter/internal/audit"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
+
+	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
 
 	"github.com/TokenFlux/TokenRouter/internal/search"
@@ -24,9 +38,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -47,58 +59,16 @@ type UsageRankingSettings = usage.UsageRankingSettings
 
 func IsValidUsageRankingSortBy(value string) bool { return usage.IsValidUsageRankingSortBy(value) }
 
-func normalizeUsageRankingSortBy(value string) UsageRankingSortBy {
-	return usage.NormalizeUsageRankingSortByInternal(value)
-}
-
 func NormalizeUsageRankingSortBy(value string) UsageRankingSortBy {
 	return usage.NormalizeUsageRankingSortBy(value)
-}
-
-func defaultUsageRankingSettings() UsageRankingSettings {
-	return UsageRankingSettings{
-		Enabled:         true,
-		SortBy:          UsageRankingSortByTotalTokens,
-		ShowTotalTokens: true,
-		ShowRequests:    true,
-		ShowActualCost:  true,
-		Limit:           DefaultUsageRankingLimit,
-	}
 }
 
 func NormalizeUsageRankingSettings(settings UsageRankingSettings) UsageRankingSettings {
 	return usage.NormalizeUsageRankingSettings(settings)
 }
 
-func parseUsageRankingSettings(values map[string]string) UsageRankingSettings {
-	settings := defaultUsageRankingSettings()
-	if values == nil {
-		return settings
-	}
-	settings.Enabled = values[SettingKeyUsageRankingEnabled] != "false"
-	settings.SortBy = normalizeUsageRankingSortBy(values[SettingKeyUsageRankingSortBy])
-	settings.ShowTotalTokens = values[SettingKeyUsageRankingShowTotalTokens] != "false"
-	settings.ShowRequests = values[SettingKeyUsageRankingShowRequests] != "false"
-	settings.ShowActualCost = values[SettingKeyUsageRankingShowActualCost] != "false"
-	settings.Limit = normalizeUsageRankingLimitString(values[SettingKeyUsageRankingLimit])
-	return NormalizeUsageRankingSettings(settings)
-}
-
 func normalizeGrokDefaultBaseURLMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case GrokDefaultBaseURLModeAPI:
-		return GrokDefaultBaseURLModeAPI
-	case GrokDefaultBaseURLModeUSEast1:
-		return GrokDefaultBaseURLModeUSEast1
-	case GrokDefaultBaseURLModeUSWest2:
-		return GrokDefaultBaseURLModeUSWest2
-	case GrokDefaultBaseURLModeEUWest1:
-		return GrokDefaultBaseURLModeEUWest1
-	case GrokDefaultBaseURLModeCLI:
-		return GrokDefaultBaseURLModeCLI
-	default:
-		return GrokDefaultBaseURLModeCLI
-	}
+	return gateway.NormalizeGrokDefaultBaseURLMode(mode)
 }
 
 func GrokBaseURLForMode(mode string) string {
@@ -117,16 +87,7 @@ func GrokBaseURLForMode(mode string) string {
 }
 
 func (s *SettingService) GetGrokDefaultBaseURLMode(ctx context.Context) string {
-	if s == nil || s.settingRepo == nil {
-		return GrokDefaultBaseURLModeCLI
-	}
-	dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayForwardingDBTimeout)
-	defer cancel()
-	raw, err := s.settingRepo.GetValue(dbCtx, SettingKeyGrokDefaultBaseURLMode)
-	if err != nil {
-		return GrokDefaultBaseURLModeCLI
-	}
-	return normalizeGrokDefaultBaseURLMode(raw)
+	return s.GatewaySettings().GetGrokDefaultBaseURLMode(ctx)
 }
 
 func (s *SettingService) GetGrokDefaultBaseURL(ctx context.Context) string {
@@ -145,16 +106,10 @@ func (s *SettingService) ResolveGrokBaseURL(ctx context.Context, account *Accoun
 }
 
 var (
-	ErrRegistrationDisabled  = identity.ErrRegDisabled
-	ErrSettingNotFound       = settings.ErrSettingNotFound
-	ErrDefaultSubPlanInvalid = infraerrors.BadRequest(
-		"DEFAULT_SUBSCRIPTION_PLAN_INVALID",
-		"default subscription plan must exist",
-	)
-	ErrDefaultSubPlanDuplicate = infraerrors.BadRequest(
-		"DEFAULT_SUBSCRIPTION_PLAN_DUPLICATE",
-		"default subscription plan cannot be duplicated",
-	)
+	ErrRegistrationDisabled    = identity.ErrRegDisabled
+	ErrSettingNotFound         = settings.ErrSettingNotFound
+	ErrDefaultSubPlanInvalid   = identity.ErrDefaultSubPlanInvalid
+	ErrDefaultSubPlanDuplicate = identity.ErrDefaultSubPlanDuplicate
 )
 
 // WebSearchManagerBuilder creates a websearch.Manager from config (injected by infra layer).
@@ -162,6 +117,33 @@ var (
 
 // SettingService 系统设置服务
 type SettingService struct {
+	moderationSettings           *moderation.RuntimeSettings
+	moderationSettingsOnce       sync.Once
+	gatewayAdminRules            *gateway.AdminSettingsRules
+	routingSettings              *routing.RuntimeSettings
+	routingSettingsOnce          sync.Once
+	schedulerAdminDefaults       *scheduler.AdminDefaults
+	forwardedSettings            *runtimeconfig.ForwardedSettings
+	forwardedSettingsOnce        sync.Once
+	creativeSettings             *creative.RuntimeSettings
+	creativeSettingsOnce         sync.Once
+	grantSettings                *identity.GrantSettings
+	grantSettingsOnce            sync.Once
+	oauthSettingsOnce            sync.Once
+	gatewaySettingsOnce          sync.Once
+	auditSettingsOnce            sync.Once
+	usageSettingsOnce            sync.Once
+	promotionSettingsOnce        sync.Once
+	identitySettingsOnce         sync.Once
+	accountSettingsOnce          sync.Once
+	oauthSettings                *identity.OAuthSettings
+	gatewaySettings              *gateway.RuntimeSettings
+	identitySettings             *identity.RuntimeSettings
+	usageSettings                *usage.RuntimeSettings
+	auditSettings                *audit.RetentionSettings
+	accountSettings              *accountcore.RuntimeSettings
+	promotionSettings            *promotion.RuntimeSettings
+	backendMode                  *admission.BackendMode
 	userPromptPolicy             *promptpolicy.Service
 	searchConfig                 *search.ConfigService
 	publicSite                   *site.PublicService
@@ -173,29 +155,11 @@ type SettingService struct {
 	runtimeSettings              *settings.Store
 	creativeWorkerCountCallback  func(int)
 	creativeWorkerStatusCallback func() CreativeWorkerStatus
-	antigravityUAVersionCache    atomic.Value // *cachedAntigravityUserAgentVersion
-	antigravityUAVersionSF       singleflight.Group
-	openAICodexUACache           atomic.Value // *cachedOpenAICodexUserAgent
-	openAICodexUASF              singleflight.Group
-	openAIAllowCodexPluginCache  atomic.Value // *cachedOpenAIAllowCodexPlugin
-	openAIAllowCodexPluginSF     singleflight.Group
-	cyberSessionBlockCache       atomic.Value // *cachedCyberSessionBlockRuntime
-	cyberSessionBlockSF          singleflight.Group
 
-	// panelRateLimitCache 面板 API 限流配置进程内缓存（*cachedPanelRateLimitSettings）。
-	// 面板每个认证请求都会读取，禁止在热路径上直接访问 DB。
-	panelRateLimitCache atomic.Value
-	panelRateLimitSF    singleflight.Group
+	panelSettings *runtimeconfig.PanelSettings
 
-	// openAIQuotaAutoPauseSettingsCache 保存最近一次观测到的配额自动暂停设置。
-	// GetOpenAIQuotaAutoPauseSettings 在请求热路径读取这个 atomic.Value，绝不阻塞等待 DB；
-	// 当缓存项过期时，后台 goroutine 通过 openAIQuotaAutoPauseSettingsSF 刷新它
-	// （stale-while-revalidate）。该字段归属单个服务实例，也让测试天然隔离：
-	// 每个 SettingService 实例拥有自己的缓存，不共享包级状态。
-	openAIQuotaAutoPauseSettingsCache atomic.Value // *cachedOpenAIQuotaAutoPauseSettings
-	openAIQuotaAutoPauseSettingsSF    singleflight.Group
-	openAIAPIKeyHealthBreakerCache    atomic.Value // *cachedOpenAIAPIKeyHealthBreakerSettings
-
+	quotaSettings     *accountcore.QuotaSettingsCache
+	quotaSettingsOnce sync.Once
 }
 
 type DefaultPlatformQuotaSetting = identity.DefaultPlatformQuotaSetting
@@ -204,101 +168,23 @@ type ProviderDefaultGrantSettings = identity.ProviderDefaultGrantSettings
 
 type AuthSourceDefaultSettings = identity.AuthSourceDefaultSettings
 
-type authSourceDefaultKeySet struct {
-	// source 是 auth source 标识（如 "email"、"github"），仅用于 parse 时
-	// slog.Warn 诊断输出，不再参与 key 拼接（platformQuotas 字段已存完整 key）。
-	source           string
-	balance          string
-	concurrency      string
-	subscriptions    string
-	grantOnSignup    string
-	grantOnFirstBind string
-	platformQuotas   string // SettingKeyAuthSourcePlatformQuotas(source)
-}
-
-var (
-	emailAuthSourceDefaultKeys = authSourceDefaultKeySet{
-		source:           "email",
-		balance:          SettingKeyAuthSourceDefaultEmailBalance,
-		concurrency:      SettingKeyAuthSourceDefaultEmailConcurrency,
-		subscriptions:    SettingKeyAuthSourceDefaultEmailSubscriptions,
-		grantOnSignup:    SettingKeyAuthSourceDefaultEmailGrantOnSignup,
-		grantOnFirstBind: SettingKeyAuthSourceDefaultEmailGrantOnFirstBind,
-		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("email"),
-	}
-	linuxDoAuthSourceDefaultKeys = authSourceDefaultKeySet{
-		source:           "linuxdo",
-		balance:          SettingKeyAuthSourceDefaultLinuxDoBalance,
-		concurrency:      SettingKeyAuthSourceDefaultLinuxDoConcurrency,
-		subscriptions:    SettingKeyAuthSourceDefaultLinuxDoSubscriptions,
-		grantOnSignup:    SettingKeyAuthSourceDefaultLinuxDoGrantOnSignup,
-		grantOnFirstBind: SettingKeyAuthSourceDefaultLinuxDoGrantOnFirstBind,
-		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("linuxdo"),
-	}
-	oidcAuthSourceDefaultKeys = authSourceDefaultKeySet{
-		source:           "oidc",
-		balance:          SettingKeyAuthSourceDefaultOIDCBalance,
-		concurrency:      SettingKeyAuthSourceDefaultOIDCConcurrency,
-		subscriptions:    SettingKeyAuthSourceDefaultOIDCSubscriptions,
-		grantOnSignup:    SettingKeyAuthSourceDefaultOIDCGrantOnSignup,
-		grantOnFirstBind: SettingKeyAuthSourceDefaultOIDCGrantOnFirstBind,
-		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("oidc"),
-	}
-	weChatAuthSourceDefaultKeys = authSourceDefaultKeySet{
-		source:           "wechat",
-		balance:          SettingKeyAuthSourceDefaultWeChatBalance,
-		concurrency:      SettingKeyAuthSourceDefaultWeChatConcurrency,
-		subscriptions:    SettingKeyAuthSourceDefaultWeChatSubscriptions,
-		grantOnSignup:    SettingKeyAuthSourceDefaultWeChatGrantOnSignup,
-		grantOnFirstBind: SettingKeyAuthSourceDefaultWeChatGrantOnFirstBind,
-		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("wechat"),
-	}
-	gitHubAuthSourceDefaultKeys = authSourceDefaultKeySet{
-		source:           "github",
-		balance:          SettingKeyAuthSourceDefaultGitHubBalance,
-		concurrency:      SettingKeyAuthSourceDefaultGitHubConcurrency,
-		subscriptions:    SettingKeyAuthSourceDefaultGitHubSubscriptions,
-		grantOnSignup:    SettingKeyAuthSourceDefaultGitHubGrantOnSignup,
-		grantOnFirstBind: SettingKeyAuthSourceDefaultGitHubGrantOnFirstBind,
-		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("github"),
-	}
-	googleAuthSourceDefaultKeys = authSourceDefaultKeySet{
-		source:           "google",
-		balance:          SettingKeyAuthSourceDefaultGoogleBalance,
-		concurrency:      SettingKeyAuthSourceDefaultGoogleConcurrency,
-		subscriptions:    SettingKeyAuthSourceDefaultGoogleSubscriptions,
-		grantOnSignup:    SettingKeyAuthSourceDefaultGoogleGrantOnSignup,
-		grantOnFirstBind: SettingKeyAuthSourceDefaultGoogleGrantOnFirstBind,
-		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("google"),
-	}
-	dingTalkAuthSourceDefaultKeys = authSourceDefaultKeySet{
-		source:           "dingtalk",
-		balance:          SettingKeyAuthSourceDefaultDingTalkBalance,
-		concurrency:      SettingKeyAuthSourceDefaultDingTalkConcurrency,
-		subscriptions:    SettingKeyAuthSourceDefaultDingTalkSubscriptions,
-		grantOnSignup:    SettingKeyAuthSourceDefaultDingTalkGrantOnSignup,
-		grantOnFirstBind: SettingKeyAuthSourceDefaultDingTalkGrantOnFirstBind,
-		platformQuotas:   SettingKeyAuthSourcePlatformQuotas("dingtalk"),
-	}
-)
-
 const (
 	defaultAuthSourceBalance     = 0
 	defaultAuthSourceConcurrency = 5
 	defaultWeChatConnectMode     = "open"
-	defaultWeChatConnectScopes   = "snsapi_login"
-	defaultWeChatConnectFrontend = "/auth/wechat/callback"
-	defaultGitHubOAuthAuthorize  = "https://github.com/login/oauth/authorize"
-	defaultGitHubOAuthToken      = "https://github.com/login/oauth/access_token"
-	defaultGitHubOAuthUserInfo   = "https://api.github.com/user"
-	defaultGitHubOAuthEmails     = "https://api.github.com/user/emails"
-	defaultGitHubOAuthScopes     = "read:user user:email"
-	defaultGitHubOAuthFrontend   = "/auth/oauth/callback"
-	defaultGoogleOAuthAuthorize  = "https://accounts.google.com/o/oauth2/v2/auth"
-	defaultGoogleOAuthToken      = "https://oauth2.googleapis.com/token"
-	defaultGoogleOAuthUserInfo   = "https://openidconnect.googleapis.com/v1/userinfo"
-	defaultGoogleOAuthScopes     = "openid email profile"
-	defaultGoogleOAuthFrontend   = "/auth/oauth/callback"
+	defaultWeChatConnectScopes   = identity.OAuthDefaultWeChatConnectScopes
+	defaultWeChatConnectFrontend = identity.OAuthDefaultWeChatConnectFrontend
+	defaultGitHubOAuthAuthorize  = identity.OAuthDefaultGitHubOAuthAuthorize
+	defaultGitHubOAuthToken      = identity.OAuthDefaultGitHubOAuthToken
+	defaultGitHubOAuthUserInfo   = identity.OAuthDefaultGitHubOAuthUserInfo
+	defaultGitHubOAuthEmails     = identity.OAuthDefaultGitHubOAuthEmails
+	defaultGitHubOAuthScopes     = identity.OAuthDefaultGitHubOAuthScopes
+	defaultGitHubOAuthFrontend   = identity.OAuthDefaultGitHubOAuthFrontend
+	defaultGoogleOAuthAuthorize  = identity.OAuthDefaultGoogleOAuthAuthorize
+	defaultGoogleOAuthToken      = identity.OAuthDefaultGoogleOAuthToken
+	defaultGoogleOAuthUserInfo   = identity.OAuthDefaultGoogleOAuthUserInfo
+	defaultGoogleOAuthScopes     = identity.OAuthDefaultGoogleOAuthScopes
+	defaultGoogleOAuthFrontend   = identity.OAuthDefaultGoogleOAuthFrontend
 	defaultLoginAgreementMode    = "modal"
 	defaultLoginAgreementDate    = "2026-03-31"
 )
@@ -310,6 +196,8 @@ func NewSettingService(settingRepo SettingRepository, cfg *config.Config) *Setti
 		settingRepo = store
 	}
 	return &SettingService{
+		backendMode:     admission.NewBackendMode(settingRepo, slog.Warn),
+		panelSettings:   runtimeconfig.NewPanelSettings(settingRepo),
 		runtimeSettings: store,
 		settingRepo:     settingRepo,
 		cfg:             cfg,
@@ -325,61 +213,7 @@ func (s *SettingService) LoadForwardedClientIPSettings(ctx context.Context) erro
 	if s == nil || s.cfg == nil || s.settingRepo == nil {
 		return nil
 	}
-
-	values, err := s.settingRepo.GetMultiple(ctx, []string{
-		SettingKeyAPIKeyACLTrustForwardedIP,
-		SettingKeyForwardedClientIPHeaders,
-		settingKeyForwardedClientIPModeV2,
-	})
-	if err != nil {
-		s.cfg.SetForwardedClientIPSettings(false, nil)
-		return fmt.Errorf("get forwarded client ip settings: %w", err)
-	}
-
-	enabled := s.cfg.Security.TrustForwardedIPForAPIKeyACL
-	headers := s.cfg.ForwardedClientIPSettings().Headers
-	storedValue, hasStoredValue := values[SettingKeyAPIKeyACLTrustForwardedIP]
-	if hasStoredValue {
-		enabled = storedValue == "true"
-	}
-
-	var headersErr error
-	if storedHeaders, ok := values[SettingKeyForwardedClientIPHeaders]; ok {
-		headers, headersErr = parseForwardedClientIPHeadersSetting(storedHeaders)
-		if headersErr != nil {
-			enabled = false
-			headers = []string{}
-			headersErr = fmt.Errorf("load forwarded client ip headers: %w", headersErr)
-		}
-	}
-
-	updates := make(map[string]string)
-	if _, hasStoredHeaders := values[SettingKeyForwardedClientIPHeaders]; !hasStoredHeaders {
-		headersJSON, marshalErr := json.Marshal(headers)
-		if marshalErr != nil {
-			headers = []string{}
-			headersErr = errors.Join(headersErr, fmt.Errorf("marshal forwarded client ip headers: %w", marshalErr))
-			headersJSON = []byte("[]")
-		}
-		updates[SettingKeyForwardedClientIPHeaders] = string(headersJSON)
-	}
-	if values[settingKeyForwardedClientIPModeV2] != "true" {
-		updates[settingKeyForwardedClientIPModeV2] = "true"
-		// 本迁移之前的新安装会默认持久化 false；仅在未配置可信代理策略时恢复兼容模式。
-		if headersErr == nil && hasStoredValue && !enabled && !s.cfg.Server.TrustedProxiesConfigured {
-			enabled = true
-			updates[SettingKeyAPIKeyACLTrustForwardedIP] = "true"
-		}
-	}
-	if len(updates) > 0 {
-		if err := s.settingRepo.SetMultiple(ctx, updates); err != nil {
-			s.cfg.SetForwardedClientIPSettings(enabled, headers)
-			return errors.Join(headersErr, fmt.Errorf("migrate forwarded client ip setting: %w", err))
-		}
-	}
-
-	s.cfg.SetForwardedClientIPSettings(enabled, headers)
-	return headersErr
+	return s.ForwardedSettings().LoadForwardedClientIPSettings(ctx)
 }
 
 // GetAllSettings 获取所有系统设置
@@ -427,202 +261,52 @@ func (s *SettingService) SetVersion(version string) {
 	s.settingRuntime().SetVersion(version)
 }
 
-// getStringOrDefault 获取字符串值或默认值
-func (s *SettingService) getStringOrDefault(settings map[string]string, key, defaultValue string) string {
-	if value, ok := settings[key]; ok && value != "" {
-		return value
-	}
-	return defaultValue
-}
-
 // GetBalanceUnitName 获取内部余额展示单位名称
 func (s *SettingService) GetBalanceUnitName(ctx context.Context) string {
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyBalanceUnitName)
-	if err != nil {
-		return "USD"
-	}
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "USD"
-	}
-	return value
+	return billing.ReadBalanceUnitName(ctx, s.settingRepo)
 }
 
 // GetOpenAI403CooldownSettings 获取 OpenAI OAuth 403 冷却配置
 func (s *SettingService) GetOpenAI403CooldownSettings(ctx context.Context) (*OpenAI403CooldownSettings, error) {
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAI403CooldownSettings)
-	if err != nil {
-		if errors.Is(err, ErrSettingNotFound) {
-			return DefaultOpenAI403CooldownSettings(), nil
-		}
-		return nil, fmt.Errorf("get openai 403 cooldown settings: %w", err)
-	}
-	if value == "" {
-		return DefaultOpenAI403CooldownSettings(), nil
-	}
-
-	settings := *DefaultOpenAI403CooldownSettings()
-	if err := json.Unmarshal([]byte(value), &settings); err != nil {
-		return DefaultOpenAI403CooldownSettings(), nil
-	}
-
-	if settings.CooldownMinutes < 1 {
-		settings.CooldownMinutes = openAI403CooldownMinutesDefault
-	}
-	if settings.CooldownMinutes > 120 {
-		settings.CooldownMinutes = 120
-	}
-	if settings.ThresholdCount < 1 {
-		settings.ThresholdCount = openAI403DisableThresholdDefault
-	}
-	if settings.ThresholdCount > 20 {
-		settings.ThresholdCount = 20
-	}
-	if settings.ThresholdWindowMinutes < 1 {
-		settings.ThresholdWindowMinutes = openAI403CounterWindowMinutesDefault
-	}
-	if settings.ThresholdWindowMinutes > 1440 {
-		settings.ThresholdWindowMinutes = 1440
-	}
-
-	return &settings, nil
+	return s.AccountSettings().GetOpenAI403CooldownSettings(ctx)
 }
 
 // GetOpenAIOAuthImportDefaults 获取 OpenAI OAuth 账号导入缺省模板。
 func (s *SettingService) GetOpenAIOAuthImportDefaults(ctx context.Context) (*OpenAIOAuthImportDefaults, error) {
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIOAuthImportDefaults)
-	if err != nil {
-		if errors.Is(err, ErrSettingNotFound) {
-			return DefaultOpenAIOAuthImportDefaults(), nil
-		}
-		return nil, fmt.Errorf("get openai oauth import defaults: %w", err)
-	}
-	if value == "" {
-		return DefaultOpenAIOAuthImportDefaults(), nil
-	}
-
-	var settings OpenAIOAuthImportDefaults
-	if err := json.Unmarshal([]byte(value), &settings); err != nil {
-		slog.Warn("failed to unmarshal openai oauth import defaults, falling back to defaults",
-			"error", err,
-			"key", SettingKeyOpenAIOAuthImportDefaults)
-		return DefaultOpenAIOAuthImportDefaults(), nil
-	}
-
-	return fillOpenAIOAuthImportDefaults(&settings), nil
+	return s.AccountSettings().GetOpenAIOAuthImportDefaults(ctx)
 }
 
 // GetUsageRankingSettings 获取用户侧用量排行的完整运行时配置。
 func (s *SettingService) GetUsageRankingSettings(ctx context.Context) (UsageRankingSettings, error) {
-	if s == nil || s.settingRepo == nil {
-		return defaultUsageRankingSettings(), nil
-	}
-	values, err := s.settingRepo.GetMultiple(ctx, []string{
-		SettingKeyUsageRankingLimit,
-		SettingKeyUsageRankingEnabled,
-		SettingKeyUsageRankingSortBy,
-		SettingKeyUsageRankingShowTotalTokens,
-		SettingKeyUsageRankingShowRequests,
-		SettingKeyUsageRankingShowActualCost,
-	})
-	if err != nil {
-		return UsageRankingSettings{}, fmt.Errorf("get usage ranking settings: %w", err)
-	}
-	return parseUsageRankingSettings(values), nil
+	return s.UsageSettings().GetUsageRankingSettings(ctx)
 }
 
 // GetUsageRankingLimit 获取用户侧用量排行展示数量。
 func (s *SettingService) GetUsageRankingLimit(ctx context.Context) int {
-	settings, err := s.GetUsageRankingSettings(ctx)
-	if err != nil {
-		return DefaultUsageRankingLimit
-	}
-	return settings.Limit
+	return s.UsageSettings().GetUsageRankingLimit(ctx)
 }
 
 // IsOpenAIAllowClaudeCodeCodexPluginEnabled 全局开关：是否额外放行 Claude Code 的 Codex 插件（默认关闭）。
 // 仅在调用方已确认账号 codex_cli_only 开启时读取，避免对非受限账号产生无谓查询。
 // 使用进程内 atomic.Value 缓存（60s TTL），避免在每个网关请求热路径上访问 DB。
 func (s *SettingService) IsOpenAIAllowClaudeCodeCodexPluginEnabled(ctx context.Context) bool {
-	if cached, ok := s.openAIAllowCodexPluginCache.Load().(*cachedOpenAIAllowCodexPlugin); ok && cached != nil {
-		if time.Now().UnixNano() < cached.expiresAt {
-			return cached.value
-		}
-	}
-	result, _, _ := s.openAIAllowCodexPluginSF.Do("openai_allow_codex_plugin_enabled", func() (any, error) {
-		if cached, ok := s.openAIAllowCodexPluginCache.Load().(*cachedOpenAIAllowCodexPlugin); ok && cached != nil {
-			if time.Now().UnixNano() < cached.expiresAt {
-				return cached.value, nil
-			}
-		}
-		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAIAllowCodexPluginDBTimeout)
-		defer cancel()
-		value, err := s.settingRepo.GetValue(dbCtx, SettingKeyOpenAIAllowClaudeCodeCodexPlugin)
-		if err != nil {
-			if errors.Is(err, ErrSettingNotFound) {
-				// 设置不存在 → 默认关闭，正常 TTL 缓存
-				s.openAIAllowCodexPluginCache.Store(&cachedOpenAIAllowCodexPlugin{
-					value:     false,
-					expiresAt: time.Now().Add(openAIAllowCodexPluginCacheTTL).UnixNano(),
-				})
-				return false, nil
-			}
-			slog.Warn("failed to get openai_allow_claude_code_codex_plugin setting", "error", err)
-			// DB 错误 → 安全默认关闭，短 TTL 快速重试
-			s.openAIAllowCodexPluginCache.Store(&cachedOpenAIAllowCodexPlugin{
-				value:     false,
-				expiresAt: time.Now().Add(openAIAllowCodexPluginErrorTTL).UnixNano(),
-			})
-			return false, nil
-		}
-		enabled := value == "true"
-		s.openAIAllowCodexPluginCache.Store(&cachedOpenAIAllowCodexPlugin{
-			value:     enabled,
-			expiresAt: time.Now().Add(openAIAllowCodexPluginCacheTTL).UnixNano(),
-		})
-		return enabled, nil
-	})
-	if val, ok := result.(bool); ok {
-		return val
-	}
-	return false
+	return s.GatewaySettings().IsOpenAIAllowClaudeCodeCodexPluginEnabled(ctx)
 }
 
 func (s *SettingService) IsRegistrationEmailNormalizationEnabled(ctx context.Context) bool {
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailNormalization)
-	if err != nil {
-		return false
-	}
-	return value == "true"
+	return s.IdentitySettings().IsRegistrationEmailNormalizationEnabled(ctx)
 }
 
 // IsCreativeEnabled 读取创作台数据库运行时开关（键缺失或读取失败时默认开启，
 // 与 team_enabled 保持同款"缺省 true"语义；进程级 creative.enabled 由调用方另行校验）。
 func (s *SettingService) IsCreativeEnabled(ctx context.Context) bool {
-	if s == nil || s.settingRepo == nil {
-		return true
-	}
-	value, err := s.settingRepo.GetValue(ctx, SettingKeyCreativeEnabled)
-	if err != nil {
-		return true
-	}
-	return value != "false"
+	return s.CreativeSettings().IsCreativeEnabled(ctx)
 }
 
 // GetCreativeModelSettings 读取创作台模型白名单；缺失、损坏或读取失败均按空列表处理。
 // 空列表是明确的 fail-closed 语义，不会因为数据库异常误放行生图模型。
 func (s *SettingService) GetCreativeModelSettings(ctx context.Context) []CreativeModelSetting {
-	if s == nil || s.settingRepo == nil {
-		return []CreativeModelSetting{}
-	}
-	raw, err := s.settingRepo.GetValue(ctx, SettingKeyCreativeModelSettings)
-	if err != nil {
-		if !errors.Is(err, ErrSettingNotFound) {
-			slog.Warn("failed to read creative model settings", "error", err)
-		}
-		return []CreativeModelSetting{}
-	}
-	return parseCreativeModelSettings(raw)
+	return s.CreativeSettings().GetCreativeModelSettings(ctx)
 }
 
 // SetDefaultSubscriptionPlanReader injects an optional plan reader for default subscription validation.
@@ -632,257 +316,19 @@ func (s *SettingService) SetDefaultSubscriptionPlanReader(reader DefaultSubscrip
 
 // SetOpenAI403CooldownSettings 设置 OpenAI OAuth 403 冷却配置
 func (s *SettingService) SetOpenAI403CooldownSettings(ctx context.Context, settings *OpenAI403CooldownSettings) error {
-	if settings == nil {
-		return fmt.Errorf("settings cannot be nil")
-	}
-
-	// 禁用时修正为合法值即可，不拒绝请求
-	if settings.CooldownMinutes < 1 || settings.CooldownMinutes > 120 {
-		if settings.Enabled {
-			return fmt.Errorf("cooldown_minutes must be between 1-120")
-		}
-		settings.CooldownMinutes = openAI403CooldownMinutesDefault
-	}
-	if settings.ThresholdCount < 1 || settings.ThresholdCount > 20 {
-		if settings.Enabled && settings.ErrorOnThresholdEnabled {
-			return fmt.Errorf("threshold_count must be between 1-20")
-		}
-		settings.ThresholdCount = openAI403DisableThresholdDefault
-	}
-	if settings.ThresholdWindowMinutes < 1 || settings.ThresholdWindowMinutes > 1440 {
-		if settings.Enabled && settings.ErrorOnThresholdEnabled {
-			return fmt.Errorf("threshold_window_minutes must be between 1-1440")
-		}
-		settings.ThresholdWindowMinutes = openAI403CounterWindowMinutesDefault
-	}
-
-	data, err := json.Marshal(settings)
-	if err != nil {
-		return fmt.Errorf("marshal openai 403 cooldown settings: %w", err)
-	}
-
-	return s.settingRepo.Set(ctx, SettingKeyOpenAI403CooldownSettings, string(data))
+	return s.AccountSettings().SetOpenAI403CooldownSettings(ctx, settings)
 }
 
 // SetOpenAIOAuthImportDefaults 保存 OpenAI OAuth 账号导入缺省模板。
 func (s *SettingService) SetOpenAIOAuthImportDefaults(ctx context.Context, settings *OpenAIOAuthImportDefaults) error {
-	if settings == nil {
-		return fmt.Errorf("settings cannot be nil")
-	}
-	if err := validateOpenAIOAuthImportDefaults(settings); err != nil {
-		return err
-	}
-	// 模板和账号写入使用同一兼容边界，不修改调用方持有的原始对象。
-	normalized := *settings
-	normalized.Extra = maps.Clone(settings.Extra)
-	normalizeLegacyOpenAIAccountExtra(normalized.Extra)
-
-	data, err := json.Marshal(&normalized)
-	if err != nil {
-		return fmt.Errorf("marshal openai oauth import defaults: %w", err)
-	}
-
-	return s.settingRepo.Set(ctx, SettingKeyOpenAIOAuthImportDefaults, string(data))
-}
-
-func (s *SettingService) baseEmailOAuthConfig(provider string) config.EmailOAuthProviderConfig {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "github":
-		base := config.EmailOAuthProviderConfig{
-			AuthorizeURL:        defaultGitHubOAuthAuthorize,
-			TokenURL:            defaultGitHubOAuthToken,
-			UserInfoURL:         defaultGitHubOAuthUserInfo,
-			EmailsURL:           defaultGitHubOAuthEmails,
-			Scopes:              defaultGitHubOAuthScopes,
-			FrontendRedirectURL: defaultGitHubOAuthFrontend,
-		}
-		if s != nil && s.cfg != nil {
-			return mergeEmailOAuthBaseConfig(base, s.cfg.GitHubOAuth)
-		}
-		return base
-	case "google":
-		base := config.EmailOAuthProviderConfig{
-			AuthorizeURL:        defaultGoogleOAuthAuthorize,
-			TokenURL:            defaultGoogleOAuthToken,
-			UserInfoURL:         defaultGoogleOAuthUserInfo,
-			Scopes:              defaultGoogleOAuthScopes,
-			FrontendRedirectURL: defaultGoogleOAuthFrontend,
-		}
-		if s != nil && s.cfg != nil {
-			return mergeEmailOAuthBaseConfig(base, s.cfg.GoogleOAuth)
-		}
-		return base
-	default:
-		return config.EmailOAuthProviderConfig{}
-	}
-}
-
-func (s *SettingService) buildOpsAdvancedSettingsWithQuotaAutoPause(ctx context.Context, quota OpsOpenAIAccountQuotaAutoPauseSettings) (*OpsAdvancedSettings, error) {
-	cfg := defaultOpsAdvancedSettings()
-	if s != nil && s.settingRepo != nil {
-		rawSettings, err := s.settingRepo.GetAll(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("get settings for ops advanced merge: %w", err)
-		}
-		raw := rawSettings[SettingKeyOpsAdvancedSettings]
-		if strings.TrimSpace(raw) != "" {
-			if err := json.Unmarshal([]byte(raw), cfg); err != nil {
-				return nil, fmt.Errorf("unmarshal ops advanced settings: %w", err)
-			}
-		}
-	}
-	// 系统设置只接管 OpenAI 配额自动暂停子配置，其他运维高级设置必须原样保留。
-	cfg.OpenAIAccountQuotaAutoPause = quota
-	normalizeOpsAdvancedSettings(cfg)
-	return cfg, nil
+	return s.AccountSettings().SetOpenAIOAuthImportDefaults(ctx, settings)
 }
 
 func (s *SettingService) validateDefaultSubscriptionPlans(ctx context.Context, items []DefaultSubscriptionSetting) error {
-	if len(items) == 0 {
-		return nil
+	if s.defaultSubPlanReader == nil {
+		return identity.ValidateDefaultSubscriptionPlans(ctx, items, nil)
 	}
-
-	checked := make(map[int64]struct{}, len(items))
-	for _, item := range items {
-		if item.PlanID <= 0 {
-			continue
-		}
-		if _, ok := checked[item.PlanID]; ok {
-			return ErrDefaultSubPlanDuplicate.WithMetadata(map[string]string{
-				"plan_id": strconv.FormatInt(item.PlanID, 10),
-			})
-		}
-		checked[item.PlanID] = struct{}{}
-		if s.defaultSubPlanReader == nil {
-			continue
-		}
-
-		plan, err := s.defaultSubPlanReader.GetByID(ctx, item.PlanID)
-		if err != nil {
-			if infraerrors.IsNotFound(err) {
-				return ErrDefaultSubPlanInvalid.WithMetadata(map[string]string{
-					"plan_id": strconv.FormatInt(item.PlanID, 10),
-				})
-			}
-			return fmt.Errorf("get default subscription plan %d: %w", item.PlanID, err)
-		}
-		if plan == nil || plan.ID <= 0 {
-			return ErrDefaultSubPlanInvalid.WithMetadata(map[string]string{
-				"plan_id": strconv.FormatInt(item.PlanID, 10),
-			})
-		}
-	}
-
-	return nil
-}
-
-func emailOAuthSettingKeys(provider string) (enabled, clientID, clientSecret, redirectURL, frontendRedirectURL string) {
-	switch strings.ToLower(strings.TrimSpace(provider)) {
-	case "github":
-		return SettingKeyGitHubOAuthEnabled,
-			SettingKeyGitHubOAuthClientID,
-			SettingKeyGitHubOAuthClientSecret,
-			SettingKeyGitHubOAuthRedirectURL,
-			SettingKeyGitHubOAuthFrontendRedirectURL
-	case "google":
-		return SettingKeyGoogleOAuthEnabled,
-			SettingKeyGoogleOAuthClientID,
-			SettingKeyGoogleOAuthClientSecret,
-			SettingKeyGoogleOAuthRedirectURL,
-			SettingKeyGoogleOAuthFrontendRedirectURL
-	default:
-		return "", "", "", "", ""
-	}
-}
-
-func fillOpenAIOAuthImportDefaults(settings *OpenAIOAuthImportDefaults) *OpenAIOAuthImportDefaults {
-	if settings == nil {
-		return DefaultOpenAIOAuthImportDefaults()
-	}
-
-	defaults := DefaultOpenAIOAuthImportDefaults()
-	// 读取历史模板也只向调用方暴露明确配置，不再传播旧自动模式和探测字段。
-	settings.Extra = maps.Clone(settings.Extra)
-	normalizeLegacyOpenAIAccountExtra(settings.Extra)
-	if len(defaults.Credentials) > 0 {
-		if settings.Credentials == nil {
-			settings.Credentials = map[string]any{}
-		}
-		for key, value := range defaults.Credentials {
-			// 已显式保存的键保持原样；空数组可用于表达“不限制模型”。
-			if _, exists := settings.Credentials[key]; !exists {
-				settings.Credentials[key] = value
-			}
-		}
-	}
-	return settings
-}
-
-func findForbiddenImportField(fields map[string]any, forbidden map[string]struct{}) (string, bool) {
-	for key := range fields {
-		normalized := strings.ToLower(strings.TrimSpace(key))
-		if _, ok := forbidden[normalized]; ok {
-			return key, true
-		}
-	}
-	return "", false
-}
-
-func normalizeUsageRankingLimitString(raw string) int {
-	return usage.NormalizeUsageRankingLimitString(raw)
-}
-
-func parseOpenAIQuotaAutoPauseSettingsFromRaw(raw string) OpsOpenAIAccountQuotaAutoPauseSettings {
-	cfg := defaultOpsAdvancedSettings()
-	if strings.TrimSpace(raw) != "" {
-		if err := json.Unmarshal([]byte(raw), cfg); err != nil {
-			return OpsOpenAIAccountQuotaAutoPauseSettings{}
-		}
-	}
-	normalizeOpsAdvancedSettings(cfg)
-	return cfg.OpenAIAccountQuotaAutoPause
-}
-
-func validateOpenAIOAuthImportDefaults(settings *OpenAIOAuthImportDefaults) error {
-	if settings.Account.Concurrency != nil && *settings.Account.Concurrency < 0 {
-		return fmt.Errorf("account.concurrency must be >= 0")
-	}
-	if settings.Account.Priority != nil && *settings.Account.Priority < 0 {
-		return fmt.Errorf("account.priority must be >= 0")
-	}
-	if settings.Account.RateMultiplier != nil && *settings.Account.RateMultiplier < 0 {
-		return fmt.Errorf("account.rate_multiplier must be >= 0")
-	}
-	if settings.Account.ExpiresAt != nil && *settings.Account.ExpiresAt < 0 {
-		return fmt.Errorf("account.expires_at must be >= 0")
-	}
-
-	forbiddenCredentials := map[string]struct{}{
-		"access_token":            {},
-		"refresh_token":           {},
-		"id_token":                {},
-		"expires_at":              {},
-		"email":                   {},
-		"client_id":               {},
-		"chatgpt_account_id":      {},
-		"chatgpt_user_id":         {},
-		"organization_id":         {},
-		"plan_type":               {},
-		"subscription_expires_at": {},
-	}
-	if field, ok := findForbiddenImportField(settings.Credentials, forbiddenCredentials); ok {
-		return fmt.Errorf("credentials.%s is not allowed in import defaults", field)
-	}
-
-	forbiddenExtra := map[string]struct{}{
-		"email": {},
-		"name":  {},
-	}
-	if field, ok := findForbiddenImportField(settings.Extra, forbiddenExtra); ok {
-		return fmt.Errorf("extra.%s is not allowed in import defaults", field)
-	}
-
-	return nil
+	return identity.ValidateDefaultSubscriptionPlans(ctx, items, s.defaultSubPlanReader.GetByID)
 }
 
 const (
@@ -892,12 +338,6 @@ const (
 	MaxUsageRankingLimit = 100
 )
 
-const openAIAllowCodexPluginCacheTTL = 60 * time.Second
-
-const openAIAllowCodexPluginDBTimeout = 5 * time.Second
-
-const openAIAllowCodexPluginErrorTTL = 5 * time.Second
-
 // DefaultSubscriptionPlanReader validates plan references used by default subscriptions.
 type DefaultSubscriptionPlanReader interface {
 	GetByID(ctx context.Context, id int64) (*SubscriptionPlan, error)
@@ -905,10 +345,6 @@ type DefaultSubscriptionPlanReader interface {
 
 // cachedOpenAIAllowCodexPlugin Codex 插件放行开关缓存（进程内缓存，60s TTL）。
 // IsOpenAIAllowClaudeCodeCodexPluginEnabled 在每个 codex_cli_only 账号的网关请求热路径上被调用，避免每次访问 DB。
-type cachedOpenAIAllowCodexPlugin struct {
-	value     bool
-	expiresAt int64 // unix nano
-}
 
 // settingRuntime 同时兼容旧测试和少数零值组装入口，运行态始终复用同一存取实例。
 func (s *SettingService) settingRuntime() *settings.Store {
@@ -919,3 +355,6 @@ func (s *SettingService) settingRuntime() *settings.Store {
 	}
 	return s.runtimeSettings
 }
+
+// BackendModeSettings 只返回已存在的唯一发布缓存，供装配使用。
+func (s *SettingService) BackendModeSettings() *admission.BackendMode { return s.backendMode }

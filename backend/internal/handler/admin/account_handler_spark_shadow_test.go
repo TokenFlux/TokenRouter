@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -25,5 +26,5 @@ func TestRefreshSingleAccount_RejectsShadow(t *testing.T) {
 
 	_, _, err := h.refreshSingleAccount(context.Background(), shadow)
 	require.Error(t, err, "影子刷新应被早拒")
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 }

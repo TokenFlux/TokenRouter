@@ -7,7 +7,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpconfig"
 	"github.com/gin-gonic/gin"
 )
 
@@ -130,10 +130,10 @@ func GetNonceFromContext(c *gin.Context) string {
 // SecurityHeaders sets baseline security headers for all responses.
 // getFrameSrcOrigins is an optional function that returns extra origins to inject into frame-src;
 // pass nil to disable dynamic frame-src injection.
-func SecurityHeaders(cfg config.CSPConfig, getFrameSrcOrigins func() []string) gin.HandlerFunc {
+func SecurityHeaders(cfg httpconfig.CSPConfig, getFrameSrcOrigins func() []string) gin.HandlerFunc {
 	policy := strings.TrimSpace(cfg.Policy)
 	if policy == "" {
-		policy = config.DefaultCSPPolicy
+		policy = httpconfig.DefaultCSPPolicy
 	}
 
 	// Enhance policy with required directives (nonce placeholder and Cloudflare Insights)

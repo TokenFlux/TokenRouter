@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=integration",
+    "-p=1",
+    "-run",
+    "^TestS15SettingsAtomicFailure$",
+    "./internal/repository"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 1
+  },
+  "failures": [],
+  "seconds": 61.10421681404114
+}

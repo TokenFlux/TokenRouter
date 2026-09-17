@@ -1,0 +1,13 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-o",
+    "bin/cleanup-ingress-reject-logs",
+    "./cmd/cleanup-ingress-reject-logs"
+  ],
+  "exit": 0,
+  "events": {},
+  "failures": [],
+  "seconds": 1.2180900573730469
+}

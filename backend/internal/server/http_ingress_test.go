@@ -14,22 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
-func ingressTestConfig() *config.Config {
-	return &config.Config{
-		Server: config.ServerConfig{
-			Host:               "127.0.0.1",
-			ReadHeaderTimeout:  1,
-			IdleTimeout:        5,
-			MaxHeaderBytes:     8 * 1024,
-			MaxRequestBodySize: 1024,
-		},
-		Gateway: config.GatewayConfig{MaxBodySize: 1024},
-	}
+func ingressTestConfig() Options {
+	return Options{Address: "127.0.0.1:0", ReadHeaderTimeout: 1, IdleTimeout: 5, MaxHeaderBytes: 8 * 1024, MaxRequestBodySize: 1024}
 }
 
 func TestProvideHTTPServerAppliesIngressLimits(t *testing.T) {
@@ -41,7 +31,7 @@ func TestProvideHTTPServerAppliesIngressLimits(t *testing.T) {
 
 func TestProvideHTTPServerEnablesBoundedH2C(t *testing.T) {
 	cfg := ingressTestConfig()
-	cfg.Server.H2C = config.H2CConfig{
+	cfg.H2C = H2COptions{
 		Enabled:                      true,
 		MaxConcurrentStreams:         25,
 		IdleTimeout:                  30,
@@ -59,12 +49,12 @@ func TestConfigureTrustedProxies(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	tests := []struct {
 		name string
-		cfg  config.ServerConfig
+		cfg  Options
 		want string
 	}{
 		{
 			name: "configured proxy resolves forwarded client",
-			cfg: config.ServerConfig{
+			cfg: Options{
 				TrustedProxies:           []string{"9.9.9.9/32"},
 				TrustedProxiesConfigured: true,
 			},
@@ -72,14 +62,14 @@ func TestConfigureTrustedProxies(t *testing.T) {
 		},
 		{
 			name: "explicit empty list ignores forwarded client",
-			cfg: config.ServerConfig{
+			cfg: Options{
 				TrustedProxiesConfigured: true,
 			},
 			want: "9.9.9.9",
 		},
 		{
 			name: "invalid proxy list fails closed",
-			cfg: config.ServerConfig{
+			cfg: Options{
 				TrustedProxies:           []string{"not-a-cidr"},
 				TrustedProxiesConfigured: true,
 			},

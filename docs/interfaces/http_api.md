@@ -18,7 +18,7 @@
 
 ## 全局入口
 
-`SetupRouter` 在一个 Gin engine 上安装共同中间件并依次注册 common、auth、user、admin、gateway、payment 和 page routes。主要全局顺序为：
+`SetupRouter` 在一个 Gin engine 上安装 app 提供的共同中间件及注册函数。server 拥有 common 路由；app 按原顺序挂载 auth、user、admin、gateway、payment 和 page routes，各已拆分的注册函数位于所属模块的 HTTP Adapter。综合设置 GET/PUT 属于 `settings/httpapi`，预聚合使用其独立处理器，创作模型候选和 worker 状态属于 `creative/httpapi`。旧 `handler/dto`、全局 Handlers/AdminHandlers 和 `server/routes` 已删除，输出映射在所属模块。主要全局顺序为：
 
 ```text
 RequestLogger

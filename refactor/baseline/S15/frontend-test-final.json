@@ -1,0 +1,12 @@
+{
+  "command": [
+    "make",
+    "-C",
+    "..",
+    "test-frontend"
+  ],
+  "exit": 0,
+  "events": {},
+  "failures": [],
+  "seconds": 28.694631814956665
+}

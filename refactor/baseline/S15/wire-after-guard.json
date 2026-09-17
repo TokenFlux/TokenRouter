@@ -1,0 +1,11 @@
+{
+  "command": [
+    "go",
+    "generate",
+    "./cmd/server"
+  ],
+  "exit": 0,
+  "events": {},
+  "failures": [],
+  "seconds": 32.56523394584656
+}

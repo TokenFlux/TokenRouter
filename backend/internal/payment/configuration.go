@@ -414,30 +414,39 @@ func (cfg *PaymentConfig) EffectiveMethodFee(method string) FeeConfig {
 // UpdatePaymentConfig 按 PATCH 语义更新支付配置。
 // 每个字段都要独立判空后再序列化，因此函数天然较长；拆分只会掩盖字段与设置键的对应关系。
 func (s *ConfigService) UpdatePaymentConfig(ctx context.Context, req UpdatePaymentConfigRequest) error {
+	values, err := PreparePaymentConfig(req)
+	if err != nil {
+		return err
+	}
+	return s.settingRepo.SetMultiple(ctx, values)
+}
+
+// PreparePaymentConfig 校验并投影支付设置，供独立入口和综合原子更新共同使用。
+func PreparePaymentConfig(req UpdatePaymentConfigRequest) (map[string]string, error) {
 	if req.BalanceRechargeMultiplier != nil {
 		if math.IsNaN(*req.BalanceRechargeMultiplier) || math.IsInf(*req.BalanceRechargeMultiplier, 0) || *req.BalanceRechargeMultiplier <= 0 {
-			return infraerrors.BadRequest("INVALID_BALANCE_RECHARGE_MULTIPLIER", "balance recharge multiplier must be greater than 0")
+			return nil, infraerrors.BadRequest("INVALID_BALANCE_RECHARGE_MULTIPLIER", "balance recharge multiplier must be greater than 0")
 		}
 	}
 	if req.SubscriptionUSDToCNYRate != nil {
 		v := *req.SubscriptionUSDToCNYRate
 		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
-			return infraerrors.BadRequest("INVALID_SUBSCRIPTION_USD_TO_CNY_RATE", "subscription USD to CNY rate must be 0 (disabled) or a positive number")
+			return nil, infraerrors.BadRequest("INVALID_SUBSCRIPTION_USD_TO_CNY_RATE", "subscription USD to CNY rate must be 0 (disabled) or a positive number")
 		}
 	}
 	if req.RechargeFeeRate != nil {
 		v := *req.RechargeFeeRate
 		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 100 {
-			return infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate must be between 0 and 100")
+			return nil, infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate must be between 0 and 100")
 		}
 		// 充值手续费率最多保留两位小数。
 		if math.Round(v*100) != v*100 {
-			return infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate allows at most 2 decimal places")
+			return nil, infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate allows at most 2 decimal places")
 		}
 	}
 	if req.MethodFees != nil {
 		if err := ConfigValidateMethodFeeSettings(req.MethodFees); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	m := make(map[string]string)
@@ -525,7 +534,7 @@ func (s *ConfigService) UpdatePaymentConfig(ctx context.Context, req UpdatePayme
 	if req.VisibleMethodWxpayEnabled != nil {
 		m[SettingPaymentVisibleMethodWxpayEnabled] = ConfigFormatBoolOrEmpty(req.VisibleMethodWxpayEnabled)
 	}
-	return s.settingRepo.SetMultiple(ctx, m)
+	return m, nil
 }
 
 func ConfigFormatBoolOrEmpty(v *bool) string {

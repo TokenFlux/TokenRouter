@@ -35,8 +35,6 @@ func (r *thresholdSelectionAccountRepoStub) ListSchedulableUngroupedByPlatform(c
 }
 
 func TestGatewayService_ListSchedulableAccounts_DoesNotFilterUnsupportedThresholdPlatforms(t *testing.T) {
-	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
-	accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 
 	settingsRepo := newMockSettingRepo()
 	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
@@ -88,8 +86,6 @@ func TestGatewayService_ListSchedulableAccounts_DoesNotFilterUnsupportedThreshol
 }
 
 func TestOpenAIGatewayService_ListSchedulableAccounts_FiltersThresholdBlockedAccounts(t *testing.T) {
-	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
-	accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 
 	settingsRepo := newMockSettingRepo()
 	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":85}`

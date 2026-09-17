@@ -354,18 +354,6 @@ func (s *OpenAIGatewayService) advancedSchedulerProcessRuntimeSettings() advance
 	return settings
 }
 
-func parseAdvancedSchedulerAlphaOverride(raw string, fallback float64) (float64, bool) {
-	return scheduler.ParseAdvancedSchedulerAlphaOverride(raw, fallback)
-}
-
-func parseAdvancedSchedulerPositiveFloatOverride(raw string, fallback float64) (float64, bool) {
-	return scheduler.ParseAdvancedSchedulerPositiveFloatOverride(raw, fallback)
-}
-
-func parseAdvancedSchedulerRateOverride(raw string, fallback float64) (float64, bool) {
-	return scheduler.ParseAdvancedSchedulerRateOverride(raw, fallback)
-}
-
 func (s *OpenAIGatewayService) isAdvancedSchedulerStickyWeightedEnabled(ctx context.Context) bool {
 	return s.advancedSchedulerRuntimeSettings(ctx).stickyWeightedEnabled
 }
@@ -373,8 +361,6 @@ func (s *OpenAIGatewayService) isAdvancedSchedulerStickyWeightedEnabled(ctx cont
 func advancedSchedulerRuntimeSettingKeys() []string {
 	return scheduler.AdvancedSchedulerRuntimeSettingKeys()
 }
-
-func parsePositiveIntOverride(raw string) int { return scheduler.ParsePositiveIntOverride(raw) }
 
 func parseAdvancedSchedulerWeightOverrides(values map[string]string) map[string]float64 {
 	return scheduler.ParseAdvancedSchedulerWeightOverrides(values)

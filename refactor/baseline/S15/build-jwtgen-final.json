@@ -1,0 +1,13 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-o",
+    "bin/jwtgen",
+    "./cmd/jwtgen"
+  ],
+  "exit": 0,
+  "events": {},
+  "failures": [],
+  "seconds": 2.641350030899048
+}

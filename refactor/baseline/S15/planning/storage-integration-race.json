@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=integration",
+    "-p=1",
+    "-run",
+    "^(TestSettingRepoSuite|TestAuthRegisterRateLimitThresholdHitReturns429)$",
+    "./internal/repository",
+    "./internal/server/routes"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 15
+  },
+  "failures": [],
+  "seconds": 26.336419105529785
+}

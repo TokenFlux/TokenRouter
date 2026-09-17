@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/settings/...",
+    "./internal/creative/httpapi/...",
+    "./internal/handler/admin/...",
+    "./internal/app/...",
+    "-run",
+    "Setting|Settings|PreAggregation|CreativeModel|CreativeWorker|AdminRoute"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 103
+  },
+  "failures": [],
+  "seconds": 19.49342393875122
+}

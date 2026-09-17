@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/ops/...",
+    "./internal/service/...",
+    "./internal/handler/admin/...",
+    "./internal/app/...",
+    "-run",
+    "Setting|Settings|QuotaAutoPause|UpdateAtomic"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 319
+  },
+  "failures": [],
+  "seconds": 56.804627418518066
+}

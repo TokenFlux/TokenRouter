@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"testing"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 )
@@ -137,7 +138,7 @@ func TestNormalizeGrokMediaEligibilityExtra(t *testing.T) {
 		_, err := normalizeGrokMediaEligibilityExtra(PlatformGrok, map[string]any{GrokMediaEligibleExtraKey: "false"})
 
 		require.Error(t, err)
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 	})
 
 	t.Run("other platforms ignore provider owned value", func(t *testing.T) {
@@ -182,7 +183,7 @@ func TestNormalizeGrokMediaEligibilityUpdateExtra(t *testing.T) {
 		_, err := normalizeGrokMediaEligibilityUpdateExtra(account, input, nil)
 
 		require.Error(t, err)
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 	})
 
 	t.Run("non grok update is unchanged", func(t *testing.T) {

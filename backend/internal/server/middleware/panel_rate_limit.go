@@ -8,7 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,13 +31,19 @@ type panelRateLimitAllower interface {
 //     地址（反代内部转发地址）直接跳过，避免误拦整条反代链路的流量。
 //   - 配置走进程内缓存（60s TTL），热路径零 DB 访问。
 //   - Redis 异常一律 fail-open：限流是保护措施，不能反过来把面板打挂。
+//
+// PanelSettingsReader 是面板请求读取已发布配置的窄接口。
+type PanelSettingsReader interface {
+	GetPanelRateLimitSettingsCached(context.Context) runtimeconfig.PanelRateLimitSettings
+}
+
 type PanelRateLimiter struct {
 	limiter        panelRateLimitAllower
-	settingService *service.SettingService
+	settingService PanelSettingsReader
 }
 
 // NewPanelRateLimiter 创建面板限流器。
-func NewPanelRateLimiter(counter *RateLimiter, settingService *service.SettingService) *PanelRateLimiter {
+func NewPanelRateLimiter(counter *RateLimiter, settingService PanelSettingsReader) *PanelRateLimiter {
 	limiter := &PanelRateLimiter{settingService: settingService}
 	if counter != nil {
 		limiter.limiter = counter
@@ -47,7 +54,7 @@ func NewPanelRateLimiter(counter *RateLimiter, settingService *service.SettingSe
 
 // Global 认证面板接口的全局按用户限流（宽松档，覆盖所有登录后端点）。
 func (p *PanelRateLimiter) Global() gin.HandlerFunc {
-	return p.userScoped("global", func(s service.PanelRateLimitSettings) int {
+	return p.userScoped("global", func(s runtimeconfig.PanelRateLimitSettings) int {
 		return s.UserRPM
 	})
 }
@@ -55,12 +62,12 @@ func (p *PanelRateLimiter) Global() gin.HandlerFunc {
 // Heavy 重查询接口的按用户限流（严格档，覆盖 usage/dashboard 等聚合统计端点）。
 // 与 Global 叠加计数：一次重查询同时消耗两档额度。
 func (p *PanelRateLimiter) Heavy() gin.HandlerFunc {
-	return p.userScoped("heavy", func(s service.PanelRateLimitSettings) int {
+	return p.userScoped("heavy", func(s runtimeconfig.PanelRateLimitSettings) int {
 		return s.HeavyRPM
 	})
 }
 
-func (p *PanelRateLimiter) userScoped(scope string, limitOf func(service.PanelRateLimitSettings) int) gin.HandlerFunc {
+func (p *PanelRateLimiter) userScoped(scope string, limitOf func(runtimeconfig.PanelRateLimitSettings) int) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if p == nil || p.limiter == nil || p.settingService == nil {
 			c.Next()
@@ -83,7 +90,7 @@ func (p *PanelRateLimiter) userScoped(scope string, limitOf func(service.PanelRa
 			return
 		}
 		if settings.ExemptAdmin {
-			if role, hasRole := GetUserRoleFromContext(c); hasRole && role == service.RoleAdmin {
+			if role, hasRole := GetUserRoleFromContext(c); hasRole && role == identity.RoleAdmin {
 				c.Next()
 				return
 			}

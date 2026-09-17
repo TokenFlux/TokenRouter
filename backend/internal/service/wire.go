@@ -677,7 +677,6 @@ var ProviderSet = wire.NewSet(
 	NewCodexInviteResetService,
 	ProvideOpenAIQuotaService,
 	ProvideBatchImageModelPricingResolver,
-	wire.Bind(new(CreativeSettingReader), new(*SettingService)),
 	ProvideCreativeUserRepository,
 	ProvideCreativeGroupRepository,
 	ProvideCreativeAccountRepository,
@@ -689,7 +688,6 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	NewOAuthService,
 	ProvideOpenAIOAuthService,
-	wire.Bind(new(OpenAIQuotaAutoPauseSettingsReader), new(*SettingService)),
 	ProvideGrokOAuthService,
 	wire.Bind(new(GrokOAuthTokenService), new(*GrokOAuthService)),
 	NewGeminiOAuthService,
@@ -707,7 +705,6 @@ var ProviderSet = wire.NewSet(
 	NewAntigravityGatewayService,
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
-	ProvideSettingService,
 
 	NewRequestFingerprintService,
 

@@ -13,7 +13,6 @@ import (
 	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
-	handler "github.com/TokenFlux/TokenRouter/internal/handler"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
@@ -29,7 +28,7 @@ type identityHTTP struct {
 	*paymenthttp.WeChatPaymentHandler
 }
 
-func provideIdentityHTTP(g *identityAuthGraph, users *identity.UserService, cfg *config.Config, settings *service.SettingService, promo *service.PromoService, redeems *service.RedeemService, totp *identity.TotpService, attributes *identity.UserAttributeService, tasks *lifecycle.Tasks, payments *payment.Runtime) handler.AuthEndpoints {
+func provideIdentityHTTP(g *identityAuthGraph, users *identity.UserService, cfg *config.Config, settings *service.SettingService, promo *service.PromoService, redeems *service.RedeemService, totp *identity.TotpService, attributes *identity.UserAttributeService, tasks *lifecycle.Tasks, payments *payment.Runtime) *identityHTTP {
 	runtime := legacybridge.IdentityHTTPSettings{Service: settings}
 	flow := &identity.PendingFlow{Store: identitypostgres.NewPendingRepository(g.Client, time.Now), Database: &identitypostgres.PendingFlowDatabase{Client: g.Client, Auth: g.Core, Profiles: users}, Auth: g.Core, Profiles: users}
 	var pending *identityhttp.PendingHandler

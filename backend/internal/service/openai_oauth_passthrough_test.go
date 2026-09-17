@@ -1939,7 +1939,6 @@ func TestOpenAIGatewayService_OAuthPassthrough_NonCodexUAFallbackToCodexUA(t *te
 }
 
 func TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA(t *testing.T) {
-	resetGatewayForwardingSettingsCacheForTest(t)
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()

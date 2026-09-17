@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
@@ -388,7 +389,7 @@ func TestResetAccountQuota_RejectsShadow(t *testing.T) {
 
 	err = svc.ResetAccountQuota(ctx, shadow.ID)
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err), "影子 reset-quota 应 400")
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err), "影子 reset-quota 应 400")
 
 	require.NoError(t, svc.ResetAccountQuota(ctx, parent.ID), "母账号 reset-quota 应放行")
 }
@@ -466,7 +467,7 @@ func TestCreateShadow_RejectsShadowAsParent(t *testing.T) {
 	// 把一级影子当母 → 必须被拒(400)。
 	_, err = svc.CreateShadow(ctx, firstShadow.ID, ShadowOptions{Name: "second-shadow"})
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err), "影子当母应返回 400")
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err), "影子当母应返回 400")
 }
 
 // TestCreateShadow_StructuredErrors 验证外审 G3:可预期业务错误返回结构化 4xx 而非 500。
@@ -480,7 +481,7 @@ func TestCreateShadow_StructuredErrors(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, parent))
 		_, err := svc.CreateShadow(ctx, parent.ID, ShadowOptions{Name: "s"})
 		require.Error(t, err)
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err), "非 OAuth 母账号应 400")
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err), "非 OAuth 母账号应 400")
 	})
 
 	t.Run("duplicate_409", func(t *testing.T) {
@@ -492,7 +493,7 @@ func TestCreateShadow_StructuredErrors(t *testing.T) {
 		require.NoError(t, err)
 		_, err = svc.CreateShadow(ctx, parent.ID, ShadowOptions{Name: "s2"})
 		require.Error(t, err)
-		require.Equal(t, http.StatusConflict, infraerrors.Code(err), "重复创建应 409")
+		require.Equal(t, http.StatusConflict, s15httpx.ErrorCode(err), "重复创建应 409")
 	})
 }
 
@@ -512,7 +513,7 @@ func TestUpdateAccount_RejectsTypeChangeOnShadow(t *testing.T) {
 	// 试图把影子 type 改成 apikey → 必须被拒(400)。
 	_, err = svc.UpdateAccount(ctx, shadow.ID, &UpdateAccountInput{Type: AccountTypeAPIKey})
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err), "改影子 type 应 400")
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err), "改影子 type 应 400")
 	require.Equal(t, AccountTypeOAuth, repo.accounts[shadow.ID].Type, "影子 type 必须保持 oauth")
 
 	// 传入相同 type(oauth)为 no-op,应允许。
@@ -539,7 +540,7 @@ func TestBulkUpdateAccounts_RejectsCredentialWriteToShadow(t *testing.T) {
 		Credentials: map[string]any{"access_token": "leaked"},
 	})
 	require.Error(t, err, "批量给影子写凭据必须被拒")
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err), "应 400")
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err), "应 400")
 	// Credentials 允许持有 model_mapping(CreateShadow 写入的默认值),该不变量只约束
 	// 鉴权凭据不可泄露到影子——不能整体断言 Credentials 为空。
 	require.Empty(t, repo.accounts[shadow.ID].GetOpenAIAccessToken(), "影子 access_token 必须保持为空 —— 批量写入未生效")
@@ -643,7 +644,7 @@ func TestUpdateAccount_RejectsCredentialWriteToShadow(t *testing.T) {
 	require.Error(t, err, "对影子写入凭据必须被拒绝")
 
 	// 结构化 4xx(非裸 error→500)。
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err), "应映射为 400 而非 500")
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err), "应映射为 400 而非 500")
 
 	// 影子的 access_token/refresh_token 仍为空 —— 凭据未被写入。
 	storedShadow, ok := repo.accounts[shadow.ID]
@@ -770,7 +771,7 @@ func TestCreateShadow_ConcurrentCreateReturns409(t *testing.T) {
 
 	_, err := svc.CreateShadow(ctx, parent.ID, ShadowOptions{Name: "s"})
 	require.Error(t, err)
-	require.Equal(t, http.StatusConflict, infraerrors.Code(err), "并发竞态撞唯一索引应映射 409 而非 500")
+	require.Equal(t, http.StatusConflict, s15httpx.ErrorCode(err), "并发竞态撞唯一索引应映射 409 而非 500")
 }
 
 // TestCreateShadow_InvalidGroupRejectedNoOrphan 验证外审 C/P1:显式无效分组应在
@@ -832,7 +833,7 @@ func TestUpdateAccount_RejectsParentTypeChangeWithShadow(t *testing.T) {
 
 	_, err = svc.UpdateAccount(ctx, parent.ID, &UpdateAccountInput{Type: AccountTypeAPIKey})
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err), "母账号有影子时改 type 出 oauth 应 400")
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err), "母账号有影子时改 type 出 oauth 应 400")
 	require.Equal(t, AccountTypeOAuth, repo.accounts[parent.ID].Type, "母账号 type 必须保持 oauth")
 
 	// 对照:把 type 设为相同 oauth(no-op)应允许。
@@ -960,7 +961,7 @@ func TestUpdateAccount_ShadowRejectsAuthCredentials(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 	require.Empty(t, repo.accounts[shadow.ID].Credentials)
 }
 
@@ -986,7 +987,7 @@ func TestBulkUpdateAccounts_RejectsProxyChangeOnShadow(t *testing.T) {
 		ProxyID:    &newProxy,
 	})
 	require.Error(t, err, "批量给影子改 proxy 必须被拒")
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err), "应 400")
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err), "应 400")
 	require.NotNil(t, repo.accounts[shadow.ID].ProxyID)
 	require.Equal(t, parentProxy, *repo.accounts[shadow.ID].ProxyID, "影子 proxy 必须保持继承母账号")
 }

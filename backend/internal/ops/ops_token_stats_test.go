@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
@@ -112,7 +114,7 @@ func TestOpsServiceGetTokenStats_Validation(t *testing.T) {
 
 			_, err := svc.GetTokenStats(context.Background(), tt.filter)
 			require.Error(t, err)
-			require.Equal(t, tt.wantCode, infraerrors.Code(err))
+			require.Equal(t, tt.wantCode, s15httpx.ErrorCode(err))
 			require.Equal(t, tt.wantReason, infraerrors.Reason(err))
 		})
 	}
@@ -155,7 +157,7 @@ func TestOpsServiceGetTokenStats_RepoUnavailable(t *testing.T) {
 		TopN:      10,
 	})
 	require.Error(t, err)
-	require.Equal(t, 503, infraerrors.Code(err))
+	require.Equal(t, 503, s15httpx.ErrorCode(err))
 	require.Equal(t, "OPS_REPO_UNAVAILABLE", infraerrors.Reason(err))
 }
 

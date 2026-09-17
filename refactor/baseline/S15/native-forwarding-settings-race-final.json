@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|VisibleTTFT|MetadataDoesNotDisarm|GatewayClientDateline|GatewayCacheTTL|GatewayToolRewrite|VersionBounds",
+    "./internal/gateway/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 296
+  },
+  "failures": [],
+  "seconds": 34.335885763168335
+}

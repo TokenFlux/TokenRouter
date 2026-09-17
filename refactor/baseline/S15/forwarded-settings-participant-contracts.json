@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|Forwarded|ClientIP|Registry",
+    "./internal/config",
+    "./internal/server/clientip/...",
+    "./internal/server/runtimeconfig",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 349
+  },
+  "failures": [],
+  "seconds": 16.40685796737671
+}

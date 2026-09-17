@@ -1,4 +1,4 @@
-// 支付路由直接使用新 Adapter；旧聚合 Handlers 仅保留类型别名。
+// 支付路由直接使用新 Adapter，HTTP 构造与注册由 app 分别装配。
 package app
 
 import (

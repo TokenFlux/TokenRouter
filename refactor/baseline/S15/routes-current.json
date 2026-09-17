@@ -1,0 +1,4853 @@
+[
+  {
+    "Method": "POST",
+    "Path": "/alpha/search",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "auxiliaryHTTP.AlphaSearch"
+  },
+  {
+    "Method": "GET",
+    "Path": "/antigravity/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "modelsHTTP.AntigravityModels"
+  },
+  {
+    "Method": "POST",
+    "Path": "/antigravity/v1/messages",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "messagesHTTP.Messages"
+  },
+  {
+    "Method": "POST",
+    "Path": "/antigravity/v1/messages/count_tokens",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "countTokensHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/antigravity/v1/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "modelsHTTP.AntigravityModels"
+  },
+  {
+    "Method": "GET",
+    "Path": "/antigravity/v1/usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoints.PublicUsage"
+  },
+  {
+    "Method": "GET",
+    "Path": "/antigravity/v1beta/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "modelsHTTP.GeminiV1BetaListModels"
+  },
+  {
+    "Method": "GET",
+    "Path": "/antigravity/v1beta/models/*model",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "modelsHTTP.GeminiV1BetaGetModel"
+  },
+  {
+    "Method": "POST",
+    "Path": "/antigravity/v1beta/models/*modelAction",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "geminiNativeHTTP.GeminiV1BetaModels"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/event_logging/batch",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/common.go",
+    "Function": "RegisterCommonRoutes",
+    "Handler": "func(c *gin.Context) {\n\tc.Status(http.StatusOK)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/accounts/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/accounts/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/advanced-scheduler-score",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/scheduler/httpapi/routes_admin.go",
+    "Function": "RegisterAccountDiagnostics",
+    "Handler": "endpoint.GetAdvancedSchedulerScore"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/advanced-scheduler-score/preview",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/scheduler/httpapi/routes_admin.go",
+    "Function": "RegisterAccountDiagnostics",
+    "Handler": "endpoint.PreviewAdvancedSchedulerScore"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/apply-oauth-credentials",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.ApplyOAuthCredentials"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/clear-error",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.ClearError"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/clear-rate-limit",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.ClearRateLimit"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/codex/invite-reset/consume",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.CodexInviteReset.Consume"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/codex/invite-reset/invite",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.CodexInviteReset.SendInvite"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/codex/invite-reset/status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.CodexInviteReset.GetStatus"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/duplicate",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.Duplicate"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.GetAvailableModels"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/models/sync-upstream",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.SyncUpstreamModels"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/ollama-cloud-usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOllama.GetOllamaCloudUsage"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/accounts/:id/ollama-cloud-usage/auto-refresh",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOllama.SetOllamaCloudUsageAutoRefresh"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/ollama-cloud-usage/refresh",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOllama.RefreshOllamaCloudUsage"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/accounts/:id/ollama-cloud-usage/session",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOllama.DeleteOllamaCloudUsageSession"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/accounts/:id/ollama-cloud-usage/session",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOllama.SaveOllamaCloudUsageSession"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/recover-state",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.RecoverState"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/refresh",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.Refresh"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/refresh-tier",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.RefreshTier"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/reset-quota",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.ResetQuota"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/revert-proxy-fallback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.RevertProxyFallback"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/schedulable",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.SetSchedulable"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/scheduled-test-plans",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterScheduledTestRoutes",
+    "Handler": "endpoint.ListByAccount"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/set-privacy",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.SetPrivacy"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/shadow",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.OpenAIOAuth.CreateShadow"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.GetStats"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/accounts/:id/temp-unschedulable",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.ClearTempUnschedulable"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/temp-unschedulable",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.GetTempUnschedulable"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/test",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountTests.Test"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/today-stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOAuthUsage.GetTodayStats"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/:id/upstream-usage/query",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.UpstreamUsage.QueryUpstreamUsage"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/:id/usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOAuthUsage.GetUsage"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/antigravity/default-model-mapping",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.GetAntigravityDefaultModelMapping"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/batch",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.BatchCreate"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/batch-clear-error",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.BatchClearError"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/batch-delete",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.BatchDelete"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/batch-refresh",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.BatchRefresh"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/batch-refresh-tier",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.BatchRefreshTier"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/batch-update-credentials",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.BatchUpdateCredentials"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/bulk-update",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.BulkUpdate"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/check-mixed-channel",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.CheckMixedChannel"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/cookie-auth",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.OAuth.CookieAuth"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/data",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountArchive.ExportData"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/data",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountArchive.ImportData"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/exchange-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.OAuth.ExchangeCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/exchange-setup-token-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.OAuth.ExchangeSetupTokenCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/generate-auth-url",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.OAuth.GenerateAuthURL"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/generate-setup-token-url",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.OAuth.GenerateSetupTokenURL"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/import/codex-session",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountCodexImport.ImportCodexSession"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/models/sync-upstream-preview",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountManagement.SyncUpstreamModelsPreview"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/accounts/ollama-cloud-usage/settings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOllama.GetOllamaCloudUsageSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/accounts/ollama-cloud-usage/settings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOllama.UpdateOllamaCloudUsageSettings"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/setup-token-cookie-auth",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.OAuth.SetupTokenCookieAuth"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/sync/crs",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountCRS.SyncFromCRS"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/sync/crs/preview",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountCRS.PreviewFromCRS"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/today-stats/batch",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOAuthUsage.GetBatchTodayStats"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/upstream-usage/query/batch",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.UpstreamUsage.QueryBatchUpstreamUsage"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/accounts/usage/batch",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAccountRoutes",
+    "Handler": "endpoints.AccountOAuthUsage.GetBatchUsage"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/affiliates/invites",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.ListInviteRecords"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/affiliates/rebates",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.ListRebateRecords"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/affiliates/transfers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.ListTransferRecords"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/affiliates/users",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.ListUsers"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/affiliates/users/:user_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.ClearUserSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/affiliates/users/:user_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.UpdateUserSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/affiliates/users/:user_id/overview",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.GetUserOverview"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/affiliates/users/batch-rate",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.BatchSetRate"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/affiliates/users/lookup",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterAffiliateRoutes",
+    "Handler": "endpoint.LookupUsers"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/announcements",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_admin.go",
+    "Function": "RegisterAnnouncementRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/announcements",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_admin.go",
+    "Function": "RegisterAnnouncementRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/announcements/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_admin.go",
+    "Function": "RegisterAnnouncementRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/announcements/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_admin.go",
+    "Function": "RegisterAnnouncementRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/announcements/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_admin.go",
+    "Function": "RegisterAnnouncementRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/announcements/:id/read-status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_admin.go",
+    "Function": "RegisterAnnouncementRoutes",
+    "Handler": "endpoint.ListReadStatus"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/antigravity/oauth/auth-url",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAntigravityOAuthRoutes",
+    "Handler": "endpoint.GenerateAuthURL"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/antigravity/oauth/exchange-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAntigravityOAuthRoutes",
+    "Handler": "endpoint.ExchangeCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/antigravity/oauth/refresh-token",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterAntigravityOAuthRoutes",
+    "Handler": "endpoint.RefreshToken"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/api-keys/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_admin.go",
+    "Function": "RegisterAdminAPIKeyRoutes",
+    "Handler": "endpoint.UpdateGroup"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/audit-logs",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/audit/httpapi/routes_admin.go",
+    "Function": "RegisterAuditLogRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/audit-logs/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/audit/httpapi/routes_admin.go",
+    "Function": "RegisterAuditLogRoutes",
+    "Handler": "endpoint.Get"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/audit-logs/clear",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/audit/httpapi/routes_admin.go",
+    "Function": "RegisterAuditLogRoutes",
+    "Handler": "endpoint.Clear"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/backups",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.ListBackups"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/backups",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.CreateBackup"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/backups/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.DeleteBackup"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/backups/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.GetBackup"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/backups/:id/download",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.DownloadBackup"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/backups/:id/download-url",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.GetDownloadURL"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/backups/:id/restore",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.RestoreBackup"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/backups/content-config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.GetContentConfig"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/backups/content-config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.UpdateContentConfig"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/backups/s3-config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.GetS3Config"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/backups/s3-config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.UpdateS3Config"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/backups/s3-config/test",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.TestS3Connection"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/backups/schedule",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.GetSchedule"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/backups/schedule",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.UpdateSchedule"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/backups/storage-config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.GetStorageConfig"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/backups/storage-config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.UpdateStorageConfig"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/backups/storage-config/test",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterBackupRoutes",
+    "Handler": "endpoint.TestStorageConnection"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/channels",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterChannelRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/channels",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterChannelRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/channels/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterChannelRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/channels/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterChannelRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/channels/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterChannelRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/channels/model-pricing",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterChannelRoutes",
+    "Handler": "endpoint.GetModelDefaultPricing"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/channels/pricing/sync-models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterChannelRoutes",
+    "Handler": "endpoint.SyncPricingModels"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/api-keys-trend",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetAPIKeyUsageTrend"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/dashboard/api-keys-usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetBatchAPIKeysUsage"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/groups",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetGroupStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetModelStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/realtime",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetRealtimeMetrics"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/snapshot-v2",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetSnapshotV2"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/trend",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetUsageTrend"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/user-breakdown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetUserBreakdown"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/users-ranking",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetUserSpendingRanking"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/dashboard/users-trend",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetUserUsageTrend"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/dashboard/users-usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterDashboardRoutes",
+    "Handler": "endpoint.GetBatchUsersUsage"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/data-management/agent/health",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.GetAgentHealth"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/data-management/backups",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.ListBackupJobs"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/data-management/backups",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.CreateBackupJob"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/data-management/backups/:job_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.GetBackupJob"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/data-management/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.GetConfig"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/data-management/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.UpdateConfig"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/data-management/s3/profiles",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.ListS3Profiles"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/data-management/s3/profiles",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.CreateS3Profile"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/data-management/s3/profiles/:profile_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.DeleteS3Profile"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/data-management/s3/profiles/:profile_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.UpdateS3Profile"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/data-management/s3/profiles/:profile_id/activate",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.SetActiveS3Profile"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/data-management/s3/test",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.TestS3"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/data-management/sources/:source_type/profiles",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.ListSourceProfiles"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/data-management/sources/:source_type/profiles",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.CreateSourceProfile"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/data-management/sources/:source_type/profiles/:profile_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.DeleteSourceProfile"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/data-management/sources/:source_type/profiles/:profile_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.UpdateSourceProfile"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/data-management/sources/:source_type/profiles/:profile_id/activate",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/backup/httpapi/routes_admin.go",
+    "Function": "RegisterDataManagementRoutes",
+    "Handler": "endpoint.SetActiveSourceProfile"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/error-passthrough-rules",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_admin.go",
+    "Function": "RegisterErrorPassthroughRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/error-passthrough-rules",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_admin.go",
+    "Function": "RegisterErrorPassthroughRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/error-passthrough-rules/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_admin.go",
+    "Function": "RegisterErrorPassthroughRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/error-passthrough-rules/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_admin.go",
+    "Function": "RegisterErrorPassthroughRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/error-passthrough-rules/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_admin.go",
+    "Function": "RegisterErrorPassthroughRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/gemini/oauth/auth-url",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGeminiOAuthRoutes",
+    "Handler": "endpoint.GenerateAuthURL"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/gemini/oauth/capabilities",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGeminiOAuthRoutes",
+    "Handler": "endpoint.GetCapabilities"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/gemini/oauth/exchange-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGeminiOAuthRoutes",
+    "Handler": "endpoint.ExchangeCode"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/grok/accounts/:id/quota",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.QueryQuota"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/accounts/:id/refresh",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.RefreshAccountToken"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/accounts/:id/reset-quota",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.ResetQuota"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/oauth/auth-url",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.GenerateAuthURL"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/grok/oauth/capabilities",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.GetCapabilities"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/oauth/create-from-oauth",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.CreateAccountFromOAuth"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/oauth/exchange-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.ExchangeCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/oauth/password",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.AuthorizePassword"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/oauth/reconcile",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.ReconcileOAuthAccounts"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/oauth/refresh-token",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.RefreshToken"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/oauth/sso-token",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.ValidateSSOToken"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/grok/runtime-sanity",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.RuntimeSanity"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/grok/sso-to-oauth",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterGrokOAuthRoutes",
+    "Handler": "endpoint.CreateAccountsFromSSO"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/groups",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/groups/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/groups/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/:id/api-keys",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetGroupAPIKeys"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/groups/:id/duplicate",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.Duplicate"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/:id/models-list-candidates",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetModelsListCandidates"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/groups/:id/rate-multipliers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.ClearGroupRateMultipliers"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/:id/rate-multipliers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetGroupRateMultipliers"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/groups/:id/rate-multipliers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.BatchSetGroupRateMultipliers"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/groups/:id/rpm-overrides",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.ClearGroupRPMOverrides"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/groups/:id/rpm-overrides",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.BatchSetGroupRPMOverrides"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/:id/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/all",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetAll"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/capacity-summary",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetCapacitySummary"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/live-capability",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetLiveCapability"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/groups/sort-order",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.UpdateSortOrder"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/groups/usage-summary",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_admin.go",
+    "Function": "RegisterGroupRoutes",
+    "Handler": "endpoint.GetUsageSummary"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/openai/accounts/:id/quota",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.QueryQuota"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/openai/accounts/:id/quota/refresh",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.RefreshQuota"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/openai/accounts/:id/refresh",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.RefreshAccountToken"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/openai/accounts/:id/reset-quota",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.ResetQuota"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/openai/create-from-codex-pat",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.CreateAccountFromCodexPAT"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/openai/create-from-oauth",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.CreateAccountFromOAuth"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/openai/exchange-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.ExchangeCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/openai/generate-auth-url",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.GenerateAuthURL"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/openai/refresh-token",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterOpenAIOAuthRoutes",
+    "Handler": "endpoint.RefreshToken"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/account-availability",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetAccountAvailability"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/advanced-settings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetAdvancedSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/advanced-settings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.UpdateAdvancedSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/alert-events",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ListAlertEvents"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/alert-events/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetAlertEvent"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/alert-events/:id/status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.UpdateAlertEventStatus"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/alert-rules",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ListAlertRules"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/ops/alert-rules",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.CreateAlertRule"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/ops/alert-rules/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.DeleteAlertRule"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/alert-rules/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.UpdateAlertRule"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/ops/alert-silences",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.CreateAlertSilence"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/auth-cache-invalidation/health",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetAuthCacheInvalidationHealth"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/concurrency",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetConcurrencyStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/dashboard/error-distribution",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetDashboardErrorDistribution"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/dashboard/error-trend",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetDashboardErrorTrend"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/dashboard/latency-histogram",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetDashboardLatencyHistogram"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/dashboard/openai-token-stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetDashboardTokenStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/dashboard/overview",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetDashboardOverview"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/dashboard/snapshot-v2",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetDashboardSnapshotV2"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/dashboard/throughput-trend",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetDashboardThroughputTrend"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/dashboard/token-stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetDashboardTokenStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/email-notification/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetEmailNotificationConfig"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/email-notification/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.UpdateEmailNotificationConfig"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/errors",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetErrorLogs"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/errors/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetErrorLogByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/errors/:id/resolve",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.UpdateErrorResolution"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/ingress-rejections",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ListIngressRejects"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/ingress-rejections/health",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetIngressRejectHealth"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/realtime-traffic",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetRealtimeTrafficSummary"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/request-errors",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ListRequestErrors"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/request-errors/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetRequestError"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/request-errors/:id/resolve",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ResolveRequestError"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/request-errors/:id/upstream-errors",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ListRequestErrorUpstreamErrors"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/requests",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ListRequestDetails"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/runtime/alert",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetAlertRuntimeSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/runtime/alert",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.UpdateAlertRuntimeSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/runtime/logging",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetRuntimeLogConfig"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/runtime/logging",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.UpdateRuntimeLogConfig"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/ops/runtime/logging/reset",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ResetRuntimeLogConfig"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/settings/metric-thresholds",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetMetricThresholds"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/settings/metric-thresholds",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.UpdateMetricThresholds"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/system-logs",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ListSystemLogs"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/ops/system-logs/cleanup",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.CleanupSystemLogs"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/system-logs/health",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetSystemLogIngestionHealth"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/upstream-errors",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ListUpstreamErrors"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/upstream-errors/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetUpstreamError"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/ops/upstream-errors/:id/resolve",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.ResolveUpstreamError"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/user-concurrency",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.GetUserConcurrencyStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/ops/ws/qps",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterOpsRoutes",
+    "Handler": "endpoint.QPSWSHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/payment/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.GetConfig"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/payment/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.UpdateConfig"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/payment/dashboard",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.GetDashboard"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/payment/orders",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.ListOrders"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/payment/orders/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.GetOrderDetail"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/payment/orders/:id/cancel",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.CancelOrder"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/payment/orders/:id/force-expire",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.ForceExpireOrder"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/payment/orders/:id/invoice",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.GetOrderInvoice"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/payment/orders/:id/refund",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.ProcessRefund"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/payment/orders/:id/refund/query",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.QueryAndFinalizeRefund"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/payment/orders/:id/retry",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.RetryFulfillment"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/payment/plans",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "planHandler.ListPlans"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/payment/plans",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "planHandler.CreatePlan"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/payment/plans/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "planHandler.DeletePlan"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/payment/plans/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "planHandler.UpdatePlan"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/payment/providers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.ListProviders"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/payment/providers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.CreateProvider"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/payment/providers/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.DeleteProvider"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/payment/providers/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.UpdateProvider"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/payment/providers/test",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "adminPaymentHandler.TestProvider"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/plans/:id/subscriptions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.ListByPlan"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/promo-codes",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterPromoCodeRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/promo-codes",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterPromoCodeRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/promo-codes/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterPromoCodeRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/promo-codes/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterPromoCodeRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/promo-codes/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterPromoCodeRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/promo-codes/:id/usages",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_admin.go",
+    "Function": "RegisterPromoCodeRoutes",
+    "Handler": "endpoint.GetUsages"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/protocol-capabilities",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "protocolCatalog"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/proxies",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/proxies",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/proxies/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/proxies/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/proxies/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/proxies/:id/accounts",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.GetProxyAccounts"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/proxies/:id/quality-check",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.CheckQuality"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/proxies/:id/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.GetStats"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/proxies/:id/test",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.Test"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/proxies/all",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.GetAll"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/proxies/batch",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.BatchCreate"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/proxies/batch-delete",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.BatchDelete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/proxies/data",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.ExportData"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/proxies/data",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterProxyRoutes",
+    "Handler": "endpoint.ImportData"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/qoder/oauth/auth-url",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterQoderOAuthRoutes",
+    "Handler": "endpoint.GenerateAuthURL"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/qoder/oauth/exchange-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterQoderOAuthRoutes",
+    "Handler": "endpoint.ExchangeCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/qoder/oauth/poll",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterQoderOAuthRoutes",
+    "Handler": "endpoint.Poll"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/redeem-codes",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/redeem-codes/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/redeem-codes/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/redeem-codes/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/redeem-codes/:id/expire",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.Expire"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/redeem-codes/batch-delete",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.BatchDelete"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/redeem-codes/batch-update",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.BatchUpdate"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/redeem-codes/create-and-redeem",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.CreateAndRedeem"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/redeem-codes/export",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.Export"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/redeem-codes/generate",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.Generate"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/redeem-codes/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterRedeemCodeRoutes",
+    "Handler": "endpoint.GetStats"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/risk-control/api-keys/test",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.TestAPIKeys"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/risk-control/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.GetConfig"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/risk-control/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.UpdateConfig"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/risk-control/cyber-summary",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.GetCyberSummary"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/risk-control/cyber-warnings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.ListCyberWarnings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/risk-control/cyber-warnings/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.GetCyberWarning"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/risk-control/hashes",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.DeleteFlaggedHash"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/risk-control/hashes/all",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.ClearFlaggedHashes"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/risk-control/logs",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.ListLogs"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/risk-control/logs/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.GetLog"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/risk-control/media/:id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.GetMediaContent"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/risk-control/status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.GetStatus"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/risk-control/users/:user_id/unban",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/moderation/httpapi/routes_admin.go",
+    "Function": "RegisterContentModerationRoutes",
+    "Handler": "endpoint.UnbanUser"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/scheduled-test-plans",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterScheduledTestRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/scheduled-test-plans/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterScheduledTestRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/scheduled-test-plans/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterScheduledTestRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/scheduled-test-plans/:id/results",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_admin.go",
+    "Function": "RegisterScheduledTestRoutes",
+    "Handler": "endpoint.ListResults"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/settings/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsSettingsRoutes",
+    "Handler": "endpoint.GetSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/settings/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsSettingsRoutes",
+    "Handler": "endpoint.UpdateSettings"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/settings/admin-api-key",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_settings.go",
+    "Function": "RegisterIdentitySettingsRoutes",
+    "Handler": "endpoint.DeleteAdminAPIKey"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/admin-api-key",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_settings.go",
+    "Function": "RegisterIdentitySettingsRoutes",
+    "Handler": "endpoint.GetAdminAPIKey"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/settings/admin-api-key/regenerate",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_settings.go",
+    "Function": "RegisterIdentitySettingsRoutes",
+    "Handler": "endpoint.RegenerateAdminAPIKey"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/beta-policy",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_settings.go",
+    "Function": "RegisterGatewaySettingsRoutes",
+    "Handler": "endpoint.GetBetaPolicySettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/beta-policy",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_settings.go",
+    "Function": "RegisterGatewaySettingsRoutes",
+    "Handler": "endpoint.UpdateBetaPolicySettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/creative-model-candidates",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_settings.go",
+    "Function": "RegisterCreativeSettingsRoutes",
+    "Handler": "endpoint.ListCreativeModelCandidates"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/creative-worker-status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_settings.go",
+    "Function": "RegisterCreativeSettingsRoutes",
+    "Handler": "endpoint.GetCreativeWorkerStatus"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/settings/email-template-preview",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/notification/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.PreviewEmailTemplate"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/email-templates",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/notification/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.ListEmailTemplates"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/email-templates/:event/:locale",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/notification/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.GetEmailTemplate"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/email-templates/:event/:locale",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/notification/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.UpdateEmailTemplate"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/settings/email-templates/:event/:locale/restore-official",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/notification/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.RestoreOfficialEmailTemplate"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/openai-403-cooldown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.GetOpenAI403CooldownSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/openai-403-cooldown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.UpdateOpenAI403CooldownSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/openai-images-oauth-unavailable-cooldown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.GetOpenAIImagesOAuthUnavailableCooldownSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/openai-images-oauth-unavailable-cooldown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.UpdateOpenAIImagesOAuthUnavailableCooldownSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/openai-oauth-import-defaults",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.GetOpenAIOAuthImportDefaults"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/openai-oauth-import-defaults",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.UpdateOpenAIOAuthImportDefaults"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/overload-cooldown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.GetOverloadCooldownSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/overload-cooldown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.UpdateOverloadCooldownSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/panel-rate-limit",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/middleware/routes_settings.go",
+    "Function": "RegisterPanelSettingsRoutes",
+    "Handler": "endpoint.GetPanelRateLimitSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/panel-rate-limit",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/middleware/routes_settings.go",
+    "Function": "RegisterPanelSettingsRoutes",
+    "Handler": "endpoint.UpdatePanelRateLimitSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/pre-aggregation",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/settings/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsSettingsRoutes",
+    "Handler": "endpoint.GetPreAggregationSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/pre-aggregation",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/settings/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsSettingsRoutes",
+    "Handler": "endpoint.UpdatePreAggregationSettings"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/settings/pre-aggregation/backfill",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/settings/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsSettingsRoutes",
+    "Handler": "endpoint.BackfillPreAggregation"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/rate-limit-429-cooldown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.GetRateLimit429CooldownSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/rate-limit-429-cooldown",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/account/httpapi/routes_settings.go",
+    "Function": "RegisterAccountSettingsRoutes",
+    "Handler": "endpoint.UpdateRateLimit429CooldownSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/rectifier",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_settings.go",
+    "Function": "RegisterGatewaySettingsRoutes",
+    "Handler": "endpoint.GetRectifierSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/rectifier",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_settings.go",
+    "Function": "RegisterGatewaySettingsRoutes",
+    "Handler": "endpoint.UpdateRectifierSettings"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/settings/send-test-email",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/notification/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.SendTestEmail"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/stream-timeout",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_settings.go",
+    "Function": "RegisterGatewaySettingsRoutes",
+    "Handler": "endpoint.GetStreamTimeoutSettings"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/stream-timeout",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes_settings.go",
+    "Function": "RegisterGatewaySettingsRoutes",
+    "Handler": "endpoint.UpdateStreamTimeoutSettings"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/settings/test-smtp",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/notification/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.TestSMTPConnection"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/settings/web-search-emulation",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/search/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.GetWebSearchEmulationConfig"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/settings/web-search-emulation",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/search/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.UpdateWebSearchEmulationConfig"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/settings/web-search-emulation/reset-usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/search/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.ResetWebSearchUsage"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/settings/web-search-emulation/test",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/search/httpapi/routes_settings.go",
+    "Function": "RegisterSettingsRoutes",
+    "Handler": "endpoint.TestWebSearchEmulation"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/subscriptions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/subscriptions/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.Revoke"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/subscriptions/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/subscriptions/:id/extend",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.Extend"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/subscriptions/:id/progress",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.GetProgress"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/subscriptions/:id/reset-quota",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.ResetQuota"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/subscriptions/:id/restore",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.Restore"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/subscriptions/:id/revoke",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.Revoke"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/subscriptions/assign",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.Assign"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/subscriptions/bulk-assign",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.BulkAssign"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/system/check-updates",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterSystemRoutes",
+    "Handler": "endpoint.CheckUpdates"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/system/restart",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterSystemRoutes",
+    "Handler": "endpoint.RestartService"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/system/rollback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterSystemRoutes",
+    "Handler": "endpoint.Rollback"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/system/rollback-versions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterSystemRoutes",
+    "Handler": "endpoint.GetRollbackVersions"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/system/update",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterSystemRoutes",
+    "Handler": "endpoint.PerformUpdate"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/system/version",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/ops/httpapi/routes_admin.go",
+    "Function": "RegisterSystemRoutes",
+    "Handler": "endpoint.GetVersion"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/teams",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "h.Admin.Team.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/teams",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "h.Admin.Team.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/teams/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "h.Admin.Team.Dissolve"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/teams/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "h.Admin.Team.Get"
+  },
+  {
+    "Method": "PATCH",
+    "Path": "/api/v1/admin/teams/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "h.Admin.Team.Update"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/teams/:id/force-transfer",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "h.Admin.Team.ForceTransfer"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/teams/:id/members",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "h.Admin.Team.ListMembers"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/teams/:id/usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/routes/admin.go",
+    "Function": "RegisterAdminRoutes",
+    "Handler": "h.Admin.Team.GetUsage"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/collector/sessions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.CreateCollectorSession"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/collector/sessions/:token",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.DeleteCollectorSession"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/collector/sessions/:token/captures",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.ListCollectorCaptures"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/collector/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.StartCollector"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/collector/status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.CollectorStatus"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/tls-fingerprint-profiles/collector/stop",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintProfileRoutes",
+    "Handler": "endpoint.StopCollector"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/tls-fingerprint-routers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintRouterRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/tls-fingerprint-routers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintRouterRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/tls-fingerprint-routers/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintRouterRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/tls-fingerprint-routers/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintRouterRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/tls-fingerprint-routers/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/egress/httpapi/routes_admin.go",
+    "Function": "RegisterTLSFingerprintRouterRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterUsageRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/usage/cleanup-tasks",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterUsageRoutes",
+    "Handler": "endpoint.ListCleanupTasks"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/usage/cleanup-tasks",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterUsageRoutes",
+    "Handler": "endpoint.CreateCleanupTask"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/usage/cleanup-tasks/:id/cancel",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterUsageRoutes",
+    "Handler": "endpoint.CancelCleanupTask"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/usage/search-api-keys",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterUsageRoutes",
+    "Handler": "endpoint.SearchAPIKeys"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/usage/search-users",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterUsageRoutes",
+    "Handler": "endpoint.SearchUsers"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/usage/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/admin/routes_admin.go",
+    "Function": "RegisterUsageRoutes",
+    "Handler": "endpoint.Stats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/user-attributes",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserAttributeRoutes",
+    "Handler": "endpoint.ListDefinitions"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/user-attributes",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserAttributeRoutes",
+    "Handler": "endpoint.CreateDefinition"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/user-attributes/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserAttributeRoutes",
+    "Handler": "endpoint.DeleteDefinition"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/user-attributes/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserAttributeRoutes",
+    "Handler": "endpoint.UpdateDefinition"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/user-attributes/batch",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserAttributeRoutes",
+    "Handler": "endpoint.GetBatchUserAttributes"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/user-attributes/reorder",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserAttributeRoutes",
+    "Handler": "endpoint.ReorderDefinitions"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/users",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/admin/users/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/users/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users/:id/api-keys",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.GetUserAPIKeys"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users/:id/attributes",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "attributes.GetUserAttributes"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/users/:id/attributes",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "attributes.UpdateUserAttributes"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/users/:id/auth-identities",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.BindAuthIdentity"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/users/:id/balance",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.UpdateBalance"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users/:id/balance-history",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.GetBalanceHistory"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users/:id/platform-quotas",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterUserQuotaRoutes",
+    "Handler": "endpoint.GetUserPlatformQuotas"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/admin/users/:id/platform-quotas",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterUserQuotaRoutes",
+    "Handler": "endpoint.UpdateUserPlatformQuotas"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/users/:id/platform-quotas/reset",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterUserQuotaRoutes",
+    "Handler": "endpoint.ResetUserPlatformQuotaWindow"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/users/:id/replace-group",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.ReplaceGroup"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users/:id/rpm-status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.GetUserRPMStatus"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users/:id/subscriptions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_admin.go",
+    "Function": "RegisterSubscriptionRoutes",
+    "Handler": "endpoint.ListByUser"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/admin/users/:id/usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.GetUserUsage"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/users/batch-concurrency",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.BatchUpdateConcurrency"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/admin/users/batch-limits",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_admin.go",
+    "Function": "RegisterUserManagementRoutes",
+    "Handler": "endpoint.BatchUpdateLimits"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/announcements",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/announcements/:id/read",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.MarkRead"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/forgot-password",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.ForgotPassword"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/login",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.Login"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/login/2fa",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.Login2FA"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/logout",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.Logout"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/me",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterSessionRoutes",
+    "Handler": "endpoints.GetCurrentUser"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/bind-token",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterSessionRoutes",
+    "Handler": "endpoints.PrepareOAuthBindAccessTokenCookie"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/dingtalk/bind-login",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.BindDingTalkOAuthLogin"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/dingtalk/bind/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "func(c *gin.Context) {\n\tquery := c.Request.URL.Query()\n\tquery.Set(\"intent\", \"bind_current_user\")\n\tc.Request.URL.RawQuery = query.Encode()\n\tendpoints.DingTalkOAuthStart(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/dingtalk/callback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.DingTalkOAuthCallback"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/dingtalk/complete-registration",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CompleteDingTalkOAuthRegistration"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/dingtalk/create-account",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CreateDingTalkOAuthAccount"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/dingtalk/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.DingTalkOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/dingtalk/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.DingTalkOAuthStart"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/github/callback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.GitHubOAuthCallback"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/github/complete-registration",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CompleteGitHubOAuthRegistration"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/github/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.GitHubOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/github/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.GitHubOAuthStart"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/google/callback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.GoogleOAuthCallback"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/google/complete-registration",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CompleteGoogleOAuthRegistration"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/google/one-tap",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.GoogleOneTap"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/google/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.GoogleOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/google/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.GoogleOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/linuxdo/bind-login",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.BindLinuxDoOAuthLogin"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/linuxdo/bind/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "func(c *gin.Context) {\n\tquery := c.Request.URL.Query()\n\tquery.Set(\"intent\", \"bind_current_user\")\n\tc.Request.URL.RawQuery = query.Encode()\n\tendpoints.LinuxDoOAuthStart(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/linuxdo/callback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.LinuxDoOAuthCallback"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/linuxdo/complete-registration",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CompleteLinuxDoOAuthRegistration"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/linuxdo/create-account",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CreateLinuxDoOAuthAccount"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/linuxdo/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.LinuxDoOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/linuxdo/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.LinuxDoOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/oidc/bind-login",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.BindOIDCOAuthLogin"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/oidc/bind/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "func(c *gin.Context) {\n\tquery := c.Request.URL.Query()\n\tquery.Set(\"intent\", \"bind_current_user\")\n\tc.Request.URL.RawQuery = query.Encode()\n\tendpoints.OIDCOAuthStart(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/oidc/callback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.OIDCOAuthCallback"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/oidc/complete-registration",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CompleteOIDCOAuthRegistration"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/oidc/create-account",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CreateOIDCOAuthAccount"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/oidc/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.OIDCOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/oidc/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.OIDCOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/pending/bind-login",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.BindPendingOAuthLogin"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/pending/create-account",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CreatePendingOAuthAccount"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/pending/exchange",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.ExchangePendingOAuthCompletion"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/pending/send-verify-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.SendPendingOAuthVerifyCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/wechat/bind-login",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.BindWeChatOAuthLogin"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/wechat/bind/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "func(c *gin.Context) {\n\tquery := c.Request.URL.Query()\n\tquery.Set(\"intent\", \"bind_current_user\")\n\tc.Request.URL.RawQuery = query.Encode()\n\tendpoints.WeChatOAuthStart(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/wechat/callback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.WeChatOAuthCallback"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/wechat/complete-registration",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CompleteWeChatOAuthRegistration"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/wechat/create-account",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.CreateWeChatOAuthAccount"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/wechat/payment/callback",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes_auth.go",
+    "Function": "RegisterWeChatAuthRoutes",
+    "Handler": "endpoint.WeChatPaymentOAuthCallback"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/wechat/payment/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes_auth.go",
+    "Function": "RegisterWeChatAuthRoutes",
+    "Handler": "endpoint.WeChatPaymentOAuthStart"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/auth/oauth/wechat/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.WeChatOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/oauth/wechat/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.WeChatOAuthStart"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/passkey/login/begin",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "passkeys.BeginLogin"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/passkey/login/finish",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "passkeys.FinishLogin"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/refresh",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.RefreshToken"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/register",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.Register"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/reset-password",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.ResetPassword"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/revoke-all-sessions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterSessionRoutes",
+    "Handler": "endpoints.RevokeAllSessions"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/send-verify-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.SendVerifyCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/validate-invitation-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.ValidateInvitationCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/auth/validate-promo-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_auth.go",
+    "Function": "RegisterAuthenticationRoutes",
+    "Handler": "endpoints.ValidatePromoCode"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/creative/capabilities",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListCapabilities"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/creative/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListModels"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/creative/runs",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListRuns"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/creative/runs",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.CreateRun"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/creative/runs/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetRun"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/creative/runs/:id/outputs/:index/ack",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.AckOutput"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/creative/runs/:id/outputs/:index/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetOutputContent"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/creative/runs/active",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/creative/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListActiveRuns"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/groups/available",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetAvailableGroups"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/groups/rates",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetUserGroupRates"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/keys",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/keys",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/keys/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Delete"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/keys/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/keys/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/keys/billing-options",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/apikey/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetBillingOptions"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/marketplace/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_public.go",
+    "Function": "RegisterPublicMarketplaceRoutes",
+    "Handler": "endpoint.ListPublic"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/marketplace/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/routing/httpapi/routes_public.go",
+    "Function": "RegisterPublicMarketplaceRoutes",
+    "Handler": "endpoint.StatsPublic"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/checkout-info",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.GetCheckoutInfo"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/config",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.GetPaymentConfig"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/limits",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.GetLimits"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/orders",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.CreateOrder"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/orders/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.GetOrder"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/orders/:id/cancel",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.CancelOrder"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/orders/:id/invoice",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.GetOrderInvoice"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/orders/:id/refund-request",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.RequestRefund"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/orders/my",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.GetMyOrders"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/orders/refund-eligible-providers",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.GetRefundEligibleProviders"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/orders/verify",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.VerifyOrder"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/plans",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "planHandler.GetPlans"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/public/orders/resolve",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.ResolveOrderPublicByResumeToken"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/public/orders/verify",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "paymentHandler.VerifyOrderPublic"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/webhook/airwallex",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "webhookHandler.AirwallexWebhook"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/webhook/alipay",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "webhookHandler.AlipayNotify"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/payment/webhook/easypay",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "webhookHandler.EasyPayNotify"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/webhook/easypay",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "webhookHandler.EasyPayNotify"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/webhook/stripe",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "webhookHandler.StripeWebhook"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/payment/webhook/wxpay",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/payment/httpapi/routes.go",
+    "Function": "RegisterRoutes",
+    "Handler": "webhookHandler.WxpayNotify"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/redeem",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "redeemEndpoint.Redeem"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/redeem/history",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "redeemEndpoint.GetHistory"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/settings/email-unsubscribe",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/notification/httpapi/routes_public.go",
+    "Function": "RegisterUnsubscribeRoute",
+    "Handler": "endpoint.UnsubscribeNotificationEmail"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/settings/public",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/site/httpapi/routes_public.go",
+    "Function": "RegisterPublicSettingsRoutes",
+    "Handler": "endpoint.GetPublicSettings"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/subscriptions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "subscriptionEndpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/subscriptions/:id/revoke",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "subscriptionEndpoint.Revoke"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/subscriptions/active",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "subscriptionEndpoint.GetActive"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/subscriptions/progress",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "subscriptionEndpoint.GetProgress"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/subscriptions/summary",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "subscriptionEndpoint.GetSummary"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/team",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Dissolve"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/team",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetCurrent"
+  },
+  {
+    "Method": "PATCH",
+    "Path": "/api/v1/team",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Update"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Create"
+  },
+  {
+    "Method": "PATCH",
+    "Path": "/api/v1/team/default-member-limits",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.UpdateDefaultMemberLimits"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/team/invitations",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListInvitations"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/invitations",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Invite"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/team/invitations/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.RevokeInvitation"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/invitations/:id/reissue",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ReissueInvitation"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/invitations/preview",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.PreviewInvitation"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/invitations/resolve",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ResolveInvitation"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/team/keys",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListTeamKeys"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/team/keys/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.DeleteTeamKey"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/keys/:id/disable",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.DisableTeamKey"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/keys/:id/enable",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.EnableTeamKey"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/leave",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Leave"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/team/members",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListMembers"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/team/members/:user_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.RemoveMember"
+  },
+  {
+    "Method": "PATCH",
+    "Path": "/api/v1/team/members/:user_id/limits",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.UpdateMemberLimits"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/members/:user_id/usage/reset",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ResetMemberUsage"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/team/ownership-transfer",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.CancelOwnershipTransfer"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/ownership-transfer",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.StartOwnershipTransfer"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/ownership-transfer/resolve",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ResolveOwnershipTransfer"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/team/status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.SetStatus"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/team/usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetUsageSummary"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/team/usage/logs",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListUsageLogs"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/team/usage/members",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/team/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListMemberUsageSeries"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetByID"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/usage/dashboard/api-keys-usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.DashboardAPIKeysUsage"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/dashboard/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.DashboardModels"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/dashboard/snapshot-v2",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.DashboardSnapshotV2"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/dashboard/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.DashboardStats"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/dashboard/trend",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.DashboardTrend"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/errors",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ListErrors"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/errors/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetErrorDetail"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/ranking",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Ranking"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/usage/stats",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.Stats"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/user",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.UpdateProfile"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/user/account-bindings/:provider",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.UnbindIdentity"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/account-bindings/email",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.BindEmailIdentity"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/account-bindings/email/send-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.SendEmailBindingCode"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/user/aff",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetAffiliate"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/aff/transfer",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/promotion/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.TransferAffiliateQuota"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/user/api-keys/:id/usage/daily",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/usage/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetMyAPIKeyDailyUsage"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/auth-identities/bind/start",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.StartIdentityBinding"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/user/notify-email",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.RemoveNotifyEmail"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/notify-email/send-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.SendNotifyEmailCode"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/user/notify-email/toggle",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ToggleNotifyEmail"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/notify-email/verify",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.VerifyNotifyEmail"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/user/passkeys",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "passkeyEndpoint.List"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/api/v1/user/passkeys/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "passkeyEndpoint.Delete"
+  },
+  {
+    "Method": "PATCH",
+    "Path": "/api/v1/user/passkeys/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "passkeyEndpoint.Rename"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/passkeys/register/begin",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "passkeyEndpoint.BeginRegistration"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/passkeys/register/finish",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "passkeyEndpoint.FinishRegistration"
+  },
+  {
+    "Method": "PUT",
+    "Path": "/api/v1/user/password",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.ChangePassword"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/user/platform-quotas",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/billing/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "quota.GetMyPlatformQuotas"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/user/profile",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "endpoint.GetProfile"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/totp/disable",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "totpEndpoint.Disable"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/totp/enable",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "totpEndpoint.Enable"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/totp/send-code",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "totpEndpoint.SendVerifyCode"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/totp/setup",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "totpEndpoint.InitiateSetup"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/user/totp/status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "totpEndpoint.GetStatus"
+  },
+  {
+    "Method": "POST",
+    "Path": "/api/v1/user/totp/step-up",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "totpEndpoint.StepUp"
+  },
+  {
+    "Method": "GET",
+    "Path": "/api/v1/user/totp/verification-method",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/identity/httpapi/routes_user.go",
+    "Function": "RegisterUserRoutes",
+    "Handler": "totpEndpoint.GetVerificationMethod"
+  },
+  {
+    "Method": "GET",
+    "Path": "/backend-api/codex/:call_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "liveHTTP.LiveSideband"
+  },
+  {
+    "Method": "POST",
+    "Path": "/backend-api/codex/alpha/search",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "auxiliaryHTTP.AlphaSearch"
+  },
+  {
+    "Method": "POST",
+    "Path": "/backend-api/codex/realtime/calls",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "liveHTTP.Live"
+  },
+  {
+    "Method": "GET",
+    "Path": "/backend-api/codex/responses",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "responsesWebSocketHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/backend-api/codex/responses",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "responsesHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/backend-api/codex/responses/*subpath",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "guardResponsesSubpath(withGroupClientProtocol(wireprotocol.ProtocolOpenAIResponses, GroupClientProtocolErrorOpenAI, responsesHandler))"
+  },
+  {
+    "Method": "POST",
+    "Path": "/chat/completions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif isOpenAIResponsesCompatibleGatewayPlatform(c) {\n\t\topenAITextHTTP.ChatCompletions(c)\n\t\treturn\n\t}\n\tif getGroupPlatform(c) == capability.PlatformQoder {\n\t\tendpoints.QoderChat(c)\n\t\treturn\n\t}\n\tcompatibleTextHTTP.ChatCompletions(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/custom-voices",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "rootVoiceHandler(\"custom-voices\")"
+  },
+  {
+    "Method": "POST",
+    "Path": "/custom-voices",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "rootVoiceHandler(\"custom-voices\")"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/custom-voices/:voice_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "rootCustomVoicePathHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/custom-voices/:voice_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "rootCustomVoicePathHandler"
+  },
+  {
+    "Method": "PATCH",
+    "Path": "/custom-voices/:voice_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "rootCustomVoicePathHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/custom-voices/:voice_id/audio",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "rootCustomVoicePathHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/embeddings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif getGroupPlatform(c) != capability.PlatformOpenAI {\n\t\toptions.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)\n\t\tc.JSON(http.StatusNotFound, gin.H{\"error\": gin.H{\"type\": \"not_found_error\", \"message\": \"Embeddings API is not supported for this platform\"}})\n\t\treturn\n\t}\n\tauxiliaryHTTP.Embeddings(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/health",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/common.go",
+    "Function": "RegisterCommonRoutes",
+    "Handler": "func(c *gin.Context) {\n\tc.JSON(http.StatusOK, gin.H{\"status\": \"ok\"})\n}"
+  },
+  {
+    "Method": "POST",
+    "Path": "/images/edits",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "imagesHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/images/generations",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "imagesHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/messages/count_tokens",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "countTokensHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "modelsHTTP.Models"
+  },
+  {
+    "Method": "GET",
+    "Path": "/realtime",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif getGroupPlatform(c) != capability.PlatformGrok {\n\t\toptions.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)\n\t\tc.JSON(http.StatusNotFound, gin.H{\"error\": gin.H{\"type\": \"not_found_error\", \"message\": \"Realtime API is not supported for this platform\"}})\n\t\treturn\n\t}\n\tauxiliaryHTTP.GrokRealtime(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/responses",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "responsesWebSocketHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/responses",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "responsesHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/responses/*subpath",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "guardResponsesSubpath(withGroupClientProtocol(wireprotocol.ProtocolOpenAIResponses, GroupClientProtocolErrorOpenAI, responsesHandler))"
+  },
+  {
+    "Method": "GET",
+    "Path": "/setup/status",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/server/common.go",
+    "Function": "RegisterCommonRoutes",
+    "Handler": "func(c *gin.Context) {\n\tc.JSON(http.StatusOK, gin.H{\"code\": 0, \"data\": gin.H{\"needs_setup\": false, \"step\": \"completed\"}})\n}"
+  },
+  {
+    "Method": "POST",
+    "Path": "/stt",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "rootVoiceHandler(\"stt\")"
+  },
+  {
+    "Method": "POST",
+    "Path": "/tts",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "rootVoiceHandler(\"tts\")"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/alpha/search",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "auxiliaryHTTP.AlphaSearch"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/chat/completions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif isOpenAIResponsesCompatibleGatewayPlatform(c) {\n\t\topenAITextHTTP.ChatCompletions(c)\n\t\treturn\n\t}\n\tif getGroupPlatform(c) == capability.PlatformQoder {\n\t\tendpoints.QoderChat(c)\n\t\treturn\n\t}\n\tcompatibleTextHTTP.ChatCompletions(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/custom-voices",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "voiceHandler(\"custom-voices\")"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/custom-voices",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "voiceHandler(\"custom-voices\")"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/v1/custom-voices/:voice_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "customVoicePathHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/custom-voices/:voice_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "customVoicePathHandler"
+  },
+  {
+    "Method": "PATCH",
+    "Path": "/v1/custom-voices/:voice_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "customVoicePathHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/custom-voices/:voice_id/audio",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "customVoicePathHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/embeddings",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif getGroupPlatform(c) != capability.PlatformOpenAI {\n\t\toptions.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)\n\t\tc.JSON(http.StatusNotFound, gin.H{\"error\": gin.H{\"type\": \"not_found_error\", \"message\": \"Embeddings API is not supported for this platform\"}})\n\t\treturn\n\t}\n\tauxiliaryHTTP.Embeddings(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/images/batches",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.List"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/images/batches",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.Submit"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/v1/images/batches/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.DeleteRecord"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/images/batches/:id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.Get"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/images/batches/:id/cancel",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.Cancel"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/images/batches/:id/download",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.Download"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/images/batches/:id/items",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.Items"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/images/batches/:id/items/:custom_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.ItemContent"
+  },
+  {
+    "Method": "DELETE",
+    "Path": "/v1/images/batches/:id/outputs",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.DeleteOutputs"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/images/batches/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/batchimage/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoint.Models"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/images/edits",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "imagesHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/images/generations",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "imagesHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/live",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "liveHTTP.Live"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/live/:call_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "liveHTTP.LiveSideband"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/messages",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif isOpenAIResponsesCompatibleGatewayPlatform(c) {\n\t\topenAITextHTTP.Messages(c)\n\t\treturn\n\t}\n\tif getGroupPlatform(c) == capability.PlatformQoder {\n\t\tqoderCompatibleHTTP.Messages(c)\n\t\treturn\n\t}\n\tmessagesHTTP.Messages(c)\n}"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/messages/count_tokens",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "countTokensHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "modelsHTTP.Models"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/realtime",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif getGroupPlatform(c) != capability.PlatformGrok {\n\t\toptions.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)\n\t\tc.JSON(http.StatusNotFound, gin.H{\"error\": gin.H{\"type\": \"not_found_error\", \"message\": \"Realtime API is not supported for this platform\"}})\n\t\treturn\n\t}\n\tauxiliaryHTTP.GrokRealtime(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/responses",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "responsesWebSocketHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/responses",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif isOpenAIResponsesCompatibleGatewayPlatform(c) {\n\t\topenAITextHTTP.Responses(c)\n\t\treturn\n\t}\n\tif getGroupPlatform(c) == capability.PlatformQoder {\n\t\tqoderCompatibleHTTP.Responses(c)\n\t\treturn\n\t}\n\tcompatibleTextHTTP.Responses(c)\n}"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/responses/*subpath",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "guardResponsesSubpath(withGroupClientProtocol(wireprotocol.ProtocolOpenAIResponses, GroupClientProtocolErrorOpenAI, func(c *gin.Context) {\n\tif IsOpenAIResponsesInputTokensRequestPath(c) {\n\t\tresponsesInputTokensHandler(c)\n\t\treturn\n\t}\n\tif isOpenAIResponsesCompatibleGatewayPlatform(c) {\n\t\topenAITextHTTP.Responses(c)\n\t\treturn\n\t}\n\tif getGroupPlatform(c) == capability.PlatformQoder {\n\t\tqoderResponsesSubpathUnsupported(c)\n\t\treturn\n\t}\n\tcompatibleTextHTTP.Responses(c)\n}))"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/stt",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "voiceHandler(\"stt\")"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/tts",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "voiceHandler(\"tts\")"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/usage",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "endpoints.PublicUsage"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/videos",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoGenerationHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/videos/:request_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoStatusHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/videos/:request_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoContentHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/videos/edits",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoEditHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/videos/edits/:request_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoStatusHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/videos/edits/:request_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoContentHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/videos/extensions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoExtensionHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/videos/extensions/:request_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoStatusHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/videos/extensions/:request_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoContentHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/videos/generations",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoGenerationHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/videos/generations/:request_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoStatusHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1/videos/generations/:request_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoContentHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/web_search",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif getGroupPlatform(c) != capability.PlatformGrok {\n\t\toptions.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)\n\t\tc.JSON(http.StatusNotFound, gin.H{\"error\": gin.H{\"type\": \"not_found_error\", \"message\": \"Web Search API is not supported for this platform\"}})\n\t\treturn\n\t}\n\tsearchHTTP.WebSearch(c)\n}"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1/x_search",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif getGroupPlatform(c) != capability.PlatformGrok {\n\t\toptions.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)\n\t\tc.JSON(http.StatusNotFound, gin.H{\"error\": gin.H{\"type\": \"not_found_error\", \"message\": \"X Search API is not supported for this platform\"}})\n\t\treturn\n\t}\n\tsearchHTTP.XSearch(c)\n}"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1beta/models",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "modelsHTTP.GeminiV1BetaListModels"
+  },
+  {
+    "Method": "GET",
+    "Path": "/v1beta/models/*model",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "modelsHTTP.GeminiV1BetaGetModel"
+  },
+  {
+    "Method": "POST",
+    "Path": "/v1beta/models/*modelAction",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "geminiNativeHTTP.GeminiV1BetaModels"
+  },
+  {
+    "Method": "POST",
+    "Path": "/videos",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoGenerationHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/videos/:request_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoStatusHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/videos/:request_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoContentHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/videos/edits",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoEditHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/videos/edits/:request_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoStatusHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/videos/edits/:request_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoContentHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/videos/extensions",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoExtensionHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/videos/extensions/:request_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoStatusHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/videos/extensions/:request_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoContentHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/videos/generations",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoGenerationHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/videos/generations/:request_id",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoStatusHandler"
+  },
+  {
+    "Method": "GET",
+    "Path": "/videos/generations/:request_id/content",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "videoContentHandler"
+  },
+  {
+    "Method": "POST",
+    "Path": "/web_search",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif getGroupPlatform(c) != capability.PlatformGrok {\n\t\toptions.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)\n\t\tc.JSON(http.StatusNotFound, gin.H{\"error\": gin.H{\"type\": \"not_found_error\", \"message\": \"Web Search API is not supported for this platform\"}})\n\t\treturn\n\t}\n\tsearchHTTP.WebSearch(c)\n}"
+  },
+  {
+    "Method": "POST",
+    "Path": "/x_search",
+    "File": "/Users/daodaoneko/GolandProjects/TokenRouter/backend/internal/gateway/httpapi/routes.go",
+    "Function": "RegisterGatewayRoutes",
+    "Handler": "func(c *gin.Context) {\n\tif getGroupPlatform(c) != capability.PlatformGrok {\n\t\toptions.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)\n\t\tc.JSON(http.StatusNotFound, gin.H{\"error\": gin.H{\"type\": \"not_found_error\", \"message\": \"X Search API is not supported for this platform\"}})\n\t\treturn\n\t}\n\tsearchHTTP.XSearch(c)\n}"
+  }
+]

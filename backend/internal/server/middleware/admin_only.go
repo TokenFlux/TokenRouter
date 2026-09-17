@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,7 +17,7 @@ func AdminOnly() gin.HandlerFunc {
 		}
 
 		// 检查是否为管理员
-		if role != service.RoleAdmin {
+		if role != identity.RoleAdmin {
 			AbortWithError(c, 403, "FORBIDDEN", "Admin access required")
 			return
 		}

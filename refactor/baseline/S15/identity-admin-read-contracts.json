@@ -1,0 +1,68 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/service/...",
+    "./internal/handler/admin/...",
+    "./internal/app/...",
+    "-run",
+    "Setting|Settings|OAuthConfig|Public|UpdateAtomic"
+  ],
+  "exit": 1,
+  "events": {},
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity/provider",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity/rediscache",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/service",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app/bootstrap",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app/legacybridge",
+      null
+    ]
+  ],
+  "seconds": 2.278564929962158
+}

@@ -92,3 +92,11 @@ func GroupFromRouting(g *routing.Group) *Group {
 	out := GroupFromRoutingBase(g)
 	return &out
 }
+
+// GroupCapacityFromSummary 仅投影既有容量字段，不改变 nil 与零值表示。
+func GroupCapacityFromSummary(v *routing.GroupCapacitySummary) *GroupCapacity {
+	if v == nil {
+		return nil
+	}
+	return &GroupCapacity{ConcurrencyUsed: v.ConcurrencyUsed, ConcurrencyMax: v.ConcurrencyMax, SessionsUsed: v.SessionsUsed, SessionsMax: v.SessionsMax, RPMUsed: v.RPMUsed, RPMMax: v.RPMMax}
+}

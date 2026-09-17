@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
@@ -62,6 +64,6 @@ func TestOpsServiceGetLatencyHistogram_RejectsInvalidBoundaries(t *testing.T) {
 		EndTime:   now,
 	}, []int64{100, 200, 200, 1000, 2000})
 	require.Error(t, err)
-	require.Equal(t, 400, infraerrors.Code(err))
+	require.Equal(t, 400, s15httpx.ErrorCode(err))
 	require.Equal(t, "OPS_LATENCY_BUCKET_BOUNDARIES_INVALID", infraerrors.Reason(err))
 }

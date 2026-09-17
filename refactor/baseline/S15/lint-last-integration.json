@@ -1,0 +1,17 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--output.json.path",
+    "../refactor/baseline/S15/lint-final-integration.json",
+    "--build-tags=integration",
+    "./..."
+  ],
+  "exit": 1,
+  "events": {},
+  "failures": [],
+  "seconds": 23.73174810409546
+}

@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Registry|Settings|Setting|FastPolicy|PaymentConfig",
+    "./internal/settings/...",
+    "./internal/payment",
+    "./internal/gateway",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 101
+  },
+  "failures": [],
+  "seconds": 14.855962991714478
+}

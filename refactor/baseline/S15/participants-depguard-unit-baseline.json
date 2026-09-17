@@ -1,0 +1,16 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--enable-only=depguard",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--build-tags=unit",
+    "./..."
+  ],
+  "exit": 1,
+  "events": {},
+  "failures": [],
+  "seconds": 1.805116891860962
+}

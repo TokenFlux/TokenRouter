@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/app",
+    "./internal/gateway/httpapi",
+    "./internal/payment/httpapi"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 275
+  },
+  "failures": [],
+  "seconds": 10.161653995513916
+}

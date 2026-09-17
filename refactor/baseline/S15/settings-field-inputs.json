@@ -1,0 +1,2362 @@
+[
+  {
+    "field": "RegistrationEnabled",
+    "go_type": "bool",
+    "json": "registration_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EmailVerifyEnabled",
+    "go_type": "bool",
+    "json": "email_verify_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "RegistrationEmailSuffixWhitelist",
+    "go_type": "[]string",
+    "json": "registration_email_suffix_whitelist",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "RegistrationEmailNormalization",
+    "go_type": "bool",
+    "json": "registration_email_normalization",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "RegistrationEmailDomainQuotaEnabled",
+    "go_type": "*bool",
+    "json": "registration_email_domain_quota_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "UserEmailChangeEnabled",
+    "go_type": "*bool",
+    "json": "user_email_change_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PromoCodeEnabled",
+    "go_type": "bool",
+    "json": "promo_code_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PasswordResetEnabled",
+    "go_type": "bool",
+    "json": "password_reset_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "FrontendURL",
+    "go_type": "string",
+    "json": "frontend_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "InvitationCodeEnabled",
+    "go_type": "bool",
+    "json": "invitation_code_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TotpEnabled",
+    "go_type": "bool",
+    "json": "totp_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SessionBindingEnabled",
+    "go_type": "*bool",
+    "json": "session_binding_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "StepUpEnabled",
+    "go_type": "*bool",
+    "json": "step_up_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuditLogRetentionDays",
+    "go_type": "int",
+    "json": "audit_log_retention_days",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "LoginAgreementEnabled",
+    "go_type": "bool",
+    "json": "login_agreement_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "LoginAgreementMode",
+    "go_type": "string",
+    "json": "login_agreement_mode",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "LoginAgreementUpdatedAt",
+    "go_type": "string",
+    "json": "login_agreement_updated_at",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "LoginAgreementDocuments",
+    "go_type": "[]dto.LoginAgreementDocument",
+    "json": "login_agreement_documents",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SMTPHost",
+    "go_type": "string",
+    "json": "smtp_host",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SMTPPort",
+    "go_type": "int",
+    "json": "smtp_port",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SMTPUsername",
+    "go_type": "string",
+    "json": "smtp_username",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SMTPPassword",
+    "go_type": "string",
+    "json": "smtp_password",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SMTPFrom",
+    "go_type": "string",
+    "json": "smtp_from_email",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SMTPFromName",
+    "go_type": "string",
+    "json": "smtp_from_name",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SMTPUseTLS",
+    "go_type": "bool",
+    "json": "smtp_use_tls",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TurnstileEnabled",
+    "go_type": "bool",
+    "json": "turnstile_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TurnstileSiteKey",
+    "go_type": "string",
+    "json": "turnstile_site_key",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TurnstileSecretKey",
+    "go_type": "string",
+    "json": "turnstile_secret_key",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TencentCaptchaEnabled",
+    "go_type": "bool",
+    "json": "tencent_captcha_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TencentCaptchaAppID",
+    "go_type": "string",
+    "json": "tencent_captcha_app_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TencentCaptchaAppSecretKey",
+    "go_type": "string",
+    "json": "tencent_captcha_app_secret_key",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TencentCaptchaCloudSecretID",
+    "go_type": "string",
+    "json": "tencent_captcha_cloud_secret_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TencentCaptchaCloudSecretKey",
+    "go_type": "string",
+    "json": "tencent_captcha_cloud_secret_key",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TencentCaptchaRegion",
+    "go_type": "string",
+    "json": "tencent_captcha_region",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AliyunCaptchaEnabled",
+    "go_type": "bool",
+    "json": "aliyun_captcha_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AliyunCaptchaAccessKeyID",
+    "go_type": "string",
+    "json": "aliyun_captcha_access_key_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AliyunCaptchaAccessKeySecret",
+    "go_type": "string",
+    "json": "aliyun_captcha_access_key_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AliyunCaptchaSceneID",
+    "go_type": "string",
+    "json": "aliyun_captcha_scene_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AliyunCaptchaPrefix",
+    "go_type": "string",
+    "json": "aliyun_captcha_prefix",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AliyunCaptchaRegion",
+    "go_type": "string",
+    "json": "aliyun_captcha_region",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "APIKeyACLTrustForwardedIP",
+    "go_type": "*bool",
+    "json": "api_key_acl_trust_forwarded_ip",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "ForwardedClientIPHeaders",
+    "go_type": "*[]string",
+    "json": "forwarded_client_ip_headers",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "LinuxDoConnectEnabled",
+    "go_type": "bool",
+    "json": "linuxdo_connect_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "LinuxDoConnectClientID",
+    "go_type": "string",
+    "json": "linuxdo_connect_client_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "LinuxDoConnectClientSecret",
+    "go_type": "string",
+    "json": "linuxdo_connect_client_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "LinuxDoConnectRedirectURL",
+    "go_type": "string",
+    "json": "linuxdo_connect_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectEnabled",
+    "go_type": "bool",
+    "json": "dingtalk_connect_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectClientID",
+    "go_type": "string",
+    "json": "dingtalk_connect_client_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectClientSecret",
+    "go_type": "string",
+    "json": "dingtalk_connect_client_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectRedirectURL",
+    "go_type": "string",
+    "json": "dingtalk_connect_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectCorpRestrictionPolicy",
+    "go_type": "string",
+    "json": "dingtalk_connect_corp_restriction_policy",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectInternalCorpID",
+    "go_type": "string",
+    "json": "dingtalk_connect_internal_corp_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectBypassRegistration",
+    "go_type": "bool",
+    "json": "dingtalk_connect_bypass_registration",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncCorpEmail",
+    "go_type": "bool",
+    "json": "dingtalk_connect_sync_corp_email",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncDisplayName",
+    "go_type": "bool",
+    "json": "dingtalk_connect_sync_display_name",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncDept",
+    "go_type": "bool",
+    "json": "dingtalk_connect_sync_dept",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncCorpEmailAttrKey",
+    "go_type": "string",
+    "json": "dingtalk_connect_sync_corp_email_attr_key",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncDisplayNameAttrKey",
+    "go_type": "string",
+    "json": "dingtalk_connect_sync_display_name_attr_key",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncDeptAttrKey",
+    "go_type": "string",
+    "json": "dingtalk_connect_sync_dept_attr_key",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncCorpEmailAttrName",
+    "go_type": "string",
+    "json": "dingtalk_connect_sync_corp_email_attr_name",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncDisplayNameAttrName",
+    "go_type": "string",
+    "json": "dingtalk_connect_sync_display_name_attr_name",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DingTalkConnectSyncDeptAttrName",
+    "go_type": "string",
+    "json": "dingtalk_connect_sync_dept_attr_name",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectEnabled",
+    "go_type": "bool",
+    "json": "wechat_connect_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectAppID",
+    "go_type": "string",
+    "json": "wechat_connect_app_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectAppSecret",
+    "go_type": "string",
+    "json": "wechat_connect_app_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectOpenAppID",
+    "go_type": "string",
+    "json": "wechat_connect_open_app_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectOpenAppSecret",
+    "go_type": "string",
+    "json": "wechat_connect_open_app_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectMPAppID",
+    "go_type": "string",
+    "json": "wechat_connect_mp_app_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectMPAppSecret",
+    "go_type": "string",
+    "json": "wechat_connect_mp_app_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectMobileAppID",
+    "go_type": "string",
+    "json": "wechat_connect_mobile_app_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectMobileAppSecret",
+    "go_type": "string",
+    "json": "wechat_connect_mobile_app_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectOpenEnabled",
+    "go_type": "bool",
+    "json": "wechat_connect_open_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectMPEnabled",
+    "go_type": "bool",
+    "json": "wechat_connect_mp_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectMobileEnabled",
+    "go_type": "bool",
+    "json": "wechat_connect_mobile_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectMode",
+    "go_type": "string",
+    "json": "wechat_connect_mode",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectScopes",
+    "go_type": "string",
+    "json": "wechat_connect_scopes",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectRedirectURL",
+    "go_type": "string",
+    "json": "wechat_connect_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "WeChatConnectFrontendRedirectURL",
+    "go_type": "string",
+    "json": "wechat_connect_frontend_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectEnabled",
+    "go_type": "bool",
+    "json": "oidc_connect_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectProviderName",
+    "go_type": "string",
+    "json": "oidc_connect_provider_name",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectClientID",
+    "go_type": "string",
+    "json": "oidc_connect_client_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectClientSecret",
+    "go_type": "string",
+    "json": "oidc_connect_client_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectIssuerURL",
+    "go_type": "string",
+    "json": "oidc_connect_issuer_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectDiscoveryURL",
+    "go_type": "string",
+    "json": "oidc_connect_discovery_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectAuthorizeURL",
+    "go_type": "string",
+    "json": "oidc_connect_authorize_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectTokenURL",
+    "go_type": "string",
+    "json": "oidc_connect_token_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectUserInfoURL",
+    "go_type": "string",
+    "json": "oidc_connect_userinfo_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectJWKSURL",
+    "go_type": "string",
+    "json": "oidc_connect_jwks_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectScopes",
+    "go_type": "string",
+    "json": "oidc_connect_scopes",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectRedirectURL",
+    "go_type": "string",
+    "json": "oidc_connect_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectFrontendRedirectURL",
+    "go_type": "string",
+    "json": "oidc_connect_frontend_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectTokenAuthMethod",
+    "go_type": "string",
+    "json": "oidc_connect_token_auth_method",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectUsePKCE",
+    "go_type": "*bool",
+    "json": "oidc_connect_use_pkce",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectValidateIDToken",
+    "go_type": "*bool",
+    "json": "oidc_connect_validate_id_token",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectAllowedSigningAlgs",
+    "go_type": "string",
+    "json": "oidc_connect_allowed_signing_algs",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectClockSkewSeconds",
+    "go_type": "int",
+    "json": "oidc_connect_clock_skew_seconds",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectRequireEmailVerified",
+    "go_type": "bool",
+    "json": "oidc_connect_require_email_verified",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectUserInfoEmailPath",
+    "go_type": "string",
+    "json": "oidc_connect_userinfo_email_path",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectUserInfoIDPath",
+    "go_type": "string",
+    "json": "oidc_connect_userinfo_id_path",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OIDCConnectUserInfoUsernamePath",
+    "go_type": "string",
+    "json": "oidc_connect_userinfo_username_path",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GitHubOAuthEnabled",
+    "go_type": "bool",
+    "json": "github_oauth_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GitHubOAuthClientID",
+    "go_type": "string",
+    "json": "github_oauth_client_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GitHubOAuthClientSecret",
+    "go_type": "string",
+    "json": "github_oauth_client_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GitHubOAuthRedirectURL",
+    "go_type": "string",
+    "json": "github_oauth_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GitHubOAuthFrontendRedirectURL",
+    "go_type": "string",
+    "json": "github_oauth_frontend_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GoogleOAuthEnabled",
+    "go_type": "bool",
+    "json": "google_oauth_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GoogleOneTapEnabled",
+    "go_type": "bool",
+    "json": "google_one_tap_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GoogleOAuthClientID",
+    "go_type": "string",
+    "json": "google_oauth_client_id",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GoogleOAuthClientSecret",
+    "go_type": "string",
+    "json": "google_oauth_client_secret",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GoogleOAuthRedirectURL",
+    "go_type": "string",
+    "json": "google_oauth_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GoogleOAuthFrontendRedirectURL",
+    "go_type": "string",
+    "json": "google_oauth_frontend_redirect_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteName",
+    "go_type": "string",
+    "json": "site_name",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteLogo",
+    "go_type": "string",
+    "json": "site_logo",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteSubtitle",
+    "go_type": "string",
+    "json": "site_subtitle",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteNameZh",
+    "go_type": "string",
+    "json": "site_name_zh",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteNameEn",
+    "go_type": "string",
+    "json": "site_name_en",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteTitleZh",
+    "go_type": "string",
+    "json": "site_title_zh",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteTitleEn",
+    "go_type": "string",
+    "json": "site_title_en",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteSubtitleZh",
+    "go_type": "string",
+    "json": "site_subtitle_zh",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SiteSubtitleEn",
+    "go_type": "string",
+    "json": "site_subtitle_en",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "APIBaseURL",
+    "go_type": "string",
+    "json": "api_base_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "ContactInfo",
+    "go_type": "string",
+    "json": "contact_info",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DocURL",
+    "go_type": "string",
+    "json": "doc_url",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "HomeContent",
+    "go_type": "string",
+    "json": "home_content",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "HideCcsImportButton",
+    "go_type": "bool",
+    "json": "hide_ccs_import_button",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PurchaseSubscriptionEnabled",
+    "go_type": "*bool",
+    "json": "purchase_subscription_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PurchaseSubscriptionURL",
+    "go_type": "*string",
+    "json": "purchase_subscription_url",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TableDefaultPageSize",
+    "go_type": "int",
+    "json": "table_default_page_size",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TablePageSizeOptions",
+    "go_type": "[]int",
+    "json": "table_page_size_options",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "UsageRankingLimit",
+    "go_type": "int",
+    "json": "usage_ranking_limit",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "UsageRankingEnabled",
+    "go_type": "*bool",
+    "json": "usage_ranking_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "UsageRankingSortBy",
+    "go_type": "*string",
+    "json": "usage_ranking_sort_by",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "UsageRankingShowTotalTokens",
+    "go_type": "*bool",
+    "json": "usage_ranking_show_total_tokens",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "UsageRankingShowRequests",
+    "go_type": "*bool",
+    "json": "usage_ranking_show_requests",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "UsageRankingShowActualCost",
+    "go_type": "*bool",
+    "json": "usage_ranking_show_actual_cost",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "CustomMenuItems",
+    "go_type": "*[]dto.CustomMenuItem",
+    "json": "custom_menu_items",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "CustomEndpoints",
+    "go_type": "*[]dto.CustomEndpoint",
+    "json": "custom_endpoints",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "FooterLinks",
+    "go_type": "*[]dto.FooterLinkGroup",
+    "json": "footer_links",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "FooterText",
+    "go_type": "*string",
+    "json": "footer_text",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "HomeFeaturedModels",
+    "go_type": "*[]string",
+    "json": "home_featured_models",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "CreativeModelSettings",
+    "go_type": "*[]service.CreativeModelSetting",
+    "json": "creative_model_settings",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "CreativeWorkerCount",
+    "go_type": "*int",
+    "json": "creative_worker_count",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DefaultConcurrency",
+    "go_type": "int",
+    "json": "default_concurrency",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DefaultBalance",
+    "go_type": "float64",
+    "json": "default_balance",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AffiliateEnabled",
+    "go_type": "bool",
+    "json": "affiliate_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AffiliateRebateRate",
+    "go_type": "float64",
+    "json": "affiliate_rebate_rate",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AffiliateRebateFreezeHours",
+    "go_type": "int",
+    "json": "affiliate_rebate_freeze_hours",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AffiliateRebateDurationDays",
+    "go_type": "int",
+    "json": "affiliate_rebate_duration_days",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AffiliateRebatePerInviteeCap",
+    "go_type": "float64",
+    "json": "affiliate_rebate_per_invitee_cap",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdminRechargeRebateEnabled",
+    "go_type": "*bool",
+    "json": "affiliate_admin_recharge_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DefaultUserRPMLimit",
+    "go_type": "int",
+    "json": "default_user_rpm_limit",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DefaultUserAPIKeyLimit",
+    "go_type": "*int",
+    "json": "default_user_api_key_limit",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DefaultSubscriptions",
+    "go_type": "[]dto.DefaultSubscriptionSetting",
+    "json": "default_subscriptions",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "BalanceUnitName",
+    "go_type": "string",
+    "json": "balance_unit_name",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "BalanceUnitSymbol",
+    "go_type": "string",
+    "json": "balance_unit_symbol",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "BalanceIconSVG",
+    "go_type": "string",
+    "json": "balance_icon_svg",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "ReasoningPointRMBUnitPrice",
+    "go_type": "*float64",
+    "json": "reasoning_point_rmb_unit_price",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "USDExchangeRate",
+    "go_type": "*float64",
+    "json": "usd_exchange_rate",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "MarketplaceAvailabilityWindowDays",
+    "go_type": "*int",
+    "json": "marketplace_availability_window_days",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "MarketplaceAvailabilityBucketMinutes",
+    "go_type": "*int",
+    "json": "marketplace_availability_bucket_minutes",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultEmailBalance",
+    "go_type": "*float64",
+    "json": "auth_source_default_email_balance",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultEmailConcurrency",
+    "go_type": "*int",
+    "json": "auth_source_default_email_concurrency",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultEmailSubscriptions",
+    "go_type": "*[]dto.DefaultSubscriptionSetting",
+    "json": "auth_source_default_email_subscriptions",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultEmailGrantOnSignup",
+    "go_type": "*bool",
+    "json": "auth_source_default_email_grant_on_signup",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultEmailGrantOnFirstBind",
+    "go_type": "*bool",
+    "json": "auth_source_default_email_grant_on_first_bind",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultLinuxDoBalance",
+    "go_type": "*float64",
+    "json": "auth_source_default_linuxdo_balance",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultLinuxDoConcurrency",
+    "go_type": "*int",
+    "json": "auth_source_default_linuxdo_concurrency",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultLinuxDoSubscriptions",
+    "go_type": "*[]dto.DefaultSubscriptionSetting",
+    "json": "auth_source_default_linuxdo_subscriptions",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultLinuxDoGrantOnSignup",
+    "go_type": "*bool",
+    "json": "auth_source_default_linuxdo_grant_on_signup",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultLinuxDoGrantOnFirstBind",
+    "go_type": "*bool",
+    "json": "auth_source_default_linuxdo_grant_on_first_bind",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultOIDCBalance",
+    "go_type": "*float64",
+    "json": "auth_source_default_oidc_balance",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultOIDCConcurrency",
+    "go_type": "*int",
+    "json": "auth_source_default_oidc_concurrency",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultOIDCSubscriptions",
+    "go_type": "*[]dto.DefaultSubscriptionSetting",
+    "json": "auth_source_default_oidc_subscriptions",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultOIDCGrantOnSignup",
+    "go_type": "*bool",
+    "json": "auth_source_default_oidc_grant_on_signup",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultOIDCGrantOnFirstBind",
+    "go_type": "*bool",
+    "json": "auth_source_default_oidc_grant_on_first_bind",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultWeChatBalance",
+    "go_type": "*float64",
+    "json": "auth_source_default_wechat_balance",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultWeChatConcurrency",
+    "go_type": "*int",
+    "json": "auth_source_default_wechat_concurrency",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultWeChatSubscriptions",
+    "go_type": "*[]dto.DefaultSubscriptionSetting",
+    "json": "auth_source_default_wechat_subscriptions",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultWeChatGrantOnSignup",
+    "go_type": "*bool",
+    "json": "auth_source_default_wechat_grant_on_signup",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultWeChatGrantOnFirstBind",
+    "go_type": "*bool",
+    "json": "auth_source_default_wechat_grant_on_first_bind",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGitHubBalance",
+    "go_type": "*float64",
+    "json": "auth_source_default_github_balance",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGitHubConcurrency",
+    "go_type": "*int",
+    "json": "auth_source_default_github_concurrency",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGitHubSubscriptions",
+    "go_type": "*[]dto.DefaultSubscriptionSetting",
+    "json": "auth_source_default_github_subscriptions",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGitHubGrantOnSignup",
+    "go_type": "*bool",
+    "json": "auth_source_default_github_grant_on_signup",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGitHubGrantOnFirstBind",
+    "go_type": "*bool",
+    "json": "auth_source_default_github_grant_on_first_bind",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGoogleBalance",
+    "go_type": "*float64",
+    "json": "auth_source_default_google_balance",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGoogleConcurrency",
+    "go_type": "*int",
+    "json": "auth_source_default_google_concurrency",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGoogleSubscriptions",
+    "go_type": "*[]dto.DefaultSubscriptionSetting",
+    "json": "auth_source_default_google_subscriptions",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGoogleGrantOnSignup",
+    "go_type": "*bool",
+    "json": "auth_source_default_google_grant_on_signup",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultGoogleGrantOnFirstBind",
+    "go_type": "*bool",
+    "json": "auth_source_default_google_grant_on_first_bind",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultDingTalkBalance",
+    "go_type": "*float64",
+    "json": "auth_source_default_dingtalk_balance",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultDingTalkConcurrency",
+    "go_type": "*int",
+    "json": "auth_source_default_dingtalk_concurrency",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultDingTalkSubscriptions",
+    "go_type": "*[]dto.DefaultSubscriptionSetting",
+    "json": "auth_source_default_dingtalk_subscriptions",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultDingTalkGrantOnSignup",
+    "go_type": "*bool",
+    "json": "auth_source_default_dingtalk_grant_on_signup",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDefaultDingTalkGrantOnFirstBind",
+    "go_type": "*bool",
+    "json": "auth_source_default_dingtalk_grant_on_first_bind",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "ForceEmailOnThirdPartySignup",
+    "go_type": "*bool",
+    "json": "force_email_on_third_party_signup",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EnableModelFallback",
+    "go_type": "bool",
+    "json": "enable_model_fallback",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "FallbackModelAnthropic",
+    "go_type": "string",
+    "json": "fallback_model_anthropic",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "FallbackModelOpenAI",
+    "go_type": "string",
+    "json": "fallback_model_openai",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "FallbackModelGemini",
+    "go_type": "string",
+    "json": "fallback_model_gemini",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "FallbackModelAntigravity",
+    "go_type": "string",
+    "json": "fallback_model_antigravity",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GrokDefaultTextModel",
+    "go_type": "*string",
+    "json": "grok_default_text_model",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GrokCrossClientModelMapEnabled",
+    "go_type": "*bool",
+    "json": "grok_cross_client_model_map_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "GrokDefaultBaseURLMode",
+    "go_type": "*string",
+    "json": "grok_default_base_url_mode",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EnableIdentityPatch",
+    "go_type": "bool",
+    "json": "enable_identity_patch",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "IdentityPatchPrompt",
+    "go_type": "string",
+    "json": "identity_patch_prompt",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OpsMonitoringEnabled",
+    "go_type": "*bool",
+    "json": "ops_monitoring_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OpsRealtimeMonitoringEnabled",
+    "go_type": "*bool",
+    "json": "ops_realtime_monitoring_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OpsMetricsIntervalSeconds",
+    "go_type": "*int",
+    "json": "ops_metrics_interval_seconds",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "MinClaudeCodeVersion",
+    "go_type": "string",
+    "json": "min_claude_code_version",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "MaxClaudeCodeVersion",
+    "go_type": "string",
+    "json": "max_claude_code_version",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AllowUngroupedKeyScheduling",
+    "go_type": "bool",
+    "json": "allow_ungrouped_key_scheduling",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "BackendModeEnabled",
+    "go_type": "bool",
+    "json": "backend_mode_enabled",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OpenAITTFTMode",
+    "go_type": "*string",
+    "json": "openai_ttft_mode",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EnableFingerprintUnification",
+    "go_type": "*bool",
+    "json": "enable_fingerprint_unification",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EnableMetadataPassthrough",
+    "go_type": "*bool",
+    "json": "enable_metadata_passthrough",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EnableCCHSigning",
+    "go_type": "*bool",
+    "json": "enable_cch_signing",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EnableClaudeOAuthSystemPromptInjection",
+    "go_type": "*bool",
+    "json": "enable_claude_oauth_system_prompt_injection",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "ClaudeOAuthSystemPrompt",
+    "go_type": "*string",
+    "json": "claude_oauth_system_prompt",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "ClaudeOAuthSystemPromptBlocks",
+    "go_type": "*string",
+    "json": "claude_oauth_system_prompt_blocks",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EnableAnthropicCacheTTL1hInjection",
+    "go_type": "*bool",
+    "json": "enable_anthropic_cache_ttl_1h_injection",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "RewriteMessageCacheControl",
+    "go_type": "*bool",
+    "json": "rewrite_message_cache_control",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "EnableClientDatelineNormalization",
+    "go_type": "*bool",
+    "json": "enable_client_dateline_normalization",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AntigravityUserAgentVersion",
+    "go_type": "*string",
+    "json": "antigravity_user_agent_version",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OpenAICodexUserAgent",
+    "go_type": "*string",
+    "json": "openai_codex_user_agent",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OpenAIAllowClaudeCodeCodexPlugin",
+    "go_type": "*bool",
+    "json": "openai_allow_claude_code_codex_plugin",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "UserPromptReplacementConfig",
+    "go_type": "*service.UserPromptReplacementConfig",
+    "json": "user_prompt_replacement_config",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentVisibleMethodAlipaySource",
+    "go_type": "*string",
+    "json": "payment_visible_method_alipay_source",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentVisibleMethodWxpaySource",
+    "go_type": "*string",
+    "json": "payment_visible_method_wxpay_source",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentVisibleMethodAlipayEnabled",
+    "go_type": "*bool",
+    "json": "payment_visible_method_alipay_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentVisibleMethodWxpayEnabled",
+    "go_type": "*bool",
+    "json": "payment_visible_method_wxpay_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerStickyWeightedEnabled",
+    "go_type": "*bool",
+    "json": "advanced_scheduler_sticky_weighted_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerSubscriptionPriorityEnabled",
+    "go_type": "*bool",
+    "json": "advanced_scheduler_subscription_priority_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerEWMAErrorRateAlpha",
+    "go_type": "*string",
+    "json": "advanced_scheduler_ewma_error_rate_alpha",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerEWMATTFTAlpha",
+    "go_type": "*string",
+    "json": "advanced_scheduler_ewma_ttft_alpha",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerStickyEscapeEnabled",
+    "go_type": "*bool",
+    "json": "advanced_scheduler_sticky_escape_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerStickyEscapeTTFTMs",
+    "go_type": "*string",
+    "json": "advanced_scheduler_sticky_escape_ttft_ms",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerStickyEscapeErrorRate",
+    "go_type": "*string",
+    "json": "advanced_scheduler_sticky_escape_error_rate",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerLBTopK",
+    "go_type": "*string",
+    "json": "advanced_scheduler_lb_top_k",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightPriority",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_priority",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightLoad",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_load",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightQueue",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_queue",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightErrorRate",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_error_rate",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightTTFT",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_ttft",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightReset",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_reset",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightQuotaHeadroom",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_quota_headroom",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightPreviousResponse",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_previous_response",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AdvancedSchedulerWeightSessionSticky",
+    "go_type": "*string",
+    "json": "advanced_scheduler_weight_session_sticky",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OpenAIQuotaAutoPauseSettings",
+    "go_type": "*service.OpsOpenAIAccountQuotaAutoPauseSettings",
+    "json": "openai_account_quota_auto_pause",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "BalanceLowNotifyEnabled",
+    "go_type": "*bool",
+    "json": "balance_low_notify_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "BalanceLowNotifyThreshold",
+    "go_type": "*float64",
+    "json": "balance_low_notify_threshold",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "BalanceLowNotifyRechargeURL",
+    "go_type": "*string",
+    "json": "balance_low_notify_recharge_url",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "SubscriptionExpiryNotifyEnabled",
+    "go_type": "*bool",
+    "json": "subscription_expiry_notify_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AccountQuotaNotifyEnabled",
+    "go_type": "*bool",
+    "json": "account_quota_notify_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AccountQuotaNotifyEmails",
+    "go_type": "*[]dto.NotifyEmailEntry",
+    "json": "account_quota_notify_emails",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentEnabled",
+    "go_type": "*bool",
+    "json": "payment_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentMinAmount",
+    "go_type": "*float64",
+    "json": "payment_min_amount",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentMaxAmount",
+    "go_type": "*float64",
+    "json": "payment_max_amount",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentDailyLimit",
+    "go_type": "*float64",
+    "json": "payment_daily_limit",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentOrderTimeoutMin",
+    "go_type": "*int",
+    "json": "payment_order_timeout_minutes",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentMaxPendingOrders",
+    "go_type": "*int",
+    "json": "payment_max_pending_orders",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentEnabledTypes",
+    "go_type": "[]string",
+    "json": "payment_enabled_types",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentBalanceDisabled",
+    "go_type": "*bool",
+    "json": "payment_balance_disabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentBalanceRechargeMultiplier",
+    "go_type": "*float64",
+    "json": "payment_balance_recharge_multiplier",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentSubscriptionUSDToCNYRate",
+    "go_type": "*float64",
+    "json": "payment_subscription_usd_to_cny_rate",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentRechargeFeeRate",
+    "go_type": "*float64",
+    "json": "payment_recharge_fee_rate",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentMethodFees",
+    "go_type": "service.MethodFeeSettings",
+    "json": "payment_method_fees",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentLoadBalanceStrat",
+    "go_type": "*string",
+    "json": "payment_load_balance_strategy",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentProductNamePrefix",
+    "go_type": "*string",
+    "json": "payment_product_name_prefix",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentProductNameSuffix",
+    "go_type": "*string",
+    "json": "payment_product_name_suffix",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentHelpImageURL",
+    "go_type": "*string",
+    "json": "payment_help_image_url",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentHelpText",
+    "go_type": "*string",
+    "json": "payment_help_text",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentCancelRateLimitEnabled",
+    "go_type": "*bool",
+    "json": "payment_cancel_rate_limit_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentCancelRateLimitMax",
+    "go_type": "*int",
+    "json": "payment_cancel_rate_limit_max",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentCancelRateLimitWindow",
+    "go_type": "*int",
+    "json": "payment_cancel_rate_limit_window",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentCancelRateLimitUnit",
+    "go_type": "*string",
+    "json": "payment_cancel_rate_limit_unit",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentCancelRateLimitMode",
+    "go_type": "*string",
+    "json": "payment_cancel_rate_limit_window_mode",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentAlipayForceQRCode",
+    "go_type": "*bool",
+    "json": "payment_alipay_force_qrcode",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "PaymentAlipayMobilePrecreateDeepLink",
+    "go_type": "*bool",
+    "json": "payment_alipay_mobile_precreate_deep_link",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "RiskControlEnabled",
+    "go_type": "*bool",
+    "json": "risk_control_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "TeamEnabled",
+    "go_type": "*bool",
+    "json": "team_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "CreativeEnabled",
+    "go_type": "*bool",
+    "json": "creative_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "CyberSessionBlockEnabled",
+    "go_type": "*bool",
+    "json": "cyber_session_block_enabled",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "CyberSessionBlockTTLSeconds",
+    "go_type": "*int",
+    "json": "cyber_session_block_ttl_seconds",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "OpenAIFastPolicySettings",
+    "go_type": "*dto.OpenAIFastPolicySettings",
+    "json": "openai_fast_policy_settings",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "DefaultPlatformQuotas",
+    "go_type": "map[string]*service.DefaultPlatformQuotaSetting",
+    "json": "default_platform_quotas",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AccountSchedulingThresholds",
+    "go_type": "map[string]int",
+    "json": "account_scheduling_thresholds",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceEmailPlatformQuotas",
+    "go_type": "map[string]*service.DefaultPlatformQuotaSetting",
+    "json": "auth_source_default_email_platform_quotas",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceLinuxDoPlatformQuotas",
+    "go_type": "map[string]*service.DefaultPlatformQuotaSetting",
+    "json": "auth_source_default_linuxdo_platform_quotas",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceOIDCPlatformQuotas",
+    "go_type": "map[string]*service.DefaultPlatformQuotaSetting",
+    "json": "auth_source_default_oidc_platform_quotas",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceWeChatPlatformQuotas",
+    "go_type": "map[string]*service.DefaultPlatformQuotaSetting",
+    "json": "auth_source_default_wechat_platform_quotas",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceGitHubPlatformQuotas",
+    "go_type": "map[string]*service.DefaultPlatformQuotaSetting",
+    "json": "auth_source_default_github_platform_quotas",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceGooglePlatformQuotas",
+    "go_type": "map[string]*service.DefaultPlatformQuotaSetting",
+    "json": "auth_source_default_google_platform_quotas",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AuthSourceDingTalkPlatformQuotas",
+    "go_type": "map[string]*service.DefaultPlatformQuotaSetting",
+    "json": "auth_source_default_dingtalk_platform_quotas",
+    "pointer": false,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  },
+  {
+    "field": "AllowUserViewErrorRequests",
+    "go_type": "*bool",
+    "json": "allow_user_view_error_requests",
+    "pointer": true,
+    "source": "backend/internal/handler/admin/setting_handler_update.go",
+    "ownership_status": "待逐项拆分；本清单不按前缀推定所有者"
+  }
+]

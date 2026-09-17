@@ -14,7 +14,6 @@ import (
 // 平台始终跳过。
 func TestGatewayClientDatelineNormalization_Scope(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{}}
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	svc := &GatewayService{
 		settingService: NewSettingService(repo, &config.Config{}),
 	}
@@ -28,13 +27,13 @@ func TestGatewayClientDatelineNormalization_Scope(t *testing.T) {
 
 	// 关闭开关：任何账号都不归一化。
 	repo.data[SettingKeyEnableClientDatelineNormalization] = "false"
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	svc.settingService.GatewaySettings().InvalidateForwarding()
 	require.False(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth}))
 	require.False(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: PlatformAnthropic, Type: AccountTypeSetupToken}))
 
 	// 重新开启开关：OAuth 再次通过。
 	repo.data[SettingKeyEnableClientDatelineNormalization] = "true"
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	svc.settingService.GatewaySettings().InvalidateForwarding()
 	require.True(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth}))
 }
 
@@ -45,7 +44,6 @@ func TestGatewayClientDatelineNormalization_HelperNoRewrite(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		SettingKeyEnableClientDatelineNormalization: "true",
 	}}
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	svc := &GatewayService{
 		settingService: NewSettingService(repo, &config.Config{}),
 	}
@@ -84,7 +82,7 @@ func TestGatewayClientDatelineNormalization_HelperNoRewrite(t *testing.T) {
 
 	// 关闭开关：即使 OAuth 账号也不改写。
 	repo.data[SettingKeyEnableClientDatelineNormalization] = "false"
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	svc.settingService.GatewaySettings().InvalidateForwarding()
 	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth}, dirty)
 	require.False(t, ok)
 	require.Nil(t, next)
@@ -96,7 +94,6 @@ func TestGatewayClientDatelineNormalization_LeavesUserProseUntouched(t *testing.
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		SettingKeyEnableClientDatelineNormalization: "true",
 	}}
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	svc := &GatewayService{
 		settingService: NewSettingService(repo, &config.Config{}),
 	}

@@ -2,8 +2,12 @@
 package admin
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+
 	context "context"
-	dto "github.com/TokenFlux/TokenRouter/internal/handler/dto"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
@@ -22,14 +26,14 @@ func groupHTTPTestRows(values []service.Group) []routing.Group {
 	return out
 }
 func newTestGroupHandler(svc service.AdminService) *GroupHandler {
-	resources := routinghttp.GroupResources{Rates: svc, Keys: func(ctx context.Context, id int64, page, size int) ([]dto.APIKey, int64, error) {
+	resources := routinghttp.GroupResources{Rates: svc, Keys: func(ctx context.Context, id int64, page, size int) ([]keydto.APIKey[routingdto.Group], int64, error) {
 		values, total, err := svc.GetGroupAPIKeys(ctx, id, page, size)
 		if err != nil {
 			return nil, 0, err
 		}
-		out := make([]dto.APIKey, 0, len(values))
+		out := make([]keydto.APIKey[routingdto.Group], 0, len(values))
 		for i := range values {
-			out = append(out, *dto.APIKeyFromService(&values[i]))
+			out = append(out, *keydto.APIKeyFromKey(service.APIKeyView(&values[i]), func(g *apikey.Group) *routingdto.Group { return routingdto.GroupFromRouting(apikey.RoutingGroup(g)) }))
 		}
 		return out, total, nil
 	}}

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|AdminAPIKey|Captcha|Registration|Retention|Ranking",
+    "./internal/identity/...",
+    "./internal/usage/...",
+    "./internal/audit/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 401
+  },
+  "failures": [],
+  "seconds": 17.201225996017456
+}

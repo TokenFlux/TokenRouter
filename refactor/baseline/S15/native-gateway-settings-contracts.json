@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|BetaPolicy|Rectifier|FastPolicy|AdminAPIKey",
+    "./internal/gateway/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 382
+  },
+  "failures": [],
+  "seconds": 19.37229895591736
+}

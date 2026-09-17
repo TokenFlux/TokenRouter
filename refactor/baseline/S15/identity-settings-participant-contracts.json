@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|Registry|Captcha|Registration|OAuth",
+    "./internal/identity",
+    "./internal/settings",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 988
+  },
+  "failures": [],
+  "seconds": 18.545892000198364
+}

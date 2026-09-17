@@ -104,7 +104,6 @@ func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
 			{name: "passthrough_uses_cached_version", identity: true},
 		} {
 			t.Run(endpoint+"/"+tc.name, func(t *testing.T) {
-				resetGatewayForwardingSettingsCacheForTest(t)
 				c, _ := gin.CreateTestContext(httptest.NewRecorder())
 				c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 				body := []byte(`{"model":"claude-haiku-4-5","system":[{"type":"text","text":""}],"messages":[{"role":"user","content":"hello world"}]}`)

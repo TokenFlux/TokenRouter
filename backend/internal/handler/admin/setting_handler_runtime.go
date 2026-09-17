@@ -1,13 +1,12 @@
 package admin
 
 import (
-	"strings"
+	accountSettingsHTTP "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
+	gatewaySettingsHTTP "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	identitySettingsHTTP "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	serverhttp "github.com/TokenFlux/TokenRouter/internal/server/httpapi"
 
 	searchhttp "github.com/TokenFlux/TokenRouter/internal/search/httpapi"
-
-	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,449 +14,117 @@ import (
 // GetAdminAPIKey 获取管理员 API Key 状态
 // GET /api/v1/admin/settings/admin-api-key
 func (h *SettingHandler) GetAdminAPIKey(c *gin.Context) {
-	maskedKey, exists, err := h.settingService.GetAdminAPIKeyStatus(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, gin.H{
-		"exists":     exists,
-		"masked_key": maskedKey,
-	})
+	identitySettingsHTTP.NewAdminKeySettingsHandler(h.settingService.IdentitySettings()).GetAdminAPIKey(c)
 }
 
 // RegenerateAdminAPIKey 生成/重新生成管理员 API Key
 // POST /api/v1/admin/settings/admin-api-key/regenerate
 func (h *SettingHandler) RegenerateAdminAPIKey(c *gin.Context) {
-	key, err := h.settingService.GenerateAdminAPIKey(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, gin.H{
-		"key": key, // 完整 key 只在生成时返回一次
-	})
+	identitySettingsHTTP.NewAdminKeySettingsHandler(h.settingService.IdentitySettings()).RegenerateAdminAPIKey(c)
 }
 
 // DeleteAdminAPIKey 删除管理员 API Key
 // DELETE /api/v1/admin/settings/admin-api-key
 func (h *SettingHandler) DeleteAdminAPIKey(c *gin.Context) {
-	if err := h.settingService.DeleteAdminAPIKey(c.Request.Context()); err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, gin.H{"message": "Admin API key deleted"})
+	identitySettingsHTTP.NewAdminKeySettingsHandler(h.settingService.IdentitySettings()).DeleteAdminAPIKey(c)
 }
 
 // GetOverloadCooldownSettings 获取529过载冷却配置
 // GET /api/v1/admin/settings/overload-cooldown
 func (h *SettingHandler) GetOverloadCooldownSettings(c *gin.Context) {
-	settings, err := h.settingService.GetOverloadCooldownSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.OverloadCooldownSettings{
-		Enabled:         settings.Enabled,
-		CooldownMinutes: settings.CooldownMinutes,
-	})
+	accountSettingsHTTP.NewRuntimeSettingsHandler(h.settingService.AccountSettings()).GetOverloadCooldownSettings(c)
 }
 
 // UpdateOverloadCooldownSettingsRequest 更新529过载冷却配置请求
-type UpdateOverloadCooldownSettingsRequest struct {
-	Enabled         bool `json:"enabled"`
-	CooldownMinutes int  `json:"cooldown_minutes"`
-}
+type UpdateOverloadCooldownSettingsRequest = accountSettingsHTTP.UpdateOverloadCooldownSettingsRequest
 
 // UpdateOverloadCooldownSettings 更新529过载冷却配置
 // PUT /api/v1/admin/settings/overload-cooldown
 func (h *SettingHandler) UpdateOverloadCooldownSettings(c *gin.Context) {
-	var req UpdateOverloadCooldownSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	settings := &service.OverloadCooldownSettings{
-		Enabled:         req.Enabled,
-		CooldownMinutes: req.CooldownMinutes,
-	}
-
-	if err := h.settingService.SetOverloadCooldownSettings(c.Request.Context(), settings); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	updatedSettings, err := h.settingService.GetOverloadCooldownSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.OverloadCooldownSettings{
-		Enabled:         updatedSettings.Enabled,
-		CooldownMinutes: updatedSettings.CooldownMinutes,
-	})
+	accountSettingsHTTP.NewRuntimeSettingsHandler(h.settingService.AccountSettings()).UpdateOverloadCooldownSettings(c)
 }
 
 // GetRateLimit429CooldownSettings 获取429默认回避配置
 // GET /api/v1/admin/settings/rate-limit-429-cooldown
 func (h *SettingHandler) GetRateLimit429CooldownSettings(c *gin.Context) {
-	settings, err := h.settingService.GetRateLimit429CooldownSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.RateLimit429CooldownSettings{
-		Enabled:         settings.Enabled,
-		CooldownSeconds: settings.CooldownSeconds,
-	})
+	accountSettingsHTTP.NewRuntimeSettingsHandler(h.settingService.AccountSettings()).GetRateLimit429CooldownSettings(c)
 }
 
 // UpdateRateLimit429CooldownSettingsRequest 更新429默认回避配置请求
-type UpdateRateLimit429CooldownSettingsRequest struct {
-	Enabled         bool `json:"enabled"`
-	CooldownSeconds int  `json:"cooldown_seconds"`
-}
+type UpdateRateLimit429CooldownSettingsRequest = accountSettingsHTTP.UpdateRateLimit429CooldownSettingsRequest
 
 // UpdateRateLimit429CooldownSettings 更新429默认回避配置
 // PUT /api/v1/admin/settings/rate-limit-429-cooldown
 func (h *SettingHandler) UpdateRateLimit429CooldownSettings(c *gin.Context) {
-	var req UpdateRateLimit429CooldownSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	settings := &service.RateLimit429CooldownSettings{
-		Enabled:         req.Enabled,
-		CooldownSeconds: req.CooldownSeconds,
-	}
-
-	if err := h.settingService.SetRateLimit429CooldownSettings(c.Request.Context(), settings); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	updatedSettings, err := h.settingService.GetRateLimit429CooldownSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.RateLimit429CooldownSettings{
-		Enabled:         updatedSettings.Enabled,
-		CooldownSeconds: updatedSettings.CooldownSeconds,
-	})
+	accountSettingsHTTP.NewRuntimeSettingsHandler(h.settingService.AccountSettings()).UpdateRateLimit429CooldownSettings(c)
 }
 
 func (h *SettingHandler) GetOpenAIImagesOAuthUnavailableCooldownSettings(c *gin.Context) {
-	settings, err := h.settingService.GetOpenAIImagesOAuthUnavailableCooldownSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, dto.OpenAIImagesOAuthUnavailableCooldownSettings{CooldownMinutes: settings.CooldownMinutes})
+	accountSettingsHTTP.NewRuntimeSettingsHandler(h.settingService.AccountSettings()).GetOpenAIImagesOAuthUnavailableCooldownSettings(c)
 }
 
-type UpdateOpenAIImagesOAuthUnavailableCooldownSettingsRequest struct {
-	CooldownMinutes int `json:"cooldown_minutes"`
-}
+type UpdateOpenAIImagesOAuthUnavailableCooldownSettingsRequest = accountSettingsHTTP.UpdateOpenAIImagesOAuthUnavailableCooldownSettingsRequest
 
 func (h *SettingHandler) UpdateOpenAIImagesOAuthUnavailableCooldownSettings(c *gin.Context) {
-	var req UpdateOpenAIImagesOAuthUnavailableCooldownSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-	settings := &service.OpenAIImagesOAuthUnavailableCooldownSettings{CooldownMinutes: req.CooldownMinutes}
-	if err := h.settingService.SetOpenAIImagesOAuthUnavailableCooldownSettings(c.Request.Context(), settings); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-	response.Success(c, dto.OpenAIImagesOAuthUnavailableCooldownSettings{CooldownMinutes: settings.CooldownMinutes})
+	accountSettingsHTTP.NewRuntimeSettingsHandler(h.settingService.AccountSettings()).UpdateOpenAIImagesOAuthUnavailableCooldownSettings(c)
 }
 
-// GetPanelRateLimitSettings 获取面板 API 限流配置
-// GET /api/v1/admin/settings/panel-rate-limit
+// GetPanelRateLimitSettings 保留旧测试和兼容调用，生产路由直接绑定 server。
 func (h *SettingHandler) GetPanelRateLimitSettings(c *gin.Context) {
-	settings, err := h.settingService.GetPanelRateLimitSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.PanelRateLimitSettings{
-		Enabled:     settings.Enabled,
-		UserRPM:     settings.UserRPM,
-		HeavyRPM:    settings.HeavyRPM,
-		ExemptAdmin: settings.ExemptAdmin,
-		PublicIPRPM: settings.PublicIPRPM,
-	})
+	serverhttp.NewPanelSettingsHandler(h.settingService.PanelSettings()).GetPanelRateLimitSettings(c)
 }
 
-// UpdatePanelRateLimitSettingsRequest 更新面板 API 限流配置请求
-type UpdatePanelRateLimitSettingsRequest struct {
-	Enabled     bool `json:"enabled"`
-	UserRPM     int  `json:"user_rpm"`
-	HeavyRPM    int  `json:"heavy_rpm"`
-	ExemptAdmin bool `json:"exempt_admin"`
-	PublicIPRPM int  `json:"public_ip_rpm"`
-}
-
-// UpdatePanelRateLimitSettings 更新面板 API 限流配置
-// PUT /api/v1/admin/settings/panel-rate-limit
+// UpdatePanelRateLimitSettings 委托唯一 HTTP 实现。
 func (h *SettingHandler) UpdatePanelRateLimitSettings(c *gin.Context) {
-	var req UpdatePanelRateLimitSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	settings := &service.PanelRateLimitSettings{
-		Enabled:     req.Enabled,
-		UserRPM:     req.UserRPM,
-		HeavyRPM:    req.HeavyRPM,
-		ExemptAdmin: req.ExemptAdmin,
-		PublicIPRPM: req.PublicIPRPM,
-	}
-
-	if err := h.settingService.SetPanelRateLimitSettings(c.Request.Context(), settings); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	updatedSettings, err := h.settingService.GetPanelRateLimitSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.PanelRateLimitSettings{
-		Enabled:     updatedSettings.Enabled,
-		UserRPM:     updatedSettings.UserRPM,
-		HeavyRPM:    updatedSettings.HeavyRPM,
-		ExemptAdmin: updatedSettings.ExemptAdmin,
-		PublicIPRPM: updatedSettings.PublicIPRPM,
-	})
+	serverhttp.NewPanelSettingsHandler(h.settingService.PanelSettings()).UpdatePanelRateLimitSettings(c)
 }
+
+// UpdatePanelRateLimitSettingsRequest 保留旧输入名称。
+type UpdatePanelRateLimitSettingsRequest = serverhttp.UpdatePanelRateLimitSettingsRequest
 
 // GetStreamTimeoutSettings 获取流超时处理配置
 // GET /api/v1/admin/settings/stream-timeout
 func (h *SettingHandler) GetStreamTimeoutSettings(c *gin.Context) {
-	settings, err := h.settingService.GetStreamTimeoutSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.StreamTimeoutSettings{
-		Enabled:                settings.Enabled,
-		Action:                 settings.Action,
-		TempUnschedMinutes:     settings.TempUnschedMinutes,
-		ThresholdCount:         settings.ThresholdCount,
-		ThresholdWindowMinutes: settings.ThresholdWindowMinutes,
-	})
+	accountSettingsHTTP.NewRuntimeSettingsHandler(h.settingService.AccountSettings()).GetStreamTimeoutSettings(c)
 }
 
 // GetRectifierSettings 获取请求整流器配置
 // GET /api/v1/admin/settings/rectifier
 func (h *SettingHandler) GetRectifierSettings(c *gin.Context) {
-	settings, err := h.settingService.GetRectifierSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	patterns := settings.APIKeySignaturePatterns
-	if patterns == nil {
-		patterns = []string{}
-	}
-	response.Success(c, dto.RectifierSettings{
-		Enabled:                  settings.Enabled,
-		ThinkingSignatureEnabled: settings.ThinkingSignatureEnabled,
-		ThinkingBudgetEnabled:    settings.ThinkingBudgetEnabled,
-		APIKeySignatureEnabled:   settings.APIKeySignatureEnabled,
-		APIKeySignaturePatterns:  patterns,
-	})
+	gatewaySettingsHTTP.NewRuntimeSettingsHandler(h.settingService.GatewaySettings()).GetRectifierSettings(c)
 }
 
 // UpdateRectifierSettingsRequest 更新整流器配置请求
-type UpdateRectifierSettingsRequest struct {
-	Enabled                  bool     `json:"enabled"`
-	ThinkingSignatureEnabled bool     `json:"thinking_signature_enabled"`
-	ThinkingBudgetEnabled    bool     `json:"thinking_budget_enabled"`
-	APIKeySignatureEnabled   bool     `json:"apikey_signature_enabled"`
-	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`
-}
+type UpdateRectifierSettingsRequest = gatewaySettingsHTTP.UpdateRectifierSettingsRequest
 
 // UpdateRectifierSettings 更新请求整流器配置
 // PUT /api/v1/admin/settings/rectifier
 func (h *SettingHandler) UpdateRectifierSettings(c *gin.Context) {
-	var req UpdateRectifierSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	// 校验并清理自定义匹配关键词
-	const maxPatterns = 50
-	const maxPatternLen = 500
-	if len(req.APIKeySignaturePatterns) > maxPatterns {
-		response.BadRequest(c, "Too many signature patterns (max 50)")
-		return
-	}
-	var cleanedPatterns []string
-	for _, p := range req.APIKeySignaturePatterns {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		if len(p) > maxPatternLen {
-			response.BadRequest(c, "Signature pattern too long (max 500 characters)")
-			return
-		}
-		cleanedPatterns = append(cleanedPatterns, p)
-	}
-
-	settings := &service.RectifierSettings{
-		Enabled:                  req.Enabled,
-		ThinkingSignatureEnabled: req.ThinkingSignatureEnabled,
-		ThinkingBudgetEnabled:    req.ThinkingBudgetEnabled,
-		APIKeySignatureEnabled:   req.APIKeySignatureEnabled,
-		APIKeySignaturePatterns:  cleanedPatterns,
-	}
-
-	if err := h.settingService.SetRectifierSettings(c.Request.Context(), settings); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	// 重新获取设置返回
-	updatedSettings, err := h.settingService.GetRectifierSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	updatedPatterns := updatedSettings.APIKeySignaturePatterns
-	if updatedPatterns == nil {
-		updatedPatterns = []string{}
-	}
-	response.Success(c, dto.RectifierSettings{
-		Enabled:                  updatedSettings.Enabled,
-		ThinkingSignatureEnabled: updatedSettings.ThinkingSignatureEnabled,
-		ThinkingBudgetEnabled:    updatedSettings.ThinkingBudgetEnabled,
-		APIKeySignatureEnabled:   updatedSettings.APIKeySignatureEnabled,
-		APIKeySignaturePatterns:  updatedPatterns,
-	})
+	gatewaySettingsHTTP.NewRuntimeSettingsHandler(h.settingService.GatewaySettings()).UpdateRectifierSettings(c)
 }
 
 // GetBetaPolicySettings 获取 Beta 策略配置
 // GET /api/v1/admin/settings/beta-policy
 func (h *SettingHandler) GetBetaPolicySettings(c *gin.Context) {
-	settings, err := h.settingService.GetBetaPolicySettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	rules := make([]dto.BetaPolicyRule, len(settings.Rules))
-	for i, r := range settings.Rules {
-		rules[i] = dto.BetaPolicyRule(r)
-	}
-	response.Success(c, dto.BetaPolicySettings{Rules: rules})
+	gatewaySettingsHTTP.NewRuntimeSettingsHandler(h.settingService.GatewaySettings()).GetBetaPolicySettings(c)
 }
 
 // UpdateBetaPolicySettingsRequest 更新 Beta 策略配置请求
-type UpdateBetaPolicySettingsRequest struct {
-	Rules []dto.BetaPolicyRule `json:"rules"`
-}
+type UpdateBetaPolicySettingsRequest = gatewaySettingsHTTP.UpdateBetaPolicySettingsRequest
 
 // UpdateBetaPolicySettings 更新 Beta 策略配置
 // PUT /api/v1/admin/settings/beta-policy
 func (h *SettingHandler) UpdateBetaPolicySettings(c *gin.Context) {
-	var req UpdateBetaPolicySettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	rules := make([]service.BetaPolicyRule, len(req.Rules))
-	for i, r := range req.Rules {
-		rules[i] = service.BetaPolicyRule(r)
-	}
-
-	settings := &service.BetaPolicySettings{Rules: rules}
-	if err := h.settingService.SetBetaPolicySettings(c.Request.Context(), settings); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	// Re-fetch to return updated settings
-	updated, err := h.settingService.GetBetaPolicySettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	outRules := make([]dto.BetaPolicyRule, len(updated.Rules))
-	for i, r := range updated.Rules {
-		outRules[i] = dto.BetaPolicyRule(r)
-	}
-	response.Success(c, dto.BetaPolicySettings{Rules: outRules})
+	gatewaySettingsHTTP.NewRuntimeSettingsHandler(h.settingService.GatewaySettings()).UpdateBetaPolicySettings(c)
 }
 
 // UpdateStreamTimeoutSettingsRequest 更新流超时配置请求
-type UpdateStreamTimeoutSettingsRequest struct {
-	Enabled                bool   `json:"enabled"`
-	Action                 string `json:"action"`
-	TempUnschedMinutes     int    `json:"temp_unsched_minutes"`
-	ThresholdCount         int    `json:"threshold_count"`
-	ThresholdWindowMinutes int    `json:"threshold_window_minutes"`
-}
+type UpdateStreamTimeoutSettingsRequest = accountSettingsHTTP.UpdateStreamTimeoutSettingsRequest
 
 // UpdateStreamTimeoutSettings 更新流超时处理配置
 // PUT /api/v1/admin/settings/stream-timeout
 func (h *SettingHandler) UpdateStreamTimeoutSettings(c *gin.Context) {
-	var req UpdateStreamTimeoutSettingsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	settings := &service.StreamTimeoutSettings{
-		Enabled:                req.Enabled,
-		Action:                 req.Action,
-		TempUnschedMinutes:     req.TempUnschedMinutes,
-		ThresholdCount:         req.ThresholdCount,
-		ThresholdWindowMinutes: req.ThresholdWindowMinutes,
-	}
-
-	if err := h.settingService.SetStreamTimeoutSettings(c.Request.Context(), settings); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	// 重新获取设置返回
-	updatedSettings, err := h.settingService.GetStreamTimeoutSettings(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.StreamTimeoutSettings{
-		Enabled:                updatedSettings.Enabled,
-		Action:                 updatedSettings.Action,
-		TempUnschedMinutes:     updatedSettings.TempUnschedMinutes,
-		ThresholdCount:         updatedSettings.ThresholdCount,
-		ThresholdWindowMinutes: updatedSettings.ThresholdWindowMinutes,
-	})
+	accountSettingsHTTP.NewRuntimeSettingsHandler(h.settingService.AccountSettings()).UpdateStreamTimeoutSettings(c)
 }
 
 func (h *SettingHandler) GetWebSearchEmulationConfig(c *gin.Context) {

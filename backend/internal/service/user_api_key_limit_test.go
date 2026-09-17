@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"testing"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -74,11 +75,11 @@ func TestSettingService_UpdateDefaultUserAPIKeyLimit(t *testing.T) {
 
 	err := svc.UpdateSettings(context.Background(), &SystemSettings{DefaultUserAPIKeyLimit: -1})
 	require.ErrorIs(t, err, ErrUserAPIKeyLimitInvalid)
-	require.Equal(t, 400, infraerrors.Code(err))
+	require.Equal(t, 400, s15httpx.ErrorCode(err))
 
 	err = svc.UpdateSettings(context.Background(), &SystemSettings{DefaultUserAPIKeyLimit: MaxUserAPIKeyLimit + 1})
 	require.ErrorIs(t, err, ErrUserAPIKeyLimitInvalid)
-	require.Equal(t, 400, infraerrors.Code(err))
+	require.Equal(t, 400, s15httpx.ErrorCode(err))
 }
 
 func TestAuthService_RegisterSnapshotsDefaultUserAPIKeyLimit(t *testing.T) {

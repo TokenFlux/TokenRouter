@@ -1,11 +1,12 @@
 package admin
 
 import (
+	gatewaydto "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/dto"
+
 	"encoding/json"
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -45,8 +46,8 @@ func TestOpenAIFastPolicySettingsFromDTO_NormalizesServiceTier(t *testing.T) {
 	})
 
 	t.Run("empty service_tier becomes 'all'", func(t *testing.T) {
-		in := &dto.OpenAIFastPolicySettings{
-			Rules: []dto.OpenAIFastPolicyRule{{
+		in := &gatewaydto.OpenAIFastPolicySettings{
+			Rules: []gatewaydto.OpenAIFastPolicyRule{{
 				ServiceTier: "",
 				Action:      "filter",
 				Scope:       "all",
@@ -60,8 +61,8 @@ func TestOpenAIFastPolicySettingsFromDTO_NormalizesServiceTier(t *testing.T) {
 	})
 
 	t.Run("whitespace-only service_tier becomes 'all'", func(t *testing.T) {
-		in := &dto.OpenAIFastPolicySettings{
-			Rules: []dto.OpenAIFastPolicyRule{{
+		in := &gatewaydto.OpenAIFastPolicySettings{
+			Rules: []gatewaydto.OpenAIFastPolicyRule{{
 				ServiceTier: "   ",
 				Action:      "pass",
 				Scope:       "all",
@@ -72,8 +73,8 @@ func TestOpenAIFastPolicySettingsFromDTO_NormalizesServiceTier(t *testing.T) {
 	})
 
 	t.Run("uppercase service_tier is lowercased", func(t *testing.T) {
-		in := &dto.OpenAIFastPolicySettings{
-			Rules: []dto.OpenAIFastPolicyRule{{
+		in := &gatewaydto.OpenAIFastPolicySettings{
+			Rules: []gatewaydto.OpenAIFastPolicyRule{{
 				ServiceTier: "PRIORITY",
 				Action:      "filter",
 				Scope:       "all",
@@ -86,8 +87,8 @@ func TestOpenAIFastPolicySettingsFromDTO_NormalizesServiceTier(t *testing.T) {
 	})
 
 	t.Run("non-empty values pass through (lowercased)", func(t *testing.T) {
-		in := &dto.OpenAIFastPolicySettings{
-			Rules: []dto.OpenAIFastPolicyRule{
+		in := &gatewaydto.OpenAIFastPolicySettings{
+			Rules: []gatewaydto.OpenAIFastPolicyRule{
 				{ServiceTier: "priority", Action: "filter", Scope: "all"},
 				{ServiceTier: "flex", Action: "block", Scope: "oauth"},
 				{ServiceTier: "ultrafast", Action: "pass", Scope: "all"},

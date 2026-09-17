@@ -1113,7 +1113,6 @@ func TestGatewayService_AnthropicOAuthProxiedClaudeCode_PreservesSystemCachePref
 
 func TestGatewayService_AnthropicOAuth_SystemPromptInjectionCanBeDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	resetGatewayForwardingSettingsCacheForTest(t)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)

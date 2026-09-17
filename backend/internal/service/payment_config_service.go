@@ -179,3 +179,8 @@ func (s *PaymentConfigService) Plans() *billing.Plans { return s.billingPlans() 
 
 // NativeConfig 为旧 HTTP 构造入口投影唯一配置实例。
 func (s *PaymentConfigService) NativeConfig() *payment.ConfigService { return s.paymentCoreConfig() }
+
+// PreparePaymentConfig 保留旧调用签名，校验及格式化由 payment 唯一实现。
+func (s *PaymentConfigService) PreparePaymentConfig(req UpdatePaymentConfigRequest) (map[string]string, error) {
+	return payment.PreparePaymentConfig(req)
+}

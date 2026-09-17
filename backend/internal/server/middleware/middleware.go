@@ -2,13 +2,11 @@ package middleware
 
 import (
 	"context"
-	"net/http"
 
 	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/googleapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -98,26 +96,4 @@ func GoogleErrorWriter(c *gin.Context, status int, message string) {
 			"status":  googleapi.HTTPStatusToGoogleStatus(status),
 		},
 	})
-}
-
-// RequireGroupAssignment 检查 API Key 是否已分配到分组，
-// 如果未分组且系统设置不允许未分组 Key 调度则返回 403。
-func RequireGroupAssignment(settingService *service.SettingService, writeError GatewayErrorWriter) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		apiKey, ok := GetAPIKeyFromContext(c)
-		_, compositeNoGroup := c.Get(compositeKeyNoGroupContextKey)
-		if !ok || apiKey.GroupID != nil || (apiKey.IsComposite && compositeNoGroup) {
-			c.Next()
-			return
-		}
-		// 未分组 Key — 检查系统设置
-		if settingService.IsUngroupedKeySchedulingAllowed(c.Request.Context()) {
-			c.Next()
-			return
-		}
-		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnassigned)
-		MarkIngressRejected(c, IngressRejectGroupUnassigned)
-		writeError(c, http.StatusForbidden, "API Key is not assigned to any group and cannot be used. Please contact the administrator to assign it to a group.")
-		c.Abort()
-	}
 }

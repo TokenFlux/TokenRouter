@@ -363,7 +363,7 @@ batch_image:
 ```bash
 go test -tags=unit ./internal/service -run 'BatchImage' -count=1
 go test -tags=unit ./internal/config ./internal/service ./internal/repository -count=1
-go test ./internal/config ./internal/service ./internal/repository ./internal/handler ./internal/server/routes -run '^$'
+go test ./internal/config ./internal/service ./internal/repository ./internal/handler ./internal/app -run '^$'
 go test ./... -run '^$'
 ```
 

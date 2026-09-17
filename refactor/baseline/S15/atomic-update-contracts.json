@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Test.*(Setting|Settings|BackendMode|FastPolicy)",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/settings",
+    "./internal/payment"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 343
+  },
+  "failures": [],
+  "seconds": 55.70065903663635
+}

@@ -41,6 +41,7 @@ type subscription struct {
 // 写方法不会隐式广播；调用者在原有缓存刷新成功的位置调用 NotifyUpdated。
 // @project-doc docs/interfaces/configuration.md#runtime_settings
 type Store struct {
+	updates        *Updates
 	repo           Repository
 	mu             sync.RWMutex
 	version        string
@@ -54,7 +55,7 @@ func New(repo Repository) *Store {
 	if store, ok := repo.(*Store); ok {
 		return store
 	}
-	return &Store{repo: repo}
+	return &Store{repo: repo, updates: newUpdates(repo)}
 }
 
 func (s *Store) Get(ctx context.Context, key string) (*Setting, error) { return s.repo.Get(ctx, key) }
@@ -135,3 +136,6 @@ func (s *Store) NotifyUpdated() {
 		}
 	}
 }
+
+// Updates 返回与 Store 共用生命周期的综合更新协调器。
+func (s *Store) Updates() *Updates { return s.updates }

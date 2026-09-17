@@ -3,10 +3,13 @@ package handler
 
 import (
 	context "context"
+
+	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
-	dto "github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	identitydto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
 	provider "github.com/TokenFlux/TokenRouter/internal/identity/provider"
+	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 	gin "github.com/gin-gonic/gin"
@@ -51,11 +54,11 @@ type LoginRequest = identityhttp.LoginRequest
 
 // AuthResponse 认证响应格式（匹配前端期望）
 type AuthResponse struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token,omitempty"` // 新增：Refresh Token
-	ExpiresIn    int       `json:"expires_in,omitempty"`    // 新增：Access Token有效期（秒）
-	TokenType    string    `json:"token_type"`
-	User         *dto.User `json:"user"`
+	AccessToken  string                                             `json:"access_token"`
+	RefreshToken string                                             `json:"refresh_token,omitempty"` // 新增：Refresh Token
+	ExpiresIn    int                                                `json:"expires_in,omitempty"`    // 新增：Access Token有效期（秒）
+	TokenType    string                                             `json:"token_type"`
+	User         *identitydto.User[keydto.APIKey[routingdto.Group]] `json:"user"`
 }
 
 func (h *AuthHandler) isBackendModeEnabled(ctx context.Context) bool {

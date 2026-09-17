@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/app",
+    "-run",
+    "TestS15SettingsFieldOwnership"
+  ],
+  "exit": 1,
+  "events": {
+    "fail": 1
+  },
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      "TestS15SettingsFieldOwnership"
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      null
+    ]
+  ],
+  "seconds": 16.98688578605652
+}

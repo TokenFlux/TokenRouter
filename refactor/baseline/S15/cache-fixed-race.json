@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit,embed",
+    "-run",
+    "Test.*(BackendMode|HTMLCache|FrontendServer|EmbeddedFrontend)",
+    "./internal/web",
+    "./internal/service",
+    "./internal/gateway/admission"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 83
+  },
+  "failures": [],
+  "seconds": 26.99099326133728
+}

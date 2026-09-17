@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
+	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
 	"github.com/gin-gonic/gin"
 )

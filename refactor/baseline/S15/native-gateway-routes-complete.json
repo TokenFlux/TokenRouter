@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/server/routes/...",
+    "./internal/gateway/httpapi/..."
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 244
+  },
+  "failures": [],
+  "seconds": 6.2942328453063965
+}

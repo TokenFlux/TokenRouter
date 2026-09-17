@@ -53,7 +53,7 @@ docker compose -f deploy/docker-compose.dev.yml up --build
 <a id="backend_dependency_rules"></a>
 ## 代码边界
 
-尚未迁移的 handler/server 仍调用 service，旧 repository 继续实现保留接口；billing 的核心、HTTP、PostgreSQL 和 Redis 已按角色分离，旧入口只作登记过的转接；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。旧目录里的兼容入口不代表其中所有能力仍拥有独立实现。
+尚未迁移的 handler/server 仍调用 service，旧 repository 继续实现保留接口；billing 的核心、HTTP、PostgreSQL 和 Redis 已按角色分离，旧入口只作登记过的转接；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。旧目录里的兼容入口不代表其中所有能力仍拥有独立实现。综合设置的新增字段必须在 app 静态参与者中声明唯一字段/键所有权，并保持一次原子保存、提交后应用失败明确标记已持久化。原生 HTTP/DTO 不引用旧聚合 handler；仅剩历史测试的转接移入测试文件，并精确登记 S16 退出项。
 
 `.golangci.yml` 保留普通 handler/service 对 repository、Redis、GORM 的原有限制，并按职责约束新业务核心、纯叶子契约、protocol、upstream、infra 和具体 Adapter。核心不依赖旧业务或框架/存储实现，HTTP Adapter 不直接访问数据库；具体上游不能依赖其他平台实现，技术包不反向读取完整 config 或业务 service。规则同时匹配目录直属文件和嵌套文件；新增的未分类路径也有默认约束。
 

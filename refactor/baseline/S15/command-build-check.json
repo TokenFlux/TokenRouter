@@ -1,0 +1,11 @@
+{
+  "command": [
+    "go",
+    "build",
+    "./cmd/..."
+  ],
+  "exit": 0,
+  "events": {},
+  "failures": [],
+  "seconds": 4.188743829727173
+}

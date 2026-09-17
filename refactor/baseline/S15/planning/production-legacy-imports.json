@@ -1,0 +1,67 @@
+{
+  "handler/admin": [
+    "backend/internal/handler/handler.go",
+    "backend/internal/handler/wire.go",
+    "backend/internal/app/wire_gen.go",
+    "backend/internal/server/routes/payment.go"
+  ],
+  "handler/dto": [
+    "backend/internal/handler/auth_handler.go",
+    "backend/internal/handler/api_key_handler.go",
+    "backend/internal/handler/admin/setting_handler_audit.go",
+    "backend/internal/handler/admin/setting_handler_runtime.go",
+    "backend/internal/handler/admin/setting_handler_update.go",
+    "backend/internal/handler/admin/setting_handler.go",
+    "backend/internal/handler/admin/user_handler.go",
+    "backend/internal/handler/admin/apikey_handler.go"
+  ],
+  "pkg/errors": [
+    "backend/internal/handler/auth_oidc_oauth.go",
+    "backend/internal/handler/auth_dingtalk_oauth.go",
+    "backend/internal/handler/auth_email_oauth.go",
+    "backend/internal/handler/auth_linuxdo_oauth.go",
+    "backend/internal/service/setting_oauth.go",
+    "backend/internal/service/grok_quota_service.go",
+    "backend/internal/service/payment_order.go",
+    "backend/internal/service/setting_update.go",
+    "backend/internal/service/setting_parse.go",
+    "backend/internal/service/grok_credential_failure.go",
+    "backend/internal/service/codex_invite_reset_service.go",
+    "backend/internal/service/setting_service.go",
+    "backend/internal/service/token_refresh_service.go",
+    "backend/internal/server/middleware/recovery.go",
+    "backend/internal/payment/provider/wxpay.go"
+  ],
+  "handler": [
+    "backend/internal/app/tasks.go",
+    "backend/internal/app/wire_gen.go",
+    "backend/internal/app/legacy_providers.go",
+    "backend/internal/app/qoder_gateway.go",
+    "backend/internal/app/gateway_http.go",
+    "backend/internal/app/gateway_search_tools.go",
+    "backend/internal/app/identity_http.go",
+    "backend/internal/app/error_queue.go",
+    "backend/internal/app/gateway_completion_bindings.go",
+    "backend/internal/app/wire.go",
+    "backend/internal/server/http.go",
+    "backend/internal/server/router.go",
+    "backend/internal/server/routes/gateway.go",
+    "backend/internal/server/routes/user.go",
+    "backend/internal/server/routes/auth.go",
+    "backend/internal/server/routes/admin.go",
+    "backend/internal/server/routes/payment.go"
+  ],
+  "pkg/response": [
+    "backend/internal/setup/handler.go",
+    "backend/internal/server/middleware/recovery.go",
+    "backend/internal/server/middleware/backend_mode_guard.go",
+    "backend/internal/handler/admin/setting_handler_runtime.go",
+    "backend/internal/handler/admin/setting_handler_update.go",
+    "backend/internal/handler/admin/setting_handler_pre_aggregation.go",
+    "backend/internal/handler/admin/setting_handler.go",
+    "backend/internal/handler/admin/codex_invite_reset_handler.go"
+  ],
+  "server/routes": [
+    "backend/internal/server/router.go"
+  ]
+}

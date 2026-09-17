@@ -3,7 +3,6 @@ package middleware
 
 import (
 	audit "github.com/TokenFlux/TokenRouter/internal/audit/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,6 +15,3 @@ func SetAuditAction(c *gin.Context, s string)              { audit.SetAuditActio
 func SetAuditActor(c *gin.Context, id int64, email string) { audit.SetAuditActor(c, id, email) }
 func SkipAudit(c *gin.Context)                             { audit.SkipAudit(c) }
 func MaskedRequestCredential(c *gin.Context) string        { return audit.MaskedRequestCredential(c) }
-func NewAuditLogMiddleware(s *service.AuditLogService) AuditLogMiddleware {
-	return audit.NewAuditLogMiddleware(s, service.CurrentAuditRedactor())
-}

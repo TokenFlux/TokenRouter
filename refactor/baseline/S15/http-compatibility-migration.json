@@ -1,0 +1,172 @@
+[
+  {
+    "file": "backend/internal/handler/api_key_handler_security_test.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/setup/handler.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/usage/httpapi/admin/usage_cleanup_handler_test.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/server/middleware/recovery.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/server/middleware/backend_mode_guard.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/server/middleware/recovery_test.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/handler/admin/setting_handler_update.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/handler/admin/setting_handler_pre_aggregation.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/handler/admin/setting_handler_platform_quota_test.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/handler/admin/setting_handler_auth_source_defaults_test.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/handler/admin/setting_handler.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/handler/admin/setting_handler_dingtalk_test.go",
+    "from": "pkg/response",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/repository/api_key_repo_limit_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/ops/ops_token_stats_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/ops/ops_histograms_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/admin_service_spark_shadow_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/user_api_key_limit_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/data_management_grpc_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/openai_quota_spark_window_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/account_grok_media_eligibility_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/protocol_capabilities_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/cn_provider_account_validation_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/admin_service_group_rate_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/codex_invite_reset_service_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/protocol_group_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/group_availability_probe_config_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/admin_service_group_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/admin_service_duplicate_account_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/payment_order_lifecycle_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/grok_quota_service_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/data_management_service_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/service/openai_quota_service_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/pkg/errors/compatibility_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  },
+  {
+    "file": "backend/internal/handler/admin/account_handler_spark_shadow_test.go",
+    "from": "pkg/errors.Code,ToHTTP",
+    "to": "server/httpx"
+  }
+]

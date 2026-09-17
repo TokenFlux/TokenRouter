@@ -5,7 +5,6 @@ package service
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/stretchr/testify/require"
@@ -16,8 +15,7 @@ func newSettingServiceForPlatformThresholdTest(seed map[string]string) *SettingS
 	return svc
 }
 func newSettingServiceAndRepoForPlatformThresholdTest(seed map[string]string) (*SettingService, *mockSettingRepo) {
-	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
-	accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
+
 	repo := newMockSettingRepo()
 	for k, v := range seed {
 		repo.data[k] = v
@@ -111,24 +109,6 @@ func TestGetAccountSchedulingThresholds_ReadsStoredValue(t *testing.T) {
 	require.Equal(t, 100, got[PlatformAnthropic])
 	require.Equal(t, 88, got[PlatformGrok])
 	require.NotContains(t, got, "kiro")
-}
-
-func TestGetAccountSchedulingThresholds_MissingSettingUsesDefaultsAndNormalCacheTTL(t *testing.T) {
-	svc, repo := newSettingServiceAndRepoForPlatformThresholdTest(nil)
-	repo.getValueErr = ErrSettingNotFound
-
-	got := svc.GetAccountSchedulingThresholds(context.Background())
-	require.Equal(t, defaultAccountSchedulingThresholds(), got)
-	require.Equal(t, 1, repo.getValueCalls)
-
-	repo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":91}`
-	got = svc.GetAccountSchedulingThresholds(context.Background())
-	require.Equal(t, 100, got[PlatformOpenAI], "未配置时的默认值应按正常周期保持缓存")
-	require.Equal(t, 1, repo.getValueCalls)
-
-	cached, ok := accountSchedulingThresholdsCache.Load().(*cachedAccountSchedulingThresholds)
-	require.True(t, ok)
-	require.Greater(t, cached.expiresAt, time.Now().Add(accountSchedulingThresholdsCacheTTL-time.Second).UnixNano())
 }
 
 func TestUpdateSettings_OmittedAccountSchedulingThresholdsDoesNotCacheDefaults(t *testing.T) {

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/TokenFlux/TokenRouter/internal/model"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
@@ -194,7 +196,7 @@ func TestCodexInviteResetServiceSendInviteMapsUnavailableInvite(t *testing.T) {
 	result, err := svc.SendInvite(context.Background(), account.ID, []string{"a@example.com"})
 	require.Nil(t, result)
 	require.Error(t, err)
-	require.Equal(t, http.StatusForbidden, infraerrors.Code(err))
+	require.Equal(t, http.StatusForbidden, s15httpx.ErrorCode(err))
 	require.Equal(t, codexInviteResetUnavailable, infraerrors.Reason(err))
 	require.Equal(t, codexInviteResetUnavailableMessage, infraerrors.Message(err))
 	require.Equal(t, "该推荐码对应的推荐邀请不可用", infraerrors.FromError(err).Metadata["upstream_detail"])
@@ -351,7 +353,7 @@ func TestCodexInviteResetServiceUsesTLSRouterInviteResetTLSProfile(t *testing.T)
 func TestNormalizeCodexInviteEmailsRejectsInvalidAndTooMany(t *testing.T) {
 	_, err := normalizeCodexInviteEmails([]string{"bad-email"})
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 
 	_, err = normalizeCodexInviteEmails([]string{"a@x.com,b@x.com,c@x.com,d@x.com,e@x.com,f@x.com"})
 	require.Error(t, err)

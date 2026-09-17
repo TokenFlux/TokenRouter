@@ -72,11 +72,11 @@ setup 使用 `DATA_DIR > 可写 /app/data > 当前目录` 选择 `config.yaml` �
 
 usage、audit、ops 的静态参数由 app 投影为各模块 Options；动态 Ops 设置与日志配置继续由原数据库键控制。统一预聚合控制器位于 `settings/preaggregation`，仍有十五秒缓存及原更新通知，不新增设置格式或发布订阅协议。运行日志的应用、持久化失败后回滚和清理 Reload 顺序保持不变。
 
-`settings` 是 `key/value/updated_at` 表，删除键表示恢复该 getter 的默认语义。`settings.Store` 与其 PostgreSQL Adapter 拥有通用存取、现有版本字段和更新通知；旧 `SettingService` 继续负责业务解析、范围/组合校验、敏感值保留、页面聚合和领域缓存。handler 负责 HTTP binding、权限、审计和响应。
+`settings` 是 `key/value/updated_at` 表，删除键表示恢复该 getter 的默认语义。`settings.Store` 与其 PostgreSQL Adapter 拥有通用存取、现有版本字段和更新通知；身份注册/安全/captcha、OAuth 配置解释、账号冷却与导入模板、推广开关、用量排行、审计保留期和网关策略已分别由所属模块实现；面板限流配置与缓存归 `server/runtimeconfig`。旧 `SettingService` 对这些能力仅委托，同实例的缓存不再复制。`settings/composite` 只组合领域值投影、准备顺序及提交后应用；`settings/httpapi` 保留扁平 binding、权限、审计和响应。旧 `SettingService` 的对应读取与准备仅委托同一实现，剩余旧调用进入 S16 清理。
 
-业务更新保持校验、批量原子写入、原有缓存刷新、原有通知的顺序。Store 写方法不自动广播，单键更新不会获得原先没有的通知；旧单回调接口保留替换语义，应用订阅可以注销。这里的版本字段保留原应用版本赋值和 JSON 省略语义，没有新增持久 revision 或跨实例消息协议。公开设置、CSP、search 配置运行时与动态 worker 回调由 app 装配。site 统一拥有公开 API、embed 注入与 CSP 投影，保留各自字段形状；旧设置聚合通过明确来源端口提供已投影的认证、团队和用量能力，OAuth secret 不进入 site/web。
+综合设置 `PUT /api/v1/admin/settings` 在读取旧值前进入实例内更新保护；app 对综合输入的 295 个字段静态注册唯一业务所有者、持久键和顺序，构造时拒绝重复所有权；装配测试检查遗漏和重复字段。系统设置、认证默认值、Fast 策略及支付设置先完成校验与投影，再进行一次原子批量写入。任何提交前失败均不发布运行状态或成功通知。提交后的必要运行应用失败返回 `SETTINGS_APPLY_FAILED`，metadata 标明 `persisted=true` 及失败模块；已保存的配置不会被伪装成回滚，也不自动重写或重试。专用设置入口仍保持各自的写入范围及通知行为。业务更新保持校验、批量原子写入、原有缓存刷新、原有通知的顺序。Store 写方法不自动广播，单键更新不会获得原先没有的通知；旧单回调接口保留替换语义，应用订阅可以注销。这里的版本字段保留原应用版本赋值和 JSON 省略语义，没有新增持久 revision 或跨实例消息协议。公开设置、CSP、search 配置运行时与动态 worker 回调由 app 装配。site 统一拥有公开 API、embed 注入与 CSP 投影，保留各自字段形状；公开来源保持原批量查询，认证、团队和用量分别解释所需字段，site 只向渲染层返回公开键和安全投影；OAuth secret 不进入 web。
 
-运行时设置包括注册与邮件验证、第三方登录、SMTP、TOTP/session binding/step-up、登录协议、面板限流、部分冷却与流超时、支付展示以及各类功能开关。不同 getter 的回退可能来自代码常量或 `config.Config`，不能假设所有缺失键都等价于 `false`。
+运行时设置包括注册与邮件验证、第三方登录、SMTP、TOTP/session binding/step-up、登录协议、面板限流、部分冷却与流超时、支付展示以及各类功能开关。不同 getter 的回退可能来自代码常量或 app 投影的启动选项，不能假设所有缺失键都等价于 `false`。
 
 `registration_email_domain_quota_enabled` 控制邮箱白名单非空时是否允许非白名单域名按可注册主域名限量注册，缺失或读取失败均按关闭处理，以保持严格白名单的安全默认。该设置通过公开设置和 SSR 注入提供给注册前端用于选择本地白名单预检策略，但最终准入仍由服务端在注册事务内重新读取并判定；管理更新请求省略该字段时必须保留当前值，不能把兼容请求解释为显式关闭。
 
@@ -167,3 +167,5 @@ Vite 在构建/dev server 启动时读取 `VITE_API_BASE_URL`、`VITE_WS_BASE_UR
 支付配置的唯一实现位于 `payment.ConfigService`，实例读取与批量用量查询在 payment/postgres，provider factory、加密键及 `PAYMENT_RESUME_SIGNING_KEY` 投影由 app 提供。热刷新整体读取失败保留旧注册表；首次读取失败允许后续重试。配置键、缺省、旧密文及续接 fallback 密钥不变；订阅套餐仍调用 billing，用例不再通过旧支付仓储桥接。
 
 setup 的数据库与 Redis 连接测试由精简 bootstrap 执行，原输入字段、DSN 生成、超时及文件写入顺序保持；首次管理员由 identity 的初始化能力写入，simple 默认分组由 routing 初始化。备份 Options 只接收数据库名、本地根目录、时钟、日志和加密配置标记，完整连接凭据只传给归档技术 Adapter；S3 凭据仍按运行时设置读取。
+
+网关 backend mode 的运行快照位于 `gateway/admission`，保持正常六十秒、查询故障五秒缓存与独立五秒回源预算。管理发布推进本实例代次；此前启动的回源及其等待者不得覆盖新值。HTML 注入缓存也绑定失效代次，旧渲染可以结束自身响应但不填回失效后的缓存；响应 ETag 与其 HTML 来自同次渲染。两者没有新增数据库版本或跨进程协调协议。

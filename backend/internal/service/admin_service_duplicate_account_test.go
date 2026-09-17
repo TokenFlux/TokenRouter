@@ -5,10 +5,12 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -230,7 +232,7 @@ func TestDuplicateAccountRejectsCredentialShadow(t *testing.T) {
 	_, err := svc.DuplicateAccount(ctx, shadow.ID, "admin:1", "")
 
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 	require.Equal(t, "ACCOUNT_DUPLICATE_SHADOW_UNSUPPORTED", infraerrors.Reason(err))
 	require.Len(t, repo.accounts, 1)
 }
@@ -252,7 +254,7 @@ func TestDuplicateAccountRejectsRotatingOrUnknownCredentialTypes(t *testing.T) {
 			_, err := svc.DuplicateAccount(ctx, source.ID, "admin:1", "")
 
 			require.Error(t, err)
-			require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+			require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 			require.Equal(t, "ACCOUNT_DUPLICATE_CREDENTIAL_TYPE_UNSUPPORTED", infraerrors.Reason(err))
 			require.Len(t, repo.accounts, 1)
 		})

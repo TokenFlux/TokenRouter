@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -129,7 +131,7 @@ func TestCNProviderCredentialValidationRejectsInvalid(t *testing.T) {
 				}
 				err := normalizeCNProviderCredentials(account, create)
 				require.Error(t, err)
-				require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+				require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 				require.Equal(t, tc.reason, infraerrors.Reason(err))
 			})
 		}
@@ -147,7 +149,7 @@ func TestCNProviderBulkProtocolValidationBeforeWrite(t *testing.T) {
 	_, err := svc.BulkUpdateAccounts(context.Background(), &BulkUpdateAccountsInput{
 		AccountIDs: []int64{1, 2}, Credentials: map[string]any{"api_protocol": APIProtocolResponses},
 	})
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 	require.Equal(t, "CN_PROVIDER_PROTOCOL_INVALID", infraerrors.Reason(err))
 	require.Empty(t, repo.bulkUpdates)
 	for _, account := range repo.accounts {

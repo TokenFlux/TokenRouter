@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
@@ -20,7 +22,7 @@ func TestAPIKeyRepository_CreateEnforcesUserLimitAcrossStatuses(t *testing.T) {
 
 	err := repo.Create(ctx, newLimitedAPIKey(user.ID, "sk-limit-rejected", service.StatusAPIKeyActive))
 	require.ErrorIs(t, err, service.ErrAPIKeyLimitReached)
-	require.Equal(t, 409, infraerrors.Code(err))
+	require.Equal(t, 409, s15httpx.ErrorCode(err))
 	appErr := infraerrors.FromError(err)
 	require.Equal(t, "2", appErr.Metadata["current"])
 	require.Equal(t, "2", appErr.Metadata["limit"])

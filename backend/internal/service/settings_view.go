@@ -1,6 +1,8 @@
 package service
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	"github.com/TokenFlux/TokenRouter/internal/settings/composite"
 	"github.com/TokenFlux/TokenRouter/internal/site"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
@@ -12,7 +14,7 @@ import (
 
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 )
 
 func firstNonEmpty(values ...string) string {
@@ -24,324 +26,8 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-type SystemSettings struct {
-	RegistrationEnabled                 bool
-	EmailVerifyEnabled                  bool
-	RegistrationEmailSuffixWhitelist    []string
-	RegistrationEmailNormalization      bool
-	RegistrationEmailDomainQuotaEnabled bool // 非白名单域名按主域名限量注册，默认关闭
-	UserEmailChangeEnabled              bool // 已有邮箱身份的用户是否可以换绑主邮箱，默认关闭
-	PromoCodeEnabled                    bool
-	PasswordResetEnabled                bool
-	FrontendURL                         string
-	InvitationCodeEnabled               bool
-	TotpEnabled                         bool // TOTP 双因素认证
-	SessionBindingEnabled               bool // 会话 IP/UA 绑定（变更即失效）
-	StepUpEnabled                       bool // 敏感操作 step-up 2FA 门控
-	AuditLogRetentionDays               int  // 审计日志保留天数（<=0 永久保留）
-	LoginAgreementEnabled               bool
-	LoginAgreementMode                  string
-	LoginAgreementUpdatedAt             string
-	LoginAgreementDocuments             []LoginAgreementDocument
-
-	SMTPHost               string
-	SMTPPort               int
-	SMTPUsername           string
-	SMTPPassword           string
-	SMTPPasswordConfigured bool
-	SMTPFrom               string
-	SMTPFromName           string
-	SMTPUseTLS             bool
-
-	TurnstileEnabled                       bool
-	TurnstileSiteKey                       string
-	TurnstileSecretKey                     string
-	TurnstileSecretKeyConfigured           bool
-	TencentCaptchaEnabled                  bool
-	TencentCaptchaAppID                    string
-	TencentCaptchaAppSecretKey             string
-	TencentCaptchaAppSecretKeyConfigured   bool
-	TencentCaptchaCloudSecretID            string
-	TencentCaptchaCloudSecretIDConfigured  bool
-	TencentCaptchaCloudSecretKey           string
-	TencentCaptchaCloudSecretKeyConfigured bool
-	TencentCaptchaRegion                   string
-	AliyunCaptchaEnabled                   bool
-	AliyunCaptchaAccessKeyID               string
-	AliyunCaptchaAccessKeySecret           string
-	AliyunCaptchaAccessKeySecretConfigured bool
-	AliyunCaptchaSceneID                   string
-	AliyunCaptchaPrefix                    string
-	AliyunCaptchaRegion                    string
-	APIKeyACLTrustForwardedIP              bool
-	ForwardedClientIPHeaders               []string
-
-	// LinuxDo Connect OAuth 登录
-	LinuxDoConnectEnabled                bool
-	LinuxDoConnectClientID               string
-	LinuxDoConnectClientSecret           string
-	LinuxDoConnectClientSecretConfigured bool
-	LinuxDoConnectRedirectURL            string
-
-	// DingTalk Connect OAuth 登录
-	DingTalkConnectEnabled                 bool
-	DingTalkConnectClientID                string
-	DingTalkConnectClientSecret            string
-	DingTalkConnectClientSecretConfigured  bool
-	DingTalkConnectRedirectURL             string
-	DingTalkConnectCorpRestrictionPolicy   string
-	DingTalkConnectInternalCorpID          string
-	DingTalkConnectBypassRegistration      bool
-	DingTalkConnectSyncCorpEmail           bool
-	DingTalkConnectSyncDisplayName         bool
-	DingTalkConnectSyncDept                bool
-	DingTalkConnectSyncCorpEmailAttrKey    string
-	DingTalkConnectSyncDisplayNameAttrKey  string
-	DingTalkConnectSyncDeptAttrKey         string
-	DingTalkConnectSyncCorpEmailAttrName   string
-	DingTalkConnectSyncDisplayNameAttrName string
-	DingTalkConnectSyncDeptAttrName        string
-
-	// WeChat Connect OAuth 登录
-	WeChatConnectEnabled                   bool
-	WeChatConnectAppID                     string
-	WeChatConnectAppSecret                 string
-	WeChatConnectAppSecretConfigured       bool
-	WeChatConnectOpenAppID                 string
-	WeChatConnectOpenAppSecret             string
-	WeChatConnectOpenAppSecretConfigured   bool
-	WeChatConnectMPAppID                   string
-	WeChatConnectMPAppSecret               string
-	WeChatConnectMPAppSecretConfigured     bool
-	WeChatConnectMobileAppID               string
-	WeChatConnectMobileAppSecret           string
-	WeChatConnectMobileAppSecretConfigured bool
-	WeChatConnectOpenEnabled               bool
-	WeChatConnectMPEnabled                 bool
-	WeChatConnectMobileEnabled             bool
-	WeChatConnectMode                      string
-	WeChatConnectScopes                    string
-	WeChatConnectRedirectURL               string
-	WeChatConnectFrontendRedirectURL       string
-
-	// Generic OIDC OAuth 登录
-	OIDCConnectEnabled                bool
-	OIDCConnectProviderName           string
-	OIDCConnectClientID               string
-	OIDCConnectClientSecret           string
-	OIDCConnectClientSecretConfigured bool
-	OIDCConnectIssuerURL              string
-	OIDCConnectDiscoveryURL           string
-	OIDCConnectAuthorizeURL           string
-	OIDCConnectTokenURL               string
-	OIDCConnectUserInfoURL            string
-	OIDCConnectJWKSURL                string
-	OIDCConnectScopes                 string
-	OIDCConnectRedirectURL            string
-	OIDCConnectFrontendRedirectURL    string
-	OIDCConnectTokenAuthMethod        string
-	OIDCConnectUsePKCE                bool
-	OIDCConnectValidateIDToken        bool
-	OIDCConnectAllowedSigningAlgs     string
-	OIDCConnectClockSkewSeconds       int
-	OIDCConnectRequireEmailVerified   bool
-	OIDCConnectUserInfoEmailPath      string
-	OIDCConnectUserInfoIDPath         string
-	OIDCConnectUserInfoUsernamePath   string
-
-	// GitHub / Google 邮箱快捷登录
-	GitHubOAuthEnabled                bool
-	GitHubOAuthClientID               string
-	GitHubOAuthClientSecret           string
-	GitHubOAuthClientSecretConfigured bool
-	GitHubOAuthRedirectURL            string
-	GitHubOAuthFrontendRedirectURL    string
-	GoogleOAuthEnabled                bool
-	GoogleOneTapEnabled               bool
-	GoogleOAuthClientID               string
-	GoogleOAuthClientSecret           string
-	GoogleOAuthClientSecretConfigured bool
-	GoogleOAuthRedirectURL            string
-	GoogleOAuthFrontendRedirectURL    string
-
-	SiteName                    string
-	SiteLogo                    string
-	SiteSubtitle                string
-	SiteNameZh                  string
-	SiteNameEn                  string
-	SiteTitleZh                 string
-	SiteTitleEn                 string
-	SiteSubtitleZh              string
-	SiteSubtitleEn              string
-	APIBaseURL                  string
-	ContactInfo                 string
-	DocURL                      string
-	HomeContent                 string
-	HideCcsImportButton         bool
-	PurchaseSubscriptionEnabled bool
-	PurchaseSubscriptionURL     string
-	TableDefaultPageSize        int
-	TablePageSizeOptions        []int
-	UsageRankingLimit           int
-	UsageRankingEnabled         bool
-	UsageRankingSortBy          string
-	UsageRankingShowTotalTokens bool
-	UsageRankingShowRequests    bool
-	UsageRankingShowActualCost  bool
-	CustomMenuItems             string // JSON array of custom menu items
-	CustomEndpoints             string // JSON array of custom endpoints
-	FooterLinks                 string // JSON array of footer link groups
-	FooterText                  string // Extra footer text (ICP number etc.)
-	HomeFeaturedModels          string // JSON array of model IDs featured on the home page
-	// CreativeModelSettings 是创作台允许使用的全局分组+模型+能力白名单 JSON。
-	CreativeModelSettings []CreativeModelSetting
-	// CreativeWorkerCount 是创作台任务 worker 数量，缺失时回退默认值。
-	CreativeWorkerCount int
-
-	DefaultConcurrency int
-	DefaultBalance     float64
-	// TeamEnabled 控制团队功能页面的入口与访问。
-	TeamEnabled bool
-	// CreativeEnabled 控制创作台页面入口与 API 访问（进程配置 creative.enabled 仍为前置条件）。
-	CreativeEnabled bool
-	// RiskControlEnabled 控制风控中心入口和网关内容审计总开关。
-	RiskControlEnabled                   bool
-	CyberSessionBlockEnabled             bool
-	CyberSessionBlockTTLSeconds          int
-	AffiliateEnabled                     bool
-	AffiliateRebateRate                  float64
-	AffiliateRebateFreezeHours           int
-	AffiliateRebateDurationDays          int
-	AffiliateRebatePerInviteeCap         float64
-	AdminRechargeRebateEnabled           bool
-	DefaultUserRPMLimit                  int
-	DefaultUserAPIKeyLimit               int
-	DefaultSubscriptions                 []DefaultSubscriptionSetting
-	BalanceUnitName                      string
-	BalanceUnitSymbol                    string
-	BalanceIconSVG                       string
-	ReasoningPointRMBUnitPrice           float64
-	USDExchangeRate                      float64
-	MarketplaceAvailabilityWindowDays    int
-	MarketplaceAvailabilityBucketMinutes int
-
-	// Model fallback configuration
-	EnableModelFallback      bool   `json:"enable_model_fallback"`
-	FallbackModelAnthropic   string `json:"fallback_model_anthropic"`
-	FallbackModelOpenAI      string `json:"fallback_model_openai"`
-	FallbackModelGemini      string `json:"fallback_model_gemini"`
-	FallbackModelAntigravity string `json:"fallback_model_antigravity"`
-
-	// Identity patch configuration (Claude -> Gemini)
-	EnableIdentityPatch bool   `json:"enable_identity_patch"`
-	IdentityPatchPrompt string `json:"identity_patch_prompt"`
-
-	// Grok 模型映射策略；账号映射为空时使用这里的默认值。
-	GrokDefaultTextModel           string `json:"grok_default_text_model"`
-	GrokCrossClientModelMapEnabled bool   `json:"grok_cross_client_model_map_enabled"`
-	GrokDefaultBaseURLMode         string `json:"grok_default_base_url_mode"`
-
-	// Ops monitoring (vNext)
-	OpsMonitoringEnabled         bool
-	OpsRealtimeMonitoringEnabled bool
-	OpsMetricsIntervalSeconds    int
-
-	// Claude Code version check
-	MinClaudeCodeVersion string
-	MaxClaudeCodeVersion string
-
-	// 分组隔离：允许未分组 Key 调度（默认 false → 403）
-	AllowUngroupedKeyScheduling bool
-
-	// Backend 模式：禁用用户注册和自助服务，仅管理员可登录
-	BackendModeEnabled bool
-
-	// Gateway forwarding behavior
-	OpenAITTFTMode                         string // Responses first_token_ms 统计口径（默认 semantic）
-	EnableFingerprintUnification           bool   // 是否统一 OAuth 账号的指纹头（默认 true）
-	EnableMetadataPassthrough              bool   // 是否透传客户端原始 metadata（默认 false）
-	EnableCCHSigning                       bool   // 已废弃 no-op：新版 CLI 取消 cch 签名后网关不再注入/签名 cch，开关无效果
-	EnableClaudeOAuthSystemPromptInjection bool   // 是否对 Claude OAuth mimic 路径注入 Claude Code system blocks（默认 true）
-	ClaudeOAuthSystemPrompt                string // Claude OAuth mimic 路径注入的通用扩展 system prompt；空值使用内置默认
-	ClaudeOAuthSystemPromptBlocks          string // Claude OAuth mimic 路径注入的 system blocks JSON 配置；空值使用内置默认
-	EnableAnthropicCacheTTL1hInjection     bool   // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
-	EnableClientDatelineNormalization      bool   // 是否对 Anthropic OAuth/SetupToken 请求体做客户端 dateline 归一化（默认 true）
-	RewriteMessageCacheControl             bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
-	AntigravityUserAgentVersion            string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
-	OpenAICodexUserAgent                   string // OpenAI Codex 上游完整 User-Agent；空值使用内置 TUI 默认
-	OpenAIAllowClaudeCodeCodexPlugin       bool   // 全局开关：是否额外放行 Claude Code 的 Codex 插件（默认 false）
-	UserPromptReplacementConfig            *UserPromptReplacementConfig
-
-	// Web Search Emulation
-	WebSearchEmulationEnabled bool // 是否启用 web search 模拟
-
-	// Payment visible method routing
-	PaymentVisibleMethodAlipaySource  string
-	PaymentVisibleMethodWxpaySource   string
-	PaymentVisibleMethodAlipayEnabled bool
-	PaymentVisibleMethodWxpayEnabled  bool
-
-	// 通用高级调度器参数；是否启用由分组 scheduler_type 决定。
-	AdvancedSchedulerStickyWeightedEnabled       bool
-	AdvancedSchedulerSubscriptionPriorityEnabled bool
-	AdvancedSchedulerEWMAErrorRateAlpha          string
-	AdvancedSchedulerEWMATTFTAlpha               string
-	AdvancedSchedulerStickyEscapeEnabled         bool
-	// AdvancedSchedulerStickyEscapeEnabledSet 标记开关是否由数据库显式设置，用于诊断继承来源。
-	AdvancedSchedulerStickyEscapeEnabledSet          bool
-	AdvancedSchedulerStickyEscapeTTFTMs              string
-	AdvancedSchedulerStickyEscapeErrorRate           string
-	AdvancedSchedulerLBTopK                          string
-	AdvancedSchedulerWeightPriority                  string
-	AdvancedSchedulerWeightLoad                      string
-	AdvancedSchedulerWeightQueue                     string
-	AdvancedSchedulerWeightErrorRate                 string
-	AdvancedSchedulerWeightTTFT                      string
-	AdvancedSchedulerWeightReset                     string
-	AdvancedSchedulerWeightQuotaHeadroom             string
-	AdvancedSchedulerWeightPreviousResponse          string
-	AdvancedSchedulerWeightSessionSticky             string
-	AdvancedSchedulerEffectiveLBTopK                 string
-	AdvancedSchedulerEffectiveWeightPriority         string
-	AdvancedSchedulerEffectiveWeightLoad             string
-	AdvancedSchedulerEffectiveWeightQueue            string
-	AdvancedSchedulerEffectiveWeightErrorRate        string
-	AdvancedSchedulerEffectiveWeightTTFT             string
-	AdvancedSchedulerEffectiveWeightReset            string
-	AdvancedSchedulerEffectiveWeightQuotaHeadroom    string
-	AdvancedSchedulerEffectiveWeightPreviousResponse string
-	AdvancedSchedulerEffectiveWeightSessionSticky    string
-	AdvancedSchedulerEffectiveEWMAErrorRateAlpha     string
-	AdvancedSchedulerEffectiveEWMATTFTAlpha          string
-	AdvancedSchedulerEffectiveStickyEscapeEnabled    bool
-	AdvancedSchedulerEffectiveStickyEscapeTTFTMs     string
-	AdvancedSchedulerEffectiveStickyEscapeErrorRate  string
-	// OpenAIQuotaAutoPauseSettings 是 OpenAI 账号配额自动暂停的全局默认阈值，存储在 ops_advanced_settings 中。
-	OpenAIQuotaAutoPauseSettings OpsOpenAIAccountQuotaAutoPauseSettings
-	// OpenAIQuotaAutoPauseSettingsSet 标记本次系统设置更新是否显式带了配额自动暂停配置，避免旧客户端误覆盖。
-	OpenAIQuotaAutoPauseSettingsSet bool
-
-	// 余额不足提醒
-	BalanceLowNotifyEnabled     bool
-	BalanceLowNotifyThreshold   float64
-	BalanceLowNotifyRechargeURL string
-
-	// 订阅到期提醒
-	SubscriptionExpiryNotifyEnabled bool
-
-	// 账号限额通知
-	AccountQuotaNotifyEnabled bool
-	AccountQuotaNotifyEmails  []NotifyEmailEntry
-
-	// 系统全局默认平台配额（key = platform，nil/缺省 = 不限制）
-	DefaultPlatformQuotas map[string]*DefaultPlatformQuotaSetting `json:"default_platform_quotas"`
-
-	// 系统全局账号自动停调阈值（key = platform，100 = disabled）
-	AccountSchedulingThresholds map[string]int `json:"account_scheduling_thresholds"`
-
-	// 允许终端用户在用量页查看自己的失败请求
-	AllowUserViewErrorRequests bool
-}
+// SystemSettings 仅保留 S16 旧调用的值别名；所有读取和准备规则由所属模块执行。
+type SystemSettings = composite.Snapshot
 
 type DefaultSubscriptionSetting = identity.DefaultSubscriptionSetting
 
@@ -349,65 +35,8 @@ type PublicSettings = site.PublicSettings
 
 type LoginAgreementDocument = site.LoginAgreementDocument
 
-type WeChatConnectOAuthConfig struct {
-	Enabled             bool
-	LegacyAppID         string
-	LegacyAppSecret     string
-	OpenAppID           string
-	OpenAppSecret       string
-	MPAppID             string
-	MPAppSecret         string
-	MobileAppID         string
-	MobileAppSecret     string
-	OpenEnabled         bool
-	MPEnabled           bool
-	MobileEnabled       bool
-	Mode                string
-	Scopes              string
-	RedirectURL         string
-	FrontendRedirectURL string
-}
-
-func (cfg WeChatConnectOAuthConfig) SupportsMode(mode string) bool {
-	switch normalizeWeChatConnectModeSetting(mode) {
-	case "mp":
-		return cfg.MPEnabled
-	case "mobile":
-		return cfg.MobileEnabled
-	default:
-		return cfg.OpenEnabled
-	}
-}
-
-func (cfg WeChatConnectOAuthConfig) ScopeForMode(mode string) string {
-	switch normalizeWeChatConnectModeSetting(mode) {
-	case "mp":
-		return normalizeWeChatConnectScopeSetting(cfg.Scopes, "mp")
-	case "mobile":
-		return ""
-	}
-	return defaultWeChatConnectScopeForMode("open")
-}
-
-func (cfg WeChatConnectOAuthConfig) AppIDForMode(mode string) string {
-	switch normalizeWeChatConnectModeSetting(mode) {
-	case "mp":
-		return strings.TrimSpace(firstNonEmpty(cfg.MPAppID, cfg.LegacyAppID))
-	case "mobile":
-		return strings.TrimSpace(firstNonEmpty(cfg.MobileAppID, cfg.LegacyAppID))
-	}
-	return strings.TrimSpace(firstNonEmpty(cfg.OpenAppID, cfg.LegacyAppID))
-}
-
-func (cfg WeChatConnectOAuthConfig) AppSecretForMode(mode string) string {
-	switch normalizeWeChatConnectModeSetting(mode) {
-	case "mp":
-		return strings.TrimSpace(firstNonEmpty(cfg.MPAppSecret, cfg.LegacyAppSecret))
-	case "mobile":
-		return strings.TrimSpace(firstNonEmpty(cfg.MobileAppSecret, cfg.LegacyAppSecret))
-	}
-	return strings.TrimSpace(firstNonEmpty(cfg.OpenAppSecret, cfg.LegacyAppSecret))
-}
+// WeChatConnectOAuthConfig 保留旧调用类型，生效配置由 identity 唯一拥有。
+type WeChatConnectOAuthConfig = identity.WeChatConnectOAuthConfig
 
 type StreamTimeoutSettings = accountcore.StreamTimeoutSettings
 
@@ -417,32 +46,14 @@ const StreamTimeoutActionNone = accountcore.StreamTimeoutActionNone
 
 // DefaultStreamTimeoutSettings 返回默认的流超时配置
 func DefaultStreamTimeoutSettings() *StreamTimeoutSettings {
-	return &StreamTimeoutSettings{
-		Enabled:                false,
-		Action:                 StreamTimeoutActionTempUnsched,
-		TempUnschedMinutes:     5,
-		ThresholdCount:         3,
-		ThresholdWindowMinutes: 10,
-	}
+	return accountcore.DefaultStreamTimeoutSettings()
 }
 
 // RectifierSettings 请求整流器配置
-type RectifierSettings struct {
-	Enabled                  bool     `json:"enabled"`                    // 总开关
-	ThinkingSignatureEnabled bool     `json:"thinking_signature_enabled"` // Thinking 签名整流
-	ThinkingBudgetEnabled    bool     `json:"thinking_budget_enabled"`    // Thinking Budget 整流
-	APIKeySignatureEnabled   bool     `json:"apikey_signature_enabled"`   // API Key 签名整流开关
-	APIKeySignaturePatterns  []string `json:"apikey_signature_patterns"`  // API Key 自定义匹配关键词
-}
+type RectifierSettings = gateway.RectifierSettings
 
 // DefaultRectifierSettings 返回默认的整流器配置（全部启用）
-func DefaultRectifierSettings() *RectifierSettings {
-	return &RectifierSettings{
-		Enabled:                  true,
-		ThinkingSignatureEnabled: true,
-		ThinkingBudgetEnabled:    true,
-	}
-}
+func DefaultRectifierSettings() *RectifierSettings { return gateway.DefaultRectifierSettings() }
 
 const BetaPolicyActionPass = claude.BetaPolicyActionPass
 const BetaPolicyActionFilter = claude.BetaPolicyActionFilter
@@ -461,38 +72,20 @@ type OverloadCooldownSettings = accountcore.OverloadCooldownSettings
 type RateLimit429CooldownSettings = accountcore.RateLimit429CooldownSettings
 
 // OpenAIImagesOAuthUnavailableCooldownSettings controls how long an OAuth account's image capability is paused when unavailable.
-type OpenAIImagesOAuthUnavailableCooldownSettings struct {
-	CooldownMinutes int `json:"cooldown_minutes"`
-}
+type OpenAIImagesOAuthUnavailableCooldownSettings = accountcore.OpenAIImagesOAuthUnavailableCooldownSettings
 
-const (
-	openAIImagesOAuthUnavailableDefaultCooldownMinutes = 30
-	openAIImagesOAuthUnavailableMaxCooldownMinutes     = 120
-)
+const ()
 
 // OpenAIAPIKeyHealthBreakerSettings controls cross-instance failure counting for OpenAI pool API keys.
-type OpenAIAPIKeyHealthBreakerSettings struct {
-	Enabled          bool `json:"enabled"`
-	WindowMinutes    int  `json:"window_minutes"`
-	FailureThreshold int  `json:"failure_threshold"`
-	CooldownMinutes  int  `json:"cooldown_minutes"`
-}
+type OpenAIAPIKeyHealthBreakerSettings = accountcore.OpenAIAPIKeyHealthBreakerSettings
 
 func DefaultOpenAIAPIKeyHealthBreakerSettings() *OpenAIAPIKeyHealthBreakerSettings {
-	return &OpenAIAPIKeyHealthBreakerSettings{
-		Enabled:          false,
-		WindowMinutes:    2,
-		FailureThreshold: 10,
-		CooldownMinutes:  5,
-	}
+	return accountcore.DefaultOpenAIAPIKeyHealthBreakerSettings()
 }
 
 // DefaultOverloadCooldownSettings 返回默认的过载冷却配置（启用，10分钟）
 func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
-	return &OverloadCooldownSettings{
-		Enabled:         true,
-		CooldownMinutes: 10,
-	}
+	return accountcore.DefaultOverloadCooldownSettings()
 }
 
 type OpenAI403CooldownSettings = accountcore.OpenAI403CooldownSettings
@@ -506,49 +99,21 @@ func DefaultRateLimit429CooldownSettings() *RateLimit429CooldownSettings {
 }
 
 func DefaultOpenAIImagesOAuthUnavailableCooldownSettings() *OpenAIImagesOAuthUnavailableCooldownSettings {
-	return &OpenAIImagesOAuthUnavailableCooldownSettings{CooldownMinutes: openAIImagesOAuthUnavailableDefaultCooldownMinutes}
+	return accountcore.DefaultOpenAIImagesOAuthUnavailableCooldownSettings()
 }
 
 func DefaultBetaPolicySettings() *BetaPolicySettings { return claude.DefaultBetaPolicySettings() }
 
-// OpenAI Fast Policy 策略常量
-// OpenAI 的 "fast 模式" 通过请求体中的 service_tier 字段识别：
-//   - "priority"（客户端可传 "fast"，归一化为 "priority"）：fast 模式
-//   - "ultrafast"：Codex/API 的 Ultrafast 档位
-//   - "flex"：低优先级模式
-//   - 省略：normal 默认
-//
-// 本策略复用 BetaPolicyAction*/BetaPolicyScope* 常量语义，只是匹配键从
-// anthropic-beta header 换成 body 的 service_tier 字段。
-const (
-	OpenAIFastTierAny       = "all"                               // 匹配任意已识别的 service_tier
-	OpenAIFastTierPriority  = protocolopenai.ServiceTierPriority  // 仅匹配 fast（priority）
-	OpenAIFastTierUltrafast = protocolopenai.ServiceTierUltrafast // 仅匹配 ultrafast
-	OpenAIFastTierFlex      = protocolopenai.ServiceTierFlex      // 仅匹配 flex
+// Fast 策略值类型归网关，旧消费者使用别名。
+const OpenAIFastTierAny = tierpolicy.OpenAIFastTierAny
+const OpenAIFastTierPriority = tierpolicy.OpenAIFastTierPriority
+const OpenAIFastTierUltrafast = tierpolicy.OpenAIFastTierUltrafast
+const OpenAIFastTierFlex = tierpolicy.OpenAIFastTierFlex
+const OpenAIFastPolicyActionForcePriority = tierpolicy.OpenAIFastPolicyActionForcePriority
+const OpenAIFastPolicyActionForceUltrafast = tierpolicy.OpenAIFastPolicyActionForceUltrafast
 
-	// OpenAIFastPolicyActionForcePriority 会保留 service_tier 字段并强制写成
-	// priority，用于把 flex/auto/default/scale 等已识别 tier 收敛为 fast。
-	OpenAIFastPolicyActionForcePriority = "force_priority"
-	// Ultra Fast 共用既有作用域和模型回退规则。
-	OpenAIFastPolicyActionForceUltrafast = "force_ultrafast"
-)
-
-// OpenAIFastPolicyRule 单条 OpenAI fast/flex 策略规则
-type OpenAIFastPolicyRule struct {
-	ServiceTier          string   `json:"service_tier"`                     // "priority" | "ultrafast" | "flex" | "auto" | "default" | "scale" | "all"
-	Action               string   `json:"action"`                           // "pass" | "filter" | "block" | "force_priority"
-	Scope                string   `json:"scope"`                            // "all" | "oauth" | "apikey" | "bedrock"
-	UserIDs              []int64  `json:"user_ids,omitempty"`               // 空=所有 Sub2API 用户；非空=仅指定 API Key 所属用户
-	ErrorMessage         string   `json:"error_message,omitempty"`          // 自定义错误消息 (action=block 时生效)
-	ModelWhitelist       []string `json:"model_whitelist,omitempty"`        // 模型匹配模式列表（为空=对所有模型生效）
-	FallbackAction       string   `json:"fallback_action,omitempty"`        // 未匹配白名单的模型的处理方式
-	FallbackErrorMessage string   `json:"fallback_error_message,omitempty"` // 未匹配白名单时的自定义错误消息 (fallback_action=block 时生效)
-}
-
-// OpenAIFastPolicySettings OpenAI fast 策略配置
-type OpenAIFastPolicySettings struct {
-	Rules []OpenAIFastPolicyRule `json:"rules"`
-}
+type OpenAIFastPolicyRule = tierpolicy.OpenAIFastPolicyRule
+type OpenAIFastPolicySettings = tierpolicy.OpenAIFastPolicySettings
 
 type OpenAIOAuthImportAccountDefaults = accounttransfer.OpenAIOAuthImportAccountDefaults
 
@@ -556,25 +121,12 @@ type OpenAIOAuthImportDefaults = accounttransfer.OpenAIOAuthImportDefaults
 
 // DefaultOpenAIOAuthImportDefaults 返回 OpenAI OAuth 导入模板的内置默认值。
 func DefaultOpenAIOAuthImportDefaults() *OpenAIOAuthImportDefaults {
-	return &OpenAIOAuthImportDefaults{
-		Credentials: map[string]any{
-			"model_whitelist": []string{
-				"gpt-5.2",
-				"gpt-5.3",
-				"gpt-5.3-spark",
-				"gpt-5.4",
-				"gpt-5.4-mini",
-				"gpt-5.5",
-			},
-		},
-	}
+	return accountcore.DefaultOpenAIOAuthImportDefaults()
 }
 
 // DefaultOpenAIFastPolicySettings 返回默认的 OpenAI fast 策略配置。
 // 默认不配置任何规则，保留 OpenAI 上游 service_tier 语义；管理员如需
 // 限制 priority/flex，可以在 admin UI 中显式配置 filter 或 block 规则。
 func DefaultOpenAIFastPolicySettings() *OpenAIFastPolicySettings {
-	return &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{},
-	}
+	return tierpolicy.Default()
 }

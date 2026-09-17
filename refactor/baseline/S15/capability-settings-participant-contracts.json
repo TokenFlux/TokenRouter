@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|Registry|CreativeEnabled|CyberSessionBlock",
+    "./internal/creative",
+    "./internal/moderation",
+    "./internal/team",
+    "./internal/settings",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 321
+  },
+  "failures": [],
+  "seconds": 16.90420913696289
+}

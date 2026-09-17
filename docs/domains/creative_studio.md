@@ -30,7 +30,7 @@ TokenRouter 创作台（Creative Studio）提供面向个人用户的图片生�
 
 新创作任务按操作使用统一协议：OpenAI/Grok 的 generate 对应 Images 生成，edit/inpaint 对应 Images 编辑；Gemini 对应 GenerateContent。目录和提交只提供分组已开放的操作，执行器复用账号原生集合及分组指定转换目标筛选候选。Responses 图片策略不阻断 Images 内部适配。已创建任务的读取、下载和清理仍遵循原资源权限。
 
-创作台路由挂在用户 JWT 面板前缀下（`backend/internal/server/routes/user.go`），响应统一 envelope `{code, message, data}`；`POST /creative/runs` 额外经过面板 heavy 限流：
+创作台路由挂在用户 JWT 面板前缀下（`backend/internal/creative/httpapi/routes_user.go` 与 `backend/internal/app/http_routes_user.go`），响应统一 envelope `{code, message, data}`；`POST /creative/runs` 额外经过面板 heavy 限流：
 
 ```text
 GET  /api/v1/creative/models

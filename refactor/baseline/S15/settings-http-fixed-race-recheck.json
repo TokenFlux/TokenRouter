@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "TestSettings|TestSettingUpdateLateBackendModeLoad",
+    "./internal/handler/admin",
+    "./internal/service"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 18
+  },
+  "failures": [],
+  "seconds": 30.14503312110901
+}

@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
+	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	dto "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

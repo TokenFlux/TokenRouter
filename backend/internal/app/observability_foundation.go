@@ -23,9 +23,7 @@ import (
 func provideAuditRepository(db *sql.DB) audit.AuditLogRepository {
 	return auditpostgres.NewAuditLogRepository(db)
 }
-func provideAuditService(repo audit.AuditLogRepository, settings *service.SettingService) *audit.AuditLogService {
-	redactor := audit.NewRedactor(service.LegacyAuditSensitiveKeys())
-	service.BindAuditRedactor(redactor)
+func provideAuditService(repo audit.AuditLogRepository, settings *audit.RetentionSettings, _ *audit.Redactor) *audit.AuditLogService {
 	return audit.NewAuditLogService(repo, func(ctx context.Context) int { return settings.GetAuditLogRetentionDays(ctx) })
 }
 func provideAuditHTTP(s *audit.AuditLogService, totp *identity.TotpService) *auditHTTP.AuditLogHandler {
@@ -40,4 +38,11 @@ func provideSystemLogSink(repo ops.OpsRepository) *ops.OpsSystemLogSink {
 	return ops.NewOpsSystemLogSink(repo, ops.SystemLogSinkOptions{Host: host, HostError: e, OnWriteFailure: func(err error, batch, failures int, backoff time.Duration) {
 		_, _ = fmt.Fprintf(os.Stderr, "time=%s level=WARN msg=\"ops system log sink flush failed\" err=%v batch=%d failures=%d backoff=%s\n", time.Now().Format(time.RFC3339Nano), err, batch, failures, backoff)
 	}})
+}
+
+// provideAuditRedactor 构造唯一脱敏策略，先绑定旧捕获入口再构造审计消费者。
+func provideAuditRedactor() *audit.Redactor {
+	redactor := audit.NewRedactor(service.LegacyAuditSensitiveKeys())
+	service.BindAuditRedactor(redactor)
+	return redactor
 }

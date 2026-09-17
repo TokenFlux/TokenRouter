@@ -3,16 +3,13 @@ package identity
 
 import (
 	context "context"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	time "time"
+
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // DefaultPlatformQuotaSetting 单 platform 三档限额（nil = 沿用上层；0 = 显式禁用；>0 = 上限）
-type DefaultPlatformQuotaSetting struct {
-	DailyLimitUSD   *float64 `json:"daily"`
-	WeeklyLimitUSD  *float64 `json:"weekly"`
-	MonthlyLimitUSD *float64 `json:"monthly"`
-}
+type DefaultPlatformQuotaSetting = billing.DefaultPlatformQuotaSetting
 
 type ProviderDefaultGrantSettings struct {
 	Balance          float64
@@ -34,9 +31,7 @@ type AuthSourceDefaultSettings struct {
 	ForceEmailOnThirdPartySignup bool
 }
 
-type DefaultSubscriptionSetting struct {
-	PlanID int64 `json:"plan_id"`
-}
+type DefaultSubscriptionSetting = billing.DefaultSubscriptionSetting
 
 // AuthOptions 是启动认证参数投影，不接受整份运行配置。
 type AuthOptions struct {

@@ -184,7 +184,6 @@ func TestGatewayCacheTTLGlobalSetting_TargetResolution(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		SettingKeyEnableAnthropicCacheTTL1hInjection: "true",
 	}}
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	svc := &GatewayService{
 		settingService: NewSettingService(repo, &config.Config{}),
 	}
@@ -207,7 +206,6 @@ func TestGatewayCacheTTLGlobalSetting_RequestInjectionScope(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		SettingKeyEnableAnthropicCacheTTL1hInjection: "true",
 	}}
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
 	svc := &GatewayService{
 		settingService: NewSettingService(repo, &config.Config{}),
 	}
@@ -218,6 +216,6 @@ func TestGatewayCacheTTLGlobalSetting_RequestInjectionScope(t *testing.T) {
 	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth}))
 
 	repo.data[SettingKeyEnableAnthropicCacheTTL1hInjection] = "false"
-	gatewayForwardingCache.Store(&cachedGatewayForwardingSettings{})
+	svc.settingService.GatewaySettings().InvalidateForwarding()
 	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth}))
 }

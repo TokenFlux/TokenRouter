@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"testing"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,7 +42,7 @@ func TestProtocolNativeMatrixAndSave(t *testing.T) {
 			require.NoError(t, NormalizeAccountProtocols(account))
 			require.Empty(t, account.UpstreamProtocols())
 			account.Credentials[upstreamProtocolsKey] = []string{"unknown"}
-			require.Equal(t, http.StatusBadRequest, infraerrors.Code(NormalizeAccountProtocols(account)))
+			require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(NormalizeAccountProtocols(account)))
 		})
 	}
 }
@@ -107,7 +108,7 @@ func TestProtocolSaveEntrypointsAndBulkRejectBeforeWrite(t *testing.T) {
 	require.Equal(t, map[string]any{"responses": "https://relay.example/v1"}, rotated.Credentials["api_base_urls"])
 	repo.accounts[99] = &Account{ID: 99, Platform: PlatformZhipu, Type: AccountTypeAPIKey, Credentials: map[string]any{upstreamProtocolsKey: []string{"openai_chat_completions"}}}
 	_, err = svc.BulkUpdateAccounts(context.Background(), &BulkUpdateAccountsInput{AccountIDs: []int64{created.ID, 99}, Credentials: map[string]any{upstreamProtocolsKey: []string{"openai_responses"}}})
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 	require.Empty(t, repo.bulkUpdates)
 }
 

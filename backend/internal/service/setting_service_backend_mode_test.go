@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/stretchr/testify/require"
@@ -89,17 +88,7 @@ func (s *bmUpdateRepoStub) Delete(ctx context.Context, key string) error {
 	panic("unexpected Delete call")
 }
 
-func resetBackendModeTestCache(t *testing.T) {
-	t.Helper()
-
-	backendModeCache.Store((*cachedBackendMode)(nil))
-	t.Cleanup(func() {
-		backendModeCache.Store((*cachedBackendMode)(nil))
-	})
-}
-
 func TestIsBackendModeEnabled_ReturnsTrue(t *testing.T) {
-	resetBackendModeTestCache(t)
 
 	repo := &bmRepoStub{
 		getValueFn: func(ctx context.Context, key string) (string, error) {
@@ -114,7 +103,6 @@ func TestIsBackendModeEnabled_ReturnsTrue(t *testing.T) {
 }
 
 func TestIsBackendModeEnabled_ReturnsFalse(t *testing.T) {
-	resetBackendModeTestCache(t)
 
 	repo := &bmRepoStub{
 		getValueFn: func(ctx context.Context, key string) (string, error) {
@@ -129,7 +117,6 @@ func TestIsBackendModeEnabled_ReturnsFalse(t *testing.T) {
 }
 
 func TestIsBackendModeEnabled_ReturnsFalseOnNotFound(t *testing.T) {
-	resetBackendModeTestCache(t)
 
 	repo := &bmRepoStub{
 		getValueFn: func(ctx context.Context, key string) (string, error) {
@@ -144,7 +131,6 @@ func TestIsBackendModeEnabled_ReturnsFalseOnNotFound(t *testing.T) {
 }
 
 func TestIsBackendModeEnabled_ReturnsFalseOnDBError(t *testing.T) {
-	resetBackendModeTestCache(t)
 
 	repo := &bmRepoStub{
 		getValueFn: func(ctx context.Context, key string) (string, error) {
@@ -159,7 +145,6 @@ func TestIsBackendModeEnabled_ReturnsFalseOnDBError(t *testing.T) {
 }
 
 func TestIsBackendModeEnabled_CachesResult(t *testing.T) {
-	resetBackendModeTestCache(t)
 
 	repo := &bmRepoStub{
 		getValueFn: func(ctx context.Context, key string) (string, error) {
@@ -175,12 +160,6 @@ func TestIsBackendModeEnabled_CachesResult(t *testing.T) {
 }
 
 func TestUpdateSettings_InvalidatesBackendModeCache(t *testing.T) {
-	resetBackendModeTestCache(t)
-
-	backendModeCache.Store(&cachedBackendMode{
-		value:     true,
-		expiresAt: time.Now().Add(backendModeCacheTTL).UnixNano(),
-	})
 
 	repo := &bmUpdateRepoStub{
 		getValueFn: func(ctx context.Context, key string) (string, error) {
@@ -189,6 +168,7 @@ func TestUpdateSettings_InvalidatesBackendModeCache(t *testing.T) {
 		},
 	}
 	svc := NewSettingService(repo, &config.Config{})
+	svc.backendMode.Publish(true)
 
 	err := svc.UpdateSettings(context.Background(), &SystemSettings{
 		BackendModeEnabled: false,

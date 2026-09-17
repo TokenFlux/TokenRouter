@@ -3,9 +3,10 @@ package admin
 
 import (
 	context "context"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
-	dto "github.com/TokenFlux/TokenRouter/internal/handler/dto"
+	dto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -18,7 +19,7 @@ func NewAdminAPIKeyHandler(a service.AdminService) *AdminAPIKeyHandler {
 	if actual, ok := a.(interface{ KeyAdministration() *apikey.Admin }); ok {
 		core = actual.KeyAdministration()
 	}
-	return keyhttp.NewAdminAPIKeyHandler(core, func(g *apikey.Group) *dto.Group { return dto.GroupFromServiceShallow(service.GroupFromAPIKeyView(g)) })
+	return keyhttp.NewAdminAPIKeyHandler(core, func(g *apikey.Group) *dto.Group { return dto.GroupFromRouting(apikey.RoutingGroup(g)) })
 }
 
 type legacyKeyAdministration struct{ service.AdminService }

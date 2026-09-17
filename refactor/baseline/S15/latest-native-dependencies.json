@@ -1,0 +1,248 @@
+[
+  {
+    "file": "backend/internal/account/admin_settings.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/identity/contact"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/account/admin_settings_read.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/identity/contact"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/account/runtime_settings.go",
+    "imports": [
+      "golang.org/x/sync/singleflight"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/account/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/audit/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/billing/admin_settings_read.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/billing/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/creative/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/gateway/admin_settings.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/gateway/admin_settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/gateway/admin_settings_read.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy",
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/gateway/runtime_settings.go",
+    "imports": [
+      "golang.org/x/sync/singleflight"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/gateway/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/identity/admin_settings_read.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/identity/authconfig"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/identity/auth_options.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/identity/grant_settings.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/identity/grant_settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/identity/oauth_settings.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/identity/authconfig"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/identity/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/moderation/runtime_settings.go",
+    "imports": [
+      "golang.org/x/sync/singleflight"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/moderation/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/notification/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/ops/admin_settings_read.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/ops/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/payment/configuration.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/payment/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/payment/visible_settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/promotion/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/routing/admin_settings_read.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/routing/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/scheduler/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/site/admin_settings_read.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/site/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/team/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  },
+  {
+    "file": "backend/internal/usage/settings_participant.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "exit": "长期职责约束"
+  }
+]

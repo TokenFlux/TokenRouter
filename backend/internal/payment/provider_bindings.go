@@ -387,15 +387,21 @@ func (s *ProviderBindings) EnsureProviders(ctx context.Context) {
 
 // RefreshProviders 在候选构造完成后原子替换，查询失败不清空已发布的表。
 func (s *ProviderBindings) RefreshProviders(ctx context.Context) {
+	_ = s.RefreshProvidersChecked(ctx)
+}
+
+// RefreshProvidersChecked 让必须确认运行配置生效的综合设置入口取得加载失败。
+func (s *ProviderBindings) RefreshProvidersChecked(ctx context.Context) error {
 	s.providerMu.Lock()
 	defer s.providerMu.Unlock()
 	providers, err := s.LoadProviders(ctx)
 	if err != nil {
 		s.providersLoaded = false
-		return
+		return err
 	}
 	s.registry.Replace(providers)
 	s.providersLoaded = true
+	return nil
 }
 func (s *ProviderBindings) LoadProviders(ctx context.Context) ([]Provider, error) {
 	instances, err := s.store.ListInstances(ctx, InstanceFilter{EnabledOnly: true})

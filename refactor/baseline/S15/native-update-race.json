@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "./internal/settings",
+    "./internal/gateway/admission",
+    "./internal/gateway/tierpolicy",
+    "./internal/payment"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 57
+  },
+  "failures": [],
+  "seconds": 3.308119058609009
+}

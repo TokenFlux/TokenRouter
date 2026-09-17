@@ -171,3 +171,8 @@ func (s *PaymentService) NativeRuntime() *payment.Runtime {
 	}
 	return &payment.Runtime{Checkout: s.paymentCheckout(), OrderQueries: s.paymentQueries(), RefundWorkflow: s.paymentRefunds(), OrderLifecycle: s.paymentOrderLifecycle(), ProviderBindings: s.paymentBindings()}
 }
+
+// RefreshProvidersChecked 委托唯一支付注册表，综合设置不能忽略应用错误。
+func (s *PaymentService) RefreshProvidersChecked(ctx context.Context) error {
+	return s.paymentBindings().RefreshProvidersChecked(ctx)
+}

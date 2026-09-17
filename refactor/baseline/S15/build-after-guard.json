@@ -1,0 +1,10 @@
+{
+  "command": [
+    "make",
+    "build"
+  ],
+  "exit": 0,
+  "events": {},
+  "failures": [],
+  "seconds": 8.352824211120605
+}

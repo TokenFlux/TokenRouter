@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/server/...",
+    "./internal/settings/...",
+    "./internal/site/httpapi/...",
+    "./internal/pkg/errors/...",
+    "./internal/pkg/response/..."
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 409
+  },
+  "failures": [],
+  "seconds": 7.945697069168091
+}

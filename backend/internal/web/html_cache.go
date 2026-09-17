@@ -47,27 +47,32 @@ func (c *HTMLCache) Invalidate() {
 	c.etag = ""
 }
 
-// Get returns the cached HTML or nil if cache is stale
+// Get 返回当前渲染快照。
 func (c *HTMLCache) Get() *CachedHTML {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	if c.cachedHTML == nil {
-		return nil
-	}
-	return &CachedHTML{
-		Content: c.cachedHTML,
-		ETag:    c.etag,
-	}
+	cached, _ := c.Snapshot()
+	return cached
 }
 
-// Set updates the cache with new rendered HTML
-func (c *HTMLCache) Set(html []byte, settingsJSON []byte) {
+// Snapshot 同时取得内容和失效代次，使后续回源只能发布到原代次。
+func (c *HTMLCache) Snapshot() (*CachedHTML, uint64) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.cachedHTML == nil {
+		return nil, c.settingsVersion
+	}
+	return &CachedHTML{Content: c.cachedHTML, ETag: c.etag}, c.settingsVersion
+}
+
+// Publish 返回本次渲染的内容与 ETag；跨过失效点的回源不进入共享缓存。
+func (c *HTMLCache) Publish(version uint64, html, settingsJSON []byte) CachedHTML {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	c.cachedHTML = html
-	c.etag = c.generateETag(settingsJSON)
+	rendered := CachedHTML{Content: html, ETag: c.generateETag(settingsJSON)}
+	if version == c.settingsVersion {
+		c.cachedHTML = rendered.Content
+		c.etag = rendered.ETag
+	}
+	return rendered
 }
 
 // generateETag creates an ETag from base HTML hash + settings hash

@@ -23,7 +23,7 @@ import (
 func providePromotionAffiliateStore(client *dbent.Client) promotion.AffiliateRepository {
 	return promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 }
-func providePromotionAffiliate(repo promotion.AffiliateRepository, settings *service.SettingService, auth service.APIKeyAuthCacheInvalidator, balances *service.BillingCacheService) *promotion.AffiliateService {
+func providePromotionAffiliate(repo promotion.AffiliateRepository, settings *promotion.RuntimeSettings, auth service.APIKeyAuthCacheInvalidator, balances *service.BillingCacheService) *promotion.AffiliateService {
 	return promotion.NewAffiliateService(repo, settings, auth, balances, promotion.Runtime{Now: time.Now, Warn: func(id int64, err error) {
 		logging.LegacyPrintf("service.affiliate", "[Affiliate] Failed to invalidate billing cache for user %d: %v", id, err)
 	}})

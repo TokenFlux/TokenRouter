@@ -373,15 +373,11 @@ func openAIStreamDataStartsTTFT(data, eventType string, forceOutput bool, mode s
 	return forceOutput || openAIStreamDataStartsSemanticTTFT(data, eventType)
 }
 
-// openAITTFTMode 读取网关设置；未注入设置服务时复用进程缓存并默认安全回退。
+// openAITTFTMode 读取本实例网关设置，缺少依赖时使用原安全默认。
 func (s *OpenAIGatewayService) openAITTFTMode(ctx context.Context) string {
 	mode := OpenAITTFTModeSemantic
 	if s != nil && s.settingService != nil {
 		mode = s.settingService.GetOpenAITTFTMode(ctx)
-	} else if cached, ok := gatewayForwardingCache.Load().(*cachedGatewayForwardingSettings); ok && cached != nil {
-		if cached.expiresAt == 0 || time.Now().UnixNano() < cached.expiresAt {
-			mode = normalizeOpenAITTFTMode(cached.openAITTFTMode)
-		}
 	}
 	return normalizeOpenAITTFTMode(mode)
 }

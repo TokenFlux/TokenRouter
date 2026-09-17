@@ -1,0 +1,17 @@
+{
+  "command": [
+    "env",
+    "GOOS=linux",
+    "GOARCH=amd64",
+    "CGO_ENABLED=0",
+    "go",
+    "build",
+    "-o",
+    "bin/server-linux-amd64",
+    "./cmd/server"
+  ],
+  "exit": 0,
+  "events": {},
+  "failures": [],
+  "seconds": 17.55228614807129
+}

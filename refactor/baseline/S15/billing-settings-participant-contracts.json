@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|DefaultSub|DefaultPlatform|AuthSource|Registry|BalanceUnit",
+    "./internal/billing",
+    "./internal/identity",
+    "./internal/settings",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 326
+  },
+  "failures": [],
+  "seconds": 24.91090488433838
+}

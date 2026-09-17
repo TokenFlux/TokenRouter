@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=embed",
+    "./internal/web/..."
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 102
+  },
+  "failures": [],
+  "seconds": 3.6944241523742676
+}

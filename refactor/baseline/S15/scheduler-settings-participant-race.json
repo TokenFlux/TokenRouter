@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|AdvancedScheduler|SchedulerWeights|ScoreWeights|Registry",
+    "./internal/config",
+    "./internal/scheduler/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 372
+  },
+  "failures": [],
+  "seconds": 56.75180101394653
+}

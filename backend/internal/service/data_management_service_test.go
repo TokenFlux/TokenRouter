@@ -5,7 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +31,7 @@ func TestDataManagementService_EnsureAgentEnabled_Deprecated(t *testing.T) {
 	err := svc.EnsureAgentEnabled(context.Background())
 	require.Error(t, err)
 
-	statusCode, status := infraerrors.ToHTTP(err)
+	statusCode, status := s15httpx.ToHTTP(err)
 	require.Equal(t, 503, statusCode)
 	require.Equal(t, DataManagementDeprecatedReason, status.Reason)
 	require.Equal(t, socketPath, status.Metadata["socket_path"])

@@ -1,0 +1,18 @@
+[
+  {
+    "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "test": "TestRealAPI"
+  },
+  {
+    "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+    "test": "TestReadLocalAuthFromDisk"
+  },
+  {
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+  },
+  {
+    "package": "github.com/TokenFlux/TokenRouter/internal/service",
+    "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+  }
+]

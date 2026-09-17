@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/server/middleware/...",
+    "./internal/gateway/httpapi/...",
+    "./internal/apikey/httpapi/...",
+    "./internal/app/...",
+    "-run",
+    "APIKey|Auth|Composite|GroupAssignment|Route|Protocol|Wire"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 355
+  },
+  "failures": [],
+  "seconds": 7.387537002563477
+}

@@ -5,6 +5,8 @@ package app
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
+
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -16,7 +18,7 @@ func provideBootRuntime(
 	creativeWorker *service.CreativeWorkerRuntime,
 	pricing *service.PricingService,
 	manager *lifecycle.Manager,
-	settingService *service.SettingService,
+	settingService *service.SettingService, forwarded *runtimeconfig.ForwardedSettings,
 ) *bootRuntimeReady {
 	pricingReady := false
 	manager.Register(lifecycle.Hook{Name: "PricingInitialization", StartOrder: 188, Start: func(context.Context) error {
@@ -32,7 +34,7 @@ func provideBootRuntime(
 	}})
 
 	manager.Register(lifecycle.Hook{Name: "LegacySettingsInitialization", StartOrder: 181, StopOrder: 800, Start: func(ctx context.Context) error {
-		if err := settingService.LoadForwardedClientIPSettings(ctx); err != nil {
+		if err := forwarded.LoadForwardedClientIPSettings(ctx); err != nil {
 			logger.LegacyPrintf("service.setting", "Warning: load forwarded client IP settings failed: %v", err)
 		}
 		if err := settingService.MigrateGrokDefaultTextModel(ctx); err != nil {

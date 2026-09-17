@@ -120,7 +120,7 @@ Ent schema 是主要实体的代码模型，手写 SQL 迁移是已部署数据�
 
 ## HTTP 与前端交付
 
-`ProvideHTTPServer` 统一设置监听地址、请求头限制、header/idle timeout、可选全局请求体限制和 h2c。长时间 SSE 与 WebSocket 要求不设置全局 `WriteTimeout`，大请求体也使服务不设置全局 `ReadTimeout`；更细的 body 限制、并发和超时由路由或上游客户端执行。
+app 将进程配置投影为 `server.Options`，并提供已装配的全局 middleware 与路由注册函数。server 不接收旧 APIKey、订阅、Ops 或 SettingService；各模块拥有注册函数，app 的认证、用户、管理员、网关和支付装配分别注入原生处理器；全局 Handlers/AdminHandlers、旧 server/routes 和旧 DTO 聚合已经删除。综合设置、预聚合及创作设置也直接绑定原生处理器；`settings/composite` 组合所属模块的读取、准备和应用，不持有第二份缓存。CORS/CSP 参数在 `server/httpconfig`，认证与 Backend 模式门禁由身份 HTTP 实现。`ProvideHTTPServer` 统一设置监听地址、请求头限制、header/idle timeout、可选全局请求体限制和 h2c。长时间 SSE 与 WebSocket 要求不设置全局 `WriteTimeout`，大请求体也使服务不设置全局 `ReadTimeout`；更细的 body 限制、并发和超时由路由或上游客户端执行。
 
 Gin engine 的顺序为 Recovery、可信代理设置、全局日志/客户端指纹/CORS/CSP/Server-Timing、可选嵌入前端 middleware，随后注册健康检查、`/api/v1` 面板 API 和不带面板前缀的网关入口。嵌入前端 middleware 会绕过 API 与协议路径；`/models` 同时是模型广场页面和 API，因此按方法、认证信号、查询参数及 `Accept` 协商。
 

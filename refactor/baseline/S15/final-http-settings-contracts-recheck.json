@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/settings/...",
+    "./internal/server/...",
+    "./internal/identity/httpapi/...",
+    "./internal/handler/admin/...",
+    "./internal/app/...",
+    "-run",
+    "Setting|Settings|Applications|CORS|CSP|SecurityHeaders|Auth|Route|Forwarded|Public"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 482
+  },
+  "failures": [],
+  "seconds": 11.600672006607056
+}

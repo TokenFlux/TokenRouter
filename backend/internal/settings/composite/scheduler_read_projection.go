@@ -1,0 +1,40 @@
+package composite
+
+import "github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+// ApplySchedulerAdminReadSettings 仅转换所属模块值，不读取设置或发布状态。
+func (s *Snapshot) ApplySchedulerAdminReadSettings(value *scheduler.AdminReadSettings) {
+	s.AdvancedSchedulerEWMAErrorRateAlpha = value.AdvancedSchedulerEWMAErrorRateAlpha
+	s.AdvancedSchedulerEWMATTFTAlpha = value.AdvancedSchedulerEWMATTFTAlpha
+	s.AdvancedSchedulerEffectiveEWMAErrorRateAlpha = value.AdvancedSchedulerEffectiveEWMAErrorRateAlpha
+	s.AdvancedSchedulerEffectiveEWMATTFTAlpha = value.AdvancedSchedulerEffectiveEWMATTFTAlpha
+	s.AdvancedSchedulerEffectiveLBTopK = value.AdvancedSchedulerEffectiveLBTopK
+	s.AdvancedSchedulerEffectiveStickyEscapeEnabled = value.AdvancedSchedulerEffectiveStickyEscapeEnabled
+	s.AdvancedSchedulerEffectiveStickyEscapeErrorRate = value.AdvancedSchedulerEffectiveStickyEscapeErrorRate
+	s.AdvancedSchedulerEffectiveStickyEscapeTTFTMs = value.AdvancedSchedulerEffectiveStickyEscapeTTFTMs
+	s.AdvancedSchedulerEffectiveWeightErrorRate = value.AdvancedSchedulerEffectiveWeightErrorRate
+	s.AdvancedSchedulerEffectiveWeightLoad = value.AdvancedSchedulerEffectiveWeightLoad
+	s.AdvancedSchedulerEffectiveWeightPreviousResponse = value.AdvancedSchedulerEffectiveWeightPreviousResponse
+	s.AdvancedSchedulerEffectiveWeightPriority = value.AdvancedSchedulerEffectiveWeightPriority
+	s.AdvancedSchedulerEffectiveWeightQueue = value.AdvancedSchedulerEffectiveWeightQueue
+	s.AdvancedSchedulerEffectiveWeightQuotaHeadroom = value.AdvancedSchedulerEffectiveWeightQuotaHeadroom
+	s.AdvancedSchedulerEffectiveWeightReset = value.AdvancedSchedulerEffectiveWeightReset
+	s.AdvancedSchedulerEffectiveWeightSessionSticky = value.AdvancedSchedulerEffectiveWeightSessionSticky
+	s.AdvancedSchedulerEffectiveWeightTTFT = value.AdvancedSchedulerEffectiveWeightTTFT
+	s.AdvancedSchedulerLBTopK = value.AdvancedSchedulerLBTopK
+	s.AdvancedSchedulerStickyEscapeEnabled = value.AdvancedSchedulerStickyEscapeEnabled
+	s.AdvancedSchedulerStickyEscapeEnabledSet = value.AdvancedSchedulerStickyEscapeEnabledSet
+	s.AdvancedSchedulerStickyEscapeErrorRate = value.AdvancedSchedulerStickyEscapeErrorRate
+	s.AdvancedSchedulerStickyEscapeTTFTMs = value.AdvancedSchedulerStickyEscapeTTFTMs
+	s.AdvancedSchedulerStickyWeightedEnabled = value.AdvancedSchedulerStickyWeightedEnabled
+	s.AdvancedSchedulerSubscriptionPriorityEnabled = value.AdvancedSchedulerSubscriptionPriorityEnabled
+	s.AdvancedSchedulerWeightErrorRate = value.AdvancedSchedulerWeightErrorRate
+	s.AdvancedSchedulerWeightLoad = value.AdvancedSchedulerWeightLoad
+	s.AdvancedSchedulerWeightPreviousResponse = value.AdvancedSchedulerWeightPreviousResponse
+	s.AdvancedSchedulerWeightPriority = value.AdvancedSchedulerWeightPriority
+	s.AdvancedSchedulerWeightQueue = value.AdvancedSchedulerWeightQueue
+	s.AdvancedSchedulerWeightQuotaHeadroom = value.AdvancedSchedulerWeightQuotaHeadroom
+	s.AdvancedSchedulerWeightReset = value.AdvancedSchedulerWeightReset
+	s.AdvancedSchedulerWeightSessionSticky = value.AdvancedSchedulerWeightSessionSticky
+	s.AdvancedSchedulerWeightTTFT = value.AdvancedSchedulerWeightTTFT
+}

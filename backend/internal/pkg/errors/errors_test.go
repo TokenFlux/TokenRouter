@@ -6,7 +6,6 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -131,53 +130,4 @@ func TestFromError_Generic(t *testing.T) {
 			require.Equal(t, tt.err, got.Unwrap())
 		})
 	}
-}
-
-func TestToHTTP(t *testing.T) {
-	tests := []struct {
-		name           string
-		err            error
-		wantStatusCode int
-		wantBody       Status
-	}{
-		{
-			name:           "nil_error",
-			err:            nil,
-			wantStatusCode: http.StatusOK,
-			wantBody:       Status{Code: int32(http.StatusOK)},
-		},
-		{
-			name:           "application_error",
-			err:            Forbidden("FORBIDDEN", "no access"),
-			wantStatusCode: http.StatusForbidden,
-			wantBody: Status{
-				Code:    int32(http.StatusForbidden),
-				Reason:  "FORBIDDEN",
-				Message: "no access",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			code, body := ToHTTP(tt.err)
-			require.Equal(t, tt.wantStatusCode, code)
-			require.Equal(t, tt.wantBody, body)
-		})
-	}
-}
-
-func TestToHTTP_MetadataDeepCopy(t *testing.T) {
-	md := map[string]string{"k": "v"}
-	appErr := BadRequest("BAD_REQUEST", "invalid").WithMetadata(md)
-
-	code, body := ToHTTP(appErr)
-	require.Equal(t, http.StatusBadRequest, code)
-	require.Equal(t, "v", body.Metadata["k"])
-
-	md["k"] = "changed"
-	require.Equal(t, "v", body.Metadata["k"])
-
-	appErr.Metadata["k"] = "changed-again"
-	require.Equal(t, "v", body.Metadata["k"])
 }

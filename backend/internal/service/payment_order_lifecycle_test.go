@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/enttest"
 	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
@@ -740,7 +742,7 @@ func TestForceExpireOrderRecordsAuditAndRejectsRepeatedTransition(t *testing.T) 
 
 	err = svc.ForceExpireOrder(ctx, order.ID, "repeat")
 	require.Error(t, err)
-	require.Equal(t, 409, infraerrors.Code(err))
+	require.Equal(t, 409, s15httpx.ErrorCode(err))
 	require.Equal(t, "ORDER_STATUS_CHANGED", infraerrors.Reason(err))
 }
 
@@ -777,7 +779,7 @@ func TestCancelOrderReturnsStatusUnavailableWhenProviderQueryFails(t *testing.T)
 
 	_, err := svc.CancelOrder(ctx, order.ID, order.UserID)
 	require.Error(t, err)
-	require.Equal(t, 503, infraerrors.Code(err))
+	require.Equal(t, 503, s15httpx.ErrorCode(err))
 	require.Equal(t, "PAYMENT_STATUS_UNAVAILABLE", infraerrors.Reason(err))
 
 	reloaded, getErr := client.PaymentOrder.Get(ctx, order.ID)

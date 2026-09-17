@@ -24,11 +24,6 @@ const AliyunCaptchaRegionCN = identity.AliyunCaptchaRegionCN
 
 const AliyunCaptchaRegionSGP = identity.AliyunCaptchaRegionSGP
 
-// normalizeAliyunCaptchaRegion 委托所属模块的唯一实现。
-func normalizeAliyunCaptchaRegion(value string) string {
-	return identity.NormalizeAliyunCaptchaRegion(value)
-}
-
 type AliyunCaptchaService = identity.AliyunCaptchaService
 
 // NewAliyunCaptchaService 委托所属模块的唯一实现。

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|Registry|Ranking|Retention",
+    "./internal/usage",
+    "./internal/audit",
+    "./internal/settings",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 312
+  },
+  "failures": [],
+  "seconds": 16.74601984024048
+}

@@ -18,11 +18,6 @@ const TencentCaptchaRegionCN = identity.TencentCaptchaRegionCN
 
 const TencentCaptchaRegionINTL = identity.TencentCaptchaRegionINTL
 
-// normalizeTencentCaptchaRegion 委托所属模块的唯一实现。
-func normalizeTencentCaptchaRegion(value string) string {
-	return identity.NormalizeTencentCaptchaRegion(value)
-}
-
 type TencentCaptchaVerifyResponse = identity.TencentCaptchaVerifyResponse
 
 type TencentCaptchaVerifier = identity.TencentCaptchaVerifier

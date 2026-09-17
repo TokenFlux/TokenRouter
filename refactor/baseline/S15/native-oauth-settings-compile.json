@@ -1,0 +1,44 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-run",
+    "OAuthConfig|ConnectConfig|OIDC|DingTalk|WeChat|AbsoluteHTTPURL|FrontendRedirectURL",
+    "./internal/config",
+    "./internal/identity",
+    "./internal/identity/authconfig",
+    "./internal/identity/provider",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 1,
+  "events": {
+    "pass": 16
+  },
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/identity/provider",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/service",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      null
+    ]
+  ],
+  "seconds": 2.2314131259918213
+}

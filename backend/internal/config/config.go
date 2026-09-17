@@ -7,15 +7,21 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"net/textproto"
 	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/server/httpconfig"
+
+	schedulerpolicy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+
+	ippolicy "github.com/TokenFlux/TokenRouter/internal/server/clientip/policy"
+
+	"github.com/TokenFlux/TokenRouter/internal/identity/authconfig"
+
 	"github.com/spf13/viper"
-	"golang.org/x/net/http/httpguts"
 )
 
 const (
@@ -32,7 +38,7 @@ const (
 
 // DefaultCSPPolicy is the default Content-Security-Policy with nonce support
 // __CSP_NONCE__ will be replaced with actual nonce at request time by the SecurityHeaders middleware
-const DefaultCSPPolicy = "default-src 'self'; worker-src 'self' blob:; script-src 'self' __CSP_NONCE__ https://accounts.google.com/gsi/client https://challenges.cloudflare.com https://*.alicdn.com https://static.cloudflareinsights.com https://turing.captcha.qcloud.com https://turing.captcha.gtimg.com https://ca.turing.captcha.qcloud.com https://global.turing.captcha.gtimg.com https://www.tycaptcha.com https://cloudcache.tencentcs.com https://*.stripe.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; style-src 'self' 'unsafe-inline' https://*.captcha.gtimg.com https://accounts.google.com/gsi/style https://fonts.googleapis.com https://*.alicdn.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' http://127.0.0.1:43110 http://127.0.0.1:43111 http://127.0.0.1:43112 http://127.0.0.1:43113 http://127.0.0.1:43114 http://127.0.0.1:43115 http://127.0.0.1:43116 http://127.0.0.1:43117 http://127.0.0.1:43118 http://127.0.0.1:43119 https://accounts.google.com/gsi/ https://turing.captcha.qcloud.com https://www.tycaptcha.com https://rce.tencentrio.com https:; frame-src https://accounts.google.com/gsi/ https://challenges.cloudflare.com https://turing.captcha.qcloud.com https://ca.turing.captcha.qcloud.com https://www.tycaptcha.com https://*.stripe.com https://checkout.airwallex.com https://checkout-demo.airwallex.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+const DefaultCSPPolicy = httpconfig.DefaultCSPPolicy
 
 // UMQ（用户消息队列）模式常量
 const (
@@ -279,129 +285,16 @@ type CreativeConfig struct {
 	MaxExecuteAttempts int `mapstructure:"max_execute_attempts"`
 }
 
-type LinuxDoConnectConfig struct {
-	Enabled             bool   `mapstructure:"enabled"`
-	ClientID            string `mapstructure:"client_id"`
-	ClientSecret        string `mapstructure:"client_secret"`
-	AuthorizeURL        string `mapstructure:"authorize_url"`
-	TokenURL            string `mapstructure:"token_url"`
-	UserInfoURL         string `mapstructure:"userinfo_url"`
-	Scopes              string `mapstructure:"scopes"`
-	RedirectURL         string `mapstructure:"redirect_url"`          // 后端回调地址（需在提供方后台登记）
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"` // 前端接收 token 的路由（默认：/auth/linuxdo/callback）
-	TokenAuthMethod     string `mapstructure:"token_auth_method"`     // client_secret_post / client_secret_basic / none
-	UsePKCE             bool   `mapstructure:"use_pkce"`
+type LinuxDoConnectConfig = authconfig.LinuxDoConnectConfig
 
-	// 可选：用于从 userinfo JSON 中提取字段的 gjson 路径。
-	// 为空时，服务端会尝试一组常见字段名。
-	UserInfoEmailPath    string `mapstructure:"userinfo_email_path"`
-	UserInfoIDPath       string `mapstructure:"userinfo_id_path"`
-	UserInfoUsernamePath string `mapstructure:"userinfo_username_path"`
-}
+type WeChatConnectConfig = authconfig.WeChatConnectConfig
 
-type WeChatConnectConfig struct {
-	Enabled             bool   `mapstructure:"enabled"`
-	AppID               string `mapstructure:"app_id"`
-	AppSecret           string `mapstructure:"app_secret"`
-	OpenAppID           string `mapstructure:"open_app_id"`
-	OpenAppSecret       string `mapstructure:"open_app_secret"`
-	MPAppID             string `mapstructure:"mp_app_id"`
-	MPAppSecret         string `mapstructure:"mp_app_secret"`
-	MobileAppID         string `mapstructure:"mobile_app_id"`
-	MobileAppSecret     string `mapstructure:"mobile_app_secret"`
-	OpenEnabled         bool   `mapstructure:"open_enabled"`
-	MPEnabled           bool   `mapstructure:"mp_enabled"`
-	MobileEnabled       bool   `mapstructure:"mobile_enabled"`
-	Mode                string `mapstructure:"mode"`
-	Scopes              string `mapstructure:"scopes"`
-	RedirectURL         string `mapstructure:"redirect_url"`
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"`
-}
+type OIDCConnectConfig = authconfig.OIDCConnectConfig
 
-type OIDCConnectConfig struct {
-	Enabled                 bool   `mapstructure:"enabled"`
-	ProviderName            string `mapstructure:"provider_name"` // 显示名: "Keycloak" 等
-	ClientID                string `mapstructure:"client_id"`
-	ClientSecret            string `mapstructure:"client_secret"`
-	IssuerURL               string `mapstructure:"issuer_url"`
-	DiscoveryURL            string `mapstructure:"discovery_url"`
-	AuthorizeURL            string `mapstructure:"authorize_url"`
-	TokenURL                string `mapstructure:"token_url"`
-	UserInfoURL             string `mapstructure:"userinfo_url"`
-	JWKSURL                 string `mapstructure:"jwks_url"`
-	Scopes                  string `mapstructure:"scopes"`                // 默认 "openid email profile"
-	RedirectURL             string `mapstructure:"redirect_url"`          // 后端回调地址（需在提供方后台登记）
-	FrontendRedirectURL     string `mapstructure:"frontend_redirect_url"` // 前端接收 token 的路由（默认：/auth/oidc/callback）
-	TokenAuthMethod         string `mapstructure:"token_auth_method"`     // client_secret_post / client_secret_basic / none
-	UsePKCE                 bool   `mapstructure:"use_pkce"`
-	ValidateIDToken         bool   `mapstructure:"validate_id_token"`
-	UsePKCEExplicit         bool   `mapstructure:"-" yaml:"-"`
-	ValidateIDTokenExplicit bool   `mapstructure:"-" yaml:"-"`
-	AllowedSigningAlgs      string `mapstructure:"allowed_signing_algs"`   // 默认 "RS256,ES256,PS256"
-	ClockSkewSeconds        int    `mapstructure:"clock_skew_seconds"`     // 默认 120
-	RequireEmailVerified    bool   `mapstructure:"require_email_verified"` // 默认 false
-
-	// 可选：用于从 userinfo JSON 中提取字段的 gjson 路径。
-	// 为空时，服务端会尝试一组常见字段名。
-	UserInfoEmailPath    string `mapstructure:"userinfo_email_path"`
-	UserInfoIDPath       string `mapstructure:"userinfo_id_path"`
-	UserInfoUsernamePath string `mapstructure:"userinfo_username_path"`
-}
-
-type DingTalkConnectConfig struct {
-	Enabled             bool   `mapstructure:"enabled"`
-	ClientID            string `mapstructure:"client_id"`
-	ClientSecret        string `mapstructure:"client_secret"`
-	AuthorizeURL        string `mapstructure:"authorize_url"`
-	TokenURL            string `mapstructure:"token_url"`
-	UserInfoURL         string `mapstructure:"userinfo_url"`
-	Scopes              string `mapstructure:"scopes"`
-	RedirectURL         string `mapstructure:"redirect_url"`
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"`
-
-	// 平台底座 + 业务行为
-	DingTalkAppKind string `mapstructure:"dingtalk_app_kind"` // 仅 "internal_app"（V4 fail-closed）
-	AppType         string `mapstructure:"app_type"`          // "public" (default) | "internal"
-
-	// Corp 限定（none | internal_only）
-	CorpRestrictionPolicy   string `mapstructure:"corp_restriction_policy"`
-	InternalCorpID          string `mapstructure:"internal_corp_id"`
-	BypassRegistration      bool   `mapstructure:"bypass_registration"`
-	SyncCorpEmail           bool   `mapstructure:"sync_corp_email"`
-	SyncDisplayName         bool   `mapstructure:"sync_display_name"`
-	SyncDept                bool   `mapstructure:"sync_dept"`
-	SyncCorpEmailAttrKey    string `mapstructure:"sync_corp_email_attr_key"`
-	SyncDisplayNameAttrKey  string `mapstructure:"sync_display_name_attr_key"`
-	SyncDeptAttrKey         string `mapstructure:"sync_dept_attr_key"`
-	SyncCorpEmailAttrName   string `mapstructure:"sync_corp_email_attr_name"`
-	SyncDisplayNameAttrName string `mapstructure:"sync_display_name_attr_name"`
-	SyncDeptAttrName        string `mapstructure:"sync_dept_attr_name"`
-
-	// 邮箱 + Username
-	RequireEmail            bool   `mapstructure:"require_email"`
-	UsernameOverwritePolicy string `mapstructure:"username_overwrite_policy"`
-
-	// Attribute（私有版扩展点；开源版仅声明）
-	UsernameAttributeKey         string   `mapstructure:"username_attribute_key"`
-	EnableAttributeMatching      bool     `mapstructure:"enable_attribute_matching"`
-	EnableAttributeSync          bool     `mapstructure:"enable_attribute_sync"`
-	AttributeSyncFields          []string `mapstructure:"attribute_sync_fields"`
-	AttributeSyncOverwritePolicy string   `mapstructure:"attribute_sync_overwrite_policy"`
-}
+type DingTalkConnectConfig = authconfig.DingTalkConnectConfig
 
 // EmailOAuthProviderConfig 保存 GitHub/Google 这类邮箱 OAuth 登录的配置。
-type EmailOAuthProviderConfig struct {
-	Enabled             bool   `mapstructure:"enabled"`
-	ClientID            string `mapstructure:"client_id"`
-	ClientSecret        string `mapstructure:"client_secret"`
-	AuthorizeURL        string `mapstructure:"authorize_url"`
-	TokenURL            string `mapstructure:"token_url"`
-	UserInfoURL         string `mapstructure:"userinfo_url"`
-	EmailsURL           string `mapstructure:"emails_url"`
-	Scopes              string `mapstructure:"scopes"`
-	RedirectURL         string `mapstructure:"redirect_url"`
-	FrontendRedirectURL string `mapstructure:"frontend_redirect_url"`
-}
+type EmailOAuthProviderConfig = authconfig.EmailOAuthProviderConfig
 
 const (
 	defaultWeChatConnectMode             = "open"
@@ -702,10 +595,7 @@ type H2CConfig struct {
 	MaxUploadBufferPerStream     int    `mapstructure:"max_upload_buffer_per_stream"`     // 每个流的上传缓冲区（字节）
 }
 
-type CORSConfig struct {
-	AllowedOrigins   []string `mapstructure:"allowed_origins"`
-	AllowCredentials bool     `mapstructure:"allow_credentials"`
-}
+type CORSConfig = httpconfig.CORSConfig
 
 // WebAuthnConfig 定义当前部署作为 WebAuthn 依赖方时使用的固定身份。
 // RPID 与 RPOrigins 属于安全边界，不能从不可信的 Host 或 Origin 请求头推断。
@@ -716,7 +606,7 @@ type WebAuthnConfig struct {
 	RPOrigins     []string `mapstructure:"rp_origins"`
 }
 
-const MaxForwardedClientIPHeaders = 16
+const MaxForwardedClientIPHeaders = ippolicy.MaxForwardedClientIPHeaders
 
 type ForwardedClientIPSettings struct {
 	TrustForwardedIP bool
@@ -737,25 +627,7 @@ type SecurityConfig struct {
 }
 
 func NormalizeForwardedClientIPHeaders(headers []string) ([]string, error) {
-	normalized := make([]string, 0, len(headers))
-	seen := make(map[string]struct{}, len(headers))
-	for _, header := range headers {
-		header = strings.TrimSpace(header)
-		if !httpguts.ValidHeaderFieldName(header) {
-			return nil, fmt.Errorf("invalid HTTP header field name %q", header)
-		}
-		canonical := textproto.CanonicalMIMEHeaderKey(header)
-		key := strings.ToLower(canonical)
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		if len(normalized) == MaxForwardedClientIPHeaders {
-			return nil, fmt.Errorf("forwarded client IP headers must contain at most %d unique names", MaxForwardedClientIPHeaders)
-		}
-		seen[key] = struct{}{}
-		normalized = append(normalized, canonical)
-	}
-	return normalized, nil
+	return ippolicy.NormalizeForwardedClientIPHeaders(headers)
 }
 
 func cloneForwardedClientIPHeaders(headers []string) []string {
@@ -830,10 +702,7 @@ type ResponseHeaderConfig struct {
 	ForceRemove       []string `mapstructure:"force_remove"`
 }
 
-type CSPConfig struct {
-	Enabled bool   `mapstructure:"enabled"`
-	Policy  string `mapstructure:"policy"`
-}
+type CSPConfig = httpconfig.CSPConfig
 
 type ProxyFallbackConfig struct {
 	// AllowDirectOnError 当辅助服务的代理初始化失败时是否允许回退直连。
@@ -1293,44 +1162,7 @@ type GatewayOpenAIWSConfig struct {
 }
 
 // GatewayAdvancedSchedulerScoreWeights 高级调度器账号打分权重。
-type GatewayAdvancedSchedulerScoreWeights struct {
-	Priority  float64 `mapstructure:"priority"`
-	Load      float64 `mapstructure:"load"`
-	Queue     float64 `mapstructure:"queue"`
-	ErrorRate float64 `mapstructure:"error_rate"`
-	TTFT      float64 `mapstructure:"ttft"`
-	// Reset 倾向「会话窗口最早重置」的账号。
-	// >0 时，剩余重置时间越短的账号得分越高，从而被优先用尽。默认 0（关闭，不改变原有行为）。
-	Reset float64 `mapstructure:"reset"`
-	// QuotaHeadroom 倾向 Codex 7d 剩余额度更健康的账号。
-	// 默认 0（关闭，不改变原有行为）。
-	QuotaHeadroom float64 `mapstructure:"quota_headroom"`
-	// PreviousResponse/SessionSticky 仅在高级调度启用粘性加权时生效。
-	PreviousResponse float64 `mapstructure:"previous_response"`
-	SessionSticky    float64 `mapstructure:"session_sticky"`
-}
-
-func (w GatewayAdvancedSchedulerScoreWeights) BaseWeightSum() float64 {
-	return w.Priority + w.Load + w.Queue + w.ErrorRate + w.TTFT + w.Reset + w.QuotaHeadroom
-}
-
-func (w GatewayAdvancedSchedulerScoreWeights) TotalWeightSum() float64 {
-	return w.BaseWeightSum() + w.PreviousResponse + w.SessionSticky
-}
-
-func (w GatewayAdvancedSchedulerScoreWeights) IsValid() bool {
-	for _, weight := range []float64{
-		w.Priority, w.Load, w.Queue, w.ErrorRate, w.TTFT, w.Reset,
-		w.QuotaHeadroom, w.PreviousResponse, w.SessionSticky,
-	} {
-		if weight < 0 || math.IsNaN(weight) || math.IsInf(weight, 0) {
-			return false
-		}
-	}
-	baseSum := w.BaseWeightSum()
-	return baseSum > 0 && !math.IsNaN(baseSum) && !math.IsInf(baseSum, 0) &&
-		!math.IsNaN(w.TotalWeightSum()) && !math.IsInf(w.TotalWeightSum(), 0)
-}
+type GatewayAdvancedSchedulerScoreWeights = schedulerpolicy.ConfigScoreWeights
 
 // GatewayAdvancedSchedulerConfig 跨平台高级调度器配置。
 type GatewayAdvancedSchedulerConfig struct {
@@ -3844,62 +3676,11 @@ func GetServerAddress() string {
 }
 
 // ValidateAbsoluteHTTPURL 验证是否为有效的绝对 HTTP(S) URL
-func ValidateAbsoluteHTTPURL(raw string) error {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return fmt.Errorf("empty url")
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return err
-	}
-	if !u.IsAbs() {
-		return fmt.Errorf("must be absolute")
-	}
-	if !isHTTPScheme(u.Scheme) {
-		return fmt.Errorf("unsupported scheme: %s", u.Scheme)
-	}
-	if strings.TrimSpace(u.Host) == "" {
-		return fmt.Errorf("missing host")
-	}
-	if u.Fragment != "" {
-		return fmt.Errorf("must not include fragment")
-	}
-	return nil
-}
+func ValidateAbsoluteHTTPURL(raw string) error { return authconfig.ValidateAbsoluteHTTPURL(raw) }
 
 // ValidateFrontendRedirectURL 验证前端重定向 URL（可以是绝对 URL 或相对路径）
 func ValidateFrontendRedirectURL(raw string) error {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return fmt.Errorf("empty url")
-	}
-	if strings.ContainsAny(raw, "\r\n") {
-		return fmt.Errorf("contains invalid characters")
-	}
-	if strings.HasPrefix(raw, "/") {
-		if strings.HasPrefix(raw, "//") {
-			return fmt.Errorf("must not start with //")
-		}
-		return nil
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return err
-	}
-	if !u.IsAbs() {
-		return fmt.Errorf("must be absolute http(s) url or relative path")
-	}
-	if !isHTTPScheme(u.Scheme) {
-		return fmt.Errorf("unsupported scheme: %s", u.Scheme)
-	}
-	if strings.TrimSpace(u.Host) == "" {
-		return fmt.Errorf("missing host")
-	}
-	if u.Fragment != "" {
-		return fmt.Errorf("must not include fragment")
-	}
-	return nil
+	return authconfig.ValidateFrontendRedirectURL(raw)
 }
 
 func scopeContainsOpenID(scopes string) bool {
@@ -3909,11 +3690,6 @@ func scopeContainsOpenID(scopes string) bool {
 		}
 	}
 	return false
-}
-
-// isHTTPScheme 检查是否为 HTTP 或 HTTPS 协议
-func isHTTPScheme(scheme string) bool {
-	return strings.EqualFold(scheme, "http") || strings.EqualFold(scheme, "https")
 }
 
 func warnIfInsecureURL(field, raw string) {

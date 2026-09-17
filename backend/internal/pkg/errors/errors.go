@@ -3,7 +3,6 @@ package errors
 
 import (
 	foundation "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
 )
 
 // UnknownCode 兼容旧入口，值由唯一实现提供。
@@ -37,11 +36,6 @@ func Newf(code int, reason, format string, a ...any) *ApplicationError {
 // Errorf 兼容旧入口；仅转发到目标实现。
 func Errorf(code int, reason, format string, a ...any) error {
 	return foundation.Errorf(foundation.Category(code), reason, format, a...)
-}
-
-// Code 兼容旧入口；仅转发到目标实现。
-func Code(err error) int {
-	return httpx.ErrorCode(err)
 }
 
 // Reason 兼容旧入口；仅转发到目标实现。

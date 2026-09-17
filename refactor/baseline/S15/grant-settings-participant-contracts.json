@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|Grant|DefaultSub|DefaultPlatform|AuthSource|Registry",
+    "./internal/identity",
+    "./internal/settings",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 335
+  },
+  "failures": [],
+  "seconds": 17.86952233314514
+}

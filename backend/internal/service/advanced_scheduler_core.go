@@ -53,10 +53,6 @@ func (s *advancedAccountRuntimeStats) feedbackSnapshot(id int64) advancedAccount
 	return schedulerStats(s).FeedbackSnapshot(id)
 }
 func (s *advancedAccountRuntimeStats) size() int { return schedulerStats(s).Size() }
-func normalizeAdvancedSchedulerFeedbackConfig(v advancedSchedulerFeedbackConfig) advancedSchedulerFeedbackConfig {
-	n := scheduler.NormalizeFeedbackConfig(policy.FeedbackConfig{ErrorRateAlpha: v.errorRateAlpha, TtftAlpha: v.ttftAlpha})
-	return advancedSchedulerFeedbackConfig{errorRateAlpha: n.ErrorRateAlpha, ttftAlpha: n.TtftAlpha}
-}
 
 type advancedSchedulerCandidateScore struct {
 	account            *Account

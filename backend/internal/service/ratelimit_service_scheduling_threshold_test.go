@@ -13,8 +13,6 @@ import (
 )
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(t *testing.T) {
-	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
-	accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 
 	settingsRepo := newMockSettingRepo()
 	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
@@ -53,8 +51,6 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(
 }
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInReason(t *testing.T) {
-	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
-	accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 
 	settingsRepo := newMockSettingRepo()
 	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
@@ -109,8 +105,6 @@ func (r *fableSchedulingThresholdRepoStub) SetModelRateLimit(_ context.Context, 
 }
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableModels(t *testing.T) {
-	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
-	accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 
 	settingsRepo := newMockSettingRepo()
 	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"anthropic":100}`
@@ -155,8 +149,6 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableMo
 }
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnschedulable(t *testing.T) {
-	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
-	accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 
 	settingsRepo := newMockSettingRepo()
 	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
@@ -197,8 +189,6 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 }
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_UnsupportedPlatformDoesNotBlock(t *testing.T) {
-	accountSchedulingThresholdsSF.Forget(SettingKeyAccountSchedulingThresholds)
-	accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 
 	settingsRepo := newMockSettingRepo()
 	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":80}`

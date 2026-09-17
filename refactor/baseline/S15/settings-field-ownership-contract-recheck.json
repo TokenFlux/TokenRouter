@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/app",
+    "-run",
+    "TestS15SettingsFieldOwnership"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 1
+  },
+  "failures": [],
+  "seconds": 4.836187839508057
+}

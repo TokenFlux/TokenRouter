@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
@@ -1203,7 +1205,7 @@ func TestGrokQuotaServiceResetQuotaUnsupported(t *testing.T) {
 
 	_, err := svc.ResetQuota(context.Background(), 44)
 	require.Error(t, err)
-	require.Equal(t, http.StatusNotImplemented, infraerrors.Code(err))
+	require.Equal(t, http.StatusNotImplemented, s15httpx.ErrorCode(err))
 	require.Equal(t, "GROK_QUOTA_RESET_UNSUPPORTED", infraerrors.Reason(err))
 }
 

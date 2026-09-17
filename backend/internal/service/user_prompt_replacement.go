@@ -23,12 +23,7 @@ func DefaultUserPromptReplacementConfig() *UserPromptReplacementConfig {
 	return promptpolicy.DefaultUserPromptReplacementConfig()
 }
 func defaultUserPromptReplacementConfigJSON() string { return promptpolicy.DefaultConfigJSON() }
-func parseUserPromptReplacementConfig(raw string) *UserPromptReplacementConfig {
-	return promptpolicy.ParseConfig(raw, slog.Warn)
-}
-func userPromptReplacementConfigToRaw(cfg *UserPromptReplacementConfig) (string, error) {
-	return promptpolicy.ConfigToRaw(cfg)
-}
+
 func UserPromptReplacementRuleTargetGroupOptions(pattern string) []int {
 	return promptpolicy.UserPromptReplacementRuleTargetGroupOptions(pattern)
 }

@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service/...",
+    "./internal/handler/admin/...",
+    "./internal/app/...",
+    "./internal/settings/...",
+    "-run",
+    "Setting|Settings|S15|Public|GrokDefault|UserAgent|BackupID"
+  ],
+  "exit": 1,
+  "events": {
+    "pass": 423
+  },
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      null
+    ]
+  ],
+  "seconds": 24.707592248916626
+}

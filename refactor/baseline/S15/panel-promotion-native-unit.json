@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/server/runtimeconfig",
+    "./internal/server/httpapi",
+    "./internal/server/middleware",
+    "./internal/promotion/...",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 996
+  },
+  "failures": [],
+  "seconds": 18.58525323867798
+}

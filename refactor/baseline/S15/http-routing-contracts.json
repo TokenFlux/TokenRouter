@@ -1,0 +1,44 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/server/...",
+    "./internal/payment/httpapi/...",
+    "./internal/handler/admin/..."
+  ],
+  "exit": 1,
+  "events": {
+    "pass": 330,
+    "fail": 1
+  },
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/server/routes",
+      null
+    ],
+    [
+      "./internal/server/...",
+      null
+    ],
+    [
+      "./internal/payment/httpapi/...",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/server/middleware",
+      "TestAPIKeyAuthForwardsUserScopedOpenAIFastPolicyToUpstream"
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/server/middleware",
+      null
+    ]
+  ],
+  "seconds": 14.238154888153076
+}

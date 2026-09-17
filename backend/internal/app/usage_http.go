@@ -47,7 +47,7 @@ func provideUsageUsers(users *identity.UserAdmin) ports.UserReader {
 		return out, total, nil
 	})
 }
-func provideUsageHTTP(s *usage.UsageService, keys ports.KeyReader, ops *service.OpsService, settings *service.SettingService) *usagehttp.UsageHandler {
+func provideUsageHTTP(s *usage.UsageService, keys ports.KeyReader, ops *service.OpsService, settings *usage.RuntimeSettings) *usagehttp.UsageHandler {
 	return usagehttp.NewUsageHandler(s, keys, ops, settings)
 }
 func provideAdminUsageHTTP(s *usage.UsageService, keys ports.KeyReader, users ports.UserReader, cleanup *usage.UsageCleanupService, ops *service.OpsService) *usageadmin.UsageHandler {

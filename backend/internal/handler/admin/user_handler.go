@@ -2,17 +2,20 @@
 package admin
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+
 	context "context"
-	dto "github.com/TokenFlux/TokenRouter/internal/handler/dto"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 	gin "github.com/gin-gonic/gin"
 )
 
-type UserHandler = identityhttp.AdminUserHandler[dto.APIKey]
-type UserWithConcurrency = identityhttp.UserWithConcurrency[dto.APIKey]
+type UserHandler = identityhttp.AdminUserHandler[keydto.APIKey[routingdto.Group]]
+type UserWithConcurrency = identityhttp.UserWithConcurrency[keydto.APIKey[routingdto.Group]]
 
 func NewUserHandler(
 	adminService service.AdminService,
@@ -38,19 +41,19 @@ func NewUserHandler(
 			return out, e
 		}
 	}
-	keys := func(ctx context.Context, id int64, page, size int, sortBy, order string) ([]dto.APIKey, int64, error) {
+	keys := func(ctx context.Context, id int64, page, size int, sortBy, order string) ([]keydto.APIKey[routingdto.Group], int64, error) {
 		keys, total, e := adminService.GetUserAPIKeys(ctx, id, page, size, sortBy, order)
 		if e != nil {
 			return nil, 0, e
 		}
-		out := make([]dto.APIKey, 0, len(keys))
+		out := make([]keydto.APIKey[routingdto.Group], 0, len(keys))
 		for i := range keys {
-			out = append(out, *dto.APIKeyFromService(&keys[i]))
+			out = append(out, *keydto.APIKeyFromKey(service.APIKeyView(&keys[i]), func(g *apikey.Group) *routingdto.Group { return routingdto.GroupFromRouting(apikey.RoutingGroup(g)) }))
 		}
 		return out, total, nil
 	}
 	return identityhttp.NewAdminUserHandler(newIdentityUserAdministration(adminService), keys, concurrency, func(c *gin.Context) bool {
-		return middleware.EnforceStepUp(c, totpService, userService, settingService)
+		return identityhttp.EnforceStepUp(c, totpService, identityStepUpUser(userService), identityStepUpSettings(settingService))
 	})
 }
 
@@ -63,3 +66,19 @@ type BindUserAuthIdentityChannelRequest = identityhttp.BindUserAuthIdentityChann
 
 type ReplaceGroupRequest = identityhttp.ReplaceGroupRequest
 type BatchUpdateLimitsRequest = identityhttp.BatchUpdateLimitsRequest
+
+// identityStepUpSettings 保留旧可空设置参数的门控语义，规则由 identity 解释。
+func identityStepUpSettings(s *service.SettingService) identityhttp.StepUpSettingReader {
+	if s == nil {
+		return nil
+	}
+	return s.IdentitySettings()
+}
+
+// identityStepUpUser 保留旧构造可空依赖，未启用门控时不提前解引用。
+func identityStepUpUser(s *service.UserService) identityhttp.UserReader {
+	if s == nil {
+		return nil
+	}
+	return s.UserService
+}

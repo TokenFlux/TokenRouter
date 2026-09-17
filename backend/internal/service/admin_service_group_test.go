@@ -4,14 +4,16 @@ package service
 
 import (
 	context "context"
+	math "math"
+	http "net/http"
+	testing "testing"
+
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	domain "github.com/TokenFlux/TokenRouter/internal/domain"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	require "github.com/stretchr/testify/require"
-	math "math"
-	http "net/http"
-	testing "testing"
 )
 
 func ptrGroupClientProtocols(value []domain.ProtocolID) *[]domain.ProtocolID {
@@ -94,7 +96,7 @@ func TestAdminServiceGroupAvailabilityProbeConfigReturnsBadRequest(t *testing.T)
 			AvailabilityProbeConfig: invalidConfig,
 		})
 
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 		require.Equal(t, invalidGroupAvailabilityProbeConfigReason, infraerrors.Reason(err))
 		require.Nil(t, repo.created)
 	})
@@ -108,7 +110,7 @@ func TestAdminServiceGroupAvailabilityProbeConfigReturnsBadRequest(t *testing.T)
 			AvailabilityProbeConfig: &invalidConfig,
 		})
 
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 		require.Equal(t, invalidGroupAvailabilityProbeConfigReason, infraerrors.Reason(err))
 		require.Nil(t, repo.updated)
 	})
@@ -147,7 +149,7 @@ func TestAdminServiceGroupSchedulerTypeDefaultsValidatesAndUpdates(t *testing.T)
 			Name: "invalid-scheduler", Platform: PlatformAnthropic, RateMultiplier: 1, SchedulerType: "weighted",
 		})
 
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 		require.Equal(t, "INVALID_SCHEDULER_TYPE", infraerrors.Reason(err))
 	})
 
@@ -217,7 +219,7 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 			},
 		})
 
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 		require.Equal(t, "INVALID_ADVANCED_SCHEDULER_OVERRIDES", infraerrors.Reason(err))
 	})
 
@@ -237,7 +239,7 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 			},
 		})
 
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 		require.Equal(t, "INVALID_ADVANCED_SCHEDULER_OVERRIDES", infraerrors.Reason(err))
 		require.Nil(t, repo.created)
 	})
@@ -262,7 +264,7 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 			AdvancedSchedulerOverrides: &overrides,
 		})
 
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 		require.Equal(t, "INVALID_ADVANCED_SCHEDULER_OVERRIDES", infraerrors.Reason(err))
 		require.Nil(t, repo.updated)
 	})
@@ -351,7 +353,7 @@ func TestAdminServiceRejectsInvalidGroupClientProtocols(t *testing.T) {
 			})
 
 			require.Error(t, err)
-			require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+			require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 			require.Equal(t, "INVALID_ALLOWED_CLIENT_PROTOCOLS", infraerrors.Reason(err))
 		})
 	}

@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-tags=embed",
+    "-o",
+    "bin/server-embed",
+    "./cmd/server"
+  ],
+  "exit": 0,
+  "events": {},
+  "failures": [],
+  "seconds": 5.1342058181762695
+}

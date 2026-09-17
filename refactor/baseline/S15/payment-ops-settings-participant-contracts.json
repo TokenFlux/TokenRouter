@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/payment/...",
+    "./internal/ops/...",
+    "./internal/service/...",
+    "./internal/handler/admin/...",
+    "./internal/app/...",
+    "-run",
+    "Setting|Settings|VisibleMethod|UpdateAtomic"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 350
+  },
+  "failures": [],
+  "seconds": 27.490840911865234
+}

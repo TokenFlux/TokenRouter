@@ -1,0 +1,87 @@
+[
+  {
+    "file": "backend/internal/gateway/admission/backend_mode.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/settings$",
+      "golang.org/x/sync/singleflight$"
+    ],
+    "reason": "新核心的设置契约/合并回源或纯协议常量；不许可旧业务、配置或 Adapter",
+    "exit": "长期角色约束"
+  },
+  {
+    "file": "backend/internal/gateway/tierpolicy/settings.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/protocol/openai$"
+    ],
+    "reason": "新核心的设置契约/合并回源或纯协议常量；不许可旧业务、配置或 Adapter",
+    "exit": "长期角色约束"
+  },
+  {
+    "file": "backend/internal/app/http_bindings.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/config$",
+      "github.com/gin-gonic/gin$"
+    ],
+    "reason": "原生 HTTP 注册与配置投影，未新增旧业务 import 许可",
+    "exit": "S15 删除旧 routes 和聚合后精简"
+  },
+  {
+    "file": "backend/internal/app/legacy_providers.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/payment/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/server/middleware$",
+      "github.com/TokenFlux/TokenRouter/internal/server/routes$",
+      "github.com/gin-gonic/gin$"
+    ],
+    "reason": "原生 HTTP 注册与配置投影，未新增旧业务 import 许可",
+    "exit": "S15 删除旧 routes 和聚合后精简"
+  },
+  {
+    "file": "backend/internal/server/routes/admin.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/account/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/audit/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/backup/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/billing/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/egress/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/moderation/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/ops/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/site/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/admin$"
+    ],
+    "reason": "原生 HTTP 注册与配置投影，未新增旧业务 import 许可",
+    "exit": "S15 删除旧 routes 和聚合后精简"
+  },
+  {
+    "file": "backend/internal/server/routes/auth.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/notification/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/payment/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/routing/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/site/httpapi$"
+    ],
+    "reason": "原生 HTTP 注册与配置投影，未新增旧业务 import 许可",
+    "exit": "S15 删除旧 routes 和聚合后精简"
+  },
+  {
+    "file": "backend/internal/server/routes/user.go",
+    "imports": [
+      "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/billing/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/creative/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/identity/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/site/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/team/httpapi$",
+      "github.com/TokenFlux/TokenRouter/internal/usage/httpapi$"
+    ],
+    "reason": "原生 HTTP 注册与配置投影，未新增旧业务 import 许可",
+    "exit": "S15 删除旧 routes 和聚合后精简"
+  }
+]

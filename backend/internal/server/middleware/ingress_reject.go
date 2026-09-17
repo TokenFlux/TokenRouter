@@ -1,10 +1,11 @@
 package middleware
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/netip"
 	"strings"
 	"sync/atomic"
+
+	"github.com/gin-gonic/gin"
 )
 
 // IngressRejectReason 标识预期的网关准入失败，此类失败不能视为运维请求错误。
@@ -31,7 +32,8 @@ type IngressRejectRecorder interface {
 	RecordIngressReject(reason, routeFamily, protocol, clientIP string, userID, apiKeyID int64)
 }
 
-func invalidAuthClientKey(c *gin.Context) string {
+// InvalidAuthClientKey 供装配复用相同的地址归一化，不改变无效认证分桶。
+func InvalidAuthClientKey(c *gin.Context) string {
 	return normalizeIngressRejectIP(SecurityClientIP(c))
 }
 

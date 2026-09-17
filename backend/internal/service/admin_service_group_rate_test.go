@@ -8,7 +8,8 @@ import (
 	"net/http"
 	"testing"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -219,7 +220,7 @@ func TestAdminService_BatchSetGroupRPMOverrides(t *testing.T) {
 			{UserID: 2, RPMOverride: &negative},
 		})
 		require.Error(t, err)
-		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 		require.Zero(t, repo.rpmSyncedGroupID)
 	})
 }

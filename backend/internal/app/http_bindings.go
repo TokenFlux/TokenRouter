@@ -5,7 +5,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+
+	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
+
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/site"
+	"github.com/gin-gonic/gin"
 
 	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 
@@ -24,7 +30,11 @@ import (
 )
 
 // provideRouterRuntime 只装配旧业务的公开投影与 HTTP 能力，业务解释留 S10/S15。
-func provideRouterRuntime(public *site.PublicService, pages *sitehttp.PageHandler, settingService *service.SettingService, store *settings.Store, redisClient *redis.Client, manager *lifecycle.Manager) (*server.RouterRuntime, error) {
+func provideRouterRuntime(public *site.PublicService, pages *sitehttp.PageHandler, settingService *service.SettingService, store *settings.Store, redisClient *redis.Client, manager *lifecycle.Manager, cfg *config.Config, mount httpRouteMount, panelSettings *runtimeconfig.PanelSettings, opsService *service.OpsService, jwtAuth middleware.JWTAuthMiddleware, adminAuth middleware.AdminAuthMiddleware, auditLog middleware.AuditLogMiddleware, stepUpAuth middleware.StepUpAuthMiddleware,
+) (*server.RouterRuntime, error) {
+
+	manager.Register(lifecycle.Hook{Name: "SettingsUpdateAdmission", StopOrder: 14, Stop: func(context.Context) error { store.Updates().Seal(); return nil }})
+	manager.Register(lifecycle.Hook{Name: "SettingsUpdates", StopOrder: 17, Stop: store.Updates().Stop})
 
 	var origins atomic.Pointer[[]string]
 	empty := []string{}
@@ -37,12 +47,19 @@ func provideRouterRuntime(public *site.PublicService, pages *sitehttp.PageHandle
 			origins.Store(&next)
 		}
 	}
-	rt := &server.RouterRuntime{Pages: pages, FrameOrigins: func() []string { return *origins.Load() }}
+	middleware.SetIngressRejectRecorder(opsService)
+	rt := &server.RouterRuntime{Middleware: []gin.HandlerFunc{
+		middleware.RequestLogger(), identityhttp.SessionBindingContext(func() identityhttp.ForwardedIPSettings {
+			value := cfg.ForwardedClientIPSettings()
+			return identityhttp.ForwardedIPSettings{TrustForwardedIP: value.TrustForwardedIP, Headers: value.Headers}
+		}), middleware.Logger(), middleware.CORS(cfg.CORS),
+		middleware.SecurityHeaders(cfg.Security.CSP, func() []string { return *origins.Load() }), middleware.ServerTiming(cfg.Server.EnableServerTiming),
+	}}
 	endpoints := make(map[protocol.ProtocolID]string)
 	for _, entry := range gatewayhttpapi.ProtocolEndpoints() {
 		endpoints[entry.ID] = entry.Endpoint
 	}
-	rt.ProtocolCatalog = routinghttpapi.NewProtocolCatalogHandler(endpoints)
+	protocolCatalog := routinghttpapi.NewProtocolCatalogHandler(endpoints)
 	notify := refresh
 	if web.HasEmbeddedFrontend() {
 		frontend, err := web.NewFrontendServer(public)
@@ -61,11 +78,18 @@ func provideRouterRuntime(public *site.PublicService, pages *sitehttp.PageHandle
 	unsubscribe := store.Subscribe(notify)
 	manager.Register(lifecycle.Hook{Name: "SettingsHTTPNotification", StopOrder: 800, Stop: func(context.Context) error { unsubscribe(); return nil }})
 	counter := redisinfra.NewFixedWindowLimiter(redisClient, "rate_limit:")
-	rt.AuthLimiter = middleware.NewRateLimiter(counter)
+	authLimiter := middleware.NewRateLimiter(counter)
 	var panelCounter *middleware.RateLimiter
 	if redisClient != nil {
 		panelCounter = middleware.NewRateLimiter(counter)
 	}
-	rt.PanelLimiter = middleware.NewPanelRateLimiter(panelCounter, settingService)
+	panelLimiter := middleware.NewPanelRateLimiter(panelCounter, panelSettings)
+	rt.Register = []func(*gin.Engine){func(r *gin.Engine) {
+		mount(r, httpRouteSecurity{JWT: gin.HandlerFunc(jwtAuth), Admin: gin.HandlerFunc(adminAuth), Audit: gin.HandlerFunc(auditLog), StepUp: gin.HandlerFunc(stepUpAuth), BackendAuth: identityhttp.BackendModeAuthGuard(settingService.BackendModeSettings()), BackendUser: identityhttp.BackendModeUserGuard(settingService.BackendModeSettings()), Panel: panelLimiter, AuthLimiter: authLimiter}, protocolCatalog, func(v1 *gin.RouterGroup) { pages.Register(v1, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth)) })
+	}}
+
 	return rt, nil
 }
+
+// httpRouteMount 只组装已构造的 HTTP 能力，过渡旧图在专用装配处解析。
+type httpRouteMount func(*gin.Engine, httpRouteSecurity, gin.HandlerFunc, func(*gin.RouterGroup))

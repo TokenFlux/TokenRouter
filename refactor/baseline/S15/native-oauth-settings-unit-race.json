@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "-run",
+    "Settings|Setting|OAuthConfig|ConnectConfig|OIDC|DingTalk|WeChat|AbsoluteHTTPURL|FrontendRedirectURL",
+    "./internal/config",
+    "./internal/identity/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 340
+  },
+  "failures": [],
+  "seconds": 57.61979293823242
+}

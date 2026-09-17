@@ -6,10 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -23,32 +20,19 @@ var ProviderSet = wire.NewSet(
 )
 
 // ProvideRouter 提供路由器
-func ProvideRouter(
-	cfg *config.Config,
-	handlers *handler.Handlers,
-	jwtAuth middleware2.JWTAuthMiddleware,
-	adminAuth middleware2.AdminAuthMiddleware,
-	apiKeyAuth middleware2.APIKeyAuthMiddleware,
-	auditLog middleware2.AuditLogMiddleware,
-	stepUpAuth middleware2.StepUpAuthMiddleware,
-	apiKeyService *service.APIKeyService,
-	subscriptionService *service.SubscriptionService,
-	opsService *service.OpsService,
-	settingService *service.SettingService,
-	runtime *RouterRuntime,
-) *gin.Engine {
-	if cfg.Server.Mode == "release" {
+func ProvideRouter(cfg Options, runtime *RouterRuntime) *gin.Engine {
+	if cfg.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	r := gin.New()
 	r.Use(middleware2.Recovery())
-	configureTrustedProxies(r, cfg.Server)
+	configureTrustedProxies(r, cfg)
 
-	return SetupRouter(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, runtime)
+	return SetupRouter(r, runtime)
 }
 
-func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {
+func configureTrustedProxies(r *gin.Engine, cfg Options) {
 	if cfg.TrustedProxiesConfigured {
 		if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
 			log.Printf("Failed to set trusted proxies: %v", err)
@@ -69,32 +53,29 @@ func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {
 
 // ProvideHTTPServer 提供 HTTP 服务器
 // @project-doc docs/operations/edge_security.md#http_ingress_limits
-func ProvideHTTPServer(cfg *config.Config, router *gin.Engine) *http.Server {
+func ProvideHTTPServer(cfg Options, router *gin.Engine) *http.Server {
 	httpHandler := http.Handler(router)
 	server := &http.Server{
-		Addr:           cfg.Server.Address(),
+		Addr:           cfg.Address,
 		Handler:        httpHandler,
-		MaxHeaderBytes: cfg.Server.MaxHeaderBytes,
+		MaxHeaderBytes: cfg.MaxHeaderBytes,
 		// ReadHeaderTimeout: 读取请求头的超时时间，防止慢速请求头攻击
-		ReadHeaderTimeout: time.Duration(cfg.Server.ReadHeaderTimeout) * time.Second,
+		ReadHeaderTimeout: time.Duration(cfg.ReadHeaderTimeout) * time.Second,
 		// IdleTimeout: 空闲连接超时时间，释放不活跃的连接资源
-		IdleTimeout: time.Duration(cfg.Server.IdleTimeout) * time.Second,
+		IdleTimeout: time.Duration(cfg.IdleTimeout) * time.Second,
 		// 注意：不设置 WriteTimeout，因为流式响应可能持续十几分钟
 		// 不设置 ReadTimeout，因为大请求体可能需要较长时间读取
 	}
 
-	globalMaxSize := cfg.Server.MaxRequestBodySize
-	if globalMaxSize <= 0 {
-		globalMaxSize = cfg.Gateway.MaxBodySize
-	}
+	globalMaxSize := cfg.MaxRequestBodySize
 	if globalMaxSize > 0 {
 		httpHandler = http.MaxBytesHandler(httpHandler, globalMaxSize)
 		log.Printf("Global max request body size: %d bytes (%.2f MB)", globalMaxSize, float64(globalMaxSize)/(1<<20))
 	}
 
 	// 根据配置决定是否启用 H2C
-	if cfg.Server.H2C.Enabled {
-		h2cConfig := cfg.Server.H2C
+	if cfg.H2C.Enabled {
+		h2cConfig := cfg.H2C
 		if err := http2.ConfigureServer(server, &http2.Server{
 			MaxConcurrentStreams:         h2cConfig.MaxConcurrentStreams,
 			IdleTimeout:                  time.Duration(h2cConfig.IdleTimeout) * time.Second,

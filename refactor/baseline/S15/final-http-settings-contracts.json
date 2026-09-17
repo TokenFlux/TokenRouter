@@ -1,0 +1,32 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/settings/...",
+    "./internal/server/...",
+    "./internal/identity/httpapi/...",
+    "./internal/handler/admin/...",
+    "./internal/app/...",
+    "-run",
+    "Setting|Settings|Applications|CORS|CSP|SecurityHeaders|Auth|Route|Forwarded|Public"
+  ],
+  "exit": 1,
+  "events": {
+    "pass": 326,
+    "fail": 1
+  },
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      "TestAuthRoutesRateLimitFailCloseWhenRedisUnavailable"
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      null
+    ]
+  ],
+  "seconds": 16.17459201812744
+}

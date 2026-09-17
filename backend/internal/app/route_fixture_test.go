@@ -1,0 +1,117 @@
+package app
+
+import (
+	native_account_httpapi "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
+	native_apikey_httpapi "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	native_apikey_httpapi_dto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+	native_audit_httpapi "github.com/TokenFlux/TokenRouter/internal/audit/httpapi"
+	native_backup_httpapi "github.com/TokenFlux/TokenRouter/internal/backup/httpapi"
+	native_batchimage_httpapi "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi"
+	native_billing_httpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
+	native_creative_httpapi "github.com/TokenFlux/TokenRouter/internal/creative/httpapi"
+	native_egress_httpapi "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
+	native_gateway_httpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	native_handler "github.com/TokenFlux/TokenRouter/internal/handler"
+	native_handler_admin "github.com/TokenFlux/TokenRouter/internal/handler/admin"
+	native_identity_httpapi "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	native_moderation_httpapi "github.com/TokenFlux/TokenRouter/internal/moderation/httpapi"
+	native_notification_httpapi "github.com/TokenFlux/TokenRouter/internal/notification/httpapi"
+	native_ops_httpapi "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
+	native_payment_httpapi "github.com/TokenFlux/TokenRouter/internal/payment/httpapi"
+	native_promotion_httpapi "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
+	native_routing_httpapi "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
+	native_routing_httpapi_dto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+	native_scheduler_httpapi "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
+	native_search_httpapi "github.com/TokenFlux/TokenRouter/internal/search/httpapi"
+	native_site_httpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
+	native_team_httpapi "github.com/TokenFlux/TokenRouter/internal/team/httpapi"
+	native_usage_httpapi "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
+	native_usage_httpapi_admin "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/admin"
+)
+
+// 路由迁移夹具保留旧测试构造形状；生产不存在这些聚合。
+type routeTestAdminHandlers struct {
+	APIKey                *native_apikey_httpapi.AdminAPIKeyHandler[native_routing_httpapi_dto.Group]
+	AccountArchive        *native_account_httpapi.ArchiveHandler
+	AccountCRS            *native_account_httpapi.CRSHandler
+	AccountCodexImport    *native_account_httpapi.CodexImportHandler
+	AccountManagement     *native_account_httpapi.ManagementHandler
+	AccountOAuthUsage     *native_account_httpapi.OAuthUsageHandler
+	AccountOllama         *native_account_httpapi.OllamaUsageHandler
+	AccountTests          *native_account_httpapi.TestHandler
+	Affiliate             *native_promotion_httpapi.AffiliateHandler
+	Announcement          *native_site_httpapi.AdminAnnouncementHandler
+	AntigravityOAuth      *native_account_httpapi.AntigravityOAuthHandler
+	AuditLog              *native_audit_httpapi.AuditLogHandler
+	Backup                *native_backup_httpapi.BackupHandler
+	Channel               *native_routing_httpapi.ChannelHandler
+	CodexInviteReset      *native_account_httpapi.CodexInviteResetHandler
+	ContentModeration     *native_moderation_httpapi.ContentModerationHandler
+	Dashboard             *native_usage_httpapi_admin.DashboardHandler
+	DataManagement        *native_backup_httpapi.DataManagementHandler
+	ErrorPassthrough      *native_gateway_httpapi.ErrorPassthroughHandler
+	GeminiOAuth           *native_account_httpapi.GeminiOAuthHandler
+	GrokOAuth             *native_account_httpapi.GrokOAuthHandler
+	Group                 *native_routing_httpapi.GroupHandler
+	OAuth                 *native_account_httpapi.ClaudeOAuthHandler
+	OpenAIOAuth           *native_account_httpapi.OpenAIOAuthHandler
+	Ops                   *native_ops_httpapi.OpsHandler
+	Payment               *native_payment_httpapi.AdminHandler
+	Promo                 *native_promotion_httpapi.PromoHandler
+	Proxy                 *native_egress_httpapi.ProxyHandler
+	QoderOAuth            *native_account_httpapi.QoderOAuthHandler
+	Redeem                *native_billing_httpapi.AdminRedeemHandler
+	ScheduledTest         *native_account_httpapi.ScheduledTestHandler
+	SchedulerDiagnostics  *native_scheduler_httpapi.DiagnosticsHandler
+	Setting               *native_handler_admin.SettingHandler
+	Subscription          *native_billing_httpapi.AdminSubscriptionHandler
+	System                *native_ops_httpapi.SystemHandler
+	TLSFingerprintProfile *native_egress_httpapi.TLSFingerprintProfileHandler
+	TLSFingerprintRouter  *native_egress_httpapi.TLSFingerprintRouterHandler
+	Team                  *native_team_httpapi.AdminHandler
+	UpstreamUsage         *native_account_httpapi.UpstreamUsageHandler
+	Usage                 *native_usage_httpapi_admin.UsageHandler
+	User                  *native_identity_httpapi.AdminUserHandler[native_apikey_httpapi_dto.APIKey[native_routing_httpapi_dto.Group]]
+	UserAttribute         *native_identity_httpapi.UserAttributeHandler
+}
+type routeTestHandlers struct {
+	APIKey              *native_apikey_httpapi.APIKeyHandler[native_routing_httpapi_dto.Group]
+	Admin               *routeTestAdminHandlers
+	Announcement        *native_site_httpapi.AnnouncementHandler
+	Auth                native_handler.AuthEndpoints
+	AuxiliaryHTTP       *native_gateway_httpapi.AuxiliaryHandler
+	BatchImage          *native_batchimage_httpapi.BatchImageHandler
+	CompatibleTextHTTP  *native_gateway_httpapi.CompatibleTextHandler
+	CountTokensHTTP     *native_gateway_httpapi.CountTokensHandler
+	Creative            *native_creative_httpapi.CreativeHandler
+	Gateway             *native_handler.GatewayHandler
+	GeminiNativeHTTP    *native_gateway_httpapi.GeminiNativeHandler
+	LiveHTTP            *native_gateway_httpapi.LiveHandler
+	MediaHTTP           *native_gateway_httpapi.MediaHandler
+	MessagesHTTP        *native_gateway_httpapi.MessagesHandler
+	ModelMarketplace    *native_routing_httpapi.MarketplaceHandler
+	ModelsHTTP          *native_gateway_httpapi.ModelsHandler
+	Notification        *native_notification_httpapi.Handler
+	OpenAIGateway       *native_handler.OpenAIGatewayHandler
+	OpenAITextHTTP      *native_gateway_httpapi.OpenAITextHandler
+	Passkey             *native_identity_httpapi.PasskeyHandler
+	Payment             *native_payment_httpapi.PaymentHandler
+	PaymentWebhook      *native_payment_httpapi.PaymentWebhookHandler
+	Plans               *native_billing_httpapi.PlanHandler
+	PlatformQuota       *native_billing_httpapi.QuotaHandler
+	PublicSettings      *native_site_httpapi.PublicHandler
+	PublicUsage         *native_usage_httpapi.PublicUsageHandler
+	QoderChat           *native_gateway_httpapi.QoderChatHandler
+	QoderCompatibleHTTP *native_gateway_httpapi.QoderCompatibleHandler
+	QoderGateway        *native_handler.QoderGatewayHandler
+	Redeem              *native_billing_httpapi.RedeemHandler
+	ResponsesWSHTTP     *native_gateway_httpapi.ResponsesWSHandler
+	Search              *native_search_httpapi.Handler
+	SearchHTTP          *native_gateway_httpapi.SearchHandler
+	Setting             *native_handler.SettingHandler
+	Subscription        *native_billing_httpapi.SubscriptionHandler
+	Team                *native_team_httpapi.UserHandler
+	Totp                *native_identity_httpapi.TotpHandler
+	Usage               *native_usage_httpapi.UsageHandler
+	User                *native_handler.UserHandler
+}

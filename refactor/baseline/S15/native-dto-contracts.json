@@ -1,0 +1,43 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/account/httpapi/dto",
+    "./internal/apikey/httpapi/dto",
+    "./internal/routing/httpapi/dto",
+    "./internal/identity/httpapi/dto",
+    "./internal/usage/httpapi/dto",
+    "./internal/billing/httpapi",
+    "./internal/handler/admin",
+    "./internal/app"
+  ],
+  "exit": 1,
+  "events": {
+    "pass": 11
+  },
+  "failures": [
+    [
+      "github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+      null
+    ],
+    [
+      "github.com/TokenFlux/TokenRouter/internal/app",
+      null
+    ]
+  ],
+  "seconds": 8.51417589187622
+}

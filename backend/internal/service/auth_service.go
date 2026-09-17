@@ -3,6 +3,7 @@ package service
 
 import (
 	context "context"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
@@ -266,11 +267,6 @@ func (s *AuthService) VerifyPendingOAuthToken(tokenStr string) (email, username 
 // VerifyPendingOAuthTokenDetails 委托身份模块，旧入口仅保留类型投影。
 func (s *AuthService) VerifyPendingOAuthTokenDetails(tokenStr string) (*PendingOAuthIdentity, error) {
 	return s.identityCore().VerifyPendingOAuthTokenDetails(tokenStr)
-}
-
-// authSourceSignupSettings 委托身份模块，旧入口仅保留类型投影。
-func authSourceSignupSettings(defaults *AuthSourceDefaultSettings, signupSource string) (ProviderDefaultGrantSettings, bool) {
-	return identity.AuthAuthSourceSignupSettings(defaults, signupSource)
 }
 
 // ValidateToken 委托身份模块，旧入口仅保留类型投影。

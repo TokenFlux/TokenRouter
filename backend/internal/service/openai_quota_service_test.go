@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	"github.com/TokenFlux/TokenRouter/internal/model"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -215,7 +217,7 @@ func TestOpenAIQuotaServiceRejectsUnsupportedAccount(t *testing.T) {
 
 	_, err := svc.QueryUsage(context.Background(), account.ID)
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
 	require.Equal(t, "OPENAI_QUOTA_UNSUPPORTED_ACCOUNT", infraerrors.Reason(err))
 	require.False(t, strings.Contains(err.Error(), "sk-test"))
 }

@@ -1,56 +1,13 @@
-// 本文件维护 handler 的所属能力；兼容入口复用唯一实现。
 package handler
 
 import (
-	gin "github.com/gin-gonic/gin"
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	"github.com/gin-gonic/gin"
 )
 
-// AuthEndpoints 由 app 组合身份 HTTP 与尚未迁移的支付授权，路由不持有认证用例实现。
+// AuthEndpoints 保留旧测试的组合形状，路由实现分别由 identity/payment 拥有。
 type AuthEndpoints interface {
-	BindDingTalkOAuthLogin(*gin.Context)
-	BindLinuxDoOAuthLogin(*gin.Context)
-	BindOIDCOAuthLogin(*gin.Context)
-	BindPendingOAuthLogin(*gin.Context)
-	BindWeChatOAuthLogin(*gin.Context)
-	CompleteDingTalkOAuthRegistration(*gin.Context)
-	CompleteGitHubOAuthRegistration(*gin.Context)
-	CompleteGoogleOAuthRegistration(*gin.Context)
-	CompleteLinuxDoOAuthRegistration(*gin.Context)
-	CompleteOIDCOAuthRegistration(*gin.Context)
-	CompleteWeChatOAuthRegistration(*gin.Context)
-	CreateDingTalkOAuthAccount(*gin.Context)
-	CreateLinuxDoOAuthAccount(*gin.Context)
-	CreateOIDCOAuthAccount(*gin.Context)
-	CreatePendingOAuthAccount(*gin.Context)
-	CreateWeChatOAuthAccount(*gin.Context)
-	DingTalkOAuthCallback(*gin.Context)
-	DingTalkOAuthStart(*gin.Context)
-	ExchangePendingOAuthCompletion(*gin.Context)
-	ForgotPassword(*gin.Context)
-	GetCurrentUser(*gin.Context)
-	GitHubOAuthCallback(*gin.Context)
-	GitHubOAuthStart(*gin.Context)
-	GoogleOAuthCallback(*gin.Context)
-	GoogleOAuthStart(*gin.Context)
-	GoogleOneTap(*gin.Context)
-	LinuxDoOAuthCallback(*gin.Context)
-	LinuxDoOAuthStart(*gin.Context)
-	Login(*gin.Context)
-	Login2FA(*gin.Context)
-	Logout(*gin.Context)
-	OIDCOAuthCallback(*gin.Context)
-	OIDCOAuthStart(*gin.Context)
-	PrepareOAuthBindAccessTokenCookie(*gin.Context)
-	RefreshToken(*gin.Context)
-	Register(*gin.Context)
-	ResetPassword(*gin.Context)
-	RevokeAllSessions(*gin.Context)
-	SendPendingOAuthVerifyCode(*gin.Context)
-	SendVerifyCode(*gin.Context)
-	ValidateInvitationCode(*gin.Context)
-	ValidatePromoCode(*gin.Context)
-	WeChatOAuthCallback(*gin.Context)
-	WeChatOAuthStart(*gin.Context)
-	WeChatPaymentOAuthCallback(*gin.Context)
+	identityhttp.AuthEndpoints
 	WeChatPaymentOAuthStart(*gin.Context)
+	WeChatPaymentOAuthCallback(*gin.Context)
 }

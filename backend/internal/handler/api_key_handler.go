@@ -4,8 +4,8 @@ package handler
 import (
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
-	dto "github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	dto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -14,9 +14,9 @@ type APIKeyHandler = keyhttp.APIKeyHandler[dto.Group]
 
 func NewAPIKeyHandler(keys *service.APIKeyService) *APIKeyHandler {
 	return keyhttp.NewAPIKeyHandler(keys.APIKeyService, func(g *apikey.Group, capacity *accessview.GroupCapacitySummary) *dto.Group {
-		out := dto.GroupFromServiceShallow(service.GroupFromAPIKeyView(g))
+		out := dto.GroupFromRouting(apikey.RoutingGroup(g))
 		if out != nil && capacity != nil {
-			out.Capacity = dto.GroupCapacityFromService(capacity)
+			out.Capacity = dto.GroupCapacityFromSummary(capacity)
 		}
 		return out
 	})

@@ -1,0 +1,17 @@
+{
+  "head": "34eebbe3ef2c01fbf6b9473ec746fe495171a2b2",
+  "tracked_files": 14564,
+  "changed": [],
+  "status_unchanged": true,
+  "untracked_files": 50,
+  "fixed_issues": [
+    "B01: rejected Fast policy persists preceding settings",
+    "B02: late backend-mode load overwrites new runtime",
+    "B03: late HTML load repopulates invalidated cache"
+  ],
+  "decisions": {
+    "fix_all": true,
+    "settings_single_atomic_write": true,
+    "subagent": false
+  }
+}

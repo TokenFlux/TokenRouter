@@ -150,7 +150,7 @@ func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 	nonce := middleware.GetNonceFromContext(c)
 
 	// Check cache first
-	cached := s.cache.Get()
+	cached, version := s.cache.Snapshot()
 	if cached != nil {
 		// Check If-None-Match for 304 response
 		if match := c.GetHeader("If-None-Match"); match == cached.ETag {
@@ -190,15 +190,12 @@ func (s *FrontendServer) serveIndexHTML(c *gin.Context) {
 	}
 
 	rendered := s.injectSettings(settingsJSON)
-	s.cache.Set(rendered, settingsJSON)
+	snapshot := s.cache.Publish(version, rendered, settingsJSON)
 
 	// Replace nonce placeholder with actual nonce before serving
 	content := replaceNoncePlaceholder(rendered, nonce)
 
-	cached = s.cache.Get()
-	if cached != nil {
-		c.Header("ETag", cached.ETag)
-	}
+	c.Header("ETag", snapshot.ETag)
 	c.Header("Cache-Control", "no-cache")
 	c.Data(http.StatusOK, "text/html; charset=utf-8", content)
 	c.Abort()

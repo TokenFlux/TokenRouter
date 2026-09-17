@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "-p=1",
+    "./internal/app",
+    "-run",
+    "^TestS02ProcessModes$"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 11
+  },
+  "failures": [],
+  "seconds": 20.23057794570923
+}

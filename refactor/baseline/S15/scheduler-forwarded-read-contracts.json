@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler/...",
+    "./internal/service/...",
+    "./internal/handler/admin/...",
+    "./internal/app/...",
+    "./internal/server/runtimeconfig/...",
+    "-run",
+    "Setting|Settings|Scheduler|Forwarded|UpdateAtomic"
+  ],
+  "exit": 0,
+  "events": {
+    "pass": 646
+  },
+  "failures": [],
+  "seconds": 20.543137073516846
+}
