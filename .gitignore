@@ -119,6 +119,9 @@ backend/.installed
 SYNC.md
 PLAN.md
 tests
+# 后端模块迁移后的测试源码需要纳入版本控制。
+!backend/tests/
+!backend/tests/**
 !deploy/tests/
 !deploy/tests/**
 CLAUDE.md

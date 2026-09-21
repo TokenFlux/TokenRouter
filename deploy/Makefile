@@ -28,7 +28,7 @@ test-integration:
 
 test-e2e:
 	@echo "运行 E2E 测试（需要本地服务器运行）..."
-	@go test -tags e2e ./internal/integration/... -count=1 -v
+	@go test -tags e2e ./tests/integration/... -count=1 -v
 
 test-cover-integration:
 	@echo "运行集成测试并生成覆盖率报告..."
