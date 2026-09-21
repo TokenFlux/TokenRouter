@@ -6,7 +6,10 @@ import (
 	"sync"
 	"sync/atomic"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	openaiwsv2 "github.com/TokenFlux/TokenRouter/internal/upstream/openai/wsrelay"
 	coderws "github.com/coder/websocket"
 	"github.com/tidwall/gjson" // 以下仅为既有测试保留旧拼装形状，全部同步过滤委托唯一核心实现。
@@ -14,9 +17,9 @@ import (
 
 type openAIWSPolicyEnforcingFrameConn struct {
 	inner       openaiwsv2.FrameConn
-	filter      func(coderws.MessageType, []byte) ([]byte, *OpenAIFastBlockedError, error)
+	filter      func(coderws.MessageType, []byte) ([]byte, *tierpolicy.BlockedError, error)
 	writeFilter func(coderws.MessageType, []byte) ([]byte, error)
-	onBlock     func(*OpenAIFastBlockedError)
+	onBlock     func(*tierpolicy.BlockedError)
 	once        sync.Once
 	core        gatewayws.FrameConn
 }
@@ -40,29 +43,29 @@ func (c *openAIWSPolicyEnforcingFrameConn) runtime() gatewayws.FrameConn {
 		var block func(*gatewayws.PolicyBlocked)
 		if c.onBlock != nil {
 			block = func(b *gatewayws.PolicyBlocked) {
-				original, ok := b.Cause.(*OpenAIFastBlockedError)
+				original, ok := b.Cause.(*tierpolicy.BlockedError)
 				if !ok {
-					original = &OpenAIFastBlockedError{Message: b.Message}
+					original = &tierpolicy.BlockedError{Message: b.Message}
 				}
 				c.onBlock(original)
 			}
 		}
 		c.core = gatewayws.NewPolicyFrames(openAIWSCoreFrames{c.inner}, filter, writeFilter, block, func(status int, reason string, err error) error {
-			return NewOpenAIWSClientCloseError(coderws.StatusCode(status), reason, err)
-		}, errOpenAIWSConnClosed)
+			return gatewayhttp.NewOpenAIWSClientCloseError(coderws.StatusCode(status), reason, err)
+		}, upstreamopenai.ErrWSConnClosed)
 	})
 	return c.core
 }
 func (c *openAIWSPolicyEnforcingFrameConn) ReadFrame(ctx context.Context) (coderws.MessageType, []byte, error) {
 	if c == nil || c.inner == nil {
-		return coderws.MessageText, nil, errOpenAIWSConnClosed
+		return coderws.MessageText, nil, upstreamopenai.ErrWSConnClosed
 	}
 	typ, body, err := c.runtime().ReadFrame(ctx)
 	return coderws.MessageType(typ), body, err
 }
 func (c *openAIWSPolicyEnforcingFrameConn) WriteFrame(ctx context.Context, typ coderws.MessageType, body []byte) error {
 	if c == nil || c.inner == nil {
-		return errOpenAIWSConnClosed
+		return upstreamopenai.ErrWSConnClosed
 	}
 	return c.runtime().WriteFrame(ctx, int(typ), body)
 }

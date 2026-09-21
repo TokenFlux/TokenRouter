@@ -7,6 +7,11 @@ import (
 	"testing"
 	"time"
 
+	account "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,9 +41,9 @@ func TestSparkShadowIntegration(t *testing.T) {
 	// 共享母账号：Credentials 为 map（引用型），可原地轮换而无需重建 stub。
 	parent := &Account{
 		ID:          100,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Credentials: map[string]any{
 			"access_token": "T1",
@@ -47,11 +52,11 @@ func TestSparkShadowIntegration(t *testing.T) {
 	// 影子账号：不持凭据（与生产语义一致），QuotaDimensionSpark 标记 spark 维度。
 	shadow := &Account{
 		ID:              200,
-		Platform:        PlatformOpenAI,
-		Type:            AccountTypeOAuth,
+		Platform:        capability.PlatformOpenAI,
+		Type:            capability.AccountTypeOAuth,
 		ParentAccountID: &pid,
-		QuotaDimension:  QuotaDimensionSpark,
-		Status:          StatusActive,
+		QuotaDimension:  account.QuotaDimensionSpark,
+		Status:          billing.StatusActive,
 		Schedulable:     true,
 	}
 
@@ -102,9 +107,9 @@ func TestSparkShadowIntegration(t *testing.T) {
 		// 对照组：普通账号（非影子）直接返回自身凭据，不经 resolveCredentialAccount。
 		ordinary := &Account{
 			ID:          300,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeOAuth,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeOAuth,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Credentials: map[string]any{
 				"access_token": "ordinary-token",
@@ -126,17 +131,17 @@ func TestSparkShadowIntegration(t *testing.T) {
 		// 路由资格已从「按账号类型」改为「按账号支持模型」(model_mapping / IsModelSupported)。
 		sparkModel := "gpt-5.3-codex-spark"
 		normalModel := "gpt-5.3-codex"
-		sparkCreds := map[string]any{"model_mapping": defaultSparkShadowModelMapping()}
+		sparkCreds := map[string]any{"model_mapping": accountprovider.DefaultSparkShadowModels()}
 
 		pid := int64(1)
-		sparkShadow := &Account{ID: 2, ParentAccountID: &pid, Platform: PlatformOpenAI, Credentials: sparkCreds}
+		sparkShadow := &Account{ID: 2, ParentAccountID: &pid, Platform: capability.PlatformOpenAI, Credentials: sparkCreds}
 		require.True(t, sparkShadow.IsModelSupported(sparkModel), "影子配 spark → 接 spark")
 		require.False(t, sparkShadow.IsModelSupported(normalModel), "影子（仅 spark mapping）→ 拒非 spark")
 
-		normalWithSpark := &Account{ID: 3, Platform: PlatformOpenAI, Credentials: sparkCreds}
+		normalWithSpark := &Account{ID: 3, Platform: capability.PlatformOpenAI, Credentials: sparkCreds}
 		require.True(t, normalWithSpark.IsModelSupported(sparkModel), "普通账号配 spark → 接 spark（不再按类型排除）")
 
-		normalNoSpark := &Account{ID: 4, Platform: PlatformOpenAI,
+		normalNoSpark := &Account{ID: 4, Platform: capability.PlatformOpenAI,
 			Credentials: map[string]any{"model_mapping": map[string]any{normalModel: normalModel}}}
 		require.False(t, normalNoSpark.IsModelSupported(sparkModel), "普通账号未配 spark → 拒 spark（按配置）")
 	})
@@ -147,7 +152,7 @@ func TestSparkShadowIntegration(t *testing.T) {
 
 	t.Run("parent_health_propagated_to_shadow", func(t *testing.T) {
 		// 恢复母账号健康状态（属性 1/2 测试可能改过）
-		parent.Status = StatusActive
+		parent.Status = billing.StatusActive
 		parent.Schedulable = true
 
 		lookup := func(id int64) *Account {
@@ -158,26 +163,30 @@ func TestSparkShadowIntegration(t *testing.T) {
 		}
 
 		// 母健康 → 影子健康
-		require.True(t, parentHealthyForShadow(shadow, lookup),
-			"健康母账号时影子应健康")
+		require.True(t, account.ParentHealthyForShadow(AccountRecordView(shadow), func(id int64) *account.Record {
+			return AccountRecordView(lookup(id))
+		}), "健康母账号时影子应健康")
 
 		// 母 Status=error(凭据不可用)→ 影子不健康
-		parent.Status = StatusError
-		require.False(t, parentHealthyForShadow(shadow, lookup),
-			"Status=error 母账号时影子应不健康")
+		parent.Status = account.StatusError
+		require.False(t, account.ParentHealthyForShadow(AccountRecordView(shadow), func(id int64) *account.Record {
+			return AccountRecordView(lookup(id))
+		}), "Status=error 母账号时影子应不健康")
 
 		// F1 决策 A:母 Schedulable=false (Status=active) 是手动调度暂停,不连坐影子(凭据仍可用)
-		parent.Status = StatusActive
+		parent.Status = billing.StatusActive
 		parent.Schedulable = false
-		require.True(t, parentHealthyForShadow(shadow, lookup),
-			"母账号手动暂停不应连坐影子(凭据仍可用)")
+		require.True(t, account.ParentHealthyForShadow(AccountRecordView(shadow), func(id int64) *account.Record {
+			return AccountRecordView(lookup(id))
+		}), "母账号手动暂停不应连坐影子(凭据仍可用)")
 
 		// F1 核心:母 global 限流(RateLimitResetAt 未来)不连坐 spark 影子
 		parent.Schedulable = true
 		resetAt := time.Now().Add(1 * time.Hour)
 		parent.RateLimitResetAt = &resetAt
-		require.True(t, parentHealthyForShadow(shadow, lookup),
-			"母账号 global 限流不应连坐 spark 影子")
+		require.True(t, account.ParentHealthyForShadow(AccountRecordView(shadow), func(id int64) *account.Record {
+			return AccountRecordView(lookup(id))
+		}), "母账号 global 限流不应连坐 spark 影子")
 		parent.RateLimitResetAt = nil
 
 		// 对照组：非影子账号 parentHealthyForShadow 始终 true，不调用 lookup
@@ -186,7 +195,8 @@ func TestSparkShadowIntegration(t *testing.T) {
 			t.Error("非影子账号不应调用 lookup")
 			return nil
 		}
-		require.True(t, parentHealthyForShadow(parent, lookupNotCalled),
-			"普通账号应直接返回 true")
+		require.True(t, account.ParentHealthyForShadow(AccountRecordView(parent), func(id int64) *account.Record {
+			return AccountRecordView(lookupNotCalled(id))
+		}), "普通账号应直接返回 true")
 	})
 }

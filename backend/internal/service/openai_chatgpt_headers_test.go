@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,9 +28,9 @@ func TestResolveAndSetOpenAIChatGPTAccountHeaders(t *testing.T) {
 	parentCreds := map[string]any{"chatgpt_account_id": "org-parent"}
 	parent := &Account{
 		ID:          100,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Credentials: parentCreds,
 	}
 	repo := &stubChatGPTHeadersRepo{byID: map[int64]*Account{100: parent}}
@@ -37,8 +39,8 @@ func TestResolveAndSetOpenAIChatGPTAccountHeaders(t *testing.T) {
 		shadow := &Account{
 			ID:              200,
 			ParentAccountID: &pid,
-			Platform:        PlatformOpenAI,
-			Type:            AccountTypeOAuth,
+			Platform:        capability.PlatformOpenAI,
+			Type:            capability.AccountTypeOAuth,
 		}
 		headers := make(http.Header)
 		err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, repo, headers, shadow)
@@ -51,8 +53,8 @@ func TestResolveAndSetOpenAIChatGPTAccountHeaders(t *testing.T) {
 		ownCreds := map[string]any{"chatgpt_account_id": "org-own"}
 		normal := &Account{
 			ID:          300,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeOAuth,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeOAuth,
 			Credentials: ownCreds,
 		}
 		headers := make(http.Header)

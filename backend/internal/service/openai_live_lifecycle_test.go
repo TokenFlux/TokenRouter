@@ -12,8 +12,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/live"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -96,7 +105,7 @@ func (d *liveTestDialer) Dial(
 	headers http.Header,
 	_ string,
 	profile *tlsfingerprint.Profile,
-) (openAIWSClientConn, int, http.Header, error) {
+) (openai.WSClientConn, int, http.Header, error) {
 	d.url = wsURL
 	d.headers = headers.Clone()
 	d.tlsProfile = profile
@@ -113,16 +122,16 @@ func (r *liveTestAccountRepo) GetByID(context.Context, int64) (*Account, error) 
 }
 
 type liveTestStore struct {
-	GatewayCache
+	session.GatewayCache
 	mu     sync.Mutex
-	record *LiveCallRecord
+	record *session.LiveCallRecord
 	// 这些错误用于区分 Redis 抖动与记录确实不存在。
 	claimErr         error
 	getCallErr       error
 	getControllerErr error
 }
 
-func (s *liveTestStore) SaveLiveCall(_ context.Context, record *LiveCallRecord, _ time.Duration) error {
+func (s *liveTestStore) SaveLiveCall(_ context.Context, record *session.LiveCallRecord, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	copy := *record
@@ -130,14 +139,14 @@ func (s *liveTestStore) SaveLiveCall(_ context.Context, record *LiveCallRecord, 
 	return nil
 }
 
-func (s *liveTestStore) GetLiveCall(_ context.Context, callHash string) (*LiveCallRecord, error) {
+func (s *liveTestStore) GetLiveCall(_ context.Context, callHash string) (*session.LiveCallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.getCallErr != nil {
 		return nil, s.getCallErr
 	}
 	if s.record == nil || s.record.CallHash != callHash {
-		return nil, ErrLiveCallNotFound
+		return nil, session.ErrLiveCallNotFound
 	}
 	copy := *s.record
 	return &copy, nil
@@ -149,13 +158,13 @@ func (s *liveTestStore) ClaimLiveController(_ context.Context, callHash, control
 	if s.claimErr != nil {
 		return false, s.claimErr
 	}
-	if s.record == nil || s.record.CallHash != callHash || s.record.Controller == LiveControllerClosed {
+	if s.record == nil || s.record.CallHash != callHash || s.record.Controller == session.LiveControllerClosed {
 		return false, nil
 	}
-	if controller == LiveControllerObserver && s.record.Controller != LiveControllerPending {
+	if controller == session.LiveControllerObserver && s.record.Controller != session.LiveControllerPending {
 		return false, nil
 	}
-	if controller == LiveControllerProxy && s.record.Controller != LiveControllerPending && s.record.Controller != LiveControllerObserver {
+	if controller == session.LiveControllerProxy && s.record.Controller != session.LiveControllerPending && s.record.Controller != session.LiveControllerObserver {
 		return false, nil
 	}
 	s.record.Controller = controller
@@ -169,7 +178,7 @@ func (s *liveTestStore) ReleaseLiveController(_ context.Context, callHash, owner
 	if s.record == nil || s.record.CallHash != callHash || s.record.ControllerOwner != owner {
 		return false, nil
 	}
-	s.record.Controller = LiveControllerPending
+	s.record.Controller = session.LiveControllerPending
 	s.record.ControllerOwner = ""
 	return true, nil
 }
@@ -181,7 +190,7 @@ func (s *liveTestStore) GetLiveController(_ context.Context, callHash string) (s
 		return "", s.getControllerErr
 	}
 	if s.record == nil || s.record.CallHash != callHash {
-		return "", ErrLiveCallNotFound
+		return "", session.ErrLiveCallNotFound
 	}
 	return s.record.Controller, nil
 }
@@ -189,16 +198,16 @@ func (s *liveTestStore) GetLiveController(_ context.Context, callHash string) (s
 func (s *liveTestStore) MarkLiveCallClosed(_ context.Context, callHash string, _ time.Duration) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.record == nil || s.record.CallHash != callHash || s.record.Controller == LiveControllerClosed {
+	if s.record == nil || s.record.CallHash != callHash || s.record.Controller == session.LiveControllerClosed {
 		return false, nil
 	}
-	s.record.Controller = LiveControllerClosed
+	s.record.Controller = session.LiveControllerClosed
 	s.record.ControllerOwner = ""
 	return true, nil
 }
 
 type liveTestConcurrencyCache struct {
-	ConcurrencyCache
+	scheduler.ConcurrencyCache
 	mu       sync.Mutex
 	releases int
 }
@@ -240,12 +249,12 @@ func (c *liveTestConcurrencyCache) ReleaseLiveLease(
 }
 
 type liveTestUsageRepo struct {
-	UsageLogRepository
+	usage.UsageLogRepository
 	mu   sync.Mutex
-	logs []*UsageLog
+	logs []*usage.UsageLog
 }
 
-func (r *liveTestUsageRepo) Create(_ context.Context, log *UsageLog) (bool, error) {
+func (r *liveTestUsageRepo) Create(_ context.Context, log *usage.UsageLog) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	copy := *log
@@ -255,7 +264,7 @@ func (r *liveTestUsageRepo) Create(_ context.Context, log *UsageLog) (bool, erro
 
 func TestRunLiveControllerClosesExpiredSession(t *testing.T) {
 	upstream := newLiveTestFrameConn()
-	record := &LiveCallRecord{ExpiresAt: time.Now().Add(20 * time.Millisecond)}
+	record := &session.LiveCallRecord{ExpiresAt: time.Now().Add(20 * time.Millisecond)}
 	service := &OpenAIGatewayService{}
 
 	err := service.runLiveController(context.Background(), record, upstream, make(chan error))
@@ -271,9 +280,9 @@ func TestRunLiveControllerClosesExpiredSession(t *testing.T) {
 }
 
 func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
-	record := &LiveCallRecord{
+	record := &session.LiveCallRecord{
 		CallID:            "call_secret",
-		CallHash:          hashLiveCallID("call_secret"),
+		CallHash:          live.HashCallID("call_secret"),
 		AccountID:         11,
 		APIKeyID:          22,
 		UserID:            33,
@@ -285,7 +294,7 @@ func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
 		ModelMappingChain: "live-alias→gpt-live-test→gpt-live-upstream",
 		CreatedAt:         time.Now().Add(-time.Second),
 		ExpiresAt:         time.Now().Add(time.Hour),
-		Controller:        LiveControllerPending,
+		Controller:        session.LiveControllerPending,
 		InboundEndpoint:   "/v1/live",
 	}
 	store := &liveTestStore{}
@@ -293,9 +302,12 @@ func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
 	concurrencyCache := &liveTestConcurrencyCache{}
 	usageRepo := &liveTestUsageRepo{}
 	service := &OpenAIGatewayService{
-		cache:              store,
-		concurrencyService: NewConcurrencyService(concurrencyCache),
-		usageLogRepo:       usageRepo,
+		cache: store,
+		concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event,
+		},
+		),
+		usageLogRepo: usageRepo,
 	}
 
 	service.finalizeLiveCall(record)
@@ -308,7 +320,7 @@ func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
 	require.Len(t, usageRepo.logs, 1)
 	log := usageRepo.logs[0]
 	usageRepo.mu.Unlock()
-	require.Equal(t, RequestTypeLive, log.RequestType)
+	require.Equal(t, usage.RequestTypeLive, log.RequestType)
 	require.Equal(t, record.CallHash, log.RequestID)
 	require.NotEqual(t, record.CallID, log.RequestID)
 	require.NotNil(t, log.DurationMs)
@@ -326,26 +338,26 @@ func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
 
 func TestGetLiveCallForIdentityRejectsMismatchedCaller(t *testing.T) {
 	groupID := int64(44)
-	record := &LiveCallRecord{
+	record := &session.LiveCallRecord{
 		CallID:     "call_identity",
-		CallHash:   hashLiveCallID("call_identity"),
+		CallHash:   live.HashCallID("call_identity"),
 		APIKeyID:   22,
 		UserID:     33,
 		GroupID:    groupID,
-		Controller: LiveControllerPending,
+		Controller: session.LiveControllerPending,
 	}
 	store := &liveTestStore{}
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
 	service := &OpenAIGatewayService{cache: store}
 
-	_, err := service.GetLiveCallForIdentity(context.Background(), record.CallID, LiveCallIdentity{
+	_, err := service.GetLiveCallForIdentity(context.Background(), record.CallID, session.LiveCallIdentity{
 		APIKeyID: 99,
 		UserID:   record.UserID,
 		GroupID:  &groupID,
 	})
-	require.ErrorIs(t, err, ErrLiveIdentityMismatch)
+	require.ErrorIs(t, err, session.ErrLiveIdentityMismatch)
 
-	loaded, err := service.GetLiveCallForIdentity(context.Background(), record.CallID, LiveCallIdentity{
+	loaded, err := service.GetLiveCallForIdentity(context.Background(), record.CallID, session.LiveCallIdentity{
 		APIKeyID: record.APIKeyID,
 		UserID:   record.UserID,
 		GroupID:  &groupID,
@@ -357,16 +369,16 @@ func TestGetLiveCallForIdentityRejectsMismatchedCaller(t *testing.T) {
 func TestLiveSidebandRewritesEachSessionModelAndRestoresResponse(t *testing.T) {
 	account := &Account{
 		ID:          11,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"gpt-5": "gpt-5.1-codex"},
 		},
 	}
 	upstreamModel := resolveOpenAIAccountUpstreamModelForRequest(account, "gpt-5", false, false)
-	record := &LiveCallRecord{
+	record := &session.LiveCallRecord{
 		GroupID:            44,
 		Model:              "gpt-5",
 		RequestedModel:     "live-alias",
@@ -384,7 +396,7 @@ func TestLiveSidebandRewritesEachSessionModelAndRestoresResponse(t *testing.T) {
 	require.Equal(t, "tool-target", gjson.GetBytes(rewritten, "session.tools.0.model").String())
 	require.Equal(t, "keep live-alias and gpt-5.1-codex", gjson.GetBytes(rewritten, "session.instructions").String())
 
-	response := restoreLiveSidebandServerPayload(
+	response := live.RestoreServerPayload(
 		[]byte(fmt.Sprintf(`{"type":"session.updated","session":{"model":%q,"instructions":"keep gpt-5.1-codex"}}`, upstreamModel)),
 		clientModel,
 		internalModels,
@@ -397,8 +409,8 @@ func TestProxyLiveSidebandForwardsTextAndBinary(t *testing.T) {
 	profileService, routerService := newLiveTLSRoutingServices()
 	account := &Account{
 		ID:          11,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 2,
 		Credentials: map[string]any{
 			"access_token":       "test-access-token",
@@ -409,16 +421,16 @@ func TestProxyLiveSidebandForwardsTextAndBinary(t *testing.T) {
 			"tls_fingerprint_router_id": int64(9),
 		},
 	}
-	record := &LiveCallRecord{
+	record := &session.LiveCallRecord{
 		CallID:     "call_proxy",
-		CallHash:   hashLiveCallID("call_proxy"),
+		CallHash:   live.HashCallID("call_proxy"),
 		AccountID:  account.ID,
 		APIKeyID:   22,
 		UserID:     33,
 		LeaseID:    "lease-1",
 		CreatedAt:  time.Now(),
 		ExpiresAt:  time.Now().Add(time.Minute),
-		Controller: LiveControllerPending,
+		Controller: session.LiveControllerPending,
 		UserAgent:  "test-live-client",
 	}
 	attestationCipher := newLiveAttestationCipher(&config.Config{
@@ -486,13 +498,13 @@ func TestProxyLiveSidebandForwardsTextAndBinary(t *testing.T) {
 	require.Equal(t, "wss://chatgpt.com/backend-api/codex/call_proxy", dialer.url)
 	require.Equal(t, "Bearer test-access-token", dialer.headers.Get("Authorization"))
 	require.Equal(t, "acct_test", dialer.headers.Get("Chatgpt-Account-Id"))
-	require.Equal(t, `{"v":1,"s":0,"t":"v1.sideband"}`, dialer.headers.Get(liveAttestationHeader))
+	require.Equal(t, `{"v":1,"s":0,"t":"v1.sideband"}`, dialer.headers.Get(openai.LiveAttestationHeader))
 	require.Equal(t, "codex_vscode/0.144.1 live-test", dialer.headers.Get("User-Agent"))
 	require.Equal(t, "codex_vscode", dialer.headers.Get("Originator"))
 	require.NotNil(t, dialer.tlsProfile)
 	require.Equal(t, "live-routed", dialer.tlsProfile.Name)
 	upstream.reads <- liveTestFrame{err: coderws.CloseError{Code: coderws.StatusNormalClosure}}
-	require.ErrorIs(t, <-proxyResult, ErrLiveCallNotFound)
+	require.ErrorIs(t, <-proxyResult, session.ErrLiveCallNotFound)
 }
 
 // TestLiveSessionEndedTreatsLeaseLossAsTerminal 锁定：租约续租失败（ErrLiveUnavailable）
@@ -504,17 +516,17 @@ func TestLiveSessionEndedTreatsLeaseLossAsTerminal(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"租约丢失", ErrLiveUnavailable, true},
-		{"租约丢失（被包装）", fmt.Errorf("refresh live lease: %w", ErrLiveUnavailable), true},
-		{"上游报告会话已关闭", ErrLiveCallNotFound, true},
+		{"租约丢失", session.ErrLiveUnavailable, true},
+		{"租约丢失（被包装）", fmt.Errorf("refresh live lease: %w", session.ErrLiveUnavailable), true},
+		{"上游报告会话已关闭", session.ErrLiveCallNotFound, true},
 		{"到达会话时长上限", context.DeadlineExceeded, true},
-		{"控制权被他人接管", ErrLiveControllerChanged, false},
+		{"控制权被他人接管", session.ErrLiveControllerChanged, false},
 		{"临时读错误", errors.New("unexpected EOF"), false},
 		{"无错误", nil, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, liveSessionEnded(tc.err))
+			require.Equal(t, tc.want, live.SessionEnded(tc.err))
 		})
 	}
 }
@@ -523,10 +535,10 @@ func TestLiveSessionEndedTreatsLeaseLossAsTerminal(t *testing.T) {
 // observer 手上时返回 true，让调用方回到 observeLiveCall 循环顶部的过期分支去
 // finalize（写 usage log + 释放租约）。在此处直接返回 false 会让会话静默结束、不留记录。
 func TestWaitForLiveObserverRetryLeavesExpiryToLoopFinalize(t *testing.T) {
-	record := &LiveCallRecord{
+	record := &session.LiveCallRecord{
 		CallID:     "call_expired",
-		CallHash:   hashLiveCallID("call_expired"),
-		Controller: LiveControllerObserver,
+		CallHash:   live.HashCallID("call_expired"),
+		Controller: session.LiveControllerObserver,
 		ExpiresAt:  time.Now().Add(-time.Minute),
 	}
 	store := &liveTestStore{}
@@ -537,10 +549,10 @@ func TestWaitForLiveObserverRetryLeavesExpiryToLoopFinalize(t *testing.T) {
 		"过期判定必须留给循环顶部，否则不会写 usage log")
 
 	// 控制权已被他人接管时仍必须停止重试，避免与新控制者抢同一个 call。
-	require.NoError(t, store.SaveLiveCall(context.Background(), &LiveCallRecord{
+	require.NoError(t, store.SaveLiveCall(context.Background(), &session.LiveCallRecord{
 		CallID:     record.CallID,
 		CallHash:   record.CallHash,
-		Controller: LiveControllerProxy,
+		Controller: session.LiveControllerProxy,
 		ExpiresAt:  time.Now().Add(time.Hour),
 	}, time.Hour))
 	require.False(t, svc.waitForLiveObserverRetry(record))
@@ -548,10 +560,10 @@ func TestWaitForLiveObserverRetryLeavesExpiryToLoopFinalize(t *testing.T) {
 
 // store 抖动不表示 observer 已失去控制权，只有记录不存在时才停止重试。
 func TestWaitForLiveObserverRetryTreatsStoreErrorAsRetryable(t *testing.T) {
-	record := &LiveCallRecord{
+	record := &session.LiveCallRecord{
 		CallID:     "call_flaky_store",
-		CallHash:   hashLiveCallID("call_flaky_store"),
-		Controller: LiveControllerObserver,
+		CallHash:   live.HashCallID("call_flaky_store"),
+		Controller: session.LiveControllerObserver,
 		ExpiresAt:  time.Now().Add(time.Hour),
 	}
 	store := &liveTestStore{getControllerErr: errors.New("redis: connection refused")}
@@ -583,9 +595,9 @@ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			record := &LiveCallRecord{
+			record := &session.LiveCallRecord{
 				CallID:     "call_store_outage",
-				CallHash:   hashLiveCallID("call_store_outage"),
+				CallHash:   live.HashCallID("call_store_outage"),
 				AccountID:  11,
 				APIKeyID:   22,
 				UserID:     33,
@@ -593,7 +605,7 @@ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
 				Model:      "gpt-live-test",
 				CreatedAt:  time.Now().Add(-time.Minute),
 				ExpiresAt:  time.Now().Add(-time.Second),
-				Controller: LiveControllerPending,
+				Controller: session.LiveControllerPending,
 			}
 			store := &liveTestStore{}
 			require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
@@ -601,9 +613,12 @@ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
 			concurrencyCache := &liveTestConcurrencyCache{}
 			usageRepo := &liveTestUsageRepo{}
 			svc := &OpenAIGatewayService{
-				cache:              store,
-				concurrencyService: NewConcurrencyService(concurrencyCache),
-				usageLogRepo:       usageRepo,
+				cache: store,
+				concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+					Event: logging.Event,
+				},
+				),
+				usageLogRepo: usageRepo,
 			}
 
 			svc.observeLiveCall(record)
@@ -613,7 +628,7 @@ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
 			concurrencyCache.mu.Unlock()
 			usageRepo.mu.Lock()
 			require.Len(t, usageRepo.logs, 1, "store 故障时 usage log 不能丢")
-			require.Equal(t, RequestTypeLive, usageRepo.logs[0].RequestType)
+			require.Equal(t, usage.RequestTypeLive, usageRepo.logs[0].RequestType)
 			usageRepo.mu.Unlock()
 		})
 	}
@@ -625,7 +640,7 @@ type liveTestBestEffortUsageRepo struct {
 	bestEffortCalls int
 }
 
-func (r *liveTestBestEffortUsageRepo) CreateBestEffort(_ context.Context, _ *UsageLog) error {
+func (r *liveTestBestEffortUsageRepo) CreateBestEffort(_ context.Context, _ *usage.UsageLog) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.bestEffortCalls++
@@ -634,9 +649,9 @@ func (r *liveTestBestEffortUsageRepo) CreateBestEffort(_ context.Context, _ *Usa
 
 // Live finalize 的异步队列写入失败后必须同步落库，避免唯一一次记录机会被吞掉。
 func TestFinalizeLiveCallUsageLogFallsBackToSyncCreate(t *testing.T) {
-	record := &LiveCallRecord{
+	record := &session.LiveCallRecord{
 		CallID:     "call_usage_fallback",
-		CallHash:   hashLiveCallID("call_usage_fallback"),
+		CallHash:   live.HashCallID("call_usage_fallback"),
 		AccountID:  11,
 		APIKeyID:   22,
 		UserID:     33,
@@ -644,15 +659,18 @@ func TestFinalizeLiveCallUsageLogFallsBackToSyncCreate(t *testing.T) {
 		Model:      "gpt-live-test",
 		CreatedAt:  time.Now().Add(-time.Second),
 		ExpiresAt:  time.Now().Add(time.Hour),
-		Controller: LiveControllerPending,
+		Controller: session.LiveControllerPending,
 	}
 	store := &liveTestStore{}
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
 	usageRepo := &liveTestBestEffortUsageRepo{bestEffortErr: errors.New("usage log queue dropped")}
 	svc := &OpenAIGatewayService{
-		cache:              store,
-		concurrencyService: NewConcurrencyService(&liveTestConcurrencyCache{}),
-		usageLogRepo:       usageRepo,
+		cache: store,
+		concurrencyService: scheduler.NewConcurrencyService(&liveTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event,
+		},
+		),
+		usageLogRepo: usageRepo,
 	}
 
 	svc.finalizeLiveCall(record)
@@ -666,7 +684,7 @@ func TestFinalizeLiveCallUsageLogFallsBackToSyncCreate(t *testing.T) {
 
 // 进程停止只结束本地观察，不得将远端会话提前结算或释放其租约。
 func TestStopLiveObserversPreservesRemoteCall(t *testing.T) {
-	record := &LiveCallRecord{CallHash: "s02-shutdown", Controller: LiveControllerPending, ExpiresAt: time.Now().Add(time.Hour)}
+	record := &session.LiveCallRecord{CallHash: "s02-shutdown", Controller: session.LiveControllerPending, ExpiresAt: time.Now().Add(time.Hour)}
 	store := &liveTestStore{record: record, claimErr: errors.New("temporary store failure")}
 	svc := &OpenAIGatewayService{cache: store}
 	done := make(chan struct{})
@@ -683,7 +701,7 @@ func TestStopLiveObserversPreservesRemoteCall(t *testing.T) {
 	require.NoError(t, svc.StopLiveObservers(ctx))
 	stored, err := store.GetLiveCall(context.Background(), record.CallHash)
 	require.NoError(t, err)
-	require.Equal(t, LiveControllerPending, stored.Controller)
+	require.Equal(t, session.LiveControllerPending, stored.Controller)
 	svc.observeLiveCall(record)
 	svc.liveObserverMu.Lock()
 	require.Empty(t, svc.liveObserverCancels)

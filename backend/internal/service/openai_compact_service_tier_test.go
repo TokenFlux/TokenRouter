@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -22,7 +24,7 @@ func TestNormalizeOpenAICompactRequestBodyPreservesServiceTier(t *testing.T) {
 		"stream":true
 	}`)
 
-	normalized, changed, err := normalizeOpenAICompactRequestBody(body)
+	normalized, changed, err := openai.NormalizeOpenAICompactRequestBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "gpt-5.6-sol", gjson.GetBytes(normalized, "model").String())
@@ -33,21 +35,21 @@ func TestNormalizeOpenAICompactRequestBodyPreservesServiceTier(t *testing.T) {
 }
 
 func TestOpenAIOAuthCompactHTTPBuildersUsePreservedServiceTierInRoutingHint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{
 		"model":"gpt-5.6-sol",
 		"input":[{"type":"message","role":"user","content":"hello"}],
 		"service_tier":"priority",
 		"stream":true
 	}`)
-	normalized, changed, err := normalizeOpenAICompactRequestBody(body)
+	normalized, changed, err := openai.NormalizeOpenAICompactRequestBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "priority", gjson.GetBytes(normalized, "service_tier").String())
 
 	account := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "test-account",
 		},

@@ -12,13 +12,14 @@ import (
 	"strings"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 // 故意将旧探测状态直接注入账号对象，验证实际转发不依赖迁移或写入清理。
 func TestOpenAIAdministratorProtocolOverridesAllLegacyProbeState(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	for _, mode := range []string{"preserve_client_protocol", "force_responses", "force_chat_completions"} {
 		for _, legacy := range []any{false, true, "invalid"} {
 			for _, inbound := range []string{"responses", "chat/completions", "messages"} {
@@ -53,7 +54,7 @@ func TestOpenAIAdministratorProtocolOverridesAllLegacyProbeState(t *testing.T) {
 						want = "/v1/chat/completions"
 					}
 					require.Equal(t, want, upstream.lastReq.URL.Path)
-					require.Equal(t, want, GetActualOpenAIUpstreamEndpoint(c))
+					require.Equal(t, want, gatewayhttp.GetActualOpenAIUpstreamEndpoint(c))
 				})
 			}
 		}

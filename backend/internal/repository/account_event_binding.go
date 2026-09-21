@@ -2,9 +2,15 @@
 package repository
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	schedulerpostgres "github.com/TokenFlux/TokenRouter/internal/scheduler/postgres"
+
 	context "context"
+
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
+
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -18,19 +24,19 @@ type AccountEventBinding struct {
 func (AccountEventBinding) Name(event accountpostgres.AccountEvent) string {
 	switch event {
 	case accountpostgres.AccountChanged:
-		return service.SchedulerOutboxEventAccountChanged
+		return scheduler.SchedulerOutboxEventAccountChanged
 	case accountpostgres.AccountGroupsChanged:
-		return service.SchedulerOutboxEventAccountGroupsChanged
+		return scheduler.SchedulerOutboxEventAccountGroupsChanged
 	case accountpostgres.AccountLastUsed:
-		return service.SchedulerOutboxEventAccountLastUsed
+		return scheduler.SchedulerOutboxEventAccountLastUsed
 	case accountpostgres.AccountBulkChanged:
-		return service.SchedulerOutboxEventAccountBulkChanged
+		return scheduler.SchedulerOutboxEventAccountBulkChanged
 	default:
 		panic("未知账号事件")
 	}
 }
 func (b AccountEventBinding) Write(ctx context.Context, exec postgresinfra.Executor, event accountpostgres.AccountEvent, id, group *int64, payload any) error {
-	return enqueueSchedulerOutbox(ctx, exec, b.Name(event), id, group, payload)
+	return schedulerpostgres.EnqueueSchedulerChange(ctx, exec, b.Name(event), id, group, payload)
 }
 func (AccountEventBinding) GroupPayload(ids []int64) any { return buildSchedulerGroupPayload(ids) }
 func (b AccountEventBinding) SyncOne(ctx context.Context, id int64) {

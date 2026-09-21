@@ -5,12 +5,13 @@ import (
 	context "context"
 	json "encoding/json"
 	errors "errors"
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
-	pq "github.com/lib/pq"
 	strconv "strconv"
 	strings "strings"
 	time "time"
+
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
+	pq "github.com/lib/pq"
 )
 
 func (r *AccountStore) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {

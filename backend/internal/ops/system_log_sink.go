@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	logger "github.com/TokenFlux/TokenRouter/internal/pkg/logevent"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logevent"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 )
 
@@ -29,7 +29,7 @@ type OpsSystemLogSink struct {
 	// host 记录当前进程写入系统日志时的主机标识。
 	host string
 
-	queue            chan *logger.LogEvent
+	queue            chan *logevent.LogEvent
 	lifecycleMu      sync.RWMutex
 	started, stopped bool
 	stopOnce         sync.Once
@@ -75,7 +75,7 @@ func NewOpsSystemLogSink(opsRepo SystemLogWriter, options ...SystemLogSinkOption
 		opsRepo:  opsRepo,
 		stopDone: make(chan struct{}), onWriteFailure: option.OnWriteFailure,
 		host:            normalizeSystemLogHost(option.Host, option.HostError),
-		queue:           make(chan *logger.LogEvent, 5000),
+		queue:           make(chan *logevent.LogEvent, 5000),
 		batchSize:       200,
 		flushInterval:   time.Second,
 		flushBackoff:    defaultOpsSystemLogFlushBackoff,
@@ -159,7 +159,7 @@ func (s *OpsSystemLogSink) StopContext(ctx context.Context) error {
 	}
 }
 
-func (s *OpsSystemLogSink) WriteLogEvent(event *logger.LogEvent) {
+func (s *OpsSystemLogSink) WriteLogEvent(event *logevent.LogEvent) {
 	if s == nil || event == nil || !s.shouldIndex(event) {
 		return
 	}
@@ -183,9 +183,9 @@ func (s *OpsSystemLogSink) WriteLogEvent(event *logger.LogEvent) {
 	}
 }
 
-func (s *OpsSystemLogSink) shouldIndex(event *logger.LogEvent) bool {
+func (s *OpsSystemLogSink) shouldIndex(event *logevent.LogEvent) bool {
 	if event != nil && event.Fields != nil {
-		if skip, _ := event.Fields[logger.OpsSystemLogSkipField].(bool); skip {
+		if skip, _ := event.Fields[logevent.OpsSystemLogSkipField].(bool); skip {
 			return false
 		}
 	}
@@ -217,7 +217,7 @@ func (s *OpsSystemLogSink) run() {
 	ticker := time.NewTicker(s.flushInterval)
 	defer ticker.Stop()
 
-	batch := make([]*logger.LogEvent, 0, s.batchSize)
+	batch := make([]*logevent.LogEvent, 0, s.batchSize)
 	// 仅在本 goroutine 内读写，无需加锁。
 	failures := 0
 	var suppressedUntil time.Time
@@ -292,7 +292,7 @@ func (s *OpsSystemLogSink) run() {
 	}
 }
 
-func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.LogEvent) (int, error) {
+func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logevent.LogEvent) (int, error) {
 	inputs := make([]*OpsInsertSystemLogInput, 0, len(batch))
 	for _, event := range batch {
 		if event == nil {

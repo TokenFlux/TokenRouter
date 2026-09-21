@@ -1,8 +1,9 @@
 package routing
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 目录读取与配置解析顺序保持原管理入口的差异。

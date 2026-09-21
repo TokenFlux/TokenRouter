@@ -3,8 +3,8 @@
 package repository
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 func (s *APIKeyRepoSuite) TestListByUserID_SortByNameAsc() {
@@ -17,7 +17,7 @@ func (s *APIKeyRepoSuite) TestListByUserID_SortByNameAsc() {
 		PageSize:  10,
 		SortBy:    "name",
 		SortOrder: "asc",
-	}, service.APIKeyListFilters{})
+	}, apikey.APIKeyListFilters{})
 	s.Require().NoError(err)
 	s.Require().Len(keys, 2)
 	s.Require().Equal("a-key", keys[0].Name)
@@ -34,7 +34,7 @@ func (s *APIKeyRepoSuite) TestListByUserID_SortByID() {
 		PageSize:  10,
 		SortBy:    "id",
 		SortOrder: "desc",
-	}, service.APIKeyListFilters{})
+	}, apikey.APIKeyListFilters{})
 	s.Require().NoError(err)
 	s.Require().Len(keys, 2)
 	s.Require().Equal(second.ID, keys[0].ID)

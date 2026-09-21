@@ -1,6 +1,6 @@
 # API Key 上游用量查询
 
-本文定义 `type=apikey` 账号的上游用量查询，以及国产供应商可选的周期监控。管理员手动查询是纯展示能力，不参与 TokenRouter 调度、自动暂停、账号倍率、本地配额或结算；只有显式开启的 CN 周期监控可以写统一快照并按余额形成临时停调。`type=bedrock` 不在范围内，OAuth/Setup Token 的官方用量窗口仍由 `AccountUsageService` 独立维护。
+本文定义 `type=apikey` 账号的上游用量查询，以及国产供应商可选的周期监控。管理员手动查询是纯展示能力，不参与 TokenRouter 调度、自动暂停、账号倍率、本地配额或结算；只有显式开启的 CN 周期监控可以写统一快照并按余额形成临时停调。`type=bedrock` 不在范围内，OAuth/Setup Token 的官方用量窗口仍由 `account.OAuthUsageService` 独立维护。
 
 ## 配置
 
@@ -59,11 +59,11 @@ Zhipu payg 没有公开余额协议，DeepSeek coding 也不是合法账号组�
 <a id="native_usage_adapters"></a>
 ## 原生查询与账号编排
 
-S09 将 Sub2API、New API、Zivv 的固定查询及归一化移到 `upstream/usageprovider`，Kimi、Zhipu、DeepSeek 分别进入对应的 `upstream` 包。`account/provider.UpstreamUsageExecution` 持有唯一适配器注册表，app 将它绑定到既有 account 查询用例；旧 service 入口只投影账号凭据、代理、TLS 和 Header 参数并委托。
+Sub2API、New API、Zivv 的固定查询及归一化位于 `upstream/usageprovider`，Kimi、Zhipu、DeepSeek 分别进入对应的 `upstream` 包。`account/provider.UpstreamUsageExecution` 持有唯一适配器注册表，`NewUpstreamUsageHTTPExecution` 从原生账号记录构造凭据、代理、TLS 和 Header 技术快照。app 只投影出站配置与共享传输端口，直接绑定唯一 `account.UpstreamUsageService`；旧 service 查询入口及旧管理员 HTTP 转接已删除。
 
 `upstream/usageview` 保存归一化值、错误和验证规则，account 的旧值入口使用别名。`upstream/usagecontract.Request` 是本次查询的技术快照，敏感字段不参与 JSON 或普通字符串格式化；共享 `upstream/internal/usageclient` 保留固定读取上限、请求头覆盖顺序、状态映射和响应体关闭。原生包不读取账号仓储，不写健康、调度或资金。
 
-Ollama 的固定设置页抓取、HTML 解析、Retry-After 及 Chat 思考字段补齐和输出上限处理进入 `upstream/ollama`。account 继续拥有浏览器会话、分组、加密、singleflight、身份 CAS 与周期维护。它仍是现有 OpenAI 兼容账号的一种能力，不新增独立账号平台。CN 的通用文本执行复用 Anthropic/OpenAI 协议链；平台资格与全局重试不进入用量适配器。
+Ollama 的固定设置页抓取、HTML 解析、Retry-After 及 Chat 思考字段补齐和输出上限处理进入 `upstream/ollama`。`account/provider.OllamaUsageFetcher` 仅将受控 Cookie、代理和并发参数交给共享 HTTP 池；app 直接构造唯一 `account.OllamaCloudUsageService`，由其拥有浏览器会话、分组、加密、singleflight、身份 CAS 与周期维护，HTTP 直接绑定原生 Handler。它仍是现有 OpenAI 兼容账号的一种能力，不新增独立账号平台。CN 的通用文本执行复用 Anthropic/OpenAI 协议链；平台资格与全局重试不进入用量适配器。
 
 ## 管理员接口
 

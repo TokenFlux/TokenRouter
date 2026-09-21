@@ -7,30 +7,30 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
-
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	httpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenAIForwardMayFailoverOnlyAfterNonSemanticWrite(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
-	before := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
+	before := httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 
 	_, err := fmt.Fprint(c.Writer, ":\n\n")
 	require.NoError(t, err)
 	c.Writer.Flush()
 
-	require.True(t, openAIForwardMayFailover(c, before, &service.UpstreamFailoverError{
+	require.True(t, openAIForwardMayFailover(c, before, &forwardcore.UpstreamFailoverError{
 		SafeToFailoverAfterWrite: true,
 	}))
-	require.False(t, openAIForwardMayFailover(c, before, &service.UpstreamFailoverError{}))
+	require.False(t, openAIForwardMayFailover(c, before, &forwardcore.UpstreamFailoverError{}))
 }
 
 func TestOpenAIFirstOutputFailoverStopsAfterOneAccountSwitch(t *testing.T) {
-	failoverErr := &service.UpstreamFailoverError{SafeToFailoverAfterWrite: true}
+	failoverErr := &forwardcore.UpstreamFailoverError{SafeToFailoverAfterWrite: true}
 	count := 0
 
 	require.False(t, failover.FirstOutputExhausted(failoverErr.SafeToFailoverAfterWrite, &count))

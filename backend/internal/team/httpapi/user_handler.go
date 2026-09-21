@@ -2,23 +2,25 @@
 package httpapi
 
 import (
+	strconv "strconv"
+	strings "strings"
+	time "time"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	team "github.com/TokenFlux/TokenRouter/internal/team"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
-	strings "strings"
-	time "time"
 )
 
 // UserHandler 处理当前用户所在团队的生命周期和成员管理请求。
 type UserHandler struct {
-	service *team.TeamService
+	service  *team.TeamService
+	calendar timezone.Calendar
 }
 
-func NewUserHandler(teamService *team.TeamService) *UserHandler {
-	return &UserHandler{service: teamService}
+func NewUserHandler(teamService *team.TeamService, calendar timezone.Calendar) *UserHandler {
+	return &UserHandler{service: teamService, calendar: calendar}
 }
 
 func teamSubject(c *gin.Context) (middleware.AuthSubject, bool) {
@@ -138,13 +140,13 @@ func (h *UserHandler) ListMembers(c *gin.Context) {
 	response.Success(c, members)
 }
 
-func parseTeamUsageQuery(c *gin.Context) (team.TeamUsageQuery, error) {
+func parseTeamUsageQuery(c *gin.Context, calendar timezone.Calendar) (team.TeamUsageQuery, error) {
 	query := team.TeamUsageQuery{}
 	parseTime := func(value string, end bool) (time.Time, error) {
 		if strings.TrimSpace(value) == "" {
 			return time.Time{}, nil
 		}
-		parsed, dateOnly, err := timezone.ParseDateTimeInUserLocation(value, "")
+		parsed, dateOnly, err := calendar.ParseDateTimeInUserLocation(value, "")
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -188,7 +190,7 @@ func (h *UserHandler) GetUsageSummary(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query, err := parseTeamUsageQuery(c)
+	query, err := parseTeamUsageQuery(c, h.calendar)
 	if err != nil {
 		response.BadRequest(c, "Invalid team usage query")
 		return
@@ -207,7 +209,7 @@ func (h *UserHandler) ListMemberUsageSeries(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query, err := parseTeamUsageQuery(c)
+	query, err := parseTeamUsageQuery(c, h.calendar)
 	if err != nil {
 		response.BadRequest(c, "Invalid team usage query")
 		return
@@ -226,7 +228,7 @@ func (h *UserHandler) ListUsageLogs(c *gin.Context) {
 	if !ok {
 		return
 	}
-	query, err := parseTeamUsageQuery(c)
+	query, err := parseTeamUsageQuery(c, h.calendar)
 	if err != nil {
 		response.BadRequest(c, "Invalid team usage query")
 		return

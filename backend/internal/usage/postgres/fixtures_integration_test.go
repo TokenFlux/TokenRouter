@@ -3,17 +3,27 @@
 package postgres
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"context"
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+
 	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
-func mustCreateUser(t *testing.T, client *dbent.Client, u *service.User) *service.User {
+func mustCreateUser(t *testing.T, client *dbent.Client, u *identity.User) *identity.User {
 	t.Helper()
 	ctx := context.Background()
 
@@ -24,10 +34,10 @@ func mustCreateUser(t *testing.T, client *dbent.Client, u *service.User) *servic
 		u.PasswordHash = "test-password-hash"
 	}
 	if u.Role == "" {
-		u.Role = service.RoleUser
+		u.Role = identity.RoleUser
 	}
 	if u.Status == "" {
-		u.Status = service.StatusActive
+		u.Status = billing.StatusActive
 	}
 	if u.Concurrency == 0 {
 		u.Concurrency = 5
@@ -69,15 +79,15 @@ func mustCreateUser(t *testing.T, client *dbent.Client, u *service.User) *servic
 	return u
 }
 
-func mustCreateGroup(t *testing.T, client *dbent.Client, g *service.Group) *service.Group {
+func mustCreateGroup(t *testing.T, client *dbent.Client, g *routing.Group) *routing.Group {
 	t.Helper()
 	ctx := context.Background()
 
 	if g.Platform == "" {
-		g.Platform = service.PlatformAnthropic
+		g.Platform = capability.PlatformAnthropic
 	}
 	if g.Status == "" {
-		g.Status = service.StatusActive
+		g.Status = billing.StatusActive
 	}
 
 	create := client.Group.Create().
@@ -112,13 +122,13 @@ func mustCreateAccount(t *testing.T, client *dbent.Client, a *service.Account) *
 	ctx := context.Background()
 
 	if a.Platform == "" {
-		a.Platform = service.PlatformAnthropic
+		a.Platform = capability.PlatformAnthropic
 	}
 	if a.Type == "" {
-		a.Type = service.AccountTypeOAuth
+		a.Type = capability.AccountTypeOAuth
 	}
 	if a.Status == "" {
-		a.Status = service.StatusActive
+		a.Status = billing.StatusActive
 	}
 	if a.Concurrency == 0 {
 		a.Concurrency = 3
@@ -194,12 +204,12 @@ func mustCreateAccount(t *testing.T, client *dbent.Client, a *service.Account) *
 	return a
 }
 
-func mustCreateApiKey(t *testing.T, client *dbent.Client, k *service.APIKey) *service.APIKey {
+func mustCreateApiKey(t *testing.T, client *dbent.Client, k *apikey.APIKey) *apikey.APIKey {
 	t.Helper()
 	ctx := context.Background()
 
 	if k.Status == "" {
-		k.Status = service.StatusActive
+		k.Status = billing.StatusActive
 	}
 	if k.Key == "" {
 		k.Key = "sk-" + time.Now().Format("150405.000000")

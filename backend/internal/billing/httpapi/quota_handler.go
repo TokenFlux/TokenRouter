@@ -3,13 +3,14 @@ package httpapi
 
 import (
 	errors "errors"
+	strconv "strconv"
+	time "time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
-	time "time"
 )
 
 // QuotaHandler 只读取请求身份、解码和序列化，管理写入由完整权益用例负责。
@@ -30,7 +31,7 @@ func (h *QuotaHandler) usecase() *billing.PlatformQuotas {
 }
 func (h *QuotaHandler) respond(c *gin.Context, records []billing.UserPlatformQuotaRecord, admin bool) {
 	now := time.Now().UTC()
-	calendar := timezone.NewCalendar(timezone.Location())
+	calendar := timezone.NewCalendar(time.Local)
 	if h != nil {
 		now = h.now().UTC()
 		calendar = h.calendar

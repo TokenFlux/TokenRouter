@@ -14,7 +14,6 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 )
@@ -43,7 +42,7 @@ func testEntTx(t *testing.T) *dbent.Tx {
 	bootstrapFixture.once.Do(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		if err := timezone.Init("UTC"); err != nil {
+		if err := InitTimezone("UTC"); err != nil {
 			bootstrapFixture.err = err
 			return
 		}

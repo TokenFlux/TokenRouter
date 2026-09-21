@@ -6,23 +6,28 @@ import (
 	"net/http"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // wsStreamAdapter 投影单次帧解析和账号健康规则，不拥有读取循环、重试或完成时序。
 type wsStreamAdapter struct {
 	*wsPassthroughAdapter
-	observer    *upstreamResponseModelObserver
+	observer    *forwardcore.ResponseObserver
 	state       *gatewayws.IngressState
 	groupID     int64
 	writeClient func([]byte) error
 }
 
 func (p *wsStreamAdapter) BeginObservation() {
-	p.observer = upstreamResponseModelObserverFromContext(p.request)
+	p.observer = gatewayhttp.UpstreamResponseModelObserverFromContext(p.request)
 	if p.observer == nil {
-		p.observer = beginUpstreamResponseModelObservation(p.request)
+		p.observer = gatewayhttp.BeginUpstreamResponseModelObservation(p.request)
 	}
 }
 func (p *wsStreamAdapter) ObserveModel(body []byte, event string) {
@@ -30,17 +35,19 @@ func (p *wsStreamAdapter) ObserveModel(body []byte, event string) {
 }
 func (p *wsStreamAdapter) ResponseTier() string { return p.observer.ServiceTier() }
 func (p *wsStreamAdapter) ResolvedTier(body []byte) *string {
-	return resolvedOpenAIUpstreamServiceTierFromObserver(p.observer, extractOpenAIServiceTierFromBody(body))
+	return gatewayhttp.ResolvedOpenAIUpstreamServiceTierFromObserver(p.observer, extractOpenAIServiceTierFromBody(body))
 }
 func (p *wsStreamAdapter) Reasoning(body []byte, mapped, original string) *string {
 	return ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(body, mapped, original), body, mapped)
 }
-func (p *wsStreamAdapter) ImageCounter() gatewayws.ImageCounter { return newOpenAIImageOutputCounter() }
+func (p *wsStreamAdapter) ImageCounter() gatewayws.ImageCounter {
+	return wire.NewOpenAIImageOutputCounter()
+}
 func (p *wsStreamAdapter) ReplayCollector() gatewayws.ReplayCollector {
 	return &openAIWSToolCallReplayCollector{}
 }
 func (p *wsStreamAdapter) Streaming(body []byte) bool {
-	return openAIWSPayloadBoolFromRaw(body, "stream", true)
+	return wire.WSPayloadBoolFromRaw(body, "stream", true)
 }
 func (p *wsStreamAdapter) StoreDisabled(body []byte) bool {
 	return p.service.isOpenAIWSStoreDisabledInRequestRaw(body, p.account)
@@ -49,20 +56,20 @@ func (p *wsStreamAdapter) ClassifyPrevious(id string) string {
 	return ClassifyOpenAIPreviousResponseIDKind(id)
 }
 func (p *wsStreamAdapter) HasToolOutput(body []byte) bool {
-	return openAIWSRawPayloadHasToolCallOutput(body)
+	return openai.OpenAIWSRawPayloadHasToolCallOutput(body)
 }
 func (p *wsStreamAdapter) MappedModel(model string) string {
 	return normalizeOpenAIModelForUpstream(p.account, resolveAccountMappedModelForForward(p.account, model))
 }
 func (p *wsStreamAdapter) Envelope(body []byte) (string, string, bool) {
-	event, id, _ := parseOpenAIWSEventEnvelope(body)
+	event, id, _ := wire.ParseWSEventEnvelope(body)
 	return event, id, false
 }
 func (p *wsStreamAdapter) ShouldParseUsage(event string) bool {
-	return openAIWSEventShouldParseUsage(event)
+	return wire.WSEventShouldParseUsage(event)
 }
 func (p *wsStreamAdapter) ParseUsage(body []byte, usage *wire.ForwardUsage) {
-	parseOpenAIWSResponseUsageFromCompletedEvent(body, usage)
+	wire.ParseWSResponseUsageFromCompletedEvent(body, usage)
 }
 func (p *wsStreamAdapter) MarkCyber(body []byte, usage *wire.ForwardUsage) {
 	markOpenAICyberPolicyEvent(p.request, body, http.StatusOK, usage)
@@ -81,55 +88,61 @@ func (p *wsStreamAdapter) TerminalDecision(ctx context.Context, model string, he
 	return gatewayws.TerminalPolicy{TerminalEvent: policy.TerminalEvent, StatusCode: policy.StatusCode, Decision: gatewayws.ErrorPolicy{Generic: d.ShouldReturnGenericError(), Failover: d.ShouldFailoverWithDefaults(p.account, policy.StatusCode, false, p.service.shouldFailoverOpenAIWSError(p.account, policy.StatusCode, body)), RetrySame: d.RetryableOnSameAccount(p.account, policy.StatusCode)}}
 }
 func (p *wsStreamAdapter) ErrorFields(body []byte) (string, string, string) {
-	return parseOpenAIWSErrorEventFields(body)
+	return wire.ParseWSErrorEventFields(body)
 }
 func (p *wsStreamAdapter) ErrorStatus(body []byte) int { return openAIWSErrorPolicyStatus(body) }
 func (p *wsStreamAdapter) ClassifyError(code, kind, message string) (string, bool) {
-	return classifyOpenAIWSErrorEventFromRaw(code, kind, message)
+	return openai.ClassifyWSErrorEventFromRaw(code, kind, message)
 }
 func (p *wsStreamAdapter) EncryptedDigests(body []byte) []string {
-	return collectOpenAIEncryptedContentDigestsRaw(body)
+	return openai.CollectOpenAIEncryptedContentDigestsRaw(body)
 }
 func (p *wsStreamAdapter) MarkEncrypted(digests []string) {
 	p.service.markOpenAIWSInvalidEncryptedContentLineage(p.groupID, p.state.SessionHash, digests)
 }
 func (p *wsStreamAdapter) SummarizeError(code, kind, message string) (string, string, string) {
-	return summarizeOpenAIWSErrorEventFieldsFromRaw(code, kind, message)
+	return gatewayprovider.SummarizeOpenAIWSErrorEventFieldsFromRaw(code, kind, message)
 }
 func (p *wsStreamAdapter) GenericError(status int) error {
 	return openAIWSGenericPolicyCloseError(status)
 }
 func (p *wsStreamAdapter) RawFailure(status int, headers map[string][]string, body []byte, retry bool) error {
-	return &UpstreamFailoverError{StatusCode: status, ResponseHeaders: cloneHeader(headers), ResponseBody: append([]byte(nil), body...), RetryableOnSameAccount: retry}
+	return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseHeaders: upstream.CloneHeader(headers), ResponseBody: append([]byte(nil), body...), RetryableOnSameAccount: retry}
 }
 func (p *wsStreamAdapter) Failure(status int, headers map[string][]string, body []byte, message string, retry bool) error {
 	return newOpenAIUpstreamFailoverError(status, headers, body, message, retry)
 }
-func (p *wsStreamAdapter) IsToken(event string) bool  { return isOpenAIWSTokenEvent(event) }
-func (p *wsStreamAdapter) Message(body []byte) string { return extractOpenAISSEErrorMessage(body) }
+func (p *wsStreamAdapter) IsToken(event string) bool { return wire.IsWSTokenEvent(event) }
+func (p *wsStreamAdapter) Message(body []byte) string {
+	return openai.ExtractOpenAISSEErrorMessage(body)
+}
 func (p *wsStreamAdapter) GenericEvent() []byte {
 	return buildOpenAIWSHTTPBridgeErrorEvent(http.StatusInternalServerError, "Upstream gateway error")
 }
 func (p *wsStreamAdapter) MayContainTools(event string) bool {
-	return openAIWSEventMayContainToolCalls(event)
+	return wire.WSEventMayContainToolCalls(event)
 }
 func (p *wsStreamAdapter) LikelyTools(body []byte) bool {
-	return openAIWSMessageLikelyContainsToolCalls(body)
+	return wire.WSMessageLikelyContainsToolCalls(body)
 }
 func (p *wsStreamAdapter) CorrectTools(body []byte) ([]byte, bool) {
 	return p.service.toolCorrector.CorrectToolCallsInSSEBytes(body)
 }
 func (p *wsStreamAdapter) CapacityShed(body []byte) ([]byte, bool) {
-	return sanitizeOpenAICapacityShedErrorCodeForClient(body)
+	return openai.SanitizeOpenAICapacityShedErrorCodeForClient(body)
 }
 func (p *wsStreamAdapter) WriteClient(body []byte) error { return p.writeClient(body) }
-func (p *wsStreamAdapter) IsDisconnect(err error) bool   { return isOpenAIWSClientDisconnectError(err) }
-func (p *wsStreamAdapter) SummarizeClose(err error) (string, string) {
-	return summarizeOpenAIWSReadCloseError(err)
+func (p *wsStreamAdapter) IsDisconnect(err error) bool {
+	return gatewayprovider.IsOpenAIWSClientDisconnectError(err)
 }
-func (p *wsStreamAdapter) NormalizeLog(value string) string { return normalizeOpenAIWSLogValue(value) }
-func (p *wsStreamAdapter) Log(message string)               { logOpenAIWSModeInfo("%s", message) }
-func (p *wsStreamAdapter) Debug(message string)             { logOpenAIWSModeDebug("%s", message) }
+func (p *wsStreamAdapter) SummarizeClose(err error) (string, string) {
+	return gatewayprovider.SummarizeOpenAIWSReadCloseError(err)
+}
+func (p *wsStreamAdapter) NormalizeLog(value string) string {
+	return gatewayprovider.NormalizeOpenAIWSLogValue(value)
+}
+func (p *wsStreamAdapter) Log(message string)   { gatewayprovider.LogOpenAIWSModeInfo("%s", message) }
+func (p *wsStreamAdapter) Debug(message string) { gatewayprovider.LogOpenAIWSModeDebug("%s", message) }
 
 func (l *wsIngressLease) WriteRequest(ctx context.Context, body []byte, timeout time.Duration) error {
 	return l.lease.WriteJSONWithContextTimeout(ctx, json.RawMessage(body), timeout)

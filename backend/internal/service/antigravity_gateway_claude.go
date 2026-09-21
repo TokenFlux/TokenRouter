@@ -9,12 +9,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	googlewire "github.com/TokenFlux/TokenRouter/internal/protocol/google"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
@@ -32,9 +39,9 @@ import (
 //	      └─ retryDelay <  7s → 等待后重试 1 次
 //	          ├─ 成功 → 正常返回
 //	          └─ 失败 → 设置模型限流 + 清除粘性绑定 → 切换账号
-func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte, isStickySession bool) (*ForwardResult, error) {
+func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte, isStickySession bool) (*forwardcore.MessagesResult, error) {
 	// 上游透传账号直接转发，不走 OAuth token 刷新
-	if account.Type == AccountTypeUpstream {
+	if account.Type == capability.AccountTypeUpstream {
 		return s.ForwardUpstream(ctx, c, account, body)
 	}
 
@@ -55,10 +62,10 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 	originalModel := claudeReq.Model
 	// thinking 状态必须参与最终模型解析，确保调度限制与真正转发的模型一致。
 	thinkingEnabled := claudeReq.Thinking != nil && (claudeReq.Thinking.Type == "enabled" || claudeReq.Thinking.Type == "adaptive")
-	modelCtx := WithThinkingEnabled(ctx, thinkingEnabled, false)
+	modelCtx := requeststate.WithThinkingEnabled(ctx, thinkingEnabled)
 	mappedModel := resolveFinalAntigravityModelKey(modelCtx, account, claudeReq.Model)
 	if mappedModel == "" {
-		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
+		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 		return nil, s.writeClaudeError(c, http.StatusForbidden, "permission_error", fmt.Sprintf("model %s not in whitelist", claudeReq.Model))
 	}
 	billingModel := mappedModel
@@ -67,9 +74,9 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 	if s.tokenProvider == nil {
 		return nil, s.writeClaudeError(c, http.StatusBadGateway, "api_error", "Antigravity token provider not configured")
 	}
-	accessToken, err := s.tokenProvider.GetAccessToken(ctx, account)
+	accessToken, err := accountToken(ctx, s.tokenProvider, account)
 	if err != nil {
-		return nil, &UpstreamFailoverError{
+		return nil, &forwardcore.UpstreamFailoverError{
 			StatusCode:   http.StatusBadGateway,
 			ResponseBody: []byte(`{"error":{"type":"authentication_error","message":"Failed to get upstream access token"},"type":"error"}`),
 		}
@@ -126,8 +133,8 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		result, err := retry.AntigravityRetryLoop(params)
 		if err != nil {
 			// 检查是否是账号切换信号，转换为 UpstreamFailoverError 让 Handler 切换账号
-			if switchErr, ok := IsAntigravityAccountSwitchError(err); ok {
-				return nil, &UpstreamFailoverError{
+			if switchErr, ok := antigravity.IsAntigravityAccountSwitchError(err); ok {
+				return nil, &forwardcore.UpstreamFailoverError{
 					StatusCode:        http.StatusServiceUnavailable,
 					ForceCacheBilling: switchErr.IsStickySession,
 				}
@@ -146,7 +153,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 				return nil, err
 			}
 			return value.Resp, nil
-		}, SignatureEnabled: s.settingService.IsSignatureRectifierEnabled, BudgetEnabled: s.settingService.IsBudgetRectifierEnabled, TransformOptions: s.getClaudeTransformOptions, LogConfig: s.getLogConfig, ErrorDetail: s.getUpstreamErrorDetail, ReadErrorBody: s.readUpstreamErrorBody, Observe: retry.Options.Observe, IsBudgetConstraint: isThinkingBudgetConstraintError, BudgetTokens: BudgetRectifyBudgetTokens, MinMaxTokens: BudgetRectifyMinMaxTokens, MaxTokens: BudgetRectifyMaxTokens, TruncateForLog: truncateForLog, TruncateString: truncateString}
+		}, SignatureEnabled: s.settingService.Gateway.IsSignatureRectifierEnabled, BudgetEnabled: s.settingService.Gateway.IsBudgetRectifierEnabled, TransformOptions: s.getClaudeTransformOptions, LogConfig: s.getLogConfig, ErrorDetail: s.getUpstreamErrorDetail, ReadErrorBody: s.readUpstreamErrorBody, Observe: retry.Options.Observe, IsBudgetConstraint: anthropic.IsThinkingBudgetConstraintError, BudgetTokens: anthropic.BudgetRectifyBudgetTokens, MinMaxTokens: anthropic.BudgetRectifyMinMaxTokens, MaxTokens: anthropic.BudgetRectifyMaxTokens, TruncateForLog: truncateForLog, TruncateString: logredact.TruncateUTF8}
 		return antigravity.RecoverClaude(ctx, antigravity.ClaudeRecoveryInput{AccountID: account.ID, AccountName: account.Name, Prefix: prefix, ProjectID: projectID, Model: mappedModel, Request: claudeReq, InitialOptions: transformOpts}, result.Resp, options), nil
 	}
 	target.BeforeResponse = func(ctx context.Context, resp *http.Response) (bool, error) {
@@ -156,15 +163,15 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		respBody := s.readUpstreamErrorBody(resp)
 		if resp.StatusCode >= 400 {
 			// 检测 prompt too long 错误，返回特殊错误类型供上层 fallback
-			if resp.StatusCode == http.StatusBadRequest && isPromptTooLongError(respBody) {
-				upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
-				upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+			if resp.StatusCode == http.StatusBadRequest && antigravity.IsPromptTooLongError(respBody) {
+				upstreamMsg := strings.TrimSpace(googlewire.ExtractPlatformMessage(respBody))
+				upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
 				upstreamDetail := s.getUpstreamErrorDetail(respBody)
 				logBody, maxBytes := s.getLogConfig()
 				if logBody {
-					logger.LegacyPrintf("service.antigravity_gateway", "%s status=400 prompt_too_long=true upstream_message=%q request_id=%s body=%s", prefix, upstreamMsg, resp.Header.Get("x-request-id"), truncateForLog(respBody, maxBytes))
+					logging.LegacyPrintf("service.antigravity_gateway", "%s status=400 prompt_too_long=true upstream_message=%q request_id=%s body=%s", prefix, upstreamMsg, resp.Header.Get("x-request-id"), truncateForLog(respBody, maxBytes))
 				}
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+				gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 					Platform:           account.Platform,
 					AccountID:          account.ID,
 					AccountName:        account.Name,
@@ -174,7 +181,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 					Message:            upstreamMsg,
 					Detail:             upstreamDetail,
 				})
-				return true, &PromptTooLongError{
+				return true, &antigravity.PromptTooLongError{
 					StatusCode: resp.StatusCode,
 					RequestID:  resp.Header.Get("x-request-id"),
 					Body:       respBody,
@@ -185,12 +192,12 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 
 			// 精确匹配服务端配置类 400 错误，触发同账号重试 + failover
 			if resp.StatusCode == http.StatusBadRequest {
-				msg := strings.ToLower(strings.TrimSpace(extractAntigravityErrorMessage(respBody)))
-				if isGoogleProjectConfigError(msg) {
-					upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractAntigravityErrorMessage(respBody)))
+				msg := strings.ToLower(strings.TrimSpace(googlewire.ExtractPlatformMessage(respBody)))
+				if upstream.IsGoogleProjectConfigError(msg) {
+					upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(googlewire.ExtractPlatformMessage(respBody)))
 					upstreamDetail := s.getUpstreamErrorDetail(respBody)
 					log.Printf("%s status=400 google_config_error failover=true upstream_message=%q account=%d", prefix, upstreamMsg, account.ID)
-					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+					gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 						Platform:           account.Platform,
 						AccountID:          account.ID,
 						AccountName:        account.Name,
@@ -200,15 +207,15 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 						Message:            upstreamMsg,
 						Detail:             upstreamDetail,
 					})
-					return true, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: true}
+					return true, &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: true}
 				}
 			}
 
 			if s.shouldFailoverUpstreamError(resp.StatusCode) {
-				upstreamMsg := strings.TrimSpace(extractAntigravityErrorMessage(respBody))
-				upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+				upstreamMsg := strings.TrimSpace(googlewire.ExtractPlatformMessage(respBody))
+				upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
 				upstreamDetail := s.getUpstreamErrorDetail(respBody)
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+				gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 					Platform:           account.Platform,
 					AccountID:          account.ID,
 					AccountName:        account.Name,
@@ -218,7 +225,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 					Message:            upstreamMsg,
 					Detail:             upstreamDetail,
 				})
-				return true, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody}
+				return true, &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody}
 			}
 
 			return true, s.writeMappedClaudeError(c, account, resp.StatusCode, resp.Header.Get("x-request-id"), respBody)
@@ -230,15 +237,11 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		if claudeReq.Stream {
 			kind = "stream_error"
 		}
-		logger.LegacyPrintf("service.antigravity_gateway", "%s status=%s error=%v", prefix, kind, err)
+		logging.LegacyPrintf("service.antigravity_gateway", "%s status=%s error=%v", prefix, kind, err)
 	}
 	result, err := (antigravity.Executor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolAnthropicMessages, Body: geminiBody, ResponseModel: originalModel, Stream: claudeReq.Stream, Target: target}, gatewayhttp.ResponseSink{Writer: c.Writer})
 	if err != nil {
 		return nil, err
 	}
-	return &ForwardResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Usage: result.Usage, Model: originalModel, UpstreamModel: billingModel, Stream: claudeReq.Stream, Duration: result.Duration, FirstTokenMs: result.FirstTokenMs, ClientDisconnect: result.ClientDisconnect}, nil
-}
-
-func extractAntigravityErrorMessage(body []byte) string {
-	return googlewire.ExtractPlatformMessage(body)
+	return &forwardcore.MessagesResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Usage: result.Usage, Model: originalModel, UpstreamModel: billingModel, Stream: claudeReq.Stream, Duration: result.Duration, FirstTokenMs: result.FirstTokenMs, ClientDisconnect: result.ClientDisconnect}, nil
 }

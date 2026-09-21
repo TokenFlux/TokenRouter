@@ -5,10 +5,11 @@ import (
 	context "context"
 	json "encoding/json"
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	regexp "regexp"
 	strconv "strconv"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // UserAttributeService handles attribute management

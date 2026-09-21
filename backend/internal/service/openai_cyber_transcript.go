@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/tidwall/gjson"
 )
 
@@ -43,7 +44,7 @@ func deriveOpenAICyberTranscriptBlockKeys(apiKeyID int64, body []byte) openAICyb
 		if !v.Exists() || (v.Type == gjson.String && strings.TrimSpace(v.String()) == "") {
 			continue
 		}
-		canonical := normalizeCompatSeedJSON(json.RawMessage(v.Raw))
+		canonical := openai.NormalizeCompatSeedJSON(json.RawMessage(v.Raw))
 		if v.Type == gjson.String {
 			canonical = v.String()
 		}
@@ -74,7 +75,7 @@ func deriveOpenAICyberTranscriptBlockKeys(apiKeyID int64, body []byte) openAICyb
 				encoded, _ := json.Marshal(item.String())
 				canonical = string(encoded)
 			case gjson.JSON:
-				canonical = normalizeCompatSeedJSON(json.RawMessage(item.Raw))
+				canonical = openai.NormalizeCompatSeedJSON(json.RawMessage(item.Raw))
 			}
 			if strings.TrimSpace(canonical) == "" {
 				return true

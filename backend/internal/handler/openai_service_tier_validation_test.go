@@ -6,7 +6,19 @@ import (
 	"strings"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -25,19 +37,20 @@ func newServiceTierHandlerTest(t *testing.T) *OpenAIGatewayHandler {
 	t.Helper()
 	return &OpenAIGatewayHandler{
 		gatewayService:      &service.OpenAIGatewayService{},
-		billingCacheService: service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil),
-		apiKeyService:       &service.APIKeyService{},
-		concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(
-			&helperConcurrencyCacheStub{userSeq: []bool{true}},
-		), SSEPingFormatNone, 0),
+		billingCacheService: newFundingAdmissionFixture(newBillingEligibilityFixture(&config.Config{RunMode: config.RunModeSimple}), &config.Config{RunMode: config.RunModeSimple}),
+		apiKeyService:       &apikey.APIKeyService{},
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(
+			&helperConcurrencyCacheStub{userSeq: []bool{true}}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+				Event: logging.Event},
+		), gatewayhttp.SSEPingFormatNone, 0),
 		cfg:          &config.Config{},
-		imageLimiter: &imageConcurrencyLimiter{},
+		imageLimiter: &scheduler.ImageConcurrencyLimiter{},
 	}
 }
 
 func runOpenAIHandlerServiceTierTest(t *testing.T, path, body string, handler func(h *OpenAIGatewayHandler, c *gin.Context)) *httptest.ResponseRecorder {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
@@ -45,14 +58,14 @@ func runOpenAIHandlerServiceTierTest(t *testing.T, path, body string, handler fu
 
 	groupID := int64(6401)
 	userID := int64(6402)
-	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      6403,
 		GroupID: &groupID,
-		Group: &service.Group{
+		Group: &routing.Group{
 			ID:       groupID,
-			Platform: service.PlatformOpenAI,
+			Platform: capability.PlatformOpenAI,
 		},
-		User: &service.User{ID: userID, Status: service.StatusActive},
+		User: &identity.User{ID: userID, Status: billing.StatusActive},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: userID, Concurrency: 1})
 

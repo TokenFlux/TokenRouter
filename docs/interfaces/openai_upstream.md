@@ -17,7 +17,7 @@
 
 OpenAI 正式支持 `oauth` 与 `apikey`。OAuth 账号保存 access/refresh token、账号/组织上下文和 Codex 能力元数据，后台与请求路径都可触发刷新；API Key 账号保存 key、base URL、工作负载能力、文本协议路由和管理员压缩开关。其它通用导入类型不构成 OpenAI 转发支持，详见[上游账号能力矩阵](upstream_account_matrix.md)。
 
-OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthorization` 持有；token source/refresher 复用原缓存与协调器。共享 OAuth token 与刷新锁的 Redis Adapter 位于 account/rediscache，由 app 构造唯一实例，保留原键和 TTL。Agent Identity 的共享任务锁、锁内复查和凭据登记也由 account 协调，旧服务提供装配和入站投影。
+OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthorization` 持有，app 直接构造同一实例。`account/provider` 将代理、TLS Router/Profile、动态 Codex UA 和隐私查询投影为供应商调用参数，保留原读取时点；不持有第二份会话或刷新状态。token source/refresher 复用原缓存与协调器。共享 OAuth token 与刷新锁的 Redis Adapter 位于 account/rediscache，由 app 构造唯一实例，保留原键和 TTL。Agent Identity 的共享任务锁、锁内复查和凭据登记也由 account 协调，旧服务仍提供其入站投影。
 
 供应商 OAuth/PAT/隐私交换、规范 Codex 身份、请求指纹、Header 组合及 WS 客户端位于 `upstream/openai`；WS v2 relay 与 Live attestation 是平台内的技术子包。WS 池唯一持有连接、预热、队列和租约状态，构造不启动 worker，入站拥有者在首次使用时显式启用。完整入站 WS 编排、每轮资金快照和完成处理仍在旧网关。
 
@@ -68,11 +68,15 @@ OpenAI 分组支持 Messages、Responses 和 Chat，新建时默认启用 Respon
 <a id="openai_fast_policy"></a>
 ### Fast 与 Ultra Fast 策略
 
+`service_tier` 的报文字段校验、归一化和类型化错误由 `protocol/openai` 提供；策略求值和拒绝错误由 `gateway/tierpolicy` 承载；认证作用域与模型白名单动作复用 routing 的纯规则。
+
 OpenAI 分组以 `openai_fast_policy` 选择 `follow_request`、`force_priority`、`force_ultrafast` 或 `force_off`。HTTP/Chat/Messages/passthrough 与 WebSocket 共用策略；强制开启可为未携带 tier 的请求注入对应档位，强制关闭移除 Fast 和 Ultra Fast 并阻止 Key 再开启，保留其它合法 tier。组级强制意图先经过全局规则；全局过滤、阻断、强制 Fast/Ultra Fast 均拥有最终优先级，Key 的 force_off 可移除全局放行的组级加速，force_on 不会把组级 Ultra Fast 降档。全局规则只匹配已有合法 tier，主动作和其它模型动作均支持 `force_ultrafast`。
 
 新字段优先于旧 `force_openai_fast`；旧 true 映射为强制 Fast，false 映射为跟随请求，更新时均省略则保留。其它平台清除策略，公开分组不返回管理策略。迁移 269 保留旧开关行为，新字段经过分组复制、仓储和认证快照传递，缓存版本 v38 强制重建旧 v37 快照。
 
 `free_openai_fast` 是同一分组的用户计费策略，不会改变出站 `service_tier`。只有 OpenAI 账号实际按 `priority`/`fast` 计费时才生效；网关使用同一模型映射、渠道价卡、峰值和长上下文时刻重新取得 Standard 价格，将其写入用户侧 `ActualCost` 和统一结算的基础金额，同时保留 Fast `TotalCost` 给 Usage Log、账号统计和账号额度。Standard 定价缺失时沿用零成本缺价记录，不能借此绕过原有定价错误边界；非 OpenAI 账号、普通 tier 和不可信认证快照均不适用。该字段也随 API Key 认证快照传递，因此快照版本为 v36，旧 v35 快照必须失效并重建。
+
+Messages 兼容模型后缀与 Codex 模型规则的组合由 `gateway/provider` 拥有，纯 effort 资格由 `routing/capability` 判断。模型名中的旧 Codex max 与实际 reasoning 后缀继续区分；显式 output_config.effort 优先于模型后缀，最终 GPT-5.6 模型支持原生 max 时不降为 xhigh。调用时点仍在原请求改写和完成取值位置。
 
 OpenAI 分组的 `max_reasoning_effort` 是显式推理强度上限，`max_reasoning_effort_over_limit` 取 `downgrade`（默认）或 `deny`。网关只对客户端真正发送的 `reasoning.effort`、`reasoning_effort` 和 Messages `output_config.effort` 执行策略，不会因为兼容桥为缺省 Messages 请求生成的默认 `medium` 而改变行为；模型范围映射先于上限比较。`downgrade` 把超限值改写为上限，`deny` 在 HTTP 上返回 403 `permission_error`，Messages 返回 Anthropic `forbidden_error`，Responses WebSocket 以 policy-violation 关闭。复合 Key 已在鉴权中间件解析到具体 OpenAI 分组，因而使用该分组的策略。该动作和上限随认证快照传递，快照版本为 v40；版本不匹配的旧快照失效并从数据库重建。
 
@@ -116,9 +120,13 @@ WebSocket 连接池把 routing hint 视为拨号和普通复用的软亲和：�
 
 Responses WebSocket 的 TTFT 只从实际 token delta 计算；若上游没有 delta，则携带完整文本或工具参数的 `response.output_text.done`、`response.function_call_arguments.done` 可作为语义输出兜底。`response.completed`、`response.done` 以及 content part/output item 等结构终态不产生 TTFT，纯终态响应保持未观测状态，避免把总耗时误记为首 token 延迟。
 
+WS 报文、模型字段恢复及 usage 解析由 `protocol/openai` 拥有；OpenAI 恢复载荷与供应商错误分类由 `upstream/openai` 提供。传输选择由 egress 根据账号资格投影裁决，入站会话 Header、关闭码和读循环连接适配属于网关 HTTP 层，技术诊断保留在网关 provider。
+
 Responses HTTP/SSE 同样区分结构进度与可见输出：`response.created`、空 reasoning item 等进度可以提交当前 attempt、解除首输出超时并关闭 pre-output failover 窗口，但不记录 TTFT；非空文本/工具 delta、完整文本或工具参数、图片结果以及终态内实际 output 才开始 TTFT。只携带 usage 的终态必须保持 TTFT 未观测。
 
 OAuth passthrough 的 Codex 请求可以省略 `instructions`，网关会按请求模型补入内置 Codex 基础指令；显式提供的非空字符串保持不变，空白或非字符串值仍在本地拒绝。该规则同时适用于 Responses SSE 与旧版 Compact 请求。
+
+Responses Lite 的报文重建与工具校验由 `upstream/openai` 唯一实现，执行适配负责按账号资格选择完整转换或仅禁用并行工具。
 
 Responses Lite 通道由 HTTP `X-OpenAI-Internal-Codex-Responses-Lite: true` 或 WebSocket `client_metadata` 中的对应标记识别，不根据模型名称推断。任何向 OpenAI 上游转发该标记的 HTTP、passthrough、旧版 Compact 或 WebSocket 请求都必须强制顶层 `parallel_tool_calls=false`。OAuth 账号还会统一设置 `reasoning.context=all_turns`，并把私有 namespace 工具声明迁入 `input.additional_tools`；API Key 账号保留除此之外的标准 Responses 请求语义。未携带 Lite 标记的普通 Responses、Grok 和专用 Images 请求不应用这些约束。
 

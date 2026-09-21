@@ -6,10 +6,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/TokenFlux/TokenRouter/migrations"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/migrations"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,14 +48,14 @@ func TestRemoveGroupMediaPricingMigration(t *testing.T) {
 // 媒体价卡在创建、回填和更新后保留计费模式、分辨率、零价以及批量策略。
 func (s *GroupRepoSuite) TestMediaCardsRoundTrip() {
 	zero, price := 0.0, 0.15
-	group := &service.Group{Name: "media-card-roundtrip", Platform: service.PlatformGrok, Status: service.StatusActive, RateMultiplier: 1.5, AllowImageGeneration: true, BatchImageDiscountMultiplier: 0.5, BatchImageHoldMultiplier: 0.6,
-		ModelPricing: []service.ChannelModelPricing{
-			{Models: []string{"grok-imagine-image"}, Platform: service.PlatformGrok, BillingMode: service.BillingModeImage, PerRequestPrice: &zero},
-			{Models: []string{"grok-imagine-video"}, Platform: service.PlatformGrok, BillingMode: service.BillingModeVideo, PerRequestPrice: &price, Intervals: []service.PricingInterval{{TierLabel: "720p", PerRequestPrice: &zero}}},
+	group := &routing.Group{Name: "media-card-roundtrip", Platform: capability.PlatformGrok, Status: billing.StatusActive, RateMultiplier: 1.5, AllowImageGeneration: true, BatchImageDiscountMultiplier: 0.5, BatchImageHoldMultiplier: 0.6,
+		ModelPricing: []routing.ChannelModelPricing{
+			{Models: []string{"grok-imagine-image"}, Platform: capability.PlatformGrok, BillingMode: routing.BillingModeImage, PerRequestPrice: &zero},
+			{Models: []string{"grok-imagine-video"}, Platform: capability.PlatformGrok, BillingMode: routing.BillingModeVideo, PerRequestPrice: &price, Intervals: []routing.PricingInterval{{TierLabel: "720p", PerRequestPrice: &zero}}},
 		},
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformGrok),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformGrok),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformGrok),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformGrok),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))

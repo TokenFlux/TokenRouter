@@ -3,19 +3,24 @@
 package postgres
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"time"
 
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/google/uuid"
 )
 
 func (s *UsageLogRepoSuite) TestListWithFilters_SortByModelAsc() {
-	user := mustCreateUser(s.T(), s.client, &service.User{Email: "usage-sort@example.com"})
-	apiKey := mustCreateApiKey(s.T(), s.client, &service.APIKey{UserID: user.ID, Key: "sk-usage-sort", Name: "k"})
+	user := mustCreateUser(s.T(), s.client, &identity.User{Email: "usage-sort@example.com"})
+	apiKey := mustCreateApiKey(s.T(), s.client, &apikey.APIKey{UserID: user.ID, Key: "sk-usage-sort", Name: "k"})
 	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "usage-sort-account"})
 
 	first := &usage.UsageLog{
@@ -55,7 +60,7 @@ func (s *UsageLogRepoSuite) TestListWithFilters_SortByModelAsc() {
 		PageSize:  10,
 		SortBy:    "model",
 		SortOrder: "asc",
-	}, usagestats.UsageLogFilters{UserID: user.ID})
+	}, usage.UsageLogFilters{UserID: user.ID})
 	s.Require().NoError(err)
 	s.Require().Len(logs, 2)
 	s.Require().Equal("a-model", logs[0].RequestedModel)

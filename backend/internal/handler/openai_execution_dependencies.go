@@ -5,7 +5,16 @@ import (
 	"context"
 	"net/http"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -14,11 +23,11 @@ import (
 type openAIExecutionDependencies struct {
 	recorder                            *completion.Recorder
 	apiKeyService                       service.APIKeyQuotaUpdater
-	diagnoser                           service.ModelAvailabilityDiagnoser
-	resolvedDiagnoser                   service.ModelAvailabilityDiagnoser
-	enforceOpenAIClientPolicyForRequest func(ctx context.Context, c *gin.Context, account *service.Account, body []byte, tlsRouterMatch service.TLSFingerprintRouterMatchResult) error
-	forward                             func(ctx context.Context, c *gin.Context, account *service.Account, body []byte) (*service.OpenAIForwardResult, error)
-	forwardAsAnthropic                  func(ctx context.Context, c *gin.Context, account *service.Account, body []byte, promptCacheKey, defaultMappedModel string, tlsRouterMatch ...service.TLSFingerprintRouterMatchResult) (*service.OpenAIForwardResult, error)
+	diagnoser                           routing.ModelAvailabilityDiagnoser
+	resolvedDiagnoser                   routing.ModelAvailabilityDiagnoser
+	enforceOpenAIClientPolicyForRequest func(ctx context.Context, c *gin.Context, account *service.Account, body []byte, tlsRouterMatch egress.TLSFingerprintRouterMatchResult) error
+	forward                             func(ctx context.Context, c *gin.Context, account *service.Account, body []byte) (*forwardcore.OpenAIResult, error)
+	forwardAsAnthropic                  func(ctx context.Context, c *gin.Context, account *service.Account, body []byte, promptCacheKey, defaultMappedModel string, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error)
 	forwardAsChatCompletions            func(
 		ctx context.Context,
 		c *gin.Context,
@@ -26,9 +35,9 @@ type openAIExecutionDependencies struct {
 		body []byte,
 		promptCacheKey string,
 		defaultMappedModel string,
-		tlsRouterMatch ...service.TLSFingerprintRouterMatchResult,
-	) (*service.OpenAIForwardResult, error)
-	matchOpenAITLSFingerprintRouterForRequest func(c *gin.Context, account *service.Account) service.TLSFingerprintRouterMatchResult
+		tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
+	) (*forwardcore.OpenAIResult, error)
+	matchOpenAITLSFingerprintRouterForRequest func(c *gin.Context, account *service.Account) egress.TLSFingerprintRouterMatchResult
 	observeOpenAIAccountHealthFailure         func(ctx context.Context, account *service.Account, observedErr error) bool
 	recordOpenAIAccountSwitchForSelection     func(selection *service.AccountSelectionResult)
 	replaceModelInBody                        func(body []byte, newModel string) []byte
@@ -40,12 +49,12 @@ type openAIExecutionDependencies struct {
 		sessionHash string,
 		requestedModel string,
 		excludedIDs map[int64]struct{},
-		requiredTransport service.OpenAIUpstreamTransport,
-		requiredCapability service.OpenAIEndpointCapability,
+		requiredTransport egress.OpenAIUpstreamTransport,
+		requiredCapability accountcore.OpenAIEndpointCapability,
 		requireCompact bool,
 		previousResponseCanMove bool,
 		platformOverride ...string,
-	) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error)
+	) (*service.AccountSelectionResult, scheduler.PlatformDecision, error)
 	selectAccountWithSchedulerForCapabilityAndRoutingModel func(
 		ctx context.Context,
 		groupID *int64,
@@ -54,12 +63,12 @@ type openAIExecutionDependencies struct {
 		requestedModel string,
 		routingModel string,
 		excludedIDs map[int64]struct{},
-		requiredTransport service.OpenAIUpstreamTransport,
-		requiredCapability service.OpenAIEndpointCapability,
+		requiredTransport egress.OpenAIUpstreamTransport,
+		requiredCapability accountcore.OpenAIEndpointCapability,
 		requireCompact bool,
 		previousResponseCanMove bool,
 		platformOverride ...string,
-	) (*service.AccountSelectionResult, service.OpenAIAccountScheduleDecision, error)
+	) (*service.AccountSelectionResult, scheduler.PlatformDecision, error)
 	updateCodexUsageSnapshotFromHeaders func(ctx context.Context, accountID int64, headers http.Header)
 	acquireResponsesAccountSlot         func(
 		c *gin.Context,
@@ -80,15 +89,15 @@ type openAIExecutionDependencies struct {
 	ensureAnthropicErrorResponse         func(c *gin.Context, streamStarted bool) bool
 	ensureOpenAIForwardErrorResponse     func(c *gin.Context, streamStarted bool, err error) bool
 	ensureOpenAIStreamReadErrorResponse  func(c *gin.Context, err error, streamStarted bool) bool
-	handleAnthropicFailoverExhausted     func(c *gin.Context, failoverErr *service.UpstreamFailoverError, streamStarted bool)
-	handleFailoverExhausted              func(c *gin.Context, failoverErr *service.UpstreamFailoverError, streamStarted bool)
+	handleAnthropicFailoverExhausted     func(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError, streamStarted bool)
+	handleFailoverExhausted              func(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError, streamStarted bool)
 	handleFailoverExhaustedSimple        func(c *gin.Context, statusCode int, streamStarted bool)
 	handleOpenAISelectionBusinessError   func(c *gin.Context, err error, streamStarted bool) bool
 	handleStreamingAwareError            func(c *gin.Context, status int, errType, message string, streamStarted bool)
-	recordCyberPolicyIfMarked            func(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockArg []byte, channelFields service.ChannelUsageFields, requestPayloadHash string, nativeCompaction ...bool) bool
-	recordOpenAICyberWarning             func(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, account *service.Account, model string, statusCode int, responseBody []byte, warningText string)
-	recordOpenAIForwardErrorCyberWarning func(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, account *service.Account, model string, statusCode int, err error) bool
-	submitOpenAIUsageRecordTask          func(c *gin.Context, result *service.OpenAIForwardResult, task service.UsageRecordTask)
+	recordCyberPolicyIfMarked            func(c *gin.Context, apiKey *apikey.APIKey, account *service.Account, subscription *billing.UserSubscription, model string, forwardErrored bool, cyberBlockArg []byte, channelFields routing.ChannelUsageFields, requestPayloadHash string, nativeCompaction ...bool) bool
+	recordOpenAICyberWarning             func(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *service.Account, model string, statusCode int, responseBody []byte, warningText string)
+	recordOpenAIForwardErrorCyberWarning func(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *service.Account, model string, statusCode int, err error) bool
+	submitOpenAIUsageRecordTask          func(c *gin.Context, result *forwardcore.OpenAIResult, task completion.UsageRecordTask)
 }
 
 func newOpenAIExecutionDependencies(h *OpenAIGatewayHandler) *openAIExecutionDependencies {
@@ -117,7 +126,7 @@ func newOpenAIExecutionDependencies(h *OpenAIGatewayHandler) *openAIExecutionDep
 	d.handleFailoverExhaustedSimple = h.handleFailoverExhaustedSimple
 	d.handleOpenAISelectionBusinessError = h.handleOpenAISelectionBusinessError
 	d.handleStreamingAwareError = h.handleStreamingAwareError
-	d.recordCyberPolicyIfMarked = func(c *gin.Context, key *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, failed bool, body []byte, fields service.ChannelUsageFields, hash string, compact ...bool) bool {
+	d.recordCyberPolicyIfMarked = func(c *gin.Context, key *apikey.APIKey, account *service.Account, subscription *billing.UserSubscription, model string, failed bool, body []byte, fields routing.ChannelUsageFields, hash string, compact ...bool) bool {
 		return h.recordCyberPolicyIfMarked(c, key, account, subscription, model, failed, body, fields, hash, compact...)
 	}
 	d.recordOpenAICyberWarning = h.recordOpenAICyberWarning

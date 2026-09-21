@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -13,15 +14,15 @@ func TestOpenAIResponsesToolSchemaCapabilities_PlatformBoundary(t *testing.T) {
 		repairNullType   bool
 		removeLookaround bool
 	}{
-		{PlatformOpenAI, true, true},
-		{PlatformAnthropic, true, false},
-		{PlatformKimi, true, false},
-		{PlatformZhipu, true, false},
-		{PlatformDeepseek, true, false},
-		{PlatformGrok, true, false},
-		{PlatformGemini, false, false},
-		{PlatformAntigravity, false, false},
-		{PlatformQoder, false, false},
+		{capability.PlatformOpenAI, true, true},
+		{capability.PlatformAnthropic, true, false},
+		{capability.PlatformKimi, true, false},
+		{capability.PlatformZhipu, true, false},
+		{capability.PlatformDeepseek, true, false},
+		{capability.PlatformGrok, true, false},
+		{capability.PlatformGemini, false, false},
+		{capability.PlatformAntigravity, false, false},
+		{capability.PlatformQoder, false, false},
 		{"", false, false},
 	}
 	for _, tt := range tests {
@@ -38,7 +39,7 @@ func TestSanitizeOpenAIResponsesToolSchemasForPlatform_ReplayBoundary(t *testing
 	// A malformed tool definition may be replayed after account failover. Every
 	// compatible account must repair it, while non-OpenAI providers retain their
 	// supported regex semantics.
-	for _, platform := range []string{PlatformAnthropic, PlatformGrok, PlatformKimi, PlatformZhipu, PlatformDeepseek} {
+	for _, platform := range []string{capability.PlatformAnthropic, capability.PlatformGrok, capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
 		t.Run(platform, func(t *testing.T) {
 			for attempt := 0; attempt < 2; attempt++ {
 				normalized, changed, err := sanitizeOpenAIResponsesToolSchemasForPlatform(body, platform)
@@ -50,13 +51,13 @@ func TestSanitizeOpenAIResponsesToolSchemasForPlatform_ReplayBoundary(t *testing
 		})
 	}
 
-	openAI, changed, err := sanitizeOpenAIResponsesToolSchemasForPlatform(body, PlatformOpenAI)
+	openAI, changed, err := sanitizeOpenAIResponsesToolSchemasForPlatform(body, capability.PlatformOpenAI)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "object", gjson.GetBytes(openAI, "tools.0.parameters.type").String())
 	require.False(t, gjson.GetBytes(openAI, "tools.0.parameters.properties.query.pattern").Exists())
 
-	unsupported, changed, err := sanitizeOpenAIResponsesToolSchemasForPlatform(body, PlatformGemini)
+	unsupported, changed, err := sanitizeOpenAIResponsesToolSchemasForPlatform(body, capability.PlatformGemini)
 	require.NoError(t, err)
 	require.False(t, changed)
 	require.Equal(t, string(body), string(unsupported))
@@ -65,7 +66,7 @@ func TestSanitizeOpenAIResponsesToolSchemasForPlatform_ReplayBoundary(t *testing
 func TestSanitizeOpenAIResponsesToolSchemasForPlatform_GrokObjectOnlyRootUnion(t *testing.T) {
 	body := []byte(`{"tools":[{"type":"function","name":"codex_app__automation_update","parameters":{"oneOf":[{"type":"object","properties":{"id":{"type":"string"}}},{"type":"object","properties":{}}]}}]}`)
 
-	sanitized, changed, err := sanitizeOpenAIResponsesToolSchemasForPlatform(body, PlatformGrok)
+	sanitized, changed, err := sanitizeOpenAIResponsesToolSchemasForPlatform(body, capability.PlatformGrok)
 
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -75,10 +76,10 @@ func TestSanitizeOpenAIResponsesToolSchemasForPlatform_GrokObjectOnlyRootUnion(t
 
 func TestOpenAIResponsesToolSchemaPlatformGate_APIKeyAndOAuth(t *testing.T) {
 	body := []byte(`{"tools":[{"type":"function","parameters":{"type":null,"pattern":"(?=drop)"}}]}`)
-	for _, accountType := range []string{AccountTypeAPIKey, AccountTypeOAuth} {
+	for _, accountType := range []string{capability.AccountTypeAPIKey, capability.AccountTypeOAuth} {
 		t.Run(accountType, func(t *testing.T) {
 			normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{
-				Platform: PlatformOpenAI,
+				Platform: capability.PlatformOpenAI,
 				Type:     accountType,
 			}, false)
 			require.NoError(t, err)
@@ -89,8 +90,8 @@ func TestOpenAIResponsesToolSchemaPlatformGate_APIKeyAndOAuth(t *testing.T) {
 	}
 
 	normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{
-		Platform: PlatformGrok,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeAPIKey,
 	}, false)
 	require.NoError(t, err)
 	require.False(t, changed)

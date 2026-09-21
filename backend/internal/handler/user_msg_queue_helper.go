@@ -4,12 +4,13 @@ package handler
 import (
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 type UserMsgQueueHelper = gatewayhttp.UserMsgQueueHelper
 
-func NewUserMsgQueueHelper(s *service.UserMessageQueueService, f SSEPingFormat, d time.Duration) *UserMsgQueueHelper {
+func NewUserMsgQueueHelper(s *scheduler.UserMessageQueueService, f gatewayhttp.SSEPingFormat, d time.Duration) *UserMsgQueueHelper {
 	return gatewayhttp.NewUserMsgQueueHelper(s, f, d)
 }

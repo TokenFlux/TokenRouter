@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +16,7 @@ func TestDiagnoseModelAvailabilityForPlatform_NoModel_AlwaysAvailable(t *testing
 	repo := &mockAccountRepoForPlatform{accounts: nil, accountsByID: map[int64]*Account{}}
 	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "", capability.PlatformOpenAI)
 
 	require.True(t, diag.HasAccountsInPool, "空模型必须保守返回 HasAccountsInPool=true，让调用方继续走 503")
 	require.True(t, diag.HasModelSupport, "空模型必须保守返回 HasModelSupport=true，让调用方继续走 503")
@@ -33,7 +35,7 @@ func TestDiagnoseModelAvailabilityForPlatform_EmptyPlatform_AlwaysAvailable(t *t
 func TestDiagnoseModelAvailabilityForPlatform_NilReceiver(t *testing.T) {
 	var svc *GatewayService
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", capability.PlatformOpenAI)
 
 	require.True(t, diag.HasAccountsInPool)
 	require.True(t, diag.HasModelSupport)
@@ -43,7 +45,7 @@ func TestDiagnoseModelAvailabilityForPlatform_NoAccountsInPool(t *testing.T) {
 	repo := &mockAccountRepoForPlatform{accounts: nil, accountsByID: map[int64]*Account{}}
 	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", capability.PlatformOpenAI)
 
 	require.False(t, diag.HasAccountsInPool)
 	require.False(t, diag.HasModelSupport, "没有账号表示没有模型支持；调用方会走空池 503 分支")
@@ -54,8 +56,8 @@ func TestDiagnoseModelAvailabilityForPlatform_ExplicitMappingMatches(t *testing.
 		accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"gpt-5.1-codex-mini": "gpt-5.1-codex-mini"},
@@ -69,7 +71,7 @@ func TestDiagnoseModelAvailabilityForPlatform_ExplicitMappingMatches(t *testing.
 	}
 	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", capability.PlatformOpenAI)
 
 	require.True(t, diag.HasAccountsInPool)
 	require.True(t, diag.HasModelSupport)
@@ -78,7 +80,7 @@ func TestDiagnoseModelAvailabilityForPlatform_ExplicitMappingMatches(t *testing.
 func TestDiagnoseModelAvailabilityForPlatform_EmptyMappingAllowsAll(t *testing.T) {
 	repo := &mockAccountRepoForPlatform{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true /* 无 ModelMapping 表示允许全部模型 */},
+			{ID: 1, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, Schedulable: true /* 无 ModelMapping 表示允许全部模型 */},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -87,7 +89,7 @@ func TestDiagnoseModelAvailabilityForPlatform_EmptyMappingAllowsAll(t *testing.T
 	}
 	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", capability.PlatformOpenAI)
 
 	require.True(t, diag.HasModelSupport, "空 model_mapping 必须按 Account.IsModelSupported 语义视为允许全部模型")
 }
@@ -97,8 +99,8 @@ func TestDiagnoseModelAvailabilityForPlatform_WildcardMappingMatches(t *testing.
 		accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"*": "gpt-5"},
@@ -112,7 +114,7 @@ func TestDiagnoseModelAvailabilityForPlatform_WildcardMappingMatches(t *testing.
 	}
 	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", capability.PlatformOpenAI)
 
 	require.True(t, diag.HasModelSupport, "通配符映射必须把请求模型视为可服务")
 }
@@ -123,8 +125,8 @@ func TestDiagnoseModelAvailabilityForPlatform_NoMatchingModel_ReturnsNotFoundSig
 		accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				AccountGroups: []AccountGroup{
 					{GroupID: groupID},
@@ -133,8 +135,8 @@ func TestDiagnoseModelAvailabilityForPlatform_NoMatchingModel_ReturnsNotFoundSig
 			},
 			{
 				ID:          2,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				AccountGroups: []AccountGroup{
 					{GroupID: groupID},
@@ -149,7 +151,7 @@ func TestDiagnoseModelAvailabilityForPlatform_NoMatchingModel_ReturnsNotFoundSig
 	}
 	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "gpt-5.1-codex-mini", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "gpt-5.1-codex-mini", capability.PlatformOpenAI)
 
 	require.True(t, diag.HasAccountsInPool, "分组内存在 OpenAI 账号")
 	require.False(t, diag.HasModelSupport, "没有账号映射允许该模型时 handler 应返回 404")
@@ -162,8 +164,8 @@ func TestDiagnoseModelAvailabilityForPlatform_RateLimitedSupportingAccountRemain
 		accounts: []Account{
 			{
 				ID:                     1,
-				Platform:               PlatformAnthropic,
-				Status:                 StatusActive,
+				Platform:               capability.PlatformAnthropic,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				RateLimitResetAt:       &cooldownUntil,
 				OverloadUntil:          &cooldownUntil,
@@ -184,7 +186,7 @@ func TestDiagnoseModelAvailabilityForPlatform_RateLimitedSupportingAccountRemain
 			nil, nil, nil, nil),
 	}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-opus-4-8", PlatformAnthropic)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-opus-4-8", capability.PlatformAnthropic)
 
 	require.True(t, diag.HasAccountsInPool)
 	require.True(t, diag.HasModelSupport, "a configured model remains supported while every matching account is temporarily cooling down")
@@ -197,8 +199,8 @@ func TestOpenAIDiagnoseModelAvailabilityForPlatform_RateLimitedSupportingAccount
 		accounts: []Account{
 			{
 				ID:                     2,
-				Platform:               PlatformOpenAI,
-				Status:                 StatusActive,
+				Platform:               capability.PlatformOpenAI,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				RateLimitResetAt:       &cooldownUntil,
 				OverloadUntil:          &cooldownUntil,
@@ -219,7 +221,7 @@ func TestOpenAIDiagnoseModelAvailabilityForPlatform_RateLimitedSupportingAccount
 			nil, nil, nil, nil),
 	}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-opus-4-8", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-opus-4-8", capability.PlatformOpenAI)
 
 	require.True(t, diag.HasAccountsInPool)
 	require.True(t, diag.HasModelSupport, "OpenAI-compatible diagnosis must keep transiently limited supporting accounts in the configured pool")
@@ -232,8 +234,8 @@ func TestDiagnoseModelAvailabilityForPlatform_WrongPlatformFiltersOut(t *testing
 		accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformAnthropic,
-				Status:      StatusActive,
+				Platform:    capability.PlatformAnthropic,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{"model_mapping": map[string]any{"claude-sonnet-4-5": "claude-sonnet-4-5"}},
 			},
@@ -245,7 +247,7 @@ func TestDiagnoseModelAvailabilityForPlatform_WrongPlatformFiltersOut(t *testing
 	}
 	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", PlatformOpenAI)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", capability.PlatformOpenAI)
 
 	require.False(t, diag.HasAccountsInPool, "OpenAI 路由不能把 Anthropic 账号算进账号池")
 	require.False(t, diag.HasModelSupport)
@@ -256,8 +258,8 @@ func TestOpenAIGatewayDiagnoseModelAvailabilityForPlatform_GrokPlatformFiltersOp
 		accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5": "gpt-5"}},
 			},
@@ -269,7 +271,7 @@ func TestOpenAIGatewayDiagnoseModelAvailabilityForPlatform_GrokPlatformFiltersOp
 	}
 	svc := &OpenAIGatewayService{accountRepo: repo, cfg: testConfig()}
 
-	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "grok-4.3", PlatformGrok)
+	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "grok-4.3", capability.PlatformGrok)
 
 	require.False(t, diag.HasAccountsInPool, "Grok 诊断不能把 OpenAI 账号算进账号池")
 	require.False(t, diag.HasModelSupport)

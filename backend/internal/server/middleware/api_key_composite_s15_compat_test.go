@@ -1,18 +1,20 @@
 package middleware
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/gin-gonic/gin"
 )
 
 // 历史测试函数只委托原生网关。
-func resolveCompositeAPIKeyRequest(c *gin.Context, keys *service.APIKeyService, key *service.APIKey) (*service.APIKey, error) {
+func resolveCompositeAPIKeyRequest(c *gin.Context, keys *apikey.APIKeyService, key *apikey.APIKey) (*apikey.APIKey, error) {
 	if key == nil || !key.IsComposite {
 		return key, nil
 	}
-	value, err := gatewayhttp.ResolveCompositeAPIKeyRequest(c, keys.APIKeyService, service.APIKeyView(key))
-	return service.APIKeyFromView(value), err
+	value, err := gatewayhttp.ResolveCompositeAPIKeyRequest(c, keys, apikey.CopyAPIKey(key))
+	return apikey.CopyAPIKey(value), err
 }
 
 func replaceCompositeResponseModel(data []byte, actualModel, clientModel string) []byte {

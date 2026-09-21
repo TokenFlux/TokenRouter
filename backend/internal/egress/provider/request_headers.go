@@ -2,9 +2,10 @@
 package provider
 
 import (
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	http "net/http"
 	strings "strings"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 // ApplyRequestHeaders 在调用方原定时机应用允许覆写，不碰其它请求头或共享客户端。

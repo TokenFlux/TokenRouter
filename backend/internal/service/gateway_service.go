@@ -1,6 +1,12 @@
 package service
 
 import (
+	"log"
+
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+
 	"bytes"
 	"context"
 	"encoding/json"
@@ -17,24 +23,30 @@ import (
 	"sync/atomic"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
-
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-
-	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-
-	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 
 	gocache "github.com/patrickmn/go-cache"
 	"github.com/tidwall/gjson"
@@ -43,26 +55,18 @@ import (
 )
 
 const (
-	claudeAPIURL = claude.ClaudeAPIURL
-
-	claudeAPICountTokensURL = claude.ClaudeAPICountTokensURL
-	stickySessionTTL        = time.Hour // 粘性会话TTL
-	defaultMaxLineSize      = 500 * 1024 * 1024
+	stickySessionTTL   = time.Hour // 粘性会话TTL
+	defaultMaxLineSize = 500 * 1024 * 1024
 	// Canonical Claude Code banner. Keep it EXACT (no trailing whitespace/newlines)
 	// to match real Claude CLI traffic as closely as possible. When we need a visual
 	// separator between system blocks, we add "\n\n" at concatenation time.
 
-	claudeCodeSystemPrompt = claude.ClaudeCodeSystemPrompt
 	// claudeCodeSystemPromptExpansion 是真实 Claude Code 主系统提示词中"与具体工具无关"
 	// 的通用段落（身份/用途总述 + 安全声明 + URL 告警 + Tone and style），逐字取自真实
 	// CLI（2.1.x 一致）。伪装路径用它把 system 块数从 2 提升到 3、体量贴近真实 CC，同时
 	// 刻意排除 # Doing tasks / # Using your tools / # Executing actions 等会污染被代理
 	// 用户行为的工具专属指令。
 
-	claudeCodeSystemPromptExpansion = claude.ClaudeCodeSystemPromptExpansion
-	maxCacheControlBlocks           = claude.MaxCacheControlBlocks // Anthropic API 允许的最大 cache_control 块数量
-
-	defaultUserGroupRateCacheTTL           = billing.DefaultGroupRateCacheTTL
 	defaultModelsListCacheTTL              = 15 * time.Second
 	usageBillingTimeout                    = 15 * time.Second
 	claudeCodeNoopDeltaKeepaliveMinVersion = "2.1.193"
@@ -77,7 +81,6 @@ const (
 
 const (
 	cacheTTLTarget5m = "5m"
-	cacheTTLTarget1h = claude.CacheTTLTarget1h
 )
 
 // ForceCacheBillingContextKey 强制缓存计费上下文键
@@ -87,7 +90,7 @@ type forceCacheBillingKeyType struct{}
 // accountWithLoad 账号与负载信息的组合，用于负载感知调度
 type accountWithLoad struct {
 	account  *Account
-	loadInfo *AccountLoadInfo
+	loadInfo *scheduler.AccountLoadInfo
 }
 
 var ForceCacheBillingContextKey = forceCacheBillingKeyType{}
@@ -140,10 +143,6 @@ func GatewayUserGroupRateCacheStats() (cacheHit, cacheMiss, load, singleflightSh
 		userGroupRateCacheFallbackTotal.Load()
 }
 
-func GatewayModelsListCacheStats() (cacheHit, cacheMiss, store int64) {
-	return modelsListCacheHitTotal.Load(), modelsListCacheMissTotal.Load(), modelsListCacheStoreTotal.Load()
-}
-
 // GatewayUserPlatformQuotaIncrStats 返回 (mainPathErr, legacyPathErr, sentinelSetErr)。
 // mainPathErr：finalizePostUsageBilling 异步 goroutine 写 DB 失败累计次数；
 // legacyPathErr：postUsageBilling fallback 路径写 DB 失败累计次数；
@@ -156,7 +155,7 @@ func GatewayUserPlatformQuotaIncrStats() (mainPathErr, legacyPathErr, sentinelSe
 }
 
 // GatewayUserPlatformQuotaFlusherStats 暴露 flusher 运行指标供 ops/health 面板查询。
-func GatewayUserPlatformQuotaFlusherStats(f *UserPlatformQuotaUsageFlusher) map[string]int64 {
+func GatewayUserPlatformQuotaFlusherStats(f *billing.UserPlatformQuotaUsageFlusher) map[string]int64 {
 	if f == nil || f.Metrics() == nil {
 		return nil
 	}
@@ -180,7 +179,7 @@ func openAIStreamEventIsTerminal(data string) bool {
 	if trimmed == "[DONE]" {
 		return true
 	}
-	return openAIStreamEventTypeIsTerminal(gjson.Get(trimmed, "type").String())
+	return s09openai.OpenAIStreamEventTypeIsTerminal(gjson.Get(trimmed, "type").String())
 }
 
 // openAIStreamEventIsTerminalWithType 复用已提取的 type，避免 SSE 热路径重复扫描 JSON。
@@ -192,24 +191,7 @@ func openAIStreamEventIsTerminalWithType(data, eventType string) bool {
 	if trimmed == "[DONE]" {
 		return true
 	}
-	return openAIStreamEventTypeIsTerminal(eventType)
-}
-
-func openAIStreamEventTypeIsTerminal(eventType string) bool {
 	return s09openai.OpenAIStreamEventTypeIsTerminal(eventType)
-}
-
-func anthropicStreamEventIsTerminal(eventName, data string) bool {
-	return claude.StreamEventIsTerminal(eventName, data)
-}
-
-func cloneStringSlice(src []string) []string {
-	if len(src) == 0 {
-		return nil
-	}
-	dst := make([]string, len(src))
-	copy(dst, src)
-	return dst
 }
 
 // IsForceCacheBilling 检查是否启用强制缓存计费
@@ -376,7 +358,7 @@ func logClaudeMimicDebug(req *http.Request, body []byte, account *Account, token
 	if line == "" {
 		return
 	}
-	logger.LegacyPrintf("service.gateway", "[ClaudeMimicDebug] %s", line)
+	logging.LegacyPrintf("service.gateway", "[ClaudeMimicDebug] %s", line)
 }
 
 func isClaudeCodeCredentialScopeError(msg string) bool {
@@ -400,20 +382,11 @@ var (
 )
 
 // ErrNoAvailableAccounts 表示没有可用的账号
-var ErrNoAvailableAccounts = scheduler.ErrNoAvailableAccounts
 
 // ErrClaudeCodeOnly 表示分组仅允许 Claude Code 客户端访问
 var ErrClaudeCodeOnly = errors.New("this group only allows Claude Code clients")
 
 var allowedHeaders = claude.AllowedHeaders
-
-var ErrReasoningContentNotFound = session.ErrReasoningContentNotFound
-
-type GatewayCache = session.GatewayCache
-
-type ReasoningContentCache = session.ReasoningContentCache
-
-type GrokVideoBillingCache = session.GrokVideoBillingCache
 
 // derefGroupID safely dereferences *int64 to int64, returning 0 if nil
 func derefGroupID(groupID *int64) int64 {
@@ -425,7 +398,7 @@ func derefGroupID(groupID *int64) int64 {
 
 func resolveUserGroupRateCacheTTL(cfg *config.Config) time.Duration {
 	if cfg == nil || cfg.Gateway.UserGroupRateCacheTTLSeconds <= 0 {
-		return defaultUserGroupRateCacheTTL
+		return billing.DefaultGroupRateCacheTTL
 	}
 	return time.Duration(cfg.Gateway.UserGroupRateCacheTTLSeconds) * time.Second
 }
@@ -437,20 +410,12 @@ func resolveModelsListCacheTTL(cfg *config.Config) time.Duration {
 	return time.Duration(cfg.Gateway.ModelsListCacheTTLSeconds) * time.Second
 }
 
-func modelsListCacheKey(groupID *int64, platform string) string {
-	return routing.ModelListCacheKey(groupID, platform)
-}
-
-func prefetchedStickyGroupIDFromContext(ctx context.Context) (int64, bool) {
-	return PrefetchedStickyGroupIDFromContext(ctx)
-}
-
 func prefetchedStickyAccountIDFromContext(ctx context.Context, groupID *int64) int64 {
-	prefetchedGroupID, ok := prefetchedStickyGroupIDFromContext(ctx)
+	prefetchedGroupID, ok := requeststate.PrefetchedStickyGroupIDFromContext(ctx)
 	if !ok || prefetchedGroupID != derefGroupID(groupID) {
 		return 0
 	}
-	if accountID, ok := PrefetchedStickyAccountIDFromContext(ctx); ok && accountID > 0 {
+	if accountID, ok := requeststate.PrefetchedStickyAccountIDFromContext(ctx); ok && accountID > 0 {
 		return accountID
 	}
 	return 0
@@ -476,134 +441,19 @@ func shouldClearStickySession(account *Account, requestedModel string) bool {
 	return false
 }
 
-type AccountWaitPlan = scheduler.AccountWaitPlan
-
 type AccountSelectionResult struct {
 	Account           *Account
 	Acquired          bool
 	ReleaseFunc       func()
-	WaitPlan          *AccountWaitPlan // nil means no wait allowed
-	AdvancedScheduler bool             // 仅内部转发链路使用，不对外序列化。
+	WaitPlan          *scheduler.AccountWaitPlan // nil means no wait allowed
+	AdvancedScheduler bool                       // 仅内部转发链路使用，不对外序列化。
 	// AdvancedSchedulerFeedback 保存本次请求应使用的反馈 EWMA 系数。
 	AdvancedSchedulerFeedback *advancedSchedulerFeedbackConfig
 }
 
-type ClaudeUsage = upstream.TokenUsage
-
-type AudioUsage = protocol.AudioUsage
-
-type ForwardResult struct {
-	RequestID string
-	// UpstreamHeaders 是直接上游的响应头，用于按账户配置解析上游请求标识。
-	UpstreamHeaders http.Header
-	Usage           ClaudeUsage
-	Model           string
-	// UpstreamModel is the actual upstream model after mapping.
-	// Prefer empty when it is identical to Model; persistence normalizes equal values away as no-op mappings.
-	UpstreamModel    string
-	Stream           bool
-	Duration         time.Duration
-	FirstTokenMs     *int // 首字时间（流式请求）
-	ClientDisconnect bool // 客户端是否在流式传输过程中断开
-	ReasoningEffort  *string
-	// RequestedReasoningEffort 保存客户端在兼容层映射前提交的推理档位。
-	RequestedReasoningEffort *string
-	// UpstreamResponseServiceTier 是上游响应声明的实际服务档位；空值表示未声明或无法确认。
-	UpstreamResponseServiceTier string
-	// ServiceTier 是请求侧声明的服务档位；计费时只允许按上游实际档位降档。
-	ServiceTier *string
-	// 图片生成计费字段（图片生成模型使用）
-	ImageCount         int    // 生成的图片数量
-	ImageSize          string // 最终计费尺寸 "1K", "2K", "4K"
-	ImageInputSize     string // 请求中的原始图片尺寸
-	ImageOutputSize    string // 上游响应中的图片尺寸
-	ImageOutputSizes   []string
-	ImageSizeSource    string
-	ImageSizeBreakdown map[string]int
-	SearchCount        int
-	AudioUsage         *AudioUsage
-}
-
-// GatewayFailureStage 标识请求失败的阶段。零值有意按推理阶段处理，
-// 从而保持现有 UpstreamFailoverError 调用方的行为。
-type GatewayFailureStage string
-
-const (
-	GatewayFailureStageInference   GatewayFailureStage = "inference"
-	GatewayFailureStageAccountAuth GatewayFailureStage = "account_auth"
-)
-
-// GatewayFailureScope 标识切换账号是否可能解决当前失败。
-type GatewayFailureScope string
-
-const (
-	GatewayFailureScopeAccount  GatewayFailureScope = "account"
-	GatewayFailureScopeProvider GatewayFailureScope = "provider"
-	GatewayFailureScopeRequest  GatewayFailureScope = "request"
-)
-
-// NextAccountAction 为保持向后兼容采用三态值。零值表示旧版重试行为，
-// 只有 NextAccountStop 会显式终止账号切换。
-type NextAccountAction uint8
-
-const (
-	NextAccountLegacyRetry NextAccountAction = iota
-	NextAccountRetry
-	NextAccountStop
-)
-
-type GatewayFailureReason string
-
-// UpstreamFailoverError 表示可能触发账号切换的上游或凭据错误。
-// 新增元数据保持现有复合字面量源码兼容，并保留旧版切换账号行为。
-type UpstreamFailoverError struct {
-	StatusCode               int
-	ResponseBody             []byte      // 上游响应体，用于错误透传规则匹配
-	ResponseHeaders          http.Header // 上游响应头，用于透传 cf-ray/cf-mitigated/content-type 等诊断信息
-	ForceCacheBilling        bool        // Antigravity 粘性会话切换时设为 true
-	RetryableOnSameAccount   bool        // 临时性错误（如 Google 间歇性 400、空响应），应在同一账号上重试 N 次再切换
-	SameAccountRetryDelay    time.Duration
-	SameAccountRetryDeadline time.Time
-	SameAccountRetryMax      int  // 可选的错误级同账号重试上限，低于 handler 默认预算时优先采用
-	RequestScopedTransient   bool // 故障因素与账号无关（如上游按客户端身份/模型容量降载）：可同账号重试，但不得据此对账号做临时封禁
-	SafeToFailoverAfterWrite bool // 仅写出 SSE 注释等非语义字节时，仍可在同一客户端流中切换账号
-	Stage                    GatewayFailureStage
-	Scope                    GatewayFailureScope
-	Reason                   GatewayFailureReason
-	NextAccountAction        NextAccountAction
-	ClientStatusCode         int
-	ClientMessage            string
-}
-
-func (e *UpstreamFailoverError) Error() string {
-	if e != nil && e.Stage == GatewayFailureStageAccountAuth {
-		return fmt.Sprintf("credential failure: %s (failover)", e.Reason)
-	}
-	return fmt.Sprintf("upstream error: %d (failover)", e.StatusCode)
-}
-
-func (e *UpstreamFailoverError) ShouldRetryNextAccount() bool {
-	return e != nil && e.NextAccountAction != NextAccountStop
-}
-
-func (e *UpstreamFailoverError) IsCredentialFailure() bool {
-	return e != nil && e.Stage == GatewayFailureStageAccountAuth
-}
-
-// ShouldReportAccountScheduleFailure 防止把提供方级或请求级凭据失败误归因到当前账号。
-// 旧版错误和推理错误继续保持原有的调度健康上报行为。
-func (e *UpstreamFailoverError) ShouldReportAccountScheduleFailure() bool {
-	if e == nil {
-		return false
-	}
-	return !e.IsCredentialFailure() || e.Scope == GatewayFailureScopeAccount
-}
-
-type sseStreamErrorEventError = claude.StreamErrorEventError
-
 // TempUnscheduleRetryableError 对非池账号的旧版特殊重试错误触发临时封禁。
 // 由 handler 层在同账号重试全部用尽、切换账号时调用；池模式只切号不写状态。
-func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accountID int64, failoverErr *UpstreamFailoverError) {
+func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accountID int64, failoverErr *forwardcore.UpstreamFailoverError) {
 	if s == nil || s.accountRepo == nil || failoverErr == nil || !failoverErr.RetryableOnSameAccount {
 		return
 	}
@@ -615,7 +465,7 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 	// 不能复用旧版 400/502 特殊错误的一分钟本地冷却。
 	account, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
-		logger.LegacyPrintf("service.gateway", "查询重试耗尽账号失败: account=%d error=%v", accountID, err)
+		logging.LegacyPrintf("service.gateway", "查询重试耗尽账号失败: account=%d error=%v", accountID, err)
 		return
 	}
 	if account != nil && account.IsPoolMode() {
@@ -624,91 +474,91 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 	// 根据状态码选择封禁策略
 	switch failoverErr.StatusCode {
 	case http.StatusBadRequest:
-		tempUnscheduleGoogleConfigError(ctx, s.accountRepo, accountID, "[handler]")
+		accountcore.TempUnscheduleGoogleConfigError(ctx, s.accountRepo, accountID, "[handler]", log.Printf)
 	case http.StatusBadGateway:
-		tempUnscheduleEmptyResponse(ctx, s.accountRepo, accountID, "[handler]")
+		accountcore.TempUnscheduleEmptyResponse(ctx, s.accountRepo, accountID, "[handler]", log.Printf)
 	}
 }
 
 // GatewayService handles API gateway operations
 type GatewayService struct {
+	catalogue             *routing.RequestableCatalogue
 	searchToolsRuntime    *searchtools.Emulator
 	nativeAttemptActivity func() (func(), error)
 	usageWindowSource     billing.WindowCostSource
 	accountRepo           AccountRepository
-	groupRepo             GroupRepository
-	usageLogRepo          UsageLogRepository
-	usageBillingRepo      UsageBillingRepository
-	userRepo              UserRepository
-	userSubRepo           UserSubscriptionRepository
-	userGroupRateRepo     UserGroupRateRepository
-	cache                 GatewayCache
-	digestStore           *DigestSessionStore
+	groupRepo             routing.GroupRepository
+	usageLogRepo          usage.UsageLogRepository
+	usageBillingRepo      completion.Store
+	userRepo              identity.UserRepository
+	userSubRepo           billing.UserSubscriptionRepository
+	userGroupRateRepo     billing.UserGroupRateRepository
+	cache                 session.GatewayCache
+	digestStore           *session.DigestSessionStore
 	cfg                   *config.Config
 	schedulerSnapshot     *SchedulerSnapshotService
-	billingService        *BillingService
+	billingService        *billing.Calculator
 	usageBillingNow       func() time.Time // 用量计费时钟，测试可注入固定时间以覆盖峰值倍率。
 	rateLimitService      *RateLimitService
-	billingCacheService   *BillingCacheService
-	identityService       *RequestFingerprintService
-	httpUpstream          HTTPUpstream
-	deferredService       *DeferredService
-	concurrencyService    *ConcurrencyService
-	claudeTokenProvider   *ClaudeTokenProvider
-	sessionLimitCache     SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
-	rpmCache              RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
-	userGroupRateResolver *userGroupRateResolver
+	billingCacheService   *billing.Eligibility
+	identityService       *claude.RequestFingerprint
+	httpUpstream          httpclient.UpstreamTransport
+	deferredService       *accountcore.DeferredService
+	concurrencyService    *scheduler.ConcurrencyService
+	claudeTokenProvider   *accountcore.ClaudeTokenSource
+	sessionLimitCache     scheduler.SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
+	windowCostCache       billing.WindowCostCache     // 资金窗口缓存独立于会话登记。
+	rpmCache              scheduler.RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
+	userGroupRateResolver *billing.GroupRateResolver
 	userGroupRateCache    *gocache.Cache
 	userGroupRateSF       singleflight.Group
-	modelsListCache       *gocache.Cache
 	modelsList            *routing.ModelList
-	modelsListCacheTTL    time.Duration
-	settingService        *SettingService
-	responseHeaderFilter  *responseheaders.CompiledHeaderFilter
+	settingService        *gatewayprovider.RuntimeReaders
+	responseHeaderFilter  *egress.CompiledHeaderFilter
 	debugModelRouting     atomic.Bool
 	debugClaudeMimic      atomic.Bool
-	channelService        *ChannelService
-	resolver              *ModelPricingResolver
+	channelService        *routing.ChannelService
+	resolver              *billing.PriceResolver
 	debugGatewayBodyFile  atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
-	tlsFPProfileService   *TLSFingerprintProfileService
-	balanceNotifyService  *BalanceNotifyService
-	userPlatformQuotaRepo UserPlatformQuotaRepository
+	tlsFPProfileService   *provider.TLSProfiles
+	balanceNotifyService  *billing.BalanceNotifyService
+	userPlatformQuotaRepo billing.UserPlatformQuotaRepository
 	advancedAccountStats  *advancedAccountRuntimeStats
 }
 
 // NewGatewayService creates a new GatewayService
 func NewGatewayService(
 	accountRepo AccountRepository,
-	groupRepo GroupRepository,
-	usageLogRepo UsageLogRepository,
-	usageBillingRepo UsageBillingRepository,
-	userRepo UserRepository,
-	userSubRepo UserSubscriptionRepository,
-	userGroupRateRepo UserGroupRateRepository,
-	cache GatewayCache,
+	groupRepo routing.GroupRepository,
+	usageLogRepo usage.UsageLogRepository,
+	usageBillingRepo completion.Store,
+	userRepo identity.UserRepository,
+	userSubRepo billing.UserSubscriptionRepository,
+	userGroupRateRepo billing.UserGroupRateRepository,
+	cache session.GatewayCache,
 	cfg *config.Config,
 	schedulerSnapshot *SchedulerSnapshotService,
-	concurrencyService *ConcurrencyService,
-	billingService *BillingService,
+	concurrencyService *scheduler.ConcurrencyService,
+	billingService *billing.Calculator,
 	rateLimitService *RateLimitService,
-	billingCacheService *BillingCacheService,
-	identityService *RequestFingerprintService,
-	httpUpstream HTTPUpstream,
-	deferredService *DeferredService,
-	claudeTokenProvider *ClaudeTokenProvider,
-	sessionLimitCache SessionLimitCache,
-	rpmCache RPMCache,
-	digestStore *DigestSessionStore,
-	settingService *SettingService,
-	tlsFPProfileService *TLSFingerprintProfileService,
-	channelService *ChannelService,
-	resolver *ModelPricingResolver,
-	balanceNotifyService *BalanceNotifyService,
-	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	billingCacheService *billing.Eligibility,
+	identityService *claude.RequestFingerprint,
+	httpUpstream httpclient.UpstreamTransport,
+	deferredService *accountcore.DeferredService,
+	claudeTokenProvider *accountcore.ClaudeTokenSource,
+	sessionLimitCache scheduler.SessionLimitCache,
+	windowCostCache billing.WindowCostCache,
+	rpmCache scheduler.RPMCache,
+	digestStore *session.DigestSessionStore,
+	settingService *gatewayprovider.RuntimeReaders,
+	tlsFPProfileService *provider.TLSProfiles,
+	channelService *routing.ChannelService,
+	resolver *billing.PriceResolver,
+	balanceNotifyService *billing.BalanceNotifyService,
+	userPlatformQuotaRepo billing.UserPlatformQuotaRepository,
 	modelLists ...*routing.ModelList,
 ) *GatewayService {
 	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
-	modelsListTTL := resolveModelsListCacheTTL(cfg)
 
 	svc := &GatewayService{
 		accountRepo:           accountRepo,
@@ -731,10 +581,10 @@ func NewGatewayService(
 		deferredService:       deferredService,
 		claudeTokenProvider:   claudeTokenProvider,
 		sessionLimitCache:     sessionLimitCache,
+		windowCostCache:       windowCostCache,
 		rpmCache:              rpmCache,
 		userGroupRateCache:    gocache.New(userGroupRateTTL, 0),
 		settingService:        settingService,
-		modelsListCacheTTL:    modelsListTTL,
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		tlsFPProfileService:   tlsFPProfileService,
 		channelService:        channelService,
@@ -743,12 +593,12 @@ func NewGatewayService(
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 		advancedAccountStats:  newAdvancedAccountRuntimeStats(),
 	}
-	svc.userGroupRateResolver = newUserGroupRateResolver(
+	svc.userGroupRateResolver = billing.NewGroupRateResolver(
 		userGroupRateRepo,
 		svc.userGroupRateCache,
 		userGroupRateTTL,
 		&svc.userGroupRateSF,
-		"service.gateway",
+		"service.gateway", logging.LegacyPrintf,
 	)
 	svc.debugModelRouting.Store(parseDebugEnvBool(os.Getenv("SUB2API_DEBUG_MODEL_ROUTING")))
 	svc.debugClaudeMimic.Store(parseDebugEnvBool(os.Getenv("SUB2API_DEBUG_CLAUDE_MIMIC")))
@@ -758,14 +608,13 @@ func NewGatewayService(
 	if len(modelLists) > 0 && modelLists[0] != nil {
 		svc.modelsList = modelLists[0]
 	} else {
-		svc.modelsList = routing.NewModelList(LegacyModelListReader(accountRepo), modelsListTTL)
+		svc.modelsList = routing.NewModelList(LegacyModelListReader(accountRepo), resolveModelsListCacheTTL(cfg))
 	}
-	svc.modelsListCache = svc.modelsList.Cache
 	return svc
 }
 
 // 兼容入口复用 gateway/session 的唯一请求哈希算法。
-func (s *GatewayService) GenerateSessionHash(parsed *ParsedRequest) string {
+func (s *GatewayService) GenerateSessionHash(parsed *requeststate.ParsedRequest) string {
 	return session.GenerateSessionHash(parsed, slog.Info)
 }
 
@@ -826,36 +675,33 @@ func (s *GatewayService) SaveAnthropicSession(_ context.Context, groupID int64, 
 }
 
 // 兼容入口复用 gateway/session 的唯一请求哈希算法。
-func (s *GatewayService) extractCacheableContent(parsed *ParsedRequest) string {
+func (s *GatewayService) extractCacheableContent(parsed *requeststate.ParsedRequest) string {
 	return session.ExtractCacheableContent(parsed)
 }
-
-// 兼容入口复用 gateway/session 的唯一请求哈希算法。
-func parseRawJSONView(raw []byte) gjson.Result { return session.ParseRawJSONView(raw) }
 
 // GetAccessToken 获取账号凭证
 // @project-doc docs/interfaces/anthropic_upstream.md#anthropic_account_and_transport
 func (s *GatewayService) GetAccessToken(ctx context.Context, account *Account) (string, string, error) {
 	switch account.Type {
-	case AccountTypeOAuth, AccountTypeSetupToken:
+	case capability.AccountTypeOAuth, capability.AccountTypeSetupToken:
 		// Both oauth and setup-token use OAuth token flow
 		return s.getOAuthToken(ctx, account)
-	case AccountTypeAPIKey:
+	case capability.AccountTypeAPIKey:
 		apiKey := account.GetCredential("api_key")
 		if apiKey == "" {
 			return "", "", errors.New("api_key not found in credentials")
 		}
 		return apiKey, "apikey", nil
-	case AccountTypeBedrock:
+	case capability.AccountTypeBedrock:
 		return "", "bedrock", nil // Bedrock 使用 SigV4 签名或 API Key，由 forwardBedrock 处理
-	case AccountTypeServiceAccount:
-		if account.Platform != PlatformAnthropic {
+	case capability.AccountTypeServiceAccount:
+		if account.Platform != capability.PlatformAnthropic {
 			return "", "", fmt.Errorf("unsupported service account platform: %s", account.Platform)
 		}
 		if s.claudeTokenProvider == nil {
 			return "", "", errors.New("claude token provider not configured")
 		}
-		accessToken, err := s.claudeTokenProvider.GetAccessToken(ctx, account)
+		accessToken, err := s.claudeTokenProvider.GetAccessToken(ctx, AccountRecordView(account))
 		if err != nil {
 			return "", "", err
 		}
@@ -867,8 +713,8 @@ func (s *GatewayService) GetAccessToken(ctx context.Context, account *Account) (
 
 func (s *GatewayService) getOAuthToken(ctx context.Context, account *Account) (string, string, error) {
 	// 对于 Anthropic OAuth 账号，使用 ClaudeTokenProvider 获取缓存的 token
-	if account.Platform == PlatformAnthropic && account.Type == AccountTypeOAuth && s.claudeTokenProvider != nil {
-		accessToken, err := s.claudeTokenProvider.GetAccessToken(ctx, account)
+	if account.Platform == capability.PlatformAnthropic && account.Type == capability.AccountTypeOAuth && s.claudeTokenProvider != nil {
+		accessToken, err := s.claudeTokenProvider.GetAccessToken(ctx, AccountRecordView(account))
 		if err != nil {
 			return "", "", err
 		}
@@ -876,7 +722,7 @@ func (s *GatewayService) getOAuthToken(ctx context.Context, account *Account) (s
 	}
 
 	// Grok OAuth 优先使用凭据中的 access_token，后台刷新器负责保持其有效。
-	if account.Platform == PlatformGrok && account.Type == AccountTypeOAuth {
+	if account.Platform == capability.PlatformGrok && account.Type == capability.AccountTypeOAuth {
 		accessToken := account.GetGrokAccessToken()
 		if accessToken == "" {
 			return "", "", errors.New("grok access_token not found in credentials")
@@ -903,9 +749,9 @@ func (s *GatewayService) DoGrokNativeResponsesJSON(ctx context.Context, account 
 	}
 	token, _, err := s.GetAccessToken(ctx, account)
 	if err != nil {
-		return nil, &UpstreamFailoverError{
+		return nil, &forwardcore.UpstreamFailoverError{
 			StatusCode: http.StatusUnauthorized,
-			Reason:     GatewayFailureReason("grok_search_token"),
+			Reason:     forwardcore.GatewayFailureReason("grok_search_token"),
 		}
 	}
 	targetURL, err := buildGrokResponsesURL(account, nil, s.settingService)
@@ -924,8 +770,8 @@ func (s *GatewayService) DoGrokNativeResponsesJSON(ctx context.Context, account 
 	upstreamReq.Header.Set("Authorization", "Bearer "+token)
 	upstreamReq.Header.Set("Content-Type", "application/json")
 	upstreamReq.Header.Set("Accept", "application/json")
-	upstreamReq.Header.Set("User-Agent", defaultGrokUpstreamUserAgent())
-	applyGrokCLIHeaders(upstreamReq.Header)
+	upstreamReq.Header.Set("User-Agent", xai.DefaultGrokUpstreamUserAgent())
+	xai.ApplyCLIHeaders(upstreamReq.Header)
 	account.ApplyHeaderOverrides(upstreamReq.Header)
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -933,24 +779,24 @@ func (s *GatewayService) DoGrokNativeResponsesJSON(ctx context.Context, account 
 	}
 	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
 	if err != nil {
-		return nil, &UpstreamFailoverError{
+		return nil, &forwardcore.UpstreamFailoverError{
 			StatusCode: http.StatusBadGateway,
-			Reason:     GatewayFailureReason("grok_search_transport"),
+			Reason:     forwardcore.GatewayFailureReason("grok_search_transport"),
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	respBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if readErr != nil {
-		return nil, &UpstreamFailoverError{
+		return nil, &forwardcore.UpstreamFailoverError{
 			StatusCode: http.StatusBadGateway,
-			Reason:     GatewayFailureReason("grok_search_read"),
+			Reason:     forwardcore.GatewayFailureReason("grok_search_read"),
 		}
 	}
 	if resp.StatusCode >= http.StatusBadRequest {
 		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusPaymentRequired ||
 			resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests ||
 			resp.StatusCode >= http.StatusInternalServerError {
-			return nil, &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBytes}
+			return nil, &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBytes}
 		}
 		message := string(respBytes)
 		if len(message) > 200 {
@@ -959,16 +805,6 @@ func (s *GatewayService) DoGrokNativeResponsesJSON(ctx context.Context, account 
 		return nil, fmt.Errorf("grok upstream %d: %s", resp.StatusCode, message)
 	}
 	return respBytes, nil
-}
-
-func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64, platform string) []string {
-	return s.modelListCore().Available(ctx, groupID, platform)
-}
-
-func (s *GatewayService) InvalidateAvailableModelsCache(groupID *int64, platform string) {
-	if s != nil {
-		s.modelListCore().Invalidate(groupID, platform)
-	}
 }
 
 const debugGatewayBodyDefaultFilename = "gateway_debug.log"
@@ -1042,7 +878,7 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 
 	// 2. headers（按真实 Claude CLI wire 顺序排列，便于与抓包对比；auth 脱敏）
 	fmt.Fprint(&buf, "--- headers ---\n")
-	for _, k := range sortHeadersByWireOrder(headers) {
+	for _, k := range claude.SortHeadersByWireOrder(headers) {
 		for _, v := range headers[k] {
 			fmt.Fprintf(&buf, "  %s: %s\n", k, safeHeaderValueForLog(k, v))
 		}
@@ -1072,7 +908,7 @@ func (s *GatewayService) ExpireRuntimeCaches() {
 		if s.userGroupRateCache != nil {
 			s.userGroupRateCache.DeleteExpired()
 		}
-		if s.modelsListCache != nil {
+		if s.modelsList != nil {
 			s.modelListCore().Expire()
 		}
 	}

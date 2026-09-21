@@ -3,10 +3,11 @@ package routing
 
 import (
 	context "context"
-	account "github.com/TokenFlux/TokenRouter/internal/account"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	slices "slices"
 	time "time"
+
+	account "github.com/TokenFlux/TokenRouter/internal/account"
+	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 type GroupCapacitySummary = accessview.GroupCapacitySummary

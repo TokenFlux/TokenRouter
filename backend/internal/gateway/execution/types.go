@@ -55,6 +55,8 @@ type TextState struct {
 	GeminiModel     string
 }
 type Request struct {
+	Hints       requeststate.ExecutionHints
+	Routing     requeststate.RoutingState
 	Access      *apikey.AccessSnapshot
 	Route       routing.RoutePlan
 	UserID      int64

@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +26,7 @@ func (d *openAIWSCountingDialer) Dial(
 	headers http.Header,
 	proxyURL string,
 	profile *tlsfingerprint.Profile,
-) (openAIWSClientConn, int, http.Header, error) {
+) (openai.WSClientConn, int, http.Header, error) {
 	_ = ctx
 	_ = wsURL
 	_ = headers
@@ -124,7 +125,7 @@ func TestOpenAIWSConnPoolShutdownSealsLazyCreation(t *testing.T) {
 	require.Nil(t, svc.getOpenAIWSConnPool())
 	pool := newOpenAIWSConnPool(nil)
 	pool.Close()
-	_, err := pool.Acquire(context.Background(), openAIWSAcquireRequest{Account: openAIWSPoolAccountView(&Account{ID: 1}), WSURL: "wss://example.test"})
-	require.ErrorIs(t, err, errOpenAIWSConnClosed)
+	_, err := pool.Acquire(context.Background(), openai.WSAcquireRequest{Account: openAIWSPoolAccountView(&Account{ID: 1}), WSURL: "wss://example.test"})
+	require.ErrorIs(t, err, openai.ErrWSConnClosed)
 	pool.Close()
 }

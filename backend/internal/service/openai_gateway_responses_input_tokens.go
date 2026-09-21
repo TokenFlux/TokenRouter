@@ -8,10 +8,17 @@ import (
 	"net/url"
 	"strings"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tokenestimate"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -46,7 +53,7 @@ func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
 		return fmt.Errorf("responses input_tokens: get access token: %w", err)
 	}
 
-	upstreamBody, err := marshalOpenAIUpstreamJSON(prepared.Request)
+	upstreamBody, err := wirejson.Marshal(prepared.Request)
 	if err != nil {
 		writeOpenAIResponsesInputTokensError(c, http.StatusInternalServerError, "api_error", "Failed to build request")
 		return fmt.Errorf("responses input_tokens: marshal request: %w", err)
@@ -64,20 +71,20 @@ func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
 		writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		return fmt.Errorf("responses input_tokens: upstream client is unavailable")
 	}
-	return nativeopenai.CountNativeInputTokens(upstreamReq, nativeopenai.NativeInputTokensOptions{
+	return openai.CountNativeInputTokens(upstreamReq, openai.NativeInputTokensOptions{
 		Enter: s.nativeAttemptActivity,
 		Do: func(req *http.Request) (*http.Response, error) {
 			return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 		},
 		TransportError: func(err error) error {
-			safeErr := sanitizeUpstreamErrorMessage(err.Error())
-			setOpsUpstreamError(c, 0, safeErr, "")
+			safeErr := logredact.SanitizeUpstreamQueries(err.Error())
+			gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
 			writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 			return fmt.Errorf("responses input_tokens: upstream request failed: %s", safeErr)
 		},
 		ReadBody: s.readResponsesInputTokensBody,
 		HTTPError: func(resp *http.Response, respBody []byte) error {
-			if resp.StatusCode == http.StatusNotFound || (account.Type == AccountTypeOAuth && isOpenAIOAuthInputTokensUnsupported(resp.StatusCode, respBody)) {
+			if resp.StatusCode == http.StatusNotFound || (account.Type == capability.AccountTypeOAuth && isOpenAIOAuthInputTokensUnsupported(resp.StatusCode, respBody)) {
 				writeOpenAIResponsesInputTokensFallback(c, account, prepared, resp.StatusCode, "upstream_unsupported")
 				return nil
 			}
@@ -88,7 +95,7 @@ func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
 }
 
 func prepareNativeOpenAIInputTokensCountRequest(body []byte, account *Account) (*openAIInputTokensCountPrepared, error) {
-	var req openAIInputTokensCountRequest
+	var req tokenestimate.Request
 	if err := json.Unmarshal(body, &req); err != nil {
 		return nil, fmt.Errorf("parse responses input_tokens request: %w", err)
 	}
@@ -109,10 +116,10 @@ func prepareNativeOpenAIInputTokensCountRequest(body []byte, account *Account) (
 }
 
 func shouldEstimateOpenAIInputTokensLocally(account *Account) bool {
-	if account == nil || account.IsGrok() || account.IsCNProvider() || account.Type == AccountTypeUpstream {
+	if account == nil || account.IsGrok() || account.IsCNProvider() || account.Type == capability.AccountTypeUpstream {
 		return true
 	}
-	if account.Type != AccountTypeAPIKey {
+	if account.Type != capability.AccountTypeAPIKey {
 		return false
 	}
 	baseURL := strings.TrimSpace(account.GetCredential("base_url"))
@@ -129,7 +136,7 @@ func shouldEstimateOpenAIInputTokensLocally(account *Account) bool {
 func writeOpenAIResponsesInputTokensFallback(c *gin.Context, account *Account, prepared *openAIInputTokensCountPrepared, statusCode int, reason string) {
 	estimated := openAIInputTokensFallbackMinimum
 	if prepared != nil {
-		if got, err := estimateOpenAIInputTokens(prepared.Request); err == nil && got > 0 {
+		if got, err := tokenestimate.Responses(prepared.Request); err == nil && got > 0 {
 			estimated = got
 		}
 	}
@@ -141,7 +148,7 @@ func writeOpenAIResponsesInputTokensFallback(c *gin.Context, account *Account, p
 	if prepared != nil {
 		model = prepared.UpstreamModel
 	}
-	logger.L().Info("openai responses input_tokens: local estimate fallback",
+	logging.L().Info("openai responses input_tokens: local estimate fallback",
 		zap.Int64("account_id", accountID),
 		zap.Int("upstream_status", statusCode),
 		zap.Int("estimated_input_tokens", estimated),
@@ -174,9 +181,9 @@ func (s *OpenAIGatewayService) handleResponsesInputTokensUpstreamError(
 	resp *http.Response,
 	body []byte,
 ) error {
-	upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(body)))
+	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
 	var decision UpstreamErrorDecision
-	if account.Platform == PlatformGrok {
+	if account.Platform == capability.PlatformGrok {
 		decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, prepared.UpstreamModel)
 	} else {
 		decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, prepared.UpstreamModel)
@@ -186,18 +193,18 @@ func (s *OpenAIGatewayService) handleResponsesInputTokensUpstreamError(
 		return fmt.Errorf("responses input_tokens: upstream error %d (custom policy)", resp.StatusCode)
 	}
 	defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, body)
-	if account.Platform == PlatformGrok {
+	if account.Platform == capability.PlatformGrok {
 		defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, body)
 	}
 	if decision.ShouldFailover(account, resp.StatusCode, defaultFailover) {
-		return &UpstreamFailoverError{
+		return &forwardcore.UpstreamFailoverError{
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           body,
 			ResponseHeaders:        resp.Header.Clone(),
 			RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
 		}
 	}
-	setOpsUpstreamError(c, resp.StatusCode, upstreamMsg, "")
+	gatewayhttp.SetOpsUpstreamError(c, resp.StatusCode, upstreamMsg, "")
 	message := "Upstream request failed"
 	if resp.StatusCode == http.StatusTooManyRequests {
 		message = "Rate limit exceeded"

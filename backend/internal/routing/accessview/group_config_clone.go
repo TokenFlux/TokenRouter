@@ -2,9 +2,10 @@
 package accessview
 
 import (
-	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	maps "maps"
 	slices "slices"
+
+	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 // CloneGroup 复制跨缓存/模块边界的可变值，保留省略与显式空集合。

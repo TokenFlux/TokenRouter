@@ -10,9 +10,20 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/model"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 )
@@ -29,18 +40,18 @@ type liveAttestationStub struct {
 }
 
 // newLiveTLSRoutingServices 构造同时覆盖 TLS 模板和身份头的 Live 路由规则。
-func newLiveTLSRoutingServices() (*TLSFingerprintProfileService, *TLSFingerprintRouterService) {
-	profileService := newTLSProfileServiceWithCacheForTest(map[int64]*model.TLSFingerprintProfile{
+func newLiveTLSRoutingServices() (*provider.TLSProfiles, *egress.TLSFingerprintRouterService) {
+	profileService := newTLSProfileServiceWithCacheForTest(map[int64]*egress.TLSFingerprintProfile{
 		20: {ID: 20, Name: "live-routed"},
 	})
-	router := &model.TLSFingerprintRouter{
+	router := &egress.TLSFingerprintRouter{
 		ID:      9,
 		Name:    "live-router",
 		Enabled: true,
-		Rules: []model.TLSFingerprintRouterRule{{
+		Rules: []egress.TLSFingerprintRouterRule{{
 			Name:                    "live-client",
 			Enabled:                 true,
-			MatchType:               model.TLSRouterMatchExact,
+			MatchType:               egress.TLSRouterMatchExact,
 			Pattern:                 "test-live-client",
 			TLSFingerprintProfileID: 20,
 			UpstreamUserAgent:       "codex_vscode/0.144.1 live-test",
@@ -94,31 +105,31 @@ func (s *liveHTTPUpstreamStub) DoWithTLS(
 }
 
 func TestLiveCapabilityOnlyAllowsOpenAIOAuth(t *testing.T) {
-	require.True(t, (&Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth}).SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityLive))
-	require.False(t, (&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}).SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityLive))
-	require.False(t, (&Account{Platform: PlatformGrok, Type: AccountTypeOAuth}).SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityLive))
+	require.True(t, (&Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, (&Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, (&Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
 	require.False(t, (&Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
-			openAIAuthModeCredentialKey: OpenAIAuthModePersonalAccessToken,
+			accountcore.OpenAIAuthModeCredentialKey: accountcore.OpenAIAuthModePersonalAccessToken,
 		},
-	}).SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityLive))
+	}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
 	require.False(t, (&Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
-			openAIAuthModeCredentialKey: OpenAIAuthModeAgentIdentity,
+			accountcore.OpenAIAuthModeCredentialKey: accountcore.OpenAIAuthModeAgentIdentity,
 		},
-	}).SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityLive))
+	}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
 }
 
 func TestValidateLiveCallRequestDoesNotRequireDelegation(t *testing.T) {
-	request := &LiveCallRequest{
+	request := &gatewaysession.LiveCallRequest{
 		SDP:     "v=0\r\n",
 		Session: json.RawMessage(`{"model":"gpt-live-test","instructions":"hello"}`),
 	}
-	require.NoError(t, ValidateLiveCallRequest(request))
+	require.NoError(t, openaicore.ValidateLiveCallRequest(request))
 	require.NotContains(t, string(request.Session), "delegation")
 }
 
@@ -133,8 +144,8 @@ func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 	}
 	account := &Account{
 		ID:          7,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 2,
 		Credentials: map[string]any{
 			"access_token":       "test-access-token",
@@ -152,7 +163,7 @@ func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 	}`)
 
 	tlsRouterMatch := service.matchLiveTLSFingerprintRouter(account, "test-live-client")
-	created, err := service.createUpstreamLiveCall(context.Background(), account, &LiveCallRequest{
+	created, err := service.createUpstreamLiveCall(context.Background(), account, &gatewaysession.LiveCallRequest{
 		SDP:     "v=offer\r\n",
 		Session: session,
 	}, `{"v":1,"s":0,"t":"v1.test"}`, tlsRouterMatch)
@@ -174,23 +185,23 @@ func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 	require.Equal(t, "quicksilver=v2", upstream.request.Header.Get("OpenAI-Alpha"))
 	require.Equal(t, "codex_vscode/0.144.1 live-test", upstream.request.Header.Get("User-Agent"))
 	require.Equal(t, "codex_vscode", upstream.request.Header.Get("Originator"))
-	require.Equal(t, `{"v":1,"s":0,"t":"v1.test"}`, upstream.request.Header.Get(liveAttestationHeader))
+	require.Equal(t, `{"v":1,"s":0,"t":"v1.test"}`, upstream.request.Header.Get(openai.LiveAttestationHeader))
 	require.NotEmpty(t, upstream.request.Header.Get("Session-Id"))
 	require.NotEmpty(t, upstream.request.Header.Get("Thread-Id"))
 	require.Empty(t, upstream.request.Header.Get("OpenAI-Beta"))
-	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.request.Context()))
-	require.True(t, HTTPUpstreamRedirectsDisabled(upstream.request.Context()))
+	require.Equal(t, upstreamcore.HTTPUpstreamProfileOpenAI, upstreamcore.HTTPUpstreamProfileFromContext(upstream.request.Context()))
+	require.True(t, upstreamcore.HTTPUpstreamRedirectsDisabled(upstream.request.Context()))
 }
 
 func TestLiveClientPolicyUsesTLSRouterMatch(t *testing.T) {
 	_, routerService := newLiveTLSRoutingServices()
 	service := &OpenAIGatewayService{tlsFPRouterService: routerService}
 	account := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Extra: map[string]any{
 			"tls_fingerprint_router_id":  int64(9),
-			"openai_oauth_client_policy": OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
+			"openai_oauth_client_policy": accountcore.OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
 		},
 	}
 
@@ -198,7 +209,7 @@ func TestLiveClientPolicyUsesTLSRouterMatch(t *testing.T) {
 	result := service.liveClientPolicyResult(
 		context.Background(),
 		account,
-		LiveCallIdentity{UserAgent: "test-live-client"},
+		gatewaysession.LiveCallIdentity{UserAgent: "test-live-client"},
 		matched,
 	)
 	require.True(t, result.Enabled)
@@ -208,12 +219,12 @@ func TestLiveClientPolicyUsesTLSRouterMatch(t *testing.T) {
 	result = service.liveClientPolicyResult(
 		context.Background(),
 		account,
-		LiveCallIdentity{UserAgent: "unknown-client"},
+		gatewaysession.LiveCallIdentity{UserAgent: "unknown-client"},
 		notMatched,
 	)
 	require.True(t, result.Enabled)
 	require.False(t, result.Matched)
-	require.Equal(t, CodexClientRestrictionReasonNotMatchedTLSRouter, result.Reason)
+	require.Equal(t, accountcore.CodexClientRestrictionReasonNotMatchedTLSRouter, result.Reason)
 }
 
 func TestLiveAttestationCipherRoundTripAndRejectsOtherInstanceKey(t *testing.T) {
@@ -256,7 +267,7 @@ func TestPrepareLiveAttestationEncryptsHeaderAndReturnsExplicitProviderError(t *
 
 	service.liveAttestation = liveAttestationStub{err: errors.New("macOS app missing")}
 	_, _, err = service.prepareLiveAttestation(context.Background())
-	var unavailable *LiveAttestationUnavailableError
+	var unavailable *gatewaysession.LiveAttestationUnavailableError
 	require.ErrorAs(t, err, &unavailable)
 	require.Contains(t, unavailable.Error(), "macOS app missing")
 }
@@ -276,7 +287,7 @@ func TestLiveMaxSessionDurationDefaultsAndOverrides(t *testing.T) {
 
 func TestLiveSidebandNormalCloseEndsCall(t *testing.T) {
 	normalClose := coderws.CloseError{Code: coderws.StatusNormalClosure}
-	require.ErrorIs(t, liveSidebandReadError(normalClose), ErrLiveCallNotFound)
+	require.ErrorIs(t, liveSidebandReadError(normalClose), gatewaysession.ErrLiveCallNotFound)
 
 	abnormalClose := coderws.CloseError{Code: coderws.StatusInternalError}
 	require.Equal(t, abnormalClose, liveSidebandReadError(abnormalClose))
@@ -284,33 +295,33 @@ func TestLiveSidebandNormalCloseEndsCall(t *testing.T) {
 
 func TestLiveCreateFailoverUsesExistingOpenAIPolicy(t *testing.T) {
 	service := &OpenAIGatewayService{}
-	require.False(t, service.shouldFailoverLiveCreateError(&UpstreamFailoverError{
+	require.False(t, service.shouldFailoverLiveCreateError(&forwardcore.UpstreamFailoverError{
 		StatusCode:   http.StatusBadRequest,
 		ResponseBody: []byte(`{"error":{"message":"invalid session"}}`),
 	}))
-	require.True(t, service.shouldFailoverLiveCreateError(&UpstreamFailoverError{
+	require.True(t, service.shouldFailoverLiveCreateError(&forwardcore.UpstreamFailoverError{
 		StatusCode: http.StatusForbidden,
 	}))
-	require.True(t, service.shouldFailoverLiveCreateError(&UpstreamFailoverError{
+	require.True(t, service.shouldFailoverLiveCreateError(&forwardcore.UpstreamFailoverError{
 		StatusCode: http.StatusBadGateway,
 	}))
 	require.True(t, service.shouldFailoverLiveCreateError(errors.New("transport failed")))
 }
 
 func TestLiveCallIDFromLocation(t *testing.T) {
-	callID, err := liveCallIDFromLocation("https://chatgpt.com/backend-api/codex/call_123?intent=quicksilver")
+	callID, err := openai.LiveCallIDFromLocation("https://chatgpt.com/backend-api/codex/call_123?intent=quicksilver")
 	require.NoError(t, err)
 	require.Equal(t, "call_123", callID)
 
-	callID, err = liveCallIDFromLocation("/backend-api/codex/call_456")
+	callID, err = openai.LiveCallIDFromLocation("/backend-api/codex/call_456")
 	require.NoError(t, err)
 	require.Equal(t, "call_456", callID)
 }
 
 func TestRequestTypeLive(t *testing.T) {
-	require.True(t, RequestTypeLive.IsValid())
-	require.Equal(t, "live", RequestTypeLive.String())
-	parsed, err := ParseUsageRequestType("live")
+	require.True(t, usage.RequestTypeLive.IsValid())
+	require.Equal(t, "live", usage.RequestTypeLive.String())
+	parsed, err := usage.ParseUsageRequestType("live")
 	require.NoError(t, err)
-	require.Equal(t, RequestTypeLive, parsed)
+	require.Equal(t, usage.RequestTypeLive, parsed)
 }

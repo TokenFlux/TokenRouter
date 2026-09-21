@@ -4,18 +4,27 @@ package service
 import (
 	context "context"
 	fmt "fmt"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // GroupProbeExecution 保留尚未迁出的平台选择/测试执行，S07/S09 继续拆分。
 type GroupProbeExecution struct {
-	AccountTest     *AccountTestService
+	AccountTest     GroupAccountTester
 	gatewaySvc      *GatewayService
 	openAIGateway   *OpenAIGatewayService
 	geminiCompatSvc *GeminiMessagesCompatService
 }
 
-func NewGroupProbeExecution(test *AccountTestService, gateway *GatewayService, openai *OpenAIGatewayService, gemini *GeminiMessagesCompatService) GroupProbeExecution {
+// GroupAccountTester 只执行已选账号的原生测试，不持有旧管理聚合服务。
+type GroupAccountTester interface {
+	RunTestBackgroundWithPromptAndUserAgent(context.Context, int64, string, string, string) (*account.ScheduledTestResult, error)
+}
+
+func NewGroupProbeExecution(test GroupAccountTester, gateway *GatewayService, openai *OpenAIGatewayService, gemini *GeminiMessagesCompatService) GroupProbeExecution {
 	return GroupProbeExecution{AccountTest: test, gatewaySvc: gateway, openAIGateway: openai, geminiCompatSvc: gemini}
 }
 func (s GroupProbeExecution) Select(ctx context.Context, due routing.GroupAvailabilityProbeDueGroup, model string) (int64, error) {
@@ -32,15 +41,15 @@ func (s GroupProbeExecution) Test(ctx context.Context, id int64, model, prompt, 
 	}
 	return &routing.ProbeExecutionResult{Status: result.Status, LatencyMs: result.LatencyMs, ErrorMessage: result.ErrorMessage, StartedAt: result.StartedAt, FinishedAt: result.FinishedAt}, err
 }
-func (s GroupProbeExecution) selectProbeAccount(ctx context.Context, due GroupAvailabilityProbeDueGroup, modelID string) (*Account, error) {
+func (s GroupProbeExecution) selectProbeAccount(ctx context.Context, due routing.GroupAvailabilityProbeDueGroup, modelID string) (*Account, error) {
 	groupID := due.GroupID
 	switch due.Platform {
-	case PlatformOpenAI:
+	case capability.PlatformOpenAI:
 		if s.openAIGateway == nil {
 			return nil, fmt.Errorf("openai gateway service not configured")
 		}
 		return s.openAIGateway.SelectAccountForModel(ctx, &groupID, "", modelID)
-	case PlatformGemini:
+	case capability.PlatformGemini:
 		if s.geminiCompatSvc != nil {
 			return s.geminiCompatSvc.SelectAccountForModel(ctx, &groupID, "", modelID)
 		}

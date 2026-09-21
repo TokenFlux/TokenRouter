@@ -3,10 +3,11 @@ package postgres
 import (
 	"context"
 	"errors"
-	"github.com/lib/pq"
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 const (

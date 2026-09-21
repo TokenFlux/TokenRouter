@@ -1,29 +1,30 @@
 package app
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAdminRoutesQoderOAuthPathsAreRegistered(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	router := gin.New()
-	qoderOAuthService := service.NewQoderOAuthService(nil)
-	qoderOAuthService.Start()
-	defer qoderOAuthService.Stop()
+	qoderOAuthService := provideQoderAuthorization(nil)
+	qoderOAuthService.Core.Start()
+	t.Cleanup(func() { require.NoError(t, qoderOAuthService.Core.StopContext(context.Background())) })
 
 	registerQoderOAuthRoutes(
 		router.Group("/api/v1/admin"),
 		&routeTestHandlers{
 			Admin: &routeTestAdminHandlers{
-				QoderOAuth: admin.NewQoderOAuthHandler(qoderOAuthService),
+				QoderOAuth: accounthttp.NewQoderOAuthHandler(qoderOAuthService),
 			},
 		},
 	)

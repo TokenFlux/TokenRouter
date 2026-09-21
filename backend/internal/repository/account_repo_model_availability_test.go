@@ -6,12 +6,14 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
+	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
+	"github.com/stretchr/testify/require"
+
 	entsql "entgo.io/ent/dialect/sql"
 )
 
@@ -32,7 +34,7 @@ func TestListModelAvailabilityCandidates_GroupQueryIgnoresTransientState(t *test
 	accounts, err := repo.ListModelAvailabilityCandidates(
 		context.Background(),
 		&groupID,
-		[]string{service.PlatformAnthropic},
+		[]string{capability.PlatformAnthropic},
 		false,
 	)
 	require.NoError(t, err)

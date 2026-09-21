@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // normalizeOpenAIResponsesLegacyIngress accepts the Chat Completions-shaped
@@ -18,7 +21,7 @@ func normalizeOpenAIResponsesLegacyIngress(body []byte) ([]byte, bool, error) {
 	}
 
 	var request map[string]any
-	if err := decodeOpenAIJSONUseNumber(body, &request); err != nil {
+	if err := wirejson.DecodeUseNumber(body, &request); err != nil {
 		return body, false, fmt.Errorf("normalize legacy Responses ingress: %w", err)
 	}
 
@@ -67,7 +70,7 @@ func normalizeOpenAIResponsesLegacyIngress(body []byte) ([]byte, bool, error) {
 	if !changed {
 		return body, false, nil
 	}
-	normalized, err := marshalOpenAIUpstreamJSON(request)
+	normalized, err := wirejson.Marshal(request)
 	if err != nil {
 		return body, false, fmt.Errorf("serialize legacy Responses ingress: %w", err)
 	}
@@ -95,7 +98,7 @@ func convertLegacyResponsesMessages(body []byte) (convertedLegacyResponsesMessag
 	if err := json.Unmarshal(body, &chatRequest); err != nil {
 		return converted, fmt.Errorf("normalize legacy Responses messages: %w", err)
 	}
-	responsesRequest, err := apicompat.ChatCompletionsToResponses(&chatRequest)
+	responsesRequest, err := protocolbridge.ChatCompletionsToResponses(&chatRequest, protocolforward.ConversionOptionsForModel(chatRequest.Model))
 	if err != nil {
 		return converted, fmt.Errorf("normalize legacy Responses messages: %w", err)
 	}
@@ -117,7 +120,7 @@ func convertLegacyResponsesMessages(body []byte) (convertedLegacyResponsesMessag
 	}
 
 	var rawRequest map[string]any
-	if err := decodeOpenAIJSONUseNumber(body, &rawRequest); err != nil {
+	if err := wirejson.DecodeUseNumber(body, &rawRequest); err != nil {
 		return converted, fmt.Errorf("inspect legacy Responses fields: %w", err)
 	}
 	converted.hasChatTools = hasChatStyleTools(rawRequest) || rawRequest["functions"] != nil
@@ -161,14 +164,14 @@ func normalizeLegacyResponsesToolChoice(raw json.RawMessage) (any, error) {
 		return nil, fmt.Errorf("normalize legacy Responses tool_choice: %w", err)
 	}
 	object, ok := choice.(map[string]any)
-	if !ok || strings.TrimSpace(firstNonEmptyString(object["type"])) != "function" {
+	if !ok || strings.TrimSpace(openai.FirstNonEmptyString(object["type"])) != "function" {
 		return choice, nil
 	}
 	function, ok := object["function"].(map[string]any)
 	if !ok {
 		return choice, nil
 	}
-	name := strings.TrimSpace(firstNonEmptyString(function["name"]))
+	name := strings.TrimSpace(openai.FirstNonEmptyString(function["name"]))
 	if name == "" {
 		return choice, nil
 	}
@@ -176,7 +179,7 @@ func normalizeLegacyResponsesToolChoice(raw json.RawMessage) (any, error) {
 }
 
 func applyLegacyResponsesTopLevelFields(request map[string]any, legacy convertedLegacyResponsesMessages) {
-	if legacy.instructions != "" && strings.TrimSpace(firstNonEmptyString(request["instructions"])) == "" {
+	if legacy.instructions != "" && strings.TrimSpace(openai.FirstNonEmptyString(request["instructions"])) == "" {
 		request["instructions"] = legacy.instructions
 	}
 	if legacy.maxOutputTokens != nil {

@@ -6,16 +6,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 func init() {
-	// 测试固定全局时区为 UTC，确保判定可复现。
-	_ = timezone.Init("UTC")
+	// 原跨模块计费夹具使用 UTC；生产日期仍由 app 显式装配。
+	time.Local = time.UTC
 }
 
-func newPeakGroup(enabled bool, start, end string, mult float64) *Group {
-	return &Group{
+func newPeakGroup(enabled bool, start, end string, mult float64) *routing.Group {
+	return &routing.Group{
 		PeakRateEnabled:    enabled,
 		PeakStart:          start,
 		PeakEnd:            end,
@@ -30,7 +33,7 @@ func at(hour, min int) time.Time {
 func TestPeakMultiplierAt_DisabledOrUnconfigured(t *testing.T) {
 	cases := []struct {
 		name string
-		g    *Group
+		g    *routing.Group
 	}{
 		{"disabled", newPeakGroup(false, "14:00", "18:00", 3.0)},
 		{"empty start", newPeakGroup(true, "", "18:00", 3.0)},
@@ -49,7 +52,7 @@ func TestPeakMultiplierAt_DisabledOrUnconfigured(t *testing.T) {
 }
 
 func TestPeakMultiplierAt_NilReceiver(t *testing.T) {
-	var g *Group
+	var g *routing.Group
 	if got := g.PeakMultiplierAt(at(15, 0)); got != 1.0 {
 		t.Fatalf("expect 1.0, got %v", got)
 	}
@@ -78,10 +81,10 @@ func TestPeakMultiplierAt_Boundaries(t *testing.T) {
 }
 
 func TestPeakMultiplierAt_RespectsTimezoneLocation(t *testing.T) {
-	// 全局时区为 UTC。北京 15:00 = UTC 07:00，不在 [14:00,18:00)。
+	// 装配显式使用 UTC。北京 15:00 = UTC 07:00，不在 [14:00,18:00)。
 	nonUTC := time.Date(2026, 6, 29, 15, 0, 0, 0, mustLoad("Asia/Shanghai"))
 	g := newPeakGroup(true, "14:00", "18:00", 3.0)
-	if got := g.PeakMultiplierAt(nonUTC); got != 1.0 {
+	if got := g.PeakMultiplierAt(nonUTC.In(time.UTC)); got != 1.0 {
 		t.Fatalf("expect 1.0 (converted to UTC 07:00), got %v", got)
 	}
 }
@@ -117,7 +120,7 @@ func TestValidatePeakRateConfig(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			err := ValidatePeakRateConfig(c.enabled, c.start, c.end, c.mult)
+			err := routing.ValidatePeakRateConfig(c.enabled, c.start, c.end, c.mult)
 			if c.wantErr && err == nil {
 				t.Fatalf("expect error, got nil")
 			}
@@ -149,7 +152,7 @@ func TestParseMinutesMatchesLegacyTimeParseShape(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.value, func(t *testing.T) {
-			got, ok := parseMinutes(c.value)
+			got, ok := routing.ParseMinutes(c.value)
 			if ok != c.ok {
 				t.Fatalf("ok: got %v, want %v", ok, c.ok)
 			}
@@ -161,17 +164,17 @@ func TestParseMinutesMatchesLegacyTimeParseShape(t *testing.T) {
 }
 
 func TestNormalizePeakRateConfig(t *testing.T) {
-	enabled, start, end, multiplier := NormalizePeakRateConfig(false, "bad", "18:00", -2)
+	enabled, start, end, multiplier := routing.NormalizePeakRateConfig(false, "bad", "18:00", -2)
 	if enabled || start != "" || end != "18:00" || multiplier != 1.0 {
 		t.Fatalf("disabled cleanup mismatch: enabled=%v start=%q end=%q multiplier=%v", enabled, start, end, multiplier)
 	}
 
-	enabled, start, end, multiplier = NormalizePeakRateConfig(false, "14:00", "18:00", 3)
+	enabled, start, end, multiplier = routing.NormalizePeakRateConfig(false, "14:00", "18:00", 3)
 	if enabled || start != "14:00" || end != "18:00" || multiplier != 3 {
 		t.Fatalf("disabled valid config should be preserved: enabled=%v start=%q end=%q multiplier=%v", enabled, start, end, multiplier)
 	}
 
-	enabled, start, end, multiplier = NormalizePeakRateConfig(true, "bad", "18:00", -2)
+	enabled, start, end, multiplier = routing.NormalizePeakRateConfig(true, "bad", "18:00", -2)
 	if !enabled || start != "bad" || end != "18:00" || multiplier != -2 {
 		t.Fatalf("enabled config should be left for validation: enabled=%v start=%q end=%q multiplier=%v", enabled, start, end, multiplier)
 	}
@@ -190,7 +193,7 @@ func TestPeakMultiplierAt_EnabledGroupUsesConfiguredWindow(t *testing.T) {
 // 若有人调换叠加顺序或把高峰并入 imageMultiplier，此测试会失败。
 func TestPeakMultiplier_GatewayBillingSequence(t *testing.T) {
 	const baseMultiplier = 0.8
-	apiKey := &APIKey{Group: newPeakGroup(true, "14:00", "18:00", 3.0)}
+	apiKey := &apikey.APIKey{Group: newPeakGroup(true, "14:00", "18:00", 3.0)}
 	approxEq := func(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 
 	t.Run("peak hour amplifies token multiplier only", func(t *testing.T) {
@@ -231,17 +234,17 @@ func TestPeakMultiplier_GatewayBillingSequence(t *testing.T) {
 // 必须携带高峰倍率 4 字段，否则扣费路径拿到的 apiKey.Group 会缺字段、PeakMultiplierAt 恒降级为 1.0。
 // 调用真实链路 snapshotFromAPIKey → snapshotToAPIKey，验证 peak 配置经快照往返后仍生效。
 func TestPeakMultiplier_SnapshotRoundTrip(t *testing.T) {
-	apiKey := &APIKey{
-		User:  &User{ID: 1, Status: StatusActive, Role: RoleUser},
+	apiKey := &apikey.APIKey{
+		User:  &identity.User{ID: 1, Status: billing.StatusActive, Role: identity.RoleUser},
 		Group: newPeakGroup(true, "14:00", "18:00", 3.0),
 	}
-	svc := newAPIKeyTestService(apiKeyTestDependencies{})
+	svc := apikey.NewAPIKeyService(nil, nil, nil, nil, nil, nil, &apikey.Options{})
 
-	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
+	snapshot := svc.KeySnapshotFromAPIKey(context.Background(), apiKey)
 	if snapshot == nil || snapshot.Group == nil {
 		t.Fatalf("snapshot or snapshot.Group must not be nil")
 	}
-	restored := svc.snapshotToAPIKey("k", snapshot)
+	restored := svc.KeySnapshotToAPIKey("k", snapshot)
 	if restored.Group == nil {
 		t.Fatalf("restored.Group must not be nil")
 	}

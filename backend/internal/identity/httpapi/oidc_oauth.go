@@ -5,16 +5,17 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
+	log "log"
+	http "net/http"
+	url "net/url"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	log "log"
-	http "net/http"
-	url "net/url"
-	strings "strings"
 )
 
 type OIDCHandler struct {

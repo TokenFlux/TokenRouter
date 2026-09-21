@@ -110,7 +110,7 @@ func TestAuditSensitiveReadsIncludesForkBackupRoutes(t *testing.T) {
 }
 
 func TestAuditMiddlewareRestoresPartialBodyAfterReadError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	want := []byte(`{"name":"完整请求"}`)
 	var got []byte
 
@@ -142,7 +142,7 @@ func TestAuditMiddlewareRestoresPartialBodyAfterReadError(t *testing.T) {
 // Ollama 会话保存的请求体整体就是浏览器 Cookie 明文，键级脱敏清单曾漏掉裸键
 // "session"，必须走整体不入库路径，防止会话凭证长期留存在 audit_logs。
 func TestOllamaCloudUsageSessionRouteOmitsAuditBody(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	require.Contains(t, auditBodyOmittedRoutes, "PUT /api/v1/admin/accounts/:id/ollama-cloud-usage/session")
 
 	repository := &auditCaptureRepository{}

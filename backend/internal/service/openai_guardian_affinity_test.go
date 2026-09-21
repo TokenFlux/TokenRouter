@@ -6,13 +6,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func guardianAffinityTestContext(t *testing.T, model, subagent, parentHeader, metadata string) context.Context {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
@@ -46,7 +51,7 @@ func TestWithOpenAIGuardianParentAffinityRequiresUnambiguousReviewLineage(t *tes
 	})
 
 	t.Run("websocket envelope metadata", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodGet, "/openai/v1/responses", nil)
@@ -76,20 +81,22 @@ func TestOpenAIAccountSchedulerGuardianAffinitySelectsParent(t *testing.T) {
 	parentHash := DeriveSessionHashFromSeed(parentID)
 	groupID := int64(102001)
 	accounts := []Account{
-		{ID: 39001, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 10, GroupIDs: []int64{groupID}, Credentials: map[string]any{"access_token": "parent", "plan_type": "team"}},
-		{ID: 39002, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}, Credentials: map[string]any{"access_token": "fallback", "plan_type": "team"}},
+		{ID: 39001, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 10, GroupIDs: []int64{groupID}, Credentials: map[string]any{"access_token": "parent", "plan_type": "team"}},
+		{ID: 39002, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}, Credentials: map[string]any{"access_token": "fallback", "plan_type": "team"}},
 	}
 	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:" + parentHash: 39001}, deletedSessions: map[string]int{}}
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
-		cache:              cache,
-		cfg:                newSchedulerTestOpenAIWSV2Config(),
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{39001: true, 39002: true}}),
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
+		cache:       cache,
+		cfg:         newSchedulerTestOpenAIWSV2Config(),
+		concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{39001: true, 39002: true}}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event},
+		),
 	}
 	ctx := guardianAffinityTestContext(t, codexAutoReviewModel, "guardian", parentID, "")
 	ctx = withAdvancedSchedulerTestGroup(ctx, groupID)
 
-	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "child-session", codexAutoReviewModel, nil, OpenAIUpstreamTransportAny, false)
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "child-session", codexAutoReviewModel, nil, egress.OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.Equal(t, int64(39001), selection.Account.ID)

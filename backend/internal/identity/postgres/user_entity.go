@@ -4,6 +4,7 @@ package postgres
 import (
 	context "context"
 	sql "database/sql"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"

@@ -1,15 +1,24 @@
 package handler
 
 import (
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+
 	"context"
 	"errors"
 	"net/http"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
@@ -19,7 +28,7 @@ type geminiMessageAttemptBridge struct {
 	messageAttemptBridge
 	forwardModel   string
 	forwardBody    []byte
-	channelMapping service.ChannelMappingResult
+	channelMapping routing.ChannelMappingResult
 }
 
 // Select 保留 Gemini Messages 的既有差异，循环复用 gateway/text。
@@ -30,7 +39,7 @@ func (b *geminiMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 		return textflow.Selection{}, err
 	}
 	b.account = b.selection.Account
-	setOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
 	return capturedTextSelection(b.account), nil
 
 }
@@ -43,9 +52,9 @@ func (b *geminiMessageAttemptBridge) FirstSelectionFailure(err error, _ bool) {
 	}) {
 		return
 	}
-	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, service.PlatformGemini)
+	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, capability.PlatformGemini)
 	if !cls.ModelNotFound {
-		markOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
+		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 	}
 	b.reqLog.Warn("gateway.select_account_no_available",
 		zap.String("model", b.reqModel),
@@ -67,7 +76,7 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 	b.accountReleaseFunc = b.selection.ReleaseFunc
 	if !b.selection.Acquired {
 		if b.selection.WaitPlan == nil {
-			markOpsRoutingCapacityLimited(b.c)
+			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 			b.reqLog.Warn("gateway.select_account_no_slot_no_wait_plan",
 				zap.Int64("account_id", b.account.ID),
 				zap.String("model", b.reqModel),
@@ -86,7 +95,7 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 				zap.Int64("account_id", b.account.ID),
 				zap.Int("max_waiting", b.selection.WaitPlan.MaxWaiting),
 			)
-			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayQueueFullCode, "Too many pending requests, please retry later", (*b.streamStarted))
+			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayhttp.GatewayQueueFullCode, "Too many pending requests, please retry later", (*b.streamStarted))
 			return false
 		}
 		if err == nil && canWait {
@@ -120,7 +129,7 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 		}
 	}
 	// 账号槽位/等待计数需要在超时或断开时安全回收
-	b.accountReleaseFunc = wrapReleaseOnDone(b.c.Request.Context(), b.accountReleaseFunc)
+	b.accountReleaseFunc = scheduler.WrapRelease(b.c.Request.Context(), scheduler.ReleaseOnCancel, b.accountReleaseFunc)
 
 	return true
 }
@@ -132,11 +141,11 @@ func (b *geminiMessageAttemptBridge) Forward(state textflow.AttemptState) textfl
 
 	requestCtx := b.c.Request.Context()
 	if state.SwitchCount > 0 {
-		requestCtx = service.WithAccountSwitchCount(requestCtx, state.SwitchCount, b.binding().bridgeEnabled)
+		requestCtx = requeststate.WithAccountSwitchCount(requestCtx, state.SwitchCount)
 	}
 	// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 	b.writerSizeBeforeForward = b.c.Writer.Size()
-	if b.account.Platform == service.PlatformAntigravity {
+	if b.account.Platform == capability.PlatformAntigravity {
 		b.result, err = b.binding().forwardAntigravityGemini(
 			requestCtx,
 			b.c,
@@ -158,7 +167,7 @@ func (b *geminiMessageAttemptBridge) Forward(state textflow.AttemptState) textfl
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil, OutputChanged: b.c.Writer.Size() != b.writerSizeBeforeForward}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
 	out.Attempt.RetryCommitted = out.OutputChanged
-	var retry *service.UpstreamFailoverError
+	var retry *forwardcore.UpstreamFailoverError
 	if errors.As(err, &retry) {
 		out.Failure = &textflow.AttemptFailure{Cause: retry, Policy: retry.RetryFailure()}
 	}
@@ -183,13 +192,13 @@ func (b *geminiMessageAttemptBridge) Success() {
 func (b *geminiMessageAttemptBridge) Complete(state textflow.AttemptState) {
 	// 捕获请求信息（用于异步记录，避免在 goroutine 中访问 gin.Context）
 	userAgent := b.c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(b.c)
-	requestPayloadHash := service.HashUsageRequestPayload(b.body)
-	inboundEndpoint := GetInboundEndpoint(b.c)
-	upstreamEndpoint := GetUpstreamEndpoint(b.c, b.account.Platform)
+	clientIP := clientip.GetClientIP(b.c)
+	requestPayloadHash := billing.HashUsageRequestPayload(b.body)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Platform)
 
 	if b.result.ReasoningEffort == nil {
-		b.result.ReasoningEffort = service.NormalizeClaudeOutputEffort(b.parsedReq.OutputEffort)
+		b.result.ReasoningEffort = protocol.NormalizeClaudeOutputEffort(b.parsedReq.OutputEffort)
 	}
 	if b.result.ReasoningEffort == nil && b.parsedReq.ThinkingEnabled {
 		protocolModel := b.result.UpstreamModel
@@ -206,7 +215,7 @@ func (b *geminiMessageAttemptBridge) Complete(state textflow.AttemptState) {
 	clientSessionID := service.ExtractClientSessionID(b.c)
 	stampForwardRequestedReasoningEffort(b.result, b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionForwardInput(usageRecordContextFromGin(b.c), &service.RecordUsageInput{
+	completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(b.c), &service.RecordUsageInput{
 		Result:             b.result,
 		QuotaPlatform:      quotaPlatform,
 		APIKey:             b.apiKey,
@@ -229,7 +238,7 @@ func (b *geminiMessageAttemptBridge) Complete(state textflow.AttemptState) {
 	completionRuntime := b.binding().recorder
 	b.binding().submitUsageRecordTask(b.c, func(ctx context.Context) {
 		if err := completionRuntime.Record(ctx, completionInput, false); err != nil {
-			logger.L().With(
+			logging.L().With(
 				zap.String("component", "handler.gateway.messages"),
 				zap.Int64("user_id", completionUserID),
 				zap.Int64("api_key_id", completionInput.APIKey.ID),
@@ -251,5 +260,5 @@ func (b *geminiMessageAttemptBridge) Begin() {
 func (b *geminiMessageAttemptBridge) PrepareAttempt() bool { return true }
 func (b *geminiMessageAttemptBridge) Abandon(int64)        {}
 func (b *geminiMessageAttemptBridge) Exhausted(err *textflow.AttemptFailure, _ string, stream bool) {
-	b.messageAttemptBridge.Exhausted(err, service.PlatformGemini, stream)
+	b.messageAttemptBridge.Exhausted(err, capability.PlatformGemini, stream)
 }

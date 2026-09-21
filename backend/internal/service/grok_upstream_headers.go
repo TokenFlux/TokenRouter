@@ -3,19 +3,15 @@ package service
 import (
 	"net/http"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
-func defaultGrokUpstreamUserAgent() string { return xai.DefaultGrokUpstreamUserAgent() }
-
-func applyDefaultGrokUpstreamHeaders(req *http.Request) { xai.ApplyDefaultGrokUpstreamHeaders(req) }
-
 func applyGrokTLSProfileHeaders(req *http.Request, profile *tlsfingerprint.Profile) {
 	// 当前 Profile 仅包含 TLS 信息，不含 HTTP UserAgent 或 Originator 字段，因此始终写入 CLI 身份。
-	applyDefaultGrokUpstreamHeaders(req)
+	xai.ApplyDefaultGrokUpstreamHeaders(req)
 	_ = profile
 }
 
@@ -35,5 +31,5 @@ func applyGrokRuntimeHeaders(req *http.Request, runtime openAITLSFingerprintRunt
 // resolveGrokUpstreamUserAgent 始终返回固定的 Grok CLI 用户代理。
 // Claude Code、Codex、浏览器或类库等入站客户端用户代理不会被转发。
 func resolveGrokUpstreamUserAgent(_ *gin.Context) string {
-	return defaultGrokUpstreamUserAgent()
+	return xai.DefaultGrokUpstreamUserAgent()
 }

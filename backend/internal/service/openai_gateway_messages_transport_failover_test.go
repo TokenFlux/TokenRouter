@@ -10,12 +10,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestForwardAsAnthropic_TransportError_ReturnsFailoverError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
@@ -35,13 +35,12 @@ func TestForwardAsAnthropic_TransportError_ReturnsFailoverError(t *testing.T) {
 	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.True(t, errors.As(err, &failoverErr), "transport error should return UpstreamFailoverError for handler failover, got: %T", err)
 	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
 }
 
 func TestForwardAsAnthropic_TransportError_DoesNotWriteResponse(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
@@ -65,7 +64,6 @@ func TestForwardAsAnthropic_TransportError_DoesNotWriteResponse(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_TransportError_ClientCanceled_NoFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
@@ -87,6 +85,6 @@ func TestForwardAsAnthropic_TransportError_ClientCanceled_NoFailover(t *testing.
 	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr), "client-canceled transport error should NOT trigger failover")
 }

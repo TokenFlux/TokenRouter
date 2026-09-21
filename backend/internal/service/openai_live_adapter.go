@@ -3,26 +3,33 @@ package service
 import (
 	"context"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	gatewaylive "github.com/TokenFlux/TokenRouter/internal/gateway/live"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	coderws "github.com/coder/websocket"
 )
 
 // livePorts 仅把现有依赖和展示值投影给纯 Live 编排。
 type livePorts struct{ service *OpenAIGatewayService }
 
-func (p livePorts) Store() (LiveCallStore, error)         { return p.service.liveStore() }
-func (p livePorts) Leases() (LiveConcurrencyCache, error) { return p.service.liveConcurrencyCache() }
+func (p livePorts) Store() (session.LiveCallStore, error) { return p.service.liveStore() }
+func (p livePorts) Leases() (scheduler.LiveConcurrencyCache, error) {
+	return p.service.liveConcurrencyCache()
+}
 func (p livePorts) BeginObserver(owner string) (context.Context, func(), bool) {
 	return p.service.beginLiveObserver(owner)
 }
-func (p livePorts) Target(ctx context.Context, record *LiveCallRecord) (gatewaylive.Target, error) {
+func (p livePorts) Target(ctx context.Context, record *session.LiveCallRecord) (gatewaylive.Target, error) {
 	account, err := p.service.liveSidebandAccount(ctx, record)
 	if err != nil {
 		return nil, err
 	}
 	return liveTarget{service: p.service, record: record, account: account}, nil
 }
-func (p livePorts) RecordZeroUsage(ctx context.Context, record *LiveCallRecord, duration int) {
+func (p livePorts) RecordZeroUsage(ctx context.Context, record *session.LiveCallRecord, duration int) {
 	if p.service.usageLogRepo == nil {
 		return
 	}
@@ -30,9 +37,9 @@ func (p livePorts) RecordZeroUsage(ctx context.Context, record *LiveCallRecord, 
 	upstreamEndpoint := "/backend-api/codex/realtime/calls"
 	userAgent := record.UserAgent
 	ipAddress := record.IPAddress
-	billingType := int8(BillingTypeBalance)
+	billingType := int8(usage.BillingTypeBalance)
 	if record.SubscriptionID > 0 {
-		billingType = BillingTypeSubscription
+		billingType = usage.BillingTypeSubscription
 	}
 	actorUserID := record.ActorUserID
 	if actorUserID <= 0 {
@@ -41,7 +48,7 @@ func (p livePorts) RecordZeroUsage(ctx context.Context, record *LiveCallRecord, 
 	// TODO(billing): Live 当前只记录零费用用量，尚未进入标准计费管道；若后续按时长
 	// 或 token 计费，应在这里接入统一扣费逻辑并补充余额与订阅模式回归测试。
 	// Live finalize 只有一次落库机会，复用批量写入与同步 Create 兜底，避免队列故障吞掉记录。
-	writeUsageLogBestEffort(context.Background(), p.service.usageLogRepo, &UsageLog{
+	writeUsageLogBestEffort(context.Background(), p.service.usageLogRepo, &usage.UsageLog{
 		UserID:            actorUserID,
 		BillingUserID:     record.UserID,
 		TeamID:            liveOptionalID(record.TeamID),
@@ -56,7 +63,7 @@ func (p livePorts) RecordZeroUsage(ctx context.Context, record *LiveCallRecord, 
 		SubscriptionID:    liveOptionalID(record.SubscriptionID),
 		RateMultiplier:    1,
 		BillingType:       billingType,
-		RequestType:       RequestTypeLive,
+		RequestType:       usage.RequestTypeLive,
 		DurationMs:        &duration,
 		UserAgent:         &userAgent,
 		IPAddress:         &ipAddress,
@@ -69,7 +76,7 @@ func (p livePorts) RecordZeroUsage(ctx context.Context, record *LiveCallRecord, 
 // liveTarget 保留账号执行凭据和平台拨号，核心只能使用受控帧接口。
 type liveTarget struct {
 	service *OpenAIGatewayService
-	record  *LiveCallRecord
+	record  *session.LiveCallRecord
 	account *Account
 }
 
@@ -85,14 +92,14 @@ func (t liveTarget) Rewrite(ctx context.Context, payload []byte) ([]byte, string
 }
 
 // liveUpstreamFrames 只转换帧枚举和正常关闭错误，底层连接由 Live 编排关闭。
-type liveUpstreamFrames struct{ liveFrameConn }
+type liveUpstreamFrames struct{ openai.LiveFrameConn }
 
 func (c liveUpstreamFrames) ReadFrame(ctx context.Context) (int, []byte, error) {
-	typ, body, err := c.liveFrameConn.ReadFrame(ctx)
+	typ, body, err := c.LiveFrameConn.ReadFrame(ctx)
 	return int(typ), body, liveSidebandReadError(err)
 }
 func (c liveUpstreamFrames) WriteFrame(ctx context.Context, typ int, body []byte) error {
-	return c.liveFrameConn.WriteFrame(ctx, coderws.MessageType(typ), body)
+	return c.LiveFrameConn.WriteFrame(ctx, coderws.MessageType(typ), body)
 }
 func (c liveUpstreamFrames) SetReadLimit(limit int64) {}
 
@@ -116,7 +123,7 @@ type liveModelResolver struct {
 }
 
 func (r liveModelResolver) ResolveModel(ctx context.Context, groupID *int64, model string) (string, string, error) {
-	routing, err := r.service.ResolveOpenAIWSRoutingModelForAccount(ctx, groupID, r.account, model, OpenAIEndpointCapabilityLive)
+	routing, err := r.service.ResolveOpenAIWSRoutingModelForAccount(ctx, groupID, r.account, model, accountcore.OpenAIEndpointCapabilityLive)
 	if err != nil {
 		return "", "", err
 	}

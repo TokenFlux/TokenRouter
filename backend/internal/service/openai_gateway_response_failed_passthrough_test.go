@@ -15,7 +15,11 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -27,12 +31,12 @@ func buildContextLengthFailedSSE() string {
 }
 
 func bindPassthroughRule(c *gin.Context, platform string, keywords []string, responseCode int) {
-	rules := make([]*model.ErrorPassthroughRule, 0, len(keywords))
+	rules := make([]*errorpolicy.ErrorPassthroughRule, 0, len(keywords))
 	for i, kw := range keywords {
 		code := responseCode
-		rules = append(rules, &model.ErrorPassthroughRule{ID: int64(i + 1), Enabled: true, Platforms: []string{platform}, MatchMode: model.MatchModeAny, Keywords: []string{kw}, ResponseCode: &code, PassthroughBody: true})
+		rules = append(rules, &errorpolicy.ErrorPassthroughRule{ID: int64(i + 1), Enabled: true, Platforms: []string{platform}, MatchMode: errorpolicy.MatchModeAny, Keywords: []string{kw}, ResponseCode: &code, PassthroughBody: true})
 	}
-	BindErrorPassthroughService(c, newErrorRulesTestService(rules))
+	gatewayhttp.BindErrorPassthroughService(c, newErrorRulesTestService(rules))
 }
 
 // forcedResponsesChatTestAccount 让 Chat 入站进入 Responses 错误转换测试路径。
@@ -43,7 +47,6 @@ func forcedResponsesChatTestAccount() *Account {
 }
 
 func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
@@ -79,7 +82,7 @@ func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
 }
 
 func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	stream := "event: response.failed\n" +
 		`data: {"type":"response.failed","response":{"status":"failed","error":{"code":"account_disabled","message":"Your account is disabled"}}}` + "\n\n"
 	tests := []struct {
@@ -106,16 +109,16 @@ func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T)
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-			bindPassthroughRule(c, PlatformOpenAI, []string{"account is disabled"}, http.StatusTeapot)
+			bindPassthroughRule(c, capability.PlatformOpenAI, []string{"account is disabled"}, http.StatusTeapot)
 			resp := &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 				Body:       io.NopCloser(strings.NewReader(stream)),
 			}
 			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
-			err := tt.run(svc, c, resp, &Account{ID: 11, Platform: PlatformOpenAI, Type: AccountTypeOAuth})
+			err := tt.run(svc, c, resp, &Account{ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth})
 
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.True(t, failoverErr.IsCredentialFailure())
 			require.Equal(t, OpenAIUpstreamAccessStateReason, failoverErr.Reason)
@@ -127,7 +130,7 @@ func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T)
 }
 
 func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	stream := "event: error\n" +
 		`data: {"type":"error","error":{"code":"cyber_policy","message":"blocked by cyber policy"}}` + "\n\n"
 	tests := []struct {
@@ -154,17 +157,17 @@ func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-			bindPassthroughRule(c, PlatformOpenAI, []string{"cyber policy"}, http.StatusTeapot)
+			bindPassthroughRule(c, capability.PlatformOpenAI, []string{"cyber policy"}, http.StatusTeapot)
 			resp := &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 				Body:       io.NopCloser(strings.NewReader(stream)),
 			}
 			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
-			err := tt.run(svc, c, resp, &Account{ID: 12, Platform: PlatformOpenAI, Type: AccountTypeOAuth})
+			err := tt.run(svc, c, resp, &Account{ID: 12, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth})
 
 			require.Error(t, err)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.False(t, errors.As(err, &failoverErr))
 			require.NotNil(t, GetOpsCyberPolicy(c))
 			require.NotEqual(t, http.StatusTeapot, rec.Code)
@@ -174,7 +177,6 @@ func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_ResponseFailed_PassthroughRule(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
@@ -206,7 +208,6 @@ func TestForwardAsAnthropic_ResponseFailed_PassthroughRule(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_StreamingResponseFailed_PassthroughRule(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":true}`)
 	rec := httptest.NewRecorder()
@@ -234,7 +235,6 @@ func TestForwardAsAnthropic_StreamingResponseFailed_PassthroughRule(t *testing.T
 }
 
 func TestForwardAsChatCompletions_ResponseFailed_NoRule_Still502(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
@@ -262,7 +262,7 @@ func TestForwardAsChatCompletions_ResponseFailed_NoRule_Still502(t *testing.T) {
 // TestForwardAsChatCompletions_ResponseFailedCustomErrorMissReturnsGeneric500
 // 验证 HTTP 200 流内失败也遵守自定义错误码未命中的通用错误契约。
 func TestForwardAsChatCompletions_ResponseFailedCustomErrorMissReturnsGeneric500(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -287,7 +287,7 @@ func TestForwardAsChatCompletions_ResponseFailedCustomErrorMissReturnsGeneric500
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
 	require.Equal(t, "Upstream gateway error", gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
@@ -297,7 +297,7 @@ func TestForwardAsChatCompletions_ResponseFailedCustomErrorMissReturnsGeneric500
 // TestForwardAsChatCompletions_ResponseFailedCustomNonDefaultStatusFailsOver
 // 验证 response.failed 显式携带的非默认状态码可以命中账号策略并切号。
 func TestForwardAsChatCompletions_ResponseFailedCustomNonDefaultStatusFailsOver(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -321,7 +321,7 @@ func TestForwardAsChatCompletions_ResponseFailedCustomNonDefaultStatusFailsOver(
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusUnprocessableEntity, failoverErr.StatusCode)
 	require.False(t, failoverErr.RetryableOnSameAccount)
@@ -332,7 +332,7 @@ func TestForwardAsChatCompletions_ResponseFailedCustomNonDefaultStatusFailsOver(
 // TestOpenAIResponsesStreaming_ResponseFailedCustomStatusFailsOver 验证原生
 // Responses 流处理不会绕过 HTTP 200 终止失败事件中的账号显式策略。
 func TestOpenAIResponsesStreaming_ResponseFailedCustomStatusFailsOver(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -348,7 +348,7 @@ func TestOpenAIResponsesStreaming_ResponseFailedCustomStatusFailsOver(t *testing
 	svc := &OpenAIGatewayService{
 		cfg:              cfg,
 		rateLimitService: NewRateLimitService(repo, nil, cfg, nil, nil),
-		toolCorrector:    NewCodexToolCorrector(),
+		toolCorrector:    openai.NewCodexToolCorrector(),
 	}
 	account := rawChatCompletionsTestAccount()
 	account.Credentials["custom_error_codes_enabled"] = true
@@ -357,7 +357,7 @@ func TestOpenAIResponsesStreaming_ResponseFailedCustomStatusFailsOver(t *testing
 		context.Background(), resp, c, account, time.Now(), "gpt-5.4", "gpt-5.4",
 	)
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusUnprocessableEntity, failoverErr.StatusCode)
 	require.False(t, failoverErr.RetryableOnSameAccount)
@@ -368,7 +368,7 @@ func TestOpenAIResponsesStreaming_ResponseFailedCustomStatusFailsOver(t *testing
 // bindStatusCodePassthroughRule 绑定一条按错误码+关键词双条件(MatchModeAll)匹配的规则。
 // 此类规则依赖语义状态码推断才能在协议转换路径命中（response.failed 无真实 HTTP 状态码）。
 func bindStatusCodePassthroughRule(c *gin.Context, platform string, statusCode int, keyword string, responseCode int) {
-	rule := &model.ErrorPassthroughRule{
+	rule := &errorpolicy.ErrorPassthroughRule{
 		ID:              1,
 		Name:            "status-code-rule",
 		Enabled:         true,
@@ -376,25 +376,24 @@ func bindStatusCodePassthroughRule(c *gin.Context, platform string, statusCode i
 		Platforms:       []string{platform},
 		ErrorCodes:      []int{statusCode},
 		Keywords:        []string{keyword},
-		MatchMode:       model.MatchModeAll,
+		MatchMode:       errorpolicy.MatchModeAll,
 		ResponseCode:    &responseCode,
 		PassthroughBody: true,
 	}
-	svc := newErrorRulesTestService([]*model.ErrorPassthroughRule{rule})
-	BindErrorPassthroughService(c, svc)
+	svc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{rule})
+	gatewayhttp.BindErrorPassthroughService(c, svc)
 }
 
 func TestApplyOpenAIStreamFailedErrorPassthroughRule_UsesProvidedPlatform(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
-	bindStatusCodePassthroughRule(c, PlatformGrok, http.StatusBadRequest, "context_length_exceeded", http.StatusBadRequest)
+	bindStatusCodePassthroughRule(c, capability.PlatformGrok, http.StatusBadRequest, "context_length_exceeded", http.StatusBadRequest)
 	payload := []byte(`{"type":"response.failed","response":{"status":"failed","error":{"code":"context_length_exceeded","type":"invalid_request_error","message":"input exceeds the context window"}}}`)
 
 	status, _, _, matched := applyOpenAIStreamFailedErrorPassthroughRule(
 		c,
-		PlatformGrok,
+		capability.PlatformGrok,
 		payload,
 		"input exceeds the context window",
 	)
@@ -404,7 +403,6 @@ func TestApplyOpenAIStreamFailedErrorPassthroughRule_UsesProvidedPlatform(t *tes
 }
 
 func TestForwardAsChatCompletions_ResponseFailed_ErrorCodeRuleMatchesViaSemanticStatus(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()
@@ -435,7 +433,6 @@ func TestForwardAsChatCompletions_ResponseFailed_ErrorCodeRuleMatchesViaSemantic
 }
 
 func TestForwardAsAnthropic_ResponseFailed_ErrorCodeRuleMatchesViaSemanticStatus(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	rec := httptest.NewRecorder()

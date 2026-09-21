@@ -95,7 +95,7 @@ func (p *prefaceLoop) Begin()                   {}
 func (p *prefaceLoop) Finish(bool)              {}
 func (p *prefaceLoop) PrepareAttempt() bool     { return false }
 func prefaceContext(body string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/test", strings.NewReader(body))
@@ -104,7 +104,7 @@ func prefaceContext(body string) (*gin.Context, *httptest.ResponseRecorder) {
 }
 func prefaceKey() *apikey.APIKey {
 	id := int64(7)
-	return &apikey.APIKey{ID: 9, GroupID: &id, Group: &apikey.Group{ID: id, Platform: "gemini"}}
+	return &apikey.APIKey{ID: 9, GroupID: &id, Group: &routing.Group{ID: id, Platform: "gemini"}}
 }
 func prefaceConcurrency() *ConcurrencyHelper {
 	return NewConcurrencyHelper(scheduler.NewConcurrencyService(nil), SSEPingFormatNone, 0)

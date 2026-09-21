@@ -8,21 +8,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestGatewayServiceForwardCountTokensAppliesOAuthAccountMappingBeforeNormalization(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)
 	c.Request.Header.Set("User-Agent", "third-party-client/1.0")
 
 	body := []byte(`{"model":"channel-model","messages":[{"role":"user","content":"hello"}]}`)
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
 
 	upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{
@@ -39,14 +42,14 @@ func TestGatewayServiceForwardCountTokensAppliesOAuthAccountMappingBeforeNormali
 	account := &Account{
 		ID:          501,
 		Name:        "oauth-count-token-mapping",
-		Platform:    PlatformAnthropic,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformAnthropic,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":  "oauth-token",
 			"model_mapping": map[string]any{"channel-model": "claude-sonnet-4-5"},
 		},
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 	}
 
@@ -57,7 +60,7 @@ func TestGatewayServiceForwardCountTokensAppliesOAuthAccountMappingBeforeNormali
 }
 
 func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		name string
 		path string
@@ -105,14 +108,14 @@ func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *tes
 			account := &Account{
 				ID:          502,
 				Name:        "oauth-compat-mapping",
-				Platform:    PlatformAnthropic,
-				Type:        AccountTypeOAuth,
+				Platform:    capability.PlatformAnthropic,
+				Type:        capability.AccountTypeOAuth,
 				Concurrency: 1,
 				Credentials: map[string]any{
 					"access_token":  "oauth-token",
 					"model_mapping": map[string]any{"channel-model": "claude-sonnet-4-5"},
 				},
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 			}
 

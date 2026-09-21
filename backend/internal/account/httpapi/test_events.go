@@ -5,8 +5,9 @@ import (
 	context "context"
 	json "encoding/json"
 	fmt "fmt"
-	account "github.com/TokenFlux/TokenRouter/internal/account"
 	http "net/http"
+
+	account "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // TestStreamWriter 是真实 HTTP 输出边界，业务用例只看到事件接口。

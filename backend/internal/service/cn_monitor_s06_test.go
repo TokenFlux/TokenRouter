@@ -4,10 +4,11 @@ package service
 import (
 	context "context"
 	errors "errors"
+	time "time"
+
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	time "time"
 )
 
 type legacyCNMonitorFixtureStore struct {
@@ -43,7 +44,7 @@ func (r *cnUsageMonitorRepo) SetCNUsageDecisionCAS(ctx context.Context, id int64
 	}
 	return true, r.SetTempUnschedulable(ctx, id, until, reason)
 }
-func newCNMonitorLegacyFixture(repo AccountRepository, usage *UpstreamUsageService, cfg *config.Config, configure ...func(*acctcore.CNMonitorOptions)) *acctcore.CNUsageMonitor {
+func newCNMonitorLegacyFixture(repo AccountRepository, usage *acctcore.UpstreamUsageService, cfg *config.Config, configure ...func(*acctcore.CNMonitorOptions)) *acctcore.CNUsageMonitor {
 	o := acctcore.CNMonitorOptions{Now: time.Now, InstanceID: "fixture-owner", RoundTimeout: time.Second, ProbeTimeout: time.Second, BalanceThreshold: 0.5}
 	if cfg != nil {
 		v := cfg.Gateway.CNProviders
@@ -61,5 +62,5 @@ func newCNMonitorLegacyFixture(repo AccountRepository, usage *UpstreamUsageServi
 	if !ok {
 		panic("fixture lacks snapshot CAS")
 	}
-	return acctcore.NewCNUsageMonitor(legacyCNMonitorFixtureStore{repo, snapshots}, usage.Core(), o)
+	return acctcore.NewCNUsageMonitor(legacyCNMonitorFixtureStore{repo, snapshots}, usage, o)
 }

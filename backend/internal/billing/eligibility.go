@@ -11,7 +11,7 @@ import (
 	time "time"
 
 	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	singleflight "golang.org/x/sync/singleflight"
 )
 
@@ -582,7 +582,7 @@ func (s *Eligibility) CheckBillingEligibility(ctx context.Context, user *UserSum
 		if group != nil && !SubscriptionAllowsGroup(subscription, group.ID) {
 			return ErrPreferredSubscriptionGroup
 		}
-		if err := CheckEffectiveSubscriptionEligibility(subscription); err != nil {
+		if err := CheckEffectiveSubscriptionEligibility(subscription, s.dateRuntime().calendar()); err != nil {
 			if IsSubscriptionQuotaExceeded(err) {
 				return ErrPreferredSubscriptionInsufficient
 			}
@@ -596,7 +596,7 @@ func (s *Eligibility) CheckBillingEligibility(ctx context.Context, user *UserSum
 
 	isSubscriptionMode := subscription != nil
 	if subscription != nil {
-		if err := CheckEffectiveSubscriptionEligibility(subscription); err != nil {
+		if err := CheckEffectiveSubscriptionEligibility(subscription, s.dateRuntime().calendar()); err != nil {
 			if !IsSubscriptionQuotaExceeded(err) {
 				return err
 			}
@@ -629,7 +629,7 @@ func (s *Eligibility) CheckBillingEligibility(ctx context.Context, user *UserSum
 	return nil
 }
 
-func CheckEffectiveSubscriptionEligibility(subscription *UserSubscription) error {
+func CheckEffectiveSubscriptionEligibility(subscription *UserSubscription, calendar timezone.Calendar) error {
 	if subscription == nil {
 		return ErrSubscriptionInvalid
 	}
@@ -645,7 +645,7 @@ func CheckEffectiveSubscriptionEligibility(subscription *UserSubscription) error
 	}
 
 	effective := *subscription
-	if effective.NeedsDailyReset() {
+	if effective.NeedsDailyReset(calendar) {
 		effective.DailyUsageUSD = 0
 	}
 	if effective.NeedsWeeklyReset() {
@@ -1096,18 +1096,6 @@ func WithWindowResetsMetadata(err error, resetAt time.Time) error {
 	return appErr.WithMetadata(map[string]string{
 		"window_resets_at": resetAt.Format(time.RFC3339),
 	})
-}
-
-// NextDailyReset 计算下一个日窗口起点（次日全局时区 0 点）。
-// 必须与 timezone.StartOfDay 同口径，否则 Retry-After 会偏差。
-func NextDailyReset(now time.Time) time.Time {
-	return timezone.StartOfDay(now).AddDate(0, 0, 1)
-}
-
-// NextWeeklyReset 计算下一个周窗口起点（下周一全局时区 0 点）。
-// 必须与 timezone.StartOfWeek 同口径，否则 Retry-After 会偏差。
-func NextWeeklyReset(now time.Time) time.Time {
-	return timezone.StartOfWeek(now).AddDate(0, 0, 7)
 }
 
 // NextMonthlyResetFrom 返回 30 天滚动窗口的下次重置时间（start + 30d）。

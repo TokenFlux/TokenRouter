@@ -4,9 +4,10 @@ package httpapi
 import (
 	subtle "crypto/subtle"
 	errors "errors"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	gin "github.com/gin-gonic/gin"
-	strings "strings"
 )
 
 // AdminAuth 管理员认证中间件实现

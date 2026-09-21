@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,17 +20,17 @@ func TestUpstreamRequestIDFromHeaders_UnconfiguredAccountRecordsNothing(t *testi
 	h.Set("x-goog-request-id", "goog-1")
 
 	require.Equal(t, "", UpstreamRequestIDFromHeaders(nil, h))
-	for _, platform := range []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok} {
+	for _, platform := range []string{capability.PlatformAnthropic, capability.PlatformOpenAI, capability.PlatformGemini, capability.PlatformAntigravity, capability.PlatformGrok} {
 		require.Equal(t, "", UpstreamRequestIDFromHeaders(&Account{Platform: platform}, h), platform)
 	}
-	blank := &Account{Platform: PlatformOpenAI, Extra: map[string]any{AccountExtraUpstreamRequestIDHeader: "   "}}
+	blank := &Account{Platform: capability.PlatformOpenAI, Extra: map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: "   "}}
 	require.Equal(t, "", UpstreamRequestIDFromHeaders(blank, h))
 }
 
 func TestUpstreamRequestIDFromHeaders_ReadsOnlyConfiguredHeader(t *testing.T) {
 	account := &Account{
-		Platform: PlatformOpenAI,
-		Extra:    map[string]any{AccountExtraUpstreamRequestIDHeader: " x-oneapi-request-id "},
+		Platform: capability.PlatformOpenAI,
+		Extra:    map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: " x-oneapi-request-id "},
 	}
 	h := http.Header{}
 	h.Set("X-Request-ID", "passthrough-from-real-upstream")
@@ -38,14 +40,14 @@ func TestUpstreamRequestIDFromHeaders_ReadsOnlyConfiguredHeader(t *testing.T) {
 	require.Equal(t, "oneapi-2", UpstreamRequestIDFromHeaders(account, h))
 	require.Equal(t, "", UpstreamRequestIDFromHeaders(account, nil))
 
-	official := &Account{Platform: PlatformAnthropic, Extra: map[string]any{AccountExtraUpstreamRequestIDHeader: "request-id"}}
+	official := &Account{Platform: capability.PlatformAnthropic, Extra: map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: "request-id"}}
 	only := http.Header{}
 	only.Set("Request-Id", "req_official")
 	require.Equal(t, "req_official", UpstreamRequestIDFromHeaders(official, only))
 }
 
 func TestUsageUpstreamRequestIDPtr(t *testing.T) {
-	account := &Account{Extra: map[string]any{AccountExtraUpstreamRequestIDHeader: "X-Request-ID"}}
+	account := &Account{Extra: map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: "X-Request-ID"}}
 	h := http.Header{}
 	h.Set("X-Request-ID", strings.Repeat("a", 200))
 	require.Nil(t, usageUpstreamRequestIDPtr(account, h, true))
@@ -59,20 +61,20 @@ func TestUsageUpstreamRequestIDPtr(t *testing.T) {
 }
 
 func TestValidateUpstreamRequestIDHeaderExtra(t *testing.T) {
-	require.NoError(t, ValidateUpstreamRequestIDHeaderExtra(nil))
-	require.NoError(t, ValidateUpstreamRequestIDHeaderExtra(map[string]any{}))
+	require.NoError(t, accountcore.ValidateUpstreamRequestIDHeaderExtra(nil))
+	require.NoError(t, accountcore.ValidateUpstreamRequestIDHeaderExtra(map[string]any{}))
 
-	blank := map[string]any{AccountExtraUpstreamRequestIDHeader: "   "}
-	require.NoError(t, ValidateUpstreamRequestIDHeaderExtra(blank))
-	_, present := blank[AccountExtraUpstreamRequestIDHeader]
+	blank := map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: "   "}
+	require.NoError(t, accountcore.ValidateUpstreamRequestIDHeaderExtra(blank))
+	_, present := blank[accountcore.AccountExtraUpstreamRequestIDHeader]
 	require.False(t, present, "blank header name must be removed")
 
-	valid := map[string]any{AccountExtraUpstreamRequestIDHeader: " X-Oneapi-Request-Id "}
-	require.NoError(t, ValidateUpstreamRequestIDHeaderExtra(valid))
-	require.Equal(t, "X-Oneapi-Request-Id", valid[AccountExtraUpstreamRequestIDHeader])
+	valid := map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: " X-Oneapi-Request-Id "}
+	require.NoError(t, accountcore.ValidateUpstreamRequestIDHeaderExtra(valid))
+	require.Equal(t, "X-Oneapi-Request-Id", valid[accountcore.AccountExtraUpstreamRequestIDHeader])
 
-	require.Error(t, ValidateUpstreamRequestIDHeaderExtra(map[string]any{AccountExtraUpstreamRequestIDHeader: 1}))
-	require.Error(t, ValidateUpstreamRequestIDHeaderExtra(map[string]any{AccountExtraUpstreamRequestIDHeader: "X Request Id"}))
-	require.Error(t, ValidateUpstreamRequestIDHeaderExtra(map[string]any{AccountExtraUpstreamRequestIDHeader: "X-Request-Id:"}))
-	require.Error(t, ValidateUpstreamRequestIDHeaderExtra(map[string]any{AccountExtraUpstreamRequestIDHeader: strings.Repeat("x", 65)}))
+	require.Error(t, accountcore.ValidateUpstreamRequestIDHeaderExtra(map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: 1}))
+	require.Error(t, accountcore.ValidateUpstreamRequestIDHeaderExtra(map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: "X Request Id"}))
+	require.Error(t, accountcore.ValidateUpstreamRequestIDHeaderExtra(map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: "X-Request-Id:"}))
+	require.Error(t, accountcore.ValidateUpstreamRequestIDHeaderExtra(map[string]any{accountcore.AccountExtraUpstreamRequestIDHeader: strings.Repeat("x", 65)}))
 }

@@ -5,22 +5,6 @@ import (
 	"strings"
 )
 
-// safeUpstreamURL returns scheme + host + path from a URL, stripping query/fragment
-// to avoid leaking sensitive query parameters (e.g. OAuth tokens).
-func safeUpstreamURL(rawURL string) string {
-	rawURL = strings.TrimSpace(rawURL)
-	if rawURL == "" {
-		return ""
-	}
-	if idx := strings.IndexByte(rawURL, '?'); idx >= 0 {
-		rawURL = rawURL[:idx]
-	}
-	if idx := strings.IndexByte(rawURL, '#'); idx >= 0 {
-		rawURL = rawURL[:idx]
-	}
-	return rawURL
-}
-func CompatSafeUpstreamURL(rawURL string) string { return safeUpstreamURL(rawURL) }
 func ParseOpsUpstreamErrors(raw string) ([]*OpsUpstreamErrorEvent, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -43,7 +27,4 @@ func marshalOpsUpstreamErrors(events []*OpsUpstreamErrorEvent) *string {
 	}
 	s := string(raw)
 	return &s
-}
-func CompatMarshalOpsUpstreamErrors(events []*OpsUpstreamErrorEvent) *string {
-	return marshalOpsUpstreamErrors(events)
 }

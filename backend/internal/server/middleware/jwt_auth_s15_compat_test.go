@@ -3,38 +3,41 @@
 package middleware
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/audit"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
 	context "context"
 
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	gin "github.com/gin-gonic/gin"
 )
 
 // NewJWTAuthMiddleware 创建 JWT 认证中间件
 func NewJWTAuthMiddleware(
-	authService *service.AuthService,
-	userService *service.UserService,
-	settingService *service.SettingService,
-	auditService *service.AuditLogService,
+	authService *identity.SessionService,
+	userService *identity.UserService,
+	settingService *identity.RuntimeSettings,
+	auditService *audit.AuditLogService,
 ) JWTAuthMiddleware {
 	return JWTAuthMiddleware(jwtAuth(authService, userService, userService, settingService, auditService))
 }
 
 type jwtUserReader interface {
-	GetByID(ctx context.Context, id int64) (*service.User, error)
+	GetByID(ctx context.Context, id int64) (*identity.User, error)
 }
 
 type userActivityToucher interface {
-	TouchLastActiveForUser(ctx context.Context, user *service.User)
+	TouchLastActiveForUser(ctx context.Context, user *identity.User)
 }
 
 // jwtAuth 委托身份 HTTP 适配，保留旧调用签名。
 func jwtAuth(
-	authService *service.AuthService,
+	authService *identity.SessionService,
 	userService jwtUserReader,
 	activityToucher userActivityToucher,
-	settingService *service.SettingService,
-	auditService *service.AuditLogService,
+	settingService *identity.RuntimeSettings,
+	auditService *audit.AuditLogService,
 ) gin.HandlerFunc {
 	var activity identityhttp.ActivityToucher
 	if activityToucher != nil {

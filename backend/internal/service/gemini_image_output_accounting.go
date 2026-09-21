@@ -1,6 +1,7 @@
 package service
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/gin-gonic/gin"
 )
@@ -52,7 +53,7 @@ func observeGeminiImageOutputs(c *gin.Context, payload []byte) {
 	if counter == nil {
 		return
 	}
-	if count := countGeminiInlineImageOutputs(payload); count > counter.count {
+	if count := gemininative.CountGeminiInlineImageOutputs(payload); count > counter.count {
 		counter.count = count
 	}
 }
@@ -81,12 +82,8 @@ func resolveGeminiImageCount(c *gin.Context, originalModel, mappedModel string) 
 	if observed := observedGeminiImageOutputs(c); observed > 0 {
 		return observed
 	}
-	if isImageGenerationModel(originalModel) || isImageGenerationModel(mappedModel) {
+	if antigravity.IsImageGenerationModel(originalModel) || antigravity.IsImageGenerationModel(mappedModel) {
 		return 1
 	}
 	return 0
-}
-
-func countGeminiInlineImageOutputs(payload []byte) int {
-	return gemininative.CountGeminiInlineImageOutputs(payload)
 }

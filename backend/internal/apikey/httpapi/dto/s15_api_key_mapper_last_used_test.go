@@ -1,23 +1,28 @@
 package dto_test
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestAPIKeyFromService_MapsLastUsedAt(t *testing.T) {
 	lastUsed := time.Now().UTC().Truncate(time.Second)
 	lastUsedIP := "203.0.113.10"
-	src := &service.APIKey{
+	src := &apikey.APIKey{
 		ID:                 1,
 		UserID:             2,
 		TeamOwnerDisabled:  true,
 		Key:                "sk-map-last-used",
 		Name:               "Mapper",
-		Status:             service.StatusActive,
+		Status:             billing.StatusActive,
 		LastUsedAt:         &lastUsed,
 		LastUsedIP:         &lastUsedIP,
 		CurrentConcurrency: 3,
@@ -34,12 +39,12 @@ func TestAPIKeyFromService_MapsLastUsedAt(t *testing.T) {
 }
 
 func TestAPIKeyFromService_MapsNilLastUsedAt(t *testing.T) {
-	src := &service.APIKey{
+	src := &apikey.APIKey{
 		ID:     1,
 		UserID: 2,
 		Key:    "sk-map-last-used-nil",
 		Name:   "MapperNil",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 
 	out := APIKeyFromService(src)

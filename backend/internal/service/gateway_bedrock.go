@@ -1,8 +1,5 @@
 package service
 
-// 本文件由 gateway_service.go 纯移动拆分而来：Bedrock 上游转发（CC 兼容转换、
-// 请求构建、错误处理与非流式响应）。仅做代码搬迁，无任何行为变更。
-
 import (
 	"bytes"
 	"context"
@@ -12,14 +9,21 @@ import (
 	"strings"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+
+	// 本文件由 gateway_service.go 纯移动拆分而来：Bedrock 上游转发（CC 兼容转换、
+	// 请求构建、错误处理与非流式响应）。仅做代码搬迁，无任何行为变更。
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-
 	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,13 +34,13 @@ func (s *GatewayService) ApplyBedrockCCCompat(c *gin.Context, body []byte, model
 	if !s.isBedrockCCCompatEnabled(c.Request.Context(), account, groupID) {
 		return body
 	}
-	body = sanitizeBedrockCCFields(body)
-	body = sanitizeBedrockThinking(body, model)
-	body = sanitizeBedrockToolUseIDs(body)
-	body = sanitizeBedrockCCBetaTokens(body, model)
+	body = bedrock.SanitizeBedrockCCFields(body)
+	body = bedrock.SanitizeBedrockThinking(body, model)
+	body = bedrock.SanitizeBedrockToolUseIDs(body)
+	body = bedrock.SanitizeBedrockCCBetaTokens(body, model)
 	// 过滤 HTTP header 中的 anthropic-beta，只保留 Bedrock 支持的 token
 	if betaHeader := c.GetHeader("anthropic-beta"); betaHeader != "" {
-		if filtered := ResolveBedrockBetaTokens(betaHeader, body, model); len(filtered) > 0 {
+		if filtered := bedrock.ResolveBedrockBetaTokens(betaHeader, body, model); len(filtered) > 0 {
 			c.Request.Header.Set("anthropic-beta", strings.Join(filtered, ", "))
 		} else {
 			c.Request.Header.Del("anthropic-beta")
@@ -62,21 +66,21 @@ func (s *GatewayService) forwardBedrock(
 	ctx context.Context,
 	c *gin.Context,
 	account *Account,
-	parsed *ParsedRequest,
+	parsed *requeststate.ParsedRequest,
 	startTime time.Time,
-) (*ForwardResult, error) {
+) (*forward.MessagesResult, error) {
 	reqModel := parsed.Model
 	reqStream := parsed.Stream
 	body := parsed.Body.Bytes()
 
 	route, err := resolveBedrockModelRoute(account, reqModel)
 	if err != nil {
-		logger.LegacyPrintf("service.gateway", "[Bedrock] %s", bedrockRoutingDiagnostic(err))
+		logging.LegacyPrintf("service.gateway", "[Bedrock] %s", bedrock.BedrockRoutingDiagnostic(err))
 		return nil, err
 	}
 	region, mappedModel := route.SourceRegion, route.ModelID
 	if mappedModel != reqModel {
-		logger.LegacyPrintf("service.gateway", "[Bedrock] Model mapping: %s -> %s (account: %s)", reqModel, mappedModel, account.Name)
+		logging.LegacyPrintf("service.gateway", "[Bedrock] Model mapping: %s -> %s (account: %s)", reqModel, mappedModel, account.Name)
 	}
 
 	betaHeader := ""
@@ -90,7 +94,7 @@ func (s *GatewayService) forwardBedrock(
 		return nil, err
 	}
 
-	bedrockBody, err := PrepareBedrockRequestBodyWithTokens(body, mappedModel, betaTokens, false)
+	bedrockBody, err := bedrock.PrepareBedrockRequestBodyWithTokens(body, mappedModel, betaTokens, false)
 	if err != nil {
 		return nil, fmt.Errorf("prepare bedrock request body: %w", err)
 	}
@@ -100,11 +104,11 @@ func (s *GatewayService) forwardBedrock(
 		proxyURL = account.Proxy.URL()
 	}
 
-	logger.LegacyPrintf("service.gateway", "[Bedrock] 命中 Bedrock 分支: account=%d name=%s model=%s->%s stream=%v",
+	logging.LegacyPrintf("service.gateway", "[Bedrock] 命中 Bedrock 分支: account=%d name=%s model=%s->%s stream=%v",
 		account.ID, account.Name, reqModel, mappedModel, reqStream)
 
 	// 根据账号类型选择认证方式
-	var signer *BedrockSigner
+	var signer *bedrock.BedrockSigner
 	var bedrockAPIKey string
 	if account.IsBedrockAPIKey() {
 		bedrockAPIKey = account.GetCredential("api_key")
@@ -112,7 +116,7 @@ func (s *GatewayService) forwardBedrock(
 			return nil, fmt.Errorf("api_key not found in bedrock credentials")
 		}
 	} else {
-		signer, err = NewBedrockSignerFromAccount(account)
+		signer, err = accountprovider.NewBedrockSignerFromAccount(AccountRecordView(account))
 		if err != nil {
 			return nil, fmt.Errorf("create bedrock signer: %w", err)
 		}
@@ -127,7 +131,7 @@ func (s *GatewayService) forwardBedrock(
 		streamOptions.OnTimeout = func(ctx context.Context, model string) { s.rateLimitService.HandleStreamTimeout(ctx, account, model) }
 	}
 	hadHTTPError := false
-	var errorResult *ForwardResult
+	var errorResult *forward.MessagesResult
 	target := &bedrock.Target{AccountID: account.ID, Request: options, Retry: policy, Stream: streamOptions, StartedAt: startTime, Enter: s.nativeAttemptActivity, Accepted: parsed.OnUpstreamAccepted, ReadBody: func(r io.Reader) ([]byte, error) {
 		return ReadUpstreamResponseBody(r, s.cfg, c, anthropicTooLargeError)
 	}, HTTPError: func(ctx context.Context, resp *http.Response) (upstream.AttemptResult, error) {
@@ -143,7 +147,7 @@ func (s *GatewayService) forwardBedrock(
 	if err != nil {
 		return nil, err
 	}
-	converted := ForwardResultFromAttempt(result)
+	converted := forward.MessagesFromAttempt(result)
 	converted.UpstreamHeaders = result.UpstreamHeaders
 	return converted, nil
 }
@@ -155,7 +159,7 @@ func (s *GatewayService) handleBedrockUpstreamErrors(
 	c *gin.Context,
 	account *Account,
 	mappedModel string,
-) (*ForwardResult, error) {
+) (*forward.MessagesResult, error) {
 	// retry exhausted + failover
 	if s.shouldRetryUpstreamError(account, resp.StatusCode) {
 		if s.shouldFailoverUpstreamError(resp.StatusCode) {
@@ -163,22 +167,22 @@ func (s *GatewayService) handleBedrockUpstreamErrors(
 			_ = resp.Body.Close()
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
-			logger.LegacyPrintf("service.gateway", "[Bedrock] Upstream error (retry exhausted, failover): Account=%d(%s) Status=%d Body=%s",
-				account.ID, account.Name, resp.StatusCode, truncateString(string(respBody), 1000))
+			logging.LegacyPrintf("service.gateway", "[Bedrock] Upstream error (retry exhausted, failover): Account=%d(%s) Status=%d Body=%s",
+				account.ID, account.Name, resp.StatusCode, logredact.TruncateUTF8(string(respBody), 1000))
 
 			decision := s.handleRetryExhaustedSideEffects(ctx, resp, account, mappedModel)
 			if decision.ShouldReturnGenericError() {
 				return s.handleErrorResponse(ctx, resp, c, account, mappedModel)
 			}
-			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 				Platform:           account.Platform,
 				AccountID:          account.ID,
 				AccountName:        account.Name,
 				UpstreamStatusCode: resp.StatusCode,
 				Kind:               "retry_exhausted_failover",
-				Message:            extractUpstreamErrorMessage(respBody),
+				Message:            upstream.ExtractErrorMessage(respBody),
 			})
-			return nil, &UpstreamFailoverError{
+			return nil, &forward.UpstreamFailoverError{
 				StatusCode:             resp.StatusCode,
 				ResponseBody:           respBody,
 				RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
@@ -197,15 +201,15 @@ func (s *GatewayService) handleBedrockUpstreamErrors(
 		if decision.ShouldReturnGenericError() {
 			return s.handleErrorResponse(ctx, resp, c, account, mappedModel)
 		}
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 			Platform:           account.Platform,
 			AccountID:          account.ID,
 			AccountName:        account.Name,
 			UpstreamStatusCode: resp.StatusCode,
 			Kind:               "failover",
-			Message:            extractUpstreamErrorMessage(respBody),
+			Message:            upstream.ExtractErrorMessage(respBody),
 		})
-		return nil, &UpstreamFailoverError{
+		return nil, &forward.UpstreamFailoverError{
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           respBody,
 			RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
@@ -216,19 +220,19 @@ func (s *GatewayService) handleBedrockUpstreamErrors(
 	return s.handleErrorResponse(ctx, resp, c, account, mappedModel)
 }
 
-func (s *GatewayService) bedrockRequestOptions(ctx context.Context, c *gin.Context, account *Account, modelID, region string, stream bool, signer *BedrockSigner, apiKey, proxyURL string) (bedrock.RequestOptions, bedrock.RetryPolicy) {
+func (s *GatewayService) bedrockRequestOptions(ctx context.Context, c *gin.Context, account *Account, modelID, region string, stream bool, signer *bedrock.BedrockSigner, apiKey, proxyURL string) (bedrock.RequestOptions, bedrock.RetryPolicy) {
 	options := bedrock.RequestOptions{ModelID: modelID, Region: region, Stream: stream, Signer: signer, APIKey: apiKey, APIKeyMode: account.IsBedrockAPIKey(), Do: func(req *http.Request) (*http.Response, error) {
 		return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
 	}}
-	policy := bedrock.RetryPolicy{MaxAttempts: maxRetryAttempts, MaxElapsed: maxRetryElapsed, Delay: retryBackoffDelay, ShouldRetry: func(status int) bool { return s.shouldRetryUpstreamError(account, status) }, ReadErrorBody: s.readUpstreamErrorBody, TransportError: func(err error, url string) error {
-		return s.handleUpstreamTransportError(ctx, c, account, err, OpsUpstreamErrorEvent{UpstreamURL: safeUpstreamURL(url)})
+	policy := bedrock.RetryPolicy{MaxAttempts: maxRetryAttempts, MaxElapsed: maxRetryElapsed, Delay: forward.RetryDelay, ShouldRetry: func(status int) bool { return s.shouldRetryUpstreamError(account, status) }, ReadErrorBody: s.readUpstreamErrorBody, TransportError: func(err error, url string) error {
+		return s.handleUpstreamTransportError(ctx, c, account, err, ops.OpsUpstreamErrorEvent{UpstreamURL: logredact.SafeUpstreamURL(url)})
 	}, ObserveRetry: func(resp *http.Response, body []byte, url string, attempt int, delay time.Duration) {
 		detail := ""
 		if s.cfg != nil && s.cfg.Gateway.LogUpstreamErrorBody {
-			detail = truncateString(string(body), s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
+			detail = logredact.TruncateUTF8(string(body), s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes)
 		}
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{Platform: account.Platform, AccountID: account.ID, AccountName: account.Name, UpstreamStatusCode: resp.StatusCode, UpstreamURL: safeUpstreamURL(url), Kind: "retry", Message: extractUpstreamErrorMessage(body), Detail: detail})
-		logger.LegacyPrintf("service.gateway", "[Bedrock] account %d: upstream error %d, retry %d/%d after %v", account.ID, resp.StatusCode, attempt, maxRetryAttempts, delay)
+		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Platform, AccountID: account.ID, AccountName: account.Name, UpstreamStatusCode: resp.StatusCode, UpstreamURL: logredact.SafeUpstreamURL(url), Kind: "retry", Message: upstream.ExtractErrorMessage(body), Detail: detail})
+		logging.LegacyPrintf("service.gateway", "[Bedrock] account %d: upstream error %d, retry %d/%d after %v", account.ID, resp.StatusCode, attempt, maxRetryAttempts, delay)
 	}}
 	return options, policy
 }

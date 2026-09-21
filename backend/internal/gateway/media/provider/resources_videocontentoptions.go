@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type VideoContentOptions struct {
@@ -26,9 +26,9 @@ type VideoContentOptions struct {
 
 func (o VideoContentOptions) String() string   { return "media VideoContentOptions" }
 func (o VideoContentOptions) GoString() string { return o.String() }
-func (o VideoContentOptions) native() native.VideoContentOptions {
-	return native.VideoContentOptions{StatusURL: o.StatusURL, RequestID: o.RequestID, Range: o.Range, Token: o.Token, Context: o.Context, ContentURL: o.ContentURL, ApplyHeaders: o.ApplyHeaders, Do: o.Do, ReadStatus: o.ReadStatus, Latency: o.Latency, TransportError: o.TransportError, HTTPError: o.HTTPError, Enter: o.Enter}
+func (o VideoContentOptions) native() grok.VideoContentOptions {
+	return grok.VideoContentOptions{StatusURL: o.StatusURL, RequestID: o.RequestID, Range: o.Range, Token: o.Token, Context: o.Context, ContentURL: o.ContentURL, ApplyHeaders: o.ApplyHeaders, Do: o.Do, ReadStatus: o.ReadStatus, Latency: o.Latency, TransportError: o.TransportError, HTTPError: o.HTTPError, Enter: o.Enter}
 }
-func OpenVideoContent(ctx context.Context, options VideoContentOptions) (*native.VideoContent, error) {
-	return native.OpenVideoContent(ctx, options.native())
+func OpenVideoContent(ctx context.Context, options VideoContentOptions) (*grok.VideoContent, error) {
+	return grok.OpenVideoContent(ctx, options.native())
 }

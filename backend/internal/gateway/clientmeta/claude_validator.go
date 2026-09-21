@@ -51,7 +51,7 @@ const (
 	// claudeCodeBillingHeaderPrefix 是 Claude Code 在 system 数组首块注入的计费归因块前缀。
 	// 大多数真实 CLI 请求（含部分无身份说明文本的子请求）会携带该块；不携带该块的
 	// 固定官方辅助请求由独立规则识别。该格式比身份说明文本更稳定。
-	// 生成见 gateway_billing_block.go；同类识别见 pkg/apicompat/anthropic_to_responses.go。
+	// 生成见 gateway_billing_block.go；同类识别见 protocol/bridge/anthropic_to_responses.go。
 	claudeCodeBillingHeaderPrefix = wire.ClaudeCodeBillingHeaderPrefix
 	// claudeCodeEntrypointMarker 标识计费块携带入口归因字段。不绑定具体入口值
 	// （cli / claude-vscode / jetbrains / sdk 等都是真实入口）：入口值会随新增 IDE 漂移，

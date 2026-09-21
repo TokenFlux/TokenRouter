@@ -9,11 +9,16 @@ import (
 	"testing"
 	"time"
 
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
+	apikeyerrors "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/apikey"
 	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,19 +46,19 @@ func TestEntSoftDelete_ApiKey_DefaultFilterAndSkip(t *testing.T) {
 
 	u := createEntUser(t, ctx, client, uniqueSoftDeleteValue(t, "sd-user")+"@example.com")
 
-	repo := NewAPIKeyRepository(client, integrationDB)
-	key := &service.APIKey{
+	repo := newKeyStoreFixture(client, integrationDB)
+	key := &apikeyerrors.APIKey{
 		UserID: u.ID,
 		Key:    uniqueSoftDeleteValue(t, "sk-soft-delete"),
 		Name:   "soft-delete",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key), "create api key")
 
 	require.NoError(t, repo.Delete(ctx, key.ID), "soft delete api key")
 
 	_, err := repo.GetByID(ctx, key.ID)
-	require.ErrorIs(t, err, service.ErrAPIKeyNotFound, "deleted rows should be hidden by default")
+	require.ErrorIs(t, err, apikeyerrors.ErrAPIKeyNotFound, "deleted rows should be hidden by default")
 
 	_, err = client.APIKey.Query().Where(apikey.IDEQ(key.ID)).Only(ctx)
 	require.Error(t, err, "default ent query should not see soft-deleted rows")
@@ -73,12 +78,12 @@ func TestEntSoftDelete_ApiKey_DeleteIdempotent(t *testing.T) {
 
 	u := createEntUser(t, ctx, client, uniqueSoftDeleteValue(t, "sd-user2")+"@example.com")
 
-	repo := NewAPIKeyRepository(client, integrationDB)
-	key := &service.APIKey{
+	repo := newKeyStoreFixture(client, integrationDB)
+	key := &apikeyerrors.APIKey{
 		UserID: u.ID,
 		Key:    uniqueSoftDeleteValue(t, "sk-soft-delete2"),
 		Name:   "soft-delete2",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key), "create api key")
 
@@ -93,12 +98,12 @@ func TestEntSoftDelete_ApiKey_HardDeleteViaSkipSoftDelete(t *testing.T) {
 
 	u := createEntUser(t, ctx, client, uniqueSoftDeleteValue(t, "sd-user3")+"@example.com")
 
-	repo := NewAPIKeyRepository(client, integrationDB)
-	key := &service.APIKey{
+	repo := newKeyStoreFixture(client, integrationDB)
+	key := &apikeyerrors.APIKey{
 		UserID: u.ID,
 		Key:    uniqueSoftDeleteValue(t, "sk-soft-delete3"),
 		Name:   "soft-delete3",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key), "create api key")
 
@@ -141,11 +146,11 @@ func TestEntSoftDelete_UserSubscription_DefaultFilterAndSkip(t *testing.T) {
 	u := createEntUser(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-user")+"@example.com")
 	plan := createEntPlan(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-plan"))
 
-	repo := NewUserSubscriptionRepository(client)
-	sub := &service.UserSubscription{
+	repo := billingpostgres.NewUserSubscriptionRepository(client)
+	sub := &billing.UserSubscription{
 		UserID:    u.ID,
 		PlanID:    plan.ID,
-		Status:    service.SubscriptionStatusActive,
+		Status:    billing.SubscriptionStatusActive,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 	require.NoError(t, repo.Create(ctx, sub), "create user subscription")
@@ -173,11 +178,11 @@ func TestEntSoftDelete_UserSubscription_DeleteIdempotent(t *testing.T) {
 	u := createEntUser(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-user2")+"@example.com")
 	plan := createEntPlan(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-plan2"))
 
-	repo := NewUserSubscriptionRepository(client)
-	sub := &service.UserSubscription{
+	repo := billingpostgres.NewUserSubscriptionRepository(client)
+	sub := &billing.UserSubscription{
 		UserID:    u.ID,
 		PlanID:    plan.ID,
-		Status:    service.SubscriptionStatusActive,
+		Status:    billing.SubscriptionStatusActive,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 	require.NoError(t, repo.Create(ctx, sub), "create user subscription")
@@ -194,20 +199,20 @@ func TestEntSoftDelete_UserSubscription_ListExcludesDeleted(t *testing.T) {
 	plan1 := createEntPlan(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-plan3a"))
 	plan2 := createEntPlan(t, ctx, client, uniqueSoftDeleteValue(t, "sd-sub-plan3b"))
 
-	repo := NewUserSubscriptionRepository(client)
+	repo := billingpostgres.NewUserSubscriptionRepository(client)
 
-	sub1 := &service.UserSubscription{
+	sub1 := &billing.UserSubscription{
 		UserID:    u.ID,
 		PlanID:    plan1.ID,
-		Status:    service.SubscriptionStatusActive,
+		Status:    billing.SubscriptionStatusActive,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 	require.NoError(t, repo.Create(ctx, sub1), "create subscription 1")
 
-	sub2 := &service.UserSubscription{
+	sub2 := &billing.UserSubscription{
 		UserID:    u.ID,
 		PlanID:    plan2.ID,
-		Status:    service.SubscriptionStatusActive,
+		Status:    billing.SubscriptionStatusActive,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 	require.NoError(t, repo.Create(ctx, sub2), "create subscription 2")

@@ -7,6 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"time"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
@@ -14,9 +18,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
-	"io"
-	"net/http"
-	"time"
 )
 
 type AnthropicOutputOptions struct {

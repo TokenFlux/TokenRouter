@@ -333,7 +333,9 @@ func TestAcquireOpenAIWSIngressLease(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		cache := &ingressLeaseCacheForTest{}
-		lease, acquired, err := NewConcurrencyService(cache).AcquireOpenAIWSIngressLease(nil, 1, 0)
+		// 保留未提供 context 的兼容输入，验证关闭限流时无需访问缓存。
+		var requestContext context.Context
+		lease, acquired, err := NewConcurrencyService(cache).AcquireOpenAIWSIngressLease(requestContext, 1, 0)
 		require.NoError(t, err)
 		require.True(t, acquired)
 		require.Nil(t, lease)
@@ -357,7 +359,9 @@ func TestAcquireOpenAIWSIngressLease(t *testing.T) {
 
 	t.Run("release returns capacity", func(t *testing.T) {
 		cache := &ingressLeaseCacheForTest{acquireIngressResult: true, refreshIngressResult: true}
-		lease, acquired, err := NewConcurrencyService(cache).AcquireOpenAIWSIngressLease(nil, 1, 1)
+		// 未提供 context 时仍须创建可重复释放的租约。
+		var requestContext context.Context
+		lease, acquired, err := NewConcurrencyService(cache).AcquireOpenAIWSIngressLease(requestContext, 1, 1)
 		require.NoError(t, err)
 		require.True(t, acquired)
 		require.NotNil(t, lease)

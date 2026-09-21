@@ -2,10 +2,11 @@ package account
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 同时接纳的周期扫描和管理对账由同一拥有者取消，不提前关闭其共享依赖。

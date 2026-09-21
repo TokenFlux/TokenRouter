@@ -1,14 +1,12 @@
 package notification
 
 import (
-	"bufio"
 	"context"
 	"errors"
-	"net"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
+
+	mailtest "github.com/TokenFlux/TokenRouter/internal/notification/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/notification/smtp"
 
@@ -17,7 +15,7 @@ import (
 
 func TestNotificationEmailPreviewEscapesHTMLAndSanitizesSubject(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	preview, err := svc.PreviewTemplate(ctx, NotificationEmailPreviewInput{
 		Event:   NotificationEmailEventBalanceLow,
@@ -39,7 +37,7 @@ func TestNotificationEmailPreviewEscapesHTMLAndSanitizesSubject(t *testing.T) {
 }
 func TestNotificationEmailTemplateOverrideAndRestore(t *testing.T) {
 	ctx := context.Background()
-	repo := newNotificationEmailMemorySettingRepo()
+	repo := mailtest.NewMemorySettings()
 	svc := NewNotificationEmailService(repo, nil)
 
 	official, err := svc.GetTemplate(ctx, NotificationEmailEventBalanceRechargeSuccess, "en")
@@ -68,7 +66,7 @@ func TestNotificationEmailTemplateOverrideAndRestore(t *testing.T) {
 }
 func TestNotificationEmailTemplateRejectsUnsupportedPlaceholder(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	_, err := svc.UpdateTemplate(
 		ctx,
@@ -82,7 +80,7 @@ func TestNotificationEmailTemplateRejectsUnsupportedPlaceholder(t *testing.T) {
 }
 func TestNotificationEmailAuthTemplatesAreListedAndPreviewable(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	infos := svc.ListEventInfos()
 	events := make(map[string]NotificationEmailEventInfo, len(infos))
@@ -122,7 +120,7 @@ func TestNotificationEmailAuthTemplatesAreListedAndPreviewable(t *testing.T) {
 }
 func TestNotificationEmailAdditionalEventsAreListedAndPreviewable(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	infos := svc.ListEventInfos()
 	events := make(map[string]NotificationEmailEventInfo, len(infos))
@@ -157,7 +155,7 @@ func TestNotificationEmailAdditionalEventsAreListedAndPreviewable(t *testing.T) 
 }
 func TestNotificationEmailTeamInvitationTemplates(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	for _, locale := range []string{"en", "zh"} {
 		tmpl, err := svc.GetTemplate(ctx, NotificationEmailEventTeamInvitation, locale)
@@ -185,7 +183,7 @@ func TestNotificationEmailTeamInvitationTemplates(t *testing.T) {
 }
 func TestOpsScheduledReportTemplateExposesEditableSummaryMetrics(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	requiredPlaceholders := []string{
 		"report_summary_display",
@@ -235,7 +233,7 @@ func TestOpsScheduledReportTemplateExposesEditableSummaryMetrics(t *testing.T) {
 }
 func TestOpsScheduledReportRuntimeVariablesDoNotLeakPreviewSamples(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	variables := svc.runtimeVariables(ctx, NotificationEmailEventOpsScheduledReport, "en", NotificationEmailSendInput{})
 	require.Equal(t, "none", variables["report_summary_display"])
@@ -306,7 +304,7 @@ func TestNotificationEmailFallbackClassification(t *testing.T) {
 }
 func TestNotificationEmailUnsubscribeOnlyAllowsOptionalEvents(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	token, err := svc.createUnsubscribeToken(ctx, "User@Example.com", NotificationEmailEventBalanceLow)
 	require.NoError(t, err)
@@ -332,7 +330,7 @@ func TestNotificationEmailUnsubscribeOnlyAllowsOptionalEvents(t *testing.T) {
 }
 func TestNotificationEmailLocaleMemoryNormalizesAcceptLanguage(t *testing.T) {
 	ctx := context.Background()
-	svc := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	svc := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 
 	svc.RememberRecipientLocale(ctx, 42, "User@Example.com", "zh-CN,zh;q=0.9,en;q=0.8")
 	require.Equal(t, "zh", svc.ResolveRecipientLocale(ctx, 42, "user@example.com"))
@@ -375,7 +373,7 @@ func TestNotificationEmailDeliveryKeyUsesShortStableHash(t *testing.T) {
 }
 func TestNotificationEmailPreferenceKeyUsesShortStableHashAndReadsLegacyKey(t *testing.T) {
 	ctx := context.Background()
-	repo := newNotificationEmailMemorySettingRepo()
+	repo := mailtest.NewMemorySettings()
 	svc := NewNotificationEmailService(repo, nil)
 
 	key := notificationEmailPreferenceKey(NotificationEmailEventSubscriptionExpiryReminder, "User@Example.com")
@@ -394,9 +392,9 @@ func TestNotificationEmailPreferenceKeyUsesShortStableHashAndReadsLegacyKey(t *t
 }
 func TestNotificationEmailSendDeduplicatesSubscriptionExpiryReminder(t *testing.T) {
 	ctx := context.Background()
-	repo := newNotificationEmailMemorySettingRepo()
-	smtpServer := startNotificationEmailTestSMTPServer(t)
-	require.NoError(t, repo.SetMultiple(ctx, smtpServer.settings()))
+	repo := mailtest.NewMemorySettings()
+	smtpServer := mailtest.StartSMTPServer(t)
+	require.NoError(t, repo.SetMultiple(ctx, smtpServer.Settings()))
 
 	emailSvc := NewMailer(repo, smtp.New())
 	svc := NewNotificationEmailService(repo, emailSvc)
@@ -416,7 +414,7 @@ func TestNotificationEmailSendDeduplicatesSubscriptionExpiryReminder(t *testing.
 	}
 
 	require.NoError(t, svc.Send(ctx, input))
-	require.Equal(t, int64(1), smtpServer.messageCount())
+	require.Equal(t, int64(1), smtpServer.MessageCount())
 
 	key := notificationEmailDeliveryKey(input.Event, input.SourceType, input.SourceID, input.RecipientEmail, input.ReminderKey)
 	require.LessOrEqual(t, len(key), 100)
@@ -424,11 +422,11 @@ func TestNotificationEmailSendDeduplicatesSubscriptionExpiryReminder(t *testing.
 	require.NoError(t, err)
 
 	require.NoError(t, svc.Send(ctx, input))
-	require.Equal(t, int64(1), smtpServer.messageCount())
+	require.Equal(t, int64(1), smtpServer.MessageCount())
 }
 func TestNotificationEmailSendRespectsLegacyDeliveryKey(t *testing.T) {
 	ctx := context.Background()
-	repo := newNotificationEmailMemorySettingRepo()
+	repo := mailtest.NewMemorySettings()
 	svc := NewNotificationEmailService(repo, nil)
 	input := NotificationEmailSendInput{
 		Event:          NotificationEmailEventSubscriptionExpiryReminder,
@@ -443,196 +441,9 @@ func TestNotificationEmailSendRespectsLegacyDeliveryKey(t *testing.T) {
 	require.NoError(t, svc.Send(ctx, input))
 }
 
-type notificationEmailMemorySettingRepo struct {
-	mu     sync.RWMutex
-	values map[string]string
-}
-
-func newNotificationEmailMemorySettingRepo() *notificationEmailMemorySettingRepo {
-	return &notificationEmailMemorySettingRepo{values: make(map[string]string)}
-}
-func (r *notificationEmailMemorySettingRepo) Get(_ context.Context, key string) (*Setting, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	value, ok := r.values[key]
-	if !ok {
-		return nil, ErrSettingNotFound
-	}
-	return &Setting{Key: key, Value: value}, nil
-}
-func (r *notificationEmailMemorySettingRepo) GetValue(ctx context.Context, key string) (string, error) {
-	setting, err := r.Get(ctx, key)
-	if err != nil {
-		return "", err
-	}
-	return setting.Value, nil
-}
-func (r *notificationEmailMemorySettingRepo) Set(_ context.Context, key, value string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.values[key] = value
-	return nil
-}
-func (r *notificationEmailMemorySettingRepo) GetMultiple(_ context.Context, keys []string) (map[string]string, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	out := make(map[string]string, len(keys))
-	for _, key := range keys {
-		if value, ok := r.values[key]; ok {
-			out[key] = value
-		}
-	}
-	return out, nil
-}
-func (r *notificationEmailMemorySettingRepo) SetMultiple(_ context.Context, settings map[string]string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for key, value := range settings {
-		r.values[key] = value
-	}
-	return nil
-}
-func (r *notificationEmailMemorySettingRepo) GetAll(_ context.Context) (map[string]string, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	out := make(map[string]string, len(r.values))
-	for key, value := range r.values {
-		out[key] = value
-	}
-	return out, nil
-}
-func (r *notificationEmailMemorySettingRepo) Delete(_ context.Context, key string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, ok := r.values[key]; !ok {
-		return ErrSettingNotFound
-	}
-	delete(r.values, key)
-	return nil
-}
 func TestNotificationEmailMemorySettingRepoSatisfiesInterface(t *testing.T) {
-	var _ SettingRepository = (*notificationEmailMemorySettingRepo)(nil)
+	var _ SettingRepository = (*mailtest.MemorySettings)(nil)
 	require.False(t, strings.Contains(notificationEmailPreferenceKey(NotificationEmailEventBalanceLow, "User@Example.com"), "User@Example.com"))
-}
-
-type notificationEmailTestSMTPServer struct {
-	listener      net.Listener
-	wg            sync.WaitGroup
-	messages      atomic.Int64
-	messageMu     sync.Mutex
-	messageBodies []string
-}
-
-func startNotificationEmailTestSMTPServer(t *testing.T) *notificationEmailTestSMTPServer {
-	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	server := &notificationEmailTestSMTPServer{listener: listener}
-	server.wg.Add(1)
-	go server.serve()
-	t.Cleanup(server.close)
-	return server
-}
-func (s *notificationEmailTestSMTPServer) settings() map[string]string {
-	host, port, _ := net.SplitHostPort(s.listener.Addr().String())
-	return map[string]string{
-		SettingKeySMTPHost:     host,
-		SettingKeySMTPPort:     port,
-		SettingKeySMTPUsername: "user",
-		SettingKeySMTPPassword: "password",
-		SettingKeySMTPFrom:     "noreply@example.com",
-		SettingKeySMTPFromName: "Sub2API",
-		SettingKeySMTPUseTLS:   "false",
-	}
-}
-func (s *notificationEmailTestSMTPServer) messageCount() int64 {
-	return s.messages.Load()
-}
-
-func (s *notificationEmailTestSMTPServer) close() {
-	_ = s.listener.Close()
-	s.wg.Wait()
-}
-func (s *notificationEmailTestSMTPServer) serve() {
-	defer s.wg.Done()
-	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			return
-		}
-		s.handleConn(conn)
-	}
-}
-func (s *notificationEmailTestSMTPServer) handleConn(conn net.Conn) {
-	defer func() { _ = conn.Close() }()
-	rw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
-	writeLine := func(line string) bool {
-		if _, err := rw.WriteString(line + "\r\n"); err != nil {
-			return false
-		}
-		return rw.Flush() == nil
-	}
-	if !writeLine("220 localhost ESMTP") {
-		return
-	}
-	for {
-		line, err := rw.ReadString('\n')
-		if err != nil {
-			return
-		}
-		cmd := strings.ToUpper(strings.TrimRight(line, "\r\n"))
-		switch {
-		case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
-			if _, err := rw.WriteString("250-localhost\r\n250 AUTH PLAIN\r\n"); err != nil {
-				return
-			}
-			if err := rw.Flush(); err != nil {
-				return
-			}
-		case strings.HasPrefix(cmd, "AUTH"):
-			if !writeLine("235 2.7.0 Authentication successful") {
-				return
-			}
-		case strings.HasPrefix(cmd, "MAIL FROM:"):
-			if !writeLine("250 2.1.0 OK") {
-				return
-			}
-		case strings.HasPrefix(cmd, "RCPT TO:"):
-			if !writeLine("250 2.1.5 OK") {
-				return
-			}
-		case strings.HasPrefix(cmd, "DATA"):
-			if !writeLine("354 End data with <CR><LF>.<CR><LF>") {
-				return
-			}
-			var message strings.Builder
-			for {
-				dataLine, err := rw.ReadString('\n')
-				if err != nil {
-					return
-				}
-				if strings.TrimRight(dataLine, "\r\n") == "." {
-					break
-				}
-				_, _ = message.WriteString(dataLine)
-			}
-			s.messageMu.Lock()
-			s.messageBodies = append(s.messageBodies, message.String())
-			s.messageMu.Unlock()
-			s.messages.Add(1)
-			if !writeLine("250 2.0.0 OK") {
-				return
-			}
-		case strings.HasPrefix(cmd, "QUIT"):
-			_ = writeLine("221 2.0.0 Bye")
-			return
-		default:
-			if !writeLine("250 OK") {
-				return
-			}
-		}
-	}
 }
 
 func TestEmailQueueTasksPreserveLocaleHints(t *testing.T) {

@@ -3,10 +3,11 @@ package postgres
 
 import (
 	json "encoding/json"
+	slog "log/slog"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
-	slog "log/slog"
 )
 
 func GroupFromEnt(g *dbent.Group) *routing.Group {

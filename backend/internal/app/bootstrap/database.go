@@ -12,7 +12,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/migrations"
 
 	"entgo.io/ent/dialect"
@@ -39,7 +38,7 @@ import (
 func InitEnt(ctx context.Context, cfg *config.Config) (_ *ent.Client, _ *sql.DB, resultErr error) {
 	// 优先初始化时区设置，确保所有时间操作使用统一的时区。
 	// 这对于跨时区部署和日志时间戳的一致性至关重要。
-	if err := timezone.Init(cfg.Timezone); err != nil {
+	if err := InitTimezone(cfg.Timezone); err != nil {
 		return nil, nil, err
 	}
 

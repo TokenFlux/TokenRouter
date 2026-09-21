@@ -3,6 +3,9 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +30,7 @@ func TestResolveBillingServiceTier(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ResolveBillingServiceTier(tt.requested, tt.observed)
+			got := completion.ResolveBillingServiceTier(tt.requested, tt.observed)
 			require.Equal(t, tt.billing, got.Billing)
 			require.Equal(t, tt.downgraded, got.Downgraded)
 		})
@@ -36,15 +39,15 @@ func TestResolveBillingServiceTier(t *testing.T) {
 
 func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 	t.Run("codex exception only covers OpenAI default", func(t *testing.T) {
-		require.True(t, codexOAuthResponseTierIsNonAuthoritative("default"))
-		require.False(t, codexOAuthResponseTierIsNonAuthoritative("standard"))
-		require.False(t, codexOAuthResponseTierIsNonAuthoritative("flex"))
+		require.True(t, completion.CodexOAuthResponseTierIsNonAuthoritative("default"))
+		require.False(t, completion.CodexOAuthResponseTierIsNonAuthoritative("standard"))
+		require.False(t, completion.CodexOAuthResponseTierIsNonAuthoritative("flex"))
 	})
 
 	t.Run("openai downgrade rewrites tier", func(t *testing.T) {
 		requested := "priority"
-		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
-		resolution := ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result)
+		result := &forwardcore.OpenAIResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
+		resolution := ApplyOpenAIServiceTierBillingResolution(&Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, result)
 		require.True(t, resolution.Downgraded)
 		require.NotNil(t, result.ServiceTier)
 		require.Equal(t, "default", *result.ServiceTier)
@@ -52,23 +55,23 @@ func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 
 	t.Run("openai honoured tier keeps pointer", func(t *testing.T) {
 		requested := "priority"
-		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "priority"}
-		require.False(t, ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result).Downgraded)
+		result := &forwardcore.OpenAIResult{ServiceTier: &requested, UpstreamResponseServiceTier: "priority"}
+		require.False(t, ApplyOpenAIServiceTierBillingResolution(&Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, result).Downgraded)
 		require.Same(t, &requested, result.ServiceTier)
 	})
 
 	t.Run("openai untiered request stays nil", func(t *testing.T) {
-		result := &OpenAIForwardResult{UpstreamResponseServiceTier: "priority"}
-		require.False(t, ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result).Downgraded)
+		result := &forwardcore.OpenAIResult{UpstreamResponseServiceTier: "priority"}
+		require.False(t, ApplyOpenAIServiceTierBillingResolution(&Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, result).Downgraded)
 		require.Nil(t, result.ServiceTier)
 	})
 
-	for _, accountType := range []string{AccountTypeOAuth, AccountTypeSetupToken} {
+	for _, accountType := range []string{capability.AccountTypeOAuth, capability.AccountTypeSetupToken} {
 		t.Run("codex "+accountType+" keeps outbound priority despite default echo", func(t *testing.T) {
 			requested := "priority"
-			result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
+			result := &forwardcore.OpenAIResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
 			resolution := ApplyOpenAIServiceTierBillingResolution(
-				&Account{Platform: PlatformOpenAI, Type: accountType},
+				&Account{Platform: capability.PlatformOpenAI, Type: accountType},
 				result,
 			)
 			require.False(t, resolution.Downgraded)
@@ -80,9 +83,9 @@ func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 
 		t.Run("codex "+accountType+" still accepts an explicit flex downgrade", func(t *testing.T) {
 			requested := "priority"
-			result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "flex"}
+			result := &forwardcore.OpenAIResult{ServiceTier: &requested, UpstreamResponseServiceTier: "flex"}
 			resolution := ApplyOpenAIServiceTierBillingResolution(
-				&Account{Platform: PlatformOpenAI, Type: accountType},
+				&Account{Platform: capability.PlatformOpenAI, Type: accountType},
 				result,
 			)
 			require.True(t, resolution.Downgraded)
@@ -91,9 +94,9 @@ func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 		})
 
 		t.Run("codex "+accountType+" response never promotes an untiered request", func(t *testing.T) {
-			result := &OpenAIForwardResult{UpstreamResponseServiceTier: "priority"}
+			result := &forwardcore.OpenAIResult{UpstreamResponseServiceTier: "priority"}
 			resolution := ApplyOpenAIServiceTierBillingResolution(
-				&Account{Platform: PlatformOpenAI, Type: accountType},
+				&Account{Platform: capability.PlatformOpenAI, Type: accountType},
 				result,
 			)
 			require.False(t, resolution.Downgraded)
@@ -104,9 +107,9 @@ func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 
 	t.Run("non-openai oauth still uses the generic response contract", func(t *testing.T) {
 		requested := "priority"
-		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
+		result := &forwardcore.OpenAIResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
 		resolution := ApplyOpenAIServiceTierBillingResolution(
-			&Account{Platform: PlatformGrok, Type: AccountTypeOAuth},
+			&Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
 			result,
 		)
 		require.True(t, resolution.Downgraded)
@@ -116,7 +119,7 @@ func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
 
 	t.Run("anthropic standard speed rewrites fast", func(t *testing.T) {
 		requested := "fast"
-		result := &ForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "standard"}
+		result := &forwardcore.MessagesResult{ServiceTier: &requested, UpstreamResponseServiceTier: "standard"}
 		require.True(t, ApplyForwardServiceTierBillingResolution(result).Downgraded)
 		require.Equal(t, "standard", *result.ServiceTier)
 	})

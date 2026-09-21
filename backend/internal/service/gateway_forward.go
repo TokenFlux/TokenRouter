@@ -6,11 +6,16 @@ import (
 	"strings"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
+	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-
-	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,26 +37,25 @@ func (s *GatewayService) shouldRetryUpstreamError(account *Account, statusCode i
 func (s *GatewayService) shouldFailoverUpstreamError(statusCode int) bool {
 	return forwardcore.ShouldFailover(statusCode)
 }
-func retryBackoffDelay(attempt int) time.Duration { return forwardcore.RetryDelay(attempt) }
 
 // Forward 转发请求到Claude API
-func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, parsed *ParsedRequest) (*ForwardResult, error) {
+func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, parsed *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error) {
 	adapter := newMessageExecutionAdapter(s, c, account)
 	result, err := forwardcore.Messages(ctx, adapter, adapter.input(), parsed)
 	return legacyForwardExecutionResult(result), err
 }
 
 // ResolveChannelMapping 委托渠道服务解析模型映射
-func (s *GatewayService) ResolveChannelMapping(ctx context.Context, groupID int64, model string) ChannelMappingResult {
+func (s *GatewayService) ResolveChannelMapping(ctx context.Context, groupID int64, model string) routing.ChannelMappingResult {
 	if s.channelService == nil {
-		return ChannelMappingResult{MappedModel: model}
+		return routing.ChannelMappingResult{MappedModel: model}
 	}
 	return s.channelService.ResolveChannelMapping(ctx, groupID, model)
 }
 
 // ReplaceModelInBody 替换请求体中的模型名（导出供 handler 使用）
 func (s *GatewayService) ReplaceModelInBody(body []byte, newModel string) []byte {
-	return ReplaceModelInBody(body, newModel)
+	return openaiprotocol.ReplaceModelInBody(body, newModel)
 }
 
 // IsModelRestricted 检查模型是否被渠道限制
@@ -64,12 +68,12 @@ func (s *GatewayService) IsModelRestricted(ctx context.Context, groupID int64, m
 
 // ResolveChannelMappingAndRestrict 解析渠道映射。
 // 模型限制检查已移至调度阶段（checkChannelPricingRestriction），restricted 始终返回 false。
-func (s *GatewayService) ResolveChannelMappingAndRestrict(ctx context.Context, groupID *int64, model string) (ChannelMappingResult, bool) {
+func (s *GatewayService) ResolveChannelMappingAndRestrict(ctx context.Context, groupID *int64, model string) (routing.ChannelMappingResult, bool) {
 	if s.channelService == nil {
-		return (ChannelMappingResult{MappedModel: model}).WithAPIKeyModelRedirect(ctx, model), false
+		return modeltrace.WithChannelRedirect((routing.ChannelMappingResult{MappedModel: model}), ctx, model), false
 	}
 	result, restricted := s.channelService.ResolveChannelMappingAndRestrict(ctx, groupID, model)
-	return result.WithAPIKeyModelRedirect(ctx, model), restricted
+	return modeltrace.WithChannelRedirect(result, ctx, model), restricted
 }
 
 // checkChannelPricingRestriction 根据渠道计费基准检查模型是否受定价列表限制。
@@ -80,15 +84,11 @@ func (s *GatewayService) checkChannelPricingRestriction(ctx context.Context, gro
 		return false
 	}
 	mapping := s.channelService.ResolveChannelMapping(ctx, *groupID, requestedModel)
-	billingModel := billingModelForRestriction(mapping.BillingModelSource, requestedModel, mapping.MappedModel)
+	billingModel := routing.BillingModelForRestriction(mapping.BillingModelSource, requestedModel, mapping.MappedModel)
 	if billingModel == "" {
 		return false
 	}
 	return s.channelService.IsModelRestricted(ctx, *groupID, billingModel)
-}
-
-func billingModelForRestriction(source, requestedModel, channelMappedModel string) string {
-	return routing.BillingModelForRestriction(source, requestedModel, channelMappedModel)
 }
 
 // isUpstreamModelRestrictedByChannel 检查账号映射后的上游模型是否受渠道定价限制。
@@ -122,67 +122,18 @@ func (s *GatewayService) channelMappedModelForGroup(ctx context.Context, groupID
 
 // resolveAccountMappedModelForForward 执行账号模型映射，并对空映射结果保持原模型透传。
 // 所有实际转发和调度检查都应从渠道映射后的模型调用本函数。
-func resolveAccountMappedModelForForward(account *Account, requestedModel string) string {
-	if account == nil {
-		return ""
-	}
-	mappedModel, matched := account.ResolveMappedModel(requestedModel)
-	if !matched || strings.TrimSpace(mappedModel) == "" {
-		return requestedModel
-	}
-	return strings.TrimSpace(mappedModel)
+func resolveAccountMappedModelForForward(value *Account, requestedModel string) string {
+	return accountcore.ResolveForwardMappedModel(AccountRecordView(value), requestedModel, accountprovider.ModelDefaults())
 }
 
 // resolveAnthropicAccountUpstreamModel 执行账号映射后的 Anthropic 平台最终模型规范化。
 func resolveAnthropicAccountUpstreamModel(account *Account, accountMappedModel string) string {
-	if account == nil {
-		return ""
-	}
-	accountMappedModel = strings.TrimSpace(accountMappedModel)
-	if accountMappedModel == "" || account.Platform != PlatformAnthropic || account.Type == AccountTypeAPIKey || account.IsBedrock() {
-		return accountMappedModel
-	}
-	normalized := claude.NormalizeModelID(accountMappedModel)
-	if account.Type == AccountTypeServiceAccount {
-		return normalizeVertexAnthropicModelID(normalized)
-	}
-	return normalized
+	return accountModelPolicy(account).AnthropicUpstream(accountMappedModel)
 }
 
 // resolveAccountUpstreamModel 解析真正发送给平台上游的最终模型。
 func resolveAccountUpstreamModel(ctx context.Context, account *Account, requestedModel string) string {
-	if account == nil {
-		return ""
-	}
-	var upstreamModel string
-	if account.IsBedrock() {
-		mappedModel, ok := ResolveBedrockModelID(account, requestedModel)
-		if !ok {
-			return ""
-		}
-		upstreamModel = mappedModel
-	} else if account.Platform == PlatformAntigravity {
-		upstreamModel = resolveFinalAntigravityModelKey(ctx, account, requestedModel)
-	} else if account.Platform == PlatformOpenAI || account.Platform == PlatformGrok {
-		// 模型列表按账号的 HTTP 自动透传规则展示真实可请求模型。
-		upstreamModel = resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, false, true)
-	} else {
-		mappedModel := resolveAccountMappedModelForForward(account, requestedModel)
-		if account.Platform == PlatformQoder {
-			site, err := qoderSiteForAccount(account)
-			if err != nil {
-				return ""
-			}
-			upstreamModel = resolveQoderModelForSite(site, mappedModel).Key
-		} else {
-			upstreamModel = resolveAnthropicAccountUpstreamModel(account, mappedModel)
-		}
-	}
-
-	// 最终账号模型必须在写响应前登记，确保流式与非流式元数据都能恢复为客户端别名。
-	upstreamModel = strings.TrimSpace(upstreamModel)
-	RegisterAPIKeyModelRedirectStage(ctx, upstreamModel)
-	return upstreamModel
+	return accountModelPolicy(account).UpstreamModel(ctx, requestedModel)
 }
 
 // needsUpstreamChannelRestrictionCheck 判断是否需要在调度循环中逐账号检查上游模型的渠道限制。
@@ -198,5 +149,5 @@ func (s *GatewayService) needsUpstreamChannelRestrictionCheck(ctx context.Contex
 	if ch == nil || !ch.RestrictModels {
 		return false
 	}
-	return ch.BillingModelSource == BillingModelSourceUpstream
+	return ch.BillingModelSource == routing.BillingModelSourceUpstream
 }

@@ -3,10 +3,16 @@
 package postgres
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"context"
 	"testing"
 	"time"
 
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"github.com/google/uuid"
@@ -20,10 +26,10 @@ import (
 func TestUsageLog_SessionIDPersistence(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	repo := NewUsageLogRepositoryWithSQL(client, integrationDB)
+	repo := NewUsageLogRepositoryWithSQL(client, integrationDB, timezone.NewCalendar(time.Local))
 
-	user := mustCreateUser(t, client, &service.User{Email: "session-id-" + uuid.NewString() + "@example.com"})
-	apiKey := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-session-" + uuid.NewString(), Name: "k"})
+	user := mustCreateUser(t, client, &identity.User{Email: "session-id-" + uuid.NewString() + "@example.com"})
+	apiKey := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-session-" + uuid.NewString(), Name: "k"})
 	account := mustCreateAccount(t, client, &service.Account{Name: "acc-session-" + uuid.NewString()})
 
 	sessionID := "sess-" + uuid.NewString()

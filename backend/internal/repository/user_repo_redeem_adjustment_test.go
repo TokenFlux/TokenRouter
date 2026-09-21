@@ -6,14 +6,15 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 )
 
-func newRedeemAdjustmentRepoMock(t *testing.T) (*userRepository, sqlmock.Sqlmock) {
+func newRedeemAdjustmentRepoMock(t *testing.T) (*postgres.UserStore, sqlmock.Sqlmock) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -21,7 +22,7 @@ func newRedeemAdjustmentRepoMock(t *testing.T) (*userRepository, sqlmock.Sqlmock
 	driver := entsql.OpenDB(dialect.Postgres, db)
 	client := dbent.NewClient(dbent.Driver(driver))
 	t.Cleanup(func() { _ = client.Close() })
-	return newUserRepositoryWithSQL(client, db), mock
+	return postgres.NewUserStoreWithSQL(client, db), mock
 }
 
 func TestApplyRedeemBalanceAdjustment_UsesAtomicFloor(t *testing.T) {
@@ -51,6 +52,6 @@ func TestApplyRedeemAdjustment_MissingUser(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	err := repo.ApplyRedeemBalanceAdjustment(context.Background(), 404, -1)
-	require.ErrorIs(t, err, service.ErrUserNotFound)
+	require.ErrorIs(t, err, identity.ErrUserNotFound)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

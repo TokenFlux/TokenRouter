@@ -11,7 +11,11 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -42,8 +46,8 @@ func (s *grokMediaContentUpstreamStub) DoWithTLS(req *http.Request, proxyURL str
 func grokMediaContentTestAccount() *Account {
 	return &Account{
 		ID:       9,
-		Platform: PlatformGrok,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "upstream-key",
 			"base_url": "https://relay.example/v1",
@@ -52,7 +56,7 @@ func grokMediaContentTestAccount() *Account {
 }
 
 func grokMediaContentTestContext(method, target string, headers map[string]string) (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(method, target, nil)
@@ -93,7 +97,7 @@ func TestForwardGrokMediaContentUsesUpstreamCredentialAndStreamsRange(t *testing
 
 	result, err := svc.ForwardGrokMedia(
 		context.Background(), c, grokMediaContentTestAccount(),
-		GrokMediaEndpointVideoContent, "task-1", nil, "",
+		grok.GrokMediaEndpointVideoContent, "task-1", nil, "",
 	)
 
 	require.NoError(t, err)
@@ -112,7 +116,7 @@ func TestForwardGrokMediaContentUsesUpstreamCredentialAndStreamsRange(t *testing
 	require.Equal(t, "bytes 0-12/100", recorder.Header().Get("Content-Range"))
 	require.Equal(t, "bytes", recorder.Header().Get("Accept-Ranges"))
 	require.Equal(t, `attachment; filename="task-1.mp4"`, recorder.Header().Get("Content-Disposition"))
-	require.True(t, IsResponseCommitted(c))
+	require.True(t, gatewayhttp.IsResponseCommitted(c))
 }
 
 func TestForwardGrokMediaContentStreamsFullResponseWithSafeDefaults(t *testing.T) {
@@ -129,7 +133,7 @@ func TestForwardGrokMediaContentStreamsFullResponseWithSafeDefaults(t *testing.T
 
 	_, err := svc.ForwardGrokMedia(
 		context.Background(), c, grokMediaContentTestAccount(),
-		GrokMediaEndpointVideoContent, "task-1", nil, "",
+		grok.GrokMediaEndpointVideoContent, "task-1", nil, "",
 	)
 
 	require.NoError(t, err)
@@ -141,7 +145,7 @@ func TestForwardGrokMediaContentStreamsFullResponseWithSafeDefaults(t *testing.T
 	require.Empty(t, recorder.Header().Get("Content-Length"))
 	require.Empty(t, recorder.Header().Get("Set-Cookie"))
 	require.Empty(t, recorder.Header().Get("X-Upstream-Secret"))
-	require.True(t, IsResponseCommitted(c))
+	require.True(t, gatewayhttp.IsResponseCommitted(c))
 }
 
 func TestForwardGrokMediaContentPreservesRangeNotSatisfiable(t *testing.T) {
@@ -164,7 +168,7 @@ func TestForwardGrokMediaContentPreservesRangeNotSatisfiable(t *testing.T) {
 
 	_, err := svc.ForwardGrokMedia(
 		context.Background(), c, grokMediaContentTestAccount(),
-		GrokMediaEndpointVideoContent, "task-1", nil, "",
+		grok.GrokMediaEndpointVideoContent, "task-1", nil, "",
 	)
 
 	require.NoError(t, err)
@@ -174,7 +178,7 @@ func TestForwardGrokMediaContentPreservesRangeNotSatisfiable(t *testing.T) {
 	require.Equal(t, "bytes=500-600", upstream.requests[1].Header.Get("Range"))
 	require.Equal(t, "bytes */100", recorder.Header().Get("Content-Range"))
 	require.Equal(t, "bytes", recorder.Header().Get("Accept-Ranges"))
-	require.True(t, IsResponseCommitted(c))
+	require.True(t, gatewayhttp.IsResponseCommitted(c))
 }
 
 func TestForwardGrokMediaContentFetchesValidatedSignedURLWithoutCredentials(t *testing.T) {
@@ -202,7 +206,7 @@ func TestForwardGrokMediaContentFetchesValidatedSignedURLWithoutCredentials(t *t
 
 	_, err := svc.ForwardGrokMedia(
 		context.Background(), c, account,
-		GrokMediaEndpointVideoContent, "task-1", nil, "",
+		grok.GrokMediaEndpointVideoContent, "task-1", nil, "",
 	)
 
 	require.NoError(t, err)
@@ -212,12 +216,12 @@ func TestForwardGrokMediaContentFetchesValidatedSignedURLWithoutCredentials(t *t
 	require.Equal(t, "https://relay.example/v1/videos/task-1", upstream.requests[0].URL.String())
 	require.Equal(t, "Bearer upstream-key", upstream.requests[0].Header.Get("Authorization"))
 	require.Equal(t, "private-agent", upstream.requests[0].Header.Get("User-Agent"))
-	require.True(t, HTTPUpstreamRedirectsDisabled(upstream.requests[0].Context()))
+	require.True(t, upstreamcore.HTTPUpstreamRedirectsDisabled(upstream.requests[0].Context()))
 	require.Equal(t, "https://vidgen.x.ai/signed-token/xai-video-task-1.mp4", upstream.requests[1].URL.String())
 	require.Empty(t, upstream.requests[1].Header.Get("Authorization"))
 	require.Empty(t, upstream.requests[1].Header.Get("User-Agent"))
 	require.Equal(t, "bytes=0-12", upstream.requests[1].Header.Get("Range"))
-	require.True(t, HTTPUpstreamRedirectsDisabled(upstream.requests[1].Context()))
+	require.True(t, upstreamcore.HTTPUpstreamRedirectsDisabled(upstream.requests[1].Context()))
 }
 
 func TestForwardGrokMediaContentFollowsAuthenticatedSub2APIRelay(t *testing.T) {
@@ -241,7 +245,7 @@ func TestForwardGrokMediaContentFollowsAuthenticatedSub2APIRelay(t *testing.T) {
 
 			_, err := svc.ForwardGrokMedia(
 				context.Background(), c, grokMediaContentTestAccount(),
-				GrokMediaEndpointVideoContent, "task-1", nil, "",
+				grok.GrokMediaEndpointVideoContent, "task-1", nil, "",
 			)
 
 			require.NoError(t, err)
@@ -265,7 +269,7 @@ func TestForwardGrokMediaContentRejectsUntrustedSignedURL(t *testing.T) {
 
 	_, err := svc.ForwardGrokMedia(
 		context.Background(), c, grokMediaContentTestAccount(),
-		GrokMediaEndpointVideoContent, "task-1", nil, "",
+		grok.GrokMediaEndpointVideoContent, "task-1", nil, "",
 	)
 
 	require.ErrorContains(t, err, "unsupported video content URL")
@@ -312,7 +316,7 @@ func TestForwardGrokVideoStatusRewritesOnlyProtectedContentURL(t *testing.T) {
 
 	_, err := svc.ForwardGrokMedia(
 		context.Background(), c, grokMediaContentTestAccount(),
-		GrokMediaEndpointVideoStatus, "task-1", nil, "",
+		grok.GrokMediaEndpointVideoStatus, "task-1", nil, "",
 	)
 
 	require.NoError(t, err)

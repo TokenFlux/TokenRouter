@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	identityredis "github.com/TokenFlux/TokenRouter/internal/identity/rediscache"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -15,12 +16,12 @@ import (
 
 type EmailCacheSuite struct {
 	IntegrationRedisSuite
-	cache service.EmailCache
+	cache identity.EmailCache
 }
 
 func (s *EmailCacheSuite) SetupTest() {
 	s.IntegrationRedisSuite.SetupTest()
-	s.cache = NewEmailCache(s.rdb)
+	s.cache = identityredis.NewEmailCache(s.rdb)
 }
 
 func (s *EmailCacheSuite) TestGetVerificationCode_Missing() {
@@ -31,7 +32,7 @@ func (s *EmailCacheSuite) TestGetVerificationCode_Missing() {
 func (s *EmailCacheSuite) TestSetAndGetVerificationCode() {
 	email := "a@example.com"
 	emailTTL := 2 * time.Minute
-	data := &service.VerificationCodeData{Code: "123456", Attempts: 1, CreatedAt: time.Now()}
+	data := &identity.VerificationCodeData{Code: "123456", Attempts: 1, CreatedAt: time.Now()}
 
 	require.NoError(s.T(), s.cache.SetVerificationCode(s.ctx, email, data, emailTTL), "SetVerificationCode")
 
@@ -44,7 +45,7 @@ func (s *EmailCacheSuite) TestSetAndGetVerificationCode() {
 func (s *EmailCacheSuite) TestVerificationCode_TTL() {
 	email := "ttl@example.com"
 	emailTTL := 2 * time.Minute
-	data := &service.VerificationCodeData{Code: "654321", Attempts: 0, CreatedAt: time.Now()}
+	data := &identity.VerificationCodeData{Code: "654321", Attempts: 0, CreatedAt: time.Now()}
 
 	require.NoError(s.T(), s.cache.SetVerificationCode(s.ctx, email, data, emailTTL), "SetVerificationCode")
 
@@ -56,7 +57,7 @@ func (s *EmailCacheSuite) TestVerificationCode_TTL() {
 
 func (s *EmailCacheSuite) TestDeleteVerificationCode() {
 	email := "delete@example.com"
-	data := &service.VerificationCodeData{Code: "999999", Attempts: 0, CreatedAt: time.Now()}
+	data := &identity.VerificationCodeData{Code: "999999", Attempts: 0, CreatedAt: time.Now()}
 
 	require.NoError(s.T(), s.cache.SetVerificationCode(s.ctx, email, data, 2*time.Minute), "SetVerificationCode")
 

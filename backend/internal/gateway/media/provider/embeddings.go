@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 type EmbeddingsOptions struct {
@@ -40,7 +40,7 @@ type Embeddings struct{ Options EmbeddingsOptions }
 
 func (e Embeddings) Execute(ctx context.Context, input upstream.AttemptInput, sink upstream.OutputSink) (upstream.AttemptResult, error) {
 	o := e.Options
-	target := &native.EmbeddingsTarget{
+	target := &openai.EmbeddingsTarget{
 		AccountID:      o.AccountID,
 		Model:          o.Model,
 		URL:            o.URL,
@@ -60,5 +60,5 @@ func (e Embeddings) Execute(ctx context.Context, input upstream.AttemptInput, si
 		WriteHeaders:   o.WriteHeaders,
 	}
 	input.Target = target
-	return (native.EmbeddingsExecutor{}).Execute(ctx, input, sink)
+	return (openai.EmbeddingsExecutor{}).Execute(ctx, input, sink)
 }

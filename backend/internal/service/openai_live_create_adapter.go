@@ -4,8 +4,14 @@ import (
 	"context"
 	"strings"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	gatewaylive "github.com/TokenFlux/TokenRouter/internal/gateway/live"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -20,7 +26,7 @@ func (p *liveCreatePorts) PrepareAttestation(ctx context.Context) (string, strin
 	return p.service.prepareLiveAttestation(ctx)
 }
 func (p *liveCreatePorts) Select(ctx context.Context, groupID *int64, model string, excluded map[int64]struct{}) (*gatewaylive.Candidate, error) {
-	selection, _, err := p.service.SelectAccountWithSchedulerForCapability(ctx, groupID, "", uuid.NewString(), model, excluded, OpenAIUpstreamTransportHTTPSSE, OpenAIEndpointCapabilityLive, false, false)
+	selection, _, err := p.service.SelectAccountWithSchedulerForCapability(ctx, groupID, "", uuid.NewString(), model, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityLive, false, false)
 	if err != nil || selection == nil {
 		return nil, err
 	}
@@ -34,23 +40,23 @@ func (p *liveCreatePorts) Select(ctx context.Context, groupID *int64, model stri
 	return result, nil
 }
 func (p *liveCreatePorts) TraceModels(ctx context.Context, routing, upstream string) {
-	RegisterAPIKeyModelRedirectStage(ctx, routing)
-	RegisterAPIKeyModelRedirectStage(ctx, upstream)
+	modeltrace.RegisterStage(ctx, routing)
+	modeltrace.RegisterStage(ctx, upstream)
 }
 func (p *liveCreatePorts) ModelTrace(ctx context.Context, groupID *int64, model, upstream string) (string, string) {
 	requested := model
-	if trace, ok := APIKeyModelRedirectTraceFromContext(ctx); ok && strings.TrimSpace(trace.ClientModel) != "" {
+	if trace, ok := modeltrace.FromContext(ctx); ok && strings.TrimSpace(trace.ClientModel) != "" {
 		requested = trace.ClientModel
 	}
 	plan := p.service.PlanRoute(ctx, nil, groupID, model)
 	mapping := ChannelMappingFromRoutePlan(plan)
 	return requested, mapping.BuildModelMappingChain(model, upstream)
 }
-func (p *liveCreatePorts) NewLeaseID() string { return generateRequestID() }
+func (p *liveCreatePorts) NewLeaseID() string { return scheduler.GenerateRequestID() }
 func (p *liveCreatePorts) ShouldFailover(err error) bool {
 	return p.service.shouldFailoverLiveCreateError(err)
 }
-func (p *liveCreatePorts) Observe(record *LiveCallRecord) {
+func (p *liveCreatePorts) Observe(record *session.LiveCallRecord) {
 	RunBackgroundTask("service/openai_live.go:CreateLiveCall", BackgroundCall1(p.service.observeLiveCall, record))
 }
 
@@ -59,26 +65,26 @@ type liveCreateTarget struct {
 	service *OpenAIGatewayService
 	account *Account
 	groupID *int64
-	router  TLSFingerprintRouterMatchResult
+	router  egress.TLSFingerprintRouterMatchResult
 }
 
 func (t *liveCreateTarget) ResolveModel(ctx context.Context, model string) (string, string, error) {
-	routing, err := t.service.ResolveOpenAIWSRoutingModelForAccount(ctx, t.groupID, t.account, model, OpenAIEndpointCapabilityLive)
+	routing, err := t.service.ResolveOpenAIWSRoutingModelForAccount(ctx, t.groupID, t.account, model, accountcore.OpenAIEndpointCapabilityLive)
 	if err != nil {
 		return "", "", err
 	}
 	return routing, resolveOpenAIAccountUpstreamModelForRequest(t.account, routing, false, false), nil
 }
-func (t *liveCreateTarget) AllowsClient(ctx context.Context, identity LiveCallIdentity) bool {
+func (t *liveCreateTarget) AllowsClient(ctx context.Context, identity session.LiveCallIdentity) bool {
 	t.router = t.service.matchLiveTLSFingerprintRouter(t.account, identity.UserAgent)
 	result := t.service.liveClientPolicyResult(ctx, t.account, identity, t.router)
 	if result.Enabled && !result.Matched {
-		logger.FromContext(ctx).Warn("OpenAI Live 客户端策略拒绝候选账号", zap.Int64("account_id", t.account.ID), zap.String("policy", result.Policy), zap.String("reason", result.Reason))
+		logging.FromContext(ctx).Warn("OpenAI Live 客户端策略拒绝候选账号", zap.Int64("account_id", t.account.ID), zap.String("policy", result.Policy), zap.String("reason", result.Reason))
 		return false
 	}
 	return true
 }
-func (t *liveCreateTarget) Create(ctx context.Context, request *LiveCallRequest, attestation string) (*gatewaylive.Created, error) {
+func (t *liveCreateTarget) Create(ctx context.Context, request *session.LiveCallRequest, attestation string) (*gatewaylive.Created, error) {
 	created, err := t.service.createUpstreamLiveCall(ctx, t.account, request, attestation, t.router)
 	if err != nil {
 		return nil, err

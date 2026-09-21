@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,16 +24,16 @@ func TestGetPoolModeRetryStatusCodes(t *testing.T) {
 		{
 			name: "nil_credentials_returns_nil",
 			account: &Account{
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformOpenAI,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformOpenAI,
 			},
 			expected: nil,
 		},
 		{
 			name: "missing_key_returns_nil",
 			account: &Account{
-				Type:        AccountTypeAPIKey,
-				Platform:    PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Platform:    capability.PlatformOpenAI,
 				Credentials: map[string]any{"pool_mode": true},
 			},
 			expected: nil,

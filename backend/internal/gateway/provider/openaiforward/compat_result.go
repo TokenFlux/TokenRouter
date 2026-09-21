@@ -1,9 +1,9 @@
 package openaiforward
 
-import native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+import "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 // FromCompatResult 仅附加已有计费模型，供应商事实仍由原生读取器提供。
-func FromCompatResult(r *native.CompatResponseResult, billing string) *Result {
+func FromCompatResult(r *openai.CompatResponseResult, billing string) *Result {
 	if r == nil {
 		return nil
 	}

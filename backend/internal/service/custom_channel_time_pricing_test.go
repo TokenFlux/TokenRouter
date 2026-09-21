@@ -8,41 +8,42 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/stretchr/testify/require"
 )
 
-func channelTimePricingTestConfig(periods ...ChannelTimePricingPeriod) *ChannelTimePricing {
-	return &ChannelTimePricing{Timezone: "Asia/Shanghai", Periods: periods}
+func channelTimePricingTestConfig(periods ...routing.ChannelTimePricingPeriod) *routing.ChannelTimePricing {
+	return &routing.ChannelTimePricing{Timezone: "Asia/Shanghai", Periods: periods}
 }
 
 func TestValidateChannelTimePricing(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  *ChannelTimePricing
+		config  *routing.ChannelTimePricing
 		wantErr string
 	}{
 		{name: "nil disabled"},
 		{name: "empty disabled", config: channelTimePricingTestConfig()},
 		{name: "adjacent", config: channelTimePricingTestConfig(
-			ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 2},
-			ChannelTimePricingPeriod{StartTime: "12:00", EndTime: "14:00", Multiplier: 1.5},
+			routing.ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 2},
+			routing.ChannelTimePricingPeriod{StartTime: "12:00", EndTime: "14:00", Multiplier: 1.5},
 		)},
 		{name: "midnight split", config: channelTimePricingTestConfig(
-			ChannelTimePricingPeriod{StartTime: "22:00", EndTime: "00:00", Multiplier: 2},
-			ChannelTimePricingPeriod{StartTime: "00:00", EndTime: "02:00", Multiplier: 2},
+			routing.ChannelTimePricingPeriod{StartTime: "22:00", EndTime: "00:00", Multiplier: 2},
+			routing.ChannelTimePricingPeriod{StartTime: "00:00", EndTime: "02:00", Multiplier: 2},
 		)},
-		{name: "empty timezone", config: &ChannelTimePricing{Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, wantErr: "timezone"},
-		{name: "invalid timezone", config: &ChannelTimePricing{Timezone: "UTC+8", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, wantErr: "timezone"},
-		{name: "invalid format", config: channelTimePricingTestConfig(ChannelTimePricingPeriod{StartTime: "9:00", EndTime: "12:00", Multiplier: 2}), wantErr: "HH:mm"},
-		{name: "cross midnight", config: channelTimePricingTestConfig(ChannelTimePricingPeriod{StartTime: "22:00", EndTime: "02:00", Multiplier: 2}), wantErr: "before"},
+		{name: "empty timezone", config: &routing.ChannelTimePricing{Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, wantErr: "timezone"},
+		{name: "invalid timezone", config: &routing.ChannelTimePricing{Timezone: "UTC+8", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, wantErr: "timezone"},
+		{name: "invalid format", config: channelTimePricingTestConfig(routing.ChannelTimePricingPeriod{StartTime: "9:00", EndTime: "12:00", Multiplier: 2}), wantErr: "HH:mm"},
+		{name: "cross midnight", config: channelTimePricingTestConfig(routing.ChannelTimePricingPeriod{StartTime: "22:00", EndTime: "02:00", Multiplier: 2}), wantErr: "before"},
 		{name: "overlap", config: channelTimePricingTestConfig(
-			ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 2},
-			ChannelTimePricingPeriod{StartTime: "11:59", EndTime: "14:00", Multiplier: 2},
+			routing.ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 2},
+			routing.ChannelTimePricingPeriod{StartTime: "11:59", EndTime: "14:00", Multiplier: 2},
 		), wantErr: "overlap"},
-		{name: "zero multiplier", config: channelTimePricingTestConfig(ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 0}), wantErr: "greater than 0"},
-		{name: "minimum multiplier", config: channelTimePricingTestConfig(ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 0.01})},
-		{name: "too many decimals", config: channelTimePricingTestConfig(ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 1.001}), wantErr: "decimal"},
-		{name: "overflow", config: channelTimePricingTestConfig(ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: math.MaxFloat64}), wantErr: "finite"},
+		{name: "zero multiplier", config: channelTimePricingTestConfig(routing.ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 0}), wantErr: "greater than 0"},
+		{name: "minimum multiplier", config: channelTimePricingTestConfig(routing.ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 0.01})},
+		{name: "too many decimals", config: channelTimePricingTestConfig(routing.ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 1.001}), wantErr: "decimal"},
+		{name: "overflow", config: channelTimePricingTestConfig(routing.ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: math.MaxFloat64}), wantErr: "finite"},
 	}
 
 	for _, tt := range tests {
@@ -59,20 +60,20 @@ func TestValidateChannelTimePricing(t *testing.T) {
 }
 
 func TestChannelTimePricingMultiplierAt(t *testing.T) {
-	config := channelTimePricingTestConfig(ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 2})
+	config := channelTimePricingTestConfig(routing.ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 2})
 	require.Equal(t, 1.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 0, 59, 0, 0, time.UTC)))
 	require.Equal(t, 2.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 1, 0, 0, 0, time.UTC)))
 	require.Equal(t, 1.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 4, 0, 0, 0, time.UTC)))
 
-	newYork := &ChannelTimePricing{Timezone: "America/New_York", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}
+	newYork := &routing.ChannelTimePricing{Timezone: "America/New_York", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}
 	require.Equal(t, 2.0, channelTimeMultiplierAt(newYork, time.Date(2026, 6, 29, 14, 0, 0, 0, time.UTC)))
 }
 
 func TestChannelTimePricingMultiplierAtWeekdaysOnly(t *testing.T) {
-	config := &ChannelTimePricing{
+	config := &routing.ChannelTimePricing{
 		Timezone:     "Asia/Shanghai",
 		WeekdaysOnly: true,
-		Periods: []ChannelTimePricingPeriod{{
+		Periods: []routing.ChannelTimePricingPeriod{{
 			StartTime: "09:00", EndTime: "12:00", Multiplier: 2,
 		}},
 	}
@@ -95,8 +96,8 @@ func TestChannelTimePricingMultiplierAtWeekdaysOnly(t *testing.T) {
 
 func TestChannelTimePricingMultiplierAtMidnightSplit(t *testing.T) {
 	config := channelTimePricingTestConfig(
-		ChannelTimePricingPeriod{StartTime: "22:00", EndTime: "00:00", Multiplier: 2},
-		ChannelTimePricingPeriod{StartTime: "00:00", EndTime: "02:00", Multiplier: 3},
+		routing.ChannelTimePricingPeriod{StartTime: "22:00", EndTime: "00:00", Multiplier: 2},
+		routing.ChannelTimePricingPeriod{StartTime: "00:00", EndTime: "02:00", Multiplier: 3},
 	)
 	location, err := time.LoadLocation("Asia/Shanghai")
 	require.NoError(t, err)
@@ -106,13 +107,13 @@ func TestChannelTimePricingMultiplierAtMidnightSplit(t *testing.T) {
 }
 
 func TestChannelTimePricingMultiplierAtDegradesForInvalidConfiguration(t *testing.T) {
-	var nilConfig *ChannelTimePricing
+	var nilConfig *routing.ChannelTimePricing
 	validAt := time.Date(2026, 6, 29, 1, 0, 0, 0, time.UTC)
 	require.Equal(t, 1.0, channelTimeMultiplierAt(nilConfig, validAt))
-	require.Equal(t, 1.0, channelTimeMultiplierAt(&ChannelTimePricing{Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, validAt))
-	require.Equal(t, 1.0, channelTimeMultiplierAt(&ChannelTimePricing{Timezone: "UTC+8", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, validAt))
+	require.Equal(t, 1.0, channelTimeMultiplierAt(&routing.ChannelTimePricing{Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, validAt))
+	require.Equal(t, 1.0, channelTimeMultiplierAt(&routing.ChannelTimePricing{Timezone: "UTC+8", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, validAt))
 
-	err := validateChannelTimePricing(&ChannelTimePricing{Timezone: "Local", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}})
+	err := validateChannelTimePricing(&routing.ChannelTimePricing{Timezone: "Local", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}})
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "timezone"))
 }

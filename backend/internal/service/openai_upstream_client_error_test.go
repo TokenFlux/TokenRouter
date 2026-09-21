@@ -10,7 +10,10 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -23,7 +26,7 @@ const openAIInvalidFunctionParametersBody = `{"error":{` +
 	`"code":"invalid_function_parameters"}}`
 
 func newOpenAIUpstreamClientErrorTestContext() (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -39,7 +42,7 @@ func newOpenAIUpstreamClientErrorResponse(statusCode int, body string) *http.Res
 }
 
 func newOpenAIUpstreamClientErrorTestAccount() *Account {
-	return &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "acct"}
+	return &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acct"}
 }
 
 // 兼容上游新增测试使用的命名，复用 fork 原有测试夹具。
@@ -73,7 +76,7 @@ func TestHandleErrorResponse_Deterministic400IsNotRewrappedAs502(t *testing.T) {
 	require.Equal(t, "input[8].tools[1].tools[2].parameters", gjson.Get(recorder.Body.String(), "error.param").String())
 	require.Contains(t, gjson.Get(recorder.Body.String(), "error.message").String(), "automation_update")
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 }
 
@@ -123,7 +126,7 @@ func TestHandleErrorResponse_PoolRetryable400StillFailsOver(t *testing.T) {
 	c, recorder := newOpenAIUpstreamClientErrorTestContext()
 	svc := &OpenAIGatewayService{}
 	account := newOpenAIUpstreamClientErrorTestAccount()
-	account.Type = AccountTypeAPIKey
+	account.Type = capability.AccountTypeAPIKey
 	account.Credentials = map[string]any{
 		"pool_mode":                    true,
 		"pool_mode_retry_status_codes": []any{float64(http.StatusBadRequest)},
@@ -135,7 +138,7 @@ func TestHandleErrorResponse_PoolRetryable400StillFailsOver(t *testing.T) {
 		c, account, nil,
 	)
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusBadRequest, failoverErr.StatusCode)
 	require.True(t, failoverErr.RetryableOnSameAccount)
@@ -182,7 +185,7 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 			)
 			require.Error(t, err)
 			if tc.name == "forbidden" {
-				var failoverErr *UpstreamFailoverError
+				var failoverErr *forwardcore.UpstreamFailoverError
 				require.False(t, errors.As(err, &failoverErr))
 			}
 			require.Equal(t, tc.wantStatus, rec.Code)
@@ -195,10 +198,10 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 // 顺序守卫：管理员配置的错误透传规则在更上游命中，新分支不得抢在它前面。
 func TestHandleErrorResponse_PassthroughRuleStillWinsOver400Branch(t *testing.T) {
 	c, rec := newOpenAIUpstreamErrorTestContext(t)
-	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{
+	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{
 		newNonFailoverPassthroughRule(http.StatusBadRequest, "automation_update", http.StatusTeapot, "自定义文案"),
 	})
-	BindErrorPassthroughService(c, ruleSvc)
+	gatewayhttp.BindErrorPassthroughService(c, ruleSvc)
 	svc := &OpenAIGatewayService{}
 
 	_, err := svc.handleErrorResponse(

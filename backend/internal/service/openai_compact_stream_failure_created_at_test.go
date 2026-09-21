@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -17,12 +18,11 @@ import (
 // `missing field 'created_at'`。writeOpenAICompactSSEFailureMessage 存在的理由就是
 // 让 Codex 能把这帧识别成合法终止事件；解析不了就退化回它想避免的盲重连。
 func TestWriteOpenAICompactSSEFailureMessage_CarriesCreatedAt(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-
-	writeOpenAICompactSSEFailureMessage(c, http.StatusBadGateway, "upstream_error", "boom")
+	gatewayhttp.WriteOpenAICompactSSEFailureMessage(c, http.StatusBadGateway, "upstream_error", "boom", gatewayhttp.MarkOpsStreamError)
 
 	body := rec.Body.String()
 	require.Contains(t, body, "event: response.failed")

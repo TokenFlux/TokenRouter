@@ -5,9 +5,10 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	mail "net/mail"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // EmailOAuthIdentityInput 是 GitHub/Google/OIDC 这类已验证邮箱 OAuth 登录的身份输入。

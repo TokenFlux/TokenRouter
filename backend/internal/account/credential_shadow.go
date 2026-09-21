@@ -9,8 +9,7 @@ import (
 // resolveCredentialAccount 解析影子账号到其母账号，用于凭据/Token 透传。
 // - 普通账号（非影子）：直接返回自身。
 // - 影子账号：通过 repo 取母账号，校验母账号存在且为 OpenAI OAuth 类型，否则返回错误。
-// 设计为包级函数（非任何 service 的方法），以便 OpenAIGatewayService / OpenAIQuotaService /
-// AccountUsageService 等不同接收者共享同一实现。
+// 凭据取得、额度查询和用量探针共同使用该解析入口，不复制母账号校验规则。
 func ResolveCredentialRecord(ctx context.Context, read func(context.Context, int64) (*Record, error), account *Record) (*Record, error) {
 	if account == nil || !account.IsCredentialShadow() {
 		return account, nil

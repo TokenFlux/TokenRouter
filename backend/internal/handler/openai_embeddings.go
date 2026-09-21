@@ -1,16 +1,25 @@
 package handler
 
 import (
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	"context"
 	"errors"
 	"net/http"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -23,17 +32,17 @@ type embeddingRequestAdapter struct {
 	userID         int64
 	h              *OpenAIGatewayHandler
 	c              *gin.Context
-	apiKey         *service.APIKey
-	subscription   *service.UserSubscription
+	apiKey         *apikey.APIKey
+	subscription   *billing.UserSubscription
 	reqModel       string
-	channelMapping service.ChannelMappingResult
+	channelMapping routing.ChannelMappingResult
 	reqLog         *zap.Logger
 	streamStarted  *bool
 	selection      *service.AccountSelectionResult
 }
 
 func (p *embeddingRequestAdapter) SelectEmbedding(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
-	selection, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", p.reqModel, excluded, service.OpenAIUpstreamTransportHTTPSSE, service.OpenAIEndpointCapabilityEmbeddings, false, false)
+	selection, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", p.reqModel, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityEmbeddings, false, false)
 	p.selection = selection
 	if selection == nil || selection.Account == nil {
 		return accountcore.AccountSnapshot{}, false, err
@@ -51,7 +60,7 @@ func (p *embeddingRequestAdapter) ForwardEmbedding(ctx context.Context, _ accoun
 	size := p.c.Writer.Size()
 	result, err := p.h.gatewayService.ForwardEmbeddings(ctx, p.c, p.selection.Account, forwardBody, "")
 	outcome := gatewaymedia.EmbeddingOutcome{Result: embeddingResultView(result), Err: err, OutputChanged: p.c.Writer.Size() != size}
-	var failure *service.UpstreamFailoverError
+	var failure *forwardcore.UpstreamFailoverError
 	if errors.As(err, &failure) {
 		outcome.Failover = true
 		outcome.StatusCode = failure.StatusCode
@@ -69,20 +78,20 @@ func (p *embeddingRequestAdapter) ReportEmbedding(_ context.Context, _ accountco
 func (p *embeddingRequestAdapter) SwitchEmbedding(_ accountcore.AccountSnapshot) {
 	p.h.gatewayService.RecordOpenAIAccountSwitchForSelection(p.selection)
 }
-func (p *embeddingRequestAdapter) ClientGone() bool { return failoverClientGone(p.c) }
+func (p *embeddingRequestAdapter) ClientGone() bool { return gatewayhttp.FailoverClientGone(p.c) }
 func (p *embeddingRequestAdapter) ObserveEmbedding(event gatewaymedia.EmbeddingEvent) {
 	switch event.Kind {
 	case "selected":
-		setOpsSelectedAccount(p.c, event.Account.ID, event.Account.Platform)
+		gatewayhttp.SetOpsSelectedAccount(p.c, event.Account.ID, event.Account.Platform)
 	case "routing":
-		service.SetOpsLatencyMs(p.c, service.OpsRoutingLatencyMsKey, event.Elapsed.Milliseconds())
+		gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsRoutingLatencyMsKey, event.Elapsed.Milliseconds())
 	case "response":
 		elapsed := event.Elapsed.Milliseconds()
-		upstream, _ := getContextInt64(p.c, service.OpsUpstreamLatencyMsKey)
+		upstream, _ := getContextInt64(p.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 		if upstream > 0 && elapsed > upstream {
 			elapsed -= upstream
 		}
-		service.SetOpsLatencyMs(p.c, service.OpsResponseLatencyMsKey, elapsed)
+		gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsResponseLatencyMsKey, elapsed)
 	case "select_canceled":
 		p.reqLog.Info("openai_embeddings.account_select_aborted_client_disconnected", zap.Error(event.Outcome.Err))
 	case "select_failed":
@@ -105,27 +114,27 @@ func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure
 			if p.h.handleOpenAISelectionBusinessError(p.c, f.Err, *p.streamStarted) {
 				return
 			}
-			cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, service.PlatformOpenAI)
+			cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, capability.PlatformOpenAI)
 			if !cls.ModelNotFound {
-				markOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
+				gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
 			}
 			p.h.errorResponse(p.c, cls.Status, cls.ErrType, cls.Message)
 			return
 		}
-		var failure *service.UpstreamFailoverError
+		var failure *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &failure) {
 			p.h.handleFailoverExhausted(p.c, failure, false)
 		} else {
 			p.h.errorResponse(p.c, http.StatusBadGateway, "api_error", "Upstream request failed")
 		}
 	case "empty_selection":
-		cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, service.PlatformOpenAI)
+		cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, capability.PlatformOpenAI)
 		if !cls.ModelNotFound {
-			markOpsRoutingCapacityLimited(p.c)
+			gatewayhttp.MarkOpsRoutingCapacityLimited(p.c)
 		}
 		p.h.errorResponse(p.c, cls.Status, cls.ErrType, cls.Message)
 	case "exhausted":
-		var failure *service.UpstreamFailoverError
+		var failure *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &failure) {
 			p.h.handleFailoverExhausted(p.c, failure, f.Outcome.OutputChanged)
 		}
@@ -137,25 +146,25 @@ func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure
 	}
 }
 
-func embeddingResultView(result *service.OpenAIForwardResult) *gatewaymedia.EmbeddingResult {
+func embeddingResultView(result *forwardcore.OpenAIResult) *gatewaymedia.EmbeddingResult {
 	if result == nil {
 		return nil
 	}
-	return &gatewaymedia.EmbeddingResult{RequestID: result.RequestID, Model: result.Model, BillingModel: result.BillingModel, UpstreamModel: result.UpstreamModel, Headers: result.UpstreamHeaders.Clone(), Usage: result.Usage, Duration: result.Duration}
+	return &gatewaymedia.EmbeddingResult{RequestID: result.RequestID, Model: result.Model, BillingModel: result.BillingModel, UpstreamModel: result.UpstreamModel, Headers: http.Header(result.UpstreamHeaders).Clone(), Usage: result.Usage, Duration: result.Duration}
 }
-func legacyEmbeddingResult(result *gatewaymedia.EmbeddingResult) *service.OpenAIForwardResult {
+func legacyEmbeddingResult(result *gatewaymedia.EmbeddingResult) *forwardcore.OpenAIResult {
 	if result == nil {
 		return nil
 	}
-	return &service.OpenAIForwardResult{RequestID: result.RequestID, Model: result.Model, BillingModel: result.BillingModel, UpstreamModel: result.UpstreamModel, UpstreamHeaders: http.Header(result.Headers).Clone(), Usage: result.Usage, Duration: result.Duration}
+	return &forwardcore.OpenAIResult{RequestID: result.RequestID, Model: result.Model, BillingModel: result.BillingModel, UpstreamModel: result.UpstreamModel, UpstreamHeaders: http.Header(result.Headers).Clone(), Usage: result.Usage, Duration: result.Duration}
 }
 func (p *embeddingRequestAdapter) CompleteEmbedding(_ context.Context, _ accountcore.AccountSnapshot, value *gatewaymedia.EmbeddingResult) {
 	c, h, apiKey, account := p.c, p.h, p.apiKey, p.selection.Account
 	result := legacyEmbeddingResult(value)
 	userAgent := c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(c)
-	inboundEndpoint := GetInboundEndpoint(c)
-	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+	clientIP := clientip.GetClientIP(c)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
 	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 	clientSessionID := service.ExtractClientSessionID(c)
 	// 异步任务只读取此处固化的渠道结果，不能再读取可变 HTTP Context。
@@ -163,7 +172,7 @@ func (p *embeddingRequestAdapter) CompleteEmbedding(_ context.Context, _ account
 	subscription, reqModel, userID := p.subscription, p.reqModel, p.userID
 	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{Result: result, APIKey: apiKey, User: apiKey.User, Account: account, Subscription: subscription, InboundEndpoint: inboundEndpoint, UpstreamEndpoint: upstreamEndpoint, UserAgent: userAgent, IPAddress: clientIP, APIKeyService: h.apiKeyService, QuotaPlatform: quotaPlatform, ClientSessionID: clientSessionID, ChannelUsageFields: channelFields})
 	completionRecorder := h.completionRuntime()
-	completionLog := logger.L().With(zap.String("component", "handler.openai_gateway.embeddings"), zap.Int64("user_id", userID), zap.Int64("api_key_id", apiKey.ID), zap.Any("group_id", apiKey.GroupID), zap.String("model", reqModel), zap.Int64("account_id", account.ID))
+	completionLog := logging.L().With(zap.String("component", "handler.openai_gateway.embeddings"), zap.Int64("user_id", userID), zap.Int64("api_key_id", apiKey.ID), zap.Any("group_id", apiKey.GroupID), zap.String("model", reqModel), zap.Int64("account_id", account.ID))
 	h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {
 		if err := completionRecorder.Record(ctx, completionInput, true); err != nil {
 			completionLog.Error("openai_embeddings.record_usage_failed", zap.Error(err))

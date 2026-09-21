@@ -6,8 +6,12 @@ import (
 	"errors"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	coderws "github.com/coder/websocket"
 )
 
@@ -75,28 +79,32 @@ func (p *wsIngressAdapter) BindOwner(ctx context.Context, responseID string) {
 	p.BindOwnerFn(ctx, responseID)
 }
 
-func (*wsIngressAdapter) IsDisconnect(err error) bool { return isOpenAIWSClientDisconnectError(err) }
+func (*wsIngressAdapter) IsDisconnect(err error) bool {
+	return gatewayprovider.IsOpenAIWSClientDisconnectError(err)
+}
 func (*wsIngressAdapter) IsFailover(err error) bool {
-	var value *UpstreamFailoverError
+	var value *forwardcore.UpstreamFailoverError
 	return errors.As(err, &value) && value != nil
 }
 func (*wsIngressAdapter) CloseError(status int, reason string, err error) error {
-	return NewOpenAIWSClientCloseError(coderws.StatusCode(status), reason, err)
+	return gatewayhttp.NewOpenAIWSClientCloseError(coderws.StatusCode(status), reason, err)
 }
-func (*wsIngressAdapter) Log(message string)               { logOpenAIWSModeInfo("%s", message) }
-func (*wsIngressAdapter) NormalizeLog(value string) string { return normalizeOpenAIWSLogValue(value) }
+func (*wsIngressAdapter) Log(message string) { gatewayprovider.LogOpenAIWSModeInfo("%s", message) }
+func (*wsIngressAdapter) NormalizeLog(value string) string {
+	return gatewayprovider.NormalizeOpenAIWSLogValue(value)
+}
 func (*wsIngressAdapter) TruncateLog(value string, limit int) string {
-	return truncateOpenAIWSLogValue(value, limit)
+	return gatewayprovider.TruncateOpenAIWSLogValue(value, limit)
 }
 func (*wsIngressAdapter) SummarizeClose(err error) (string, string) {
-	return summarizeOpenAIWSReadCloseError(err)
+	return gatewayprovider.SummarizeOpenAIWSReadCloseError(err)
 }
 func (*wsIngressAdapter) BindWarning(group, account int64, response string, err error) {
-	logOpenAIWSBindResponseAccountWarn(group, account, response, err)
+	gatewayprovider.LogOpenAIWSBindResponseAccountWarn(group, account, response, err)
 }
 
 // wsIngressLease 是池资源句柄；核心没有账号凭据或具体客户端访问能力。
-type wsIngressLease struct{ lease *openAIWSConnLease }
+type wsIngressLease struct{ lease *openai.WSConnLease }
 
 func (l *wsIngressLease) ConnID() string { return l.lease.ConnID() }
 func (l *wsIngressLease) MarkBroken()    { l.lease.MarkBroken() }
@@ -112,51 +120,53 @@ func (l *wsIngressLease) PingWithTimeout(timeout time.Duration) error {
 type wsReplayCodec struct{}
 
 func (wsReplayCodec) Extract(body []byte) ([]json.RawMessage, bool, error) {
-	return openAIWSExtractNormalizedInputSequence(body)
+	return openai.OpenAIWSExtractNormalizedInputSequence(body)
 }
 func (wsReplayCodec) BuildFromItems(a []json.RawMessage, b bool, c []json.RawMessage, d, e bool) ([]json.RawMessage, bool) {
-	return buildOpenAIWSReplayInputSequenceFromItems(a, b, c, d, e)
+	return openai.BuildOpenAIWSReplayInputSequenceFromItems(a, b, c, d, e)
 }
 func (wsReplayCodec) Build(a []json.RawMessage, b bool, c []byte, d bool) ([]json.RawMessage, bool, error) {
-	return buildOpenAIWSReplayInputSequence(a, b, c, d)
+	return openai.BuildOpenAIWSReplayInputSequence(a, b, c, d)
 }
 func (wsReplayCodec) SetInput(a []byte, b []json.RawMessage, c bool) ([]byte, error) {
-	return setOpenAIWSPayloadInputSequence(a, b, c)
+	return openai.SetOpenAIWSPayloadInputSequence(a, b, c)
 }
 func (wsReplayCodec) RetryPayload(a []byte, b []json.RawMessage, c bool, d string) ([]byte, bool, error) {
-	return buildOpenAIWSCurrentTurnRetryPayload(a, b, c, d)
+	return openai.BuildOpenAIWSCurrentTurnRetryPayload(a, b, c, d)
 }
 func (wsReplayCodec) Combine(a, b []json.RawMessage) []json.RawMessage {
-	return combineOpenAIWSReplayItems(a, b)
+	return openai.CombineOpenAIWSReplayItems(a, b)
 }
-func (wsReplayCodec) HasOutput(body []byte) bool { return openAIWSRawPayloadHasToolCallOutput(body) }
+func (wsReplayCodec) HasOutput(body []byte) bool {
+	return openai.OpenAIWSRawPayloadHasToolCallOutput(body)
+}
 func (wsReplayCodec) ItemsHaveOutput(items []json.RawMessage) bool {
-	return openAIWSRawItemsHasFunctionCallOutput(items)
+	return openai.OpenAIWSRawItemsHasFunctionCallOutput(items)
 }
 func (wsReplayCodec) ItemsCoverOutput(items []json.RawMessage) bool {
-	return openAIWSRawItemsHaveToolCallContextForOutputs(items)
+	return openai.OpenAIWSRawItemsHaveToolCallContextForOutputs(items)
 }
 func (wsReplayCodec) DropPrevious(body []byte) ([]byte, bool, error) {
-	return dropPreviousResponseIDFromRawPayload(body)
+	return openai.DropPreviousResponseIDFromRawPayload(body)
 }
 func (wsReplayCodec) SetPrevious(body []byte, id string) ([]byte, error) {
-	return setPreviousResponseIDToRawPayload(body, id)
+	return openai.SetPreviousResponseIDToRawPayload(body, id)
 }
 func (wsReplayCodec) BuildStrict(body []byte) (gatewayws.PreviousTurn, error) {
-	state, err := buildOpenAIWSIngressPreviousTurnStrictState(body)
+	state, err := openai.BuildOpenAIWSIngressPreviousTurnStrictState(body)
 	if err != nil || state == nil {
 		return nil, err
 	}
 	return wsStrictTurn{state}, nil
 }
 func (wsReplayCodec) KeepPrevious(a, b []byte, c string, d bool) (bool, string, error) {
-	return shouldKeepIngressPreviousResponseID(a, b, c, d)
+	return openai.ShouldKeepIngressPreviousResponseID(a, b, c, d)
 }
 func (wsReplayCodec) StripItems(a []json.RawMessage, b map[string]struct{}) ([]json.RawMessage, int) {
-	return stripOpenAIInvalidEncryptedContentFromReplayItems(a, b)
+	return openai.StripOpenAIInvalidEncryptedContentFromReplayItems(a, b)
 }
 func (wsReplayCodec) ShouldInfer(a bool, b int, c wire.ToolContinuationSignals, d, e string) bool {
-	return shouldInferIngressFunctionCallOutputPreviousResponseID(a, b, c, d, e)
+	return openai.ShouldInferIngressFunctionCallOutputPreviousResponseID(a, b, c, d, e)
 }
 func (wsReplayCodec) ClassifyPrevious(id string) string {
 	return ClassifyOpenAIPreviousResponseIDKind(id)
@@ -164,26 +174,26 @@ func (wsReplayCodec) ClassifyPrevious(id string) string {
 
 // wsStrictTurn 只封装纯协议比较状态，不包含账号、配置或 I/O。
 type wsStrictTurn struct {
-	state *openAIWSIngressPreviousTurnStrictState
+	state *openai.WSPreviousTurnStrictState
 }
 
 func (s wsStrictTurn) Keep(a []byte, b string, c bool) (bool, string, error) {
-	return shouldKeepIngressPreviousResponseIDWithStrictState(s.state, a, b, c)
+	return openai.ShouldKeepIngressPreviousResponseIDWithStrictState(s.state, a, b, c)
 }
 
-func wsIngressHooks(h *OpenAIWSIngressHooks) *gatewayws.IngressHooks {
+func wsIngressHooks(h *gatewayws.OpenAIIngressHooks) *gatewayws.IngressHooks {
 	if h == nil {
 		return nil
 	}
 	out := &gatewayws.IngressHooks{TurnStarted: h.TurnStarted, BeforeTurn: h.BeforeTurn, BeforeRequest: h.BeforeRequest}
 	if h.AfterTurn != nil {
 		out.AfterTurn = func(c gatewayws.TurnCapture) {
-			h.AfterTurn(OpenAIWSTurnCapture{Turn: c.Turn, StartedAt: c.StartedAt, RequestBody: c.RequestBody, OriginalModel: c.OriginalModel, PreviousResponseID: c.PreviousResponseID, Result: legacyWSForwardResult(c.Result), Err: c.Err, PayloadSource: c.PayloadSource})
+			h.AfterTurn(gatewayws.OpenAITurnCapture{Turn: c.Turn, StartedAt: c.StartedAt, RequestBody: c.RequestBody, OriginalModel: c.OriginalModel, PreviousResponseID: c.PreviousResponseID, Result: legacyWSForwardResult(c.Result), Err: c.Err, PayloadSource: c.PayloadSource})
 		}
 	}
 	return out
 }
 
-func (*wsIngressAdapter) Debug(message string) { logOpenAIWSModeDebug("%s", message) }
+func (*wsIngressAdapter) Debug(message string) { gatewayprovider.LogOpenAIWSModeDebug("%s", message) }
 
 func (p *wsIngressAdapter) RecoverAcquire(ctx context.Context) error { return p.RecoverAcquireFn(ctx) }

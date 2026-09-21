@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
+	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	routinghttpapi "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -17,7 +17,7 @@ import (
 
 // 管理员目录沿用认证和审计顺序，注入后修改原投影不改变 HTTP 输出。
 func TestProtocolCatalogHTTPContract(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	endpoints := testEndpoints()
 	expected, err := json.Marshal(routinghttpapi.AdminProtocolCatalog(endpoints))
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestProtocolCatalogHTTPContract(t *testing.T) {
 		c.Next()
 	})
 	router := gin.New()
-	RegisterAdminRoutes(router.Group("/api/v1"), &routeTestHandlers{Admin: &routeTestAdminHandlers{Proxy: admin.NewProxyHandler(nil), Group: routinghttpapi.NewGroupHandler(nil)}}, auth, audit, nil, nil, func(c *gin.Context) {
+	RegisterAdminRoutes(router.Group("/api/v1"), &routeTestHandlers{Admin: &routeTestAdminHandlers{Proxy: egresshttp.NewProxyHandler(nil), Group: routinghttpapi.NewGroupHandler(nil)}}, auth, audit, nil, nil, func(c *gin.Context) {
 		calls = append(calls, "catalog")
 		catalog(c)
 	})

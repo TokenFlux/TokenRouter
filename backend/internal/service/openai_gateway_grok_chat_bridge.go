@@ -8,35 +8,46 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	uuid "github.com/google/uuid"
 
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
 
-const grokChatResponsesEndpoint = nativegrok.GrokChatResponsesEndpoint
-
 func grokChatResponsesBridgeEligibility(body []byte) (bool, string) {
-	return grokBodyCodec().GrokChatResponsesBridgeEligibility(body)
+	return (grok.BodyCodec{
+		NewID: uuid.NewString}).
+		GrokChatResponsesBridgeEligibility(body)
 }
 
 func grokChatResponsesCacheIntentBody(body []byte) ([]byte, error) {
-	return grokBodyCodec().GrokChatResponsesCacheIntentBody(body)
+	return (grok.BodyCodec{
+		NewID: uuid.NewString}).
+		GrokChatResponsesCacheIntentBody(body)
 }
 
 func grokChatResponsesBridgeModel(model string) bool {
-	return grokBodyCodec().GrokChatResponsesBridgeModel(model)
+	return (grok.BodyCodec{
+		NewID: uuid.NewString}).
+		GrokChatResponsesBridgeModel(model)
 }
 
 func grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity string) bool {
-	return grokBodyCodec().GrokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity)
+	return (grok.BodyCodec{
+		NewID: uuid.NewString}).
+		GrokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity)
 }
 
 // forwardGrokChatCompletionsViaResponses 将严格兼容的 Chat 请求转换为 xAI
@@ -49,8 +60,8 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
-) (*OpenAIForwardResult, error) {
+	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
+) (*protocolforward.OpenAIResult, error) {
 	startTime := time.Now()
 
 	var chatReq protocolopenai.ChatCompletionsRequest
@@ -65,12 +76,12 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	// 图片输入必须通过 Responses 桥接：原始 Chat Completions 路径无法把 image_url
 	// 转发给非 Composer 模型的 Grok 原生视觉能力，否则图片会被静默丢弃；
 	// 因此即使没有 prompt-cache 身份也要路由到 Responses。
-	hasImageInput := openAIJSONValueMayContainImageInput(gjson.GetBytes(body, "messages"))
-	if account.resolvedProtocol == "" && !grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity) && (!hasImageInput || !grokChatResponsesBridgeModel(upstreamModel)) {
+	hasImageInput := protocolopenai.JSONValueMayContainImageInput(gjson.GetBytes(body, "messages"))
+	if account.attemptRoute.Protocol() == "" && !grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity) && (!hasImageInput || !grokChatResponsesBridgeModel(upstreamModel)) {
 		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel, tlsRouterMatch...)
 	}
 
-	responsesReq, err := apicompat.ChatCompletionsToResponses(&chatReq)
+	responsesReq, err := protocolbridge.ChatCompletionsToResponses(&chatReq, protocolforward.ConversionOptionsForModel(chatReq.Model))
 	if err != nil {
 		return nil, fmt.Errorf("convert grok chat completions to responses: %w", err)
 	}
@@ -97,7 +108,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	if err != nil {
 		return nil, fmt.Errorf("patch grok responses bridge request: %w", err)
 	}
-	responsesBody, err = applyGrokResponsesCacheIdentity(responsesBody, intentBody, cacheIdentity, true)
+	responsesBody, err = grok.ApplyGrokResponsesCacheIdentity(responsesBody, intentBody, cacheIdentity, true)
 	if err != nil {
 		return nil, fmt.Errorf("apply grok responses bridge cache identity: %w", err)
 	}
@@ -108,9 +119,9 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 
 	updatedBody, policyErr := s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, responsesBody)
 	if policyErr != nil {
-		var blocked *OpenAIFastBlockedError
+		var blocked *tierpolicy.BlockedError
 		if errors.As(policyErr, &blocked) {
-			MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+			gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 			writeChatCompletionsError(c, http.StatusForbidden, "permission_error", blocked.Message)
 		}
 		return nil, policyErr
@@ -127,16 +138,16 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	if err != nil {
 		return nil, fmt.Errorf("build grok responses bridge request: %w", err)
 	}
-	SetActualOpenAIUpstreamEndpoint(c, grokChatResponsesEndpoint)
+	gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, grok.GrokChatResponsesEndpoint)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
 
-	var result *OpenAIForwardResult
+	var result *protocolforward.OpenAIResult
 	var handleErr error
-	target := &nativegrok.ResponsesTarget{
+	target := &grok.ResponsesTarget{
 
 		AccountID: account.ID,
 
@@ -146,7 +157,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 
 		PassRawStream: true,
 
-		Exchange: nativegrok.ResponsesExchange{
+		Exchange: grok.ResponsesExchange{
 
 			SingleExchange: true,
 
@@ -178,7 +189,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 				if decision.ShouldFailover(account, resp.StatusCode, s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)) {
 					kind = "failover"
 				}
-				appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+				gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
 					Platform: account.Platform,
 
@@ -200,7 +211,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 				}
 				if kind == "failover" {
 					retryable, retryDelay, retryDeadline, retryMax := grokSameAccountRetryMetadata(account, resp.StatusCode, respBody)
-					return true, &UpstreamFailoverError{
+					return true, &protocolforward.UpstreamFailoverError{
 
 						StatusCode: resp.StatusCode,
 
@@ -240,7 +251,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 
 				Usage: &result.Usage,
 
-				HasUsage: openAIUsageHasTokens(&result.Usage),
+				HasUsage: protocolopenai.OpenAIUsageHasTokens(&result.Usage),
 
 				FirstTokenMs: result.FirstTokenMs,
 
@@ -254,7 +265,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 
 				HTTPCommitted: c.Writer.Written(),
 
-				RetryCommitted: IsResponseCommitted(c),
+				RetryCommitted: gatewayhttp.IsResponseCommitted(c),
 			}, err
 		},
 	}
@@ -262,7 +273,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	if c != nil {
 		sink = gatewayhttp.ResponseSink{Writer: c.Writer}
 	}
-	nativeResult, err := (nativegrok.ResponsesExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{
+	nativeResult, err := (grok.ResponsesExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{
 
 		Protocol: protocol.ProtocolOpenAIResponses,
 
@@ -276,7 +287,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	}, sink)
 
 	if result != nil {
-		result.UpstreamEndpoint = grokChatResponsesEndpoint
+		result.UpstreamEndpoint = grok.GrokChatResponsesEndpoint
 		result.ResponseHeaders = nativeResult.UpstreamHeaders.Clone()
 		if result.RequestID == "" {
 			result.RequestID = firstNonEmpty(nativeResult.UpstreamHeaders.Get("x-request-id"), nativeResult.UpstreamHeaders.Get("xai-request-id"))

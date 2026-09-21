@@ -4,13 +4,21 @@ package service
 import (
 	"context"
 	"errors"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"go.uber.org/zap"
+
 	"net/http"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"go.uber.org/zap"
 )
 
 type openAIPassthroughExecutionAdapter struct {
@@ -27,10 +35,10 @@ func (p *openAIPassthroughExecutionAdapter) CompactModel(model string) string {
 	return p.s.resolveOpenAICompactFallbackModel(p.account, model)
 }
 func (p *openAIPassthroughExecutionAdapter) InstructionsRejection(model string, body []byte) string {
-	return detectOpenAIPassthroughInstructionsRejectReason(model, body)
+	return openai.DetectOpenAIPassthroughInstructionsRejectReason(model, body)
 }
 func (p *openAIPassthroughExecutionAdapter) PolicyDenied() {
-	MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 }
 func (p *openAIPassthroughExecutionAdapter) LogInstructionsRejected(ctx context.Context, model, reason string, body []byte) {
 	logOpenAIPassthroughInstructionsRejected(ctx, p.c, p.account, model, reason, body)
@@ -39,32 +47,32 @@ func (p *openAIPassthroughExecutionAdapter) Reject(status int, kind, message, pa
 	gatewayhttp.WriteOpenAIForwardRejection(p.c, status, kind, message, param)
 }
 func (p *openAIPassthroughExecutionAdapter) CodexModel(model string) bool {
-	return isOpenAICodexModel(model)
+	return openai.IsOpenAICodexModel(model)
 }
 func (p *openAIPassthroughExecutionAdapter) OAuthBody(body []byte, compact bool) ([]byte, bool, error) {
-	return normalizeOpenAIPassthroughOAuthBody(body, compact)
+	return openai.NormalizeOpenAIPassthroughOAuthBody(body, compact)
 }
 func (p *openAIPassthroughExecutionAdapter) AccountIdentityRaw(body []byte) ([]byte, bool, error) {
-	return applyCodexAccountIdentityClientMetadataRaw(body, codexAccountIdentitySource(p.c, p.account), getAPIKeyIDFromContext(p.c))
+	return applyCodexAccountIdentityClientMetadataRaw(body, codexAccountIdentitySource(p.c, p.account), gatewayhttp.APIKeyIDFromContext(p.c))
 }
-func (p *openAIPassthroughExecutionAdapter) StageFingerprint(ids *native.FingerprintIDs) {
+func (p *openAIPassthroughExecutionAdapter) StageFingerprint(ids *openai.FingerprintIDs) {
 	stageCodexFingerprintIDs(p.c, ids)
 }
-func (p *openAIPassthroughExecutionAdapter) Fingerprint() *native.FingerprintIDs {
+func (p *openAIPassthroughExecutionAdapter) Fingerprint() *openai.FingerprintIDs {
 	var headers http.Header
 	if p.c != nil && p.c.Request != nil {
 		headers = p.c.Request.Header
 	}
 	return resolveCodexFingerprintIDsFromRequest(p.account, headers)
 }
-func (p *openAIPassthroughExecutionAdapter) FingerprintBody(body []byte, ids *native.FingerprintIDs) ([]byte, bool, error) {
-	return applyCodexFingerprintClientMetadataRaw(body, ids)
+func (p *openAIPassthroughExecutionAdapter) FingerprintBody(body []byte, ids *openai.FingerprintIDs) ([]byte, bool, error) {
+	return openai.ApplyCodexFingerprintClientMetadataRaw(body, ids)
 }
 func (p *openAIPassthroughExecutionAdapter) HasContext() bool {
 	return p.c != nil
 }
 func (p *openAIPassthroughExecutionAdapter) LiteHeader() bool {
-	return isOpenAIResponsesLiteHeader(p.c.GetHeader(responsesLiteHeader))
+	return isOpenAIResponsesLiteHeader(p.c.GetHeader(media.ResponsesLiteHeader))
 }
 func (p *openAIPassthroughExecutionAdapter) LitePayloadFlag(body []byte) bool {
 	return isOpenAIResponsesLiteWebSocketPayload(body)
@@ -73,7 +81,7 @@ func (p *openAIPassthroughExecutionAdapter) CompatibilityBody(body []byte, lite 
 	return normalizeOpenAIResponsesWebSocketCompatibilityBody(body, p.account, lite)
 }
 func (p *openAIPassthroughExecutionAdapter) ReservedToolNames(body []byte) ([]byte, map[string]string, bool, error) {
-	return aliasOpenAIOAuthReservedToolNamesBody(body)
+	return openai.AliasOpenAIOAuthReservedToolNamesBody(body)
 }
 func (p *openAIPassthroughExecutionAdapter) MergeToolNames(value map[string]string) {
 	mergeCodexToolNameReverse(p.c, value)
@@ -93,7 +101,7 @@ func (p *openAIPassthroughExecutionAdapter) NormalizeLite(body []byte) ([]byte, 
 }
 func (p *openAIPassthroughExecutionAdapter) ApplyFastPass(ctx context.Context, model string, body []byte) ([]byte, error) {
 	updated, err := p.s.applyOpenAIFastPolicyToBody(ctx, p.account, model, body)
-	var blocked *OpenAIFastBlockedError
+	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		writeOpenAIFastPolicyBlockedResponse(p.c, blocked)
 	}
@@ -103,13 +111,13 @@ func (p *openAIPassthroughExecutionAdapter) ImageIntent(model string, canonical 
 	return resolveOpenAIPassthroughImageIntent(p.c, model, canonical, policy, body, invalidated, IsImageGenerationIntent)
 }
 func (p *openAIPassthroughExecutionAdapter) ExplicitImageIntent(model string, body []byte) bool {
-	return IsExplicitImageGenerationIntent(openAIResponsesEndpoint, model, body)
+	return IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, model, body)
 }
 func (p *openAIPassthroughExecutionAdapter) ImageAllowed() bool {
 	return GroupAllowsResponsesImages(apiKeyGroup(getAPIKeyFromContext(p.c)))
 }
 func (p *openAIPassthroughExecutionAdapter) FeatureDenied() {
-	MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalFeatureGate)
+	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
 func (p *openAIPassthroughExecutionAdapter) ImagePermissionMessage() string {
 	return ImageGenerationPermissionMessage()
@@ -119,17 +127,17 @@ func (p *openAIPassthroughExecutionAdapter) ImageBilling(body []byte, model stri
 	return forward.ImageBilling{Model: v.Model, SizeTier: v.SizeTier, InputSize: v.InputSize}, err
 }
 func (p *openAIPassthroughExecutionAdapter) UpstreamError(status int, message string) {
-	setOpsUpstreamError(p.c, status, message, "")
+	gatewayhttp.SetOpsUpstreamError(p.c, status, message, "")
 }
 func (p *openAIPassthroughExecutionAdapter) Log(format string, args ...any) {
-	logger.LegacyPrintf("service.openai_gateway", format, args...)
+	logging.LegacyPrintf("service.openai_gateway", format, args...)
 }
 func (p *openAIPassthroughExecutionAdapter) WarnTimeoutHeaders(ctx context.Context) {
 	if p.c == nil || p.c.Request == nil {
 		return
 	}
 	if h := collectOpenAIPassthroughTimeoutHeaders(p.c.Request.Header); len(h) > 0 {
-		log := logger.FromContext(ctx).With(zap.String("component", "service.openai_gateway"), zap.Int64("account_id", p.account.ID), zap.Strings("timeout_headers", h))
+		log := logging.FromContext(ctx).With(zap.String("component", "service.openai_gateway"), zap.Int64("account_id", p.account.ID), zap.Strings("timeout_headers", h))
 		if p.s.isOpenAIPassthroughTimeoutHeadersAllowed() {
 			log.Warn("OpenAI passthrough 透传请求包含超时相关请求头，且当前配置为放行，可能导致上游提前断流")
 		} else {
@@ -152,11 +160,11 @@ func (p *openAIPassthroughExecutionAdapter) MarkPassthrough() {
 		p.c.Set("openai_passthrough", true)
 	}
 }
-func (p *openAIPassthroughExecutionAdapter) RetryState(body []byte) *native.ResponsesRejectedFieldRetryState {
+func (p *openAIPassthroughExecutionAdapter) RetryState(body []byte) *openai.ResponsesRejectedFieldRetryState {
 	return openAIResponsesRejectedFieldRetryStateForRequest(p.c, body)
 }
 func (p *openAIPassthroughExecutionAdapter) UpstreamModelObserved(model string) {
-	SetOpsUpstreamModel(p.c, model)
+	gatewayhttp.SetOpsUpstreamModel(p.c, model)
 }
 func (p *openAIPassthroughExecutionAdapter) BuildPass(ctx context.Context, body []byte, token string) (*http.Request, error) {
 	return p.s.buildUpstreamRequestOpenAIPassthrough(ctx, p.c, p.account, body, token, p.tls...)
@@ -165,7 +173,7 @@ func (p *openAIPassthroughExecutionAdapter) SendPass(r *http.Request) (*http.Res
 	return p.s.httpUpstream.DoWithTLS(r, p.proxyURL, p.account.ID, p.account.Concurrency, p.s.resolveOpenAITLSProfile(p.account, p.tls...))
 }
 func (p *openAIPassthroughExecutionAdapter) Latency(d time.Duration) {
-	SetOpsLatencyMs(p.c, OpsUpstreamLatencyMsKey, d.Milliseconds())
+	gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsUpstreamLatencyMsKey, d.Milliseconds())
 }
 func (p *openAIPassthroughExecutionAdapter) TransportErrorPass(ctx context.Context, err error) error {
 	return p.s.handleOpenAIUpstreamTransportError(ctx, p.c, p.account, err, true)
@@ -177,7 +185,7 @@ func (p *openAIPassthroughExecutionAdapter) CompactObserved(r *http.Response, bo
 	p.s.appendOpenAICompactFallbackRetryOps(p.c, p.account, r, body, message, true)
 }
 func (p *openAIPassthroughExecutionAdapter) ErrorCode(body []byte) string {
-	return extractUpstreamErrorCode(body)
+	return upstream.ExtractErrorCode(body)
 }
 func (p *openAIPassthroughExecutionAdapter) ShouldFailover(status int, body []byte) bool {
 	return shouldFailoverOpenAIPassthroughResponse(p.account, status, body)
@@ -194,7 +202,7 @@ func (p *openAIPassthroughExecutionAdapter) WrapResponseBody(r *http.Response) {
 		if p.s.cfg != nil && p.s.cfg.Gateway.MaxLineSize > 0 {
 			limit = p.s.cfg.Gateway.MaxLineSize
 		}
-		r.Body = newOpenAIResponsesClientToolStreamBody(r.Body, mapping, limit)
+		r.Body = upstream.NewResponsesClientToolStreamBody(r.Body, mapping, limit)
 	}
 }
 func (p *openAIPassthroughExecutionAdapter) ObserveProvenance(h http.Header) {
@@ -202,7 +210,7 @@ func (p *openAIPassthroughExecutionAdapter) ObserveProvenance(h http.Header) {
 		p.s.noteOpenAICodexTurnStateProvenance(p.c, p.account)
 	}
 }
-func (p *openAIPassthroughExecutionAdapter) ResponseOptions(ctx context.Context) native.PassthroughOptions {
+func (p *openAIPassthroughExecutionAdapter) ResponseOptions(ctx context.Context) openai.PassthroughOptions {
 	return p.s.nativePassthroughOptions(ctx, p.c, p.account)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactFromSignal(model string, body []byte, err error, tried bool, r *http.Response) ([]byte, string, bool) {
@@ -222,5 +230,5 @@ func (p *openAIPassthroughExecutionAdapter) BindOwner(ctx context.Context, id st
 	p.s.bindHTTPResponseAccount(ctx, p.c, p.account, id)
 }
 func (p *openAIPassthroughExecutionAdapter) ObservedServiceTier() string {
-	return observedUpstreamResponseServiceTier(p.c)
+	return gatewayhttp.ObservedUpstreamResponseServiceTier(p.c)
 }

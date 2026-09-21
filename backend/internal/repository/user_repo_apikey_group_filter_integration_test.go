@@ -6,9 +6,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -16,13 +19,13 @@ type UserRepoAPIKeyGroupFilterSuite struct {
 	suite.Suite
 	ctx    context.Context
 	client *dbent.Client
-	repo   *userRepository
+	repo   *postgres.UserStore
 }
 
 func (s *UserRepoAPIKeyGroupFilterSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.client = testEntClient(s.T())
-	s.repo = newUserRepositoryWithSQL(s.client, integrationDB)
+	s.repo = postgres.NewUserStoreWithSQL(s.client, integrationDB)
 	// api_keys 必须先于 users 清理（外键）；groups 也清理避免跨用例串扰。
 	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM api_keys")
 	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM user_allowed_groups")
@@ -35,13 +38,13 @@ func TestUserRepoAPIKeyGroupFilterSuite(t *testing.T) {
 	suite.Run(t, new(UserRepoAPIKeyGroupFilterSuite))
 }
 
-func (s *UserRepoAPIKeyGroupFilterSuite) mustCreateUser(email string) *service.User {
+func (s *UserRepoAPIKeyGroupFilterSuite) mustCreateUser(email string) *identity.User {
 	s.T().Helper()
-	u := &service.User{
+	u := &identity.User{
 		Email:        email,
 		PasswordHash: "test-password-hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 		Concurrency:  5,
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, u), "create user")
@@ -52,7 +55,7 @@ func (s *UserRepoAPIKeyGroupFilterSuite) mustCreateGroup(name string) *dbent.Gro
 	s.T().Helper()
 	g, err := s.client.Group.Create().
 		SetName(name).
-		SetStatus(service.StatusActive).
+		SetStatus(billing.StatusActive).
 		Save(s.ctx)
 	s.Require().NoError(err, "create group")
 	return g
@@ -72,7 +75,7 @@ func (s *UserRepoAPIKeyGroupFilterSuite) mustCreateAPIKey(userID int64, key, nam
 	return ak
 }
 
-func (s *UserRepoAPIKeyGroupFilterSuite) ids(users []service.User) []int64 {
+func (s *UserRepoAPIKeyGroupFilterSuite) ids(users []identity.User) []int64 {
 	out := make([]int64, len(users))
 	for i := range users {
 		out[i] = users[i].ID
@@ -80,12 +83,12 @@ func (s *UserRepoAPIKeyGroupFilterSuite) ids(users []service.User) []int64 {
 	return out
 }
 
-func (s *UserRepoAPIKeyGroupFilterSuite) listByAPIKeyGroup(groupID int64) []service.User {
+func (s *UserRepoAPIKeyGroupFilterSuite) listByAPIKeyGroup(groupID int64) []identity.User {
 	s.T().Helper()
 	users, _, err := s.repo.ListWithFilters(
 		s.ctx,
 		pagination.PaginationParams{Page: 1, PageSize: 50},
-		service.UserListFilters{APIKeyGroupID: groupID},
+		identity.UserListFilters{APIKeyGroupID: groupID},
 	)
 	s.Require().NoError(err, "ListWithFilters")
 	return users
@@ -137,7 +140,7 @@ func (s *UserRepoAPIKeyGroupFilterSuite) TestAPIKeyGroupAndStatusFilter() {
 	// disabled 用户，key 也绑 target 分组 → 只用 group 过滤会命中，但 status=active 后排除
 	disabled := s.mustCreateUser("disabled-hit@test.com")
 	s.mustCreateAPIKey(disabled.ID, "sk-disabled", "K2", &g.ID)
-	_, err := s.client.User.UpdateOneID(disabled.ID).SetStatus(service.StatusDisabled).Save(s.ctx)
+	_, err := s.client.User.UpdateOneID(disabled.ID).SetStatus(billing.StatusDisabled).Save(s.ctx)
 	s.Require().NoError(err, "disable user")
 
 	// active 用户，key 绑其它分组 → group 过滤排除
@@ -148,9 +151,9 @@ func (s *UserRepoAPIKeyGroupFilterSuite) TestAPIKeyGroupAndStatusFilter() {
 	users, _, err := s.repo.ListWithFilters(
 		s.ctx,
 		pagination.PaginationParams{Page: 1, PageSize: 50},
-		service.UserListFilters{
+		identity.UserListFilters{
 			APIKeyGroupID: g.ID,
-			Status:        service.StatusActive,
+			Status:        billing.StatusActive,
 		},
 	)
 	s.Require().NoError(err)
@@ -167,7 +170,7 @@ func (s *UserRepoAPIKeyGroupFilterSuite) TestZeroGroupIDNoFilter() {
 	users, _, err := s.repo.ListWithFilters(
 		s.ctx,
 		pagination.PaginationParams{Page: 1, PageSize: 50},
-		service.UserListFilters{APIKeyGroupID: 0},
+		identity.UserListFilters{APIKeyGroupID: 0},
 	)
 	s.Require().NoError(err)
 	s.Require().ElementsMatch([]int64{u1.ID, u2.ID}, s.ids(users))

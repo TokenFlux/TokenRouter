@@ -3,20 +3,17 @@ package service
 
 import (
 	context "context"
+
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
-
-type ModelAvailabilityDiagnosis = routing.ModelAvailabilityDiagnosis
-
-type ModelAvailabilityDiagnoser = routing.ModelAvailabilityDiagnoser
 
 func (s *GatewayService) DiagnoseModelAvailabilityForPlatform(
 	ctx context.Context,
 	groupID *int64,
 	requestedModel string,
 	platform string,
-) ModelAvailabilityDiagnosis {
+) routing.ModelAvailabilityDiagnosis {
 	return s.modelAvailability().DiagnoseGeneral(ctx, groupID, requestedModel, platform)
 }
 

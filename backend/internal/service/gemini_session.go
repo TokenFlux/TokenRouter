@@ -7,12 +7,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 )
-
-func shortHash(data []byte) string { return upstream.ShortHash(data) }
 
 // BuildGeminiDigestChain 根据 Gemini 请求生成摘要链
 // 格式: s:<hash>-u:<hash>-m:<hash>-u:<hash>-...
@@ -27,7 +26,7 @@ func BuildGeminiDigestChain(req *protocolgemini.GeminiRequest) string {
 	// 1. system instruction
 	if req.SystemInstruction != nil && len(req.SystemInstruction.Parts) > 0 {
 		partsData, _ := json.Marshal(req.SystemInstruction.Parts)
-		parts = append(parts, "s:"+shortHash(partsData))
+		parts = append(parts, "s:"+upstream.ShortHash(partsData))
 	}
 
 	// 2. contents
@@ -37,7 +36,7 @@ func BuildGeminiDigestChain(req *protocolgemini.GeminiRequest) string {
 			prefix = "m"
 		}
 		partsData, _ := json.Marshal(c.Parts)
-		parts = append(parts, prefix+":"+shortHash(partsData))
+		parts = append(parts, prefix+":"+upstream.ShortHash(partsData))
 	}
 
 	return strings.Join(parts, "-")
@@ -48,7 +47,7 @@ func BuildGeminiDigestChain(req *protocolgemini.GeminiRequest) string {
 // 返回 16 字符的 Base64 编码的 SHA256 前缀
 func GenerateGeminiPrefixHash(userID, apiKeyID int64, ip, userAgent, platform, model string) string {
 	// 组合所有标识符
-	normalizedUserAgent := NormalizeSessionUserAgent(userAgent)
+	normalizedUserAgent := requeststate.NormalizeSessionUserAgent(userAgent)
 	combined := strconv.FormatInt(userID, 10) + ":" +
 		strconv.FormatInt(apiKeyID, 10) + ":" +
 		ip + ":" +

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +19,7 @@ const geminiTestPNG = "iVBORw0KGgoAAAANSUhEUg=="
 
 func newGeminiImageTestContext(t *testing.T) *gin.Context {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost,
 		"/v1beta/models/nana-banana-2:generateContent", strings.NewReader("{}"))
@@ -85,7 +87,7 @@ func TestCountGeminiInlineImageOutputs(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, countGeminiInlineImageOutputs([]byte(tc.payload)))
+			require.Equal(t, tc.want, gemini.CountGeminiInlineImageOutputs([]byte(tc.payload)))
 		})
 	}
 }
@@ -146,7 +148,7 @@ func TestResolveGeminiImageCount(t *testing.T) {
 		beginGeminiImageOutputObservation(c)
 		observeGeminiImageOutputs(c, oneImage)
 
-		require.False(t, isImageGenerationModel("nana-banana-2"), "前置条件：白名单判不出自定义名")
+		require.False(t, antigravity.IsImageGenerationModel("nana-banana-2"), "前置条件：白名单判不出自定义名")
 		require.Equal(t, 1, resolveGeminiImageCount(c, "nana-banana-2", "nana-banana-2"))
 	})
 

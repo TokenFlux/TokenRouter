@@ -6,7 +6,7 @@ import (
 	creativehttp "github.com/TokenFlux/TokenRouter/internal/creative/httpapi"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	promotionhttp "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
-	native_routing_httpapi_dto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 	teamhttp "github.com/TokenFlux/TokenRouter/internal/team/httpapi"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
@@ -20,7 +20,7 @@ func provideUserRouteMount(ePlatformQuota *billinghttp.QuotaHandler,
 	eAnnouncement *sitehttp.AnnouncementHandler,
 	eCreative *creativehttp.CreativeHandler,
 	ePasskey *identityhttp.PasskeyHandler,
-	eAPIKey *apikeyhttp.APIKeyHandler[native_routing_httpapi_dto.Group],
+	eAPIKey *apikeyhttp.APIKeyHandler[dto.Group],
 	eRedeem *billinghttp.RedeemHandler,
 	eUsage *usagehttp.UsageHandler,
 	eTeam *teamhttp.UserHandler,

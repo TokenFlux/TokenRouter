@@ -2,8 +2,9 @@
 package apikey
 
 import (
-	ipmatch "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch"
 	net "net"
+
+	ipmatch "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch"
 )
 
 // CheckIPRestriction 检查 IP 是否被 API Key 的 IP 限制允许。

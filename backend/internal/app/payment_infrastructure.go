@@ -6,9 +6,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/payment/provider"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 
@@ -53,9 +52,6 @@ func paymentSelectionLog(level, message string, attrs ...any) {
 	}
 }
 
-func providePaymentConfigCore(store *paymentpostgres.InstanceStore, settings service.SettingRepository, key payment.EncryptionKey, plans *billing.Plans) *payment.ConfigService {
+func providePaymentConfigCore(store *paymentpostgres.InstanceStore, settings settingscore.Repository, key payment.EncryptionKey, plans *billing.Plans) *payment.ConfigService {
 	return payment.NewConfigService(store, settings, []byte(key), plans, payment.ConfigurationRuntime{CreateProvider: provider.CreateProvider, LookupEnv: os.LookupEnv, Warn: slog.Warn})
-}
-func providePaymentConfiguration(core *payment.ConfigService, client *dbent.Client, settings service.SettingRepository, key payment.EncryptionKey, plans *billing.Plans) *service.PaymentConfigService {
-	return service.WrapPaymentConfigService(core, client, settings, []byte(key), plans)
 }

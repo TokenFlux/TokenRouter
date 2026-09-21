@@ -7,11 +7,18 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBillingParams) *UsageBillingCommand {
-	return completion.BuildCommand(requestID, UsageLogView(usageLog), completionSettlement(p))
+func buildUsageBillingCommand(requestID string, usageLog *usage.UsageLog, p *usageBillingParams) *billing.UsageBillingCommand {
+	return completion.BuildCommand(requestID, querycache.Clone(usageLog), completionSettlement(p))
 }
 
 // calculateOpenAIRecordUsageCost 保留旧 unit 测试的兼容入口。
@@ -19,33 +26,33 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBill
 
 func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	ctx context.Context,
-	result *OpenAIForwardResult,
-	apiKey *APIKey,
+	result *forwardcore.OpenAIResult,
+	apiKey *apikey.APIKey,
 	billingModels []string,
 	multiplier float64,
 	imageMultiplier float64,
 	videoMultiplier float64,
 	webSearchMultiplier float64,
-	tokens UsageTokens,
+	tokens pricing.UsageTokens,
 	serviceTier string,
-) (*CostBreakdown, error) {
+) (*pricing.CostBreakdown, error) {
 	return s.calculateOpenAIRecordUsageCostAt(ctx, result, apiKey, billingModels, multiplier, imageMultiplier, videoMultiplier, webSearchMultiplier, tokens, serviceTier, time.Time{})
 }
 
 // calculateOpenAIRecordUsageCostAt 使用固定请求时刻计算费用，确保渠道分时倍率与高峰倍率同刻。
 func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCostAt(
 	ctx context.Context,
-	result *OpenAIForwardResult,
-	apiKey *APIKey,
+	result *forwardcore.OpenAIResult,
+	apiKey *apikey.APIKey,
 	billingModels []string,
 	multiplier float64,
 	imageMultiplier float64,
 	videoMultiplier float64,
 	webSearchMultiplier float64,
-	tokens UsageTokens,
+	tokens pricing.UsageTokens,
 	serviceTier string,
 	pricingAt time.Time,
-) (*CostBreakdown, error) {
+) (*pricing.CostBreakdown, error) {
 	return s.CompletionRecorder(nil).CalculateOpenAIRecordUsageCostAt(ctx, completionOpenAIResult(result, nil), completionKey(apiKey), billingModels, multiplier, imageMultiplier, videoMultiplier, webSearchMultiplier, tokens, serviceTier, pricingAt)
 }
 
@@ -59,23 +66,23 @@ func isUsagePricingUnavailableError(err error) bool {
 func (s *OpenAIGatewayService) filterCNProviderBillingModelCandidates(
 	ctx context.Context,
 	account *Account,
-	apiKey *APIKey,
+	apiKey *apikey.APIKey,
 	candidates []string,
 ) []string {
 	return s.CompletionRecorder(nil).FilterCNProviderBillingModelCandidates(ctx, completionAccount(account), completionKey(apiKey), candidates)
 }
 
-func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {
+func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, billingModel string, apiKey *apikey.APIKey) *pricing.ResolvedPricing {
 	return s.CompletionRecorder(nil).ResolveOpenAIChannelPricing(ctx, billingModel, completionKey(apiKey))
 }
 
 // usageBillingParams 统一扣费所需的参数
 type usageBillingParams struct {
-	Cost                            *CostBreakdown
-	User                            *User
-	APIKey                          *APIKey
+	Cost                            *pricing.CostBreakdown
+	User                            *identity.User
+	APIKey                          *apikey.APIKey
 	Account                         *Account
-	Subscription                    *UserSubscription
+	Subscription                    *billing.UserSubscription
 	RequestPayloadHash              string
 	AccountRateMultiplier           float64
 	SubscriptionRateMultiplier      float64
@@ -89,7 +96,7 @@ type usageBillingParams struct {
 }
 
 // 旧分组定价测试只转接唯一 completion 实现。
-func (s *GatewayService) resolveChannelPricingForUsage(ctx context.Context, model string, key *APIKey) (*ResolvedPricing, string) {
+func (s *GatewayService) resolveChannelPricingForUsage(ctx context.Context, model string, key *apikey.APIKey) (*pricing.ResolvedPricing, string) {
 	return s.CompletionRecorder(nil).ResolveChannelPricing(ctx, model, completionKey(key)), model
 }
 
@@ -112,8 +119,4 @@ func completionSettlement(p *usageBillingParams) *completion.SettlementInput {
 		Platform:                        p.Platform,
 		BillingBaseAmountUSD:            p.BillingBaseAmountUSD,
 	}
-}
-
-func subscriptionPlanIncludesGroup(plan *SubscriptionPlan, groupID int64) bool {
-	return completion.SubscriptionPlanIncludesGroup(plan, groupID)
 }

@@ -9,8 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +38,7 @@ func TestAccountRepository_ResetQuotaUsedAndClearRateLimitCooldown_NoRowsAffecte
 
 	err := repo.ResetQuotaUsedAndClearRateLimitCooldown(context.Background(), 42)
 
-	require.ErrorIs(t, err, service.ErrAccountNotFound)
+	require.ErrorIs(t, err, account.ErrAccountNotFound)
 	require.Len(t, exec.execQueries, 1)
 	require.Contains(t, exec.execQueries[0], "UPDATE accounts")
 	require.NotContains(t, strings.Join(exec.execQueries, "\n"), "scheduler_outbox")
@@ -40,7 +46,7 @@ func TestAccountRepository_ResetQuotaUsedAndClearRateLimitCooldown_NoRowsAffecte
 
 func TestAccountRepository_GrokCredentialConditionalMutationsAreEligibleAndAtomicallyPropagated(t *testing.T) {
 	proxyID := int64(77)
-	snapshot := service.GrokCredentialMutationSnapshot{
+	snapshot := account.CredentialMutationSnapshot{
 		CredentialsJSON: `{"access_token":"access","refresh_token":"refresh","_token_version":123}`,
 		ProxyID:         &proxyID,
 	}
@@ -67,8 +73,8 @@ func TestAccountRepository_GrokCredentialConditionalMutationsAreEligibleAndAtomi
 		require.Len(t, exec.execArgs[0], 10)
 		require.Equal(t, snapshot.CredentialsJSON, exec.execArgs[0][6])
 		require.Equal(t, &proxyID, exec.execArgs[0][7])
-		require.Equal(t, string(service.GrokCredentialReasonProxyInvalid), exec.execArgs[0][8])
-		require.Equal(t, service.SchedulerOutboxEventAccountChanged, exec.execArgs[0][9])
+		require.Equal(t, string(forwardcore.GrokCredentialReasonProxyInvalid), exec.execArgs[0][8])
+		require.Equal(t, scheduler.SchedulerOutboxEventAccountChanged, exec.execArgs[0][9])
 	})
 
 	t.Run("transient", func(t *testing.T) {
@@ -94,12 +100,12 @@ func TestAccountRepository_GrokCredentialConditionalMutationsAreEligibleAndAtomi
 		require.Len(t, exec.execArgs[0], 9)
 		require.Equal(t, snapshot.CredentialsJSON, exec.execArgs[0][6])
 		require.Equal(t, &proxyID, exec.execArgs[0][7])
-		require.Equal(t, service.SchedulerOutboxEventAccountChanged, exec.execArgs[0][8])
+		require.Equal(t, scheduler.SchedulerOutboxEventAccountChanged, exec.execArgs[0][8])
 	})
 }
 
 func TestAccountRepository_GrokCredentialCommitCarriesOutboxAcrossCallerCancellation(t *testing.T) {
-	snapshot := service.GrokCredentialMutationSnapshot{CredentialsJSON: `{"access_token":"access","refresh_token":"refresh"}`}
+	snapshot := account.CredentialMutationSnapshot{CredentialsJSON: `{"access_token":"access","refresh_token":"refresh"}`}
 	tests := []struct {
 		name   string
 		mutate func(context.Context, *accountRepository) (bool, error)
@@ -107,13 +113,13 @@ func TestAccountRepository_GrokCredentialCommitCarriesOutboxAcrossCallerCancella
 		{
 			name: "permanent",
 			mutate: func(ctx context.Context, repo *accountRepository) (bool, error) {
-				return repo.SetGrokCredentialErrorIfMatch(ctx, 42, snapshot, string(service.GrokCredentialReasonRevoked))
+				return repo.SetGrokCredentialErrorIfMatch(ctx, 42, snapshot, string(forwardcore.GrokCredentialReasonRevoked))
 			},
 		},
 		{
 			name: "transient",
 			mutate: func(ctx context.Context, repo *accountRepository) (bool, error) {
-				return repo.SetGrokCredentialTempUnschedulableIfMatch(ctx, 42, snapshot, time.Now().Add(time.Minute), string(service.GrokCredentialReasonRefreshTransient))
+				return repo.SetGrokCredentialTempUnschedulableIfMatch(ctx, 42, snapshot, time.Now().Add(time.Minute), string(forwardcore.GrokCredentialReasonRefreshTransient))
 			},
 		},
 	}
@@ -159,7 +165,7 @@ func TestAccountRepository_SetGrokOAuthErrorIfCredentialsUnchanged_RequiresActiv
 	require.Contains(t, normalized, "credentials = $7::jsonb")
 	require.Contains(t, normalized, "NULLIF(BTRIM(a.credentials->>'refresh_token'), '') IS NULL")
 	require.Len(t, exec.execArgs, 1)
-	require.Equal(t, service.StatusActive, exec.execArgs[0][5])
+	require.Equal(t, billing.StatusActive, exec.execArgs[0][5])
 	require.Contains(t, exec.execArgs[0][6], `"_token_version":7`)
 }
 
@@ -274,8 +280,8 @@ func TestAccountRepository_ListOAuthRefreshCandidatePage_SQLFilter(t *testing.T)
 
 	repo := newAccountRepositoryWithSQL(nil, captureQuerySQL{db: db, captured: &capturedSQL, args: &capturedArgs}, nil)
 
-	page, err := repo.ListOAuthRefreshCandidatePage(context.Background(), service.OAuthRefreshPageOptions{
-		Platforms:            []string{service.PlatformAnthropic, service.PlatformOpenAI, service.PlatformGemini, service.PlatformAntigravity, service.PlatformGrok},
+	page, err := repo.ListOAuthRefreshCandidatePage(context.Background(), account.OAuthRefreshPageOptions{
+		Platforms:            []string{capability.PlatformAnthropic, capability.PlatformOpenAI, capability.PlatformGemini, capability.PlatformAntigravity, capability.PlatformGrok},
 		AfterID:              100,
 		Limit:                200,
 		ActiveOnly:           true,
@@ -316,7 +322,7 @@ func TestAccountRepository_ListOAuthRefreshCandidatePage_SQLFilter(t *testing.T)
 	require.True(t, ok)
 	platforms, err := valuer.Value()
 	require.NoError(t, err)
-	require.Contains(t, platforms, service.PlatformGrok)
+	require.Contains(t, platforms, capability.PlatformGrok)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -329,8 +335,8 @@ func TestAccountRepository_ListOAuthRefreshCandidatePage_ReconciliationExcludesA
 	mock.ExpectQuery("SELECT id").WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	repo := newAccountRepositoryWithSQL(nil, captureQuerySQL{db: db, captured: &capturedSQL}, nil)
 
-	page, err := repo.ListOAuthRefreshCandidatePage(context.Background(), service.OAuthRefreshPageOptions{
-		Platforms: []string{service.PlatformGrok},
+	page, err := repo.ListOAuthRefreshCandidatePage(context.Background(), account.OAuthRefreshPageOptions{
+		Platforms: []string{capability.PlatformGrok},
 		AfterID:   0,
 		Limit:     50,
 	})

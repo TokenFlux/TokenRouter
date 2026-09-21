@@ -1,6 +1,12 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+)
 
 func TestResolveOpenAIForwardModel(t *testing.T) {
 	tests := []struct {
@@ -240,7 +246,7 @@ func TestResolveOpenAIForwardMappedModels_CompactMappingPrecedence(t *testing.T)
 	}{
 		{
 			name: "compact uses client-visible model before ordinary mapping",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
 				Credentials: conflictingMappings},
 			requireCompact: true,
 			wantBilling:    "gpt-5.4",
@@ -248,14 +254,14 @@ func TestResolveOpenAIForwardMappedModels_CompactMappingPrecedence(t *testing.T)
 		},
 		{
 			name: "non-compact uses ordinary mapping",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
 				Credentials: conflictingMappings},
 			wantBilling:  "gpt-5.4",
 			wantUpstream: "gpt-5.4",
 		},
 		{
 			name: "compact falls back to ordinary mapped model",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
 				Credentials: mappedOnlyCompact},
 			requireCompact: true,
 			wantBilling:    "gpt-5.4",
@@ -263,7 +269,7 @@ func TestResolveOpenAIForwardMappedModels_CompactMappingPrecedence(t *testing.T)
 		},
 		{
 			name: "passthrough ignores ordinary mapping",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
 				Credentials: conflictingMappings, Extra: map[string]any{"openai_passthrough": true}},
 			requireCompact: true,
 			wantBilling:    "gpt-5.5",
@@ -271,7 +277,7 @@ func TestResolveOpenAIForwardMappedModels_CompactMappingPrecedence(t *testing.T)
 		},
 		{
 			name: "raw chat fallback never applies compact mapping",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
 				Credentials: conflictingMappings, Extra: map[string]any{"openai_text_route_mode": "force_chat_completions"}},
 			requireCompact: true,
 			wantBilling:    "gpt-5.4",
@@ -304,13 +310,13 @@ func TestCanonicalOpenAIAccountSchedulingModelMatchesForwardSemantics(t *testing
 	}{
 		{
 			name:    "OpenAI OAuth preserves bare GPT-5.6 identity",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			model:   "gpt-5.6",
 			want:    "gpt-5.6",
 		},
 		{
 			name: "OpenAI passthrough ignores ordinary account mapping",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
 				Credentials: map[string]any{"model_mapping": map[string]any{"public": "private"}},
 				Extra:       map[string]any{"openai_passthrough": true}},
 			model: "public",
@@ -318,7 +324,7 @@ func TestCanonicalOpenAIAccountSchedulingModelMatchesForwardSemantics(t *testing
 		},
 		{
 			name:    "Grok OAuth does not inherit OpenAI Codex aliases",
-			account: &Account{Platform: PlatformGrok, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
 			model:   "gpt-5.6",
 			want:    "gpt-5.6",
 		},
@@ -356,7 +362,7 @@ func TestNormalizeCodexModel(t *testing.T) {
 	}
 
 	for input, expected := range cases {
-		if got := normalizeCodexModel(input); got != expected {
+		if got := gatewayprovider.NormalizeCodexModel(input); got != expected {
 			t.Fatalf("normalizeCodexModel(%q) = %q, want %q", input, got, expected)
 		}
 	}
@@ -377,61 +383,61 @@ func TestNormalizeOpenAIModelForUpstream(t *testing.T) {
 		},
 		{
 			name:    "oauth preserves bare GPT-5.6",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			model:   "gpt-5.6",
 			want:    "gpt-5.6",
 		},
 		{
 			name:    "oauth preserves unregistered provider-prefixed GPT-5.6",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			model:   "openai/gpt-5.6",
 			want:    "openai/gpt-5.6",
 		},
 		{
 			name:    "oauth preserves unknown non codex model",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			model:   "gemini-3-flash-preview",
 			want:    "gemini-3-flash-preview",
 		},
 		{
 			name:    "oauth preserves invalid gpt model",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			model:   "gpt6",
 			want:    "gpt6",
 		},
 		{
 			name:    "oauth normalizes known codex alias",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			model:   "gpt-5.4-high",
 			want:    "gpt-5.4",
 		},
 		{
 			name:    "oauth preserves GPT-5.5 Pro model",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			model:   "openai/gpt-5.5-pro",
 			want:    "gpt-5.5-pro",
 		},
 		{
 			name:    "oauth preserves codex auto review model",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			model:   "codex-auto-review",
 			want:    "codex-auto-review",
 		},
 		{
 			name:    "apikey preserves official bare GPT-5.6 alias",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey},
 			model:   "gpt-5.6",
 			want:    "gpt-5.6",
 		},
 		{
 			name:    "apikey preserves custom compatible model",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey},
 			model:   "gemini-3-flash-preview",
 			want:    "gemini-3-flash-preview",
 		},
 		{
 			name:    "apikey preserves official non codex model",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey},
 			model:   "gpt-4.1",
 			want:    "gpt-4.1",
 		},
@@ -447,7 +453,7 @@ func TestNormalizeOpenAIModelForUpstream(t *testing.T) {
 }
 
 func TestUsageBillingModelCandidatesPreserveCodexAutoReviewModel(t *testing.T) {
-	candidates := usageBillingModelCandidates("codex-auto-review")
+	candidates := modelidentity.UsageCandidates("codex-auto-review")
 
 	expected := []string{"codex-auto-review"}
 	if len(candidates) != len(expected) {
@@ -461,7 +467,7 @@ func TestUsageBillingModelCandidatesPreserveCodexAutoReviewModel(t *testing.T) {
 }
 
 func TestUsageBillingModelCandidatesPreserveGPT55ProModel(t *testing.T) {
-	candidates := usageBillingModelCandidates("openai/gpt-5.5-pro")
+	candidates := modelidentity.UsageCandidates("openai/gpt-5.5-pro")
 
 	expected := []string{"openai/gpt-5.5-pro", "gpt-5.5-pro"}
 	if len(candidates) != len(expected) {

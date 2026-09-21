@@ -8,13 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/gin-gonic/gin"
 )
-
-type CyberSessionBlockStore = session.CyberSessionBlockStore
 
 // legacyCyberSessionBlockStore 兼容迁移前缓存接口，避免旧部署在升级后静默失去会话屏蔽。
 type legacyCyberSessionBlockStore interface {
@@ -94,7 +93,7 @@ func CyberSessionScopeKey(apiKeyID int64, clientIP, userAgent string) string {
 	}
 	raw := "cyber-scope:v1|api_key=" + strconv.FormatInt(apiKeyID, 10) +
 		"|ip=" + strings.TrimSpace(clientIP) +
-		"|ua=" + NormalizeSessionUserAgent(userAgent)
+		"|ua=" + requeststate.NormalizeSessionUserAgent(userAgent)
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
 }
@@ -103,17 +102,17 @@ func hashCyberSessionBlockKey(apiKeyID int64, raw string) string {
 	if raw == "" {
 		return ""
 	}
-	isolated := isolateOpenAISessionID(apiKeyID, raw)
+	isolated := upstream.IsolateSessionID(apiKeyID, raw)
 	sum := sha256.Sum256([]byte(isolated))
 	return hex.EncodeToString(sum[:])
 }
 
 // cyberSessionBlockStore 探测网关缓存是否支持 cyber 会话屏蔽。
-func (s *OpenAIGatewayService) cyberSessionBlockStore() CyberSessionBlockStore {
+func (s *OpenAIGatewayService) cyberSessionBlockStore() session.CyberSessionBlockStore {
 	if s == nil || s.cache == nil {
 		return nil
 	}
-	if store, ok := s.cache.(CyberSessionBlockStore); ok {
+	if store, ok := s.cache.(session.CyberSessionBlockStore); ok {
 		return store
 	}
 	if legacy, ok := s.cache.(legacyCyberSessionBlockStore); ok {
@@ -127,7 +126,7 @@ func (s *OpenAIGatewayService) CyberSessionBlockRuntime(ctx context.Context) (bo
 	if s == nil || s.settingService == nil {
 		return false, time.Hour
 	}
-	return s.settingService.GetCyberSessionBlockRuntime(ctx)
+	return s.settingService.Moderation.GetCyberSessionBlockRuntime(ctx)
 }
 
 // MarkCyberSessionBlocked 把会话写入屏蔽表（写入点：cyber 命中后）。
@@ -145,7 +144,7 @@ func (s *OpenAIGatewayService) MarkCyberSessionBlocked(ctx context.Context, scop
 		return
 	}
 	if err := store.SetCyberSessionBlocked(ctx, scopeKey, keys, ttl); err != nil {
-		logger.LegacyPrintf("service.openai_gateway", "cyber session block write failed: err=%v", err)
+		logging.LegacyPrintf("service.openai_gateway", "cyber session block write failed: err=%v", err)
 	}
 }
 
@@ -163,7 +162,7 @@ func (s *OpenAIGatewayService) FindCyberSessionBlockedForRequest(ctx context.Con
 	if explicitKey := CyberSessionExplicitBlockKey(apiKeyID, c, body); explicitKey != "" {
 		key, err := store.FindCyberSessionBlocked(ctx, []string{explicitKey})
 		if err != nil {
-			logger.LegacyPrintf("service.openai_gateway", "cyber explicit session read failed: err=%v", err)
+			logging.LegacyPrintf("service.openai_gateway", "cyber explicit session read failed: err=%v", err)
 			return ""
 		}
 		if key != "" {
@@ -173,7 +172,7 @@ func (s *OpenAIGatewayService) FindCyberSessionBlockedForRequest(ctx context.Con
 	scopeKey := CyberSessionScopeKey(apiKeyID, clientIP, userAgent)
 	active, err := store.IsCyberSessionScopeActive(ctx, scopeKey)
 	if err != nil {
-		logger.LegacyPrintf("service.openai_gateway", "cyber session scope read failed: err=%v", err)
+		logging.LegacyPrintf("service.openai_gateway", "cyber session scope read failed: err=%v", err)
 		return ""
 	}
 	if !active {
@@ -191,7 +190,7 @@ func (s *OpenAIGatewayService) FindCyberSessionBlockedForRequest(ctx context.Con
 	}
 	key, err := store.FindCyberSessionBlocked(ctx, keys)
 	if err != nil {
-		logger.LegacyPrintf("service.openai_gateway", "cyber session block batch read failed: err=%v", err)
+		logging.LegacyPrintf("service.openai_gateway", "cyber session block batch read failed: err=%v", err)
 		return ""
 	}
 	return key

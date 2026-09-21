@@ -12,7 +12,7 @@ import (
 	"sync"
 
 	"github.com/TokenFlux/TokenRouter/internal/payment"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/wechatpay-apiv3/wechatpay-go/core"
 	"github.com/wechatpay-apiv3/wechatpay-go/core/auth/verifiers"
 	"github.com/wechatpay-apiv3/wechatpay-go/core/notify"
@@ -88,12 +88,12 @@ func NewWxpay(instanceID string, config map[string]string) (*Wxpay, error) {
 	required := []string{"appId", "mchId", "privateKey", "apiV3Key", "certSerial", "publicKey", "publicKeyId"}
 	for _, k := range required {
 		if config[k] == "" {
-			return nil, infraerrors.BadRequest("WXPAY_CONFIG_MISSING_KEY", "missing_required_key").
+			return nil, apperror.BadRequest("WXPAY_CONFIG_MISSING_KEY", "missing_required_key").
 				WithMetadata(map[string]string{"key": k})
 		}
 	}
 	if len(config["apiV3Key"]) != wxpayAPIv3KeyLength {
-		return nil, infraerrors.BadRequest("WXPAY_CONFIG_INVALID_KEY_LENGTH", "invalid_key_length").
+		return nil, apperror.BadRequest("WXPAY_CONFIG_INVALID_KEY_LENGTH", "invalid_key_length").
 			WithMetadata(map[string]string{
 				"key":      "apiV3Key",
 				"expected": strconv.Itoa(wxpayAPIv3KeyLength),
@@ -102,11 +102,11 @@ func NewWxpay(instanceID string, config map[string]string) (*Wxpay, error) {
 	}
 	// Parse PEMs eagerly so malformed keys surface at save time, not at order creation.
 	if _, err := utils.LoadPrivateKey(formatPEM(config["privateKey"], "PRIVATE KEY")); err != nil {
-		return nil, infraerrors.BadRequest("WXPAY_CONFIG_INVALID_KEY", "invalid_key").
+		return nil, apperror.BadRequest("WXPAY_CONFIG_INVALID_KEY", "invalid_key").
 			WithMetadata(map[string]string{"key": "privateKey"})
 	}
 	if _, err := utils.LoadPublicKey(formatPEM(config["publicKey"], "PUBLIC KEY")); err != nil {
-		return nil, infraerrors.BadRequest("WXPAY_CONFIG_INVALID_KEY", "invalid_key").
+		return nil, apperror.BadRequest("WXPAY_CONFIG_INVALID_KEY", "invalid_key").
 			WithMetadata(map[string]string{"key": "publicKey"})
 	}
 	return &Wxpay{instanceID: instanceID, config: config}, nil
@@ -138,12 +138,12 @@ func (w *Wxpay) ensureClient() (*core.Client, error) {
 	}
 	privateKey, err := utils.LoadPrivateKey(formatPEM(w.config["privateKey"], "PRIVATE KEY"))
 	if err != nil {
-		return nil, infraerrors.BadRequest("WXPAY_CONFIG_INVALID_KEY", "invalid_key").
+		return nil, apperror.BadRequest("WXPAY_CONFIG_INVALID_KEY", "invalid_key").
 			WithMetadata(map[string]string{"key": "privateKey"})
 	}
 	publicKey, err := utils.LoadPublicKey(formatPEM(w.config["publicKey"], "PUBLIC KEY"))
 	if err != nil {
-		return nil, infraerrors.BadRequest("WXPAY_CONFIG_INVALID_KEY", "invalid_key").
+		return nil, apperror.BadRequest("WXPAY_CONFIG_INVALID_KEY", "invalid_key").
 			WithMetadata(map[string]string{"key": "publicKey"})
 	}
 	verifier := verifiers.NewSHA256WithRSAPubkeyVerifier(w.config["publicKeyId"], *publicKey)

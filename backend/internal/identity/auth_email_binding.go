@@ -5,9 +5,10 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	mail "net/mail"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 type AuthNormalizedEmailBindingConflictChecker interface {

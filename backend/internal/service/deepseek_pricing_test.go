@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +43,7 @@ func TestDeepseekPeakMultiplierAt(t *testing.T) {
 }
 
 func TestGetModelPricing_DeepseekUsesOfficialRatesForStaleEntries(t *testing.T) {
-	pricingService := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
+	pricingService := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*billingpricing.LiteLLMModelPricing{
 		"deepseek-v4-pro":      {InputCostPerToken: 1e-6, OutputCostPerToken: 2e-6, CacheReadInputTokenCost: 3e-8},
 		"deepseek-v4-flash":    {InputCostPerToken: 1e-6, OutputCostPerToken: 2e-6, CacheReadInputTokenCost: 3e-8},
 		"deepseek-v3-2-251201": {InputCostPerToken: 0, OutputCostPerToken: 0},
@@ -71,23 +75,23 @@ func TestCalculateCostUnified_DeepseekPeakDoesNotOverrideGroupPricing(t *testing
 	bs := NewBillingService(&config.Config{}, nil)
 	resolver := NewModelPricingResolver(nil, bs)
 	inputPrice, outputPrice := 1e-6, 2e-6
-	group := &Group{
+	group := &routing.Group{
 		ID:       1,
-		Platform: PlatformDeepseek,
-		ModelPricing: []ChannelModelPricing{{
+		Platform: capability.PlatformDeepseek,
+		ModelPricing: []routing.ChannelModelPricing{{
 			Models:      []string{"deepseek-v4-flash"},
-			BillingMode: BillingModeToken,
+			BillingMode: routing.BillingModeToken,
 			InputPrice:  &inputPrice,
 			OutputPrice: &outputPrice,
 		}},
 	}
-	tokens := UsageTokens{InputTokens: 1000, OutputTokens: 500, CacheReadTokens: 1000}
+	tokens := billingpricing.UsageTokens{InputTokens: 1000, OutputTokens: 500, CacheReadTokens: 1000}
 	for _, pricingAt := range []time.Time{
 		time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC),
 		time.Date(2026, 8, 24, 2, 0, 0, 0, time.UTC),
 	} {
-		cost, err := bs.CalculateCostUnified(CostInput{
-			Ctx: context.Background(), Model: "deepseek-v4-flash", Group: group,
+		cost, err := bs.CalculateCostUnified(billing.CostInput{
+			Ctx: context.Background(), Model: "deepseek-v4-flash", Group: projectPriceGroup(group),
 			Tokens: tokens, RateMultiplier: 1, PricingAt: pricingAt, Resolver: resolver,
 		})
 		require.NoError(t, err)
@@ -99,7 +103,7 @@ func TestDeepseekPricingFileContainsOnlyCurrentCatalogEntries(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "resources", "model-pricing", "model_prices_and_context_window.json"))
 	require.NoError(t, err)
 	pricingService := newPricingServiceFixture(pricingServiceFixture{})
-	pricingData, err := pricingService.parsePricingData(data)
+	pricingData, err := pricingService.ParsePricingData(data)
 	require.NoError(t, err)
 
 	for _, removed := range []string{"deepseek-chat", "deepseek-reasoner", "deepseek-v3-2-251201"} {

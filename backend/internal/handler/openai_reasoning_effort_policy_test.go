@@ -6,6 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -15,15 +19,15 @@ import (
 
 // TestApplyOpenAIReasoningEffortPolicyForRequest 验证分组可自行决定不兼容档位的目标值。
 func TestApplyOpenAIReasoningEffortPolicyForRequest_MapsConfiguredNoneForAstra(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 
-	apiKey := &service.APIKey{
-		Group: &service.Group{
-			Platform: service.PlatformOpenAI,
-			ReasoningEffortMappings: []service.ReasoningEffortMapping{{
+	apiKey := &apikey.APIKey{
+		Group: &routing.Group{
+			Platform: capability.PlatformOpenAI,
+			ReasoningEffortMappings: []routing.ReasoningEffortMapping{{
 				From:      "none",
 				To:        "low",
 				MatchType: "exact",
@@ -42,19 +46,19 @@ func TestApplyOpenAIReasoningEffortPolicyForRequest_MapsConfiguredNoneForAstra(t
 	require.NotNil(t, requested)
 	require.Equal(t, "none", *requested)
 	forwarded := "low"
-	result := &service.OpenAIForwardResult{ReasoningEffort: &forwarded}
+	result := &forwardcore.OpenAIResult{ReasoningEffort: &forwarded}
 	stampOpenAIRequestedReasoningEffort(result, c)
 	require.NotNil(t, result.RequestedReasoningEffort)
 	require.Equal(t, "none", *result.RequestedReasoningEffort)
 }
 
 func TestApplyAnthropicReasoningEffortPolicyForRequest_CapsOutputConfigEffort(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	apiKey := &service.APIKey{Group: &service.Group{
-		Platform:           service.PlatformAnthropic,
+	apiKey := &apikey.APIKey{Group: &routing.Group{
+		Platform:           capability.PlatformAnthropic,
 		MaxReasoningEffort: "high",
 	}}
 	body := []byte(`{"model":"claude-fable-5-1","output_config":{"effort":"max"}}`)
@@ -81,8 +85,8 @@ func TestAnthropicReasoningPolicy_AllEntrypointsDeny(t *testing.T) {
 		t.Run(tc.path, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(`{"model":"claude-fable-5-1","messages":[{"role":"user","content":"hi"}],"input":"hi","max_tokens":100,`+tc.field+`}`))
-			c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{
-				Platform: service.PlatformAnthropic, MaxReasoningEffort: "high", MaxReasoningEffortOverLimit: "deny",
+			c.Set(string(middleware.ContextKeyAPIKey), &apikey.APIKey{Group: &routing.Group{
+				Platform: capability.PlatformAnthropic, MaxReasoningEffort: "high", MaxReasoningEffortOverLimit: "deny",
 			}})
 			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1})
 			tc.handle(c)
@@ -94,13 +98,13 @@ func TestAnthropicReasoningPolicy_AllEntrypointsDeny(t *testing.T) {
 
 // 强制平台入口与缺省请求都不能被 Anthropic 分组策略意外改写。
 func TestAnthropicReasoningPolicy_PreservesForcedPlatformAndDefault(t *testing.T) {
-	apiKey := &service.APIKey{Group: &service.Group{Platform: service.PlatformAnthropic, MaxReasoningEffort: "low"}}
+	apiKey := &apikey.APIKey{Group: &routing.Group{Platform: capability.PlatformAnthropic, MaxReasoningEffort: "low"}}
 	for _, forced := range []bool{false, true} {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 		body := []byte(`{"model":"claude-fable-5-1"}`)
 		if forced {
-			c.Set(string(middleware.ContextKeyForcePlatform), service.PlatformAntigravity)
+			c.Set(string(middleware.ContextKeyForcePlatform), capability.PlatformAntigravity)
 			body = []byte(`{"model":"claude-fable-5-1","output_config":{"effort":"max"}}`)
 		}
 		updated, changed, err := applyAnthropicReasoningEffortPolicyForRequest(c, apiKey, body)

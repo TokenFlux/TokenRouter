@@ -7,20 +7,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 type dashboardUsageRepoCapture struct {
-	service.UsageLogRepository
+	usage.UsageLogRepository
 	trendRequestType *int16
 	trendStream      *bool
 	modelRequestType *int16
 	modelStream      *bool
 	rankingLimit     int
-	ranking          []usagestats.UserSpendingRankingItem
+	ranking          []usage.UserSpendingRankingItem
 	rankingTotal     float64
 }
 
@@ -33,10 +33,10 @@ func (s *dashboardUsageRepoCapture) GetUsageTrendWithFilters(
 	requestType *int16,
 	stream *bool,
 	billingType *int8,
-) ([]usagestats.TrendDataPoint, error) {
+) ([]usage.TrendDataPoint, error) {
 	s.trendRequestType = requestType
 	s.trendStream = stream
-	return []usagestats.TrendDataPoint{}, nil
+	return []usage.TrendDataPoint{}, nil
 }
 
 func (s *dashboardUsageRepoCapture) GetModelStatsWithFilters(
@@ -46,19 +46,19 @@ func (s *dashboardUsageRepoCapture) GetModelStatsWithFilters(
 	requestType *int16,
 	stream *bool,
 	billingType *int8,
-) ([]usagestats.ModelStat, error) {
+) ([]usage.ModelStat, error) {
 	s.modelRequestType = requestType
 	s.modelStream = stream
-	return []usagestats.ModelStat{}, nil
+	return []usage.ModelStat{}, nil
 }
 
 func (s *dashboardUsageRepoCapture) GetUserSpendingRanking(
 	ctx context.Context,
 	startTime, endTime time.Time,
 	limit int,
-) (*usagestats.UserSpendingRankingResponse, error) {
+) (*usage.UserSpendingRankingResponse, error) {
 	s.rankingLimit = limit
-	return &usagestats.UserSpendingRankingResponse{
+	return &usage.UserSpendingRankingResponse{
 		Ranking:         s.ranking,
 		TotalActualCost: s.rankingTotal,
 		TotalRequests:   44,
@@ -67,9 +67,9 @@ func (s *dashboardUsageRepoCapture) GetUserSpendingRanking(
 }
 
 func newDashboardRequestTypeTestRouter(repo *dashboardUsageRepoCapture) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	dashboardSvc := service.NewDashboardService(repo, nil, nil, nil)
-	handler := NewDashboardHandler(dashboardSvc)
+
+	dashboardSvc := usage.NewDashboardService(repo, nil, nil, nil)
+	handler := NewDashboardHandler(dashboardSvc, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.GET("/admin/dashboard/trend", handler.GetUsageTrend)
 	router.GET("/admin/dashboard/models", handler.GetModelStats)
@@ -87,7 +87,7 @@ func TestDashboardTrendRequestTypePriority(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.NotNil(t, repo.trendRequestType)
-	require.Equal(t, int16(service.RequestTypeWSV2), *repo.trendRequestType)
+	require.Equal(t, int16(usage.RequestTypeWSV2), *repo.trendRequestType)
 	require.Nil(t, repo.trendStream)
 }
 
@@ -123,7 +123,7 @@ func TestDashboardModelStatsRequestTypePriority(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.NotNil(t, repo.modelRequestType)
-	require.Equal(t, int16(service.RequestTypeSync), *repo.modelRequestType)
+	require.Equal(t, int16(usage.RequestTypeSync), *repo.modelRequestType)
 	require.Nil(t, repo.modelStream)
 }
 
@@ -174,7 +174,7 @@ func TestDashboardModelStatsValidModelSource(t *testing.T) {
 func TestDashboardUsersRankingLimitAndCache(t *testing.T) {
 
 	repo := &dashboardUsageRepoCapture{
-		ranking: []usagestats.UserSpendingRankingItem{
+		ranking: []usage.UserSpendingRankingItem{
 			{UserID: 7, Email: "rank@example.com", ActualCost: 10.5, Requests: 3, Tokens: 300},
 		},
 		rankingTotal: 88.8,

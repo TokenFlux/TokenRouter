@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -17,8 +19,8 @@ import (
 
 // 三种 HTTP 入口与 WS 模型解析只执行管理员显式映射，不再暗中添加裸型号到 Sol 的别名。
 func TestRemovedGPT56AliasAcrossGatewayProtocols(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	for _, accountType := range []string{AccountTypeOAuth, AccountTypeAPIKey} {
+
+	for _, accountType := range []string{capability.AccountTypeOAuth, capability.AccountTypeAPIKey} {
 		for _, explicit := range []bool{false, true} {
 			for _, protocol := range []string{"responses", "chat", "messages"} {
 				name := accountType + "/" + protocol
@@ -36,7 +38,7 @@ func TestRemovedGPT56AliasAcrossGatewayProtocols(t *testing.T) {
 					cfg.Security.URLAllowlist.Enabled = false
 					svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
 					account := &Account{
-						ID: 991, Name: "alias-regression", Platform: PlatformOpenAI, Type: accountType, Concurrency: 1,
+						ID: 991, Name: "alias-regression", Platform: capability.PlatformOpenAI, Type: accountType, Concurrency: 1,
 						Credentials: map[string]any{"api_key": "sk-test", "access_token": "oauth-test", "base_url": "https://example.com", "chatgpt_account_id": "test-account"},
 						Extra:       map[string]any{"use_responses_api": true},
 					}
@@ -55,7 +57,7 @@ func TestRemovedGPT56AliasAcrossGatewayProtocols(t *testing.T) {
 					require.NoError(t, err)
 					c, _ := gin.CreateTestContext(httptest.NewRecorder())
 					c.Request = httptest.NewRequest(http.MethodPost, "/v1/"+protocol, nil)
-					SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+					gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 					switch protocol {
 					case "responses":
 						_, err = svc.Forward(context.Background(), c, account, payload)

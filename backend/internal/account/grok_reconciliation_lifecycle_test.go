@@ -2,10 +2,11 @@ package account
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 对账按需启动的读取也必须被拥有者取消，而不只跟踪周期刷新。

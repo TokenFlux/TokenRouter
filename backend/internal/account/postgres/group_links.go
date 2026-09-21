@@ -4,6 +4,7 @@ package postgres
 import (
 	context "context"
 	sql "database/sql"
+
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	pq "github.com/lib/pq"
 )

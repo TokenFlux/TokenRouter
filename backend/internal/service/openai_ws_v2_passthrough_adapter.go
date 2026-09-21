@@ -6,12 +6,20 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	openaiwsv2 "github.com/TokenFlux/TokenRouter/internal/upstream/openai/wsrelay"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 )
@@ -29,9 +37,6 @@ func (wsUsageDecoder) RequestedReasoningEffort(body []byte, models ...string) *s
 const openaiWSV2PassthroughModeFields = "ws_mode=passthrough ws_router=v2"
 
 // 首输出与活跃读取超时由 gateway/ws 唯一拥有。
-
-type openAIWSPassthroughFirstOutputTimeoutError = gatewayws.FirstOutputTimeoutError
-type openAIWSPassthroughActiveTurnTimeoutError = gatewayws.ActiveTurnTimeoutError
 
 // openAIWSCoreFrames 将供应商帧连接投影为网关接口，不改变连接释放责任。
 type openAIWSCoreFrames struct{ openaiwsv2.FrameConn }
@@ -51,9 +56,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	account *Account,
 	token string,
 	firstClientMessage []byte,
-	hooks *OpenAIWSIngressHooks,
-	wsDecision OpenAIWSProtocolDecision,
-	tlsRouterMatch TLSFingerprintRouterMatchResult,
+	hooks *gatewayws.OpenAIIngressHooks,
+	wsDecision egress.OpenAIWSProtocolDecision,
+	tlsRouterMatch egress.TLSFingerprintRouterMatchResult,
 ) error {
 	if s == nil {
 		return errors.New("service is nil")
@@ -77,15 +82,15 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 }
 
 func openAIWSPassthroughRelayClientClose(exit openaiwsv2.RelayExit, completedTurns int) (coderws.StatusCode, string, bool) {
-	var closeErr *OpenAIWSClientCloseError
+	var closeErr *gatewayhttp.OpenAIWSClientCloseError
 	if errors.As(exit.Err, &closeErr) {
 		return closeErr.StatusCode(), closeErr.Reason(), true
 	}
-	var activeTurnTimeoutErr *openAIWSPassthroughActiveTurnTimeoutError
+	var activeTurnTimeoutErr *gatewayws.ActiveTurnTimeoutError
 	if errors.As(exit.Err, &activeTurnTimeoutErr) {
 		return coderws.StatusGoingAway, "upstream websocket read timeout; please reconnect", true
 	}
-	var firstOutputTimeoutErr *openAIWSPassthroughFirstOutputTimeoutError
+	var firstOutputTimeoutErr *gatewayws.FirstOutputTimeoutError
 	if errors.As(exit.Err, &firstOutputTimeoutErr) {
 		if completedTurns > 0 || exit.WroteDownstream {
 			return coderws.StatusGoingAway, "upstream produced no semantic output; please reconnect", true
@@ -99,16 +104,16 @@ func openAIWSPassthroughRelayClientClose(exit openaiwsv2.RelayExit, completedTur
 }
 
 func markOpenAIWSV2PassthroughCyberPolicy(c *gin.Context, payload []byte) bool {
-	hit, code, message := detectOpenAICyberPolicy(payload)
+	hit, code, message := upstreamopenai.DetectOpenAICyberPolicy(payload)
 	if !hit {
 		return false
 	}
-	usage := OpenAIUsage{}
-	parseOpenAIWSResponseUsageFromCompletedEvent(payload, &usage)
+	usage := openai.ForwardUsage{}
+	openai.ParseWSResponseUsageFromCompletedEvent(payload, &usage)
 	MarkOpsCyberPolicy(c, CyberPolicyMark{
 		Code:           code,
 		Message:        message,
-		Body:           truncateString(string(payload), 4096),
+		Body:           logredact.TruncateUTF8(string(payload), 4096),
 		UpstreamStatus: http.StatusOK,
 		UpstreamInTok:  usage.InputTokens,
 		UpstreamOutTok: usage.OutputTokens,
@@ -125,16 +130,16 @@ func (s *OpenAIGatewayService) mapOpenAIWSPassthroughDialError(
 		return nil
 	}
 	wrappedErr := err
-	var dialErr *openAIWSDialError
+	var dialErr *upstreamopenai.WSDialError
 	if !errors.As(err, &dialErr) {
-		var handshakeErr *openAIWSHandshakeError
+		var handshakeErr *upstreamopenai.WSHandshakeError
 		var responseBody []byte
 		if errors.As(err, &handshakeErr) && handshakeErr != nil {
 			responseBody = append([]byte(nil), handshakeErr.Body...)
 		}
-		wrappedErr = &openAIWSDialError{
+		wrappedErr = &upstreamopenai.WSDialError{
 			StatusCode:      statusCode,
-			ResponseHeaders: cloneHeader(handshakeHeaders),
+			ResponseHeaders: upstream.CloneHeader(handshakeHeaders),
 			ResponseBody:    responseBody,
 			Err:             err,
 		}
@@ -144,28 +149,28 @@ func (s *OpenAIGatewayService) mapOpenAIWSPassthroughDialError(
 		return err
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return NewOpenAIWSClientCloseError(
+		return gatewayhttp.NewOpenAIWSClientCloseError(
 			coderws.StatusTryAgainLater,
 			"upstream websocket connect timeout",
 			wrappedErr,
 		)
 	}
 	if statusCode == http.StatusTooManyRequests {
-		return NewOpenAIWSClientCloseError(
+		return gatewayhttp.NewOpenAIWSClientCloseError(
 			coderws.StatusTryAgainLater,
 			"upstream websocket is busy, please retry later",
 			wrappedErr,
 		)
 	}
 	if statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden {
-		return NewOpenAIWSClientCloseError(
+		return gatewayhttp.NewOpenAIWSClientCloseError(
 			coderws.StatusPolicyViolation,
 			"upstream websocket authentication failed",
 			wrappedErr,
 		)
 	}
 	if statusCode >= http.StatusBadRequest && statusCode < http.StatusInternalServerError {
-		return NewOpenAIWSClientCloseError(
+		return gatewayhttp.NewOpenAIWSClientCloseError(
 			coderws.StatusPolicyViolation,
 			"upstream websocket handshake rejected",
 			wrappedErr,
@@ -175,7 +180,7 @@ func (s *OpenAIGatewayService) mapOpenAIWSPassthroughDialError(
 }
 
 func logOpenAIWSV2Passthrough(format string, args ...any) {
-	logger.LegacyPrintf(
+	logging.LegacyPrintf(
 		"service.openai_ws_v2",
 		"[OpenAI WS v2 passthrough] %s "+format,
 		append([]any{openaiWSV2PassthroughModeFields}, args...)...,

@@ -9,12 +9,15 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSetOpenAICodexRoutingHintCanonicalizesOfficialServiceTiers(t *testing.T) {
-	oauthAccount := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	oauthAccount := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	tests := []struct {
 		name        string
 		model       string
@@ -58,7 +61,7 @@ func TestSetOpenAICodexRoutingHintCanonicalizesOfficialServiceTiers(t *testing.T
 		headers := make(http.Header)
 		headers[openAICodexRoutingHintHeader] = []string{"lowercase-spoof"}
 		headers["X-Codex-Routing-Hint"] = []string{"canonical-spoof"}
-		setOpenAICodexRoutingHint(headers, &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, "gpt-5.6", "priority")
+		setOpenAICodexRoutingHint(headers, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, "gpt-5.6", "priority")
 		for key := range headers {
 			require.False(t, strings.EqualFold(key, openAICodexRoutingHintHeader))
 		}
@@ -74,10 +77,10 @@ func TestSetOpenAICodexRoutingHintCanonicalizesOfficialServiceTiers(t *testing.T
 }
 
 func TestOpenAIOAuthHTTPBuildersSendRoutingHintFromFinalBody(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	oauthAccount := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "test-account",
 		},
@@ -124,7 +127,7 @@ func TestOpenAIOAuthHTTPBuildersSendRoutingHintFromFinalBody(t *testing.T) {
 }
 
 func TestOpenAIHTTPPassthroughStripsOnlyOAuthLegacyResponsesBeta(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := &OpenAIGatewayService{cfg: &config.Config{
 		Security: config.SecurityConfig{
 			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
@@ -151,15 +154,15 @@ func TestOpenAIHTTPPassthroughStripsOnlyOAuthLegacyResponsesBeta(t *testing.T) {
 	}
 
 	oauth := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "test-account",
 		},
 	}
 	apiKey := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "test-api-key",
 		},
@@ -185,12 +188,12 @@ func TestOpenAIHTTPPassthroughStripsOnlyOAuthLegacyResponsesBeta(t *testing.T) {
 }
 
 func TestBuildOpenAIWSHeadersSendsOAuthRoutingHintOnly(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
 	svc := &OpenAIGatewayService{}
-	decision := OpenAIWSProtocolDecision{Transport: OpenAIUpstreamTransportResponsesWebsocketV2}
+	decision := egress.OpenAIWSProtocolDecision{Transport: egress.OpenAIUpstreamTransportResponsesWebsocketV2}
 
 	build := func(t *testing.T, account *Account, tier string) http.Header {
 		headers, _, err := svc.buildOpenAIWSHeaders(
@@ -211,8 +214,8 @@ func TestBuildOpenAIWSHeadersSendsOAuthRoutingHintOnly(t *testing.T) {
 	}
 
 	oauthAccount := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "test-account",
 		},
@@ -220,18 +223,18 @@ func TestBuildOpenAIWSHeadersSendsOAuthRoutingHintOnly(t *testing.T) {
 	require.Equal(t, "model=gpt-5.6-codex;tier=priority", build(t, oauthAccount, "fast").Get(openAICodexRoutingHintHeader))
 	require.Equal(t, "model=gpt-5.6-codex;tier=ultrafast", build(t, oauthAccount, "ultrafast").Get(openAICodexRoutingHintHeader))
 	require.Equal(t, "model=gpt-5.6-codex", build(t, oauthAccount, "default").Get(openAICodexRoutingHintHeader))
-	require.Empty(t, build(t, &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, "priority").Get(openAICodexRoutingHintHeader))
+	require.Empty(t, build(t, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, "priority").Get(openAICodexRoutingHintHeader))
 }
 
 func TestOpenAIRoutingDiagnosticsUseFinalDerivedValuesOnly(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
 	account := &Account{
 		ID:       917,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "chatgpt-account",
 		},
@@ -247,7 +250,7 @@ func TestOpenAIRoutingDiagnosticsUseFinalDerivedValuesOnly(t *testing.T) {
 	_, err := svc.buildUpstreamRequest(context.Background(), c, account, body, "oauth-secret", false, "", true)
 	require.NoError(t, err)
 
-	decision := OpenAIWSProtocolDecision{Transport: OpenAIUpstreamTransportResponsesWebsocketV2}
+	decision := egress.OpenAIWSProtocolDecision{Transport: egress.OpenAIUpstreamTransportResponsesWebsocketV2}
 	_, _, err = svc.buildOpenAIWSHeaders(
 		context.Background(), c, account, "oauth-secret", decision, true,
 		"", "", "", "gpt-5.6-codex", "fast",
@@ -260,7 +263,7 @@ func TestOpenAIRoutingDiagnosticsUseFinalDerivedValuesOnly(t *testing.T) {
 	require.True(t, logSink.ContainsFieldValue("final_service_tier", "priority"))
 	require.True(t, logSink.ContainsFieldValue("routing_hint_generated", "true"))
 	require.True(t, logSink.ContainsFieldValue("transport", "http"))
-	require.True(t, logSink.ContainsFieldValue("transport", string(OpenAIUpstreamTransportResponsesWebsocketV2)))
+	require.True(t, logSink.ContainsFieldValue("transport", string(egress.OpenAIUpstreamTransportResponsesWebsocketV2)))
 	require.True(t, logSink.ContainsFieldValue("ws_affinity_decision", "not_applicable"))
 	require.True(t, logSink.ContainsFieldValue("ws_affinity_decision", "soft_routing_hint"))
 	require.False(t, logSink.ContainsFieldValue("authorization", "caller-secret"))
@@ -277,15 +280,15 @@ func TestOpenAIWSConnPoolPreferredContinuationIgnoresRoutingHintChanges(t *testi
 	pool := newOpenAIWSConnPool(cfg)
 	dialer := &openAIWSCountingDialer{}
 	pool.SetClientDialerForTest(dialer)
-	account := &Account{ID: 913, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 913, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 
-	acquire := func(t *testing.T, hint, preferred string, forcePreferred bool) *openAIWSConnLease {
+	acquire := func(t *testing.T, hint, preferred string, forcePreferred bool) *openai.WSConnLease {
 		t.Helper()
 		headers := make(http.Header)
 		if hint != "" {
 			headers.Set(openAICodexRoutingHintHeader, hint)
 		}
-		lease, err := pool.Acquire(context.Background(), openAIWSAcquireRequest{
+		lease, err := pool.Acquire(context.Background(), openai.WSAcquireRequest{
 			Account:            openAIWSPoolAccountView(account),
 			WSURL:              "wss://example.com/v1/responses",
 			Headers:            headers,
@@ -323,12 +326,12 @@ func TestOpenAIWSConnPoolUsesRoutingHintAsSoftDialAffinity(t *testing.T) {
 	pool := newOpenAIWSConnPool(cfg)
 	dialer := &openAIWSCountingDialer{}
 	pool.SetClientDialerForTest(dialer)
-	account := &Account{ID: 913, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 913, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 
-	acquire := func(t *testing.T, hint string) *openAIWSConnLease {
+	acquire := func(t *testing.T, hint string) *openai.WSConnLease {
 		headers := make(http.Header)
 		headers.Set(openAICodexRoutingHintHeader, hint)
-		lease, err := pool.Acquire(context.Background(), openAIWSAcquireRequest{
+		lease, err := pool.Acquire(context.Background(), openai.WSAcquireRequest{
 			Account: openAIWSPoolAccountView(account),
 			WSURL:   "wss://example.com/v1/responses",
 			Headers: headers,

@@ -8,9 +8,10 @@ import (
 
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	rawwire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
@@ -30,7 +31,7 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	reasoningEffort *string,
 	serviceTier *string,
 	startTime time.Time,
-) (*OpenAIForwardResult, error) {
-	result, err := nativeopenai.ReadRawChatBuffered(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, account, billingModel, upstreamModel, serviceTier, writeChatCompletionsError), originalModel, upstreamModel, reasoningEffort, startTime)
+) (*forwardcore.OpenAIResult, error) {
+	result, err := openai.ReadRawChatBuffered(upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), resp, s.nativeRawResponseOptions(c, resp, account, billingModel, upstreamModel, serviceTier, writeChatCompletionsError), originalModel, upstreamModel, reasoningEffort, startTime)
 	return chatForwardResult(result, billingModel), err
 }

@@ -5,11 +5,12 @@ import (
 	context "context"
 	json "encoding/json"
 	fmt "fmt"
-	require "github.com/stretchr/testify/require"
 	http "net/http"
 	httptest "net/http/httptest"
 	testing "testing"
 	time "time"
+
+	require "github.com/stretchr/testify/require"
 )
 
 // TestResolveDingTalkDeptPath_SingleLevel 验证单层部门（parent_id=1）返回部门名。

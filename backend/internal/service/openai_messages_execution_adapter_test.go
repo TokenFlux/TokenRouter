@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +16,7 @@ func TestOpenAIMessagesExecutionAdapterPreservesNilFailover(t *testing.T) {
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	p := &openAIMessagesExecutionAdapter{s: &OpenAIGatewayService{}, c: c, account: &Account{ID: 1, Platform: PlatformOpenAI}}
+	p := &openAIMessagesExecutionAdapter{s: &OpenAIGatewayService{}, c: c, account: &Account{ID: 1, Platform: capability.PlatformOpenAI}}
 	body := []byte(`{"error":{"type":"invalid_request_error","message":"model not found"}}`)
 	err := p.FailoverHTTP(context.Background(), &http.Response{StatusCode: 400, Header: make(http.Header)}, body, "model not found", "gpt6")
 	require.NoError(t, err)

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -17,28 +17,28 @@ import (
 // --- mock repo ---
 
 type userBreakdownRepoCapture struct {
-	service.UsageLogRepository
-	capturedDim   usagestats.UserBreakdownDimension
+	usage.UsageLogRepository
+	capturedDim   usage.UserBreakdownDimension
 	capturedLimit int
-	result        []usagestats.UserBreakdownItem
+	result        []usage.UserBreakdownItem
 }
 
 func (r *userBreakdownRepoCapture) GetUserBreakdownStats(
 	_ context.Context, _, _ time.Time,
-	dim usagestats.UserBreakdownDimension, limit int,
-) ([]usagestats.UserBreakdownItem, error) {
+	dim usage.UserBreakdownDimension, limit int,
+) ([]usage.UserBreakdownItem, error) {
 	r.capturedDim = dim
 	r.capturedLimit = limit
 	if r.result != nil {
 		return r.result, nil
 	}
-	return []usagestats.UserBreakdownItem{}, nil
+	return []usage.UserBreakdownItem{}, nil
 }
 
 func newUserBreakdownRouter(repo *userBreakdownRepoCapture) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	svc := service.NewDashboardService(repo, nil, nil, nil)
-	h := NewDashboardHandler(svc)
+
+	svc := usage.NewDashboardService(repo, nil, nil, nil)
+	h := NewDashboardHandler(svc, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.GET("/admin/dashboard/user-breakdown", h.GetUserBreakdown)
 	return router
@@ -87,7 +87,7 @@ func TestGetUserBreakdown_ModelFilter(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.Equal(t, "claude-opus-4-6", repo.capturedDim.Model)
-	require.Equal(t, usagestats.ModelSourceRequested, repo.capturedDim.ModelType)
+	require.Equal(t, usage.ModelSourceRequested, repo.capturedDim.ModelType)
 	require.Equal(t, int64(0), repo.capturedDim.GroupID)
 }
 
@@ -101,7 +101,7 @@ func TestGetUserBreakdown_ModelSourceFilter(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	require.Equal(t, usagestats.ModelSourceUpstream, repo.capturedDim.ModelType)
+	require.Equal(t, usage.ModelSourceUpstream, repo.capturedDim.ModelType)
 }
 
 func TestGetUserBreakdown_InvalidModelSource(t *testing.T) {
@@ -172,7 +172,7 @@ func TestGetUserBreakdown_LimitClamped(t *testing.T) {
 
 func TestGetUserBreakdown_ResponseFormat(t *testing.T) {
 	repo := &userBreakdownRepoCapture{
-		result: []usagestats.UserBreakdownItem{
+		result: []usage.UserBreakdownItem{
 			{UserID: 1, Email: "alice@test.com", Requests: 100, TotalTokens: 50000, Cost: 1.5, ActualCost: 1.2},
 			{UserID: 2, Email: "bob@test.com", Requests: 50, TotalTokens: 25000, Cost: 0.8, ActualCost: 0.6},
 		},
@@ -189,9 +189,9 @@ func TestGetUserBreakdown_ResponseFormat(t *testing.T) {
 	var resp struct {
 		Code int `json:"code"`
 		Data struct {
-			Users     []usagestats.UserBreakdownItem `json:"users"`
-			StartDate string                         `json:"start_date"`
-			EndDate   string                         `json:"end_date"`
+			Users     []usage.UserBreakdownItem `json:"users"`
+			StartDate string                    `json:"start_date"`
+			EndDate   string                    `json:"end_date"`
 		} `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -219,7 +219,7 @@ func TestGetUserBreakdown_EmptyResult(t *testing.T) {
 
 	var resp struct {
 		Data struct {
-			Users []usagestats.UserBreakdownItem `json:"users"`
+			Users []usage.UserBreakdownItem `json:"users"`
 		} `json:"data"`
 	}
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
@@ -248,10 +248,10 @@ func TestGetUserBreakdown_RequestTypeStringFilter(t *testing.T) {
 		value string
 		want  int16
 	}{
-		{"ws_v2", "ws_v2", int16(service.RequestTypeWSV2)},
-		{"stream", "stream", int16(service.RequestTypeStream)},
-		{"sync", "sync", int16(service.RequestTypeSync)},
-		{"cyber", "cyber", int16(service.RequestTypeCyberBlocked)},
+		{"ws_v2", "ws_v2", int16(usage.RequestTypeWSV2)},
+		{"stream", "stream", int16(usage.RequestTypeStream)},
+		{"sync", "sync", int16(usage.RequestTypeSync)},
+		{"cyber", "cyber", int16(usage.RequestTypeCyberBlocked)},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

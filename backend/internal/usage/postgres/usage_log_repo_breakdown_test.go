@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,9 +39,9 @@ func TestResolveModelDimensionExpression(t *testing.T) {
 		modelType string
 		want      string
 	}{
-		{usagestats.ModelSourceRequested, "COALESCE(NULLIF(TRIM(model), ''), NULLIF(TRIM(requested_model), ''), '')"},
-		{usagestats.ModelSourceUpstream, "COALESCE(NULLIF(TRIM(upstream_model), ''), model)"},
-		{usagestats.ModelSourceMapping, "(COALESCE(NULLIF(TRIM(model), ''), NULLIF(TRIM(requested_model), ''), '') || ' -> ' || COALESCE(NULLIF(TRIM(upstream_model), ''), model))"},
+		{usage.ModelSourceRequested, "COALESCE(NULLIF(TRIM(model), ''), NULLIF(TRIM(requested_model), ''), '')"},
+		{usage.ModelSourceUpstream, "COALESCE(NULLIF(TRIM(upstream_model), ''), model)"},
+		{usage.ModelSourceMapping, "(COALESCE(NULLIF(TRIM(model), ''), NULLIF(TRIM(requested_model), ''), '') || ' -> ' || COALESCE(NULLIF(TRIM(upstream_model), ''), model))"},
 		{"", "COALESCE(NULLIF(TRIM(model), ''), NULLIF(TRIM(requested_model), ''), '')"},
 		{"invalid", "COALESCE(NULLIF(TRIM(model), ''), NULLIF(TRIM(requested_model), ''), '')"},
 	}
@@ -143,7 +143,7 @@ func TestGetUserBreakdownStatsRequestTypeIncludesLegacyFallback(t *testing.T) {
 	repo := &Store{sql: db}
 	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	requestType := int16(service.RequestTypeStream)
+	requestType := int16(usage.RequestTypeStream)
 
 	legacyFilter := `(ul.request_type = $3 OR (ul.request_type = 0 AND ul.stream = TRUE AND ul.openai_ws_mode = FALSE))`
 	mock.ExpectQuery("(?s)COALESCE\\(ul\\.billing_user_id, ul\\.user_id, 0\\).*LEFT JOIN users u ON u\\.id = COALESCE\\(ul\\.billing_user_id, ul\\.user_id\\).*"+regexp.QuoteMeta(legacyFilter)+".*GROUP BY COALESCE\\(ul\\.billing_user_id, ul\\.user_id, 0\\)").
@@ -153,7 +153,7 @@ func TestGetUserBreakdownStatsRequestTypeIncludesLegacyFallback(t *testing.T) {
 			"cache_tokens", "total_tokens", "cost", "actual_cost", "account_cost",
 		}))
 
-	rows, err := repo.GetUserBreakdownStats(context.Background(), start, end, usagestats.UserBreakdownDimension{
+	rows, err := repo.GetUserBreakdownStats(context.Background(), start, end, usage.UserBreakdownDimension{
 		RequestType: &requestType,
 	}, 0)
 

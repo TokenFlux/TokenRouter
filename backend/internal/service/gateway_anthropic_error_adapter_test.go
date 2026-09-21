@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -31,15 +34,15 @@ func TestAnthropicErrorEntryRuleAndMonitoring(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 			rule := newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "规则安全消息")
 			rule.SkipMonitoring = tc.skip
-			BindErrorPassthroughService(c, newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{rule}))
+			gatewayhttp.BindErrorPassthroughService(c, newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{rule}))
 			resp := &http.Response{
 				StatusCode: http.StatusUnprocessableEntity,
 				Header:     http.Header{},
 				Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"Invalid schema in upstream request"}}`))),
 			}
-			account := &Account{ID: 1, Platform: PlatformAnthropic, Type: AccountTypeAPIKey}
+			account := &Account{ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
 			svc := &GatewayService{}
-			var result *ForwardResult
+			var result *forwardcore.MessagesResult
 			var err error
 			if tc.retry {
 				result, err = svc.handleRetryExhaustedError(context.Background(), resp, c, account)
@@ -49,7 +52,7 @@ func TestAnthropicErrorEntryRuleAndMonitoring(t *testing.T) {
 			require.Nil(t, result)
 			require.ErrorContains(t, err, "passthrough rule matched")
 			require.Equal(t, http.StatusTeapot, recorder.Code)
-			require.True(t, IsResponseCommitted(c))
+			require.True(t, gatewayhttp.IsResponseCommitted(c))
 			var payload struct {
 				Type  string                         `json:"type"`
 				Error struct{ Type, Message string } `json:"error"`
@@ -58,7 +61,7 @@ func TestAnthropicErrorEntryRuleAndMonitoring(t *testing.T) {
 			require.Equal(t, "error", payload.Type)
 			require.Equal(t, "upstream_error", payload.Error.Type)
 			require.Equal(t, "规则安全消息", payload.Error.Message)
-			flag, present := c.Get(OpsSkipPassthroughKey)
+			flag, present := c.Get(gatewayhttp.OpsSkipPassthroughKey)
 			require.Equal(t, tc.skip, present)
 			if tc.skip {
 				require.Equal(t, true, flag)

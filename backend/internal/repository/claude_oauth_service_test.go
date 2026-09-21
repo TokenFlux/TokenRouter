@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/oauth"
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
@@ -16,7 +18,7 @@ import (
 
 type ClaudeOAuthServiceSuite struct {
 	suite.Suite
-	client *claudeOAuthService
+	client *anthropic.OAuthClient
 }
 
 // requestCapture holds captured request data for assertions in the main goroutine.
@@ -87,8 +89,7 @@ func (s *ClaudeOAuthServiceSuite) TestGetOrganizationUUID() {
 				tt.handler(w, r)
 			}), nil)
 
-			client, ok := NewClaudeOAuthClient().(*claudeOAuthService)
-			require.True(s.T(), ok, "type assertion failed")
+			client := anthropic.NewOAuthClient()
 			s.client = client
 			s.client.BaseURL = "http://in-process"
 			s.client.ClientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
@@ -165,8 +166,7 @@ func (s *ClaudeOAuthServiceSuite) TestGetAuthorizationCode() {
 				tt.handler(w, r)
 			}), nil)
 
-			client, ok := NewClaudeOAuthClient().(*claudeOAuthService)
-			require.True(s.T(), ok, "type assertion failed")
+			client := anthropic.NewOAuthClient()
 			s.client = client
 			s.client.BaseURL = "http://in-process"
 			s.client.ClientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
@@ -270,8 +270,7 @@ func (s *ClaudeOAuthServiceSuite) TestExchangeCodeForToken() {
 				tt.handler(w, r)
 			}), nil)
 
-			client, ok := NewClaudeOAuthClient().(*claudeOAuthService)
-			require.True(s.T(), ok, "type assertion failed")
+			client := anthropic.NewOAuthClient()
 			s.client = client
 			s.client.TokenURL = "http://in-process/token"
 			s.client.ClientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }
@@ -366,8 +365,7 @@ func (s *ClaudeOAuthServiceSuite) TestRefreshToken() {
 				tt.handler(w, r)
 			}), nil)
 
-			client, ok := NewClaudeOAuthClient().(*claudeOAuthService)
-			require.True(s.T(), ok, "type assertion failed")
+			client := anthropic.NewOAuthClient()
 			s.client = client
 			s.client.TokenURL = "http://in-process/token"
 			s.client.ClientFactory = func(string) (*req.Client, error) { return newTestReqClient(rt), nil }

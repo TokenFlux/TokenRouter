@@ -124,7 +124,7 @@ WHERE created_at >= $1 AND created_at < $2
 		duration.P95 = floatToIntPtr(p95)
 		duration.P99 = floatToIntPtr(p99)
 		if avg.Valid {
-			v := ops.CompatRoundTo1DP(avg.Float64)
+			v := ops.RoundTo1DP(avg.Float64)
 			duration.Avg = &v
 		}
 		if max.Valid {
@@ -157,7 +157,7 @@ WHERE created_at >= $1 AND created_at < $2
 		ttft.P95 = floatToIntPtr(p95)
 		ttft.P99 = floatToIntPtr(p99)
 		if avg.Valid {
-			v := ops.CompatRoundTo1DP(avg.Float64)
+			v := ops.RoundTo1DP(avg.Float64)
 			ttft.Avg = &v
 		}
 		if max.Valid {

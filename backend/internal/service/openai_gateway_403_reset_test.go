@@ -4,6 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,26 +27,26 @@ func (s *openAI403CounterResetStub) ResetOpenAI403Count(_ context.Context, accou
 }
 
 func TestOpenAIGatewayServiceRecordUsageResets403CounterForZeroUsage(t *testing.T) {
-	for _, platform := range []string{PlatformOpenAI, PlatformKimi, PlatformZhipu, PlatformDeepseek} {
+	for _, platform := range []string{capability.PlatformOpenAI, capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
 		t.Run(platform, func(t *testing.T) {
 			counter := &openAI403CounterResetStub{}
 			rateLimitSvc := NewRateLimitService(nil, nil, nil, nil, nil)
 			rateLimitSvc.SetOpenAI403CounterCache(counter)
 
 			usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-			billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+			billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 			userRepo := &openAIRecordUsageUserRepoStub{}
 			subRepo := &openAIRecordUsageSubRepoStub{}
 			svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo, nil)
 			svc.rateLimitService = rateLimitSvc
 
 			err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
-				Result: &OpenAIForwardResult{
+				Result: &forwardcore.OpenAIResult{
 					RequestID: "resp_zero_usage_reset_403_" + platform,
 					Model:     "gpt-5.1",
 				},
-				APIKey:  &APIKey{ID: 1001, Group: &Group{RateMultiplier: 1}},
-				User:    &User{ID: 2001},
+				APIKey:  &apikey.APIKey{ID: 1001, Group: &routing.Group{RateMultiplier: 1}},
+				User:    &identity.User{ID: 2001},
 				Account: &Account{ID: 777, Platform: platform},
 			})
 

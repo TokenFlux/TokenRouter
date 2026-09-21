@@ -8,9 +8,13 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -73,9 +77,9 @@ func (a *anthropicErrorAdapter) decision(d UpstreamErrorDecision, status int) fo
 	}
 }
 func (a *anthropicErrorAdapter) Failover(status int, body []byte, retry bool) error {
-	return &UpstreamFailoverError{StatusCode: status, ResponseBody: body, RetryableOnSameAccount: retry}
+	return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseBody: body, RetryableOnSameAccount: retry}
 }
-func (a *anthropicErrorAdapter) Commit() { MarkResponseCommitted(a.c) }
+func (a *anthropicErrorAdapter) Commit() { gatewayhttp.MarkResponseCommitted(a.c) }
 func (a *anthropicErrorAdapter) Message(status int, kind, message string) {
 	(gatewayhttp.AnthropicForwardErrorOutput{Context: a.c}).Message(status, kind, message)
 }
@@ -83,27 +87,27 @@ func (a *anthropicErrorAdapter) Raw(status int, body []byte) {
 	(gatewayhttp.AnthropicForwardErrorOutput{Context: a.c}).Raw(status, body)
 }
 func (a *anthropicErrorAdapter) MatchRule(platform string, status int, body []byte) *errorpolicy.ErrorPassthroughRule {
-	rules := getBoundErrorPassthroughService(a.c)
+	rules := gatewayhttp.BoundErrorPassthroughService(a.c)
 	if rules == nil {
 		return nil
 	}
 	return rules.MatchRule(platform, status, body)
 }
-func (a *anthropicErrorAdapter) SkipMonitoring() { a.c.Set(OpsSkipPassthroughKey, true) }
+func (a *anthropicErrorAdapter) SkipMonitoring() { a.c.Set(gatewayhttp.OpsSkipPassthroughKey, true) }
 func (a *anthropicErrorAdapter) ScopeDiagnostic(message string, status int, requestID string) {
 	if isClaudeCodeCredentialScopeError(message) && a.c != nil {
 		if v, ok := a.c.Get(claudeMimicDebugInfoKey); ok {
 			if line, ok := v.(string); ok && strings.TrimSpace(line) != "" {
-				logger.LegacyPrintf("service.gateway", "[ClaudeMimicDebugOnError] status=%d request_id=%s %s", status, requestID, line)
+				logging.LegacyPrintf("service.gateway", "[ClaudeMimicDebugOnError] status=%d request_id=%s %s", status, requestID, line)
 			}
 		}
 	}
 }
 func (a *anthropicErrorAdapter) SetError(status int, message, detail string) {
-	setOpsUpstreamError(a.c, status, message, detail)
+	gatewayhttp.SetOpsUpstreamError(a.c, status, message, detail)
 }
 func (a *anthropicErrorAdapter) Observe(n forwardcore.Notice) {
-	appendOpsUpstreamError(a.c, OpsUpstreamErrorEvent{
+	gatewayhttp.AppendOpsUpstreamError(a.c, ops.OpsUpstreamErrorEvent{
 		Platform:           n.Platform,
 		AccountID:          n.AccountID,
 		UpstreamStatusCode: n.UpstreamStatusCode,
@@ -114,12 +118,14 @@ func (a *anthropicErrorAdapter) Observe(n forwardcore.Notice) {
 	})
 }
 func (a *anthropicErrorAdapter) Log(message string) {
-	logger.LegacyPrintf("service.gateway", "%s", message)
+	logging.LegacyPrintf("service.gateway", "%s", message)
 }
-func (a *anthropicErrorAdapter) Truncate(value string, n int) string { return truncateString(value, n) }
+func (a *anthropicErrorAdapter) Truncate(value string, n int) string {
+	return logredact.TruncateUTF8(value, n)
+}
 func (a *anthropicErrorAdapter) TruncateBytes(body []byte, n int) string {
 	return truncateForLog(body, n)
 }
 func (a *anthropicErrorAdapter) Sanitize(value string) string {
-	return sanitizeUpstreamErrorMessage(value)
+	return logredact.SanitizeUpstreamQueries(value)
 }

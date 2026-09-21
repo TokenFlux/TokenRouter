@@ -4,10 +4,12 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // LegacyAccountStatsSource 只投影旧渠道读取，规则由 billing 决定；S06 退出。
-type LegacyAccountStatsSource struct{ Service *ChannelService }
+type LegacyAccountStatsSource struct{ Service *routing.ChannelService }
 
 func (s LegacyAccountStatsSource) AccountStatsGroup(ctx context.Context, id int64) (*billing.AccountStatsChannel, error) {
 	channel, err := s.Service.GetChannelForGroup(ctx, id)
@@ -18,5 +20,5 @@ func (s LegacyAccountStatsSource) AccountStatsGroup(ctx context.Context, id int6
 }
 func (s LegacyAccountStatsSource) AccountStatsPlatform(ctx context.Context, id int64) billing.AccountStatsPlatform {
 	platform := s.Service.GetGroupPlatform(ctx, id)
-	return billing.AccountStatsPlatform{ID: platform, PreferRequestedModel: platform == PlatformQoder}
+	return billing.AccountStatsPlatform{ID: platform, PreferRequestedModel: platform == capability.PlatformQoder}
 }

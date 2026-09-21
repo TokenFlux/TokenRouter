@@ -10,17 +10,15 @@ import (
 	searchhttp "github.com/TokenFlux/TokenRouter/internal/search/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/search/provider"
 	"github.com/TokenFlux/TokenRouter/internal/search/rediscache"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/redis/go-redis/v9"
 )
 
 func provideSearchRegistry() *search.Registry {
 	registry := search.NewRegistry()
-	service.SetWebSearchRegistry(registry)
 	return registry
 }
-func provideSearchRuntime(store *settings.Store, proxies *egresspg.ProxyStore, r *redis.Client, registry *search.Registry, legacy *service.SettingService, manager *lifecycle.Manager) *search.ConfigService {
+func provideSearchRuntime(store *settings.Store, proxies *egresspg.ProxyStore, r *redis.Client, registry *search.Registry, manager *lifecycle.Manager) *search.ConfigService {
 	var state search.QuotaState
 	if r != nil {
 		state = rediscache.New(r)
@@ -28,7 +26,6 @@ func provideSearchRuntime(store *settings.Store, proxies *egresspg.ProxyStore, r
 	runtime := search.NewConfigService(store, searchProxies{proxies}, func(configs []search.ProviderConfig, work *search.WorkGroup) *search.Manager {
 		return search.NewManager(configs, state, provider.NewExecutor(), work)
 	}, registry)
-	legacy.SetSearchRuntime(runtime)
 	manager.Register(lifecycle.Hook{Name: "WebSearchRuntime", StartOrder: 181, StopOrder: 30, Start: runtime.Initialize, Stop: runtime.StopContext})
 	return runtime
 }

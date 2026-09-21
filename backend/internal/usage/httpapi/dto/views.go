@@ -40,5 +40,5 @@ func keyFromView(v *usage.KeyView) *APIKey {
 	for _, g := range v.CompositeGroups {
 		k.CompositeGroups = append(k.CompositeGroups, apikey.APIKeyCompositeGroup{ID: g.ID, APIKeyID: g.APIKeyID, GroupID: g.GroupID, Prefix: g.Prefix, NormalizedPrefix: g.NormalizedPrefix, SortOrder: g.SortOrder, UserGroupRPMOverride: g.UserGroupRPMOverride, Group: apikey.GroupFromRouting((*routing.Group)(g.Group))})
 	}
-	return keydto.APIKeyFromKey(k, func(g *apikey.Group) *Group { return groupFromView((*usage.GroupView)(apikey.RoutingGroup(g))) })
+	return keydto.APIKeyFromKey(k, func(g *routing.Group) *Group { return groupFromView((*usage.GroupView)(apikey.RoutingGroup(g))) })
 }

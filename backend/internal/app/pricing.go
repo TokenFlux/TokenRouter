@@ -2,21 +2,36 @@ package app
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"log/slog"
 	"slices"
 
-	"github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	modelidentity "github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+
 	"github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
+
+// pricingCatalog 将目录服务限制为 billing 所需的只读/维护接口。
+type pricingCatalog struct{ source *provider.PricingService }
+
+func (c pricingCatalog) GetModelPricing(model string) *billing.LiteLLMModelPricing {
+	return c.source.GetModelPricing(model)
+}
+
+func (c pricingCatalog) GetStatus() map[string]any { return c.source.GetStatus() }
+func (c pricingCatalog) ForceUpdate() error        { return c.source.ForceUpdate() }
+func (c pricingCatalog) GetModelModalities(model string) ([]string, []string) {
+	return c.source.GetModelModalities(model)
+}
 
 // providePricingService 从同一份 bootstrap 配置投影技术参数，构造期间不启动任务。
 // 初始化、周期更新和停止继续由既有 PricingInitialization/PricingService hook 唯一管理。
-func providePricingService(cfg *config.Config, remote provider.PricingRemoteClient) (*service.PricingService, error) {
+func providePricingService(cfg *config.Config, remote provider.PricingRemoteClient) (*provider.PricingService, error) {
 	options := provider.Options{
 		DataDir:                  cfg.Pricing.DataDir,
 		RemoteURL:                cfg.Pricing.RemoteURL,
@@ -29,21 +44,20 @@ func providePricingService(cfg *config.Config, remote provider.PricingRemoteClie
 		AllowInsecureHTTP:        cfg.Security.URLAllowlist.AllowInsecureHTTP,
 		AllowPrivateHosts:        cfg.Security.URLAllowlist.AllowPrivateHosts,
 		PricingHosts:             slices.Clone(cfg.Security.URLAllowlist.PricingHosts),
-		DefaultOpenAIModel:       legacybridge.PricingDefaultOpenAIModel(),
-		ModelLookupCandidates:    legacybridge.PricingModelCandidatesFactory,
-		IsImageModel:             legacybridge.PricingImageModel,
+		DefaultOpenAIModel:       openai.DefaultTestModel,
+		ModelLookupCandidates:    modelidentity.CandidatesFactory,
+		IsImageModel:             media.IsImageGenerationModel,
 	}
-	return service.WrapPricingService(provider.NewPricingService(options, remote)), nil
+	return provider.NewPricingService(options, remote), nil
 }
 
 // provideBillingCalculator 用显式配置投影构造唯一计费实例。
-func provideBillingCalculator(cfg *config.Config, catalog *service.PricingService) *service.BillingService {
+func provideBillingCalculator(cfg *config.Config, catalog *provider.PricingService, calendar timezone.Calendar) *billing.Calculator {
 	warnings := &provider.PricingWarnings{}
-	return service.WrapBillingCalculator(billing.NewCalculator(legacybridge.BillingCatalog{Service: catalog}, billing.CalculatorOptions{DefaultRateMultiplier: cfg.Default.RateMultiplier, ModelPolicy: legacybridge.BillingModelPolicy, Now: timezone.Now, LoadLocation: provider.LoadPricingLocation, FallbackWarning: warnings.Fallback}))
+	return billing.NewCalculator(pricingCatalog{source: catalog}, billing.CalculatorOptions{DefaultRateMultiplier: cfg.Default.RateMultiplier, ModelPolicy: modelidentity.PricingPolicy, Now: calendar.Now, LoadLocation: provider.LoadPricingLocation, FallbackWarning: warnings.Fallback})
 }
-func provideBillingPriceResolver(coreChannels *routing.ChannelService, channels *service.ChannelService, calculator *service.BillingService) *service.ModelPricingResolver {
-	core := billing.NewPriceResolver(coreChannels, calculator.Calculator, legacybridge.BillingModelIdentity, func(model string, err error) {
+func provideBillingPriceResolver(channels *routing.ChannelService, calculator *billing.Calculator) *billing.PriceResolver {
+	return billing.NewPriceResolver(channels, calculator, modelidentity.Identity, func(model string, err error) {
 		slog.DebugContext(context.Background(), "failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)
-	}, billingChannelStats{Service: coreChannels})
-	return service.WrapPriceResolver(core, calculator, channels)
+	}, billingChannelStats{Service: channels})
 }

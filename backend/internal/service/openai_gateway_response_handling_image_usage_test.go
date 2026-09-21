@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -29,7 +30,7 @@ func TestExtractOpenAIUsageFromJSONBytes_MergesHostedImageGenToolUsage(t *testin
 		}
 	}`)
 
-	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+	usage, ok := openai.ExtractOpenAIUsageFromJSONBytes(body)
 	require.True(t, ok)
 	require.Equal(t, 43792, usage.InputTokens)
 	require.Equal(t, 1005, usage.OutputTokens)
@@ -57,7 +58,7 @@ func TestExtractOpenAIUsageFromJSONBytes_NonStreamingMergesImageGen(t *testing.T
 		}
 	}`)
 
-	usage, ok := extractOpenAIUsageFromJSONBytes(body)
+	usage, ok := openai.ExtractOpenAIUsageFromJSONBytes(body)
 	require.True(t, ok)
 	require.Equal(t, 5000, usage.InputTokens)
 	require.Equal(t, 200, usage.OutputTokens)
@@ -94,7 +95,7 @@ func TestExtractOpenAIUsageFromJSONBytes_HostedImageGenFallbackRules(t *testing.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			usage, ok := extractOpenAIUsageFromJSONBytes([]byte(tt.body))
+			usage, ok := openai.ExtractOpenAIUsageFromJSONBytes([]byte(tt.body))
 			require.True(t, ok)
 			require.Equal(t, tt.wantImageInput, usage.ImageInputTokens)
 			require.Equal(t, tt.wantImageOutput, usage.ImageOutputTokens)
@@ -113,9 +114,9 @@ func TestMergeHostedImageGenToolUsage_EmptyImageGen(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			usage := OpenAIUsage{InputTokens: 100, OutputTokens: 50}
+			usage := openai.ForwardUsage{InputTokens: 100, OutputTokens: 50}
 			original := usage
-			mergeHostedImageGenToolUsage(gjson.Get(tt.json, "image_gen"), &usage)
+			openai.MergeHostedImageGenToolUsage(gjson.Get(tt.json, "image_gen"), &usage)
 			require.Equal(t, original, usage)
 		})
 	}
@@ -136,7 +137,7 @@ func TestParseSSEUsageBytes_ResponseCompletedWithImageGen(t *testing.T) {
 		}
 	}`)
 
-	usage := &OpenAIUsage{}
+	usage := &openai.ForwardUsage{}
 	svc.parseSSEUsageBytes(data, usage)
 
 	require.Equal(t, 10000, usage.InputTokens)

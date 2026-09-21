@@ -6,20 +6,21 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
+	settingspostgres "github.com/TokenFlux/TokenRouter/internal/settings/postgres"
 	"github.com/stretchr/testify/suite"
 )
 
 type SettingRepoSuite struct {
 	suite.Suite
 	ctx  context.Context
-	repo service.SettingRepository
+	repo settingscore.Repository
 }
 
 func (s *SettingRepoSuite) SetupTest() {
 	s.ctx = context.Background()
 	tx := testEntTx(s.T())
-	s.repo = NewSettingRepository(tx.Client())
+	s.repo = settingscore.New(settingspostgres.NewSettingRepository(tx.Client()))
 }
 
 func TestSettingRepoSuite(t *testing.T) {
@@ -44,7 +45,7 @@ func (s *SettingRepoSuite) TestSet_Upsert() {
 func (s *SettingRepoSuite) TestGetValue_Missing() {
 	_, err := s.repo.GetValue(s.ctx, "nonexistent")
 	s.Require().Error(err, "expected error for missing key")
-	s.Require().ErrorIs(err, service.ErrSettingNotFound)
+	s.Require().ErrorIs(err, settingscore.ErrSettingNotFound)
 }
 
 func (s *SettingRepoSuite) TestSetMultiple_AndGetMultiple() {
@@ -85,7 +86,7 @@ func (s *SettingRepoSuite) TestDelete() {
 	s.Require().NoError(s.repo.Delete(s.ctx, "todelete"), "Delete")
 	_, err := s.repo.GetValue(s.ctx, "todelete")
 	s.Require().Error(err, "expected missing key error after Delete")
-	s.Require().ErrorIs(err, service.ErrSettingNotFound)
+	s.Require().ErrorIs(err, settingscore.ErrSettingNotFound)
 }
 
 func (s *SettingRepoSuite) TestDelete_Idempotent() {

@@ -10,7 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -21,12 +22,12 @@ func adaptiveProtocolTestAccount(platform string, baseURLs map[string]any) *Acco
 		ID:          701,
 		Name:        "adaptive-cn",
 		Platform:    platform,
-		Type:        AccountTypeAPIKey,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":       "sk-test",
-			"api_protocol":  APIProtocolAdaptive,
-			"account_mode":  AccountModePayG,
+			"api_protocol":  accountcore.APIProtocolAdaptive,
+			"account_mode":  accountcore.AccountModePayG,
 			"api_base_urls": baseURLs,
 		},
 	}
@@ -80,13 +81,13 @@ func cnProtocolIngressCases() []cnProtocolIngressCase {
 }
 
 func TestAdaptiveProtocolRoutesChatCompletionsToNativeChat(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"glm-4.7","messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-	account := adaptiveProtocolTestAccount(PlatformZhipu, map[string]any{
-		APIProtocolChatCompletions: "http://chat.example",
-		APIProtocolAnthropic:       "http://anthropic.example",
+	account := adaptiveProtocolTestAccount(capability.PlatformZhipu, map[string]any{
+		accountcore.APIProtocolChatCompletions: "http://chat.example",
+		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
 	})
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
@@ -97,14 +98,14 @@ func TestAdaptiveProtocolRoutesChatCompletionsToNativeChat(t *testing.T) {
 }
 
 func TestAdaptiveProtocolRoutesResponsesShapedChatToNativeResponses(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"deepseek-v4","input":"hello","max_output_tokens":32,"stream":false}`)
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-	account := adaptiveProtocolTestAccount(PlatformDeepseek, map[string]any{
-		APIProtocolChatCompletions: "http://chat.example",
-		APIProtocolAnthropic:       "http://anthropic.example",
-		APIProtocolResponses:       "http://responses.example",
+	account := adaptiveProtocolTestAccount(capability.PlatformDeepseek, map[string]any{
+		accountcore.APIProtocolChatCompletions: "http://chat.example",
+		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
+		accountcore.APIProtocolResponses:       "http://responses.example",
 	})
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
@@ -115,13 +116,13 @@ func TestAdaptiveProtocolRoutesResponsesShapedChatToNativeResponses(t *testing.T
 }
 
 func TestAdaptiveProtocolConvertsResponsesShapedChatForChatOnlyProvider(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"glm-4.7","input":"hello","max_output_tokens":32,"stream":false}`)
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-	account := adaptiveProtocolTestAccount(PlatformZhipu, map[string]any{
-		APIProtocolChatCompletions: "http://chat.example",
-		APIProtocolAnthropic:       "http://anthropic.example",
+	account := adaptiveProtocolTestAccount(capability.PlatformZhipu, map[string]any{
+		accountcore.APIProtocolChatCompletions: "http://chat.example",
+		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
 	})
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
@@ -132,14 +133,14 @@ func TestAdaptiveProtocolConvertsResponsesShapedChatForChatOnlyProvider(t *testi
 }
 
 func TestAdaptiveProtocolRoutesKimiResponsesShapedChatToNativeResponses(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"k3-256k","input":"hello","max_output_tokens":32,"stream":false}`)
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-	account := adaptiveProtocolTestAccount(PlatformKimi, map[string]any{
-		APIProtocolChatCompletions: "http://chat.example",
-		APIProtocolAnthropic:       "http://anthropic.example",
-		APIProtocolResponses:       "http://responses.example/v1",
+	account := adaptiveProtocolTestAccount(capability.PlatformKimi, map[string]any{
+		accountcore.APIProtocolChatCompletions: "http://chat.example",
+		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
+		accountcore.APIProtocolResponses:       "http://responses.example/v1",
 	})
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), adaptiveProtocolTestContext("/v1/chat/completions", body), account, body, "", "")
@@ -150,13 +151,13 @@ func TestAdaptiveProtocolRoutesKimiResponsesShapedChatToNativeResponses(t *testi
 }
 
 func TestAdaptiveProtocolRoutesMessagesToNativeAnthropic(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"glm-4.7","max_tokens":32,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-	account := adaptiveProtocolTestAccount(PlatformZhipu, map[string]any{
-		APIProtocolChatCompletions: "http://chat.example",
-		APIProtocolAnthropic:       "http://anthropic.example",
+	account := adaptiveProtocolTestAccount(capability.PlatformZhipu, map[string]any{
+		accountcore.APIProtocolChatCompletions: "http://chat.example",
+		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
 	})
 
 	_, err := svc.ForwardAsAnthropic(context.Background(), adaptiveProtocolTestContext("/v1/messages", body), account, body, "", "")
@@ -166,14 +167,14 @@ func TestAdaptiveProtocolRoutesMessagesToNativeAnthropic(t *testing.T) {
 }
 
 func TestAdaptiveProtocolRoutesKimiResponsesToNativeResponses(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"k3-256k","input":"hello","reasoning":{"effort":"none"},"store":true,"previous_response_id":"resp_old","stream":false}`)
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-	account := adaptiveProtocolTestAccount(PlatformKimi, map[string]any{
-		APIProtocolChatCompletions: "http://chat.example",
-		APIProtocolAnthropic:       "http://anthropic.example",
-		APIProtocolResponses:       "http://responses.example/v1",
+	account := adaptiveProtocolTestAccount(capability.PlatformKimi, map[string]any{
+		accountcore.APIProtocolChatCompletions: "http://chat.example",
+		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
+		accountcore.APIProtocolResponses:       "http://responses.example/v1",
 	})
 
 	_, err := svc.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
@@ -187,16 +188,16 @@ func TestAdaptiveProtocolRoutesKimiResponsesToNativeResponses(t *testing.T) {
 }
 
 func TestAdaptiveProtocolRoutesKimiCodingResponsesToNativeResponses(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"k3-256k","input":"hello","stream":false}`)
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-	account := adaptiveProtocolTestAccount(PlatformKimi, map[string]any{
-		APIProtocolChatCompletions: "https://api.kimi.com/coding/v1",
-		APIProtocolAnthropic:       "https://api.kimi.com/coding",
-		APIProtocolResponses:       "https://api.kimi.com/coding/v1",
+	account := adaptiveProtocolTestAccount(capability.PlatformKimi, map[string]any{
+		accountcore.APIProtocolChatCompletions: "https://api.kimi.com/coding/v1",
+		accountcore.APIProtocolAnthropic:       "https://api.kimi.com/coding",
+		accountcore.APIProtocolResponses:       "https://api.kimi.com/coding/v1",
 	})
-	account.Credentials["account_mode"] = AccountModeCoding
+	account.Credentials["account_mode"] = accountcore.AccountModeCoding
 
 	_, err := svc.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
 	require.Error(t, err)
@@ -205,14 +206,14 @@ func TestAdaptiveProtocolRoutesKimiCodingResponsesToNativeResponses(t *testing.T
 }
 
 func TestAdaptiveProtocolRoutesDeepSeekResponsesToNativeResponses(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"deepseek-v4","input":"hello","max_output_tokens":32,"store":true,"previous_response_id":"resp_old","stream":false}`)
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-	account := adaptiveProtocolTestAccount(PlatformDeepseek, map[string]any{
-		APIProtocolChatCompletions: "http://chat.example",
-		APIProtocolAnthropic:       "http://anthropic.example",
-		APIProtocolResponses:       "http://responses.example",
+	account := adaptiveProtocolTestAccount(capability.PlatformDeepseek, map[string]any{
+		accountcore.APIProtocolChatCompletions: "http://chat.example",
+		accountcore.APIProtocolAnthropic:       "http://anthropic.example",
+		accountcore.APIProtocolResponses:       "http://responses.example",
 	})
 
 	_, err := svc.Forward(context.Background(), adaptiveProtocolTestContext("/v1/responses", body), account, body)
@@ -225,16 +226,16 @@ func TestAdaptiveProtocolRoutesDeepSeekResponsesToNativeResponses(t *testing.T) 
 }
 
 func TestFixedCNChatProtocolOverridesStaleResponsesMode(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	for _, tc := range cnProtocolIngressCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 			svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-			account := adaptiveProtocolTestAccount(PlatformDeepseek, nil)
-			account.Credentials["api_protocol"] = APIProtocolChatCompletions
+			account := adaptiveProtocolTestAccount(capability.PlatformDeepseek, nil)
+			account.Credentials["api_protocol"] = accountcore.APIProtocolChatCompletions
 			account.Credentials["base_url"] = "http://chat.example"
 			account.Extra = map[string]any{
-				openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceResponses),
+				accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceResponses),
 			}
 
 			err := tc.forward(svc, adaptiveProtocolTestContext(tc.path, tc.body), account, tc.body)
@@ -246,16 +247,16 @@ func TestFixedCNChatProtocolOverridesStaleResponsesMode(t *testing.T) {
 }
 
 func TestFixedCNResponsesProtocolOverridesStaleChatMode(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	for _, tc := range cnProtocolIngressCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
 			svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
-			account := adaptiveProtocolTestAccount(PlatformDeepseek, nil)
-			account.Credentials["api_protocol"] = APIProtocolResponses
+			account := adaptiveProtocolTestAccount(capability.PlatformDeepseek, nil)
+			account.Credentials["api_protocol"] = accountcore.APIProtocolResponses
 			account.Credentials["base_url"] = "http://responses.example"
 			account.Extra = map[string]any{
-				openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
+				accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 			}
 
 			err := tc.forward(svc, adaptiveProtocolTestContext(tc.path, tc.body), account, tc.body)

@@ -4,11 +4,12 @@ package httpapi
 import (
 	context "context"
 	json "encoding/json"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	dto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	strings "strings"
 )
 
 // UserHandler 处理用户资料与身份绑定；推广资金入口留在所属用例。

@@ -18,7 +18,7 @@
 | --- | --- | --- | --- |
 | 进程基础设施配置 | server、database、Redis、日志、CORS、JWT、worker/queue、连接池和硬安全开关 | `config.Config`，由默认值/YAML/环境变量加载 | 通常启动时读取，修改后重启 |
 | 引导与持久安全密钥 | 初始 DB/Redis、管理员创建、JWT secret、安装锁 | setup 流程、`config.yaml`、`security_secrets` | 仅首次安装或启动引导阶段 |
-| 数据库运行时设置 | 注册、OAuth、SMTP、面板限流、step-up、部分调度/超时、展示和功能开关 | `settings` 表 + `SettingService` | getter/cached snapshot/on-update，按设置实现热生效 |
+| 数据库运行时设置 | 注册、OAuth、SMTP、面板限流、step-up、部分调度/超时、展示和功能开关 | `settings.Store` + 各模块运行读取器 | getter/cached snapshot/on-update，按设置实现热生效 |
 | 领域配置 | 用户、团队、API Key、分组、渠道、账号、套餐、支付实例 | 对应 Ent schema/service | CRUD 事务后失效领域缓存 |
 | 前端构建/开发配置 | API base、WS base、dev proxy、dev port | Vite `VITE_*` | 构建或 dev server 启动时注入 |
 
@@ -72,7 +72,9 @@ setup 使用 `DATA_DIR > 可写 /app/data > 当前目录` 选择 `config.yaml` �
 
 usage、audit、ops 的静态参数由 app 投影为各模块 Options；动态 Ops 设置与日志配置继续由原数据库键控制。统一预聚合控制器位于 `settings/preaggregation`，仍有十五秒缓存及原更新通知，不新增设置格式或发布订阅协议。运行日志的应用、持久化失败后回滚和清理 Reload 顺序保持不变。
 
-`settings` 是 `key/value/updated_at` 表，删除键表示恢复该 getter 的默认语义。`settings.Store` 与其 PostgreSQL Adapter 拥有通用存取、现有版本字段和更新通知；身份注册/安全/captcha、OAuth 配置解释、账号冷却与导入模板、推广开关、用量排行、审计保留期和网关策略已分别由所属模块实现；面板限流配置与缓存归 `server/runtimeconfig`。旧 `SettingService` 对这些能力仅委托，同实例的缓存不再复制。`settings/composite` 只组合领域值投影、准备顺序及提交后应用；`settings/httpapi` 保留扁平 binding、权限、审计和响应。旧 `SettingService` 的对应读取与准备仅委托同一实现，剩余旧调用进入 S16 清理。
+`settings` 是 `key/value/updated_at` 表，删除键表示恢复该 getter 的默认语义。`settings.Store` 与其 PostgreSQL Adapter 拥有通用存取、现有版本字段和更新通知；身份注册/安全/captcha、OAuth 配置解释、账号冷却与导入模板、推广开关、用量排行、审计保留期和网关策略已分别由所属模块实现；面板限流配置与缓存归 `server/runtimeconfig`。创作运行开关和模型列表由 app 直接注入 `creative.RuntimeSettings`，保持即时读取；路由容量使用同一个 `account.QuotaSettingsCache`，不经旧设置聚合取回实例。旧 `SettingService` 及其读取/写入包装已经删除，同实例的缓存不再复制。`settings/composite` 只组合领域值投影、准备顺序及提交后应用；`settings/httpapi` 保留扁平 binding、权限、审计和响应。测试也直接使用原生读取、准备、提交和发布能力；旧聚合不再作为测试装配入口。
+
+生产网关已直接绑定所属模块的设置读取器，不再构造旧 `SettingService`。执行适配器的 `RuntimeReaders` 只持有同一网关、账号、配额、路由、审核、提示词与搜索实例，以及调度读取端口；它不解释设置、不缓存或启动任务。Antigravity 日志/流预算由 app 投影静态值，身份补丁仍逐请求读取，失败默认开启与空提示词回退不变。HTTP 客户端版本与余额展示单位分别直接读取 gateway 与 billing。中间件、路由与存储回归已按各自端口改绑，保留可选指针为 nil 时的原有认证边界。
 
 综合设置 `PUT /api/v1/admin/settings` 在读取旧值前进入实例内更新保护；app 对综合输入的 295 个字段静态注册唯一业务所有者、持久键和顺序，构造时拒绝重复所有权；装配测试检查遗漏和重复字段。系统设置、认证默认值、Fast 策略及支付设置先完成校验与投影，再进行一次原子批量写入。任何提交前失败均不发布运行状态或成功通知。提交后的必要运行应用失败返回 `SETTINGS_APPLY_FAILED`，metadata 标明 `persisted=true` 及失败模块；已保存的配置不会被伪装成回滚，也不自动重写或重试。专用设置入口仍保持各自的写入范围及通知行为。业务更新保持校验、批量原子写入、原有缓存刷新、原有通知的顺序。Store 写方法不自动广播，单键更新不会获得原先没有的通知；旧单回调接口保留替换语义，应用订阅可以注销。这里的版本字段保留原应用版本赋值和 JSON 省略语义，没有新增持久 revision 或跨实例消息协议。公开设置、CSP、search 配置运行时与动态 worker 回调由 app 装配。site 统一拥有公开 API、embed 注入与 CSP 投影，保留各自字段形状；公开来源保持原批量查询，认证、团队和用量分别解释所需字段，site 只向渲染层返回公开键和安全投影；OAuth secret 不进入 web。
 
@@ -160,7 +162,7 @@ Vite 在构建/dev server 启动时读取 `VITE_API_BASE_URL`、`VITE_WS_BASE_UR
 - 明确环境变量名称、YAML 点分键和优先级；新增兼容旧键时规定弃用与新键优先条件。
 - 明确是否热生效、是否多实例一致、缓存如何失效以及失败时 fail-open 还是 fail-close。
 - secret 使用 write-only/掩码语义并覆盖日志脱敏；不能暴露到 `VITE_*` 或普通设置响应。
-- 更新配置和环境变量可达性、校验、setup 往返、SettingService/handler 以及部署冒烟测试。
+- 更新配置和环境变量可达性、校验、setup 往返、原生设置读取器/HTTP 以及部署冒烟测试。
 
 相关文档：[HTTP 接口边界](http_api.md)、[系统架构](../architecture/system_architecture.md)、[部署与迁移](../operations/index.md)、[接口目录](index.md)。
 

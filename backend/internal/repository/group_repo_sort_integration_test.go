@@ -3,9 +3,11 @@
 package repository
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // TestListWithAccountCountSort_AttachesActiveCount 验证通过 account_count 排序时，
@@ -13,15 +15,15 @@ import (
 // 且排序基于 total 账号数而非 active 账号数。
 func (s *GroupRepoSuite) TestListWithAccountCountSort_AttachesActiveCount() {
 	// 分组 A：total=2，active=1（包含 1 个 disabled 账号）。
-	gA := &service.Group{Name: "sort-count-a", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive,
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+	gA := &routing.Group{Name: "sort-count-a", Platform: capability.PlatformAnthropic, RateMultiplier: 1, Status: billing.StatusActive,
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	// 分组 B：total=1，active=1。
-	gB := &service.Group{Name: "sort-count-b", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive,
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+	gB := &routing.Group{Name: "sort-count-b", Platform: capability.PlatformAnthropic, RateMultiplier: 1, Status: billing.StatusActive,
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, gA))
@@ -31,7 +33,7 @@ func (s *GroupRepoSuite) TestListWithAccountCountSort_AttachesActiveCount() {
 		var id int64
 		s.Require().NoError(scanSingleRow(s.ctx, s.tx,
 			"INSERT INTO accounts (name, platform, type, status) VALUES ($1, $2, $3, $4) RETURNING id",
-			[]any{name, service.PlatformAnthropic, service.AccountTypeOAuth, status},
+			[]any{name, capability.PlatformAnthropic, capability.AccountTypeOAuth, status},
 			&id))
 		return id
 	}
@@ -43,17 +45,17 @@ func (s *GroupRepoSuite) TestListWithAccountCountSort_AttachesActiveCount() {
 	}
 
 	// gA：1 active + 1 disabled，因此 total=2，active=1。
-	link(insertAccount("sa-active", service.StatusActive), gA.ID)
-	link(insertAccount("sa-disabled", service.StatusDisabled), gA.ID)
+	link(insertAccount("sa-active", billing.StatusActive), gA.ID)
+	link(insertAccount("sa-disabled", billing.StatusDisabled), gA.ID)
 	// gB：1 active，因此 total=1，active=1。
-	link(insertAccount("sb-active", service.StatusActive), gB.ID)
+	link(insertAccount("sb-active", billing.StatusActive), gB.ID)
 
 	groups, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{
 		Page: 1, PageSize: 100, SortBy: "account_count", SortOrder: "desc",
-	}, service.PlatformAnthropic, service.StatusActive, "", nil)
+	}, capability.PlatformAnthropic, billing.StatusActive, "", nil)
 	s.Require().NoError(err)
 
-	byID := make(map[int64]service.Group, len(groups))
+	byID := make(map[int64]routing.Group, len(groups))
 	for _, g := range groups {
 		byID[g.ID] = g
 	}
@@ -78,14 +80,14 @@ func (s *GroupRepoSuite) TestListWithAccountCountSort_AttachesActiveCount() {
 }
 
 func (s *GroupRepoSuite) TestList_DefaultSortBySortOrderAsc() {
-	g1 := &service.Group{Name: "g1", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 20,
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+	g1 := &routing.Group{Name: "g1", Platform: capability.PlatformAnthropic, RateMultiplier: 1, Status: billing.StatusActive, SortOrder: 20,
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
-	g2 := &service.Group{Name: "g2", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 10,
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+	g2 := &routing.Group{Name: "g2", Platform: capability.PlatformAnthropic, RateMultiplier: 1, Status: billing.StatusActive, SortOrder: 10,
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g1))
@@ -105,14 +107,14 @@ func (s *GroupRepoSuite) TestList_DefaultSortBySortOrderAsc() {
 }
 
 func (s *GroupRepoSuite) TestList_SortBySortOrderDesc() {
-	g1 := &service.Group{Name: "g1", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 40,
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+	g1 := &routing.Group{Name: "g1", Platform: capability.PlatformAnthropic, RateMultiplier: 1, Status: billing.StatusActive, SortOrder: 40,
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
-	g2 := &service.Group{Name: "g2", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 50,
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+	g2 := &routing.Group{Name: "g2", Platform: capability.PlatformAnthropic, RateMultiplier: 1, Status: billing.StatusActive, SortOrder: 50,
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g1))

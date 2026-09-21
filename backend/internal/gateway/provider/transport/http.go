@@ -1,0 +1,538 @@
+package transport
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	proxyinfra "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+)
+
+// 默认配置常量
+// 这些值在配置文件未指定时作为回退默认值使用
+const (
+	// defaultMaxIdleConns: 默认最大空闲连接总数
+	// HTTP/2 场景下，单连接可多路复用，240 足以支撑高并发
+	defaultMaxIdleConns = 240
+	// defaultMaxIdleConnsPerHost: 默认每主机最大空闲连接数
+	defaultMaxIdleConnsPerHost = 120
+	// defaultMaxConnsPerHost: 默认每主机最大连接数（含活跃连接）
+	// 达到上限后新请求会等待，而非无限创建连接
+	defaultMaxConnsPerHost = 240
+	// defaultIdleConnTimeout: 默认空闲连接超时时间（90秒）
+	// 超时后连接会被关闭，释放系统资源（建议小于上游 LB 超时）
+	defaultIdleConnTimeout = 90 * time.Second
+	// defaultResponseHeaderTimeout: 默认等待响应头超时时间（5分钟）
+	// LLM 请求可能排队较久，需要较长超时
+	defaultResponseHeaderTimeout = 300 * time.Second
+	// defaultMaxUpstreamClients: 默认最大客户端缓存数量
+	// 超出后会淘汰最久未使用的客户端
+	defaultMaxUpstreamClients = 5000
+	// defaultClientIdleTTLSeconds: 默认客户端空闲回收阈值（15分钟）
+	defaultClientIdleTTLSeconds = 900
+	// OpenAI HTTP/2 代理回退策略默认值
+	defaultOpenAIHTTP2FallbackErrorThreshold = 2
+	defaultOpenAIHTTP2FallbackWindow         = 60 * time.Second
+	defaultOpenAIHTTP2FallbackTTL            = 10 * time.Minute
+
+	// Grok CLI 代理会拒绝未标识受支持客户端版本的请求。二进制内置已验证版本，
+	// 同时允许运维人员通过环境变量升级，无需等待 TokenRouter 发版。
+	grokCLIProxyHost       = "cli-chat-proxy.grok.com"
+	grokOfficialAPIHost    = "api.x.ai"
+	grokCLIStableVersion   = xai.CLIClientVersion // preferred pin (not the minimum floor)
+	grokCLIVersionOverride = xai.CLIVersionEnv
+	grokFallbackBodyLimit  = 64 << 10
+)
+
+const (
+	upstreamProtocolModeDefault          = "default"
+	upstreamProtocolModeOpenAIH1         = "openai_h1"
+	upstreamProtocolModeOpenAIH2         = "openai_h2"
+	upstreamProtocolModeOpenAIH1Fallback = "openai_h1_fallback"
+	upstreamProtocolModeGrok             = "grok"
+)
+
+type openAIHTTP2Settings struct {
+	enabled                   bool
+	allowProxyFallbackToHTTP1 bool
+	fallbackErrorThreshold    int
+	fallbackWindow            time.Duration
+	fallbackTTL               time.Duration
+}
+
+// httpClientForUpstreamRequest 保留旧测试入口，实际生产调用使用已冻结的出站策略。
+func httpClientForUpstreamRequest(s *Client, client *http.Client, req *http.Request) *http.Client {
+	if client == nil || req == nil {
+		return client
+	}
+	return httpClientForEgressPolicy(s, client, s.requestPolicy(req))
+}
+
+// httpClientForEgressPolicy 保留原每请求派生与重定向检查先后顺序。
+func httpClientForEgressPolicy(s *Client, client *http.Client, policy egress.EgressPolicy) *http.Client {
+	if client == nil {
+		return nil
+	}
+	switch {
+	case policy.DisableRedirects:
+		clone := *client
+		clone.CheckRedirect = func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		}
+		return &clone
+	case policy.PublicHostsOnly && s != nil:
+		clone := *client
+		clone.CheckRedirect = func(next *http.Request, via []*http.Request) error {
+			// 每跳继承下载安全标记，同时保留客户端已有的重定向约束。
+			next = next.WithContext(upstream.WithHTTPUpstreamPublicHostsOnly(next.Context()))
+			if err := s.redirectChecker(next, via); err != nil {
+				return err
+			}
+			if client.CheckRedirect != nil {
+				return client.CheckRedirect(next, via)
+			}
+			return nil
+		}
+		return &clone
+	default:
+		return client
+	}
+}
+
+func httpClientWithGrokAccessDeniedFallback(client *http.Client) *http.Client {
+	return xai.ClientWithAccessDeniedFallback(client)
+}
+
+func isGrokCLICompatibilityAccessDenied(body []byte) bool {
+	return xai.IsCLICompatibilityAccessDenied(body)
+}
+
+func isGrokCLIAccessDeniedFallbackCandidate(req *http.Request, resp *http.Response) bool {
+	return xai.IsCLIAccessDeniedFallbackCandidate(req, resp)
+}
+
+func applyGrokCLIProxyHeaders(req *http.Request) { xai.ApplyTransportCLIHeaders(req) }
+
+func (s *Client) shouldValidateResolvedIP() bool {
+	if s.options() == nil {
+		return false
+	}
+	return s.options().ValidateResolvedIP
+}
+
+func (s *Client) validateRequestHost(req *http.Request) error {
+	if !s.requestPolicy(req).RequiresHostValidation() {
+		return nil
+	}
+	if req == nil || req.URL == nil {
+		return errors.New("request url is nil")
+	}
+	host := strings.TrimSpace(req.URL.Hostname())
+	if host == "" {
+		return errors.New("request host is empty")
+	}
+	if err := httpclient.ValidateResolvedIP(host); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Client) redirectChecker(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	return s.validateRequestHost(req)
+}
+
+// getIsolationMode 获取连接池隔离模式
+// 从配置中读取，无效值回退到 account_proxy 模式
+//
+// 返回:
+//   - string: 隔离模式（proxy/account/account_proxy）
+func (s *Client) getIsolationMode() string {
+	if s.options() == nil {
+		return "account_proxy"
+	}
+	mode := strings.ToLower(strings.TrimSpace(s.options().ConnectionPoolIsolation))
+	if mode == "" {
+		return "account_proxy"
+	}
+	switch mode {
+	case "proxy", "account", "account_proxy":
+		return mode
+	default:
+		return "account_proxy"
+	}
+}
+
+// maxUpstreamClients 获取最大客户端缓存数量
+// 从配置中读取，无效值使用默认值
+func (s *Client) maxUpstreamClients() int {
+	if s.options() == nil {
+		return defaultMaxUpstreamClients
+	}
+	if s.options().MaxUpstreamClients > 0 {
+		return s.options().MaxUpstreamClients
+	}
+	return defaultMaxUpstreamClients
+}
+
+// clientIdleTTL 获取客户端空闲回收阈值
+// 从配置中读取，无效值使用默认值
+func (s *Client) clientIdleTTL() time.Duration {
+	if s.options() == nil {
+		return time.Duration(defaultClientIdleTTLSeconds) * time.Second
+	}
+	if s.options().ClientIdleTTLSeconds > 0 {
+		return time.Duration(s.options().ClientIdleTTLSeconds) * time.Second
+	}
+	return time.Duration(defaultClientIdleTTLSeconds) * time.Second
+}
+
+// resolvePoolSettings 解析连接池配置
+// 根据隔离策略和账户并发数动态调整连接池参数
+//
+// 参数:
+//   - isolation: 隔离模式
+//   - accountConcurrency: 账户并发限制
+//
+// 返回:
+//   - poolSettings: 连接池配置
+//
+// 说明:
+//   - 账户隔离模式下，连接池大小与账户并发数对应
+//   - 这确保了单账户不会占用过多连接资源
+func (s *Client) resolvePoolSettings(isolation string, accountConcurrency int) poolSettings {
+	settings := defaultPoolSettings(s.options())
+	// 账户隔离模式下，根据账户并发数调整连接池大小
+	if (isolation == "account" || isolation == "account_proxy") && accountConcurrency > 0 {
+		settings.MaxIdleConns = accountConcurrency
+		settings.MaxIdleConnsPerHost = accountConcurrency
+		settings.MaxConnsPerHost = accountConcurrency
+	}
+	return settings
+}
+
+func (s *Client) applyProfilePoolSettings(settings poolSettings, profile upstream.HTTPUpstreamProfile) poolSettings {
+	switch profile {
+	case upstream.HTTPUpstreamProfileOpenAI:
+		settings.ResponseHeaderTimeout = 0
+		if s != nil && s.options() != nil && s.options().OpenAIResponseHeaderTimeout > 0 {
+			settings.ResponseHeaderTimeout = time.Duration(s.options().OpenAIResponseHeaderTimeout) * time.Second
+		}
+	case upstream.HTTPUpstreamProfileGrok:
+		// Grok 首字节可能因容量压力阻塞，独立限制响应头等待；收到头后的流不受影响。
+		settings.ResponseHeaderTimeout = 120 * time.Second
+		if s != nil && s.options() != nil {
+			settings.ResponseHeaderTimeout = time.Duration(s.options().GrokResponseHeaderTimeout) * time.Second
+		}
+	}
+	return settings
+}
+
+func (s *Client) resolveOpenAIHTTP2Settings() openAIHTTP2Settings {
+	settings := openAIHTTP2Settings{
+		enabled:                   false,
+		allowProxyFallbackToHTTP1: true,
+		fallbackErrorThreshold:    defaultOpenAIHTTP2FallbackErrorThreshold,
+		fallbackWindow:            defaultOpenAIHTTP2FallbackWindow,
+		fallbackTTL:               defaultOpenAIHTTP2FallbackTTL,
+	}
+	if s == nil || s.options() == nil {
+		return settings
+	}
+	cfg := s.options().OpenAIHTTP2
+	settings.enabled = cfg.Enabled
+	settings.allowProxyFallbackToHTTP1 = cfg.AllowProxyFallbackToHTTP1
+	if cfg.FallbackErrorThreshold > 0 {
+		settings.fallbackErrorThreshold = cfg.FallbackErrorThreshold
+	}
+	if cfg.FallbackWindowSeconds > 0 {
+		settings.fallbackWindow = time.Duration(cfg.FallbackWindowSeconds) * time.Second
+	}
+	if cfg.FallbackTTLSeconds > 0 {
+		settings.fallbackTTL = time.Duration(cfg.FallbackTTLSeconds) * time.Second
+	}
+	return settings
+}
+
+func resolveTLSFingerprintTransportProfile(profile *tlsfingerprint.Profile, protocolMode string) *tlsfingerprint.Profile {
+	if protocolMode != upstreamProtocolModeOpenAIH2 {
+		return tlsfingerprint.HTTP1OnlyProfile(profile)
+	}
+	return profile
+}
+
+func (s *Client) isOpenAIHTTP2FallbackActive(proxyKey string) bool {
+	return s.transportPolicy.Active(proxyKey, time.Now())
+}
+
+func isOpenAIHTTP2CompatibilityError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if isUpstreamTimeoutError(err) {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if msg == "" {
+		return false
+	}
+	markers := []string{
+		"alpn",
+		"no application protocol",
+		"protocol error",
+		"stream error",
+		"goaway",
+		"refused_stream",
+		"frame too large",
+	}
+	for _, marker := range markers {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func isUpstreamTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	if msg == "" {
+		return false
+	}
+	timeoutMarkers := []string{
+		"timeout awaiting response headers",
+		"i/o timeout",
+		"context deadline exceeded",
+		"client.timeout exceeded while awaiting headers",
+		"tls handshake timeout",
+	}
+	for _, marker := range timeoutMarkers {
+		if strings.Contains(msg, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Client) recordOpenAIHTTP2Failure(profile upstream.HTTPUpstreamProfile, protocolMode, proxyKey string, err error) {
+	activated, until := s.transportPolicy.ObserveFailure(string(profile), protocolMode, proxyKey, isOpenAIHTTP2CompatibilityError(err), s.http2Options(), time.Now())
+	if activated {
+		slog.Warn("openai_http2_proxy_fallback_activated", "proxy", proxyKey, "fallback_until", until.Format(time.RFC3339))
+	}
+}
+
+func (s *Client) recordOpenAIHTTP2Success(profile upstream.HTTPUpstreamProfile, protocolMode, proxyKey string) {
+	s.transportPolicy.ObserveSuccess(string(profile), protocolMode, proxyKey)
+}
+
+// normalizeProxyURL 标准化代理 URL
+// 处理空值和解析错误，返回标准化的键和解析后的 URL
+//
+// 参数:
+//   - raw: 原始代理 URL 字符串
+//
+// 返回:
+//   - string: 标准化的代理键（空返回 "direct"）
+//   - *url.URL: 解析后的 URL（空返回 nil）
+//   - error: 非空代理 URL 解析失败时返回错误（禁止回退到直连）
+func normalizeProxyURL(raw string) (string, *url.URL, error) {
+	return proxyinfra.NormalizePoolKey(raw)
+}
+
+// defaultPoolSettings 获取默认连接池配置
+// 从显式参数读取，无效值使用原常量默认值
+//
+// 参数:
+//   - cfg: 传输参数
+//
+// 返回:
+//   - poolSettings: 连接池配置
+func defaultPoolSettings(cfg *Options) poolSettings {
+	maxIdleConns := defaultMaxIdleConns
+	maxIdleConnsPerHost := defaultMaxIdleConnsPerHost
+	maxConnsPerHost := defaultMaxConnsPerHost
+	idleConnTimeout := defaultIdleConnTimeout
+	responseHeaderTimeout := defaultResponseHeaderTimeout
+
+	if cfg != nil {
+		if cfg.MaxIdleConns > 0 {
+			maxIdleConns = cfg.MaxIdleConns
+		}
+		if cfg.MaxIdleConnsPerHost > 0 {
+			maxIdleConnsPerHost = cfg.MaxIdleConnsPerHost
+		}
+		if cfg.MaxConnsPerHost >= 0 {
+			maxConnsPerHost = cfg.MaxConnsPerHost
+		}
+		if cfg.IdleConnTimeoutSeconds > 0 {
+			idleConnTimeout = time.Duration(cfg.IdleConnTimeoutSeconds) * time.Second
+		}
+		if cfg.ResponseHeaderTimeout >= 0 {
+			responseHeaderTimeout = time.Duration(cfg.ResponseHeaderTimeout) * time.Second
+		}
+	}
+
+	return poolSettings{
+		MaxIdleConns:          maxIdleConns,
+		MaxIdleConnsPerHost:   maxIdleConnsPerHost,
+		MaxConnsPerHost:       maxConnsPerHost,
+		IdleConnTimeout:       idleConnTimeout,
+		ResponseHeaderTimeout: responseHeaderTimeout,
+	}
+}
+
+// poolSettings 使用技术池的参数类型，配置投影由 app 提供。
+type poolSettings = httpclient.UpstreamSettings
+
+// upstreamPool 是平台适配与通用连接池之间的执行契约，也供测试替换外部传输。
+type upstreamPool interface {
+	Do(*http.Request, httpclient.UpstreamRequestOptions) (*http.Response, error)
+}
+type Client struct {
+	source          func() *Options
+	pool            upstreamPool
+	transportPolicy egress.TransportPolicy
+}
+
+// New 创建唯一传输适配器，参数读取和底层连接池各自保持原作用域。
+func New(source func() *Options) *Client {
+	return &Client{source: source, pool: httpclient.NewUpstreamPool()}
+}
+
+func (s *Client) options() *Options {
+	if s == nil || s.source == nil {
+		return nil
+	}
+	return s.source()
+}
+
+// transportOptions 将平台和配置转为一次执行使用的技术快照。
+func (s *Client) transportOptions(req *http.Request, proxyURL string, accountID int64, concurrency int, tlsProfile *tlsfingerprint.Profile) (httpclient.UpstreamRequestOptions, error) {
+	proxyKey, parsedProxy, err := normalizeProxyURL(proxyURL)
+	if err != nil {
+		return httpclient.UpstreamRequestOptions{}, err
+	}
+	profile := upstream.HTTPUpstreamProfileDefault
+	if req != nil {
+		profile = upstream.HTTPUpstreamProfileFromContext(req.Context())
+	}
+	isolation := s.getIsolationMode()
+	settings := s.applyProfilePoolSettings(s.resolvePoolSettings(isolation, concurrency), profile)
+
+	proxyScheme := ""
+	if parsedProxy != nil {
+		proxyScheme = parsedProxy.Scheme
+	}
+	targetPolicy := s.requestPolicy(req)
+	policy := s.transportPolicy.Plan(egress.TransportRequest{TLSProfile: egressprovider.FromTLSProfile(tlsProfile), ValidateResolvedIP: targetPolicy.ValidateResolvedIP, PublicHostsOnly: targetPolicy.PublicHostsOnly, DisableRedirects: targetPolicy.DisableRedirects, Profile: string(profile), ProxyURL: proxyURL, ProxyKey: proxyKey, ProxyScheme: proxyScheme, HTTP2: s.http2Options(), HasTLSProfile: tlsProfile != nil, TLSSupportsHTTP2: tlsfingerprint.SupportsHTTP2(tlsProfile), Now: time.Now()})
+	mode := policy.TransportMode
+	if tlsProfile != nil {
+		tlsProfile = resolveTLSFingerprintTransportProfile(egressprovider.ToTLSProfile(policy.TLSProfile), mode)
+	}
+
+	opts := httpclient.UpstreamRequestOptions{
+		ProxyURL:   policy.ProxyURL,
+		AccountID:  accountID,
+		Isolation:  isolation,
+		MaxClients: s.maxUpstreamClients(),
+		IdleTTL:    s.clientIdleTTL(),
+		Settings:   settings,
+		TLSProfile: tlsProfile,
+		Protocol: httpclient.TransportProtocol{
+			CacheVariant: policy.TransportMode,
+			HTTP2:        policy.TransportMode == upstreamProtocolModeOpenAIH2,
+			DisableHTTP2: policy.TransportMode == upstreamProtocolModeOpenAIH1 || policy.TransportMode == upstreamProtocolModeOpenAIH1Fallback,
+		},
+	}
+	if policy.ValidateResolvedIP {
+		opts.CheckRedirect = s.redirectChecker
+	}
+	opts.PrepareClient = func(client *http.Client) *http.Client {
+		return httpClientWithGrokAccessDeniedFallback(httpClientForEgressPolicy(s, client, policy))
+	}
+	opts.ObserveResult = func(err error) {
+		if err != nil {
+			s.recordOpenAIHTTP2Failure(profile, mode, proxyKey, err)
+		} else {
+			s.recordOpenAIHTTP2Success(profile, mode, proxyKey)
+		}
+	}
+	return opts, nil
+}
+
+// Do 保留请求 Header、目标验证与平台策略的执行顺序。
+func (s *Client) Do(req *http.Request, proxyURL string, accountID int64, concurrency int) (*http.Response, error) {
+	applyGrokCLIProxyHeaders(req)
+	if err := s.validateRequestHost(req); err != nil {
+		return nil, err
+	}
+	opts, err := s.transportOptions(req, proxyURL, accountID, concurrency, nil)
+	if err != nil {
+		return nil, err
+	}
+	return s.pool.Do(req, opts)
+}
+
+// DoWithTLS 保留 nil/明文 HTTP 回退，并将已选定的指纹交给通用池。
+func (s *Client) DoWithTLS(req *http.Request, proxyURL string, accountID int64, concurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	if profile == nil || (req != nil && req.URL != nil && strings.EqualFold(req.URL.Scheme, "http")) {
+		return s.Do(req, proxyURL, accountID, concurrency)
+	}
+	applyGrokCLIProxyHeaders(req)
+	if err := s.validateRequestHost(req); err != nil {
+		return nil, err
+	}
+	opts, err := s.transportOptions(req, proxyURL, accountID, concurrency, profile)
+	if err != nil {
+		return nil, err
+	}
+	return s.pool.Do(req, opts)
+}
+
+// CloseIdleConnections 由应用在所有请求和后台副作用完成后调用。
+func (s *Client) CloseIdleConnections() {
+	if closer, ok := s.pool.(interface{ CloseIdleConnections() }); ok {
+		closer.CloseIdleConnections()
+	}
+}
+
+// http2Options 投影传输参数，回退状态与决策唯一归 egress。
+func (s *Client) http2Options() egress.HTTP2Options {
+	v := s.resolveOpenAIHTTP2Settings()
+	return egress.HTTP2Options{Enabled: v.enabled, AllowProxyFallbackToHTTP1: v.allowProxyFallbackToHTTP1, FallbackErrorThreshold: v.fallbackErrorThreshold, FallbackWindow: v.fallbackWindow, FallbackTTL: v.fallbackTTL}
+}
+
+// requestPolicy 只组合传输参数与请求标记，DNS 执行仍在原校验点。
+func (s *Client) requestPolicy(req *http.Request) egress.EgressPolicy {
+	input := egress.RequestPolicyInput{}
+	if s != nil {
+		input.ValidateResolvedIP = s.shouldValidateResolvedIP()
+	}
+	if req != nil {
+		input.DisableRedirects = upstream.HTTPUpstreamRedirectsDisabled(req.Context())
+		input.PublicHostsOnly = upstream.HTTPUpstreamPublicHostsOnly(req.Context())
+	}
+	return egress.RequestPolicy(input)
+}

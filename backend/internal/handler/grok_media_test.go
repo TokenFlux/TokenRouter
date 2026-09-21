@@ -9,6 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
@@ -18,7 +25,7 @@ func TestRecordGrokMediaUsageIgnoresNilResult(t *testing.T) {
 	require.NotPanics(t, func() {
 		recordGrokMediaUsage(
 			nil, nil, nil, nil, middleware2.AuthSubject{}, nil, nil, nil,
-			"", service.ChannelMappingResult{}, nil, "",
+			"", routing.ChannelMappingResult{}, nil, "",
 		)
 	})
 }
@@ -27,7 +34,7 @@ func TestApplyGrokMediaChannelMappingRewritesForwardBody(t *testing.T) {
 	jsonBody, contentType, err := applyGrokMediaChannelMapping(
 		[]byte(`{"model":"key-target","prompt":"keep key-target in text"}`),
 		"application/json",
-		service.ChannelMappingResult{Mapped: true, MappedModel: "channel-target"},
+		routing.ChannelMappingResult{Mapped: true, MappedModel: "channel-target"},
 	)
 	require.NoError(t, err)
 	require.Equal(t, "application/json", contentType)
@@ -41,7 +48,7 @@ func TestApplyGrokMediaChannelMappingRewritesForwardBody(t *testing.T) {
 	rewritten, rewrittenType, err := applyGrokMediaChannelMapping(
 		multipartBody.Bytes(),
 		writer.FormDataContentType(),
-		service.ChannelMappingResult{Mapped: true, MappedModel: "channel-target"},
+		routing.ChannelMappingResult{Mapped: true, MappedModel: "channel-target"},
 	)
 	require.NoError(t, err)
 	reader, err := multipart.NewReader(bytes.NewReader(rewritten), multipartBoundaryForTest(t, rewrittenType)).ReadForm(1 << 20)
@@ -72,43 +79,43 @@ func (s *grokMediaEligibilityProberStub) ProbeMediaEligibility(context.Context, 
 func TestShouldRecordGrokMediaUsage(t *testing.T) {
 	tests := []struct {
 		name     string
-		endpoint service.GrokMediaEndpoint
+		endpoint grok.GrokMediaEndpoint
 		model    string
 		want     bool
 	}{
 		{
 			name:     "image generation records usage",
-			endpoint: service.GrokMediaEndpointImagesGenerations,
+			endpoint: grok.GrokMediaEndpointImagesGenerations,
 			model:    "grok-imagine",
 			want:     true,
 		},
 		{
 			name:     "image edit records usage",
-			endpoint: service.GrokMediaEndpointImagesEdits,
+			endpoint: grok.GrokMediaEndpointImagesEdits,
 			model:    "grok-imagine-edit",
 			want:     true,
 		},
 		{
 			name:     "video generation defers usage until status",
-			endpoint: service.GrokMediaEndpointVideosGenerations,
+			endpoint: grok.GrokMediaEndpointVideosGenerations,
 			model:    "grok-imagine-video-1.5",
 			want:     false,
 		},
 		{
 			name:     "video status skips immediate helper (status path claims separately)",
-			endpoint: service.GrokMediaEndpointVideoStatus,
+			endpoint: grok.GrokMediaEndpointVideoStatus,
 			model:    "",
 			want:     false,
 		},
 		{
 			name:     "video content skips usage",
-			endpoint: service.GrokMediaEndpointVideoContent,
+			endpoint: grok.GrokMediaEndpointVideoContent,
 			model:    "",
 			want:     false,
 		},
 		{
 			name:     "generation skips usage without model",
-			endpoint: service.GrokMediaEndpointImagesGenerations,
+			endpoint: grok.GrokMediaEndpointImagesGenerations,
 			model:    " ",
 			want:     false,
 		},
@@ -119,14 +126,14 @@ func TestShouldRecordGrokMediaUsage(t *testing.T) {
 			// 结果为 nil 时绝不能计费。
 			require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, nil))
 			// 即时辅助函数只对图片生成计费，异步视频在状态查询时计费。
-			result := &service.OpenAIForwardResult{ImageCount: 1, VideoCount: 0}
+			result := &forwardcore.OpenAIResult{ImageCount: 1, VideoCount: 0}
 			if tt.endpoint.IsGenerationRequest() && !isGrokVideoCreateEndpoint(tt.endpoint) && strings.TrimSpace(tt.model) != "" {
 				require.Equal(t, tt.want, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, result))
 			} else {
 				require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, result))
 			}
 			// 即使存在生成端点与模型，计费单位为零时也不得计费。
-			empty := &service.OpenAIForwardResult{}
+			empty := &forwardcore.OpenAIResult{}
 			require.False(t, shouldRecordGrokMediaUsage(tt.endpoint, tt.model, empty))
 		})
 	}
@@ -135,16 +142,16 @@ func TestShouldRecordGrokMediaUsage(t *testing.T) {
 func TestGrokMediaRequiredCapability(t *testing.T) {
 	tests := []struct {
 		name     string
-		endpoint service.GrokMediaEndpoint
-		want     service.OpenAIEndpointCapability
+		endpoint grok.GrokMediaEndpoint
+		want     accountcore.OpenAIEndpointCapability
 	}{
-		{name: "image generation", endpoint: service.GrokMediaEndpointImagesGenerations, want: service.OpenAIEndpointCapabilityGrokMediaGeneration},
-		{name: "image edit", endpoint: service.GrokMediaEndpointImagesEdits, want: service.OpenAIEndpointCapabilityGrokMediaGeneration},
-		{name: "video generation", endpoint: service.GrokMediaEndpointVideosGenerations, want: service.OpenAIEndpointCapabilityGrokMediaGeneration},
-		{name: "video edit", endpoint: service.GrokMediaEndpointVideosEdits, want: service.OpenAIEndpointCapabilityGrokMediaGeneration},
-		{name: "video extension", endpoint: service.GrokMediaEndpointVideosExtensions, want: service.OpenAIEndpointCapabilityGrokMediaGeneration},
-		{name: "video status preserves lookup", endpoint: service.GrokMediaEndpointVideoStatus, want: ""},
-		{name: "video content preserves lookup", endpoint: service.GrokMediaEndpointVideoContent, want: ""},
+		{name: "image generation", endpoint: grok.GrokMediaEndpointImagesGenerations, want: accountcore.OpenAIEndpointCapabilityGrokMediaGeneration},
+		{name: "image edit", endpoint: grok.GrokMediaEndpointImagesEdits, want: accountcore.OpenAIEndpointCapabilityGrokMediaGeneration},
+		{name: "video generation", endpoint: grok.GrokMediaEndpointVideosGenerations, want: accountcore.OpenAIEndpointCapabilityGrokMediaGeneration},
+		{name: "video edit", endpoint: grok.GrokMediaEndpointVideosEdits, want: accountcore.OpenAIEndpointCapabilityGrokMediaGeneration},
+		{name: "video extension", endpoint: grok.GrokMediaEndpointVideosExtensions, want: accountcore.OpenAIEndpointCapabilityGrokMediaGeneration},
+		{name: "video status preserves lookup", endpoint: grok.GrokMediaEndpointVideoStatus, want: ""},
+		{name: "video content preserves lookup", endpoint: grok.GrokMediaEndpointVideoContent, want: ""},
 	}
 
 	for _, tt := range tests {
@@ -158,7 +165,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 	t.Run("non oauth account does not probe", func(t *testing.T) {
 		prober := &grokMediaEligibilityProberStub{}
 		h := &OpenAIGatewayHandler{grokMediaEligibilityProber: prober}
-		account := &service.Account{Platform: service.PlatformGrok, Type: service.AccountTypeAPIKey}
+		account := &service.Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}
 
 		eligible, reason, err := h.ensureGrokMediaAccountEligibility(context.Background(), account)
 
@@ -171,7 +178,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 	t.Run("unobserved oauth is probed before forwarding", func(t *testing.T) {
 		prober := &grokMediaEligibilityProberStub{eligible: true, reason: "eligible"}
 		h := &OpenAIGatewayHandler{grokMediaEligibilityProber: prober}
-		account := &service.Account{ID: 7, Platform: service.PlatformGrok, Type: service.AccountTypeOAuth}
+		account := &service.Account{ID: 7, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
 
 		eligible, reason, err := h.ensureGrokMediaAccountEligibility(context.Background(), account)
 
@@ -183,7 +190,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 
 	t.Run("missing prober fails closed", func(t *testing.T) {
 		h := &OpenAIGatewayHandler{}
-		account := &service.Account{ID: 8, Platform: service.PlatformGrok, Type: service.AccountTypeOAuth}
+		account := &service.Account{ID: 8, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
 
 		eligible, reason, err := h.ensureGrokMediaAccountEligibility(context.Background(), account)
 
@@ -196,7 +203,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 		probeErr := errors.New("probe failed")
 		prober := &grokMediaEligibilityProberStub{reason: "billing_unobserved", err: probeErr}
 		h := &OpenAIGatewayHandler{grokMediaEligibilityProber: prober}
-		account := &service.Account{ID: 9, Platform: service.PlatformGrok, Type: service.AccountTypeOAuth}
+		account := &service.Account{ID: 9, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
 
 		eligible, reason, err := h.ensureGrokMediaAccountEligibility(context.Background(), account)
 
@@ -208,7 +215,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 
 func TestGrokMediaScheduleModelUsesNormalizedMappedUpstream(t *testing.T) {
 	account := &service.Account{
-		Platform: service.PlatformGrok,
+		Platform: capability.PlatformGrok,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"grok-imagine-video-1.5": "wrong-raw-model",
@@ -218,9 +225,9 @@ func TestGrokMediaScheduleModelUsesNormalizedMappedUpstream(t *testing.T) {
 	}
 
 	require.Equal(t, "mapped-video-model", grokMediaScheduleModel(account, "grok-imagine-video", nil))
-	require.Equal(t, "actual-upstream-model", grokMediaScheduleModel(account, "grok-imagine-video", &service.OpenAIForwardResult{
+	require.Equal(t, "actual-upstream-model", grokMediaScheduleModel(account, "grok-imagine-video", &forwardcore.OpenAIResult{
 		UpstreamModel: "actual-upstream-model",
 	}))
-	require.Equal(t, "mapped-video-model", grokMediaScheduleModel(account, "grok-imagine-video", &service.OpenAIForwardResult{}))
+	require.Equal(t, "mapped-video-model", grokMediaScheduleModel(account, "grok-imagine-video", &forwardcore.OpenAIResult{}))
 	require.Equal(t, "grok-imagine-video", grokMediaScheduleModel(nil, " grok-imagine-video ", nil))
 }

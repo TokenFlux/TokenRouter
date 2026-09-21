@@ -4,19 +4,20 @@ package service
 import (
 	"context"
 
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 )
 
 type errorRulesFixtureRepo struct {
-	ErrorPassthroughRepository
-	rules []*model.ErrorPassthroughRule
+	errorpolicy.ErrorPassthroughRepository
+	rules []*errorpolicy.ErrorPassthroughRule
 }
 
-func (r errorRulesFixtureRepo) List(context.Context) ([]*model.ErrorPassthroughRule, error) {
+func (r errorRulesFixtureRepo) List(context.Context) ([]*errorpolicy.ErrorPassthroughRule, error) {
 	return r.rules, nil
 }
-func newErrorRulesTestService(rules []*model.ErrorPassthroughRule) *ErrorPassthroughService {
-	s := NewErrorPassthroughService(errorRulesFixtureRepo{rules: rules}, nil)
+func newErrorRulesTestService(rules []*errorpolicy.ErrorPassthroughRule) *errorpolicy.ErrorPassthroughService {
+	s := errorpolicy.NewErrorPassthroughService(errorRulesFixtureRepo{rules: rules}, nil, gatewaytelemetry.ErrorRules)
 	s.Start()
 	return s
 }

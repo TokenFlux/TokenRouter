@@ -9,7 +9,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 type Dispatch uint8
@@ -122,7 +122,7 @@ func PreparePrelude(ctx context.Context, body []byte, profile Profile, p Prelude
 		body = updated
 	}
 	if profile.OpenAI && profile.OAuth {
-		if updated, changed, err := native.NormalizeOpenAIResponsesReasoningMode(body); err != nil {
+		if updated, changed, err := openai.NormalizeOpenAIResponsesReasoningMode(body); err != nil {
 			return nil, fmt.Errorf("normalize OpenAI Responses reasoning.mode: %w", err)
 		} else if changed {
 			body = updated

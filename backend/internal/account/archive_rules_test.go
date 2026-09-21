@@ -2,9 +2,10 @@ package account
 
 import (
 	"encoding/json"
+	"testing"
+
 	"github.com/TokenFlux/TokenRouter/internal/account/transfer"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // JSON 省略和显式 null/false/空集合继续区别，同时默认模板不能被某个导入条目污染。

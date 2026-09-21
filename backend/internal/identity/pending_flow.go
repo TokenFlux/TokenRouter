@@ -4,8 +4,9 @@ package identity
 import (
 	context "context"
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // PendingDatabase 只暴露命名闭合操作，事务句柄只存在于 PostgreSQL Adapter。

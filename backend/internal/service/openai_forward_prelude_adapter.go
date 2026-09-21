@@ -6,11 +6,18 @@ import (
 	"errors"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,10 +29,10 @@ type openAIForwardPreludeAdapter struct {
 }
 
 func openAIForwardProfile(account *Account) forward.Profile {
-	return forward.Profile{Platform: account.Platform, Name: account.Name, Type: account.Type, UsesCodex: account.UsesOpenAICodexProtocol(), OpenAI: account.IsOpenAI(), OAuth: account.IsOAuth(), OAuthLike: account.IsOpenAIOAuthLike(), APIKey: account.Type == AccountTypeAPIKey, Grok: account.Platform == PlatformGrok, DeepSeek: account.Platform == PlatformDeepseek, NativeCN: account.UsesNativeCNResponses(), Anthropic: account.IsAnthropicProtocol(), RawChat: shouldForwardOpenAIResponsesViaRawChatCompletions(account), ResolvedChat: account.resolvedProtocol == protocol.ProtocolOpenAIChatCompletions, Passthrough: account.IsOpenAIPassthroughEnabled()}
+	return forward.Profile{Platform: account.Platform, Name: account.Name, Type: account.Type, UsesCodex: account.UsesOpenAICodexProtocol(), OpenAI: account.IsOpenAI(), OAuth: account.IsOAuth(), OAuthLike: account.IsOpenAIOAuthLike(), APIKey: account.Type == capability.AccountTypeAPIKey, Grok: account.Platform == capability.PlatformGrok, DeepSeek: account.Platform == capability.PlatformDeepseek, NativeCN: account.UsesNativeCNResponses(), Anthropic: account.IsAnthropicProtocol(), RawChat: shouldForwardOpenAIResponsesViaRawChatCompletions(account), ResolvedChat: account.attemptRoute.Protocol() == protocol.ProtocolOpenAIChatCompletions, Passthrough: account.IsOpenAIPassthroughEnabled()}
 }
 func (p openAIForwardPreludeAdapter) BlockGroupImages() bool {
-	if source, _ := p.ctx.Value(clientProtocolContextKey{}).(protocol.ProtocolID); source == protocol.ProtocolOpenAIResponses {
+	if source, _ := requeststate.ClientProtocolFromContext(p.ctx); source == protocol.ProtocolOpenAIResponses {
 		if key := getAPIKeyFromContext(p.c); key != nil && key.Group != nil {
 			return key.Group.ResponsesImagePolicy == "block"
 		}
@@ -36,10 +43,10 @@ func (p openAIForwardPreludeAdapter) StripImages(body []byte) ([]byte, bool, err
 	return stripOpenAIImageGenerationToolsFromRawPayload(body)
 }
 func (p openAIForwardPreludeAdapter) Begin() {
-	beginUpstreamResponseModelObservation(p.c)
-	ClearActualOpenAIUpstreamEndpoint(p.c)
+	gatewayhttp.BeginUpstreamResponseModelObservation(p.c)
+	gatewayhttp.ClearActualOpenAIUpstreamEndpoint(p.c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(p.account) {
-		SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
+		gatewayhttp.SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
 	}
 }
 func (p openAIForwardPreludeAdapter) FilterNoneReasoning(body []byte) ([]byte, error) {
@@ -60,7 +67,7 @@ func (p openAIForwardPreludeAdapter) MatchTLS() egress.TLSFingerprintRouterMatch
 }
 func (p openAIForwardPreludeAdapter) ClientAllowed(ctx context.Context, tls egress.TLSFingerprintRouterMatchResult, body []byte) (bool, string) {
 	result := p.s.detectCodexClientRestriction(p.c, p.account, tls)
-	logCodexCLIOnlyDetection(ctx, p.c, p.account, getAPIKeyIDFromContext(p.c), result, body)
+	logCodexCLIOnlyDetection(ctx, p.c, p.account, gatewayhttp.APIKeyIDFromContext(p.c), result, body)
 	if result.Enabled && !result.Matched {
 		return false, openAIClientPolicyForbiddenMessage(result)
 	}
@@ -68,13 +75,13 @@ func (p openAIForwardPreludeAdapter) ClientAllowed(ctx context.Context, tls egre
 }
 func (p openAIForwardPreludeAdapter) Reject(v forward.Rejection) {
 	if v.PolicyDenied {
-		MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 	}
 	if v.FeatureDenied {
-		MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalFeatureGate)
+		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 	}
 	if v.ObserveUpstream {
-		setOpsUpstreamError(p.c, v.Status, v.Message, "")
+		gatewayhttp.SetOpsUpstreamError(p.c, v.Status, v.Message, "")
 	}
 	gatewayhttp.WriteOpenAIForwardRejection(p.c, v.Status, v.Type, v.Message, v.Param)
 }
@@ -85,40 +92,40 @@ func (p openAIForwardPreludeAdapter) ToolSchemas(body []byte) ([]byte, bool, err
 	return sanitizeOpenAIResponsesToolSchemasForPlatform(body, p.account.Platform)
 }
 func (p openAIForwardPreludeAdapter) LiteHeader() bool {
-	return isOpenAIResponsesLiteHeader(p.c.GetHeader(responsesLiteHeader))
+	return isOpenAIResponsesLiteHeader(p.c.GetHeader(media.ResponsesLiteHeader))
 }
 func (p openAIForwardPreludeAdapter) LitePayload(body []byte) ([]byte, bool, string, error) {
 	updated, changed, err := normalizeOpenAIResponsesLitePayloadForAccount(p.account, body)
 	param := "tools"
-	var validation *openAIResponsesLiteValidationError
+	var validation *openai.ResponsesLiteValidationError
 	if errors.As(err, &validation) {
-		param = validation.param
+		param = validation.Parameter()
 	}
 	return updated, changed, param, err
 }
 func (p openAIForwardPreludeAdapter) Transport() forward.TransportDecision {
-	v := p.s.getOpenAIWSProtocolResolver().Resolve(p.account)
-	v = resolveOpenAIWSDecisionByClientTransport(v, GetOpenAIClientTransport(p.c))
+	v := p.s.resolveOpenAIWSTransport(p.account)
+	v = gatewayhttp.ResolveOpenAIWSDecisionByClientTransport(v, gatewayhttp.GetOpenAIClientTransport(p.c))
 	return forward.TransportDecision{Transport: string(v.Transport), Reason: v.Reason}
 }
 func (p openAIForwardPreludeAdapter) CompactPath() bool { return isOpenAIResponsesCompactPath(p.c) }
 func (p openAIForwardPreludeAdapter) CompactBody(body []byte) ([]byte, bool, error) {
-	return normalizeOpenAICompactRequestBody(body)
+	return openai.NormalizeOpenAICompactRequestBody(body)
 }
 func (p openAIForwardPreludeAdapter) CompactAPIKeyReplay(body []byte) ([]byte, bool, error) {
-	return normalizeOpenAIAPIKeyStoreFalseReasoningReplay(body, true)
+	return openai.NormalizeOpenAIAPIKeyStoreFalseReasoningReplay(body, true)
 }
 func (p openAIForwardPreludeAdapter) FlattenRequired(v forward.TransportDecision, passthrough, compact bool) bool {
-	return shouldFlattenOpenAIResponsesNamespaces(p.account, OpenAIUpstreamTransport(v.Transport), passthrough, compact)
+	return shouldFlattenOpenAIResponsesNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough, compact)
 }
 func (p openAIForwardPreludeAdapter) Flatten(body []byte) ([]byte, error) {
 	return flattenOpenAIResponsesNamespaces(p.c, body)
 }
 func (p openAIForwardPreludeAdapter) StripNamespacesRequired(v forward.TransportDecision, passthrough bool) bool {
-	return shouldStripOpenAIResponsesInputNamespaces(p.account, OpenAIUpstreamTransport(v.Transport), passthrough)
+	return shouldStripOpenAIResponsesInputNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough)
 }
 func (p openAIForwardPreludeAdapter) KeepNamespaces(v forward.TransportDecision, passthrough, compact bool, body []byte) bool {
-	return shouldKeepOpenAIResponsesToolCallNamespaces(p.account, OpenAIUpstreamTransport(v.Transport), passthrough, compact, body)
+	return shouldKeepOpenAIResponsesToolCallNamespaces(p.account, egress.OpenAIUpstreamTransport(v.Transport), passthrough, compact, body)
 }
 func (p openAIForwardPreludeAdapter) StripNamespaces(body []byte, keep bool) ([]byte, error) {
 	return stripOpenAIResponsesInputNamespaces(body, keep)
@@ -137,7 +144,7 @@ func (p openAIForwardPreludeAdapter) ValidateEffort(body []byte, model string) e
 	return validateOpenAIReasoningEffort(body, model)
 }
 func (p openAIForwardPreludeAdapter) ReasoningReplay(body []byte) ([]byte, bool, error) {
-	return normalizeOpenAIResponsesReasoningContentReplay(body)
+	return openai.NormalizeOpenAIResponsesReasoningContentReplay(body)
 }
 func (p openAIForwardPreludeAdapter) InputItemIDs(body []byte) ([]byte, bool, error) {
 	return sanitizeOpenAIResponsesInputItemIDs(body)
@@ -149,7 +156,7 @@ func (p openAIForwardPreludeAdapter) BindMessagesBridge(v bool) {
 	setOpenAICompatMessagesBridgeContext(p.c, v)
 }
 func (p openAIForwardPreludeAdapter) CodexClient() bool {
-	return native.IsCodexOfficialClientByHeaders(p.c.GetHeader("User-Agent"), p.c.GetHeader("originator")) || (p.s.cfg != nil && p.s.cfg.Gateway.ForceCodexCLI)
+	return openai.IsCodexOfficialClientByHeaders(p.c.GetHeader("User-Agent"), p.c.GetHeader("originator")) || (p.s.cfg != nil && p.s.cfg.Gateway.ForceCodexCLI)
 }
 func (p openAIForwardPreludeAdapter) ImageToolPolicy() string {
 	return p.account.CodexImageGenerationExplicitToolPolicy()
@@ -159,8 +166,8 @@ func (p openAIForwardPreludeAdapter) ObserveTransport(v forward.TransportDecisio
 		p.c.Set("openai_ws_transport_decision", v.Transport)
 		p.c.Set("openai_ws_transport_reason", v.Reason)
 	}
-	if v.Transport == string(OpenAIUpstreamTransportResponsesWebsocketV2) {
-		logOpenAIWSModeDebug("selected account_id=%d account_type=%s transport=%s reason=%s model=%s stream=%v", p.account.ID, p.account.Type, normalizeOpenAIWSLogValue(v.Transport), normalizeOpenAIWSLogValue(v.Reason), model, stream)
+	if v.Transport == string(egress.OpenAIUpstreamTransportResponsesWebsocketV2) {
+		gatewayprovider.LogOpenAIWSModeDebug("selected account_id=%d account_type=%s transport=%s reason=%s model=%s stream=%v", p.account.ID, p.account.Type, gatewayprovider.NormalizeOpenAIWSLogValue(v.Transport), gatewayprovider.NormalizeOpenAIWSLogValue(v.Reason), model, stream)
 	}
 }
 func (p openAIForwardPreludeAdapter) MappedModel(model string) string {
@@ -170,5 +177,5 @@ func (p openAIForwardPreludeAdapter) PassthroughEffort(body []byte, model string
 	return ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(body, model), body, model)
 }
 func (p openAIForwardPreludeAdapter) Log(format string, args ...any) {
-	logger.LegacyPrintf("service.openai_gateway", format, args...)
+	logging.LegacyPrintf("service.openai_gateway", format, args...)
 }

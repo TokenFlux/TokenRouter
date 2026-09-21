@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -17,7 +18,7 @@ func TestAppendMissingGrokFreeCacheNativeTools_PureClientFunctionNoInject(t *tes
 		"tool_choice": "auto"
 	}`)
 
-	result, err := appendMissingGrokFreeCacheNativeTools(body)
+	result, err := grok.AppendMissingGrokFreeCacheNativeTools(body)
 	require.NoError(t, err)
 
 	tools := gjson.GetBytes(result, "tools").Array()
@@ -37,7 +38,7 @@ func TestAppendMissingGrokFreeCacheNativeTools_FunctionPlusWebSearchInjects(t *t
 		]
 	}`)
 
-	result, err := appendMissingGrokFreeCacheNativeTools(body)
+	result, err := grok.AppendMissingGrokFreeCacheNativeTools(body)
 	require.NoError(t, err)
 
 	tools := gjson.GetBytes(result, "tools").Array()
@@ -58,7 +59,7 @@ func TestAppendMissingGrokFreeCacheNativeTools_NativeSearchAlreadyPresent(t *tes
 		]
 	}`)
 
-	result, err := appendMissingGrokFreeCacheNativeTools(body)
+	result, err := grok.AppendMissingGrokFreeCacheNativeTools(body)
 	require.NoError(t, err)
 
 	tools := gjson.GetBytes(result, "tools").Array()
@@ -79,7 +80,7 @@ func TestAppendMissingGrokFreeCacheNativeTools_MultipleFunctionsNoSearch(t *test
 		]
 	}`)
 
-	result, err := appendMissingGrokFreeCacheNativeTools(body)
+	result, err := grok.AppendMissingGrokFreeCacheNativeTools(body)
 	require.NoError(t, err)
 
 	tools := gjson.GetBytes(result, "tools").Array()

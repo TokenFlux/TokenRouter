@@ -14,7 +14,7 @@ import (
 
 // HTTP 投影只转发白名单下载头；提交标记必须先于第一块响应体。
 func TestMediaContentResponsePreservesRangeAndCommit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	committed := false

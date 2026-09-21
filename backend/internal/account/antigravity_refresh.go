@@ -15,6 +15,11 @@ type AntigravityRefreshRules struct {
 	Printf, Logf            func(string, ...any)
 }
 
+// CacheKey 与原请求、后台刷新共用同一账号锁键。
+func (r *AntigravityRefreshRules) CacheKey(value *Record) string {
+	return AntigravityTokenCacheKey(value)
+}
+
 // CanRefresh 检查是否可以刷新此账户
 func (r *AntigravityRefreshRules) CanRefresh(account *Record) bool {
 	return account.Platform == PlatformAntigravity && account.Type == AccountTypeOAuth

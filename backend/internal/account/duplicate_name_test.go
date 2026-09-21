@@ -4,10 +4,11 @@
 package account
 
 import (
-	require "github.com/stretchr/testify/require"
 	strings "strings"
 	testing "testing"
 	utf8 "unicode/utf8"
+
+	require "github.com/stretchr/testify/require"
 )
 
 func TestDuplicateAccountNamePreservesSuffixWithinSchemaLimit(t *testing.T) {

@@ -170,13 +170,13 @@ Redis 结构：
 - 队列幂等键：`batch_image.idempotency_key_prefix`
 - 由下载限流器管理的下载限制键
 
-`batchimage.Public` 拥有提交、目录、查询及取消，`PipelineProcessor` 在轮询/索引与结算之间推进，`Cleanup` 和 `Download` 分别拥有清理及输出读取。HTTP 位于 `batchimage/httpapi`，元数据与队列位于 PostgreSQL/Redis Adapter，平台操作位于 `batchimage/provider`。app 将同一注册表注入提交、轮询、下载及清理；旧入口只转换已有消费者需要的形状。
+`batchimage.Public` 拥有提交、目录、查询及取消，`PipelineProcessor` 在轮询/索引与结算之间推进，`Cleanup` 和 `Download` 分别拥有清理及输出读取。HTTP 位于 `batchimage/httpapi`，元数据与队列位于 PostgreSQL/Redis Adapter，平台操作位于 `batchimage/provider`。app 直接构造原生 Gemini/Vertex provider，并将唯一 `batchimage.Registry` 注入提交、轮询、下载及清理；Vertex 配置投影也由 app 完成。旧供应商和注册表包装已删除。下载与清理也由 app 直接构造原生用例，ResultAccess 在原操作时点从账号存储读取已绑定账号，每次供应商操作得到独立凭据副本；下载保留账号资格及脱敏错误，清理保留原错误传播差异。旧下载、清理服务及其 Core 转接已删除。处理、索引、结算及失活资金恢复由 app 直接组合原生实例，读取同一账号存储、billing.Funds、usage 存储和报价器；worker 配置只在 app 投影。提交、目录、查询及取消也已直接绑定原生 Public；候选通过 provider.Candidates 在原查询时点从 AccountStore 投影，复用 account 模型规则和 routing 的逐候选协议解析。套餐读取仍按资金模式触发，指定订阅不会回退。旧批量图片服务、资金转接及其专属测试包装均已删除，跨域共用的旧资金命令在最终资金账本中继续单独跟踪。
 
 worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行。只有 Redis 队列预留返回具体批量作业 ID 后才读取数据库。队列由 `batchimage/rediscache` 唯一实现；取得任务锁后，心跳、ACK 和重排通过持有者句柄原子比较现有锁 token。续期不匹配或无法确认所有权时取消本轮推进，旧 worker 不得清除接管者的活动记录。数据键、字符串 token 与 TTL 不变，也不构成 Redis/PostgreSQL 的分布式事务。
 
 ## 计费
 
-旧作业资金入口委托 `billing.Funds` 的 `Reserve/Capture/Release`，与创作台共用唯一资金实现。任务表投影由所属模块的 PostgreSQL 参与者提供，billing 通过 app 登记的工厂在同一 SQL 事务调用，资金分配和 allowance 标记仍一次提交；任务状态机和供应商执行仍由旧作业模块拥有。v1/v2/v3 快照、原请求 ID、指纹以及删除 Key/退出成员后的释放规则保持兼容。
+旧作业资金入口委托 `billing.Funds` 的 `Reserve/Capture/Release`，与创作台共用唯一资金实现。任务表投影由所属模块的 PostgreSQL 参与者提供，billing 通过 app 登记的工厂在同一 SQL 事务调用，资金分配和 allowance 标记仍一次提交；任务状态机与供应商执行由 batchimage 及其 provider 唯一拥有。v1/v2/v3 快照、原请求 ID、指纹以及删除 Key/退出成员后的释放规则保持兼容。
 
 计费规则：
 
@@ -198,7 +198,7 @@ worker 必须从 Redis 预留作业，不应以数据库扫描循环方式运行
 
 ## 清理
 
-批量 worker 与清理使用 `batchimage.Runtime` 管理运行 context 和固定完成信号；Stop 不可逆，重复停止共享结果，并按应用剩余预算报告未完成工作。
+批量 worker 与清理分别使用 `batchimage.Runtime` 管理运行 context 和固定完成信号；清理直接运行所属模块的 Cleanup.Run，由 app 绑定唯一运行实例；Stop 不可逆，重复停止共享结果，并按应用剩余预算报告未完成工作。
 
 默认值：
 
@@ -361,7 +361,7 @@ batch_image:
 核心冒烟和编译命令：
 
 ```bash
-go test -tags=unit ./internal/service -run 'BatchImage' -count=1
+go test -tags=unit ./internal/batchimage/... ./internal/service -run 'Test(BatchImage|GeminiProvider|VertexProvider|BuildGeminiBatchJSONL|BuildVertexBatchJSONL)' -count=1
 go test -tags=unit ./internal/config ./internal/service ./internal/repository -count=1
 go test ./internal/config ./internal/service ./internal/repository ./internal/handler ./internal/app -run '^$'
 go test ./... -run '^$'

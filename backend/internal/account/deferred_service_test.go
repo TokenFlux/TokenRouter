@@ -3,10 +3,11 @@ package account
 import (
 	"context"
 	"errors"
-	"github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 
 	"github.com/stretchr/testify/require"
 )

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	legacy "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/stretchr/testify/require"
 )
@@ -17,19 +17,19 @@ func TestToHTTP_S15Legacy(t *testing.T) {
 		name           string
 		err            error
 		wantStatusCode int
-		wantBody       legacy.Status
+		wantBody       apperror.Status
 	}{
 		{
 			name:           "nil_error",
 			err:            nil,
 			wantStatusCode: http.StatusOK,
-			wantBody:       legacy.Status{Code: int32(http.StatusOK)},
+			wantBody:       apperror.Status{Code: int32(http.StatusOK)},
 		},
 		{
 			name:           "application_error",
-			err:            legacy.Forbidden("FORBIDDEN", "no access"),
+			err:            apperror.Forbidden("FORBIDDEN", "no access"),
 			wantStatusCode: http.StatusForbidden,
-			wantBody: legacy.Status{
+			wantBody: apperror.Status{
 				Code:    int32(http.StatusForbidden),
 				Reason:  "FORBIDDEN",
 				Message: "no access",
@@ -48,7 +48,7 @@ func TestToHTTP_S15Legacy(t *testing.T) {
 
 func TestToHTTP_MetadataDeepCopy_S15Legacy(t *testing.T) {
 	md := map[string]string{"k": "v"}
-	appErr := legacy.BadRequest("BAD_REQUEST", "invalid").WithMetadata(md)
+	appErr := apperror.BadRequest("BAD_REQUEST", "invalid").WithMetadata(md)
 
 	code, body := httpx.ToHTTP(appErr)
 	require.Equal(t, http.StatusBadRequest, code)

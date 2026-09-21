@@ -6,30 +6,41 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	adminhttp "github.com/TokenFlux/TokenRouter/internal/handler/admin"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
+	groupdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 )
 
 // TestS05AdminKeyResetAndInvalidGroupAreAtomic 验证同一管理请求失败时不保留消费重置。
 func TestS05AdminKeyResetAndInvalidGroupAreAtomic(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	users := NewUserRepository(client, integrationDB)
-	keys := NewAPIKeyRepository(client, integrationDB)
-	user := mustCreateUser(t, client, &service.User{})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "s05-reset-" + uuid.NewString()})
+	users := postgres.NewUserStore(client, integrationDB)
+	keys := newKeyStoreFixture(client, integrationDB)
+	user := mustCreateUser(t, client, &identity.User{})
+	key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "s05-reset-" + uuid.NewString()})
 	now := time.Now().UTC().Truncate(time.Second)
 	_, err := integrationDB.ExecContext(ctx, "UPDATE api_keys SET usage_5h=12,usage_1d=13,usage_7d=14,window_5h_start=$2,window_1d_start=$2,window_7d_start=$2 WHERE id=$1", key.ID, now)
 	require.NoError(t, err)
-	admin := service.NewAdminService(users, nil, nil, nil, keys, nil, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	h := adminhttp.NewAdminAPIKeyHandler(admin)
+	admin := &apikey.Admin{Keys: keys, Users: users, Mutations: &keypostgres.AdminGroupMutations{Client: client, Keys: keys, Users: users, UsersInTx: func(tx *dbent.Tx) keypostgres.GroupAccessWriter { return postgres.GroupAccessInTx(tx) }}}
+	h := keyhttp.NewAdminAPIKeyHandler(admin, func(g *routing.Group) *groupdto.Group { return groupdto.GroupFromRouting(apikey.RoutingGroup(g)) })
 	router := gin.New()
 	router.PUT("/admin/api-keys/:id", h.UpdateGroup)
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/admin/api-keys/%d", key.ID), bytes.NewBufferString(`{"group_id":-1,"reset_rate_limit_usage":true}`))
@@ -50,11 +61,11 @@ func TestS05AdminKeyResetAndInvalidGroupAreAtomic(t *testing.T) {
 func TestS05AdminKeyCombinedWriteRollsBackOnDatabaseFailure(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	users := NewUserRepository(client, integrationDB)
-	keys := NewAPIKeyRepository(client, integrationDB)
-	user := mustCreateUser(t, client, &service.User{})
-	group := mustCreateGroup(t, client, &service.Group{Name: "s05-atomic-group-" + uuid.NewString()})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "s05-atomic-update-" + uuid.NewString()})
+	users := postgres.NewUserStore(client, integrationDB)
+	keys := newKeyStoreFixture(client, integrationDB)
+	user := mustCreateUser(t, client, &identity.User{})
+	group := mustCreateGroup(t, client, &routing.Group{Name: "s05-atomic-group-" + uuid.NewString()})
+	key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "s05-atomic-update-" + uuid.NewString()})
 	_, err := integrationDB.ExecContext(ctx, "UPDATE api_keys SET usage_5h=12,usage_1d=13,usage_7d=14,window_5h_start=NOW(),window_1d_start=NOW(),window_7d_start=NOW() WHERE id=$1", key.ID)
 	require.NoError(t, err)
 	name := fmt.Sprintf("s05_reject_key_%d", key.ID)
@@ -66,10 +77,9 @@ func TestS05AdminKeyCombinedWriteRollsBackOnDatabaseFailure(t *testing.T) {
 	})
 	_, err = integrationDB.ExecContext(ctx, fmt.Sprintf("CREATE TRIGGER %s BEFORE UPDATE OF group_id ON api_keys FOR EACH ROW WHEN (OLD.id=%d AND NEW.group_id IS DISTINCT FROM OLD.group_id) EXECUTE FUNCTION %s()", name, key.ID, name))
 	require.NoError(t, err)
-	groups, ok := NewGroupRepository(client, integrationDB).(service.AdminGroupRepository)
-	require.True(t, ok)
-	admin := service.NewAdminService(users, groups, nil, nil, keys, nil, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	h := adminhttp.NewAdminAPIKeyHandler(admin)
+	groups := newGroupStoreFixture(client, integrationDB)
+	admin := &apikey.Admin{Keys: keys, Users: users, Groups: adminResetGroupProjection{reader: groups}, Mutations: &keypostgres.AdminGroupMutations{Client: client, Keys: keys, Users: users, UsersInTx: func(tx *dbent.Tx) keypostgres.GroupAccessWriter { return postgres.GroupAccessInTx(tx) }}}
+	h := keyhttp.NewAdminAPIKeyHandler(admin, func(g *routing.Group) *groupdto.Group { return groupdto.GroupFromRouting(apikey.RoutingGroup(g)) })
 	router := gin.New()
 	router.PUT("/admin/api-keys/:id", h.UpdateGroup)
 	send := func() *httptest.ResponseRecorder {
@@ -99,4 +109,15 @@ func TestS05AdminKeyCombinedWriteRollsBackOnDatabaseFailure(t *testing.T) {
 	require.Nil(t, stored.Window1dStart)
 	require.Nil(t, stored.Window7dStart)
 	require.Equal(t, group.ID, *stored.GroupID)
+}
+
+// adminResetGroupProjection 只适配本契约调用的原生分组读取，不提供默认查询结果。
+type adminResetGroupProjection struct {
+	apikey.GroupRepository
+	reader routing.GroupRepository
+}
+
+func (p adminResetGroupProjection) GetByID(ctx context.Context, id int64) (*routing.Group, error) {
+	value, err := p.reader.GetByID(ctx, id)
+	return apikey.GroupFromRouting(value), err
 }

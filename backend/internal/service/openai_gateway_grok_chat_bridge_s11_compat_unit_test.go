@@ -4,7 +4,7 @@
 package service
 
 import (
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
-const grokChatRawEndpoint = nativegrok.GrokChatRawEndpoint
+const grokChatRawEndpoint = grok.GrokChatRawEndpoint

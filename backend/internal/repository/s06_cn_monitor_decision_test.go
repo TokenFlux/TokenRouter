@@ -4,11 +4,12 @@ package repository
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 // 真实 PostgreSQL 校验版本条件、同身份恢复、旧观测拒绝以及原尽力通知边界。

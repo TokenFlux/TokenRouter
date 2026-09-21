@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +22,7 @@ import (
 
 func newPassthroughKeepaliveTestContext(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	// 刻意【不】调用 MarkOpenAICompactClientStream：普通 /v1/responses 透传不带
@@ -36,18 +37,18 @@ func TestStartOpenAISSEKeepalive_WorksWithoutCompactMarker(t *testing.T) {
 	c, rec := newPassthroughKeepaliveTestContext(t)
 
 	// 对照:带 compact 标记检查的入口在这里应当直接 no-op。
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	waitForKeepaliveBeats()
 	stop()
 	require.Zero(t, rec.Body.Len(), "无 compact 标记时 StartOpenAICompactSSEKeepalive 应当 no-op")
 
 	// 内部入口不检查标记,应当真的开始打拍。
 	c, rec = newPassthroughKeepaliveTestContext(t)
-	stop = startOpenAISSEKeepalive(c, keepaliveTestInterval)
+	stop = httpapi.StartOpenAISSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
 	waitForKeepaliveBeats()
 
-	require.True(t, StopOpenAICompactSSEKeepaliveCommitted(c), "心跳应当提交响应头")
+	require.True(t, httpapi.StopOpenAICompactSSEKeepaliveCommitted(c), "心跳应当提交响应头")
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "text/event-stream", rec.Header().Get("Content-Type"))
 	require.Equal(t, "no", rec.Header().Get("X-Accel-Buffering"))
@@ -59,10 +60,10 @@ func TestStartOpenAISSEKeepalive_WorksWithoutCompactMarker(t *testing.T) {
 // 透传路径的 pre-output failover 完全依赖它。
 func TestPassthroughKeepaliveDoesNotBlockPreOutputFailover(t *testing.T) {
 	c, rec := newPassthroughKeepaliveTestContext(t)
-	stop := startOpenAISSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAISSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
 	waitForKeepaliveBeats()
-	require.True(t, StopOpenAICompactSSEKeepaliveCommitted(c))
+	require.True(t, httpapi.StopOpenAICompactSSEKeepaliveCommitted(c))
 	require.NotZero(t, rec.Body.Len(), "前提:心跳确实写出了字节")
 
 	// 只有心跳字节时,仍应判定为「尚未向客户端输出」。
@@ -79,7 +80,7 @@ func TestPassthroughKeepaliveDoesNotBlockPreOutputFailover(t *testing.T) {
 // 停拍之后不得再有心跳字节写出 —— 主循环接管 ResponseWriter 的前提。
 func TestPassthroughKeepaliveStopsBeforeHandingOverWriter(t *testing.T) {
 	c, rec := newPassthroughKeepaliveTestContext(t)
-	stop := startOpenAISSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAISSEKeepalive(c, keepaliveTestInterval)
 	waitForKeepaliveBeats()
 	stop()
 
@@ -98,10 +99,10 @@ func TestPassthroughKeepaliveStopsBeforeHandingOverWriter(t *testing.T) {
 // interval<=0(配置禁用)时行为与改动前完全一致:一个字节都不写。
 func TestPassthroughKeepaliveDisabledKeepsWriterUntouched(t *testing.T) {
 	c, rec := newPassthroughKeepaliveTestContext(t)
-	stop := startOpenAISSEKeepalive(c, 0)
+	stop := httpapi.StartOpenAISSEKeepalive(c, 0)
 	waitForKeepaliveBeats()
 	stop()
 	require.Zero(t, rec.Body.Len())
-	require.False(t, StopOpenAICompactSSEKeepaliveCommitted(c))
+	require.False(t, httpapi.StopOpenAICompactSSEKeepaliveCommitted(c))
 	_ = time.Now
 }

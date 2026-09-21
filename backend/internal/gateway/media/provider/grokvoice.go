@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type GrokVoiceOptions struct {
@@ -34,7 +34,7 @@ type GrokVoice struct{ Options GrokVoiceOptions }
 
 func (e GrokVoice) Execute(ctx context.Context, input upstream.AttemptInput, sink upstream.OutputSink) (upstream.AttemptResult, error) {
 	o := e.Options
-	target := &native.VoiceTarget{
+	target := &grok.VoiceTarget{
 		AccountID:      o.AccountID,
 		Endpoint:       o.Endpoint,
 		BaseEndpoint:   o.BaseEndpoint,
@@ -48,5 +48,5 @@ func (e GrokVoice) Execute(ctx context.Context, input upstream.AttemptInput, sin
 		CopyHeaders:    o.CopyHeaders,
 	}
 	input.Target = target
-	return (native.VoiceExecutor{}).Execute(ctx, input, sink)
+	return (grok.VoiceExecutor{}).Execute(ctx, input, sink)
 }

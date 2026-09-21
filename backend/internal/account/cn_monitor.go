@@ -5,12 +5,13 @@ import (
 	context "context"
 	json "encoding/json"
 	errors "errors"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	errgroup "golang.org/x/sync/errgroup"
 	strings "strings"
 	sync "sync"
 	time "time"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	errgroup "golang.org/x/sync/errgroup"
 )
 
 const (

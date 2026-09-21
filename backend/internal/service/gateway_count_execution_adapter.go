@@ -5,8 +5,11 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,7 +24,7 @@ func (a *countExecutionAdapter) ResolveModel(ctx context.Context, model string) 
 	return resolveAccountUpstreamModel(ctx, a.account, model)
 }
 func (a *countExecutionAdapter) IsCountClaudeCode(ctx context.Context, metadata string) bool {
-	return IsClaudeCodeClient(ctx) || isClaudeCodeClient(a.c.GetHeader("User-Agent"), metadata)
+	return requeststate.IsClaudeCodeClient(ctx) || isClaudeCodeClient(a.c.GetHeader("User-Agent"), metadata)
 }
 func (a *countExecutionAdapter) TokenKind() string { return a.tokenType }
 func (a *countExecutionAdapter) BuildCount(ctx context.Context, body []byte, model string, mimic, passthrough bool) ([]byte, error) {
@@ -42,7 +45,7 @@ func (a *countExecutionAdapter) SendCount(ctx context.Context, passthrough bool)
 			a.proxyURL = a.account.Proxy.URL()
 		}
 	}
-	resp, err := a.s.httpUpstream.DoWithTLS(a.request, a.proxyURL, a.account.ID, a.account.Concurrency, a.s.tlsFPProfileService.ResolveTLSProfile(a.account))
+	resp, err := a.s.httpUpstream.DoWithTLS(a.request, a.proxyURL, a.account.ID, a.account.Concurrency, a.s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(a.account, nil)))
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +73,12 @@ func (a *countExecutionAdapter) CountError(status int, kind, message string) {
 }
 func (a *countExecutionAdapter) CountSuccess(status int, headers map[string][]string, body []byte, passthrough bool) {
 	if passthrough {
-		writeAnthropicPassthroughResponseHeaders(a.c.Writer.Header(), headers, a.s.responseHeaderFilter)
+		gatewayhttp.WriteAnthropicPassthroughHeaders(a.c.Writer.Header(), headers, a.s.responseHeaderFilter)
 	}
 	gatewayhttp.WriteForwardCountSuccess(a.c, status, headers, body, passthrough)
 }
 func (a *countExecutionAdapter) SetError(status int, message, detail string) {
-	setOpsUpstreamError(a.c, status, message, detail)
+	gatewayhttp.SetOpsUpstreamError(a.c, status, message, detail)
 }
 func (a *countExecutionAdapter) UnsupportedCount(status int, body []byte) bool {
 	return isCountTokensUnsupported404(status, body)
@@ -92,6 +95,8 @@ func (a *countExecutionAdapter) CountHealth(ctx context.Context, status int, hea
 	}
 }
 func (a *countExecutionAdapter) CountFailover(status int, headers map[string][]string, body []byte, retry bool) error {
-	return &UpstreamFailoverError{StatusCode: status, ResponseBody: body, ResponseHeaders: http.Header(headers).Clone(), RetryableOnSameAccount: retry}
+	return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseBody: body, ResponseHeaders: http.Header(headers).Clone(), RetryableOnSameAccount: retry}
 }
-func (a *countExecutionAdapter) CountURL() string { return safeUpstreamURL(a.request.URL.String()) }
+func (a *countExecutionAdapter) CountURL() string {
+	return logredact.SafeUpstreamURL(a.request.URL.String())
+}

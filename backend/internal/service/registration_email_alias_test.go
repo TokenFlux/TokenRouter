@@ -5,6 +5,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,23 +27,23 @@ func TestNormalizeEmailForAliasDedup(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, NormalizeEmailForAliasDedup(tc.email))
+			require.Equal(t, tc.want, identity.NormalizeEmailForAliasDedup(tc.email))
 		})
 	}
 }
 
 func TestEmailAliasDedupProbes(t *testing.T) {
 	require.ElementsMatch(t,
-		[]EmailAliasProbe{
+		[]identity.EmailAliasProbe{
 			{Local: "someone", Domain: "gmailcom"},
 			{Local: "someone", Domain: "googlemailcom"},
 		},
-		EmailAliasDedupProbes("Some.One+tag@gmail.com"),
+		identity.EmailAliasDedupProbes("Some.One+tag@gmail.com"),
 	)
 	require.Equal(t,
-		[]EmailAliasProbe{{Local: "firstlast", Domain: "qqcom"}},
-		EmailAliasDedupProbes("first.last+tag@qq.com"),
+		[]identity.EmailAliasProbe{{Local: "firstlast", Domain: "qqcom"}},
+		identity.EmailAliasDedupProbes("first.last+tag@qq.com"),
 	)
-	require.Nil(t, EmailAliasDedupProbes("not-an-email"))
-	require.Nil(t, EmailAliasDedupProbes("...@gmail.com"))
+	require.Nil(t, identity.EmailAliasDedupProbes("not-an-email"))
+	require.Nil(t, identity.EmailAliasDedupProbes("...@gmail.com"))
 }

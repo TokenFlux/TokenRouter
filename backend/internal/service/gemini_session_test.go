@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 func TestShortHash(t *testing.T) {
@@ -18,13 +19,13 @@ func TestShortHash(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := shortHash(tt.input)
+			result := upstream.ShortHash(tt.input)
 			// Base36 编码的 uint64 最长 13 个字符
 			if len(result) > 13 {
 				t.Errorf("shortHash result too long: %d characters", len(result))
 			}
 			// 相同输入应该产生相同输出
-			result2 := shortHash(tt.input)
+			result2 := upstream.ShortHash(tt.input)
 			if result != result2 {
 				t.Errorf("shortHash not deterministic: %s vs %s", result, result2)
 			}

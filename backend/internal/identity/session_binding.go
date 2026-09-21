@@ -5,8 +5,9 @@ import (
 	context "context"
 	sha256 "crypto/sha256"
 	hex "encoding/hex"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // ErrSessionBindingMismatch 会话绑定的 IP/UA 发生变化，会话已失效。

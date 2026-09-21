@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/creativerun"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // CreativeRunCreate is the builder for creating a CreativeRun entity.
@@ -282,7 +282,7 @@ func (_c *CreativeRunCreate) SetNillableBalanceHoldAmount(v *float64) *CreativeR
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (_c *CreativeRunCreate) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *CreativeRunCreate {
+func (_c *CreativeRunCreate) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *CreativeRunCreate {
 	_c.mutation.SetSubscriptionHoldAllocations(v)
 	return _c
 }
@@ -1433,7 +1433,7 @@ func (u *CreativeRunUpsert) AddBalanceHoldAmount(v float64) *CreativeRunUpsert {
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (u *CreativeRunUpsert) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *CreativeRunUpsert {
+func (u *CreativeRunUpsert) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *CreativeRunUpsert {
 	u.Set(creativerun.FieldSubscriptionHoldAllocations, v)
 	return u
 }
@@ -2203,7 +2203,7 @@ func (u *CreativeRunUpsertOne) UpdateBalanceHoldAmount() *CreativeRunUpsertOne {
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (u *CreativeRunUpsertOne) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *CreativeRunUpsertOne {
+func (u *CreativeRunUpsertOne) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *CreativeRunUpsertOne {
 	return u.Update(func(s *CreativeRunUpsert) {
 		s.SetSubscriptionHoldAllocations(v)
 	})
@@ -3194,7 +3194,7 @@ func (u *CreativeRunUpsertBulk) UpdateBalanceHoldAmount() *CreativeRunUpsertBulk
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (u *CreativeRunUpsertBulk) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *CreativeRunUpsertBulk {
+func (u *CreativeRunUpsertBulk) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *CreativeRunUpsertBulk {
 	return u.Update(func(s *CreativeRunUpsert) {
 		s.SetSubscriptionHoldAllocations(v)
 	})

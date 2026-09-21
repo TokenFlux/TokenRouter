@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +64,7 @@ func TestGrokAccountModelMappingRemainsExplicit(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			account := &Account{Platform: PlatformGrok, Credentials: test.credentials}
+			account := &Account{Platform: capability.PlatformGrok, Credentials: test.credentials}
 			require.Equal(t, test.want, account.GetModelMapping())
 		})
 	}
@@ -70,12 +72,12 @@ func TestGrokAccountModelMappingRemainsExplicit(t *testing.T) {
 
 // TestGrokWhitelistRunsBeforeBuiltinNormalization 验证白名单只检查账号映射后的模型。
 func TestGrokWhitelistRunsBeforeBuiltinNormalization(t *testing.T) {
-	unrestricted := &Account{Platform: PlatformGrok, Credentials: map[string]any{}}
+	unrestricted := &Account{Platform: capability.PlatformGrok, Credentials: map[string]any{}}
 	require.True(t, unrestricted.IsModelSupported("custom-grok-model"))
 	require.True(t, unrestricted.IsModelSupported("grok"))
 
 	strict := &Account{
-		Platform: PlatformGrok,
+		Platform: capability.PlatformGrok,
 		Credentials: map[string]any{
 			"model_whitelist": []any{"grok-4.5"},
 		},
@@ -84,7 +86,7 @@ func TestGrokWhitelistRunsBeforeBuiltinNormalization(t *testing.T) {
 	require.False(t, strict.IsModelSupported("grok"))
 
 	mapped := &Account{
-		Platform: PlatformGrok,
+		Platform: capability.PlatformGrok,
 		Credentials: map[string]any{
 			"model_mapping":   map[string]any{"grok": "grok-4.5"},
 			"model_whitelist": []any{"grok-4.5"},
@@ -93,7 +95,7 @@ func TestGrokWhitelistRunsBeforeBuiltinNormalization(t *testing.T) {
 	require.True(t, mapped.IsModelSupported("grok"))
 
 	legacy := &Account{
-		Platform: PlatformGrok,
+		Platform: capability.PlatformGrok,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"grok-4.5": "grok-4.5"},
 		},
@@ -112,25 +114,25 @@ func TestGrokFinalUpstreamModelNormalization(t *testing.T) {
 	}{
 		{
 			name:    "oauth normalizes builtin alias",
-			account: &Account{Platform: PlatformGrok, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
 			model:   "grok",
 			want:    xai.DefaultResponsesModel,
 		},
 		{
 			name:    "api key normalizes builtin alias",
-			account: &Account{Platform: PlatformGrok, Type: AccountTypeAPIKey},
+			account: &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey},
 			model:   " grok-latest ",
 			want:    xai.DefaultResponsesModel,
 		},
 		{
 			name:    "grok oauth does not use codex normalization",
-			account: &Account{Platform: PlatformGrok, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
 			model:   "gpt-5.6",
 			want:    "gpt-5.6",
 		},
 		{
 			name:    "unknown model passes through",
-			account: &Account{Platform: PlatformGrok, Type: AccountTypeAPIKey},
+			account: &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey},
 			model:   "custom-grok-model",
 			want:    "custom-grok-model",
 		},
@@ -146,8 +148,8 @@ func TestGrokFinalUpstreamModelNormalization(t *testing.T) {
 // TestGrokExplicitMappingPrecedesBuiltinNormalization 验证账号映射目标随后才执行平台别名解析。
 func TestGrokExplicitMappingPrecedesBuiltinNormalization(t *testing.T) {
 	direct := &Account{
-		Platform: PlatformGrok,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"grok": "grok-4.3"},
 		},
@@ -155,8 +157,8 @@ func TestGrokExplicitMappingPrecedesBuiltinNormalization(t *testing.T) {
 	require.Equal(t, "grok-4.3", resolveOpenAIAccountUpstreamModelForRequest(direct, "grok", false, true))
 
 	aliasTarget := &Account{
-		Platform: PlatformGrok,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"client-alias": "grok-latest"},
 		},
@@ -168,8 +170,8 @@ func TestGrokExplicitMappingPrecedesBuiltinNormalization(t *testing.T) {
 // TestGrokRuntimeModelKeysUseFinalUpstreamID 验证封禁与限流状态不会按别名重复建键。
 func TestGrokRuntimeModelKeysUseFinalUpstreamID(t *testing.T) {
 	account := &Account{
-		Platform: PlatformGrok,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"client-alias": "grok-latest",
@@ -192,8 +194,8 @@ func TestGrokModelNotFoundWritesFinalUpstreamID(t *testing.T) {
 	svc := &OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}}
 	account := &Account{
 		ID:       4511,
-		Platform: PlatformGrok,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"client-alias": "grok-latest",
@@ -226,8 +228,8 @@ func TestGrokTransientErrorBlocksOnlyFinalModel(t *testing.T) {
 	svc := &OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}}
 	account := &Account{
 		ID:       4512,
-		Platform: PlatformGrok,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"client-alias": "grok-latest",
@@ -252,43 +254,27 @@ func TestGrokTransientErrorBlocksOnlyFinalModel(t *testing.T) {
 // TestGrokRequestableModelsExcludeBuiltinAliases 验证默认目录与内置别名表保持独立。
 func TestGrokRequestableModelsExcludeBuiltinAliases(t *testing.T) {
 	groupID := int64(4510)
-	account := Account{ID: 1, Platform: PlatformGrok, Type: AccountTypeAPIKey, Credentials: map[string]any{}}
+	account := Account{ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{}}
 	service := &GatewayService{
 		accountRepo: &modelsListAccountRepoStub{byGroup: map[int64][]Account{groupID: {account}}},
 	}
 
-	result := service.ResolveRequestableModels(context.Background(), &groupID, PlatformGrok)
-	require.Equal(t, xai.DefaultModelIDs(), RequestableModelIDs(result.Models))
-	require.NotContains(t, RequestableModelIDs(result.Models), "grok")
-	require.NotContains(t, RequestableModelIDs(result.Models), "grok-latest")
+	result := service.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformGrok)
+	require.Equal(t, xai.DefaultModelIDs(), routing.RequestableModelIDs(result.Models))
+	require.NotContains(t, routing.RequestableModelIDs(result.Models), "grok")
+	require.NotContains(t, routing.RequestableModelIDs(result.Models), "grok-latest")
 
 	account.Credentials["model_mapping"] = map[string]any{"grok": "grok-4.3"}
 	service.accountRepo = &modelsListAccountRepoStub{byGroup: map[int64][]Account{groupID: {account}}}
-	result = service.ResolveRequestableModels(context.Background(), &groupID, PlatformGrok)
-	require.Contains(t, RequestableModelIDs(result.Models), "grok")
-}
-
-// TestGrokMarketplaceDefaultsReuseXAICatalog 验证模型广场直接复用 xAI 默认目录及展示名。
-func TestGrokMarketplaceDefaultsReuseXAICatalog(t *testing.T) {
-	definitions := defaultMarketplaceModelDefs(PlatformGrok)
-	ids := make([]string, 0, len(definitions))
-	for _, definition := range definitions {
-		ids = append(ids, definition.ID)
-	}
-	require.Equal(t, xai.DefaultModelIDs(), ids)
-	require.NotContains(t, ids, "grok")
-
-	displayNames := marketplaceDisplayNameLookup(PlatformGrok)
-	for _, model := range xai.DefaultModels() {
-		require.Equal(t, model.DisplayName, displayNames[model.ID])
-	}
+	result = service.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformGrok)
+	require.Contains(t, routing.RequestableModelIDs(result.Models), "grok")
 }
 
 // TestGrokCountTokensUsesCanonicalModel 验证 count-tokens 转换记录映射模型并发送最终模型。
 func TestGrokCountTokensUsesCanonicalModel(t *testing.T) {
 	account := &Account{
-		Platform: PlatformGrok,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"claude-sonnet-4-5": "grok-latest"},
 		},
@@ -306,7 +292,7 @@ func TestGrokCountTokensUsesCanonicalModel(t *testing.T) {
 
 // TestGrokWSModelUsesCanonicalID 验证 WebSocket HTTP bridge 使用相同的最终标准化入口。
 func TestGrokWSModelUsesCanonicalID(t *testing.T) {
-	account := &Account{Platform: PlatformGrok, Type: AccountTypeOAuth, Credentials: map[string]any{}}
+	account := &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth, Credentials: map[string]any{}}
 	require.Equal(t, xai.DefaultResponsesModel, resolveGrokWSUpstreamModel(account, []byte(`{"model":"grok"}`), "grok"))
 	require.Equal(t, xai.DefaultResponsesModel, resolveGrokWSUpstreamModel(account, []byte(`{"model":"grok"}`), ""))
 

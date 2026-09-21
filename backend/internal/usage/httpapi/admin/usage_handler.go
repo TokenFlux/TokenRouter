@@ -24,6 +24,7 @@ import (
 
 // UsageHandler handles admin usage-related requests
 type UsageHandler struct {
+	calendar       timezone.Calendar
 	usageService   *usage.UsageService
 	apiKeyService  ports.KeyReader
 	adminService   ports.UserReader
@@ -38,8 +39,10 @@ func NewUsageHandler(
 	adminService ports.UserReader,
 	cleanupService *usage.UsageCleanupService,
 	opsService ports.Timings,
+	calendar timezone.Calendar,
 ) *UsageHandler {
 	return &UsageHandler{
+		calendar:       calendar,
 		usageService:   usageService,
 		apiKeyService:  apiKeyService,
 		adminService:   adminService,
@@ -171,7 +174,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 	var startTime, endTime *time.Time
 	userTZ := c.Query("timezone") // Get user's timezone from request
 	if startDateStr := c.Query("start_date"); startDateStr != "" {
-		t, _, err := timezone.ParseDateTimeInUserLocation(startDateStr, userTZ)
+		t, _, err := h.calendar.ParseDateTimeInUserLocation(startDateStr, userTZ)
 		if err != nil {
 			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 			return
@@ -180,7 +183,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 	}
 
 	if endDateStr := c.Query("end_date"); endDateStr != "" {
-		t, dateOnly, err := timezone.ParseDateTimeInUserLocation(endDateStr, userTZ)
+		t, dateOnly, err := h.calendar.ParseDateTimeInUserLocation(endDateStr, userTZ)
 		if err != nil {
 			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 			return
@@ -359,7 +362,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	// Parse date range
 	userTZ := c.Query("timezone")
-	now := timezone.NowInUserLocation(userTZ)
+	now := h.calendar.NowInUserLocation(userTZ)
 	var startTime, endTime time.Time
 
 	startDateStr := c.Query("start_date")
@@ -367,13 +370,13 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 
 	if startDateStr != "" && endDateStr != "" {
 		var err error
-		startTime, _, err = timezone.ParseDateTimeInUserLocation(startDateStr, userTZ)
+		startTime, _, err = h.calendar.ParseDateTimeInUserLocation(startDateStr, userTZ)
 		if err != nil {
 			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 			return
 		}
 		var dateOnly bool
-		endTime, dateOnly, err = timezone.ParseDateTimeInUserLocation(endDateStr, userTZ)
+		endTime, dateOnly, err = h.calendar.ParseDateTimeInUserLocation(endDateStr, userTZ)
 		if err != nil {
 			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 			return
@@ -386,13 +389,13 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		period := c.DefaultQuery("period", "today")
 		switch period {
 		case "today":
-			startTime = timezone.StartOfDayInUserLocation(now, userTZ)
+			startTime = h.calendar.StartOfDayInUserLocation(now, userTZ)
 		case "week":
 			startTime = now.AddDate(0, 0, -7)
 		case "month":
 			startTime = now.AddDate(0, -1, 0)
 		default:
-			startTime = timezone.StartOfDayInUserLocation(now, userTZ)
+			startTime = h.calendar.StartOfDayInUserLocation(now, userTZ)
 		}
 		endTime = now
 	}
@@ -567,12 +570,12 @@ func (h *UsageHandler) CreateCleanupTask(c *gin.Context) {
 		return
 	}
 
-	startTime, err := timezone.ParseInUserLocation("2006-01-02", req.StartDate, req.Timezone)
+	startTime, err := h.calendar.ParseInUserLocation("2006-01-02", req.StartDate, req.Timezone)
 	if err != nil {
 		response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
 		return
 	}
-	endTime, err := timezone.ParseInUserLocation("2006-01-02", req.EndDate, req.Timezone)
+	endTime, err := h.calendar.ParseInUserLocation("2006-01-02", req.EndDate, req.Timezone)
 	if err != nil {
 		response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
 		return

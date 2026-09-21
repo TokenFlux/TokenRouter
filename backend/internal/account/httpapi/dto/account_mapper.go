@@ -3,13 +3,14 @@ package dto
 
 import (
 	json "encoding/json"
+	url "net/url"
+	strings "strings"
+	time "time"
+
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	proxydto "github.com/TokenFlux/TokenRouter/internal/egress/httpapi/dto"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
-	url "net/url"
-	strings "strings"
-	time "time"
 )
 
 func AccountFromRecordShallow(a *account.Record) *Account {

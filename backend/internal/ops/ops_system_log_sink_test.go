@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	logger "github.com/TokenFlux/TokenRouter/internal/pkg/logevent"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logevent"
 )
 
 func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
@@ -18,36 +18,36 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		event *logger.LogEvent
+		event *logevent.LogEvent
 		want  bool
 	}{
 		{
 			name:  "warn level",
-			event: &logger.LogEvent{Level: "warn", Component: "app"},
+			event: &logevent.LogEvent{Level: "warn", Component: "app"},
 			want:  true,
 		},
 		{
 			name:  "error level",
-			event: &logger.LogEvent{Level: "error", Component: "app"},
+			event: &logevent.LogEvent{Level: "error", Component: "app"},
 			want:  true,
 		},
 		{
 			name:  "access component",
-			event: &logger.LogEvent{Level: "info", Component: "http.access"},
+			event: &logevent.LogEvent{Level: "info", Component: "http.access"},
 			want:  true,
 		},
 		{
 			name: "rejected access excluded from database sink",
-			event: &logger.LogEvent{
+			event: &logevent.LogEvent{
 				Level:     "info",
 				Component: "http.access",
-				Fields:    map[string]any{logger.OpsSystemLogSkipField: true},
+				Fields:    map[string]any{logevent.OpsSystemLogSkipField: true},
 			},
 			want: false,
 		},
 		{
 			name: "access component from fields (real zap path)",
-			event: &logger.LogEvent{
+			event: &logevent.LogEvent{
 				Level:     "info",
 				Component: "",
 				Fields:    map[string]any{"component": "http.access"},
@@ -56,12 +56,12 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 		},
 		{
 			name:  "audit component",
-			event: &logger.LogEvent{Level: "info", Component: "audit.log_config_change"},
+			event: &logevent.LogEvent{Level: "info", Component: "audit.log_config_change"},
 			want:  true,
 		},
 		{
 			name: "audit component from fields (real zap path)",
-			event: &logger.LogEvent{
+			event: &logevent.LogEvent{
 				Level:     "info",
 				Component: "",
 				Fields:    map[string]any{"component": "audit.log_config_change"},
@@ -70,7 +70,7 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 		},
 		{
 			name:  "plain info",
-			event: &logger.LogEvent{Level: "info", Component: "app"},
+			event: &logevent.LogEvent{Level: "info", Component: "app"},
 			want:  false,
 		},
 	}
@@ -84,11 +84,11 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 
 func TestOpsSystemLogSink_WriteLogEvent_ShouldDropWhenQueueFull(t *testing.T) {
 	sink := &OpsSystemLogSink{
-		queue: make(chan *logger.LogEvent, 1),
+		queue: make(chan *logevent.LogEvent, 1),
 	}
 
-	sink.WriteLogEvent(&logger.LogEvent{Level: "warn", Component: "app"})
-	sink.WriteLogEvent(&logger.LogEvent{Level: "warn", Component: "app"})
+	sink.WriteLogEvent(&logevent.LogEvent{Level: "warn", Component: "app"})
+	sink.WriteLogEvent(&logevent.LogEvent{Level: "warn", Component: "app"})
 
 	if got := len(sink.queue); got != 1 {
 		t.Fatalf("queue len = %d, want 1", got)
@@ -100,15 +100,15 @@ func TestOpsSystemLogSink_WriteLogEvent_ShouldDropWhenQueueFull(t *testing.T) {
 
 func TestOpsSystemLogSink_Health(t *testing.T) {
 	sink := &OpsSystemLogSink{
-		queue: make(chan *logger.LogEvent, 10),
+		queue: make(chan *logevent.LogEvent, 10),
 	}
 	sink.lastError.Store("db timeout")
 	atomic.StoreUint64(&sink.droppedCount, 3)
 	atomic.StoreUint64(&sink.writeFailed, 2)
 	atomic.StoreUint64(&sink.writtenCount, 5)
 	atomic.StoreUint64(&sink.totalDelayNs, uint64(5000000)) // 5ms total -> avg 1ms
-	sink.queue <- &logger.LogEvent{Level: "warn", Component: "app"}
-	sink.queue <- &logger.LogEvent{Level: "warn", Component: "app"}
+	sink.queue <- &logevent.LogEvent{Level: "warn", Component: "app"}
+	sink.queue <- &logevent.LogEvent{Level: "warn", Component: "app"}
 
 	health := sink.Health()
 	if health.QueueDepth != 2 {
@@ -155,7 +155,7 @@ func TestOpsSystemLogSink_StartStopAndFlushSuccess(t *testing.T) {
 	sink.Start()
 	defer sink.Stop()
 
-	sink.WriteLogEvent(&logger.LogEvent{
+	sink.WriteLogEvent(&logevent.LogEvent{
 		Time:      time.Now().UTC(),
 		Level:     "warn",
 		Component: "http.access",
@@ -227,7 +227,7 @@ func TestOpsSystemLogSink_FlushFailureUpdatesHealth(t *testing.T) {
 	sink.Start()
 	defer sink.Stop()
 
-	sink.WriteLogEvent(&logger.LogEvent{
+	sink.WriteLogEvent(&logevent.LogEvent{
 		Time:      time.Now().UTC(),
 		Level:     "warn",
 		Component: "app",
@@ -268,7 +268,7 @@ func TestOpsSystemLogSink_StopFlushUsesActiveContextAndDrainsQueue(t *testing.T)
 	sink.flushInterval = time.Hour
 	sink.Start()
 
-	sink.WriteLogEvent(&logger.LogEvent{
+	sink.WriteLogEvent(&logevent.LogEvent{
 		Time:      time.Now().UTC(),
 		Level:     "warn",
 		Component: "app",

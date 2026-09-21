@@ -5,6 +5,7 @@ package handler
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -16,7 +17,7 @@ func TestAppendOpenAIAccountProxyLogFields(t *testing.T) {
 	proxyID := int64(17)
 	account := &service.Account{
 		ProxyID: &proxyID,
-		Proxy: &service.Proxy{
+		Proxy: &egress.Proxy{
 			ID:       proxyID,
 			Name:     "openai-egress",
 			Host:     "proxy.example.com",

@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -49,7 +52,7 @@ func TestExtractOpenAIEmbeddingsUsage_ParsesImageInputTokens(t *testing.T) {
 		}
 	}`)
 
-	usage := extractOpenAIEmbeddingsUsage(body)
+	usage := openai.ExtractEmbeddingsUsage(body)
 
 	require.Equal(t, 1340, usage.InputTokens)
 	require.Equal(t, 28, usage.ImageInputTokens)
@@ -58,7 +61,6 @@ func TestExtractOpenAIEmbeddingsUsage_ParsesImageInputTokens(t *testing.T) {
 }
 
 func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	reqBody := []byte(`{
 		"model":"nowledge-embedding",
@@ -93,8 +95,8 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 	}
 	account := &Account{
 		ID:       42,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.jina.ai",
@@ -126,7 +128,6 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 }
 
 func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	reqBody := []byte(`{"model":"text-embedding-3-small","input":"hello"}`)
 	rec := httptest.NewRecorder()
@@ -145,8 +146,8 @@ func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
 	account := &Account{
 		ID:       43,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
 		},
@@ -155,22 +156,21 @@ func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {
 	result, err := svc.ForwardEmbeddings(context.Background(), c, account, reqBody, "")
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusForbidden, failoverErr.StatusCode)
-	require.Equal(t, GatewayFailureStageAccountAuth, failoverErr.Stage)
-	require.Equal(t, GatewayFailureScopeAccount, failoverErr.Scope)
+	require.Equal(t, forwardcore.GatewayFailureStageAccountAuth, failoverErr.Stage)
+	require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
 	require.Equal(t, OpenAIUpstreamAccessStateReason, failoverErr.Reason)
-	require.Equal(t, NextAccountRetry, failoverErr.NextAccountAction)
+	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
 	require.Equal(t, openAIUpstreamAccessUnavailableClientMessage, failoverErr.ClientMessage)
 	require.False(t, failoverErr.RetryableOnSameAccount)
-	require.Equal(t, "req_embeddings_access_state", failoverErr.ResponseHeaders.Get("x-request-id"))
+	require.Equal(t, "req_embeddings_access_state", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 	require.False(t, c.Writer.Written())
 }
 
 func TestForwardEmbeddings_NonAccessFailoverKeepsLegacyShape(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	reqBody := []byte(`{"model":"text-embedding-3-small","input":"hello"}`)
 	rec := httptest.NewRecorder()
@@ -185,8 +185,8 @@ func TestForwardEmbeddings_NonAccessFailoverKeepsLegacyShape(t *testing.T) {
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
 	account := &Account{
 		ID:       44,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
 		},
@@ -195,7 +195,7 @@ func TestForwardEmbeddings_NonAccessFailoverKeepsLegacyShape(t *testing.T) {
 	result, err := svc.ForwardEmbeddings(context.Background(), c, account, reqBody, "")
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
 	require.Empty(t, failoverErr.Stage)

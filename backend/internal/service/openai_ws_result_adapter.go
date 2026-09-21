@@ -1,12 +1,18 @@
 package service
 
-import gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+import (
+	"net/http"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+)
 
 // wsForwardResult 显式投影结果，不用不透明旧对象跨越核心边界。
-func wsForwardResult(r *OpenAIForwardResult) *gatewayws.ForwardResult {
+func wsForwardResult(r *forwardcore.OpenAIResult) *gatewayws.ForwardResult {
 	if r == nil {
 		return nil
 	}
+	replay, replayExists := r.WSReplayInput()
 	out := &gatewayws.ForwardResult{
 		RequestID:                   r.RequestID,
 		ResponseID:                  r.ResponseID,
@@ -40,21 +46,21 @@ func wsForwardResult(r *OpenAIForwardResult) *gatewayws.ForwardResult {
 		WebSearchCalls:              r.WebSearchCalls,
 		SearchCount:                 r.SearchCount,
 		AudioUsage:                  r.AudioUsage,
-		WSReplayInput:               r.wsReplayInput, WSReplayInputExists: r.wsReplayInputExists, WSAccountFailoverReplayInput: r.wsAccountFailoverReplayInput,
-		ResponseTurnState: r.ResponseHeaders.Get(openAIWSTurnStateHeader),
+		WSReplayInput:               replay, WSReplayInputExists: replayExists, WSAccountFailoverReplayInput: r.WSAccountFailoverReplayInput(),
+		ResponseTurnState: http.Header(r.ResponseHeaders).Get(openAIWSTurnStateHeader),
 	}
 	if r.UpstreamWarning != nil {
-		out.UpstreamWarning = &gatewayws.UpstreamWarning{StatusCode: r.UpstreamWarning.StatusCode, ResponseBody: r.UpstreamWarning.ResponseBody, Message: r.UpstreamWarning.Message}
+		out.UpstreamWarning = &forwardcore.UpstreamWarning{StatusCode: r.UpstreamWarning.StatusCode, ResponseBody: r.UpstreamWarning.ResponseBody, Message: r.UpstreamWarning.Message}
 	}
 	return out
 }
 
 // legacyWSForwardResult 保留完成 hooks 所需旧形状，规则不在此执行。
-func legacyWSForwardResult(r *gatewayws.ForwardResult) *OpenAIForwardResult {
+func legacyWSForwardResult(r *gatewayws.ForwardResult) *forwardcore.OpenAIResult {
 	if r == nil {
 		return nil
 	}
-	out := &OpenAIForwardResult{
+	out := &forwardcore.OpenAIResult{
 		RequestID:                   r.RequestID,
 		ResponseID:                  r.ResponseID,
 		UpstreamHeaders:             r.UpstreamHeaders,
@@ -87,20 +93,21 @@ func legacyWSForwardResult(r *gatewayws.ForwardResult) *OpenAIForwardResult {
 		WebSearchCalls:              r.WebSearchCalls,
 		SearchCount:                 r.SearchCount,
 		AudioUsage:                  r.AudioUsage,
-		wsReplayInput:               r.WSReplayInput, wsReplayInputExists: r.WSReplayInputExists, wsAccountFailoverReplayInput: r.WSAccountFailoverReplayInput,
 	}
+	out.SetWSReplayInput(r.WSReplayInput, r.WSReplayInputExists)
+	out.SetWSAccountFailoverReplayInput(r.WSAccountFailoverReplayInput)
 	if r.UpstreamWarning != nil {
-		out.UpstreamWarning = &OpenAIUpstreamWarning{StatusCode: r.UpstreamWarning.StatusCode, ResponseBody: r.UpstreamWarning.ResponseBody, Message: r.UpstreamWarning.Message}
+		out.UpstreamWarning = &forwardcore.UpstreamWarning{StatusCode: r.UpstreamWarning.StatusCode, ResponseBody: r.UpstreamWarning.ResponseBody, Message: r.UpstreamWarning.Message}
 	}
 	return out
 }
 
 // ProjectWSForwardResult 供原生 HTTP 入站适配逐字段接收旧执行入口的 turn 结果。
-func ProjectWSForwardResult(result *OpenAIForwardResult) *gatewayws.ForwardResult {
+func ProjectWSForwardResult(result *forwardcore.OpenAIResult) *gatewayws.ForwardResult {
 	return wsForwardResult(result)
 }
 
 // LegacyWSForwardResult 只供尚未清理的完成/健康入口使用，不承载计算规则。
-func LegacyWSForwardResult(result *gatewayws.ForwardResult) *OpenAIForwardResult {
+func LegacyWSForwardResult(result *gatewayws.ForwardResult) *forwardcore.OpenAIResult {
 	return legacyWSForwardResult(result)
 }

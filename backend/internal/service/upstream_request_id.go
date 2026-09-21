@@ -1,13 +1,12 @@
 package service
 
 import (
-	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"net/http"
 	"strings"
 	"unicode/utf8"
-)
 
-const AccountExtraUpstreamRequestIDHeader = acctcore.AccountExtraUpstreamRequestIDHeader
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
+)
 
 const (
 	// maxUsageUpstreamRequestIDLen 与 usage_logs.upstream_request_id VARCHAR(128) 对齐。
@@ -51,8 +50,4 @@ func usageUpstreamRequestIDPtr(account *Account, h http.Header, wsMode bool) *st
 		return nil
 	}
 	return &id
-}
-
-func ValidateUpstreamRequestIDHeaderExtra(extra map[string]any) error {
-	return acctcore.ValidateUpstreamRequestIDHeaderExtra(extra)
 }

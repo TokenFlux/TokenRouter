@@ -33,14 +33,11 @@ func TestCalendarKeepsExplicitLocation(t *testing.T) {
 
 // TestUninitializedClockKeepsMonotonicReading 保留初始化前 Now 及用户时区回退的计时语义。
 func TestUninitializedClockKeepsMonotonicReading(t *testing.T) {
-	previous := location
-	location = nil
-	t.Cleanup(func() { location = previous })
+	calendar := NewCalendar(nil)
 	for name, value := range map[string]time.Time{
-		"global":       Now(),
-		"empty_user":   NowInUserLocation(""),
-		"invalid_user": NowInUserLocation("invalid/timezone"),
-		"calendar":     NewCalendar(nil).Now(),
+		"empty_user":   calendar.NowInUserLocation(""),
+		"invalid_user": calendar.NowInUserLocation("invalid/timezone"),
+		"calendar":     calendar.Now(),
 	} {
 		// 这里比较完整 Time 值；Equal 不区分是否携带单调时钟读数。
 		if reflect.DeepEqual(value, value.Round(0)) {

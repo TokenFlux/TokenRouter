@@ -8,12 +8,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
+
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -33,21 +41,21 @@ func newGatewayRoutesTestRouterWithConfig(cfg *config.Config, platform ...string
 
 // newGatewayRoutesTestRouterWithOptions 同时支持注入配置和网关 handler。
 func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *handler.GatewayHandler, platform ...string) *gin.Engine {
-	groupPlatform := service.PlatformOpenAI
+	groupPlatform := capability.PlatformOpenAI
 	if len(platform) > 0 && platform[0] != "" {
 		groupPlatform = platform[0]
 	}
 	groupID := int64(1)
 	// 普通路由测试模拟已开启全部受支持协议；空集合由专门的门禁测试覆盖。
-	protocols := []domain.ProtocolID{
-		domain.ProtocolAnthropicMessages,
-		domain.ProtocolOpenAIResponses,
-		domain.ProtocolOpenAIChatCompletions,
+	protocols := []protocolcore.ProtocolID{
+		protocolcore.ProtocolAnthropicMessages,
+		protocolcore.ProtocolOpenAIResponses,
+		protocolcore.ProtocolOpenAIChatCompletions,
 	}
-	if groupPlatform == service.PlatformGemini || groupPlatform == service.PlatformAntigravity {
-		protocols = append(protocols, domain.ProtocolGeminiGenerateContent)
+	if groupPlatform == capability.PlatformGemini || groupPlatform == capability.PlatformAntigravity {
+		protocols = append(protocols, protocolcore.ProtocolGeminiGenerateContent)
 	}
-	return newGatewayRoutesTestRouterWithGroup(cfg, gatewayHandler, &service.Group{
+	return newGatewayRoutesTestRouterWithGroup(cfg, gatewayHandler, &routing.Group{
 		ID:               groupID,
 		Platform:         groupPlatform,
 		AllowedProtocols: protocols,
@@ -55,8 +63,8 @@ func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *h
 }
 
 // newGatewayRoutesTestRouterWithGroup 允许测试显式控制 nil 与空协议集合。
-func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, gatewayHandler *handler.GatewayHandler, group *service.Group) *gin.Engine {
-	gin.SetMode(gin.TestMode)
+func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, gatewayHandler *handler.GatewayHandler, group *routing.Group) *gin.Engine {
+
 	router := gin.New()
 
 	if gatewayHandler == nil {
@@ -72,8 +80,8 @@ func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, gatewayHandler *han
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := group.ID
-			c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
-				User:    &service.User{ID: 1, Status: service.StatusActive, Concurrency: 1},
+			c.Set(string(servermiddleware.ContextKeyAPIKey), &apikey.APIKey{
+				User:    &identity.User{ID: 1, Status: billing.StatusActive, Concurrency: 1},
 				GroupID: &groupID,
 				Group:   group,
 			})
@@ -103,28 +111,28 @@ func TestGatewayRoutesClientProtocolGateRejectsAliasesBeforeReadingBody(t *testi
 	tests := []struct {
 		name      string
 		platform  string
-		protocols []domain.ProtocolID
+		protocols []protocolcore.ProtocolID
 		paths     []string
 		code      string
 	}{
 		{
 			name:      "messages",
-			platform:  service.PlatformOpenAI,
-			protocols: []domain.ProtocolID{domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions},
+			platform:  capability.PlatformOpenAI,
+			protocols: []protocolcore.ProtocolID{protocolcore.ProtocolOpenAIResponses, protocolcore.ProtocolOpenAIChatCompletions},
 			paths:     []string{"/v1/messages", "/v1/messages/count_tokens", "/messages/count_tokens", "/antigravity/v1/messages"},
 			code:      "permission_error",
 		},
 		{
 			name:      "responses",
-			platform:  service.PlatformQoder,
-			protocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolOpenAIChatCompletions},
+			platform:  capability.PlatformQoder,
+			protocols: []protocolcore.ProtocolID{protocolcore.ProtocolAnthropicMessages, protocolcore.ProtocolOpenAIChatCompletions},
 			paths:     []string{"/v1/responses", "/v1/responses/compact", "/responses", "/responses/compact", "/backend-api/codex/responses", "/backend-api/codex/responses/compact"},
 			code:      "protocol_not_allowed",
 		},
 		{
 			name:      "chat_completions",
-			platform:  service.PlatformQoder,
-			protocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolOpenAIResponses},
+			platform:  capability.PlatformQoder,
+			protocols: []protocolcore.ProtocolID{protocolcore.ProtocolAnthropicMessages, protocolcore.ProtocolOpenAIResponses},
 			paths:     []string{"/v1/chat/completions", "/chat/completions"},
 			code:      "protocol_not_allowed",
 		},
@@ -133,7 +141,7 @@ func TestGatewayRoutesClientProtocolGateRejectsAliasesBeforeReadingBody(t *testi
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			groupID := int64(1)
-			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{
+			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{
 				ID:               groupID,
 				Platform:         tt.platform,
 				AllowedProtocols: tt.protocols,
@@ -161,20 +169,20 @@ func TestGatewayRoutesUnsupportedCountTokensBypassesProtocolGate(t *testing.T) {
 		platform string
 		path     string
 	}{
-		{name: "qoder_v1", platform: service.PlatformQoder, path: "/v1/messages/count_tokens"},
-		{name: "qoder_alias", platform: service.PlatformQoder, path: "/messages/count_tokens"},
-		{name: "antigravity_v1", platform: service.PlatformAntigravity, path: "/v1/messages/count_tokens"},
-		{name: "antigravity_alias", platform: service.PlatformAntigravity, path: "/messages/count_tokens"},
-		{name: "forced_antigravity", platform: service.PlatformOpenAI, path: "/antigravity/v1/messages/count_tokens"},
+		{name: "qoder_v1", platform: capability.PlatformQoder, path: "/v1/messages/count_tokens"},
+		{name: "qoder_alias", platform: capability.PlatformQoder, path: "/messages/count_tokens"},
+		{name: "antigravity_v1", platform: capability.PlatformAntigravity, path: "/v1/messages/count_tokens"},
+		{name: "antigravity_alias", platform: capability.PlatformAntigravity, path: "/messages/count_tokens"},
+		{name: "forced_antigravity", platform: capability.PlatformOpenAI, path: "/antigravity/v1/messages/count_tokens"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			groupID := int64(1)
-			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{
+			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{
 				ID:               groupID,
 				Platform:         tt.platform,
-				AllowedProtocols: []domain.ProtocolID{},
+				AllowedProtocols: []protocolcore.ProtocolID{},
 			})
 			reader := &protocolGateTrackingReader{}
 			req := httptest.NewRequest(http.MethodPost, tt.path, reader)
@@ -193,12 +201,12 @@ func TestGatewayRoutesUnsupportedCountTokensBypassesProtocolGate(t *testing.T) {
 
 func TestGatewayRoutesResponsesSubpathGuardRunsBeforeProtocolGate(t *testing.T) {
 	groupID := int64(1)
-	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{
+	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{
 		ID:       groupID,
-		Platform: service.PlatformQoder,
-		AllowedProtocols: []domain.ProtocolID{
-			domain.ProtocolAnthropicMessages,
-			domain.ProtocolOpenAIChatCompletions,
+		Platform: capability.PlatformQoder,
+		AllowedProtocols: []protocolcore.ProtocolID{
+			protocolcore.ProtocolAnthropicMessages,
+			protocolcore.ProtocolOpenAIChatCompletions,
 		},
 	})
 
@@ -215,13 +223,13 @@ func TestGatewayRoutesResponsesSubpathGuardRunsBeforeProtocolGate(t *testing.T) 
 func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 	tests := []struct {
 		name     string
-		protocol domain.ProtocolID
+		protocol protocolcore.ProtocolID
 		format   groupClientProtocolErrorFormat
 		contains []string
 	}{
-		{"anthropic", domain.ProtocolAnthropicMessages, groupClientProtocolErrorAnthropic, []string{"permission_error", "Anthropic Messages"}},
-		{"openai", domain.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, []string{"protocol_not_allowed", "OpenAI Responses"}},
-		{"google", domain.ProtocolGeminiGenerateContent, groupClientProtocolErrorGoogle, []string{"PERMISSION_DENIED", "Gemini GenerateContent"}},
+		{"anthropic", protocolcore.ProtocolAnthropicMessages, groupClientProtocolErrorAnthropic, []string{"permission_error", "Anthropic Messages"}},
+		{"openai", protocolcore.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, []string{"protocol_not_allowed", "OpenAI Responses"}},
+		{"google", protocolcore.ProtocolGeminiGenerateContent, groupClientProtocolErrorGoogle, []string{"PERMISSION_DENIED", "Gemini GenerateContent"}},
 	}
 
 	for _, tt := range tests {
@@ -229,9 +237,9 @@ func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 			router := gin.New()
 			var deniedReason string
 			router.Use(func(c *gin.Context) {
-				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{AllowedProtocols: []domain.ProtocolID{}}})
+				c.Set(string(servermiddleware.ContextKeyAPIKey), &apikey.APIKey{Group: &routing.Group{AllowedProtocols: []protocolcore.ProtocolID{}}})
 				c.Next()
-				deniedReason = c.GetString(service.OpsClientBusinessLimitedReasonKey)
+				deniedReason = c.GetString(gatewayhttp.OpsClientBusinessLimitedReasonKey)
 			})
 			router.POST("/", requireGroupClientProtocol(tt.protocol, tt.format), func(c *gin.Context) {
 				c.Status(http.StatusNoContent)
@@ -244,7 +252,7 @@ func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 			for _, value := range tt.contains {
 				require.Contains(t, w.Body.String(), value)
 			}
-			require.Equal(t, service.OpsClientBusinessLimitedReasonLocalPolicyDenied, deniedReason)
+			require.Equal(t, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied, deniedReason)
 		})
 	}
 }
@@ -252,8 +260,8 @@ func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 func TestRequireGeminiGenerateContentProtocolOnlyGatesTextActions(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
-			Group: &service.Group{Platform: service.PlatformQoder, AllowedProtocols: []domain.ProtocolID{}},
+		c.Set(string(servermiddleware.ContextKeyAPIKey), &apikey.APIKey{
+			Group: &routing.Group{Platform: capability.PlatformQoder, AllowedProtocols: []protocolcore.ProtocolID{}},
 		})
 		c.Next()
 	})
@@ -294,7 +302,7 @@ func TestGatewayRoutesOpenAIResponsesCompactPathIsRegistered(t *testing.T) {
 }
 
 func TestGatewayRoutesQoderPathsAreRegistered(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformQoder)
+	router := newGatewayRoutesTestRouter(capability.PlatformQoder)
 
 	for _, tc := range []struct {
 		path string
@@ -314,7 +322,7 @@ func TestGatewayRoutesQoderPathsAreRegistered(t *testing.T) {
 }
 
 func TestGatewayRoutesQoderResponsesSubpathsAreRejected(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformQoder)
+	router := newGatewayRoutesTestRouter(capability.PlatformQoder)
 
 	for _, path := range []string{
 		"/v1/responses/compact",
@@ -331,7 +339,7 @@ func TestGatewayRoutesQoderResponsesSubpathsAreRejected(t *testing.T) {
 }
 
 func TestGatewayRoutesQoderResponsesWebSocketIsRejected(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformQoder)
+	router := newGatewayRoutesTestRouter(capability.PlatformQoder)
 
 	for _, path := range []string{
 		"/v1/responses",
@@ -348,7 +356,7 @@ func TestGatewayRoutesQoderResponsesWebSocketIsRejected(t *testing.T) {
 }
 
 func TestGatewayRoutesNonNativeResponsesWebSocketIsRejected(t *testing.T) {
-	router := newGatewayRoutesTestRouterWithOptions(&config.Config{}, nil, service.PlatformAnthropic)
+	router := newGatewayRoutesTestRouterWithOptions(&config.Config{}, nil, capability.PlatformAnthropic)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/responses", nil))
 
@@ -377,7 +385,7 @@ func TestGatewayRoutesOpenAIAlphaSearchPathsAreRegistered(t *testing.T) {
 
 // 非 OpenAI 分组不能通过通用 /v1 路由调用 Codex Alpha Search。
 func TestGatewayRoutesAlphaSearchRejectsNonOpenAIGroup(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformGrok)
+	router := newGatewayRoutesTestRouter(capability.PlatformGrok)
 	req := httptest.NewRequest(http.MethodPost, "/v1/alpha/search", strings.NewReader(`{"model":"gpt-5.6-sol"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -467,7 +475,7 @@ func TestGatewayRoutesBillingIntrospectionIsRemoved(t *testing.T) {
 }
 
 func TestGatewayRoutesGrokImagesAndVideosPathsAreRegistered(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformGrok)
+	router := newGatewayRoutesTestRouter(capability.PlatformGrok)
 
 	for _, path := range []string{
 		"/v1/images/generations",
@@ -520,7 +528,7 @@ func TestGatewayRoutesGrokImagesAndVideosPathsAreRegistered(t *testing.T) {
 }
 
 func TestGatewayRoutesNonGrokVideosAreRejectedAtPlatformGate(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformOpenAI)
+	router := newGatewayRoutesTestRouter(capability.PlatformOpenAI)
 
 	for _, tc := range []struct {
 		method string
@@ -563,7 +571,7 @@ func TestGatewayRoutesNonGrokVideosAreRejectedAtPlatformGate(t *testing.T) {
 }
 
 func TestGatewayRoutesGrokAllowsCLICompatibilityEntrypoints(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformGrok)
+	router := newGatewayRoutesTestRouter(capability.PlatformGrok)
 
 	for _, tc := range []struct {
 		method string
@@ -587,7 +595,7 @@ func TestGatewayRoutesGrokAllowsCLICompatibilityEntrypoints(t *testing.T) {
 
 	countTokensRouter := newGatewayRoutesTestRouterWithConfig(&config.Config{
 		Gateway: config.GatewayConfig{MaxBodySize: 1024 * 1024},
-	}, service.PlatformGrok)
+	}, capability.PlatformGrok)
 	for _, path := range []string{"/v1/messages/count_tokens", "/messages/count_tokens"} {
 		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"grok","messages":[{"role":"user","content":"hi"}]}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -645,10 +653,10 @@ func TestGatewayRoutesResponsesSubpathRejectsNonConformingSubpaths(t *testing.T)
 
 func TestGatewayRoutesOpenAICompatibleCountTokensPathIsRegistered(t *testing.T) {
 	for _, platform := range []string{
-		service.PlatformOpenAI,
-		service.PlatformKimi,
-		service.PlatformZhipu,
-		service.PlatformDeepseek,
+		capability.PlatformOpenAI,
+		capability.PlatformKimi,
+		capability.PlatformZhipu,
+		capability.PlatformDeepseek,
 	} {
 		t.Run(platform, func(t *testing.T) {
 			router := newGatewayRoutesTestRouter(platform)

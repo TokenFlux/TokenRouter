@@ -1,9 +1,5 @@
 package service
 
-// 国产供应商 Anthropic 协议转换路径的上游读间隔超时回归测试（B3）：
-// 上游挂住 SSE（不发数据也不断连）时，CC×anthropic / Responses×anthropic
-// 的读循环必须按 gateway.stream_data_interval_timeout 结束，而不是永久阻塞。
-
 import (
 	"bufio"
 	"encoding/json"
@@ -15,9 +11,13 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/gin-gonic/gin"
 )
+
+// 国产供应商 Anthropic 协议转换路径的上游读间隔超时回归测试（B3）：
+// 上游挂住 SSE（不发数据也不断连）时，CC×anthropic / Responses×anthropic
+// 的读循环必须按 gateway.stream_data_interval_timeout 结束，而不是永久阻塞。
 
 func newNativeAnthropicHangTestService(intervalSec int) *OpenAIGatewayService {
 	return &OpenAIGatewayService{
@@ -131,7 +131,7 @@ func TestAnthropicNativeLinePump_DataResetsTimer(t *testing.T) {
 }
 
 func TestCCStreamingFromNativeAnthropic_HangTimesOut(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newNativeAnthropicHangTestService(1)
 
 	rec := httptest.NewRecorder()
@@ -156,7 +156,7 @@ func TestCCStreamingFromNativeAnthropic_HangTimesOut(t *testing.T) {
 }
 
 func TestCCBufferedFromNativeAnthropic_HangTimesOut(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newNativeAnthropicHangTestService(1)
 
 	rec := httptest.NewRecorder()
@@ -181,7 +181,7 @@ func TestCCBufferedFromNativeAnthropic_HangTimesOut(t *testing.T) {
 }
 
 func TestResponsesStreamingFromNativeAnthropic_HangTimesOut(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newNativeAnthropicHangTestService(1)
 
 	rec := httptest.NewRecorder()
@@ -190,7 +190,7 @@ func TestResponsesStreamingFromNativeAnthropic_HangTimesOut(t *testing.T) {
 
 	resp, pr, pw := newHangingUpstreamResponse()
 	start := time.Now()
-	res, err := svc.handleResponsesStreamingFromNativeAnthropic(resp, c, "glm-4.7", "glm-4.7", "glm-4.7", nil, start, apicompat.ResponsesClientToolMapping{})
+	res, err := svc.handleResponsesStreamingFromNativeAnthropic(resp, c, "glm-4.7", "glm-4.7", "glm-4.7", nil, start, bridge.ResponsesClientToolMapping{})
 	_ = pw.Close()
 	_ = pr.Close()
 
@@ -206,7 +206,7 @@ func TestResponsesStreamingFromNativeAnthropic_HangTimesOut(t *testing.T) {
 }
 
 func TestResponsesStreamingFromNativeAnthropicClientDisconnectDrainsUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newNativeAnthropicHangTestService(5)
 
 	rec := httptest.NewRecorder()
@@ -229,7 +229,7 @@ func TestResponsesStreamingFromNativeAnthropicClientDisconnectDrainsUsage(t *tes
 		"glm-4.7",
 		nil,
 		time.Now(),
-		apicompat.ResponsesClientToolMapping{},
+		bridge.ResponsesClientToolMapping{},
 	)
 
 	if err != nil {
@@ -244,7 +244,7 @@ func TestResponsesStreamingFromNativeAnthropicClientDisconnectDrainsUsage(t *tes
 }
 
 func TestCCStreamingFromNativeAnthropic_HappyPathStillConverts(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newNativeAnthropicHangTestService(5)
 
 	rec := httptest.NewRecorder()
@@ -275,7 +275,7 @@ func TestCCStreamingFromNativeAnthropic_HappyPathStillConverts(t *testing.T) {
 }
 
 func TestCCBufferedFromNativeAnthropic_HappyPathStillConverts(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newNativeAnthropicHangTestService(5)
 
 	rec := httptest.NewRecorder()
@@ -306,7 +306,7 @@ func TestCCBufferedFromNativeAnthropic_HappyPathStillConverts(t *testing.T) {
 }
 
 func TestCCBufferedFromNativeAnthropic_ToolArgumentsAreValidJSON(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newNativeAnthropicHangTestService(5)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -341,14 +341,14 @@ func TestCCBufferedFromNativeAnthropic_ToolArgumentsAreValidJSON(t *testing.T) {
 }
 
 func TestResponsesBufferedFromNativeAnthropic_ToolArgumentsAreValidJSON(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newNativeAnthropicHangTestService(5)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(toolAnthropicSSEStream())), Header: http.Header{}}
 
-	_, err := svc.handleResponsesBufferedFromNativeAnthropic(resp, c, "glm-4.7", "glm-4.7", "glm-4.7", nil, time.Now(), apicompat.ResponsesClientToolMapping{})
+	_, err := svc.handleResponsesBufferedFromNativeAnthropic(resp, c, "glm-4.7", "glm-4.7", "glm-4.7", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

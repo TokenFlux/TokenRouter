@@ -7,20 +7,17 @@ import (
 	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 )
 
 var ErrUpstreamResponseBodyTooLarge = errors.New("upstream response body too large")
 
-// defaultUpstreamResponseReadMaxBytes 源自 config.DefaultUpstreamResponseReadMaxBytes，
-// 仅在 cfg 为 nil 时作为兜底（测试或极端场景）。
-const defaultUpstreamResponseReadMaxBytes = config.DefaultUpstreamResponseReadMaxBytes
-
 func resolveUpstreamResponseReadLimit(cfg *config.Config) int64 {
 	if cfg != nil && cfg.Gateway.UpstreamResponseReadMaxBytes > 0 {
 		return cfg.Gateway.UpstreamResponseReadMaxBytes
 	}
-	return defaultUpstreamResponseReadMaxBytes
+	return config.DefaultUpstreamResponseReadMaxBytes
 }
 
 func readUpstreamResponseBodyLimited(reader io.Reader, maxBytes int64) ([]byte, error) {
@@ -28,7 +25,7 @@ func readUpstreamResponseBodyLimited(reader io.Reader, maxBytes int64) ([]byte, 
 		return nil, errors.New("response body is nil")
 	}
 	if maxBytes <= 0 {
-		maxBytes = defaultUpstreamResponseReadMaxBytes
+		maxBytes = config.DefaultUpstreamResponseReadMaxBytes
 	}
 
 	body, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
@@ -51,7 +48,7 @@ func ReadUpstreamResponseBody(reader io.Reader, cfg *config.Config, c *gin.Conte
 	body, err := readUpstreamResponseBodyLimited(reader, maxBytes)
 	if err != nil {
 		if errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
-			setOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
+			gatewayhttp.SetOpsUpstreamError(c, http.StatusBadGateway, "upstream response too large", "")
 			if onTooLarge != nil {
 				onTooLarge(c)
 			}

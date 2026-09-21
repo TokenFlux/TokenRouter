@@ -10,14 +10,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	requestBody := []byte(`{"model":"gpt-5.2","stream":false,"input":"hello"}`)
 
 	for _, passthrough := range []bool{false, true} {
@@ -47,8 +50,8 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 			account := &Account{
 				ID:          161,
 				Name:        name,
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
 				Concurrency: 1,
 				Credentials: map[string]any{
 					"api_key":   "sk-test",
@@ -61,19 +64,19 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 				Extra: map[string]any{
 					"openai_passthrough": passthrough,
 				},
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 			}
 
 			result, err := svc.Forward(context.Background(), c, account, requestBody)
 
 			require.Nil(t, result)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.Equal(t, http.StatusRequestEntityTooLarge, failoverErr.StatusCode)
-			require.Equal(t, GatewayFailureScopeAccount, failoverErr.Scope)
-			require.Equal(t, GatewayFailureReason("openai_request_body_too_large"), failoverErr.Reason)
-			require.Equal(t, NextAccountRetry, failoverErr.NextAccountAction)
+			require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
+			require.Equal(t, forwardcore.GatewayFailureReason("openai_request_body_too_large"), failoverErr.Reason)
+			require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 			require.Equal(t, http.StatusRequestEntityTooLarge, failoverErr.ClientStatusCode)
 			require.Equal(t, "Request payload is too large", failoverErr.ClientMessage)
 			require.False(t, failoverErr.RetryableOnSameAccount, "a body limit requires another account, not another attempt on the same account")
@@ -91,7 +94,7 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 }
 
 func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	requestBody := []byte(`{"model":"gpt-5.2","stream":false,"input":"hello"}`)
 
 	for _, passthrough := range []bool{false, true} {
@@ -111,19 +114,19 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 				}},
 			}
 			account := &Account{
-				ID: 162, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
+				ID: 162, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://api.example.test"},
 				Extra: map[string]any{
 					"openai_passthrough": passthrough,
 				},
-				Status: StatusActive, Schedulable: true,
+				Status: billing.StatusActive, Schedulable: true,
 			}
 
 			result, err := svc.Forward(context.Background(), c, account, requestBody)
 
 			require.Nil(t, result)
 			require.Error(t, err)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.False(t, errors.As(err, &failoverErr), "context-window failures are deterministic request errors")
 			require.True(t, c.Writer.Written())
 			require.Contains(t, rec.Body.String(), "exceeds the context window")
@@ -135,7 +138,7 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 // TestOpenAIRequestBodyLimitFailover_CompatAndWSBridgeKeepAccountFailover 验证
 // Chat Completions 共用错误管线和 WS HTTP Bridge 不会把账号代理 413 当成请求级拒绝。
 func TestOpenAIRequestBodyLimitFailover_CompatAndWSBridgeKeepAccountFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(nil))
@@ -146,7 +149,7 @@ func TestOpenAIRequestBodyLimitFailover_CompatAndWSBridgeKeepAccountFailover(t *
 		StatusCode: http.StatusRequestEntityTooLarge,
 		Header:     http.Header{"X-Request-Id": []string{"rid-compat-413"}},
 	}
-	account := &Account{ID: 163, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 163, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 	svc := &OpenAIGatewayService{}
 
 	failoverErr := svc.failoverOpenAIUpstreamHTTPError(
@@ -154,8 +157,8 @@ func TestOpenAIRequestBodyLimitFailover_CompatAndWSBridgeKeepAccountFailover(t *
 	)
 
 	require.NotNil(t, failoverErr)
-	require.Equal(t, GatewayFailureScopeAccount, failoverErr.Scope)
-	require.Equal(t, NextAccountRetry, failoverErr.NextAccountAction)
+	require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
+	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.False(t, failoverErr.RetryableOnSameAccount)
 	require.False(t, detectOpenAIWSHTTPBridgeRequestScopedError(
 		account, http.StatusRequestEntityTooLarge, upstreamMessage, upstreamBody,

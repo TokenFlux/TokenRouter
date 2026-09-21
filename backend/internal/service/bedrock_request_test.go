@@ -3,6 +3,8 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -10,7 +12,7 @@ import (
 
 func TestPrepareBedrockRequestBody_BasicFields(t *testing.T) {
 	input := `{"model":"claude-opus-4-6","stream":true,"max_tokens":1024,"messages":[{"role":"user","content":"hi"}]}`
-	result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
+	result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
 	require.NoError(t, err)
 
 	// anthropic_version 应被注入
@@ -25,7 +27,7 @@ func TestPrepareBedrockRequestBody_BasicFields(t *testing.T) {
 func TestPrepareBedrockRequestBody_OutputFormatInlineSchema(t *testing.T) {
 	t.Run("schema inlined into last user message array content", func(t *testing.T) {
 		input := `{"model":"claude-sonnet-4-5","output_format":{"type":"json","schema":{"name":"string"}},"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "output_format").Exists())
@@ -38,7 +40,7 @@ func TestPrepareBedrockRequestBody_OutputFormatInlineSchema(t *testing.T) {
 
 	t.Run("schema inlined into string content", func(t *testing.T) {
 		input := `{"model":"claude-sonnet-4-5","output_format":{"type":"json","schema":{"result":"number"}},"messages":[{"role":"user","content":"compute this"}]}`
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "output_format").Exists())
@@ -50,7 +52,7 @@ func TestPrepareBedrockRequestBody_OutputFormatInlineSchema(t *testing.T) {
 
 	t.Run("no schema field just removes output_format", func(t *testing.T) {
 		input := `{"model":"claude-sonnet-4-5","output_format":{"type":"json"},"messages":[{"role":"user","content":"hi"}]}`
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "output_format").Exists())
@@ -58,7 +60,7 @@ func TestPrepareBedrockRequestBody_OutputFormatInlineSchema(t *testing.T) {
 
 	t.Run("no messages just removes output_format", func(t *testing.T) {
 		input := `{"model":"claude-sonnet-4-5","output_format":{"type":"json","schema":{"name":"string"}}}`
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "output_format").Exists())
@@ -67,7 +69,7 @@ func TestPrepareBedrockRequestBody_OutputFormatInlineSchema(t *testing.T) {
 
 func TestPrepareBedrockRequestBody_RemoveOutputConfig(t *testing.T) {
 	input := `{"model":"claude-sonnet-4-5","output_config":{"max_tokens":100},"messages":[]}`
-	result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
+	result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-sonnet-4-5-v1", "")
 	require.NoError(t, err)
 
 	assert.False(t, gjson.GetBytes(result, "output_config").Exists())
@@ -81,7 +83,7 @@ func TestRemoveCustomFieldFromTools(t *testing.T) {
 			{"name":"tool3","custom":{"defer_loading":true,"other":123},"description":"desc3"}
 		]
 	}`
-	result := removeCustomFieldFromTools([]byte(input))
+	result := bedrock.RemoveCustomFieldFromTools([]byte(input))
 
 	tools := gjson.GetBytes(result, "tools").Array()
 	require.Len(t, tools, 3)
@@ -99,7 +101,7 @@ func TestRemoveCustomFieldFromTools(t *testing.T) {
 
 func TestRemoveCustomFieldFromTools_NoTools(t *testing.T) {
 	input := `{"messages":[{"role":"user","content":"hi"}]}`
-	result := removeCustomFieldFromTools([]byte(input))
+	result := bedrock.RemoveCustomFieldFromTools([]byte(input))
 	// 无 tools 时不改变原始数据
 	assert.JSONEq(t, input, string(result))
 }
@@ -109,7 +111,7 @@ func TestSanitizeBedrockCacheControl_RemoveScope(t *testing.T) {
 		"system": [{"type":"text","text":"sys","cache_control":{"type":"ephemeral","scope":"global"}}],
 		"messages": [{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral","scope":"global"}}]}]
 	}`
-	result := sanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
+	result := bedrock.SanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
 
 	// scope 应被移除
 	assert.False(t, gjson.GetBytes(result, "system.0.cache_control.scope").Exists())
@@ -124,7 +126,7 @@ func TestSanitizeBedrockCacheControl_TTL_OldModel(t *testing.T) {
 		"system": [{"type":"text","text":"sys","cache_control":{"type":"ephemeral","ttl":"5m"}}]
 	}`
 	// 旧模型（Claude 3.5）不支持 ttl
-	result := sanitizeBedrockCacheControl([]byte(input), "anthropic.claude-3-5-sonnet-20241022-v2:0")
+	result := bedrock.SanitizeBedrockCacheControl([]byte(input), "anthropic.claude-3-5-sonnet-20241022-v2:0")
 
 	assert.False(t, gjson.GetBytes(result, "system.0.cache_control.ttl").Exists())
 	assert.Equal(t, "ephemeral", gjson.GetBytes(result, "system.0.cache_control.type").String())
@@ -135,7 +137,7 @@ func TestSanitizeBedrockCacheControl_TTL_Claude45_Supported(t *testing.T) {
 		"system": [{"type":"text","text":"sys","cache_control":{"type":"ephemeral","ttl":"5m"}}]
 	}`
 	// Claude 4.5+ 支持 "5m" 和 "1h"
-	result := sanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+	result := bedrock.SanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 
 	assert.True(t, gjson.GetBytes(result, "system.0.cache_control.ttl").Exists())
 	assert.Equal(t, "5m", gjson.GetBytes(result, "system.0.cache_control.ttl").String())
@@ -146,7 +148,7 @@ func TestSanitizeBedrockCacheControl_TTL_Claude45_UnsupportedValue(t *testing.T)
 		"system": [{"type":"text","text":"sys","cache_control":{"type":"ephemeral","ttl":"10m"}}]
 	}`
 	// Claude 4.5 不支持 "10m"
-	result := sanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
+	result := bedrock.SanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 
 	assert.False(t, gjson.GetBytes(result, "system.0.cache_control.ttl").Exists())
 }
@@ -155,7 +157,7 @@ func TestSanitizeBedrockCacheControl_TTL_Claude46(t *testing.T) {
 	input := `{
 		"messages": [{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral","ttl":"1h"}}]}]
 	}`
-	result := sanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
+	result := bedrock.SanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
 
 	assert.True(t, gjson.GetBytes(result, "messages.0.content.0.cache_control.ttl").Exists())
 	assert.Equal(t, "1h", gjson.GetBytes(result, "messages.0.content.0.cache_control.ttl").String())
@@ -163,7 +165,7 @@ func TestSanitizeBedrockCacheControl_TTL_Claude46(t *testing.T) {
 
 func TestSanitizeBedrockCacheControl_NoCacheControl(t *testing.T) {
 	input := `{"system":[{"type":"text","text":"sys"}],"messages":[{"role":"user","content":[{"type":"text","text":"hi"}]}]}`
-	result := sanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
+	result := bedrock.SanitizeBedrockCacheControl([]byte(input), "us.anthropic.claude-opus-4-6-v1")
 	// 无 cache_control 时不改变原始数据
 	assert.JSONEq(t, input, string(result))
 }
@@ -195,7 +197,7 @@ func TestIsBedrockClaude45OrNewer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.modelID, func(t *testing.T) {
-			assert.Equal(t, tt.expect, isBedrockClaude45OrNewer(tt.modelID))
+			assert.Equal(t, tt.expect, bedrock.IsBedrockClaude45OrNewer(tt.modelID))
 		})
 	}
 }
@@ -219,7 +221,7 @@ func TestPrepareBedrockRequestBody_FullIntegration(t *testing.T) {
 	}`
 
 	betaHeader := "context-1m-2025-08-07, compact-2026-01-12"
-	result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", betaHeader)
+	result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", betaHeader)
 	require.NoError(t, err)
 
 	// 基本字段
@@ -259,13 +261,13 @@ func TestPrepareBedrockRequestBody_BetaHeader(t *testing.T) {
 	input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`
 
 	t.Run("empty beta header", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
 		require.NoError(t, err)
 		assert.False(t, gjson.GetBytes(result, "anthropic_beta").Exists())
 	})
 
 	t.Run("single beta token", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "context-1m-2025-08-07")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "context-1m-2025-08-07")
 		require.NoError(t, err)
 		arr := gjson.GetBytes(result, "anthropic_beta").Array()
 		require.Len(t, arr, 1)
@@ -273,7 +275,7 @@ func TestPrepareBedrockRequestBody_BetaHeader(t *testing.T) {
 	})
 
 	t.Run("multiple beta tokens with spaces", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "context-1m-2025-08-07 , compact-2026-01-12 ")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "context-1m-2025-08-07 , compact-2026-01-12 ")
 		require.NoError(t, err)
 		arr := gjson.GetBytes(result, "anthropic_beta").Array()
 		require.Len(t, arr, 2)
@@ -282,7 +284,7 @@ func TestPrepareBedrockRequestBody_BetaHeader(t *testing.T) {
 	})
 
 	t.Run("json array beta header", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", `["context-1m-2025-08-07","compact-2026-01-12"]`)
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", `["context-1m-2025-08-07","compact-2026-01-12"]`)
 		require.NoError(t, err)
 		arr := gjson.GetBytes(result, "anthropic_beta").Array()
 		require.Len(t, arr, 2)
@@ -292,30 +294,30 @@ func TestPrepareBedrockRequestBody_BetaHeader(t *testing.T) {
 }
 
 func TestParseAnthropicBetaHeader(t *testing.T) {
-	assert.Nil(t, parseAnthropicBetaHeader(""))
-	assert.Equal(t, []string{"a"}, parseAnthropicBetaHeader("a"))
-	assert.Equal(t, []string{"a", "b"}, parseAnthropicBetaHeader("a,b"))
-	assert.Equal(t, []string{"a", "b"}, parseAnthropicBetaHeader("a , b "))
-	assert.Equal(t, []string{"a", "b", "c"}, parseAnthropicBetaHeader("a,b,c"))
-	assert.Equal(t, []string{"a", "b"}, parseAnthropicBetaHeader(`["a","b"]`))
+	assert.Nil(t, bedrock.ParseAnthropicBetaHeader(""))
+	assert.Equal(t, []string{"a"}, bedrock.ParseAnthropicBetaHeader("a"))
+	assert.Equal(t, []string{"a", "b"}, bedrock.ParseAnthropicBetaHeader("a,b"))
+	assert.Equal(t, []string{"a", "b"}, bedrock.ParseAnthropicBetaHeader("a , b "))
+	assert.Equal(t, []string{"a", "b", "c"}, bedrock.ParseAnthropicBetaHeader("a,b,c"))
+	assert.Equal(t, []string{"a", "b"}, bedrock.ParseAnthropicBetaHeader(`["a","b"]`))
 }
 
 func TestFilterBedrockBetaTokens(t *testing.T) {
 	t.Run("supported tokens pass through", func(t *testing.T) {
 		tokens := []string{"context-1m-2025-08-07", "compact-2026-01-12", "computer-use-2025-11-24"}
-		result := filterBedrockBetaTokens(tokens)
+		result := bedrock.FilterBedrockBetaTokens(tokens)
 		assert.Equal(t, tokens, result)
 	})
 
 	t.Run("unsupported tokens are filtered out", func(t *testing.T) {
 		tokens := []string{"context-1m-2025-08-07", "output-128k-2025-02-19", "files-api-2025-04-14", "structured-outputs-2025-11-13"}
-		result := filterBedrockBetaTokens(tokens)
+		result := bedrock.FilterBedrockBetaTokens(tokens)
 		assert.Equal(t, []string{"context-1m-2025-08-07"}, result)
 	})
 
 	t.Run("advanced-tool-use transforms to tool-search-tool", func(t *testing.T) {
 		tokens := []string{"advanced-tool-use-2025-11-20"}
-		result := filterBedrockBetaTokens(tokens)
+		result := bedrock.FilterBedrockBetaTokens(tokens)
 		assert.Contains(t, result, "tool-search-tool-2025-10-19")
 		// tool-examples 自动关联
 		assert.Contains(t, result, "tool-examples-2025-10-29")
@@ -323,14 +325,14 @@ func TestFilterBedrockBetaTokens(t *testing.T) {
 
 	t.Run("tool-search-tool auto-associates tool-examples", func(t *testing.T) {
 		tokens := []string{"tool-search-tool-2025-10-19"}
-		result := filterBedrockBetaTokens(tokens)
+		result := bedrock.FilterBedrockBetaTokens(tokens)
 		assert.Contains(t, result, "tool-search-tool-2025-10-19")
 		assert.Contains(t, result, "tool-examples-2025-10-29")
 	})
 
 	t.Run("no duplication when tool-examples already present", func(t *testing.T) {
 		tokens := []string{"tool-search-tool-2025-10-19", "tool-examples-2025-10-29"}
-		result := filterBedrockBetaTokens(tokens)
+		result := bedrock.FilterBedrockBetaTokens(tokens)
 		count := 0
 		for _, t := range result {
 			if t == "tool-examples-2025-10-29" {
@@ -341,18 +343,18 @@ func TestFilterBedrockBetaTokens(t *testing.T) {
 	})
 
 	t.Run("empty input returns nil", func(t *testing.T) {
-		result := filterBedrockBetaTokens(nil)
+		result := bedrock.FilterBedrockBetaTokens(nil)
 		assert.Nil(t, result)
 	})
 
 	t.Run("all unsupported returns nil", func(t *testing.T) {
-		result := filterBedrockBetaTokens([]string{"output-128k-2025-02-19", "effort-2025-11-24"})
+		result := bedrock.FilterBedrockBetaTokens([]string{"output-128k-2025-02-19", "effort-2025-11-24"})
 		assert.Nil(t, result)
 	})
 
 	t.Run("duplicate tokens are deduplicated", func(t *testing.T) {
 		tokens := []string{"context-1m-2025-08-07", "context-1m-2025-08-07"}
-		result := filterBedrockBetaTokens(tokens)
+		result := bedrock.FilterBedrockBetaTokens(tokens)
 		assert.Equal(t, []string{"context-1m-2025-08-07"}, result)
 	})
 }
@@ -361,7 +363,7 @@ func TestPrepareBedrockRequestBody_BetaFiltering(t *testing.T) {
 	input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`
 
 	t.Run("unsupported beta tokens are filtered", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1",
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1",
 			"compact-2026-01-12, output-128k-2025-02-19, files-api-2025-04-14")
 		require.NoError(t, err)
 		arr := gjson.GetBytes(result, "anthropic_beta").Array()
@@ -370,7 +372,7 @@ func TestPrepareBedrockRequestBody_BetaFiltering(t *testing.T) {
 	})
 
 	t.Run("advanced-tool-use transformed in full pipeline", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1",
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1",
 			"advanced-tool-use-2025-11-20")
 		require.NoError(t, err)
 		arr := gjson.GetBytes(result, "anthropic_beta").Array()
@@ -392,7 +394,7 @@ func TestPrepareBedrockRequestBodyWithTokens_ContextManagementRequiresSupportedB
 		betaTokens := []string{"context-1m-2025-08-07"}
 		originalTokens := append([]string(nil), betaTokens...)
 
-		result, err := PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, betaTokens, false)
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, betaTokens, false)
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "context_management").Exists())
@@ -403,7 +405,7 @@ func TestPrepareBedrockRequestBodyWithTokens_ContextManagementRequiresSupportedB
 	t.Run("leaves body without context_management otherwise intact", func(t *testing.T) {
 		input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`
 
-		result, err := PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, nil, false)
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, nil, false)
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "context_management").Exists())
@@ -419,16 +421,16 @@ func TestPrepareBedrockRequestBodyWithTokens_ContextManagementRequiresSupportedB
 			"context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]}
 		}`
 
-		result, err := PrepareBedrockRequestBodyWithTokens(
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens(
 			[]byte(input),
 			modelID,
-			[]string{bedrockContextManagementBetaToken, "context-1m-2025-08-07"},
+			[]string{bedrock.BedrockContextManagementBetaToken, "context-1m-2025-08-07"},
 			false,
 		)
 		require.NoError(t, err)
 
 		assert.True(t, gjson.GetBytes(result, "context_management").Exists())
-		assert.Equal(t, []string{bedrockContextManagementBetaToken, "context-1m-2025-08-07"}, bedrockAnthropicBetaNames(result))
+		assert.Equal(t, []string{bedrock.BedrockContextManagementBetaToken, "context-1m-2025-08-07"}, bedrockAnthropicBetaNames(result))
 	})
 }
 
@@ -444,8 +446,8 @@ func bedrockAnthropicBetaNames(body []byte) []string {
 func TestResolveBedrockModelID(t *testing.T) {
 	t.Run("default alias resolves and adjusts region", func(t *testing.T) {
 		account := &Account{
-			Platform: PlatformAnthropic,
-			Type:     AccountTypeBedrock,
+			Platform: capability.PlatformAnthropic,
+			Type:     capability.AccountTypeBedrock,
 			Credentials: map[string]any{
 				"aws_region": "eu-west-1",
 			},
@@ -458,8 +460,8 @@ func TestResolveBedrockModelID(t *testing.T) {
 
 	t.Run("custom alias mapping reuses default bedrock mapping", func(t *testing.T) {
 		account := &Account{
-			Platform: PlatformAnthropic,
-			Type:     AccountTypeBedrock,
+			Platform: capability.PlatformAnthropic,
+			Type:     capability.AccountTypeBedrock,
 			Credentials: map[string]any{
 				"aws_region": "ap-southeast-2",
 				"model_mapping": map[string]any{
@@ -475,8 +477,8 @@ func TestResolveBedrockModelID(t *testing.T) {
 
 	t.Run("default opus 4.8 mapping uses regional Bedrock model id", func(t *testing.T) {
 		account := &Account{
-			Platform: PlatformAnthropic,
-			Type:     AccountTypeBedrock,
+			Platform: capability.PlatformAnthropic,
+			Type:     capability.AccountTypeBedrock,
 			Credentials: map[string]any{
 				"aws_region": "eu-west-1",
 			},
@@ -489,8 +491,8 @@ func TestResolveBedrockModelID(t *testing.T) {
 
 	t.Run("默认 Fable 5 映射使用官方 Bedrock 模型 ID", func(t *testing.T) {
 		account := &Account{
-			Platform: PlatformAnthropic,
-			Type:     AccountTypeBedrock,
+			Platform: capability.PlatformAnthropic,
+			Type:     capability.AccountTypeBedrock,
 			Credentials: map[string]any{
 				"aws_region":       "eu-west-1",
 				"aws_force_global": "true",
@@ -504,8 +506,8 @@ func TestResolveBedrockModelID(t *testing.T) {
 
 	t.Run("默认 Fable 5.1 映射使用官方 Bedrock 模型 ID", func(t *testing.T) {
 		account := &Account{
-			Platform: PlatformAnthropic,
-			Type:     AccountTypeBedrock,
+			Platform: capability.PlatformAnthropic,
+			Type:     capability.AccountTypeBedrock,
 			Credentials: map[string]any{
 				"aws_region":       "eu-west-1",
 				"aws_force_global": "true",
@@ -519,8 +521,8 @@ func TestResolveBedrockModelID(t *testing.T) {
 
 	t.Run("force global rewrites anthropic regional model id", func(t *testing.T) {
 		account := &Account{
-			Platform: PlatformAnthropic,
-			Type:     AccountTypeBedrock,
+			Platform: capability.PlatformAnthropic,
+			Type:     capability.AccountTypeBedrock,
 			Credentials: map[string]any{
 				"aws_region":       "us-east-1",
 				"aws_force_global": "true",
@@ -537,8 +539,8 @@ func TestResolveBedrockModelID(t *testing.T) {
 
 	t.Run("已登记基础模型使用当前区域推理 ID", func(t *testing.T) {
 		account := &Account{
-			Platform: PlatformAnthropic,
-			Type:     AccountTypeBedrock,
+			Platform: capability.PlatformAnthropic,
+			Type:     capability.AccountTypeBedrock,
 			Credentials: map[string]any{
 				"aws_region": "us-east-1",
 			},
@@ -551,8 +553,8 @@ func TestResolveBedrockModelID(t *testing.T) {
 
 	t.Run("unsupported alias returns false", func(t *testing.T) {
 		account := &Account{
-			Platform: PlatformAnthropic,
-			Type:     AccountTypeBedrock,
+			Platform: capability.PlatformAnthropic,
+			Type:     capability.AccountTypeBedrock,
 			Credentials: map[string]any{
 				"aws_region": "us-east-1",
 			},
@@ -576,7 +578,7 @@ func TestResolveBedrockModelID_OfficialVersionlessModels(t *testing.T) {
 				{name: "全局推理", region: "us-east-1", prefix: "global", forceGlobal: true},
 			} {
 				t.Run(scope.name, func(t *testing.T) {
-					account := &Account{Platform: PlatformAnthropic, Type: AccountTypeBedrock, Credentials: map[string]any{
+					account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock, Credentials: map[string]any{
 						"aws_region": scope.region,
 					}}
 					if scope.forceGlobal {
@@ -586,9 +588,9 @@ func TestResolveBedrockModelID_OfficialVersionlessModels(t *testing.T) {
 					require.True(t, ok)
 					wantID := scope.prefix + ".anthropic." + model
 					require.Equal(t, wantID, modelID)
-					require.Equal(t, "https://bedrock-runtime."+scope.region+".amazonaws.com/model/"+wantID+"/invoke", BuildBedrockURL(scope.region, modelID, false))
+					require.Equal(t, "https://bedrock-runtime."+scope.region+".amazonaws.com/model/"+wantID+"/invoke", bedrock.BuildBedrockURL(scope.region, modelID, false))
 
-					body, err := PrepareBedrockRequestBody([]byte(`{"system":[{"type":"text","text":"system","cache_control":{"type":"ephemeral","ttl":"1h"}}],"messages":[{"role":"user","content":"hello"}],"max_tokens":16}`), modelID, "")
+					body, err := bedrock.PrepareBedrockRequestBody([]byte(`{"system":[{"type":"text","text":"system","cache_control":{"type":"ephemeral","ttl":"1h"}}],"messages":[{"role":"user","content":"hello"}],"max_tokens":16}`), modelID, "")
 					require.NoError(t, err)
 					require.Equal(t, "1h", gjson.GetBytes(body, "system.0.cache_control.ttl").String())
 				})
@@ -600,38 +602,38 @@ func TestResolveBedrockModelID_OfficialVersionlessModels(t *testing.T) {
 func TestAutoInjectBedrockBetaTokens(t *testing.T) {
 	t.Run("no auto-inject for thinking (interleaved-thinking not supported)", func(t *testing.T) {
 		body := []byte(`{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		// interleaved-thinking-2025-05-14 已从白名单移除，不应自动注入
 		assert.Empty(t, result)
 	})
 
 	t.Run("no duplicate when already present", func(t *testing.T) {
 		body := []byte(`{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens([]string{"context-1m-2025-08-07"}, body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.AutoInjectBedrockBetaTokens([]string{"context-1m-2025-08-07"}, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Equal(t, []string{"context-1m-2025-08-07"}, result)
 	})
 
 	t.Run("inject computer-use when computer tool present", func(t *testing.T) {
 		body := []byte(`{"tools":[{"type":"computer_20250124","name":"computer","display_width_px":1024}],"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "computer-use-2025-11-24")
 	})
 
 	t.Run("inject advanced-tool-use for programmatic tool calling", func(t *testing.T) {
 		body := []byte(`{"tools":[{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "advanced-tool-use-2025-11-20")
 	})
 
 	t.Run("inject advanced-tool-use for input examples", func(t *testing.T) {
 		body := []byte(`{"tools":[{"name":"bash","input_examples":[{"cmd":"ls"}]}],"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "advanced-tool-use-2025-11-20")
 	})
 
 	t.Run("inject tool-search-tool directly for pure tool search (no programmatic/inputExamples)", func(t *testing.T) {
 		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"}],"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-sonnet-4-6")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-sonnet-4-6")
 		// 纯 tool search 场景直接注入 Bedrock 特定头，不走 advanced-tool-use 转换
 		assert.Contains(t, result, "tool-search-tool-2025-10-19")
 		assert.NotContains(t, result, "advanced-tool-use-2025-11-20")
@@ -639,34 +641,34 @@ func TestAutoInjectBedrockBetaTokens(t *testing.T) {
 
 	t.Run("inject advanced-tool-use when tool search combined with programmatic calling", func(t *testing.T) {
 		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"},{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-sonnet-4-6")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-sonnet-4-6")
 		// 混合场景使用 advanced-tool-use（后续由 filter 转换为 tool-search-tool）
 		assert.Contains(t, result, "advanced-tool-use-2025-11-20")
 	})
 
 	t.Run("do not inject tool-search beta for unsupported models", func(t *testing.T) {
 		body := []byte(`{"tools":[{"type":"tool_search_tool_regex_20251119","name":"search"}],"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "anthropic.claude-3-5-sonnet-20241022-v2:0")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "anthropic.claude-3-5-sonnet-20241022-v2:0")
 		assert.NotContains(t, result, "advanced-tool-use-2025-11-20")
 		assert.NotContains(t, result, "tool-search-tool-2025-10-19")
 	})
 
 	t.Run("no injection for regular tools", func(t *testing.T) {
 		body := []byte(`{"tools":[{"name":"bash","description":"run bash","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hi"}]}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Empty(t, result)
 	})
 
 	t.Run("no injection when no features detected", func(t *testing.T) {
 		body := []byte(`{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`)
-		result := autoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.AutoInjectBedrockBetaTokens(nil, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Empty(t, result)
 	})
 
 	t.Run("preserves existing tokens", func(t *testing.T) {
 		body := []byte(`{"thinking":{"type":"enabled"},"messages":[{"role":"user","content":"hi"}]}`)
 		existing := []string{"context-1m-2025-08-07", "compact-2026-01-12"}
-		result := autoInjectBedrockBetaTokens(existing, body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.AutoInjectBedrockBetaTokens(existing, body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "context-1m-2025-08-07")
 		assert.Contains(t, result, "compact-2026-01-12")
 		// interleaved-thinking 不再自动注入
@@ -677,14 +679,14 @@ func TestAutoInjectBedrockBetaTokens(t *testing.T) {
 func TestResolveBedrockBetaTokens(t *testing.T) {
 	t.Run("body-only tool features resolve to final bedrock tokens", func(t *testing.T) {
 		body := []byte(`{"tools":[{"name":"bash","allowed_callers":["code_execution_20250825"]}],"messages":[{"role":"user","content":"hi"}]}`)
-		result := ResolveBedrockBetaTokens("", body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.ResolveBedrockBetaTokens("", body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Contains(t, result, "tool-search-tool-2025-10-19")
 		assert.Contains(t, result, "tool-examples-2025-10-29")
 	})
 
 	t.Run("unsupported client beta tokens are filtered out", func(t *testing.T) {
 		body := []byte(`{"messages":[{"role":"user","content":"hi"}]}`)
-		result := ResolveBedrockBetaTokens("context-1m-2025-08-07,files-api-2025-04-14", body, "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.ResolveBedrockBetaTokens("context-1m-2025-08-07,files-api-2025-04-14", body, "us.anthropic.claude-opus-4-6-v1")
 		assert.Equal(t, []string{"context-1m-2025-08-07"}, result)
 	})
 }
@@ -692,7 +694,7 @@ func TestResolveBedrockBetaTokens(t *testing.T) {
 func TestPrepareBedrockRequestBody_AutoBetaInjection(t *testing.T) {
 	t.Run("thinking in body does not auto-inject beta (not supported)", func(t *testing.T) {
 		input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100,"thinking":{"type":"enabled","budget_tokens":10000}}`
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "")
 		require.NoError(t, err)
 		// interleaved-thinking 已从白名单移除，不应自动注入
 		assert.False(t, gjson.GetBytes(result, "anthropic_beta").Exists())
@@ -700,7 +702,7 @@ func TestPrepareBedrockRequestBody_AutoBetaInjection(t *testing.T) {
 
 	t.Run("header tokens preserved without auto-injection", func(t *testing.T) {
 		input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100,"thinking":{"type":"enabled","budget_tokens":10000}}`
-		result, err := PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "context-1m-2025-08-07")
+		result, err := bedrock.PrepareBedrockRequestBody([]byte(input), "us.anthropic.claude-opus-4-6-v1", "context-1m-2025-08-07")
 		require.NoError(t, err)
 		arr := gjson.GetBytes(result, "anthropic_beta").Array()
 		names := make([]string, len(arr))
@@ -733,7 +735,7 @@ func TestIsBedrockOpus47OrNewer(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.modelID, func(t *testing.T) {
-			assert.Equal(t, tt.expect, isBedrockOpus47OrNewer(tt.modelID))
+			assert.Equal(t, tt.expect, bedrock.IsBedrockOpus47OrNewer(tt.modelID))
 		})
 	}
 }
@@ -741,82 +743,82 @@ func TestIsBedrockOpus47OrNewer(t *testing.T) {
 func TestSanitizeBedrockThinking(t *testing.T) {
 	t.Run("Fable 5 将 enabled 转换为 adaptive 并移除预算", func(t *testing.T) {
 		input := `{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "anthropic.claude-fable-5")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "anthropic.claude-fable-5")
 		assert.Equal(t, "adaptive", gjson.GetBytes(result, "thinking.type").String())
 		assert.False(t, gjson.GetBytes(result, "thinking.budget_tokens").Exists())
 	})
 
 	t.Run("Fable 5 adaptive 移除预算", func(t *testing.T) {
 		input := `{"thinking":{"type":"adaptive","budget_tokens":10000},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "claude-fable-5")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "claude-fable-5")
 		assert.Equal(t, "adaptive", gjson.GetBytes(result, "thinking.type").String())
 		assert.False(t, gjson.GetBytes(result, "thinking.budget_tokens").Exists())
 	})
 
 	t.Run("opus 4.7 converts enabled to adaptive", func(t *testing.T) {
 		input := `{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
 		assert.Equal(t, "adaptive", gjson.GetBytes(result, "thinking.type").String())
 		assert.False(t, gjson.GetBytes(result, "thinking.budget_tokens").Exists())
 	})
 
 	t.Run("opus 4.7 keeps adaptive unchanged", func(t *testing.T) {
 		input := `{"thinking":{"type":"adaptive"},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
 		assert.Equal(t, "adaptive", gjson.GetBytes(result, "thinking.type").String())
 	})
 
 	t.Run("opus 4.6 enabled without budget_tokens gets default", func(t *testing.T) {
 		input := `{"thinking":{"type":"enabled"},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-6-v1")
 		assert.Equal(t, "enabled", gjson.GetBytes(result, "thinking.type").String())
-		assert.Equal(t, int64(defaultThinkingBudgetTokens), gjson.GetBytes(result, "thinking.budget_tokens").Int())
+		assert.Equal(t, int64(bedrock.DefaultThinkingBudgetTokens), gjson.GetBytes(result, "thinking.budget_tokens").Int())
 	})
 
 	t.Run("opus 4.6 enabled with budget_tokens unchanged", func(t *testing.T) {
 		input := `{"thinking":{"type":"enabled","budget_tokens":20000},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-6-v1")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-6-v1")
 		assert.Equal(t, "enabled", gjson.GetBytes(result, "thinking.type").String())
 		assert.Equal(t, int64(20000), gjson.GetBytes(result, "thinking.budget_tokens").Int())
 	})
 
 	t.Run("no thinking field unchanged", func(t *testing.T) {
 		input := `{"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
 		assert.JSONEq(t, input, string(result))
 	})
 
 	t.Run("sonnet 4.6 enabled without budget_tokens gets default", func(t *testing.T) {
 		input := `{"thinking":{"type":"enabled"},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-sonnet-4-6")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-sonnet-4-6")
 		assert.Equal(t, "enabled", gjson.GetBytes(result, "thinking.type").String())
-		assert.Equal(t, int64(defaultThinkingBudgetTokens), gjson.GetBytes(result, "thinking.budget_tokens").Int())
+		assert.Equal(t, int64(bedrock.DefaultThinkingBudgetTokens), gjson.GetBytes(result, "thinking.budget_tokens").Int())
 	})
 }
 
 func TestSanitizeBedrockToolUseIDs(t *testing.T) {
 	t.Run("clean IDs unchanged", func(t *testing.T) {
 		input := `{"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu_01AbCdEf","name":"bash","input":{}}]}]}`
-		result := sanitizeBedrockToolUseIDs([]byte(input))
+		result := bedrock.SanitizeBedrockToolUseIDs([]byte(input))
 		assert.Equal(t, "toolu_01AbCdEf", gjson.GetBytes(result, "messages.0.content.0.id").String())
 	})
 
 	t.Run("dots in tool_use ID replaced with underscores", func(t *testing.T) {
 		input := `{"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu.01.Ab","name":"bash","input":{}}]}]}`
-		result := sanitizeBedrockToolUseIDs([]byte(input))
+		result := bedrock.SanitizeBedrockToolUseIDs([]byte(input))
 		assert.Equal(t, "toolu_01_Ab", gjson.GetBytes(result, "messages.0.content.0.id").String())
 	})
 
 	t.Run("special chars in tool_use ID sanitized", func(t *testing.T) {
 		input := `{"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu:01@Ab#Cd","name":"bash","input":{}}]}]}`
-		result := sanitizeBedrockToolUseIDs([]byte(input))
+		result := bedrock.SanitizeBedrockToolUseIDs([]byte(input))
 		id := gjson.GetBytes(result, "messages.0.content.0.id").String()
 		assert.Regexp(t, `^[a-zA-Z0-9_-]+$`, id)
 	})
 
 	t.Run("tool_result tool_use_id sanitized", func(t *testing.T) {
 		input := `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu.01.Ab","content":"ok"}]}]}`
-		result := sanitizeBedrockToolUseIDs([]byte(input))
+		result := bedrock.SanitizeBedrockToolUseIDs([]byte(input))
 		assert.Equal(t, "toolu_01_Ab", gjson.GetBytes(result, "messages.0.content.0.tool_use_id").String())
 	})
 
@@ -826,7 +828,7 @@ func TestSanitizeBedrockToolUseIDs(t *testing.T) {
 			{"role":"user","content":[{"type":"tool_result","tool_use_id":"dirty.id@456","content":"ok"}]},
 			{"role":"assistant","content":[{"type":"tool_use","id":"also.dirty","name":"b","input":{}}]}
 		]}`
-		result := sanitizeBedrockToolUseIDs([]byte(input))
+		result := bedrock.SanitizeBedrockToolUseIDs([]byte(input))
 		assert.Equal(t, "clean_id-123", gjson.GetBytes(result, "messages.0.content.0.id").String())
 		assert.Equal(t, "dirty_id_456", gjson.GetBytes(result, "messages.1.content.0.tool_use_id").String())
 		assert.Equal(t, "also_dirty", gjson.GetBytes(result, "messages.2.content.0.id").String())
@@ -834,19 +836,19 @@ func TestSanitizeBedrockToolUseIDs(t *testing.T) {
 
 	t.Run("no messages unchanged", func(t *testing.T) {
 		input := `{"system":[{"type":"text","text":"hi"}]}`
-		result := sanitizeBedrockToolUseIDs([]byte(input))
+		result := bedrock.SanitizeBedrockToolUseIDs([]byte(input))
 		assert.JSONEq(t, input, string(result))
 	})
 
 	t.Run("string content skipped", func(t *testing.T) {
 		input := `{"messages":[{"role":"user","content":"plain text"}]}`
-		result := sanitizeBedrockToolUseIDs([]byte(input))
+		result := bedrock.SanitizeBedrockToolUseIDs([]byte(input))
 		assert.JSONEq(t, input, string(result))
 	})
 
 	t.Run("empty ID skipped", func(t *testing.T) {
 		input := `{"messages":[{"role":"assistant","content":[{"type":"tool_use","id":"","name":"a","input":{}}]}]}`
-		result := sanitizeBedrockToolUseIDs([]byte(input))
+		result := bedrock.SanitizeBedrockToolUseIDs([]byte(input))
 		assert.Equal(t, "", gjson.GetBytes(result, "messages.0.content.0.id").String())
 	})
 }
@@ -854,32 +856,32 @@ func TestSanitizeBedrockToolUseIDs(t *testing.T) {
 func TestSanitizeBedrockThinking_EdgeCases(t *testing.T) {
 	t.Run("opus 4.7 enabled without budget_tokens converts to adaptive", func(t *testing.T) {
 		input := `{"thinking":{"type":"enabled"},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
 		assert.Equal(t, "adaptive", gjson.GetBytes(result, "thinking.type").String())
 		assert.False(t, gjson.GetBytes(result, "thinking.budget_tokens").Exists())
 	})
 
 	t.Run("thinking type disabled unchanged", func(t *testing.T) {
 		input := `{"thinking":{"type":"disabled"},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
 		assert.Equal(t, "disabled", gjson.GetBytes(result, "thinking.type").String())
 	})
 
 	t.Run("thinking type empty string unchanged", func(t *testing.T) {
 		input := `{"thinking":{"type":""},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
 		assert.JSONEq(t, input, string(result))
 	})
 
 	t.Run("thinking is not an object unchanged", func(t *testing.T) {
 		input := `{"thinking":true,"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
 		assert.JSONEq(t, input, string(result))
 	})
 
 	t.Run("opus 4.7 adaptive with budget_tokens preserved", func(t *testing.T) {
 		input := `{"thinking":{"type":"adaptive","budget_tokens":5000},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "us.anthropic.claude-opus-4-7")
 		assert.Equal(t, "adaptive", gjson.GetBytes(result, "thinking.type").String())
 		assert.Equal(t, int64(5000), gjson.GetBytes(result, "thinking.budget_tokens").Int())
 	})
@@ -887,14 +889,14 @@ func TestSanitizeBedrockThinking_EdgeCases(t *testing.T) {
 	// Forward() 传入的是 parsed.Model（如 "claude-opus-4-7" 这类标准模型名）。
 	t.Run("standard model name opus 4.7 converts enabled to adaptive", func(t *testing.T) {
 		input := `{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "claude-opus-4-7")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "claude-opus-4-7")
 		assert.Equal(t, "adaptive", gjson.GetBytes(result, "thinking.type").String())
 		assert.False(t, gjson.GetBytes(result, "thinking.budget_tokens").Exists())
 	})
 
 	t.Run("standard model name opus 4.6 keeps enabled", func(t *testing.T) {
 		input := `{"thinking":{"type":"enabled","budget_tokens":10000},"messages":[]}`
-		result := sanitizeBedrockThinking([]byte(input), "claude-opus-4-6")
+		result := bedrock.SanitizeBedrockThinking([]byte(input), "claude-opus-4-6")
 		assert.Equal(t, "enabled", gjson.GetBytes(result, "thinking.type").String())
 		assert.Equal(t, int64(10000), gjson.GetBytes(result, "thinking.budget_tokens").Int())
 	})
@@ -917,7 +919,7 @@ func TestIsBedrockOpus47OrNewer_EdgeCases(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.modelID, func(t *testing.T) {
-			assert.Equal(t, tt.expect, isBedrockOpus47OrNewer(tt.modelID))
+			assert.Equal(t, tt.expect, bedrock.IsBedrockOpus47OrNewer(tt.modelID))
 		})
 	}
 }
@@ -935,7 +937,7 @@ func TestPrepareBedrockRequestBodyWithTokens_CCCompat(t *testing.T) {
 	}`
 
 	t.Run("ccCompat=false skips thinking and toolUseID sanitization", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBodyWithTokens([]byte(input), "us.anthropic.claude-opus-4-6-v1", nil, false)
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens([]byte(input), "us.anthropic.claude-opus-4-6-v1", nil, false)
 		require.NoError(t, err)
 		assert.Equal(t, "enabled", gjson.GetBytes(result, "thinking.type").String())
 		assert.False(t, gjson.GetBytes(result, "thinking.budget_tokens").Exists())
@@ -943,16 +945,16 @@ func TestPrepareBedrockRequestBodyWithTokens_CCCompat(t *testing.T) {
 	})
 
 	t.Run("ccCompat=true applies thinking fix and toolUseID sanitization (opus 4.6)", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBodyWithTokens([]byte(input), "us.anthropic.claude-opus-4-6-v1", nil, true)
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens([]byte(input), "us.anthropic.claude-opus-4-6-v1", nil, true)
 		require.NoError(t, err)
 		assert.Equal(t, "enabled", gjson.GetBytes(result, "thinking.type").String())
-		assert.Equal(t, int64(defaultThinkingBudgetTokens), gjson.GetBytes(result, "thinking.budget_tokens").Int())
+		assert.Equal(t, int64(bedrock.DefaultThinkingBudgetTokens), gjson.GetBytes(result, "thinking.budget_tokens").Int())
 		assert.Equal(t, "toolu_01_Ab", gjson.GetBytes(result, "messages.0.content.0.id").String())
 		assert.Equal(t, "toolu_01_Ab", gjson.GetBytes(result, "messages.1.content.0.tool_use_id").String())
 	})
 
 	t.Run("ccCompat=true converts thinking to adaptive for opus 4.7", func(t *testing.T) {
-		result, err := PrepareBedrockRequestBodyWithTokens([]byte(input), "us.anthropic.claude-opus-4-7", nil, true)
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens([]byte(input), "us.anthropic.claude-opus-4-7", nil, true)
 		require.NoError(t, err)
 		assert.Equal(t, "adaptive", gjson.GetBytes(result, "thinking.type").String())
 		assert.False(t, gjson.GetBytes(result, "thinking.budget_tokens").Exists())
@@ -963,7 +965,7 @@ func TestPrepareBedrockRequestBodyWithTokens_CCCompat(t *testing.T) {
 func TestSanitizeBedrockCCFields(t *testing.T) {
 	t.Run("removes service_tier and interface_geo", func(t *testing.T) {
 		body := []byte(`{"model":"claude-opus-4-6","service_tier":"standard","interface_geo":"us","messages":[]}`)
-		result := sanitizeBedrockCCFields(body)
+		result := bedrock.SanitizeBedrockCCFields(body)
 		assert.False(t, gjson.GetBytes(result, "service_tier").Exists())
 		assert.False(t, gjson.GetBytes(result, "interface_geo").Exists())
 		assert.True(t, gjson.GetBytes(result, "messages").Exists())
@@ -971,39 +973,39 @@ func TestSanitizeBedrockCCFields(t *testing.T) {
 
 	t.Run("removes context_management", func(t *testing.T) {
 		body := []byte(`{"model":"claude-opus-4-6","context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"messages":[]}`)
-		result := sanitizeBedrockCCFields(body)
+		result := bedrock.SanitizeBedrockCCFields(body)
 		assert.False(t, gjson.GetBytes(result, "context_management").Exists())
 		assert.True(t, gjson.GetBytes(result, "messages").Exists())
 	})
 
 	t.Run("injects max_tokens when missing", func(t *testing.T) {
 		body := []byte(`{"model":"claude-opus-4-6","messages":[]}`)
-		result := sanitizeBedrockCCFields(body)
-		assert.Equal(t, int64(defaultCCMaxTokens), gjson.GetBytes(result, "max_tokens").Int())
+		result := bedrock.SanitizeBedrockCCFields(body)
+		assert.Equal(t, int64(bedrock.DefaultCCMaxTokens), gjson.GetBytes(result, "max_tokens").Int())
 	})
 
 	t.Run("preserves existing max_tokens", func(t *testing.T) {
 		body := []byte(`{"model":"claude-opus-4-6","max_tokens":4096,"messages":[]}`)
-		result := sanitizeBedrockCCFields(body)
+		result := bedrock.SanitizeBedrockCCFields(body)
 		assert.Equal(t, int64(4096), gjson.GetBytes(result, "max_tokens").Int())
 	})
 
 	t.Run("injects anthropic_version when missing", func(t *testing.T) {
 		body := []byte(`{"model":"claude-opus-4-6","messages":[]}`)
-		result := sanitizeBedrockCCFields(body)
+		result := bedrock.SanitizeBedrockCCFields(body)
 		assert.Equal(t, "bedrock-2023-05-31", gjson.GetBytes(result, "anthropic_version").String())
 	})
 
 	t.Run("preserves existing anthropic_version", func(t *testing.T) {
 		body := []byte(`{"model":"claude-opus-4-6","anthropic_version":"bedrock-2023-05-31","messages":[]}`)
-		result := sanitizeBedrockCCFields(body)
+		result := bedrock.SanitizeBedrockCCFields(body)
 		assert.Equal(t, "bedrock-2023-05-31", gjson.GetBytes(result, "anthropic_version").String())
 	})
 
 	t.Run("no-op when fields already clean", func(t *testing.T) {
 		body := []byte(`{"model":"claude-opus-4-6","max_tokens":81920,"anthropic_version":"bedrock-2023-05-31","messages":[]}`)
-		result := sanitizeBedrockCCFields(body)
-		assert.Equal(t, int64(defaultCCMaxTokens), gjson.GetBytes(result, "max_tokens").Int())
+		result := bedrock.SanitizeBedrockCCFields(body)
+		assert.Equal(t, int64(bedrock.DefaultCCMaxTokens), gjson.GetBytes(result, "max_tokens").Int())
 		assert.Equal(t, "bedrock-2023-05-31", gjson.GetBytes(result, "anthropic_version").String())
 		assert.False(t, gjson.GetBytes(result, "service_tier").Exists())
 		assert.False(t, gjson.GetBytes(result, "interface_geo").Exists())
@@ -1019,11 +1021,11 @@ func TestSanitizeBedrockCCFields(t *testing.T) {
 			"messages":[{"role":"user","content":"hello"}],
 			"thinking":{"type":"enabled"}
 		}`)
-		result := sanitizeBedrockCCFields(body)
+		result := bedrock.SanitizeBedrockCCFields(body)
 		assert.False(t, gjson.GetBytes(result, "service_tier").Exists())
 		assert.False(t, gjson.GetBytes(result, "interface_geo").Exists())
 		assert.False(t, gjson.GetBytes(result, "context_management").Exists())
-		assert.Equal(t, int64(defaultCCMaxTokens), gjson.GetBytes(result, "max_tokens").Int())
+		assert.Equal(t, int64(bedrock.DefaultCCMaxTokens), gjson.GetBytes(result, "max_tokens").Int())
 		assert.Equal(t, "bedrock-2023-05-31", gjson.GetBytes(result, "anthropic_version").String())
 		assert.Equal(t, "enabled", gjson.GetBytes(result, "thinking.type").String())
 	})
@@ -1032,7 +1034,7 @@ func TestSanitizeBedrockCCFields(t *testing.T) {
 func TestSanitizeBedrockCCBetaTokens(t *testing.T) {
 	t.Run("filters unsupported beta tokens", func(t *testing.T) {
 		input := `{"anthropic_beta":["prompt-caching-2024-07-31","context-1m-2025-08-07","unsupported-feature"],"messages":[]}`
-		result := sanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
+		result := bedrock.SanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
 		beta := gjson.GetBytes(result, "anthropic_beta")
 		assert.True(t, beta.Exists())
 		assert.True(t, beta.IsArray())
@@ -1043,19 +1045,19 @@ func TestSanitizeBedrockCCBetaTokens(t *testing.T) {
 
 	t.Run("removes anthropic_beta if all tokens filtered", func(t *testing.T) {
 		input := `{"anthropic_beta":["prompt-caching-2024-07-31","unsupported-feature"],"messages":[]}`
-		result := sanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
+		result := bedrock.SanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
 		assert.False(t, gjson.GetBytes(result, "anthropic_beta").Exists())
 	})
 
 	t.Run("thinking alone does not auto-inject beta tokens", func(t *testing.T) {
 		input := `{"anthropic_beta":[],"thinking":{"type":"enabled"},"messages":[]}`
-		result := sanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
+		result := bedrock.SanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
 		assert.False(t, gjson.GetBytes(result, "anthropic_beta").Exists())
 	})
 
 	t.Run("auto-injects computer-use beta token", func(t *testing.T) {
 		input := `{"anthropic_beta":[],"tools":[{"type":"computer_20250124","name":"computer"}],"messages":[]}`
-		result := sanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
+		result := bedrock.SanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
 		beta := gjson.GetBytes(result, "anthropic_beta")
 		assert.True(t, beta.Exists())
 		tokens := beta.Array()
@@ -1065,7 +1067,7 @@ func TestSanitizeBedrockCCBetaTokens(t *testing.T) {
 
 	t.Run("transforms advanced-tool-use to tool-search-tool", func(t *testing.T) {
 		input := `{"anthropic_beta":["advanced-tool-use-2025-11-20"],"messages":[]}`
-		result := sanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
+		result := bedrock.SanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
 		beta := gjson.GetBytes(result, "anthropic_beta")
 		tokens := beta.Array()
 		assert.Equal(t, 2, len(tokens)) // tool-search-tool + 自动关联的 tool-examples
@@ -1075,13 +1077,13 @@ func TestSanitizeBedrockCCBetaTokens(t *testing.T) {
 
 	t.Run("no-op when anthropic_beta not present", func(t *testing.T) {
 		input := `{"messages":[]}`
-		result := sanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
+		result := bedrock.SanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
 		assert.False(t, gjson.GetBytes(result, "anthropic_beta").Exists())
 	})
 
 	t.Run("preserves supported beta tokens", func(t *testing.T) {
 		input := `{"anthropic_beta":["computer-use-2025-11-24","context-1m-2025-08-07"],"messages":[]}`
-		result := sanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
+		result := bedrock.SanitizeBedrockCCBetaTokens([]byte(input), "claude-opus-4-6")
 		beta := gjson.GetBytes(result, "anthropic_beta")
 		tokens := beta.Array()
 		assert.Equal(t, 2, len(tokens))

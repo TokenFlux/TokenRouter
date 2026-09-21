@@ -2,9 +2,11 @@
 package apikey
 
 import (
+	time "time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	ipmatch "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch"
-	time "time"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // API Key status constants
@@ -109,8 +111,10 @@ type APIKey struct {
 	ActorUser      *User
 	Team           *Team
 	TeamMembership *TeamMembership
-	Group          *Group
-	// FallbackToDefaultGroupWhenUnavailable 控制绑定分组停用时是否回退到同平台默认分组。
+	Group          *routing.
+		// FallbackToDefaultGroupWhenUnavailable 控制绑定分组停用时是否回退到同平台默认分组。
+		Group
+
 	FallbackToDefaultGroupWhenUnavailable bool
 	// CurrentConcurrency 表示当前 API Key 的实时活跃请求数。
 	CurrentConcurrency int
@@ -145,7 +149,7 @@ type APIKeyCompositeGroup struct {
 	SortOrder        int
 	// UserGroupRPMOverride 是认证快照中的请求期配置，不写入映射表。
 	UserGroupRPMOverride *int
-	Group                *Group
+	Group                *routing.Group
 }
 
 func (k *APIKey) IsActive() bool {

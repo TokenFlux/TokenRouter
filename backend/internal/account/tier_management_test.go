@@ -3,10 +3,11 @@ package account
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 维护停止必须等待实际观测，迟到返回不能在 Stop 后写配置。

@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"sync/atomic"
+
 	gocache "github.com/patrickmn/go-cache"
 	"golang.org/x/sync/singleflight"
-	"sync/atomic"
 )
 
 type GroupRateResolver struct {

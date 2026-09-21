@@ -3,13 +3,18 @@
 package postgres
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"context"
 	"testing"
 	"time"
 
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -18,10 +23,10 @@ func TestUsageLog_GetStatsWithFilters_AggregatesAndEndpoints(t *testing.T) {
 	ctx := context.Background()
 	tx := testEntTx(t)
 	client := tx.Client()
-	repo := NewUsageLogRepositoryWithSQL(client, tx)
+	repo := NewUsageLogRepositoryWithSQL(client, tx, timezone.NewCalendar(time.Local))
 
-	user := mustCreateUser(t, client, &service.User{Email: "stats@test.com"})
-	apiKey := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-stats-1", Name: "k"})
+	user := mustCreateUser(t, client, &identity.User{Email: "stats@test.com"})
+	apiKey := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-stats-1", Name: "k"})
 	account := mustCreateAccount(t, client, &service.Account{Name: "acc-stats"})
 
 	now := time.Now().UTC()
@@ -42,7 +47,7 @@ func TestUsageLog_GetStatsWithFilters_AggregatesAndEndpoints(t *testing.T) {
 	end := now.Add(1 * time.Hour)
 	// 按本测试创建的 user 维度过滤:集成库为共享实例,其它用 testEntClient 的兄弟测试会留下
 	// 已提交的 usage_log 行(含零 token 的失败请求),不限定 user 会把它们计入 TotalRequests。
-	stats, err := repo.GetStatsWithFilters(ctx, usagestats.UsageLogFilters{UserID: user.ID, StartTime: &start, EndTime: &end})
+	stats, err := repo.GetStatsWithFilters(ctx, usage.UsageLogFilters{UserID: user.ID, StartTime: &start, EndTime: &end})
 	require.NoError(t, err)
 	require.Equal(t, int64(3), stats.TotalRequests)
 	require.Equal(t, int64(6), stats.TotalInputTokens)
@@ -61,10 +66,10 @@ func TestUsageLog_GetModelStats_MergesCompositePrefix(t *testing.T) {
 	ctx := context.Background()
 	tx := testEntTx(t)
 	client := tx.Client()
-	repo := NewUsageLogRepositoryWithSQL(client, tx)
+	repo := NewUsageLogRepositoryWithSQL(client, tx, timezone.NewCalendar(time.Local))
 
-	user := mustCreateUser(t, client, &service.User{Email: "model-stats-composite@test.com"})
-	apiKey := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-model-stats-composite", Name: "k"})
+	user := mustCreateUser(t, client, &identity.User{Email: "model-stats-composite@test.com"})
+	apiKey := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-model-stats-composite", Name: "k"})
 	account := mustCreateAccount(t, client, &service.Account{Name: "acc-model-stats-composite"})
 	now := time.Now().UTC()
 

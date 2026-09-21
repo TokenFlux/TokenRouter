@@ -3,12 +3,13 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 )
 
 // TestGeminiSessionContinuousConversation 测试连续会话的摘要链匹配
 func TestGeminiSessionContinuousConversation(t *testing.T) {
-	store := NewDigestSessionStore()
+	store := session.NewDigestSessionStore()
 	groupID := int64(1)
 	prefixHash := "test_prefix_hash"
 	sessionUUID := "session-uuid-12345"
@@ -95,7 +96,7 @@ func TestGeminiSessionContinuousConversation(t *testing.T) {
 
 // TestGeminiSessionDifferentConversations 测试不同会话不会错误匹配
 func TestGeminiSessionDifferentConversations(t *testing.T) {
-	store := NewDigestSessionStore()
+	store := session.NewDigestSessionStore()
 	groupID := int64(1)
 	prefixHash := "test_prefix_hash"
 
@@ -125,7 +126,7 @@ func TestGeminiSessionDifferentConversations(t *testing.T) {
 
 // TestGeminiSessionPrefixMatchingOrder 测试前缀匹配的优先级（最长匹配优先）
 func TestGeminiSessionPrefixMatchingOrder(t *testing.T) {
-	store := NewDigestSessionStore()
+	store := session.NewDigestSessionStore()
 	groupID := int64(1)
 	prefixHash := "test_prefix_hash"
 

@@ -10,11 +10,18 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	billingredis "github.com/TokenFlux/TokenRouter/internal/billing/rediscache"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
-type quotaUsersForContract struct{ repository service.UserRepository }
+type quotaUsersForContract struct {
+	repository identity.UserRepository
+}
 
 func (r quotaUsersForContract) GetByID(ctx context.Context, id int64) (*billing.UserSummary, error) {
 	user, err := r.repository.GetByID(ctx, id)
@@ -46,13 +53,13 @@ func quotaCoordinationFixture(t *testing.T) (int64, billing.UserPlatformQuotaRep
 	ctx := context.Background()
 	client := testEntClient(t)
 	id := mustCreateUserForQuota(t, client)
-	repository := NewUserPlatformQuotaRepository(client)
+	repository := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 	limit := 1000.0
 	require.NoError(t, repository.BulkInsertInitial(ctx, []billing.UserPlatformQuotaRecord{{UserID: id, Platform: "openai", DailyLimitUSD: &limit}}))
 	require.NoError(t, repository.IncrementUsageWithReset(ctx, id, "openai", 100, time.Now()))
 	record, err := repository.GetByUserPlatform(ctx, id, "openai")
 	require.NoError(t, err)
-	cache := NewBillingCache(integrationRedis)
+	cache := billingredis.NewBillingCache(integrationRedis)
 	require.NoError(t, cache.SetUserPlatformQuotaCache(ctx, id, "openai", &billing.UserPlatformQuotaCacheEntry{
 		SchemaVersion: billing.UserPlatformQuotaCacheSchemaV1,
 		DailyLimitUSD: record.DailyLimitUSD, WeeklyLimitUSD: record.WeeklyLimitUSD, MonthlyLimitUSD: record.MonthlyLimitUSD,
@@ -64,7 +71,7 @@ func quotaCoordinationFixture(t *testing.T) (int64, billing.UserPlatformQuotaRep
 		_ = cache.DeleteUserPlatformQuotaCache(ctx, id, "openai")
 		_ = integrationRedis.SRem(ctx, "billing:upq:dirty", fmt.Sprintf("%d:openai", id)).Err()
 	})
-	return id, repository, cache, quotaUsersForContract{NewUserRepository(client, integrationDB)}
+	return id, repository, cache, quotaUsersForContract{postgres.NewUserStore(client, integrationDB)}
 }
 
 // TestS04QuotaResetWaitsForFlusher 验证单实例中旧快照写回与管理重置不能交错。

@@ -8,12 +8,17 @@ import (
 	"fmt"
 	"testing"
 
+	creativepostgres "github.com/TokenFlux/TokenRouter/internal/creative/postgres"
+
 	"entgo.io/ent/dialect"
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+
 	entsql "entgo.io/ent/dialect/sql"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/enttest"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -23,22 +28,22 @@ const (
 )
 
 // openCreativeRunRepositoryForTest 创建带完整 Ent schema 的内存仓储。
-func openCreativeRunRepositoryForTest(t *testing.T) (service.CreativeRunRepository, func()) {
+func openCreativeRunRepositoryForTest(t *testing.T) (creative.CreativeRunRepository, func()) {
 	t.Helper()
 	db, err := sql.Open("sqlite", fmt.Sprintf("file:creative_run_scope_%s?mode=memory&cache=shared&_fk=1", t.Name()))
 	require.NoError(t, err)
 	_, err = db.Exec("PRAGMA foreign_keys = ON")
 	require.NoError(t, err)
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(entsql.OpenDB(dialect.SQLite, db))))
-	return NewCreativeRunRepository(client), func() {
-		client.Close()
+	return creativepostgres.NewCreativeRunRepository(client), func() {
+		require.NoError(t, client.Close())
 		_ = db.Close()
 	}
 }
 
 // creativeRepoWorkspaceRunParams 构造仓储测试所需的最小任务参数。
-func creativeRepoWorkspaceRunParams(runID, workspaceID string, key *string) service.CreateCreativeRunParams {
-	return service.CreateCreativeRunParams{
+func creativeRepoWorkspaceRunParams(runID, workspaceID string, key *string) creative.CreateCreativeRunParams {
+	return creative.CreateCreativeRunParams{
 		RunID:                runID,
 		UserID:               7,
 		WorkspaceID:          workspaceID,
@@ -46,7 +51,7 @@ func creativeRepoWorkspaceRunParams(runID, workspaceID string, key *string) serv
 		APIKeyID:             100,
 		Model:                "gpt-image-1",
 		RequestedModel:       "gpt-image-1",
-		Operation:            service.CreativeOperationGenerate,
+		Operation:            creative.CreativeOperationGenerate,
 		RequestedOutputCount: 0,
 		ImageSize:            "1K",
 		ResponseMIMEType:     "image/png",
@@ -68,29 +73,29 @@ func TestCreativeRunRepositoryWorkspaceScope(t *testing.T) {
 	second, err := repo.CreateCreativeRun(ctx, creativeRepoWorkspaceRunParams("crun_scope_b", creativeRepoWorkspaceB, &key))
 	require.NoError(t, err)
 
-	firstList, err := repo.ListCreativeRunsForOwner(ctx, service.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceA}, service.CreativeRunFilter{Limit: 20})
+	firstList, err := repo.ListCreativeRunsForOwner(ctx, creative.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceA}, creative.CreativeRunFilter{Limit: 20})
 	require.NoError(t, err)
 	require.Len(t, firstList, 1)
 	require.Equal(t, first.RunID, firstList[0].RunID)
-	secondList, err := repo.ListCreativeRunsForOwner(ctx, service.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceB}, service.CreativeRunFilter{Limit: 20})
+	secondList, err := repo.ListCreativeRunsForOwner(ctx, creative.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceB}, creative.CreativeRunFilter{Limit: 20})
 	require.NoError(t, err)
 	require.Len(t, secondList, 1)
 	require.Equal(t, second.RunID, secondList[0].RunID)
 
-	got, err := repo.GetCreativeRunByIdempotencyKey(ctx, service.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceA}, key)
+	got, err := repo.GetCreativeRunByIdempotencyKey(ctx, creative.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceA}, key)
 	require.NoError(t, err)
 	require.Equal(t, first.RunID, got.RunID)
-	got, err = repo.GetCreativeRunByIdempotencyKey(ctx, service.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceB}, key)
+	got, err = repo.GetCreativeRunByIdempotencyKey(ctx, creative.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceB}, key)
 	require.NoError(t, err)
 	require.Equal(t, second.RunID, got.RunID)
 
-	_, err = repo.GetCreativeRunByRunIDForOwner(ctx, service.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceB}, first.RunID)
-	require.ErrorIs(t, err, service.ErrCreativeRunNotFound)
+	_, err = repo.GetCreativeRunByRunIDForOwner(ctx, creative.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceB}, first.RunID)
+	require.ErrorIs(t, err, creative.ErrCreativeRunNotFound)
 
 	legacy, err := repo.CreateCreativeRun(ctx, creativeRepoWorkspaceRunParams("crun_scope_legacy", "", nil))
 	require.NoError(t, err)
 	require.Nil(t, legacy.WorkspaceID)
-	firstList, err = repo.ListCreativeRunsForOwner(ctx, service.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceA}, service.CreativeRunFilter{Limit: 20})
+	firstList, err = repo.ListCreativeRunsForOwner(ctx, creative.CreativeRunScope{UserID: 7, WorkspaceID: creativeRepoWorkspaceA}, creative.CreativeRunFilter{Limit: 20})
 	require.NoError(t, err)
 	require.Len(t, firstList, 1)
 }

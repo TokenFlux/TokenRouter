@@ -13,10 +13,7 @@ const (
 	creativeMaxOutputBytes = 32 << 20
 )
 
-func creativePlatformImageModel(platform, model string) bool {
-	return creative.CreativePlatformImageModel(platform, model)
-}
-func normalizeCreativeOutputs(outputs []CreativeOutput) ([]CreativeOutput, error) {
+func normalizeCreativeOutputs(outputs []creative.CreativeOutput) ([]creative.CreativeOutput, error) {
 	return creative.NormalizeCreativeOutputs(outputs)
 }
 func creativeOpenAIImageSize(imageSize, aspectRatio string) string {

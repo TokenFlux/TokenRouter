@@ -2,6 +2,9 @@ package service
 
 import (
 	"strings"
+
+	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 const openAIResponsesInputTextMaxChars = 10000000
@@ -20,17 +23,17 @@ func sanitizeOpenAIResponsesOrphanToolOutputs(reqBody map[string]any, input []an
 		if !ok {
 			continue
 		}
-		itemType := strings.TrimSpace(firstNonEmptyString(item["type"]))
+		itemType := strings.TrimSpace(openai.FirstNonEmptyString(item["type"]))
 		if itemType == "item_reference" {
-			if id := strings.TrimSpace(firstNonEmptyString(item["id"])); id != "" {
+			if id := strings.TrimSpace(openai.FirstNonEmptyString(item["id"])); id != "" {
 				referenceIDs[id] = struct{}{}
 			}
 			continue
 		}
-		if !isCodexToolCallContextItemType(itemType) {
+		if !openaicore.IsCodexToolCallContextItemType(itemType) {
 			continue
 		}
-		if id := strings.TrimSpace(firstNonEmptyString(item["call_id"], item["id"])); id != "" {
+		if id := strings.TrimSpace(openai.FirstNonEmptyString(item["call_id"], item["id"])); id != "" {
 			toolCallIDs[id] = struct{}{}
 		}
 	}
@@ -39,12 +42,12 @@ func sanitizeOpenAIResponsesOrphanToolOutputs(reqBody map[string]any, input []an
 	normalized := make([]any, 0, len(input))
 	for _, rawItem := range input {
 		item, ok := rawItem.(map[string]any)
-		if !ok || !isCodexToolCallOutputItemType(strings.TrimSpace(firstNonEmptyString(item["type"]))) {
+		if !ok || !openaicore.IsCodexToolCallOutputItemType(strings.TrimSpace(openai.FirstNonEmptyString(item["type"]))) {
 			normalized = append(normalized, rawItem)
 			continue
 		}
 
-		callID := strings.TrimSpace(firstNonEmptyString(item["call_id"]))
+		callID := strings.TrimSpace(openai.FirstNonEmptyString(item["call_id"]))
 		_, hasToolCall := toolCallIDs[callID]
 		_, hasReference := referenceIDs[callID]
 		if callID != "" && (hasToolCall || hasReference) {

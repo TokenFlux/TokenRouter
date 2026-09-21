@@ -6,6 +6,10 @@ import (
 	"maps"
 	"time"
 
+	account "github.com/TokenFlux/TokenRouter/internal/account"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
@@ -52,7 +56,7 @@ func legacyPlatformInput(v scheduler.PlatformSelectionInput) OpenAIAccountSchedu
 		PreviousResponseCanMove:         v.PreviousResponseCanMove,
 		RequestedModel:                  v.RequestedModel,
 		RoutingModel:                    v.RoutingModel,
-		RequiredTransport:               OpenAIUpstreamTransport(v.RequiredTransport),
+		RequiredTransport:               egress.OpenAIUpstreamTransport(v.RequiredTransport),
 		RequiredCapability:              v.RequiredCapability,
 		RequiredImageCapability:         v.RequiredImageCapability,
 		RequireCompact:                  v.RequireCompact,
@@ -64,9 +68,12 @@ func legacyPlatformInput(v scheduler.PlatformSelectionInput) OpenAIAccountSchedu
 
 // platformSelector 的关联表只存在于本次调用；缓存、Grok 资格观测和 EWMA 均复用原唯一实例。
 func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformSelector, *genericSelectionScope) {
-	scope := &genericSelectionScope{accounts: map[uint64]*Account{}, groups: map[uint64]*Group{}}
+	scope := &genericSelectionScope{accounts: map[uint64]*Account{}, groups: map[uint64]*routing.Group{}}
 	available := s != nil && s.service != nil
-	diagnostics := LegacySchedulerDiagnostics()
+	diagnostics := scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	}
+
 	diagnostics.Event = func(level, event string, args ...any) {
 		switch level {
 		case "info":
@@ -91,7 +98,9 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 			return s.service.shadowProtocolsAllowed(ctx, scope.oldAccount(a))
 		},
 		ParentHealthy: func(a *scheduler.FlowAccount, lookup func(int64) *scheduler.FlowAccount) bool {
-			return parentHealthyForShadow(scope.oldAccount(a), func(id int64) *Account { return scope.oldAccount(lookup(id)) })
+			return account.ParentHealthyForShadow(AccountRecordView(scope.oldAccount(a)), func(id int64) *account.Record {
+				return AccountRecordView(scope.oldAccount(lookup(id)))
+			})
 		},
 		ParentLookup: func(ctx context.Context) func(int64) *scheduler.FlowAccount {
 			lookup := s.service.parentAccountLookup(ctx)
@@ -101,10 +110,10 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 		ChannelRestricted: func(ctx context.Context, id int64, a *scheduler.FlowAccount, model string, compact bool) bool {
 			return s.service.isUpstreamRoutingModelRestrictedByChannel(ctx, id, scope.oldAccount(a), model, compact)
 		},
-		BasicEligible: func(ctx context.Context, a *scheduler.FlowAccount, platform, model string, compact bool, capability OpenAIEndpointCapability) bool {
+		BasicEligible: func(ctx context.Context, a *scheduler.FlowAccount, platform, model string, compact bool, capability account.OpenAIEndpointCapability) bool {
 			return isOpenAICompatibleAccountEligibleForRequest(ctx, scope.oldAccount(a), platform, model, compact, capability)
 		},
-		BasicFailureReason: func(ctx context.Context, a *scheduler.FlowAccount, platform, model string, compact bool, capability OpenAIEndpointCapability) string {
+		BasicFailureReason: func(ctx context.Context, a *scheduler.FlowAccount, platform, model string, compact bool, capability account.OpenAIEndpointCapability) string {
 			return openAICompatibleAccountEligibilityFailureReason(ctx, scope.oldAccount(a), platform, model, compact, capability)
 		},
 		CompleteAcquired: func(ctx context.Context, a *scheduler.FlowAccount, release func()) (*scheduler.FlowSelection, error) {
@@ -120,7 +129,7 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 			return schedulerEffectiveProjection(s.service.advancedSchedulerEffectiveSettingsForRequest(ctx, id))
 		},
 		GroupRequiresPrivacy: s.service.openAIGroupRequiresPrivacySet,
-		PreviousResponse: func(ctx context.Context, id *int64, previous, model string, excluded map[int64]struct{}, capability OpenAIEndpointCapability, compact bool) (*scheduler.FlowSelection, error) {
+		PreviousResponse: func(ctx context.Context, id *int64, previous, model string, excluded map[int64]struct{}, capability account.OpenAIEndpointCapability, compact bool) (*scheduler.FlowSelection, error) {
 			v, err := s.service.selectAccountByPreviousResponseIDForCapability(ctx, id, previous, model, excluded, capability, compact)
 			return scope.selection(v), err
 		},
@@ -128,7 +137,7 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 			return s.isAccountRequestCompatibleReason(ctx, scope.oldAccount(a), legacyPlatformInput(input))
 		},
 		TransportCompatible: func(a *scheduler.FlowAccount, transport string) bool {
-			return s.isAccountTransportCompatible(scope.oldAccount(a), OpenAIUpstreamTransport(transport))
+			return s.isAccountTransportCompatible(scope.oldAccount(a), egress.OpenAIUpstreamTransport(transport))
 		},
 		HasGroupMetadata: func(a *scheduler.FlowAccount) bool { return hasOpenAIAccountGroupMetadata(scope.oldAccount(a)) },
 		MatchesGroup: func(a *scheduler.FlowAccount, id *int64) bool {
@@ -148,10 +157,10 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 		},
 		IsCompatible:  func(a *scheduler.FlowAccount) bool { return scope.oldAccount(a).IsOpenAICompatible() },
 		IsSchedulable: func(a *scheduler.FlowAccount) bool { return scope.oldAccount(a).IsSchedulable() },
-		Recheck: func(ctx context.Context, a *scheduler.FlowAccount, id *int64, platform, model string, compact bool, capability OpenAIEndpointCapability) *scheduler.FlowAccount {
+		Recheck: func(ctx context.Context, a *scheduler.FlowAccount, id *int64, platform, model string, compact bool, capability account.OpenAIEndpointCapability) *scheduler.FlowAccount {
 			return scope.account(s.service.recheckSelectedOpenAIAccountFromDB(ctx, scope.oldAccount(a), id, platform, model, compact, capability))
 		},
-		Fresh: func(ctx context.Context, a *scheduler.FlowAccount, platform, model string, compact bool, capability OpenAIEndpointCapability) *scheduler.FlowAccount {
+		Fresh: func(ctx context.Context, a *scheduler.FlowAccount, platform, model string, compact bool, capability account.OpenAIEndpointCapability) *scheduler.FlowAccount {
 			return scope.account(s.service.resolveFreshSchedulableOpenAIAccount(ctx, scope.oldAccount(a), platform, model, compact, capability))
 		},
 		FreeQuota: func(ctx context.Context, values []scheduler.FlowAccount) []scheduler.FlowAccount {
@@ -163,7 +172,7 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 		TeamLimited: func(a *scheduler.FlowAccount, model string, now time.Time) bool {
 			return isGrokTeamModelRateLimited(scope.oldAccount(a), model, now)
 		},
-		ModelQuotaBlocked: isGrokModelQuotaBlocked, Acquire: s.service.tryAcquireAccountSlot,
+		ModelQuotaBlocked: account.IsGrokModelQuotaBlocked, Acquire: s.service.tryAcquireAccountSlot,
 		ListCandidates: func(ctx context.Context, id *int64, platform string) ([]scheduler.FlowAccount, error) {
 			v, err := s.service.listSchedulableAccounts(ctx, id, platform)
 			return scope.values(v), err

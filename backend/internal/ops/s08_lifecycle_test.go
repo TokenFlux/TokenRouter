@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	logger "github.com/TokenFlux/TokenRouter/internal/pkg/logevent"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logevent"
 )
 
 func TestS08RegressionSystemLogDuplicateStart(t *testing.T) {
@@ -20,7 +20,7 @@ func TestS08RegressionSystemLogDuplicateStart(t *testing.T) {
 	s.Start()
 	s.Start()
 	for i := 0; i < 400; i++ {
-		s.WriteLogEvent(&logger.LogEvent{Level: "error", Message: "planning"})
+		s.WriteLogEvent(&logevent.LogEvent{Level: "error", Message: "planning"})
 	}
 	<-entered
 	select {

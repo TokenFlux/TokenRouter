@@ -3,34 +3,36 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultRequestModelIDsForPlatformQoder(t *testing.T) {
-	require.Equal(t, qoder.DefaultRequestModelIDs(), defaultRequestModelIDsForPlatform(PlatformQoder))
+	require.Equal(t, qoder.DefaultRequestModelIDs(), defaultRequestModelIDsForPlatform(capability.PlatformQoder))
 }
 
 func TestAvailableRequestModelsFromAccountsUsesQoderAccountSite(t *testing.T) {
 	newAccount := func(id int64, site string) Account {
 		return Account{
 			ID:          id,
-			Platform:    PlatformQoder,
-			Status:      StatusActive,
+			Platform:    capability.PlatformQoder,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Credentials: map[string]any{"site": site},
 		}
 	}
 
-	cnModels := availableRequestModelsFromAccounts([]Account{newAccount(1, "cn")}, PlatformQoder)
+	cnModels := availableRequestModelsFromAccounts([]Account{newAccount(1, "cn")}, capability.PlatformQoder)
 	require.ElementsMatch(t, qoder.DefaultRequestModelIDsForSite(qoder.SiteCN), cnModels)
 	require.NotContains(t, cnModels, "claude-opus-4-6")
 
-	globalModels := availableRequestModelsFromAccounts([]Account{newAccount(2, "global")}, PlatformQoder)
+	globalModels := availableRequestModelsFromAccounts([]Account{newAccount(2, "global")}, capability.PlatformQoder)
 	require.ElementsMatch(t, qoder.DefaultRequestModelIDsForSite(qoder.SiteGlobal), globalModels)
 	require.NotContains(t, globalModels, "minimax-m2.7")
 
-	mixedModels := availableRequestModelsFromAccounts([]Account{newAccount(3, "global"), newAccount(4, "cn")}, PlatformQoder)
+	mixedModels := availableRequestModelsFromAccounts([]Account{newAccount(3, "global"), newAccount(4, "cn")}, capability.PlatformQoder)
 	require.ElementsMatch(t, qoder.DefaultRequestModelIDs(), mixedModels)
 }
 
@@ -39,8 +41,8 @@ func TestAvailableRequestModelsFromAccountsFiltersConfiguredQoderModels(t *testi
 		credentials["site"] = site
 		return Account{
 			ID:          id,
-			Platform:    PlatformQoder,
-			Status:      StatusActive,
+			Platform:    capability.PlatformQoder,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Credentials: credentials,
 		}
@@ -49,18 +51,18 @@ func TestAvailableRequestModelsFromAccountsFiltersConfiguredQoderModels(t *testi
 	cnWhitelist := newAccount(11, "cn", map[string]any{
 		"model_whitelist": []any{"claude-opus-4-6", "qwen3.6-flash"},
 	})
-	cnModels := availableRequestModelsFromAccounts([]Account{cnWhitelist}, PlatformQoder)
+	cnModels := availableRequestModelsFromAccounts([]Account{cnWhitelist}, capability.PlatformQoder)
 	require.Equal(t, []string{"qwen3.6-flash"}, cnModels)
 
 	cnMappingOverride := newAccount(12, "cn", map[string]any{
 		"model_mapping": map[string]any{"claude-opus-4-6": "ultimate"},
 	})
-	overrideModels := availableRequestModelsFromAccounts([]Account{cnMappingOverride}, PlatformQoder)
+	overrideModels := availableRequestModelsFromAccounts([]Account{cnMappingOverride}, capability.PlatformQoder)
 	require.Equal(t, []string{"claude-opus-4-6"}, overrideModels)
 
 	globalWhitelist := newAccount(13, "global", map[string]any{
 		"model_whitelist": []any{"claude-opus-4-6", "qwen3.6-flash"},
 	})
-	mixedModels := availableRequestModelsFromAccounts([]Account{cnWhitelist, globalWhitelist}, PlatformQoder)
+	mixedModels := availableRequestModelsFromAccounts([]Account{cnWhitelist, globalWhitelist}, capability.PlatformQoder)
 	require.ElementsMatch(t, []string{"claude-opus-4-6", "qwen3.6-flash"}, mixedModels)
 }

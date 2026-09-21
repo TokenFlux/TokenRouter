@@ -6,7 +6,19 @@ import (
 	"strings"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -15,7 +27,7 @@ import (
 
 func TestOpenAIGatewayHandlerResponses_GrokPassiveImageToolDeclarationBypassesPermissionGate(t *testing.T) {
 	body := `{"model":"grok-4.5","tools":[{"type":"namespace","name":"image_gen","tools":[{"type":"function","name":"imagegen"}]}],"tool_choice":"auto","input":"write code"}`
-	rec := runOpenAIResponsesImagePermissionGateTest(t, service.PlatformGrok, body)
+	rec := runOpenAIResponsesImagePermissionGateTest(t, capability.PlatformGrok, body)
 
 	require.NotEqual(t, http.StatusForbidden, rec.Code)
 	require.NotContains(t, rec.Body.String(), service.ImageGenerationPermissionMessage())
@@ -23,7 +35,7 @@ func TestOpenAIGatewayHandlerResponses_GrokPassiveImageToolDeclarationBypassesPe
 
 func TestOpenAIGatewayHandlerResponses_GrokResponsesLiteImageToolDeclarationBypassesPermissionGate(t *testing.T) {
 	body := `{"model":"grok-4.5","tool_choice":"auto","input":[{"type":"additional_tools","tools":[{"type":"namespace","name":"image_gen","tools":[{"type":"function","name":"imagegen"}]}]},{"type":"message","role":"user","content":"write code"}]}`
-	rec := runOpenAIResponsesImagePermissionGateTest(t, service.PlatformGrok, body)
+	rec := runOpenAIResponsesImagePermissionGateTest(t, capability.PlatformGrok, body)
 
 	require.NotEqual(t, http.StatusForbidden, rec.Code)
 	require.NotContains(t, rec.Body.String(), service.ImageGenerationPermissionMessage())
@@ -37,22 +49,22 @@ func TestOpenAIGatewayHandlerResponses_ImagePermissionHardSignalsStillRejected(t
 	}{
 		{
 			name:     "Grok native image_generation declaration",
-			platform: service.PlatformGrok,
+			platform: capability.PlatformGrok,
 			body:     `{"model":"grok-4.5","tools":[{"type":"image_generation"}],"input":"draw"}`,
 		},
 		{
 			name:     "Grok explicit image_gen tool choice",
-			platform: service.PlatformGrok,
+			platform: capability.PlatformGrok,
 			body:     `{"model":"grok-4.5","tools":[{"type":"namespace","name":"image_gen"}],"tool_choice":{"type":"namespace","name":"image_gen"},"input":"draw"}`,
 		},
 		{
 			name:     "OpenAI native image_generation tool",
-			platform: service.PlatformOpenAI,
+			platform: capability.PlatformOpenAI,
 			body:     `{"model":"gpt-5.5","tools":[{"type":"image_generation","model":"gpt-image-2"}],"input":"draw a cat"}`,
 		},
 		{
 			name:     "OpenAI image model",
-			platform: service.PlatformOpenAI,
+			platform: capability.PlatformOpenAI,
 			body:     `{"model":"gpt-image-2","input":"draw a cat"}`,
 		},
 	}
@@ -69,7 +81,7 @@ func TestOpenAIGatewayHandlerResponses_ImagePermissionHardSignalsStillRejected(t
 
 func TestOpenAIGatewayHandlerResponses_PassiveNamespaceDoesNotTrigger403(t *testing.T) {
 	passiveNamespace := `{"model":"gpt-5.5","tools":[{"type":"namespace","name":"image_gen","tools":[{"type":"function","name":"imagegen"}]}],"tool_choice":"auto","input":"write code"}`
-	rec := runOpenAIResponsesImagePermissionGateTest(t, service.PlatformOpenAI, passiveNamespace)
+	rec := runOpenAIResponsesImagePermissionGateTest(t, capability.PlatformOpenAI, passiveNamespace)
 
 	require.NotEqual(t, http.StatusForbidden, rec.Code,
 		"passive image_gen namespace with tool_choice=auto should not trigger 403 (#4447)")
@@ -77,7 +89,7 @@ func TestOpenAIGatewayHandlerResponses_PassiveNamespaceDoesNotTrigger403(t *test
 
 func runOpenAIResponsesImagePermissionGateTest(t *testing.T, platform string, body string) *httptest.ResponseRecorder {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(body))
@@ -85,27 +97,28 @@ func runOpenAIResponsesImagePermissionGateTest(t *testing.T, platform string, bo
 
 	groupID := int64(6301)
 	userID := int64(6302)
-	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      6303,
 		GroupID: &groupID,
-		Group: &service.Group{
+		Group: &routing.Group{
 			ID:                   groupID,
 			Platform:             platform,
 			AllowImageGeneration: false,
 		},
-		User: &service.User{ID: userID, Status: service.StatusActive},
+		User: &identity.User{ID: userID, Status: billing.StatusActive},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: userID, Concurrency: 1})
 
 	h := &OpenAIGatewayHandler{
 		gatewayService:      &service.OpenAIGatewayService{},
-		billingCacheService: service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeSimple}, nil),
-		apiKeyService:       &service.APIKeyService{},
-		concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(
-			&helperConcurrencyCacheStub{userSeq: []bool{true}},
-		), SSEPingFormatNone, 0),
+		billingCacheService: newFundingAdmissionFixture(newBillingEligibilityFixture(&config.Config{RunMode: config.RunModeSimple}), &config.Config{RunMode: config.RunModeSimple}),
+		apiKeyService:       &apikey.APIKeyService{},
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(
+			&helperConcurrencyCacheStub{userSeq: []bool{true}}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+				Event: logging.Event},
+		), gatewayhttp.SSEPingFormatNone, 0),
 		cfg:          &config.Config{},
-		imageLimiter: &imageConcurrencyLimiter{},
+		imageLimiter: &scheduler.ImageConcurrencyLimiter{},
 	}
 
 	h.Responses(c)

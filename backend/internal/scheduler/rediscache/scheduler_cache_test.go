@@ -3,7 +3,8 @@ package rediscache
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,10 +21,10 @@ func TestFilterSchedulerCredentialsKeepsSubscriptionPlanType(t *testing.T) {
 }
 
 func TestSchedulerMetadataAccountKeepsOpenAISubscriptionIdentity(t *testing.T) {
-	account := service.Account{
+	account := accountcore.Record{
 		ID:       24,
-		Platform: service.PlatformOpenAI,
-		Type:     service.AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"plan_type":    "plus",
 			"access_token": "secret-access-token",

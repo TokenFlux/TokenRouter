@@ -9,13 +9,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/stretchr/testify/require"
 )
 
 // TestOpenAIResponsesEmptyCompletedFailsOver 验证标准流和透传流都会在写出前切换空终态账号。
 func TestOpenAIResponsesEmptyCompletedFailsOver(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	for _, passthrough := range []bool{false, true} {
 		name := "managed"
@@ -42,11 +42,11 @@ func TestOpenAIResponsesEmptyCompletedFailsOver(t *testing.T) {
 			result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"continue"}`))
 
 			require.Nil(t, result)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
 			require.True(t, IsOpenAISilentRefusalErrorBody(failoverErr.ResponseBody))
-			require.Equal(t, "rid-empty-completed", failoverErr.ResponseHeaders.Get("x-request-id"))
+			require.Equal(t, "rid-empty-completed", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 			require.Empty(t, recorder.Body.String(), "空成功流不能写给客户端")
 		})
 	}
@@ -54,7 +54,6 @@ func TestOpenAIResponsesEmptyCompletedFailsOver(t *testing.T) {
 
 // TestOpenAIResponsesEmptyCompletedExemptions 锁定有输出、有用量或有输出项的合法终态。
 func TestOpenAIResponsesEmptyCompletedExemptions(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name string
@@ -105,7 +104,7 @@ func TestOpenAIResponsesCompletedEventIsEmpty(t *testing.T) {
 	tests := []struct {
 		name  string
 		data  string
-		usage *OpenAIUsage
+		usage *openai.ForwardUsage
 		want  bool
 	}{
 		{name: "bare completed", data: `{"type":"response.completed"}`, want: true},
@@ -113,7 +112,7 @@ func TestOpenAIResponsesCompletedEventIsEmpty(t *testing.T) {
 		{name: "usage", data: `{"type":"response.completed","response":{"usage":{"input_tokens":1}}}`},
 		{name: "error", data: `{"type":"response.completed","response":{"error":{"code":"x"}}}`},
 		{name: "output item", data: `{"type":"response.completed","response":{"output":[{"type":"message"}]}}`},
-		{name: "accumulated usage", data: `{"type":"response.completed"}`, usage: &OpenAIUsage{InputTokens: 1}},
+		{name: "accumulated usage", data: `{"type":"response.completed"}`, usage: &openai.ForwardUsage{InputTokens: 1}},
 		{name: "invalid json", data: `{"type":`},
 	}
 

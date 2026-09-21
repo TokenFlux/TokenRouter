@@ -3,10 +3,11 @@ package httpapi
 
 import (
 	context "context"
+	strconv "strconv"
+
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
 )
 
 // TestHandler 仅绑定管理 HTTP 字段、SSE 与原测试成功后恢复端口。
@@ -45,7 +46,7 @@ func (h *TestHandler) Test(c *gin.Context) {
 	// Allow empty body, model_id is optional
 	_ = c.ShouldBindJSON(&req)
 
-	// Use AccountTestService to test the account with SSE streaming
+	// 使用唯一原生测试用例，HTTP 输出器同步写入 SSE 事件。
 	testType := req.TestType
 	if testType == "" {
 		testType = req.TestMode

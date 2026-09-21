@@ -3,8 +3,9 @@ package egress
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 请求策略冻结允许的覆写和选定 TLS 身份，不受管理输入或消费者修改影响。

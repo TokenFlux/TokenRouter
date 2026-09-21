@@ -7,10 +7,11 @@ import (
 	json "encoding/json"
 	errors "errors"
 	fmt "fmt"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strconv "strconv"
 	strings "strings"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 const maxAccountNameRunes = 100

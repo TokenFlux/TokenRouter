@@ -10,8 +10,19 @@ import (
 	"sync/atomic"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -23,40 +34,43 @@ type countingGatewaySchedulerCache struct {
 	snapshotCalls atomic.Int64
 }
 
-func (c *countingGatewaySchedulerCache) GetSnapshot(ctx context.Context, bucket service.SchedulerBucket) ([]*service.Account, bool, error) {
+func (c *countingGatewaySchedulerCache) GetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket) ([]*service.Account, bool, error) {
 	c.snapshotCalls.Add(1)
 	return c.fakeSchedulerCache.GetSnapshot(ctx, bucket)
 }
 
 func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	groupID := int64(9100)
-	group := &service.Group{ID: groupID, Hydrated: true, Platform: service.PlatformAnthropic, Status: service.StatusActive}
+	group := &routing.Group{ID: groupID, Hydrated: true, Platform: capability.PlatformAnthropic, Status: billing.StatusActive}
 	account := &service.Account{
-		ID: 9101, Platform: service.PlatformAnthropic, Type: service.AccountTypeAPIKey,
-		Status: service.StatusActive, Schedulable: true, Concurrency: 1,
+		ID: 9101, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
+		Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
 		AccountGroups: []service.AccountGroup{{AccountID: 9101, GroupID: groupID}},
 	}
 	schedulerCache := &countingGatewaySchedulerCache{fakeSchedulerCache: &fakeSchedulerCache{accounts: []*service.Account{account}}}
 	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
 	gatewayService := service.NewGatewayService(
 		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, nil,
-		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	billingCacheService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheService := newBillingEligibilityFixture(cfg)
 	billingCacheService.Start()
 	t.Cleanup(billingCacheService.Stop)
 	h := &GatewayHandler{
 		gatewayService:      gatewayService,
-		billingCacheService: billingCacheService,
-		concurrencyHelper:   NewConcurrencyHelper(service.NewConcurrencyService(&fakeConcurrencyCache{}), SSEPingFormatClaude, 0),
-		maxAccountSwitches:  1,
-		cfg:                 cfg,
+		billingCacheService: newFundingAdmissionFixture(billingCacheService, cfg),
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event,
+		},
+		), gatewayhttp.SSEPingFormatClaude, 0),
+		maxAccountSwitches: 1,
+		cfg:                cfg,
 	}
-	apiKey := &service.APIKey{
-		ID: 9102, UserID: 9103, GroupID: &groupID, Group: group, Status: service.StatusActive,
-		User: &service.User{ID: 9103, Concurrency: 10, Balance: 100},
+	apiKey := &apikey.APIKey{
+		ID: 9102, UserID: 9103, GroupID: &groupID, Group: group, Status: billing.StatusActive,
+		User: &identity.User{ID: 9103, Concurrency: 10, Balance: 100},
 	}
 
 	tests := []struct {
@@ -82,7 +96,7 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 			c, _ := gin.CreateTestContext(recorder)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			ctx = context.WithValue(ctx, ctxkey.Group, group)
+			ctx = requeststate.WithGroup(ctx, group)
 			req := httptest.NewRequest(http.MethodPost, tt.path, bytes.NewBufferString(tt.body)).WithContext(ctx)
 			req.Header.Set("Content-Type", "application/json")
 			c.Request = req
@@ -92,7 +106,7 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 			tt.call(c)
 
 			require.Zero(t, schedulerCache.snapshotCalls.Load(), "a cancelled request must stop before the account selector")
-			_, selected := c.Get(opsAccountIDKey)
+			_, selected := c.Get(gatewayhttp.OpsAccountIDKey)
 			require.False(t, selected)
 		})
 	}

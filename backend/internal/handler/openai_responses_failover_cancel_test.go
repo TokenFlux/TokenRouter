@@ -3,6 +3,9 @@
 package handler
 
 import (
+	testkit "github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	"bytes"
 	"context"
 	"io"
@@ -11,8 +14,21 @@ import (
 	"sync"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -33,7 +49,7 @@ func (r openAIResponsesFailoverAccountRepo) GetByID(_ context.Context, id int64)
 			return &account, nil
 		}
 	}
-	return nil, service.ErrNoAvailableAccounts
+	return nil, scheduler.ErrNoAvailableAccounts
 }
 
 func (r openAIResponsesFailoverAccountRepo) ListSchedulableByGroupIDAndPlatform(_ context.Context, _ int64, platform string) ([]service.Account, error) {
@@ -61,7 +77,8 @@ func (r openAIResponsesFailoverAccountRepo) accountsForPlatform(platform string)
 // openAIResponsesFailoverCancelUpstream 固定返回 HTTP 520，可在首次上游调用时
 // 触发回调（用于模拟“上游在途期间客户端断开”）。
 type openAIResponsesFailoverCancelUpstream struct {
-	service.HTTPUpstream
+	httpclient.
+		UpstreamTransport
 	mu         sync.Mutex
 	accountIDs []int64
 	onFirstDo  func()
@@ -98,22 +115,22 @@ func (u *openAIResponsesFailoverCancelUpstream) calls() []int64 {
 	return append([]int64(nil), u.accountIDs...)
 }
 
-func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUpstream) *OpenAIGatewayHandler {
+func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.UpstreamTransport) *OpenAIGatewayHandler {
 	t.Helper()
 	proxyID := int64(11)
 	accounts := []service.Account{
 		{
 			ID:          1,
 			Name:        "responses-account-1",
-			Platform:    service.PlatformOpenAI,
-			Type:        service.AccountTypeOAuth,
-			Status:      service.StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeOAuth,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 0,
 			Priority:    0,
 			Credentials: map[string]any{"access_token": "token-1"},
 			ProxyID:     &proxyID,
-			Proxy: &service.Proxy{
+			Proxy: &egress.Proxy{
 				ID:       proxyID,
 				Name:     "responses-proxy",
 				Protocol: "http",
@@ -126,9 +143,9 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 		{
 			ID:          2,
 			Name:        "responses-account-2",
-			Platform:    service.PlatformOpenAI,
-			Type:        service.AccountTypeOAuth,
-			Status:      service.StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeOAuth,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 0,
 			Priority:    1,
@@ -162,15 +179,15 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 		nil,
 		nil,
 	)
-	billingService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingService := newBillingEligibilityFixture(cfg)
 	billingService.Start()
 	t.Cleanup(billingService.Stop)
-	concurrencyService := service.NewConcurrencyService(nil)
+	concurrencyService := scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event},
+	)
 	handler := NewOpenAIGatewayHandler(
 		gatewayService,
-		concurrencyService,
-		billingService,
-		service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg),
+		concurrencyService, newFundingAdmissionFixture(billingService, cfg), testkit.NewService(nil, nil, nil, nil, nil, nil, cfg),
 		nil,
 		nil,
 		nil,
@@ -193,14 +210,14 @@ func newOpenAIResponsesFailoverTestContext(t *testing.T, ctx context.Context) (*
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
-	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      99,
 		GroupID: &groupID,
-		Group: &service.Group{
+		Group: &routing.Group{
 			ID:       groupID,
-			Platform: service.PlatformOpenAI,
+			Platform: capability.PlatformOpenAI,
 		},
-		User: &service.User{ID: 100},
+		User: &identity.User{ID: 100},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
 	return c, rec
@@ -211,7 +228,6 @@ func newOpenAIResponsesFailoverTestContext(t *testing.T, ctx context.Context) (*
 // 期望：不再用已取消的 context 重新选号（不触达账号 2）、不把取消误报成
 // 502 账号耗尽、请求按 499 归类。
 func TestOpenAIGatewayHandlerResponses_FailoverAbortsWhenClientDisconnected(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -222,16 +238,16 @@ func TestOpenAIGatewayHandlerResponses_FailoverAbortsWhenClientDisconnected(t *t
 	handler.Responses(c)
 
 	require.Equal(t, []int64{1}, upstream.calls(), "客户端断开后不应再切换到账号 2")
-	require.Equal(t, statusClientClosedRequest, c.Writer.Status(), "应按 499 归类")
+	require.Equal(t, gatewayhttp.StatusClientClosedRequest, c.Writer.Status(), "应按 499 归类")
 	require.Zero(t, rec.Body.Len(), "不应写入 502 错误响应体")
 
-	_, hasFinalUpstreamErr := c.Get(service.OpsUpstreamStatusCodeKey)
+	_, hasFinalUpstreamErr := c.Get(gatewayhttp.OpsUpstreamStatusCodeKey)
 	require.False(t, hasFinalUpstreamErr, "不应记录 failover 耗尽的上游错误终态")
 
 	// 真实发生过的 520 应保留 failover 事件（service 层在返回 failover 错误前记录）
-	rawEvents, ok := c.Get(service.OpsUpstreamErrorsKey)
+	rawEvents, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
 	require.True(t, ok)
-	events, ok := rawEvents.([]*service.OpsUpstreamErrorEvent)
+	events, ok := rawEvents.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
 	require.Len(t, events, 1)
 	require.Equal(t, "failover", events[0].Kind)
@@ -242,7 +258,7 @@ func TestOpenAIGatewayHandlerResponses_FailoverAbortsWhenClientDisconnected(t *t
 // 守卫：客户端在线时 failover 行为不变——切换到账号 2，两个账号都 520 后按
 // 耗尽返回 502。
 func TestOpenAIGatewayHandlerResponses_FailoverContinuesForConnectedClient(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureHandlerStructuredLog(t)
 	defer restore()
 

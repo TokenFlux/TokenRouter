@@ -2,8 +2,9 @@
 package billing
 
 import (
-	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
 	time "time"
+
+	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
 )
 
 // UserSummary 是权益查询所需的只读用户展示投影。

@@ -6,9 +6,10 @@ import (
 	sql "database/sql"
 	json "encoding/json"
 	fmt "fmt"
+	time "time"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	pq "github.com/lib/pq"
-	time "time"
 )
 
 type GroupAvailabilityProbeStore struct {

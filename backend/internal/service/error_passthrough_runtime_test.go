@@ -10,7 +10,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,13 +22,13 @@ import (
 )
 
 func TestApplyErrorPassthroughRule_NoBoundService(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	status, errType, errMsg, matched := applyErrorPassthroughRule(
+	status, errType, errMsg, matched := httpapi.ApplyErrorPassthroughRule(
 		c,
-		PlatformAnthropic,
+		capability.PlatformAnthropic,
 		http.StatusUnprocessableEntity,
 		[]byte(`{"error":{"message":"invalid schema"}}`),
 		http.StatusBadGateway,
@@ -39,7 +43,7 @@ func TestApplyErrorPassthroughRule_NoBoundService(t *testing.T) {
 }
 
 func TestGatewayHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -50,7 +54,7 @@ func TestGatewayHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 11, Platform: PlatformAnthropic, Type: AccountTypeAPIKey}
+	account := &Account{ID: 11, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
 	require.Error(t, err)
@@ -65,7 +69,7 @@ func TestGatewayHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 }
 
 func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -76,7 +80,7 @@ func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 12, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
@@ -91,7 +95,7 @@ func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 }
 
 func TestOpenAIHandleErrorResponse_InvalidRequest400PassesThrough(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -105,7 +109,7 @@ func TestOpenAIHandleErrorResponse_InvalidRequest400PassesThrough(t *testing.T) 
 			"X-Request-Id": {"req_invalid_arguments"},
 		},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 
@@ -113,12 +117,12 @@ func TestOpenAIHandleErrorResponse_InvalidRequest400PassesThrough(t *testing.T) 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.JSONEq(t, string(respBody), rec.Body.String())
 	require.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
-	require.True(t, IsResponseCommitted(c))
-	require.Equal(t, http.StatusBadRequest, c.MustGet(OpsUpstreamStatusCodeKey))
+	require.True(t, httpapi.IsResponseCommitted(c))
+	require.Equal(t, http.StatusBadRequest, c.MustGet(httpapi.OpsUpstreamStatusCodeKey))
 }
 
 func TestOpenAIHandleErrorResponse_TransientInvalidRequest400KeepsGatewayError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -129,7 +133,7 @@ func TestOpenAIHandleErrorResponse_TransientInvalidRequest400KeepsGatewayError(t
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 
@@ -139,7 +143,7 @@ func TestOpenAIHandleErrorResponse_TransientInvalidRequest400KeepsGatewayError(t
 }
 
 func TestOpenAIHandleErrorResponse_OtherInvalidRequest400PassesThroughDetails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -150,7 +154,7 @@ func TestOpenAIHandleErrorResponse_OtherInvalidRequest400PassesThroughDetails(t 
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 
@@ -163,7 +167,7 @@ func TestOpenAIHandleErrorResponse_OtherInvalidRequest400PassesThroughDetails(t 
 }
 
 func TestOpenAIHandleErrorResponsePassthrough_InvalidRequest400PassesThrough(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -174,7 +178,7 @@ func TestOpenAIHandleErrorResponsePassthrough_InvalidRequest400PassesThrough(t *
 		StatusCode: http.StatusBadRequest,
 		Header:     http.Header{"Content-Type": {"application/json"}},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 
 	err := svc.handleErrorResponsePassthrough(context.Background(), resp, c, account, []byte(`{"model":"gpt-5.5"}`), respBody)
 
@@ -186,7 +190,7 @@ func TestOpenAIHandleErrorResponsePassthrough_InvalidRequest400PassesThrough(t *
 }
 
 func TestOpenAIHandleCompatErrorResponse_InvalidRequest400PreservesDetails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
@@ -198,7 +202,7 @@ func TestOpenAIHandleCompatErrorResponse_InvalidRequest400PreservesDetails(t *te
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 
 	_, err := svc.handleCompatErrorResponse(resp, c, account, writeChatCompletionsError, writeChatCompletionsErrorBody)
 
@@ -210,7 +214,7 @@ func TestOpenAIHandleCompatErrorResponse_InvalidRequest400PreservesDetails(t *te
 }
 
 func TestOpenAIHandleCompatMessagesErrorResponse_InvalidRequest400PreservesDetails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -222,9 +226,9 @@ func TestOpenAIHandleCompatMessagesErrorResponse_InvalidRequest400PreservesDetai
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 
-	_, err := svc.handleCompatErrorResponse(resp, c, account, writeAnthropicError, writeAnthropicErrorBody)
+	_, err := svc.handleCompatErrorResponse(resp, c, account, httpapi.WriteForwardAnthropicError, httpapi.WriteForwardAnthropicErrorBody)
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code)
@@ -232,7 +236,7 @@ func TestOpenAIHandleCompatMessagesErrorResponse_InvalidRequest400PreservesDetai
 }
 
 func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
@@ -244,11 +248,11 @@ func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 14, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 14, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	assert.Equal(t, http.StatusBadGateway, rec.Code)
 
@@ -261,13 +265,13 @@ func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t
 }
 
 func TestGeminiWriteGeminiMappedError_NoRuleKeepsDefault(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
 	svc := &GeminiMessagesCompatService{}
 	respBody := []byte(`{"error":{"code":422,"message":"Invalid schema for field messages","status":"INVALID_ARGUMENT"}}`)
-	account := &Account{ID: 13, Platform: PlatformGemini, Type: AccountTypeAPIKey}
+	account := &Account{ID: 13, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}
 
 	err := svc.writeGeminiMappedError(c, account, http.StatusUnprocessableEntity, "req-2", respBody)
 	require.Error(t, err)
@@ -282,12 +286,12 @@ func TestGeminiWriteGeminiMappedError_NoRuleKeepsDefault(t *testing.T) {
 }
 
 func TestGatewayHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "上游请求失败")})
-	BindErrorPassthroughService(c, ruleSvc)
+	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "上游请求失败")})
+	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
 	svc := &GatewayService{}
 	respBody := []byte(`{"error":{"message":"Invalid schema for field messages"}}`)
@@ -296,7 +300,7 @@ func TestGatewayHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 1, Platform: PlatformAnthropic, Type: AccountTypeAPIKey}
+	account := &Account{ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
 	require.Error(t, err)
@@ -311,12 +315,12 @@ func TestGatewayHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 }
 
 func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "OpenAI上游失败")})
-	BindErrorPassthroughService(c, ruleSvc)
+	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "OpenAI上游失败")})
+	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
 	svc := &OpenAIGatewayService{}
 	respBody := []byte(`{"error":{"message":"Invalid schema for field messages"}}`)
@@ -325,7 +329,7 @@ func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
@@ -340,16 +344,16 @@ func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 }
 
 func TestGeminiWriteGeminiMappedError_AppliesRuleFor422(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "Gemini上游失败")})
-	BindErrorPassthroughService(c, ruleSvc)
+	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "Gemini上游失败")})
+	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
 	svc := &GeminiMessagesCompatService{}
 	respBody := []byte(`{"error":{"code":422,"message":"Invalid schema for field messages","status":"INVALID_ARGUMENT"}}`)
-	account := &Account{ID: 3, Platform: PlatformGemini, Type: AccountTypeAPIKey}
+	account := &Account{ID: 3, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}
 
 	err := svc.writeGeminiMappedError(c, account, http.StatusUnprocessableEntity, "req-1", respBody)
 	require.Error(t, err)
@@ -364,19 +368,19 @@ func TestGeminiWriteGeminiMappedError_AppliesRuleFor422(t *testing.T) {
 }
 
 func TestApplyErrorPassthroughRule_SkipMonitoringSetsContextKey(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
 	rule := newNonFailoverPassthroughRule(http.StatusBadRequest, "prompt is too long", http.StatusBadRequest, "上下文超限")
 	rule.SkipMonitoring = true
 
-	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{rule})
-	BindErrorPassthroughService(c, ruleSvc)
+	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{rule})
+	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
-	_, _, _, matched := applyErrorPassthroughRule(
+	_, _, _, matched := httpapi.ApplyErrorPassthroughRule(
 		c,
-		PlatformAnthropic,
+		capability.PlatformAnthropic,
 		http.StatusBadRequest,
 		[]byte(`{"error":{"message":"prompt is too long"}}`),
 		http.StatusBadGateway,
@@ -385,7 +389,7 @@ func TestApplyErrorPassthroughRule_SkipMonitoringSetsContextKey(t *testing.T) {
 	)
 
 	assert.True(t, matched)
-	v, exists := c.Get(OpsSkipPassthroughKey)
+	v, exists := c.Get(httpapi.OpsSkipPassthroughKey)
 	assert.True(t, exists, "OpsSkipPassthroughKey should be set when skip_monitoring=true")
 	boolVal, ok := v.(bool)
 	assert.True(t, ok, "value should be bool")
@@ -393,19 +397,19 @@ func TestApplyErrorPassthroughRule_SkipMonitoringSetsContextKey(t *testing.T) {
 }
 
 func TestApplyErrorPassthroughRule_NoSkipMonitoringDoesNotSetContextKey(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
 	rule := newNonFailoverPassthroughRule(http.StatusBadRequest, "prompt is too long", http.StatusBadRequest, "上下文超限")
 	rule.SkipMonitoring = false
 
-	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{rule})
-	BindErrorPassthroughService(c, ruleSvc)
+	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{rule})
+	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
-	_, _, _, matched := applyErrorPassthroughRule(
+	_, _, _, matched := httpapi.ApplyErrorPassthroughRule(
 		c,
-		PlatformAnthropic,
+		capability.PlatformAnthropic,
 		http.StatusBadRequest,
 		[]byte(`{"error":{"message":"prompt is too long"}}`),
 		http.StatusBadGateway,
@@ -414,14 +418,14 @@ func TestApplyErrorPassthroughRule_NoSkipMonitoringDoesNotSetContextKey(t *testi
 	)
 
 	assert.True(t, matched)
-	_, exists := c.Get(OpsSkipPassthroughKey)
+	_, exists := c.Get(httpapi.OpsSkipPassthroughKey)
 	assert.False(t, exists, "OpsSkipPassthroughKey should NOT be set when skip_monitoring=false")
 }
 
 // ---- ResponseCommittedKey: service 层写完错误响应后标记，handler 层检查跳过兜底写入 ----
 
 func TestHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -431,24 +435,24 @@ func TestHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"temperature: range: 0..1"}}`))),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 100, Platform: PlatformAnthropic, Type: AccountTypeAPIKey}
+	account := &Account{ID: 100, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
 	require.Error(t, err)
-	assert.True(t, IsResponseCommitted(c), "non-failover error path must mark response committed")
+	assert.True(t, httpapi.IsResponseCommitted(c), "non-failover error path must mark response committed")
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 }
 
 func TestHandleErrorResponse_PassthroughRuleSetsCommitted(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	ruleSvc := newErrorRulesTestService([]*model.ErrorPassthroughRule{
+	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{
 		newNonFailoverPassthroughRule(http.StatusBadRequest, "temperature", http.StatusBadRequest, "参数错误"),
 	})
-	BindErrorPassthroughService(c, ruleSvc)
+	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
 	svc := &GatewayService{}
 	resp := &http.Response{
@@ -456,11 +460,11 @@ func TestHandleErrorResponse_PassthroughRuleSetsCommitted(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"temperature: range: 0..1"}}`))),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 200, Platform: PlatformAnthropic, Type: AccountTypeAPIKey}
+	account := &Account{ID: 200, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
 	require.Error(t, err)
-	assert.True(t, IsResponseCommitted(c), "passthrough rule path must mark response committed")
+	assert.True(t, httpapi.IsResponseCommitted(c), "passthrough rule path must mark response committed")
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
@@ -470,7 +474,7 @@ func TestHandleErrorResponse_PassthroughRuleSetsCommitted(t *testing.T) {
 }
 
 func TestOpenAIHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -480,36 +484,36 @@ func TestOpenAIHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"rate limit exceeded"}}`))),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 101, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 101, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
-	assert.True(t, IsResponseCommitted(c), "OpenAI non-failover path must mark response committed")
+	assert.True(t, httpapi.IsResponseCommitted(c), "OpenAI non-failover path must mark response committed")
 }
 
 func TestGeminiWriteGeminiMappedError_SetsResponseCommitted(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
 	svc := &GeminiMessagesCompatService{}
 	body := []byte(`{"error":{"message":"invalid field"}}`)
-	account := &Account{ID: 102, Platform: PlatformGemini, Type: AccountTypeAPIKey}
+	account := &Account{ID: 102, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}
 
 	err := svc.writeGeminiMappedError(c, account, http.StatusBadRequest, "req-99", body)
 	require.Error(t, err)
-	assert.True(t, IsResponseCommitted(c), "Gemini path must mark response committed")
+	assert.True(t, httpapi.IsResponseCommitted(c), "Gemini path must mark response committed")
 }
 
-func newNonFailoverPassthroughRule(statusCode int, keyword string, respCode int, customMessage string) *model.ErrorPassthroughRule {
-	return &model.ErrorPassthroughRule{
+func newNonFailoverPassthroughRule(statusCode int, keyword string, respCode int, customMessage string) *errorpolicy.ErrorPassthroughRule {
+	return &errorpolicy.ErrorPassthroughRule{
 		ID:              1,
 		Name:            "non-failover-rule",
 		Enabled:         true,
 		Priority:        1,
 		ErrorCodes:      []int{statusCode},
 		Keywords:        []string{keyword},
-		MatchMode:       model.MatchModeAll,
+		MatchMode:       errorpolicy.MatchModeAll,
 		PassthroughCode: false,
 		ResponseCode:    &respCode,
 		PassthroughBody: false,

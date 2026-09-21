@@ -2,9 +2,10 @@
 package dto
 
 import (
+	time "time"
+
 	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	time "time"
 )
 
 type Group struct {

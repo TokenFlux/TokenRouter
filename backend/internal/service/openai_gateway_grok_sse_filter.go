@@ -4,15 +4,13 @@ package service
 import (
 	"io"
 
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
-const grokResponsesPingFrameMaxLines = nativegrok.ResponsesPingFrameMaxLines
-const grokResponsesPingFrameMaxBytes = nativegrok.ResponsesPingFrameMaxBytes
-
 func newGrokResponsesBillingPingFilterBody(source io.ReadCloser, account *Account, maxLineSize int) io.ReadCloser {
-	if account == nil || account.Platform != PlatformGrok {
+	if account == nil || account.Platform != capability.PlatformGrok {
 		return source
 	}
-	return nativegrok.NewGrokResponsesBillingPingFilterBody(source, maxLineSize)
+	return grok.NewGrokResponsesBillingPingFilterBody(source, maxLineSize)
 }

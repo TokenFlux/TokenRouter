@@ -4,10 +4,11 @@
 package httpapi
 
 import (
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	require "github.com/stretchr/testify/require"
 	testing "testing"
 	time "time"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	require "github.com/stretchr/testify/require"
 )
 
 func float64Ptr(v float64) *float64 { return &v }

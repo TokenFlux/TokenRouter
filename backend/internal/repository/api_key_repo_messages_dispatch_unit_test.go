@@ -2,11 +2,17 @@ package repository
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,17 +20,17 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 	group := &dbent.Group{
 		ID:             1,
 		Name:           "openai-dispatch",
-		Platform:       service.PlatformOpenAI,
-		Status:         service.StatusActive,
+		Platform:       capability.PlatformOpenAI,
+		Status:         billing.StatusActive,
 		RateMultiplier: 1,
-		AllowedProtocols: []domain.ProtocolID{
-			domain.ProtocolAnthropicMessages,
-			domain.ProtocolOpenAIResponses,
-			domain.ProtocolOpenAIChatCompletions,
+		AllowedProtocols: []protocol.ProtocolID{
+			protocol.ProtocolAnthropicMessages,
+			protocol.ProtocolOpenAIResponses,
+			protocol.ProtocolOpenAIChatCompletions,
 		},
 		AllowMessagesDispatch: true,
 		DefaultMappedModel:    "gpt-5.4",
-		MessagesDispatchModelConfig: service.OpenAIMessagesDispatchModelConfig{
+		MessagesDispatchModelConfig: routing.OpenAIMessagesDispatchModelConfig{
 			OpusMappedModel:   "gpt-5.4-nano",
 			SonnetMappedModel: "gpt-5.3-codex",
 			HaikuMappedModel:  "gpt-5.4-mini",
@@ -34,7 +40,7 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 		},
 	}
 
-	got := groupEntityToService(group)
+	got := routingpostgres.GroupFromEnt(group)
 	require.NotNil(t, got)
 	require.Equal(t, group.AllowedProtocols, got.AllowedProtocols)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.MessagesDispatchModelConfig)
@@ -44,13 +50,13 @@ func TestGroupEntityToService_PreservesImageGenerationControls(t *testing.T) {
 	group := &dbent.Group{
 		ID:                   1,
 		Name:                 "openai-images",
-		Platform:             service.PlatformOpenAI,
-		Status:               service.StatusActive,
+		Platform:             capability.PlatformOpenAI,
+		Status:               billing.StatusActive,
 		RateMultiplier:       1,
 		AllowImageGeneration: true,
 	}
 
-	got := groupEntityToService(group)
+	got := routingpostgres.GroupFromEnt(group)
 	require.NotNil(t, got)
 	require.True(t, got.AllowImageGeneration)
 }
@@ -63,19 +69,19 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 
 	group, err := client.Group.Create().
 		SetName("g-auth-dispatch-unit").
-		SetPlatform(service.PlatformOpenAI).
-		SetStatus(service.StatusActive).
+		SetPlatform(capability.PlatformOpenAI).
+		SetStatus(billing.StatusActive).
 		SetRateMultiplier(1).
-		SetSchedulerType(string(service.GroupSchedulerTypeAdvanced)).
-		SetAdvancedSchedulerOverrides(service.GroupAdvancedSchedulerOverrides{LBTopK: &lbTopK}).
-		SetAllowedProtocols([]domain.ProtocolID{
-			domain.ProtocolAnthropicMessages,
-			domain.ProtocolOpenAIResponses,
-			domain.ProtocolOpenAIChatCompletions,
+		SetSchedulerType(string(routing.GroupSchedulerTypeAdvanced)).
+		SetAdvancedSchedulerOverrides(routing.GroupAdvancedSchedulerOverrides{LBTopK: &lbTopK}).
+		SetAllowedProtocols([]protocol.ProtocolID{
+			protocol.ProtocolAnthropicMessages,
+			protocol.ProtocolOpenAIResponses,
+			protocol.ProtocolOpenAIChatCompletions,
 		}).
 		SetAllowMessagesDispatch(true).
 		SetDefaultMappedModel("gpt-5.4").
-		SetMessagesDispatchModelConfig(service.OpenAIMessagesDispatchModelConfig{
+		SetMessagesDispatchModelConfig(routing.OpenAIMessagesDispatchModelConfig{
 			OpusMappedModel:   "gpt-5.4-nano",
 			SonnetMappedModel: "gpt-5.3-codex",
 			HaikuMappedModel:  "gpt-5.4-mini",
@@ -86,12 +92,12 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 		Save(ctx)
 	require.NoError(t, err)
 
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID:  user.ID,
 		Key:     "sk-getbykey-auth-dispatch-unit",
 		Name:    "Dispatch Key Unit",
 		GroupID: &group.ID,
-		Status:  service.StatusActive,
+		Status:  billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key))
 
@@ -101,7 +107,7 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 	require.NotNil(t, got.Group)
 	require.Equal(t, group.AllowedProtocols, got.Group.AllowedProtocols)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.Group.MessagesDispatchModelConfig)
-	require.Equal(t, service.GroupSchedulerTypeAdvanced, got.Group.SchedulerType)
+	require.Equal(t, routing.GroupSchedulerTypeAdvanced, got.Group.SchedulerType)
 	require.NotNil(t, got.Group.AdvancedSchedulerOverrides.LBTopK)
 	require.Equal(t, 4, *got.Group.AdvancedSchedulerOverrides.LBTopK)
 }
@@ -113,19 +119,19 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesImageGenerationControls_SQLit
 
 	group, err := client.Group.Create().
 		SetName("g-auth-images-unit").
-		SetPlatform(service.PlatformOpenAI).
-		SetStatus(service.StatusActive).
+		SetPlatform(capability.PlatformOpenAI).
+		SetStatus(billing.StatusActive).
 		SetRateMultiplier(1).
 		SetAllowImageGeneration(true).
 		Save(ctx)
 	require.NoError(t, err)
 
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID:  user.ID,
 		Key:     "sk-getbykey-auth-images-unit",
 		Name:    "Images Key Unit",
 		GroupID: &group.ID,
-		Status:  service.StatusActive,
+		Status:  billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key))
 
@@ -142,19 +148,19 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesSessionIsolation_SQLite(t *te
 
 	group, err := client.Group.Create().
 		SetName("g-auth-session-isolation-unit").
-		SetPlatform(service.PlatformOpenAI).
-		SetStatus(service.StatusActive).
+		SetPlatform(capability.PlatformOpenAI).
+		SetStatus(billing.StatusActive).
 		SetRateMultiplier(1).
 		SetSessionIsolationEnabled(true).
 		Save(ctx)
 	require.NoError(t, err)
 
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID:  user.ID,
 		Key:     "sk-getbykey-auth-session-isolation-unit",
 		Name:    "Session Isolation Key Unit",
 		GroupID: &group.ID,
-		Status:  service.StatusActive,
+		Status:  billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key))
 

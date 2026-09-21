@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -36,7 +37,7 @@ func (s *GatewayService) forwardOutput(c *gin.Context, responses bool) forwardco
 	return gatewayhttp.ForwardConversionOutput{
 		Context: c, Filter: s.responseHeaderFilter, Responses: responses,
 		Reverse: func(body []byte) []byte { return reverseToolNamesIfPresent(c, body) },
-		Commit:  func() { MarkResponseCommitted(c) },
+		Commit:  func() { gatewayhttp.MarkResponseCommitted(c) },
 		Diagnostic: func(level, message string, err error, requestID, event string) {
 			fields := []zap.Field{zap.String("request_id", requestID)}
 			if err != nil {
@@ -46,20 +47,20 @@ func (s *GatewayService) forwardOutput(c *gin.Context, responses bool) forwardco
 				fields = append(fields, zap.String("event_type", event))
 			}
 			if level == "info" {
-				logger.L().Info(message, fields...)
+				logging.L().Info(message, fields...)
 			} else {
-				logger.L().Warn(message, fields...)
+				logging.L().Warn(message, fields...)
 			}
 		},
 	}
 }
 
 // legacyForwardExecutionResult 显式投影同步结果的全部字段，不复制转换状态。
-func legacyForwardExecutionResult(v *forwardcore.Result) *ForwardResult {
+func legacyForwardExecutionResult(v *forwardcore.Result) *forwardcore.MessagesResult {
 	if v == nil {
 		return nil
 	}
-	return &ForwardResult{
+	return &forwardcore.MessagesResult{
 		RequestID:                   v.RequestID,
 		UpstreamHeaders:             v.UpstreamHeaders,
 		Usage:                       v.Usage,
@@ -86,7 +87,7 @@ func legacyForwardExecutionResult(v *forwardcore.Result) *ForwardResult {
 }
 
 // nativeForwardExecutionResult 显式投影同步结果的全部字段，不复制转换状态。
-func nativeForwardExecutionResult(v *ForwardResult) *forwardcore.Result {
+func nativeForwardExecutionResult(v *forwardcore.MessagesResult) *forwardcore.Result {
 	if v == nil {
 		return nil
 	}

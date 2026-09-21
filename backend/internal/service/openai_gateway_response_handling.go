@@ -2,24 +2,23 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
-	s09bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
-
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -31,7 +30,7 @@ type openaiStreamingResult struct {
 	// 原生执行结果独立报告语义输出、用量存在和 HTTP/重试提交，旧资金入口不读取新增字段。
 	served, hasUsage, httpCommitted, retryCommitted, clientDisconnected, observedOnly bool
 	firstSemanticOutput                                                               *time.Duration
-	usage                                                                             *OpenAIUsage
+	usage                                                                             *s09openai.ForwardUsage
 	firstTokenMs                                                                      *int
 	responseID                                                                        string
 	imageCount                                                                        int
@@ -41,8 +40,8 @@ type openaiStreamingResult struct {
 
 type openaiNonStreamingResult struct {
 	served bool
-	*OpenAIUsage
-	usage            *OpenAIUsage
+	*s09openai.ForwardUsage
+	usage            *s09openai.ForwardUsage
 	responseID       string
 	imageCount       int
 	imageOutputSizes []string
@@ -62,7 +61,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 	return v, err
 }
 func (s *OpenAIGatewayService) readStreamingResponseObservation(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel, reasoningEffort string) (*openaiStreamingResult, error) {
-	result, err := nativeopenai.ReadStreamingResponse(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeResponseStreamOptions(ctx, c, account, reasoningEffort), startTime, originalModel, mappedModel, reasoningEffort)
+	result, err := openai.ReadStreamingResponse(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeResponseStreamOptions(ctx, c, account, reasoningEffort), startTime, originalModel, mappedModel, reasoningEffort)
 	if result == nil {
 		return nil, err
 	}
@@ -83,20 +82,6 @@ func (s *OpenAIGatewayService) readStreamingResponseObservation(ctx context.Cont
 	}, err
 }
 
-func extractOpenAISSEDataLine(line string) (string, bool) {
-	return s09openai.ExtractSSEDataLine(line)
-}
-
-func extractOpenAISSEEventLine(line string) (string, bool) {
-	return s09openai.ExtractSSEEventLine(line)
-}
-
-type openAICompatSSEFrameParser = s09openai.OpenAICompatSSEFrameParser
-
-func openAICompatPayloadWithEventType(payload, eventType string) string {
-	return s09openai.OpenAICompatPayloadWithEventType(payload, eventType)
-}
-
 func (s *OpenAIGatewayService) replaceModelInSSELine(line, fromModel, toModel string) string {
 	return s09openai.ReplaceModelInSSELine(line, fromModel, toModel)
 }
@@ -113,38 +98,18 @@ func (s *OpenAIGatewayService) correctToolCallsInResponseBody(body []byte) []byt
 			updated = corrected
 		}
 	}
-	if normalized, changed := normalizeOpenAIResponsesFunctionCallArguments(updated); changed {
+	if normalized, changed := s09openai.NormalizeOpenAIResponsesFunctionCallArguments(updated); changed {
 		updated = normalized
 	}
 	return updated
 }
 
-func normalizeOpenAIResponsesFunctionCallArguments(data []byte) ([]byte, bool) {
-	return s09openai.NormalizeOpenAIResponsesFunctionCallArguments(data)
-}
-
-func (s *OpenAIGatewayService) parseSSEUsage(data string, usage *OpenAIUsage) {
+func (s *OpenAIGatewayService) parseSSEUsage(data string, usage *s09openai.ForwardUsage) {
 	s09openai.ParseSSEUsage(data, usage)
 }
 
-func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *OpenAIUsage) {
+func (s *OpenAIGatewayService) parseSSEUsageBytes(data []byte, usage *s09openai.ForwardUsage) {
 	s09openai.ParseSSEUsageBytes(data, usage)
-}
-
-func mergeOpenAIUsageNonZero(dst *OpenAIUsage, src OpenAIUsage) {
-	s09openai.MergeOpenAIUsageNonZero(dst, src)
-}
-
-func extractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
-	return s09openai.ExtractOpenAIUsageFromJSONBytes(body)
-}
-
-func mergeHostedImageGenToolUsage(imageGen gjson.Result, usage *OpenAIUsage) {
-	s09openai.MergeHostedImageGenToolUsage(imageGen, usage)
-}
-
-func extractOpenAIResponseIDFromJSONBytes(body []byte) string {
-	return s09openai.ExtractOpenAIResponseIDFromJSONBytes(body)
 }
 
 const openAIHTTPResponseOwnerContextKey = "openai_http_response_owner"
@@ -212,17 +177,17 @@ func (s *OpenAIGatewayService) bindHTTPResponseAccount(ctx context.Context, c *g
 	}
 	groupID := getOpenAIGroupIDFromContext(c)
 	ttl := s.openAIWSResponseStickyTTL()
-	logOpenAIWSBindResponseAccountWarn(groupID, account.ID, responseID, store.BindResponseAccount(ctx, groupID, responseID, account.ID, ttl))
+	gatewayprovider.LogOpenAIWSBindResponseAccountWarn(groupID, account.ID, responseID, store.BindResponseAccount(ctx, groupID, responseID, account.ID, ttl))
 	if rawOwner, ok := c.Get(openAIHTTPResponseOwnerContextKey); ok {
 		if owner, ok := rawOwner.(openAIHTTPResponseOwner); ok && owner.userID > 0 && owner.apiKeyID > 0 {
 			if err := s.BindOpenAIHTTPResponseOwner(ctx, groupID, responseID, owner.userID, owner.apiKeyID); err != nil {
-				logger.L().Warn(
+				logging.L().Warn(
 					"openai.http_bind_response_owner_failed",
 					zap.Int64("group_id", groupID),
 					zap.Int64("account_id", account.ID),
 					zap.Int64("user_id", owner.userID),
 					zap.Int64("api_key_id", owner.apiKeyID),
-					zap.String("response_id", truncateOpenAIWSLogValue(responseID, openAIWSIDValueMaxLen)),
+					zap.String("response_id", gatewayprovider.TruncateOpenAIWSLogValue(responseID, gatewayprovider.OpenAIWSIDValueMaxLen)),
 					zap.Error(err),
 				)
 			}
@@ -231,11 +196,11 @@ func (s *OpenAIGatewayService) bindHTTPResponseAccount(ctx context.Context, c *g
 }
 
 func (s *OpenAIGatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*openaiNonStreamingResult, error) {
-	result, err := nativeopenai.ReadNonStreamingResponse(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeNonStreamOptions(ctx, c, account), originalModel, mappedModel)
+	result, err := openai.ReadNonStreamingResponse(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeNonStreamOptions(ctx, c, account), originalModel, mappedModel)
 	if result == nil {
 		return nil, err
 	}
-	return &openaiNonStreamingResult{served: result.Served, OpenAIUsage: result.Usage, usage: result.Usage, responseID: result.ResponseID, imageCount: result.ImageCount, imageOutputSizes: result.ImageOutputSizes, searchCount: result.SearchCount}, err
+	return &openaiNonStreamingResult{served: result.Served, ForwardUsage: result.Usage, usage: result.Usage, responseID: result.ResponseID, imageCount: result.ImageCount, imageOutputSizes: result.ImageOutputSizes, searchCount: result.SearchCount}, err
 }
 
 func isEventStreamResponse(header http.Header) bool {
@@ -244,34 +209,26 @@ func isEventStreamResponse(header http.Header) bool {
 }
 
 func (s *OpenAIGatewayService) handleSSEToJSON(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, body []byte, originalModel, mappedModel string) (*openaiNonStreamingResult, error) {
-	result, err := nativeopenai.ReadSSEAsJSON(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeNonStreamOptions(ctx, c, account), body, originalModel, mappedModel)
+	result, err := openai.ReadSSEAsJSON(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeNonStreamOptions(ctx, c, account), body, originalModel, mappedModel)
 	if result == nil {
 		return nil, err
 	}
-	return &openaiNonStreamingResult{served: result.Served, OpenAIUsage: result.Usage, usage: result.Usage, responseID: result.ResponseID, imageCount: result.ImageCount, imageOutputSizes: result.ImageOutputSizes, searchCount: result.SearchCount}, err
-}
-
-func extractOpenAISSETerminalEvent(body string) (string, []byte, bool) {
-	return s09openai.ExtractOpenAISSETerminalEvent(body)
-}
-
-func extractOpenAISSEErrorMessage(payload []byte) string {
-	return nativeopenai.ExtractOpenAISSEErrorMessage(payload)
+	return &openaiNonStreamingResult{served: result.Served, ForwardUsage: result.Usage, usage: result.Usage, responseID: result.ResponseID, imageCount: result.ImageCount, imageOutputSizes: result.ImageOutputSizes, searchCount: result.SearchCount}, err
 }
 
 func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.Response, c *gin.Context, message string) error {
-	message = sanitizeUpstreamErrorMessage(strings.TrimSpace(message))
+	message = logredact.SanitizeUpstreamQueries(strings.TrimSpace(message))
 	if message == "" {
 		message = "Upstream returned an invalid non-streaming response"
 	}
-	setOpsUpstreamError(c, http.StatusBadGateway, message, "")
+	gatewayhttp.SetOpsUpstreamError(c, http.StatusBadGateway, message, "")
 	// body-signal compact 心跳可能已把响应头提交为 200，此时只能以
 	// response.failed 终止事件回传错误，不能再写 JSON+状态码。
-	if openAICompactClientWantsStream(c) && StopOpenAICompactSSEKeepaliveCommitted(c) {
-		writeOpenAICompactSSEFailureMessage(c, http.StatusBadGateway, "upstream_error", message)
+	if gatewayhttp.OpenAICompactClientWantsStream(c) && gatewayhttp.StopOpenAICompactSSEKeepaliveCommitted(c) {
+		gatewayhttp.WriteOpenAICompactSSEFailureMessage(c, http.StatusBadGateway, "upstream_error", message, gatewayhttp.MarkOpsStreamError)
 		return fmt.Errorf("non-streaming openai protocol error: %s", message)
 	}
-	responseheaders.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
+	provider.WriteFilteredHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	c.JSON(http.StatusBadGateway, gin.H{
 		"error": gin.H{
@@ -280,24 +237,6 @@ func (s *OpenAIGatewayService) writeOpenAINonStreamingProtocolError(resp *http.R
 		},
 	})
 	return fmt.Errorf("non-streaming openai protocol error: %s", message)
-}
-
-func extractCodexFinalResponse(body string) ([]byte, bool) {
-	return s09openai.ExtractCodexFinalResponse(body)
-}
-
-func normalizeCompletedImageGenerationStatus(data []byte) ([]byte, bool) {
-	return s09openai.NormalizeCompletedImageGenerationStatus(data)
-}
-
-type responsesStreamOutputItems = s09bridge.ResponsesStreamOutputItems
-
-func newResponsesStreamOutputItems() *responsesStreamOutputItems {
-	return s09bridge.NewResponsesStreamOutputItems()
-}
-
-func normalizeResponsesStreamingTerminalOutput(data []byte, acc *apicompat.BufferedResponseAccumulator, doneItems *responsesStreamOutputItems, imageOutputs []json.RawMessage) ([]byte, bool) {
-	return s09bridge.NormalizeResponsesStreamingTerminalOutput(data, acc, doneItems, imageOutputs)
 }
 
 // supplementCompactionItemFromSSE 保证 compact 请求的终态 output 携带
@@ -314,10 +253,10 @@ func supplementCompactionItemFromSSE(c *gin.Context, finalResponse []byte, bodyT
 		// 空 output 由 reconstructResponseOutputFromSSE 整体修补，不在此处理。
 		return finalResponse
 	}
-	if responsesOutputHasCompactionItem(finalResponse) {
+	if s09openai.ResponsesOutputHasCompactionItem(finalResponse) {
 		return finalResponse
 	}
-	item, found := findRawCompactionItemFromSSE(bodyText)
+	item, found := s09openai.FindRawCompactionItemFromSSE(bodyText)
 	if !found {
 		return finalResponse
 	}
@@ -326,18 +265,6 @@ func supplementCompactionItemFromSSE(c *gin.Context, finalResponse []byte, bodyT
 		return finalResponse
 	}
 	return patched
-}
-
-func responsesOutputHasCompactionItem(response []byte) bool {
-	return s09openai.ResponsesOutputHasCompactionItem(response)
-}
-
-func findRawCompactionItemFromSSE(bodyText string) (json.RawMessage, bool) {
-	return s09openai.FindRawCompactionItemFromSSE(bodyText)
-}
-
-func reconstructResponseOutputFromSSE(bodyText string) ([]byte, bool) {
-	return s09bridge.ReconstructResponseOutputFromSSE(bodyText)
 }
 
 func (s *OpenAIGatewayService) replaceModelInSSEBody(body, fromModel, toModel string) string {

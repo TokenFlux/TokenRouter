@@ -123,14 +123,14 @@ func TestSystemHasClaudeCodeBillingAttribution(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, systemHasClaudeCodeBillingAttribution([]byte(tt.body)))
+			require.Equal(t, tt.want, claude.SystemHasClaudeCodeBillingAttribution([]byte(tt.body)))
 		})
 	}
 }
 
 // TestIsProxiedClaudeCodeRequest 验证代理识别不能由任意 metadata.user_id 绕过。
 func TestIsProxiedClaudeCodeRequest(t *testing.T) {
-	validMetadata := FormatMetadataUserID(
+	validMetadata := claude.FormatMetadataUserID(
 		"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
 		"550e8400-e29b-41d4-a716-446655440000",
 		"123e4567-e89b-42d3-a456-426614174000",
@@ -138,16 +138,16 @@ func TestIsProxiedClaudeCodeRequest(t *testing.T) {
 	)
 	body := []byte(`{"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.220.abc; cc_entrypoint=cli;"}]}`)
 
-	require.True(t, isProxiedClaudeCodeRequest(body, validMetadata))
-	require.False(t, isProxiedClaudeCodeRequest(body, "arbitrary-user-id"))
-	require.False(t, isProxiedClaudeCodeRequest([]byte(`{"system":[{"type":"text","text":"project"}]}`), validMetadata))
+	require.True(t, claude.IsProxiedClaudeCodeRequest(body, validMetadata))
+	require.False(t, claude.IsProxiedClaudeCodeRequest(body, "arbitrary-user-id"))
+	require.False(t, claude.IsProxiedClaudeCodeRequest([]byte(`{"system":[{"type":"text","text":"project"}]}`), validMetadata))
 }
 
 func TestRewriteSystemForNonClaudeCodeWithPrompt_UsesCustomExpansionPrompt(t *testing.T) {
 	body := []byte(`{"model":"claude-3","system":"Project instructions","messages":[{"role":"user","content":"hello"}]}`)
 	customPrompt := "Custom Claude OAuth expansion prompt"
 
-	result := rewriteSystemForNonClaudeCodeWithPrompt(body, "Project instructions", customPrompt)
+	result := claude.RewriteSystemForNonClaudeCodeWithPrompt(body, "Project instructions", customPrompt)
 
 	system := gjson.GetBytes(result, "system")
 	require.True(t, system.IsArray())
@@ -166,7 +166,7 @@ func TestRewriteSystemForNonClaudeCode_PreservesSystemCacheControlOnMigratedMess
 		},
 	}
 
-	result := rewriteSystemForNonClaudeCode(body, system)
+	result := claude.RewriteSystemForNonClaudeCode(body, system)
 
 	require.Equal(t, "[System Instructions]\nStable project instructions", gjson.GetBytes(result, "messages.0.content.0.text").String())
 	require.Equal(t, "ephemeral", gjson.GetBytes(result, "messages.0.content.0.cache_control.type").String())
@@ -179,7 +179,7 @@ func TestRewriteSystemForNonClaudeCode_LeavesMigratedMessageUncachedWithoutSyste
 		map[string]any{"type": "text", "text": "Project instructions"},
 	}
 
-	result := rewriteSystemForNonClaudeCode(body, system)
+	result := claude.RewriteSystemForNonClaudeCode(body, system)
 
 	require.False(t, gjson.GetBytes(result, "messages.0.content.0.cache_control").Exists())
 }
@@ -195,7 +195,7 @@ func TestRewriteSystemForNonClaudeCodeWithPromptBlocks_UsesConfiguredBlocks(t *t
 		]
 	}`
 
-	result := rewriteSystemForNonClaudeCodeWithPromptBlocks(body, "Project instructions", "", blocks)
+	result := claude.RewriteSystemForNonClaudeCodeWithPromptBlocks(body, "Project instructions", "", blocks)
 
 	system := gjson.GetBytes(result, "system")
 	require.True(t, system.IsArray())
@@ -204,7 +204,7 @@ func TestRewriteSystemForNonClaudeCodeWithPromptBlocks_UsesConfiguredBlocks(t *t
 	require.Contains(t, arr[0].Get("text").String(), "prefix "+claude.CLICurrentVersion+".")
 	require.Equal(t, "ephemeral", arr[0].Get("cache_control.type").String())
 	require.Equal(t, claude.DefaultCacheControlTTL, arr[0].Get("cache_control.ttl").String())
-	require.Equal(t, claudeCodeSystemPrompt, arr[1].Get("text").String())
+	require.Equal(t, claude.ClaudeCodeSystemPrompt, arr[1].Get("text").String())
 	require.False(t, arr[1].Get("cache_control").Exists())
 	require.Equal(t, "tail", arr[2].Get("text").String())
 	require.Equal(t, "1h", arr[2].Get("cache_control.ttl").String())
@@ -228,7 +228,7 @@ func TestSystemIncludesClaudeCodePrompt(t *testing.T) {
 		},
 		{
 			name:   "string with Claude Code prompt",
-			system: claudeCodeSystemPrompt,
+			system: claude.ClaudeCodeSystemPrompt,
 			want:   true,
 		},
 		{
@@ -246,7 +246,7 @@ func TestSystemIncludesClaudeCodePrompt(t *testing.T) {
 			system: []any{
 				map[string]any{
 					"type": "text",
-					"text": claudeCodeSystemPrompt,
+					"text": claude.ClaudeCodeSystemPrompt,
 				},
 			},
 			want: true,
@@ -255,7 +255,7 @@ func TestSystemIncludesClaudeCodePrompt(t *testing.T) {
 			name: "array with Claude Code prompt in second position",
 			system: []any{
 				map[string]any{"type": "text", "text": "First prompt"},
-				map[string]any{"type": "text", "text": claudeCodeSystemPrompt},
+				map[string]any{"type": "text", "text": claude.ClaudeCodeSystemPrompt},
 			},
 			want: true,
 		},
@@ -276,7 +276,7 @@ func TestSystemIncludesClaudeCodePrompt(t *testing.T) {
 		// json.RawMessage cases (conversion path: ForwardAsResponses / ForwardAsChatCompletions)
 		{
 			name:   "json.RawMessage string with Claude Code prompt",
-			system: json.RawMessage(`"` + claudeCodeSystemPrompt + `"`),
+			system: json.RawMessage(`"` + claude.ClaudeCodeSystemPrompt + `"`),
 			want:   true,
 		},
 		{
@@ -298,14 +298,14 @@ func TestSystemIncludesClaudeCodePrompt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := systemIncludesClaudeCodePrompt(tt.system)
+			got := claude.SystemIncludesClaudeCodePrompt(tt.system)
 			require.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestInjectClaudeCodePrompt(t *testing.T) {
-	claudePrefix := strings.TrimSpace(claudeCodeSystemPrompt)
+	claudePrefix := strings.TrimSpace(claude.ClaudeCodeSystemPrompt)
 
 	tests := []struct {
 		name           string
@@ -320,29 +320,29 @@ func TestInjectClaudeCodePrompt(t *testing.T) {
 			body:          `{"model":"claude-3"}`,
 			system:        nil,
 			wantSystemLen: 1,
-			wantFirstText: claudeCodeSystemPrompt,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
 		},
 		{
 			name:          "empty string system",
 			body:          `{"model":"claude-3"}`,
 			system:        "",
 			wantSystemLen: 1,
-			wantFirstText: claudeCodeSystemPrompt,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
 		},
 		{
 			name:           "string system",
 			body:           `{"model":"claude-3"}`,
 			system:         "Custom prompt",
 			wantSystemLen:  2,
-			wantFirstText:  claudeCodeSystemPrompt,
+			wantFirstText:  claude.ClaudeCodeSystemPrompt,
 			wantSecondText: claudePrefix + "\n\nCustom prompt",
 		},
 		{
 			name:          "string system equals Claude Code prompt",
 			body:          `{"model":"claude-3"}`,
-			system:        claudeCodeSystemPrompt,
+			system:        claude.ClaudeCodeSystemPrompt,
 			wantSystemLen: 1,
-			wantFirstText: claudeCodeSystemPrompt,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
 		},
 		{
 			name:   "array system",
@@ -350,19 +350,19 @@ func TestInjectClaudeCodePrompt(t *testing.T) {
 			system: []any{map[string]any{"type": "text", "text": "Custom"}},
 			// Claude Code + Custom = 2
 			wantSystemLen:  2,
-			wantFirstText:  claudeCodeSystemPrompt,
+			wantFirstText:  claude.ClaudeCodeSystemPrompt,
 			wantSecondText: claudePrefix + "\n\nCustom",
 		},
 		{
 			name: "array system with existing Claude Code prompt (should dedupe)",
 			body: `{"model":"claude-3"}`,
 			system: []any{
-				map[string]any{"type": "text", "text": claudeCodeSystemPrompt},
+				map[string]any{"type": "text", "text": claude.ClaudeCodeSystemPrompt},
 				map[string]any{"type": "text", "text": "Other"},
 			},
 			// Claude Code at start + Other = 2 (deduped)
 			wantSystemLen:  2,
-			wantFirstText:  claudeCodeSystemPrompt,
+			wantFirstText:  claude.ClaudeCodeSystemPrompt,
 			wantSecondText: claudePrefix + "\n\nOther",
 		},
 		{
@@ -370,7 +370,7 @@ func TestInjectClaudeCodePrompt(t *testing.T) {
 			body:          `{"model":"claude-3"}`,
 			system:        []any{},
 			wantSystemLen: 1,
-			wantFirstText: claudeCodeSystemPrompt,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
 		},
 		// json.RawMessage cases (conversion path: ForwardAsResponses / ForwardAsChatCompletions)
 		{
@@ -378,7 +378,7 @@ func TestInjectClaudeCodePrompt(t *testing.T) {
 			body:           `{"model":"claude-3","system":"Custom prompt"}`,
 			system:         json.RawMessage(`"Custom prompt"`),
 			wantSystemLen:  2,
-			wantFirstText:  claudeCodeSystemPrompt,
+			wantFirstText:  claude.ClaudeCodeSystemPrompt,
 			wantSecondText: claudePrefix + "\n\nCustom prompt",
 		},
 		{
@@ -386,20 +386,20 @@ func TestInjectClaudeCodePrompt(t *testing.T) {
 			body:          `{"model":"claude-3"}`,
 			system:        json.RawMessage(nil),
 			wantSystemLen: 1,
-			wantFirstText: claudeCodeSystemPrompt,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
 		},
 		{
 			name:          "json.RawMessage Claude Code prompt (should not duplicate)",
-			body:          `{"model":"claude-3","system":"` + claudeCodeSystemPrompt + `"}`,
-			system:        json.RawMessage(`"` + claudeCodeSystemPrompt + `"`),
+			body:          `{"model":"claude-3","system":"` + claude.ClaudeCodeSystemPrompt + `"}`,
+			system:        json.RawMessage(`"` + claude.ClaudeCodeSystemPrompt + `"`),
 			wantSystemLen: 1,
-			wantFirstText: claudeCodeSystemPrompt,
+			wantFirstText: claude.ClaudeCodeSystemPrompt,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := injectClaudeCodePrompt([]byte(tt.body), tt.system)
+			result := claude.InjectClaudeCodePrompt([]byte(tt.body), tt.system)
 
 			var parsed map[string]any
 			err := json.Unmarshal(result, &parsed)
@@ -443,21 +443,21 @@ func TestRewriteSystemForNonClaudeCode(t *testing.T) {
 			name:            "nil system - no messages injected",
 			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
 			system:          nil,
-			wantSystemText:  claudeCodeSystemPrompt,
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen: 1, // 原始 1 条消息，不注入
 		},
 		{
 			name:            "empty string system - no messages injected",
 			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
 			system:          "",
-			wantSystemText:  claudeCodeSystemPrompt,
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen: 1,
 		},
 		{
 			name:             "custom string system - migrated to messages",
 			body:             `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
 			system:           "You are a personal assistant running inside OpenClaw.",
-			wantSystemText:   claudeCodeSystemPrompt,
+			wantSystemText:   claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen:  3, // instruction + ack + original
 			wantFirstMsgRole: "user",
 			wantFirstMsgText: "[System Instructions]\nYou are a personal assistant running inside OpenClaw.",
@@ -466,8 +466,8 @@ func TestRewriteSystemForNonClaudeCode(t *testing.T) {
 		{
 			name:            "system equals Claude Code prompt - no messages injected",
 			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
-			system:          claudeCodeSystemPrompt,
-			wantSystemText:  claudeCodeSystemPrompt,
+			system:          claude.ClaudeCodeSystemPrompt,
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen: 1,
 		},
 		{
@@ -477,7 +477,7 @@ func TestRewriteSystemForNonClaudeCode(t *testing.T) {
 				map[string]any{"type": "text", "text": "First instruction"},
 				map[string]any{"type": "text", "text": "Second instruction"},
 			},
-			wantSystemText:   claudeCodeSystemPrompt,
+			wantSystemText:   claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen:  3,
 			wantFirstMsgRole: "user",
 			wantFirstMsgText: "[System Instructions]\nFirst instruction\n\nSecond instruction",
@@ -487,14 +487,14 @@ func TestRewriteSystemForNonClaudeCode(t *testing.T) {
 			name:            "empty array system - no messages injected",
 			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
 			system:          []any{},
-			wantSystemText:  claudeCodeSystemPrompt,
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen: 1,
 		},
 		{
 			name:             "json.RawMessage string system",
 			body:             `{"model":"claude-3","system":"Custom prompt","messages":[{"role":"user","content":"hello"}]}`,
 			system:           json.RawMessage(`"Custom prompt"`),
-			wantSystemText:   claudeCodeSystemPrompt,
+			wantSystemText:   claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen:  3,
 			wantFirstMsgRole: "user",
 			wantFirstMsgText: "[System Instructions]\nCustom prompt",
@@ -504,14 +504,14 @@ func TestRewriteSystemForNonClaudeCode(t *testing.T) {
 			name:            "json.RawMessage nil system",
 			body:            `{"model":"claude-3","messages":[{"role":"user","content":"hello"}]}`,
 			system:          json.RawMessage(nil),
-			wantSystemText:  claudeCodeSystemPrompt,
+			wantSystemText:  claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen: 1,
 		},
 		{
 			name:             "multiple original messages preserved",
 			body:             `{"model":"claude-3","messages":[{"role":"user","content":"msg1"},{"role":"assistant","content":"resp1"},{"role":"user","content":"msg2"}]}`,
 			system:           "Be helpful",
-			wantSystemText:   claudeCodeSystemPrompt,
+			wantSystemText:   claude.ClaudeCodeSystemPrompt,
 			wantMessagesLen:  5, // 2 injected + 3 original
 			wantFirstMsgRole: "user",
 			wantFirstMsgText: "[System Instructions]\nBe helpful",
@@ -521,7 +521,7 @@ func TestRewriteSystemForNonClaudeCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := rewriteSystemForNonClaudeCode([]byte(tt.body), tt.system)
+			result := claude.RewriteSystemForNonClaudeCode([]byte(tt.body), tt.system)
 
 			var parsed map[string]any
 			err := json.Unmarshal(result, &parsed)
@@ -554,7 +554,7 @@ func TestRewriteSystemForNonClaudeCode(t *testing.T) {
 			expansionBlock, ok := systemArr[2].(map[string]any)
 			require.True(t, ok)
 			require.Equal(t, "text", expansionBlock["type"])
-			require.Equal(t, claudeCodeSystemPromptExpansion, expansionBlock["text"])
+			require.Equal(t, claude.ClaudeCodeSystemPromptExpansion, expansionBlock["text"])
 			cc, ok := expansionBlock["cache_control"].(map[string]any)
 			require.True(t, ok, "expansion block should have cache_control")
 			require.Equal(t, "ephemeral", cc["type"])

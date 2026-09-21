@@ -12,7 +12,7 @@ import (
 )
 
 func TestParseOpsViewParam(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/?view=excluded", nil)
@@ -57,7 +57,7 @@ func TestParseOpsTokenStatsDuration(t *testing.T) {
 	}
 }
 func TestParseOpsTokenStatsFilter_Defaults(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
@@ -79,7 +79,7 @@ func TestParseOpsTokenStatsFilter_Defaults(t *testing.T) {
 	require.WithinDuration(t, after, filter.EndTime, 2*time.Second)
 }
 func TestParseOpsTokenStatsFilter_WithTopN(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(
@@ -112,7 +112,6 @@ func TestParseOpsTokenStatsFilter_InvalidParams(t *testing.T) {
 		"/?page_size=101",
 	}
 
-	gin.SetMode(gin.TestMode)
 	for _, rawURL := range tests {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
@@ -123,7 +122,7 @@ func TestParseOpsTokenStatsFilter_InvalidParams(t *testing.T) {
 	}
 }
 func TestParseOpsTimeRange(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	now := time.Now().UTC()

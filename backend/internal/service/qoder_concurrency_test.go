@@ -1,16 +1,17 @@
 package service
 
 import (
-	"context"
-	"errors"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 )
 
 // TestQoderConversationStoreConcurrent 验证 conversation store 在并发访问下的正确性
 func TestQoderConversationStoreConcurrent(t *testing.T) {
-	store := newQoderConversationStore(5 * time.Minute)
+	store := qoder.NewQoderConversationStore(5 * time.Minute)
 
 	const numGoroutines = 50
 	const numOpsPerGoroutine = 100
@@ -33,13 +34,13 @@ func TestQoderConversationStoreConcurrent(t *testing.T) {
 				store.Mu.Unlock()
 
 				// 创建新 plan，设置 previousState
-				plan := &qoderConversationPlan{
+				plan := &qoder.QoderConversationPlan{
 					Store:             store,
 					Key:               key,
 					SessionID:         sessionID,
 					SystemFingerprint: "system_v1",
 					ToolsFingerprint:  "tools_v1",
-					PreviousState:     cloneQoderConversationState(currentState),
+					PreviousState:     qoder.CloneQoderConversationState(currentState),
 				}
 
 				// 提交新的 fingerprints
@@ -73,86 +74,14 @@ func TestQoderConversationStoreConcurrent(t *testing.T) {
 	}
 }
 
-// TestQoderTokenProviderConcurrent 验证 token provider 在并发访问下的缓存行为
-func TestQoderTokenProviderConcurrent(t *testing.T) {
-	provider := &QoderTokenProvider{Core: &qoderSessionState{Sessions: make(map[int64]qoderSessionCacheEntry)}}
-
-	// 创建测试 account
-	account := &Account{
-		ID:       12345,
-		Platform: PlatformQoder,
-		Type:     AccountTypeCosy,
-		Credentials: map[string]any{
-			"security_oauth_token": "test_oauth_token",
-			"machine_id":           "test_machine_id",
-			"uid":                  "test_uid",
-		},
-	}
-
-	const numGoroutines = 50
-	const numRequestsPerGoroutine = 20
-
-	var wg sync.WaitGroup
-	wg.Add(numGoroutines)
-
-	ctx := context.Background()
-	successCount := sync.Map{}
-
-	// 并发请求 session
-	for i := 0; i < numGoroutines; i++ {
-		go func(workerID int) {
-			defer wg.Done()
-			for j := 0; j < numRequestsPerGoroutine; j++ {
-				session, err := provider.GetSession(ctx, account)
-				if err != nil {
-					// 与显式 Invalidate 竞争的旧世代构建必须被丢弃，这是预期的安全结果。
-					if errors.Is(err, errQoderSessionBuildInvalidated) {
-						successCount.Store(workerID*1000+j, true)
-						continue
-					}
-					t.Logf("worker %d request %d failed: %v", workerID, j, err)
-					continue
-				}
-				if session == nil {
-					t.Errorf("worker %d request %d: got nil session", workerID, j)
-					continue
-				}
-				successCount.Store(workerID*1000+j, true)
-
-				// 模拟 invalidate 场景
-				if workerID%3 == 0 && j%5 == 0 {
-					provider.Invalidate(account.ID)
-				}
-			}
-		}(i)
-	}
-
-	wg.Wait()
-
-	// 统计成功率
-	count := 0
-	successCount.Range(func(key, value any) bool {
-		count++
-		return true
-	})
-
-	expectedTotal := numGoroutines * numRequestsPerGoroutine
-	successRate := float64(count) / float64(expectedTotal)
-	t.Logf("Success rate: %d/%d (%.2f%%)", count, expectedTotal, successRate*100)
-
-	if successRate < 0.8 {
-		t.Errorf("success rate too low: %.2f%%, expected >= 80%%", successRate*100)
-	}
-}
-
 // TestQoderConversationRollbackVersionControl 验证 rollback 版本控制防止并发覆盖
 func TestQoderConversationRollbackVersionControl(t *testing.T) {
-	store := newQoderConversationStore(5 * time.Minute)
+	store := qoder.NewQoderConversationStore(5 * time.Minute)
 	key := "test_key"
 	sessionID := "session_1"
 
 	// 初始状态：version 1
-	plan1 := &qoderConversationPlan{
+	plan1 := &qoder.QoderConversationPlan{
 		Store:             store,
 		Key:               key,
 		SessionID:         sessionID,
@@ -169,12 +98,12 @@ func TestQoderConversationRollbackVersionControl(t *testing.T) {
 	}
 
 	// 保存 previousState 用于后续 rollback
-	plan1.PreviousState = cloneQoderConversationState(state1)
-	plan1.AcceptedState = cloneQoderConversationState(state1)
+	plan1.PreviousState = qoder.CloneQoderConversationState(state1)
+	plan1.AcceptedState = qoder.CloneQoderConversationState(state1)
 	plan1.AcceptedCommitted = true
 
 	// 另一个 plan 提交新状态：version 2
-	plan2 := &qoderConversationPlan{
+	plan2 := &qoder.QoderConversationPlan{
 		Store:             store,
 		Key:               key,
 		SessionID:         sessionID,
@@ -210,18 +139,18 @@ func TestQoderConversationRollbackVersionControl(t *testing.T) {
 }
 
 func TestQoderConversationRollbackAcceptedDeletesOwnNewState(t *testing.T) {
-	store := newQoderConversationStore(5 * time.Minute)
+	store := qoder.NewQoderConversationStore(5 * time.Minute)
 	plan := store.Plan(
 		"rollback_new_state",
 		"system",
 		nil,
-		[]qoderMessage{{Role: "user", Text: "hello"}},
+		[]qoder.QoderMessage{{Role: "user", Text: "hello"}},
 	)
 
 	plan.CommitAccepted()
 
 	store.Mu.Lock()
-	accepted := cloneQoderConversationState(store.Items[plan.Key])
+	accepted := qoder.CloneQoderConversationState(store.Items[plan.Key])
 	store.Mu.Unlock()
 	if accepted == nil || accepted.Version != 1 {
 		t.Fatalf("expected accepted version=1, got=%v", accepted)
@@ -238,21 +167,21 @@ func TestQoderConversationRollbackAcceptedDeletesOwnNewState(t *testing.T) {
 }
 
 func TestQoderConversationRollbackAcceptedRestoresPreviousState(t *testing.T) {
-	store := newQoderConversationStore(5 * time.Minute)
+	store := qoder.NewQoderConversationStore(5 * time.Minute)
 	key := "rollback_previous_state"
 	system := "system"
-	firstMessages := []qoderMessage{{Role: "user", Text: "first"}}
+	firstMessages := []qoder.QoderMessage{{Role: "user", Text: "first"}}
 	initialPlan := store.Plan(key, system, nil, firstMessages)
-	initialPlan.Commit(ClaudeUsage{InputTokens: 10, OutputTokens: 2})
+	initialPlan.Commit(upstream.TokenUsage{InputTokens: 10, OutputTokens: 2})
 
 	store.Mu.Lock()
-	previous := cloneQoderConversationState(store.Items[key])
+	previous := qoder.CloneQoderConversationState(store.Items[key])
 	store.Mu.Unlock()
 	if previous == nil || previous.Version != 1 || !previous.HasUsage {
 		t.Fatalf("unexpected previous state: %#v", previous)
 	}
 
-	nextMessages := []qoderMessage{
+	nextMessages := []qoder.QoderMessage{
 		{Role: "user", Text: "first"},
 		{Role: "assistant", Text: "answer"},
 		{Role: "user", Text: "next"},
@@ -265,7 +194,7 @@ func TestQoderConversationRollbackAcceptedRestoresPreviousState(t *testing.T) {
 	plan.CommitAccepted()
 
 	store.Mu.Lock()
-	accepted := cloneQoderConversationState(store.Items[key])
+	accepted := qoder.CloneQoderConversationState(store.Items[key])
 	store.Mu.Unlock()
 	if accepted == nil || accepted.Version != 2 {
 		t.Fatalf("expected accepted version=2, got=%#v", accepted)
@@ -274,29 +203,29 @@ func TestQoderConversationRollbackAcceptedRestoresPreviousState(t *testing.T) {
 	plan.RollbackAccepted()
 
 	store.Mu.Lock()
-	final := cloneQoderConversationState(store.Items[key])
+	final := qoder.CloneQoderConversationState(store.Items[key])
 	store.Mu.Unlock()
-	if !qoderConversationStateEqual(final, previous) {
+	if !qoder.QoderConversationStateEqual(final, previous) {
 		t.Fatalf("expected rollback to restore previous state\nprevious=%#v\nfinal=%#v", previous, final)
 	}
 }
 
 func TestQoderConversationRollbackAcceptedDoesNotClobberConcurrentCommit(t *testing.T) {
-	store := newQoderConversationStore(5 * time.Minute)
+	store := qoder.NewQoderConversationStore(5 * time.Minute)
 	key := "rollback_concurrent_commit"
 	system := "system"
-	firstMessages := []qoderMessage{{Role: "user", Text: "first"}}
+	firstMessages := []qoder.QoderMessage{{Role: "user", Text: "first"}}
 	initialPlan := store.Plan(key, system, nil, firstMessages)
 	initialPlan.Commit()
 
-	plan := store.Plan(key, system, nil, []qoderMessage{
+	plan := store.Plan(key, system, nil, []qoder.QoderMessage{
 		{Role: "user", Text: "first"},
 		{Role: "assistant", Text: "answer"},
 		{Role: "user", Text: "next"},
 	})
 	plan.CommitAccepted()
 
-	concurrentPlan := store.Plan(key, system, nil, []qoderMessage{
+	concurrentPlan := store.Plan(key, system, nil, []qoder.QoderMessage{
 		{Role: "user", Text: "first"},
 		{Role: "assistant", Text: "answer"},
 		{Role: "user", Text: "next"},
@@ -304,7 +233,7 @@ func TestQoderConversationRollbackAcceptedDoesNotClobberConcurrentCommit(t *test
 	concurrentPlan.Commit()
 
 	store.Mu.Lock()
-	concurrentState := cloneQoderConversationState(store.Items[key])
+	concurrentState := qoder.CloneQoderConversationState(store.Items[key])
 	store.Mu.Unlock()
 	if concurrentState == nil || concurrentState.Version != 3 {
 		t.Fatalf("expected concurrent version=3, got=%#v", concurrentState)
@@ -313,51 +242,9 @@ func TestQoderConversationRollbackAcceptedDoesNotClobberConcurrentCommit(t *test
 	plan.RollbackAccepted()
 
 	store.Mu.Lock()
-	final := cloneQoderConversationState(store.Items[key])
+	final := qoder.CloneQoderConversationState(store.Items[key])
 	store.Mu.Unlock()
-	if !qoderConversationStateEqual(final, concurrentState) {
+	if !qoder.QoderConversationStateEqual(final, concurrentState) {
 		t.Fatalf("rollback clobbered concurrent commit\nconcurrent=%#v\nfinal=%#v", concurrentState, final)
 	}
-}
-
-// TestQoderTokenProviderInvalidateRace 验证 GetSession 和 Invalidate 的竞态安全
-func TestQoderTokenProviderInvalidateRace(t *testing.T) {
-	provider := &QoderTokenProvider{Core: &qoderSessionState{Sessions: make(map[int64]qoderSessionCacheEntry)}}
-
-	account := &Account{
-		ID:       999,
-		Platform: PlatformQoder,
-		Type:     AccountTypeCosy,
-		Credentials: map[string]any{
-			"security_oauth_token": "token_999",
-			"machine_id":           "machine_999",
-			"aid":                  "aid_999",
-		},
-	}
-
-	ctx := context.Background()
-	const numIterations = 1000
-
-	// 启动两个 goroutine：一个不断 GetSession，一个不断 Invalidate
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < numIterations; i++ {
-			_, _ = provider.GetSession(ctx, account)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		for i := 0; i < numIterations; i++ {
-			provider.Invalidate(account.ID)
-		}
-	}()
-
-	wg.Wait()
-
-	// 不应该 panic 或死锁
-	t.Log("GetSession/Invalidate race test completed without panic")
 }

@@ -1,9 +1,12 @@
 package service
 
-import grokforward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
+import (
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	grokforward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
+)
 
 // nativeGrokForwardResult 显式投影同步观测结果，不复制平台算法或完成状态。
-func nativeGrokForwardResult(v *OpenAIForwardResult) *grokforward.Result {
+func nativeGrokForwardResult(v *forwardcore.OpenAIResult) *grokforward.Result {
 	if v == nil {
 		return nil
 	}
@@ -42,17 +45,17 @@ func nativeGrokForwardResult(v *OpenAIForwardResult) *grokforward.Result {
 		AudioUsage:                  v.AudioUsage,
 	}
 	if v.UpstreamWarning != nil {
-		out.UpstreamWarning = &grokforward.Warning{StatusCode: v.UpstreamWarning.StatusCode, ResponseBody: v.UpstreamWarning.ResponseBody, Message: v.UpstreamWarning.Message}
+		out.UpstreamWarning = &forwardcore.UpstreamWarning{StatusCode: v.UpstreamWarning.StatusCode, ResponseBody: v.UpstreamWarning.ResponseBody, Message: v.UpstreamWarning.Message}
 	}
 	return out
 }
 
 // legacyGrokForwardResult 显式投影同步观测结果，不复制平台算法或完成状态。
-func legacyGrokForwardResult(v *grokforward.Result) *OpenAIForwardResult {
+func legacyGrokForwardResult(v *grokforward.Result) *forwardcore.OpenAIResult {
 	if v == nil {
 		return nil
 	}
-	out := &OpenAIForwardResult{
+	out := &forwardcore.OpenAIResult{
 		RequestID:                   v.RequestID,
 		ResponseID:                  v.ResponseID,
 		UpstreamHeaders:             v.UpstreamHeaders,
@@ -87,7 +90,7 @@ func legacyGrokForwardResult(v *grokforward.Result) *OpenAIForwardResult {
 		AudioUsage:                  v.AudioUsage,
 	}
 	if v.UpstreamWarning != nil {
-		out.UpstreamWarning = &OpenAIUpstreamWarning{StatusCode: v.UpstreamWarning.StatusCode, ResponseBody: v.UpstreamWarning.ResponseBody, Message: v.UpstreamWarning.Message}
+		out.UpstreamWarning = &forwardcore.UpstreamWarning{StatusCode: v.UpstreamWarning.StatusCode, ResponseBody: v.UpstreamWarning.ResponseBody, Message: v.UpstreamWarning.Message}
 	}
 	return out
 }

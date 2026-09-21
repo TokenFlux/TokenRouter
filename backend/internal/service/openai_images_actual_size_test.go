@@ -16,6 +16,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -28,15 +33,15 @@ func TestDetectOpenAIImageResultSize(t *testing.T) {
 	webpVP8Encoded := encodeOpenAIImageTestWebPVP8(1280, 720)
 	webpVP8LEncoded := encodeOpenAIImageTestWebPVP8L(640, 480)
 
-	require.Equal(t, "1672x941", detectOpenAIImageResultSize(pngEncoded))
-	require.Equal(t, "1672x941", detectOpenAIImageResultSize(strings.TrimRight(pngEncoded, "=")))
-	require.Equal(t, "1672x941", detectOpenAIImageResultSize("data:image/png;base64,"+pngEncoded))
-	require.Equal(t, "640x360", detectOpenAIImageResultSize(jpegEncoded))
-	require.Equal(t, "1920x1080", detectOpenAIImageResultSize(webpVP8XEncoded))
-	require.Equal(t, "1280x720", detectOpenAIImageResultSize(webpVP8Encoded))
-	require.Equal(t, "640x480", detectOpenAIImageResultSize(webpVP8LEncoded))
-	require.Empty(t, detectOpenAIImageResultSize("data:image/png;base64"))
-	require.Empty(t, detectOpenAIImageResultSize("not-image-data"))
+	require.Equal(t, "1672x941", openai.DetectOpenAIImageResultSize(pngEncoded))
+	require.Equal(t, "1672x941", openai.DetectOpenAIImageResultSize(strings.TrimRight(pngEncoded, "=")))
+	require.Equal(t, "1672x941", openai.DetectOpenAIImageResultSize("data:image/png;base64,"+pngEncoded))
+	require.Equal(t, "640x360", openai.DetectOpenAIImageResultSize(jpegEncoded))
+	require.Equal(t, "1920x1080", openai.DetectOpenAIImageResultSize(webpVP8XEncoded))
+	require.Equal(t, "1280x720", openai.DetectOpenAIImageResultSize(webpVP8Encoded))
+	require.Equal(t, "640x480", openai.DetectOpenAIImageResultSize(webpVP8LEncoded))
+	require.Empty(t, openai.DetectOpenAIImageResultSize("data:image/png;base64"))
+	require.Empty(t, openai.DetectOpenAIImageResultSize("not-image-data"))
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthUsesDecodedOutputDimensions(t *testing.T) {
@@ -47,11 +52,10 @@ func TestOpenAIGatewayServiceForwardImages_OAuthUsesDecodedOutputDimensions(t *t
 	require.Equal(t, "1672x941", gjson.Get(run.recorder.Body.String(), "size").String())
 	require.Equal(t, "auto", gjson.Get(run.recorder.Body.String(), "quality").String())
 	require.Equal(t, []string{"1672x941"}, run.result.ImageOutputSizes)
-
-	ApplyOpenAIImageBillingResolution(run.result)
-	require.Equal(t, ImageBillingSize2K, run.result.ImageSize)
+	forwardcore.ApplyOpenAIImageBillingResolution(run.result)
+	require.Equal(t, pricing.ImageBillingSize2K, run.result.ImageSize)
 	require.Equal(t, "1672x941", run.result.ImageOutputSize)
-	require.Equal(t, ImageSizeSourceOutput, run.result.ImageSizeSource)
+	require.Equal(t, pricing.ImageSizeSourceOutput, run.result.ImageSizeSource)
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingUsesDecodedOutputDimensions(t *testing.T) {
@@ -66,21 +70,21 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingUsesDecodedOutputDimens
 }
 
 type openAIOAuthImageActualSizeTestRun struct {
-	result   *OpenAIForwardResult
+	result   *forwardcore.OpenAIResult
 	recorder *httptest.ResponseRecorder
 	upstream *httpUpstreamRecorder
 }
 
 func runOpenAIOAuthImageActualSizeTest(t *testing.T, stream bool) openAIOAuthImageActualSizeTestRun {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(fmt.Sprintf(`{"model":"gpt-image-2","prompt":"draw a test chart","size":"3840x2160","quality":"low","output_format":"png","stream":%t}`, stream))
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
-	c.Set("api_key", &APIKey{ID: 42})
+	c.Set("api_key", &apikey.APIKey{ID: 42})
 
 	encoded := encodeOpenAIImageTestPNG(t, 1672, 941)
 	upstreamBody := fmt.Sprintf(
@@ -104,8 +108,8 @@ func runOpenAIOAuthImageActualSizeTest(t *testing.T, stream bool) openAIOAuthIma
 	account := &Account{
 		ID:       1,
 		Name:     "openai-oauth",
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token":       "token-123",
 			"chatgpt_account_id": "acct-123",

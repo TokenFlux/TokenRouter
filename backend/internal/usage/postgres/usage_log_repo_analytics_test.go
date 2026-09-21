@@ -5,19 +5,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/settings/preaggregation"
+
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
 
 // TestResolveUsageAnalyticsWindowUsesCoveredMiddle 验证未完成回填时只让未覆盖头部读取原始表。
 func TestResolveUsageAnalyticsWindowUsesCoveredMiddle(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	start := time.Date(2026, 8, 1, 10, 15, 0, 0, time.UTC)
@@ -42,8 +42,8 @@ func TestResolveUsageAnalyticsWindowUsesCoveredMiddle(t *testing.T) {
 // TestBuildUsageAnalyticsQueryUsesHalfOpenRanges 验证组合查询的首尾原始区间互不重叠。
 func TestBuildUsageAnalyticsQueryUsesHalfOpenRanges(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	start := time.Date(2026, 8, 1, 10, 15, 0, 0, time.UTC)
@@ -73,8 +73,8 @@ func TestBuildUsageAnalyticsQueryUsesHalfOpenRanges(t *testing.T) {
 // TestBuildUsageAnalyticsQueryBeforeUTCMidnightKeepsTodayBoundary 验证东八区今日在 UTC 零点前不会包含昨日小时桶。
 func TestBuildUsageAnalyticsQueryBeforeUTCMidnightKeepsTodayBoundary(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	// 北京时间 2026-08-06 00:00 至 03:30 对应同一 UTC 日内的不完整窗口。
@@ -102,8 +102,8 @@ func TestBuildUsageAnalyticsQueryBeforeUTCMidnightKeepsTodayBoundary(t *testing.
 
 func TestGetAllGroupUsageSummaryFromAnalyticsIncludesYesterday(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	now := time.Now().UTC()
@@ -134,7 +134,7 @@ func TestGetAllGroupUsageSummaryFromAnalyticsIncludesYesterday(t *testing.T) {
 	results, ok, err := repo.getAllGroupUsageSummaryFromAnalytics(context.Background(), todayStart)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, []usagestats.GroupUsageSummary{
+	require.Equal(t, []usage.GroupUsageSummary{
 		{GroupID: 1, TodayCost: 2, YesterdayCost: 3, TotalCost: 9},
 		{GroupID: 2, TodayCost: 1, YesterdayCost: 0, TotalCost: 0},
 	}, results)
@@ -158,7 +158,7 @@ func TestGetAllGroupUsageSummaryFallbackIncludesYesterday(t *testing.T) {
 
 	results, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart)
 	require.NoError(t, err)
-	require.Equal(t, []usagestats.GroupUsageSummary{
+	require.Equal(t, []usage.GroupUsageSummary{
 		{GroupID: 1, TodayCost: 2, YesterdayCost: 3, TotalCost: 9},
 	}, results)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -185,8 +185,8 @@ func TestUsageAnalyticsFallbackWarningIsRateLimited(t *testing.T) {
 // TestBuildUsageAnalyticsQueryWithoutDailyUsesContiguousArgs 验证小时查询不携带未引用的日边界参数。
 func TestBuildUsageAnalyticsQueryWithoutDailyUsesContiguousArgs(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	start := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
@@ -205,13 +205,13 @@ func TestBuildUsageAnalyticsQueryWithoutDailyUsesContiguousArgs(t *testing.T) {
 // TestBuildUsageAnalyticsQueryNumbersOwnedTeamFiltersContinuously 验证团队范围与筛选参数从基础边界后连续编号。
 func TestBuildUsageAnalyticsQueryNumbersOwnedTeamFiltersContinuously(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	start := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	end := start.Add(4 * time.Hour)
-	requestType := int16(service.RequestTypeStream)
+	requestType := int16(usage.RequestTypeStream)
 	stream := true
 	billingType := int8(1)
 	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
@@ -222,7 +222,7 @@ func TestBuildUsageAnalyticsQueryNumbersOwnedTeamFiltersContinuously(t *testing.
 
 	query, ok, err := repo.buildUsageAnalyticsQuery(context.Background(), UsageLogFilters{
 		UserID: 7, IncludeOwnedTeam: true, APIKeyID: 11, GroupID: 12, TeamID: 13,
-		Model: "requested-model", ModelFilterSource: usagestats.ModelSourceRequested,
+		Model: "requested-model", ModelFilterSource: usage.ModelSourceRequested,
 		RequestType: &requestType, Stream: &stream, BillingType: &billingType, BillingMode: "token",
 	}, start, end, false)
 	require.NoError(t, err)
@@ -244,8 +244,8 @@ func TestBuildUsageAnalyticsQueryNumbersOwnedTeamFiltersContinuously(t *testing.
 // TestBuildUsageAnalyticsQueryUsesIndexableOwnedTeamRawSource 验证未覆盖原始区间不会恢复成标量子查询 OR。
 func TestBuildUsageAnalyticsQueryUsesIndexableOwnedTeamRawSource(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	start := time.Date(2026, 8, 1, 10, 15, 0, 0, time.UTC)
@@ -271,8 +271,8 @@ func TestBuildUsageAnalyticsQueryUsesIndexableOwnedTeamRawSource(t *testing.T) {
 
 // TestBuildUsageAnalyticsQueryRejectsUnsupportedFilters 验证聚合表缺少的维度会透明回退原始查询。
 func TestBuildUsageAnalyticsQueryRejectsUnsupportedFilters(t *testing.T) {
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{preAggregation: settings}
 	start := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
@@ -285,7 +285,7 @@ func TestBuildUsageAnalyticsQueryRejectsUnsupportedFilters(t *testing.T) {
 		{name: "账号维度", filters: UsageLogFilters{AccountID: 1}},
 		{name: "请求编号", filters: UsageLogFilters{RequestID: "request-1"}},
 		{name: "默认模型语义", filters: UsageLogFilters{Model: "mapped-model"}},
-		{name: "上游模型", filters: UsageLogFilters{Model: "upstream-model", ModelFilterSource: usagestats.ModelSourceUpstream}},
+		{name: "上游模型", filters: UsageLogFilters{Model: "upstream-model", ModelFilterSource: usage.ModelSourceUpstream}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -302,7 +302,7 @@ func TestGetModelStatsFromAnalyticsRejectsUnsupportedGrouping(t *testing.T) {
 	start := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(time.Hour)
 
-	for _, source := range []string{usagestats.ModelSourceUpstream, usagestats.ModelSourceMapping} {
+	for _, source := range []string{usage.ModelSourceUpstream, usage.ModelSourceMapping} {
 		_, ok, err := repo.getModelStatsFromAnalytics(context.Background(), start, end, UsageLogFilters{
 			ModelFilterSource: source,
 		})
@@ -314,8 +314,8 @@ func TestGetModelStatsFromAnalyticsRejectsUnsupportedGrouping(t *testing.T) {
 // TestGetUserSpendingRankingFromAnalyticsReturnsCurrentUsername 验证预聚合排行会关联当前用户身份字段。
 func TestGetUserSpendingRankingFromAnalyticsReturnsCurrentUsername(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	start := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
@@ -332,7 +332,7 @@ func TestGetUserSpendingRankingFromAnalyticsReturnsCurrentUsername(t *testing.T)
 	got, ok, err := repo.getUserSpendingRankingFromAnalytics(context.Background(), start, end, 12)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, []usagestats.UserSpendingRankingItem{
+	require.Equal(t, []usage.UserSpendingRankingItem{
 		{UserID: 7, Email: "rank@example.com", Username: "rank-user", ActualCost: 12.5, Requests: 9, Tokens: 900},
 	}, got.Ranking)
 	require.Equal(t, 12.5, got.TotalActualCost)
@@ -342,8 +342,8 @@ func TestGetUserSpendingRankingFromAnalyticsReturnsCurrentUsername(t *testing.T)
 // TestGetUsageRankingFromAnalyticsGroupsByBillingUser 验证公开排行按付款主体合并团队成员用量。
 func TestGetUsageRankingFromAnalyticsGroupsByBillingUser(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	start := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
@@ -358,7 +358,7 @@ func TestGetUsageRankingFromAnalyticsGroupsByBillingUser(t *testing.T) {
 			"total_tokens", "actual_cost", "total_requests", "ranking_total_tokens", "total_actual_cost",
 		}).AddRow(1, int64(9), "owner@example.com", "owner", "", int64(3), int64(100), int64(20), int64(0), int64(0), int64(120), 2.5, int64(3), int64(120), 2.5))
 
-	got, ok, err := repo.getUsageRankingFromAnalytics(context.Background(), start, end, 20, service.UsageRankingSortByTotalTokens)
+	got, ok, err := repo.getUsageRankingFromAnalytics(context.Background(), start, end, 20, usage.UsageRankingSortByTotalTokens)
 	require.NoError(t, err)
 	require.True(t, ok)
 	require.Len(t, got.Ranking, 1)
@@ -371,8 +371,8 @@ func TestGetUsageRankingFromAnalyticsGroupsByBillingUser(t *testing.T) {
 // TestGetUserUsageTrendFromAnalyticsGroupsByBillingUser 验证 Top 用户趋势按付款主体合并团队成员用量。
 func TestGetUserUsageTrendFromAnalyticsGroupsByBillingUser(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	start := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
@@ -388,7 +388,7 @@ func TestGetUserUsageTrendFromAnalyticsGroupsByBillingUser(t *testing.T) {
 	got, ok, err := repo.getUserUsageTrendFromAnalytics(context.Background(), start, end, "day", 12)
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.Equal(t, []usagestats.UserUsageTrendPoint{
+	require.Equal(t, []usage.UserUsageTrendPoint{
 		{Date: "2026-08-01", UserID: 9, Email: "owner@example.com", Username: "owner", Requests: 3, Tokens: 120, Cost: 2.5, ActualCost: 2.5},
 	}, got)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -396,15 +396,14 @@ func TestGetUserUsageTrendFromAnalyticsGroupsByBillingUser(t *testing.T) {
 
 // TestGetUsageTrendFromAnalyticsUsesNamedTimezoneForDST 验证趋势分桶把命名时区交给 PostgreSQL 处理夏令时。
 func TestGetUsageTrendFromAnalyticsUsesNamedTimezoneForDST(t *testing.T) {
-	previousTimezone := timezone.Name()
-	require.NoError(t, timezone.Init("America/New_York"))
-	t.Cleanup(func() { _ = timezone.Init(previousTimezone) })
+	loc, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
 
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
-	repo := &Store{sql: db, preAggregation: settings}
+	repo := &Store{sql: db, preAggregation: settings, calendar: timezone.NewCalendar(loc)}
 	// 该 UTC 窗口跨越纽约 2026 年秋季夏令时回拨点。
 	start := time.Date(2026, 11, 1, 4, 0, 0, 0, time.UTC)
 	end := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
@@ -426,14 +425,15 @@ func TestGetUsageTrendFromAnalyticsUsesNamedTimezoneForDST(t *testing.T) {
 // TestBatchAPIKeyUsageAnalyticsUsesDynamicTodayIDPosition 验证批量 Key 今日查询紧接 5 个边界参数编号。
 func TestBatchAPIKeyUsageAnalyticsUsesDynamicTodayIDPosition(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	now := time.Now().UTC()
 	start := now.Add(-4 * time.Hour).Truncate(time.Hour)
 	end := now.Add(time.Hour).Truncate(time.Hour)
-	todayStart := timezone.Today().UTC()
+	todayStart := timezone.NewCalendar(time.Local).
+		Today().UTC()
 	coverage := todayStart.Add(-time.Hour).Truncate(time.Hour)
 	// 水位线紧邻当前时间，确保任意服务器时区及 UTC 零点首小时都有可用聚合窗口。
 	watermark := now.Add(-time.Nanosecond)
@@ -459,14 +459,15 @@ func TestBatchAPIKeyUsageAnalyticsUsesDynamicTodayIDPosition(t *testing.T) {
 // TestBatchUserUsageAnalyticsUsesDynamicTodayIDPosition 验证批量用户今日查询紧接 5 个边界参数编号。
 func TestBatchUserUsageAnalyticsUsesDynamicTodayIDPosition(t *testing.T) {
 	db, mock := newSQLMock(t)
-	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
-		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	settings := preaggregation.NewPreAggregationSettingsService(nil, &preaggregation.Options{
+		Usage: preaggregation.UsageOptions{Enabled: true, IntervalSeconds: 60},
 	})
 	repo := &Store{sql: db, preAggregation: settings}
 	now := time.Now().UTC()
 	start := now.Add(-4 * time.Hour).Truncate(time.Hour)
 	end := now.Add(time.Hour).Truncate(time.Hour)
-	todayStart := timezone.Today().UTC()
+	todayStart := timezone.NewCalendar(time.Local).
+		Today().UTC()
 	coverage := todayStart.Add(-time.Hour).Truncate(time.Hour)
 	// 水位线紧邻当前时间，确保任意服务器时区及 UTC 零点首小时都有可用聚合窗口。
 	watermark := now.Add(-time.Nanosecond)

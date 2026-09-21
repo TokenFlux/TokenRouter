@@ -1,9 +1,6 @@
 package schema
 
 import (
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -11,6 +8,8 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 )
 
 // APIKey holds the schema definition for the APIKey entity.
@@ -53,7 +52,7 @@ func (APIKey) Fields() []ent.Field {
 			Comment("是否通过模型前缀在多个分组之间路由"),
 		field.String("status").
 			MaxLen(20).
-			Default(domain.StatusActive),
+			Default(apikey.StatusActive),
 		// 单个 API Key 的 Fast 模式策略，默认保持下游请求的现有行为。
 		field.String("fast_mode_policy").
 			MaxLen(32).

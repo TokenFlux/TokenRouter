@@ -5,6 +5,10 @@ import (
 	"errors"
 	"time"
 
+	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -16,18 +20,6 @@ const (
 	defaultCreativeMaxAttempts    = 3
 )
 
-type CreativeUpstreamError = creative.CreativeUpstreamError
-
-func creativeNonRetryableError(format string, args ...any) *CreativeUpstreamError {
-	return creative.CreativeNonRetryableError(format, args...)
-}
-
-func creativeHTTPStatusError(statusCode int, message string) *CreativeUpstreamError {
-	return creative.CreativeHTTPStatusError(statusCode, message)
-}
-
-func IsRetryableCreativeError(err error) bool { return creative.IsRetryableCreativeError(err) }
-
 // CreativeExecutor 仅保留旧执行签名的投影，不持有具体 GatewayService。
 type CreativeExecutor struct {
 	nativeAttemptActivity func() (func(), error)
@@ -37,12 +29,10 @@ type CreativeExecutor struct {
 
 func NewCreativeExecutor(
 	cfg *config.Config,
-	accountRepo CreativeAccountRepository,
-	groupRepo CreativeGroupRepository,
+	groupRepo creativeprovider.ExecutionGroups,
 	gateway *OpenAIGatewayService,
 	gatewayService *GatewayService,
-	geminiTokens *GeminiTokenProvider,
-	settingService *SettingService,
+	geminiTokens *accountcore.GeminiTokenSource,
 ) *CreativeExecutor {
 	timeout := defaultCreativeExecuteTimeout
 	if cfg != nil && cfg.Creative.ExecuteTimeoutSeconds > 0 {
@@ -53,7 +43,7 @@ func NewCreativeExecutor(
 	return e
 }
 
-func (e *CreativeExecutor) Prepare(ctx context.Context, run CreativeRun) (*CreativeExecution, error) {
+func (e *CreativeExecutor) Prepare(ctx context.Context, run creative.CreativeRun) (*CreativeExecution, error) {
 	if e == nil {
 		return nil, errors.New("creative executor is not configured")
 	}
@@ -66,7 +56,7 @@ func (e *CreativeExecutor) Prepare(ctx context.Context, run CreativeRun) (*Creat
 	return &CreativeExecution{Account: selected.Account, UpstreamModel: execution.UpstreamModel, Selection: selected, ReleaseFunc: execution.ReleaseFunc, Native: execution}, nil
 }
 
-func (e *CreativeExecutor) Execute(ctx context.Context, run CreativeRun, payload CreativeRunPayload, execution *CreativeExecution) (*CreativeExecuteResult, error) {
+func (e *CreativeExecutor) Execute(ctx context.Context, run creative.CreativeRun, payload creative.CreativeRunPayload, execution *CreativeExecution) (*creative.CreativeExecuteResult, error) {
 	if e == nil {
 		return nil, errors.New("creative executor is not configured")
 	}
@@ -82,7 +72,7 @@ func (e *CreativeExecutor) Execute(ctx context.Context, run CreativeRun, payload
 
 // IsRetryable 实现 CreativeRunExecutor 接口。
 func (e *CreativeExecutor) IsRetryable(err error) bool {
-	return IsRetryableCreativeError(err)
+	return creative.IsRetryableCreativeError(err)
 }
 
 func (e *CreativeExecutor) reportScheduleResult(execution *CreativeExecution, accountID int64, success bool) {
@@ -110,3 +100,6 @@ func accountProxyURL(account *Account) string {
 func (e *CreativeExecutor) BindNativeAttemptActivity(enter func() (func(), error)) {
 	e.nativeAttemptActivity = enter
 }
+
+// ExecutionCore 将固定选择与执行端口交给原生 worker，不再经旧任务结果和资金包装。
+func (e *CreativeExecutor) ExecutionCore() *creative.Executor { return e.nativeExecutor(nil) }

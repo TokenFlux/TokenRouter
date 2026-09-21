@@ -6,10 +6,11 @@ package routing
 import (
 	context "context"
 	errors "errors"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	require "github.com/stretchr/testify/require"
 	testing "testing"
 	time "time"
+
+	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	require "github.com/stretchr/testify/require"
 )
 
 type mockChannelRepository struct {

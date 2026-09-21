@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/rediscache"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -21,7 +22,9 @@ type IdentityCacheSuite struct {
 
 func (s *IdentityCacheSuite) SetupTest() {
 	s.IntegrationRedisSuite.SetupTest()
-	s.cache = NewIdentityCache(s.rdb).(*identityCache)
+	cache, ok := rediscache.NewFingerprintStore(s.rdb).(*identityCache)
+	s.Require().True(ok, "identity cache constructor type")
+	s.cache = cache
 }
 
 func (s *IdentityCacheSuite) TestGetFingerprint_Missing() {
@@ -30,7 +33,7 @@ func (s *IdentityCacheSuite) TestGetFingerprint_Missing() {
 }
 
 func (s *IdentityCacheSuite) TestSetAndGetFingerprint() {
-	fp := &service.Fingerprint{ClientID: "c1", UserAgent: "ua"}
+	fp := &anthropic.Fingerprint{ClientID: "c1", UserAgent: "ua"}
 	require.NoError(s.T(), s.cache.SetFingerprint(s.ctx, 1, fp), "SetFingerprint")
 	gotFP, err := s.cache.GetFingerprint(s.ctx, 1)
 	require.NoError(s.T(), err, "GetFingerprint")
@@ -39,7 +42,7 @@ func (s *IdentityCacheSuite) TestSetAndGetFingerprint() {
 }
 
 func (s *IdentityCacheSuite) TestFingerprint_TTL() {
-	fp := &service.Fingerprint{ClientID: "c1", UserAgent: "ua"}
+	fp := &anthropic.Fingerprint{ClientID: "c1", UserAgent: "ua"}
 	require.NoError(s.T(), s.cache.SetFingerprint(s.ctx, 2, fp))
 
 	fpKey := fmt.Sprintf("%s%d", fingerprintKeyPrefix, 2)

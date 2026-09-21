@@ -3,9 +3,10 @@ package account
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 原顺序及同一输入契约在健康规则所属核心验证；旧适配只转换模型。

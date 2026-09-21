@@ -3,35 +3,35 @@ package postgres
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUsageRankingQueryPartsFollowSelectedMetric(t *testing.T) {
 	tests := []struct {
 		name                 string
-		sortBy               service.UsageRankingSortBy
+		sortBy               usage.UsageRankingSortBy
 		rawEligibility       string
 		analyticsEligibility string
 		orderBy              string
 	}{
 		{
 			name:                 "total tokens",
-			sortBy:               service.UsageRankingSortByTotalTokens,
+			sortBy:               usage.UsageRankingSortByTotalTokens,
 			rawEligibility:       "SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens)",
 			analyticsEligibility: "SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens)",
 			orderBy:              "total_tokens DESC, requests DESC, actual_cost DESC, user_id ASC",
 		},
 		{
 			name:                 "requests",
-			sortBy:               service.UsageRankingSortByRequests,
+			sortBy:               usage.UsageRankingSortByRequests,
 			rawEligibility:       "COUNT(*) > 0",
 			analyticsEligibility: "SUM(total_requests)",
 			orderBy:              "requests DESC, total_tokens DESC, actual_cost DESC, user_id ASC",
 		},
 		{
 			name:                 "actual cost",
-			sortBy:               service.UsageRankingSortByActualCost,
+			sortBy:               usage.UsageRankingSortByActualCost,
 			rawEligibility:       "SUM(u.actual_cost)",
 			analyticsEligibility: "SUM(actual_cost)",
 			orderBy:              "actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC",

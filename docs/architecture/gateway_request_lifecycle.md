@@ -37,6 +37,8 @@
 
 HTTP 入口由 app 固定构造。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。`forward` 组织通用请求准备和转换推进，技术 provider/HTTP Adapter 执行交换、读写与 Flush。平台专有部分仍按 S11 阶段清单逐批从旧单步 Adapter 收敛，不创建第二套账号切换循环。
 
+文本入口把 `requeststate.ExecutionHints` 和 `RoutingState` 显式传给执行器，分别携带客户端识别、图片意图、粘性预取等执行提示，以及原生分组、路由计划和客户端协议。分组在写入和读取边界复制，后续 attempt 重新绑定变更后的分组，不能修改先前请求快照。旧单步 Adapter 暂通过私有类型的 context 读取同一状态；`pkg/ctxkey` 已删除，telemetry 只保留观测关联信息。
+
 `gateway/searchtools` 组织工具模拟，`gateway/moderationflow` 固化审核完成输入；`completion.Recorder` 消费独立资金与用量快照。`ws`、`live` 各自管理连接/turn 状态；摘要、隔离和归属值由 `session` 提供，Redis 协议由 `rediscache` 适配。错误规则与不可变发布快照位于 `errorpolicy`，不承担调度健康或重试决策。
 
 ```text
@@ -81,6 +83,8 @@ HTTP 入口由 app 固定构造。`gateway/text` 拥有文本账号循环与计�
 
 凭据提取和认证错误展示由 `apikey/httpapi` 承接，Key、用户、团队和 IP 校验进入 `apikey.Authenticate`，返回区分 owner/payer/actor/team 的 `AccessSnapshot`。`gateway/httpapi` 的通用/Google 认证入口组合复合选组、模型改写与 `gateway/admission` 的资金准入，旧 middleware 只投影已有 context 与观测。普通协议门禁不提前读取请求体，Google 与通用入口仍各自保留原错误顺序。认证缓存保持 v40、原 Redis key、TTL 和失效协议；来源与请求中的嵌套 map、slice、指针分别复制，复合选组不能污染共享快照，分组显式 Fast 策略也必须完整往返。
 
+通用认证入口在最终选组授权后绑定原生 `AccessSnapshot` 和 Fast 策略，付款用户仍取该请求的付款主体；Google 分支保留原先独立的绑定时机。认证失败时供 Ops 使用的已加载 Key 信息与已认证快照分开，加载到记录并不代表授权成功。
+
 通用 API Key 认证依次执行：
 
 1. 对无效认证滥用和过大 header 做入口限制；拒绝通用网关的 query API Key，接受 `Authorization: Bearer`、`x-api-key`，并为 Gemini 兼容 `x-goog-api-key`。
@@ -118,6 +122,8 @@ client_model
 
 `routing.RoutePlan` 保存当次最终分组、入口协议和 Key→渠道模型链，handler 把它交给后续候选解析。候选仍按当前账号快照和最终分组复核协议；账号映射在原使用时点读取，不提前固定账号或把 attempt 结果写入共享缓存。分组发生回退时旧计划不替代重新授权，平台请求改写与响应模型恢复仍由原执行链负责。
 
+`requeststate.AttemptRoute` 固化本次候选结果和协议，`RoutingState.ResolveAttempt` 在 fresh/DB 复核后重新解析。账号持久记录不承载该状态；协议相关地址和 CN 适配规则由 `account.ProtocolTarget` 组合显式协议与记录计算。旧执行账号暂持有该尝试值，读取模型映射仍发生在原调用时点，不能把上一次尝试结果写回共享账号缓存。
+
 <a id="account_selection_and_failover"></a>
 ## 账号选择与故障转移
 
@@ -136,7 +142,7 @@ client_model
 
 `AcquireUser` 返回请求 Lease 与带计数所有权的 WaitResult；`Lease.Select` 返回当前 AttemptLease。选择结果也可能携带 WaitPlan，由 scheduler 执行等待循环、HTTP 同步观察并输出原心跳。只释放确认取得的等待计数；完整账号补全失败等后续准备错误立即归还已登记槽位。请求和尝试的组合释放幂等，成功/部分结果的会话保留由 Finish 决定。用户等待完成后仍在原位置复查权益。
 
-故障转移只处理 service 明确包装为 `UpstreamFailoverError` 的可切换错误。`FailoverState` 记录切换次数、失败账号和最后错误，并根据账号 pool-mode 重试次数决定同账号重试、排除后选择下一个账号、短暂等待或耗尽。普通同账号重试固定等待 500ms；被标记为请求级瞬时故障的容量错误按 500ms、1s、2s、4s 指数退避，后续单次等待封顶 8s，客户端取消会立即打断等待。临时不可调度标记由 service 根据错误分类写入，不是所有 HTTP 非 2xx 都应封禁账号。
+故障转移只处理适配器明确包装为 `forward.UpstreamFailoverError` 的可切换错误。该值保留错误阶段、归属、原始响应值及重试投影；平台特有的 OpenAI 容量与请求大小识别留在 gateway/provider，通用契约不导入具体平台。`failover.FailoverState` 记录切换次数、失败账号和最后错误，并根据账号 pool-mode 重试次数决定同账号重试、排除后选择下一个账号、短暂等待或耗尽。普通同账号重试固定等待 500ms；被标记为请求级瞬时故障的容量错误按 500ms、1s、2s、4s 指数退避，后续单次等待封顶 8s，客户端取消会立即打断等待。临时不可调度标记由 service 根据错误分类写入，不是所有 HTTP 非 2xx 都应封禁账号。
 
 粘性会话已经绑定账号时，切换账号可能要求把普通输入按缓存读取计费，以反映缓存不再命中的成本语义。选择耗尽后的单账号重试和等待有严格上限；客户端 Context 取消必须立即终止，不继续选择或休眠。
 
@@ -145,7 +151,7 @@ client_model
 
 每次 attempt 都以原始/规范化请求和本次账号重新构造供应商请求，注入凭据、代理、TLS 指纹、客户端标识、Thinking/工具配置及上游模型。平台适配器负责协议转换、上游响应限制和供应商错误解析，handler 负责在客户端协议中返回最终结果。
 
-通用报文与转换算法位于 `protocol/{anthropic,openai,gemini,google,bridge}`。旧入口选择采样/Max effort、schema、thinking、签名与工具选项，并注入时刻和 ID 生成器；每请求/attempt 创建独立转换状态。Gemini 的 Messages 与 OpenAI 兼容流保留各自的 thinking、index 和 usage 观测顺序，以逐事件迭代返回输出；HTTP 读取、Flush、首次输出判定、取消、失败后排水和重试仍由旧执行层拥有。不得因提取纯状态机而整流缓冲或改变真实输出后的重试边界。
+通用报文与转换算法位于 `protocol/{anthropic,openai,gemini,google,bridge}`。`pkg/apicompat` 转接已删除，采样/Max effort 选项由 `gateway/forward` 的型号策略投影提供；平台适配继续选择 schema、thinking、签名与工具选项，并注入时刻和 ID 生成器；每请求/attempt 创建独立转换状态。Gemini 的 Messages 与 OpenAI 兼容流保留各自的 thinking、index 和 usage 观测顺序，以逐事件迭代返回输出；HTTP 读取、Flush、首次输出判定、取消、失败后排水和重试仍由旧执行层拥有。不得因提取纯状态机而整流缓冲或改变真实输出后的重试边界。
 
 流式响应有不可逆边界：在调用上游前记录 `ResponseWriter` 已写字节数；如果 attempt 已向客户端写出真实业务输出，就不能再选择账号，否则会把两个上游响应拼接为损坏的单流。旧版 Compact 桥接心跳、Responses 的 `response.created` / `response.in_progress` 前导事件，以及等待终态判定的可重试 `error` 帧不算业务输出，可以留在 attempt 缓冲中为 pre-output failover 保留空间；不可重试错误仍按事件边界及时转发。真实输出开始后，错误只能按当前协议追加允许的流错误事件或结束连接。非流式且尚未写响应时，才可以安全地进入下一次 failover。
 
@@ -176,7 +182,7 @@ Qoder 流式已经进入上游后使用完成释放：客户端断开停止下�
 
 Brave/Tavily 搜索由 search 选择供应商并预占额度。失败释放自己已确认的预占；请求取消后不尝试其他供应商、不标记代理故障，额度回滚使用独立的最多三秒清理预算。Redis 结果不明确时继续原有故障放行，不猜测已取得计数。配置替换后已进入的请求保留原代次快照，所有代次在停机时共同等待。额度命名空间、订阅日计算和 TTL 不变。
 
-旧网关仍拥有工具识别、账号/渠道启用裁决、协议事件、合成 usage、重试与完成处理。Grok 原生搜索及 OpenAI AlphaSearch 仍由对应 upstream 拥有；不能将通知成功、搜索配额或审核记录当作资金提交证明。
+gateway/searchtools 拥有工具识别、账号/渠道启用裁决、协议事件和合成 usage。app 通过 gateway/provider 直接绑定同一个 search.ConfigService、Registry 和渠道实例；旧全局搜索注册表及设置转接已删除，配置更换仍发布到该注册表。重试与完成处理继续由请求编排拥有。Grok 原生搜索及 OpenAI AlphaSearch 仍由对应 upstream 拥有；不能将通知成功、搜索配额或审核记录当作资金提交证明。
 
 ## 扩展约束
 
@@ -209,5 +215,9 @@ Qoder 请求与平台尝试在 app 的 `QoderRequestsAndAttempts` 中同步登�
 ## 平台执行与资源拥有权
 
 各平台的供应商交换、请求构造与原生读取位于 upstream；旧网关在调用点投影账号、出站策略与错误观察接口，不向新平台传入 Gin 或完整 config。OpenAI 的响应读取、图片与辅助查询保留各自取消与终态差异，WS relay 和连接池独立于完整入站 WS 编排。续接报文和失效密文剥离使用平台纯实现，会话归属缓存和每轮价格快照仍由入站持有。
+
+OpenAI 和 Messages 的转发结果由 `gateway/forward` 拥有，WS ingress hook 与 turn capture 由 `gateway/ws` 拥有。WS 重放输入继续保持私有，不随结果 JSON 输出；各协议结果仍保留原字段差异。每次 attempt／turn 的 `forward.ResponseObserver` 独立记录模型和实际服务档位，Gin 存取由 HTTP Adapter 负责；终态优先与冲突回退不改变，出站档位在完成计费时才与观测值结合。
+
+上游风控警告统一用 `gateway/forward.UpstreamWarning` 传递，HTTP、WS 和 Grok 适配共用值类型及错误链契约。警告本身不证明请求可结算，完成资格、失败状态和通知仍按原入口规则决定。
 
 GatewayRequestsAndAttempts 由 app 构造一次，HTTP 入口与原生平台尝试引用同一进入屏障；停止后拒绝新进入，并等待请求尾部完成快照入队及在途尝试，先于完成队列和共享存储关闭。它与 HTTPRequests 是并列等待屏障；额度恢复操作先取消，再等待请求结束，不能把 HTTPRequests 的完成时间当作停止监听时间。账号授权会话及底层配额服务随后停止，按需 Live/WS 资源不因构造应用而提前开启。

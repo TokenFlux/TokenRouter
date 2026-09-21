@@ -9,8 +9,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"golang.org/x/sync/errgroup"
 )
@@ -108,8 +106,8 @@ func (r *Store) GetDashboardStats(ctx context.Context) (*DashboardStats, error) 
 		return r.GetDashboardStatsWithRange(ctx, time.Unix(0, 0), time.Now())
 	}
 	stats := &DashboardStats{}
-	now := timezone.Now()
-	todayStart := timezone.Today()
+	now := r.calendar.Now()
+	todayStart := r.calendar.Today()
 
 	// 实体、聚合用量和近五分钟性能彼此独立，并行读取可缩短接口关键路径。
 	var rpm, tpm int64
@@ -144,8 +142,8 @@ func (r *Store) GetDashboardStatsWithRange(ctx context.Context, start, end time.
 	}
 
 	stats := &DashboardStats{}
-	now := timezone.Now()
-	todayStart := timezone.Today()
+	now := r.calendar.Now()
+	todayStart := r.calendar.Today()
 
 	if err := r.fillDashboardEntityStats(ctx, stats, todayStart, now); err != nil {
 		return nil, err
@@ -257,7 +255,7 @@ func (r *Store) fillDashboardUsageStatsAggregated(ctx context.Context, stats *Da
 		FROM usage_dashboard_hourly
 		WHERE bucket_start = $1
 	`
-	hourStart := now.In(timezone.Location()).Truncate(time.Hour)
+	hourStart := now.In(r.calendar.Location()).Truncate(time.Hour)
 	hourlyActive := func(queryCtx context.Context) error {
 		if err := scanSingleRow(queryCtx, r.sql, hourlyActiveQuery, []any{hourStart}, &stats.HourlyActiveUsers); err != nil {
 			if err != sql.ErrNoRows {
@@ -384,7 +382,7 @@ func (r *Store) GetUserDashboardStats(ctx context.Context, userID int64) (*UserD
 		r.logUsageAnalyticsFallback("user_dashboard", err)
 	}
 	stats := &UserDashboardStats{}
-	today := timezone.Today()
+	today := r.calendar.Today()
 	teamID, err := r.getOwnedTeamID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -500,7 +498,7 @@ func (r *Store) getPerformanceStatsByAPIKey(ctx context.Context, apiKeyID int64)
 // GetAPIKeyDashboardStats 获取指定 API Key 的仪表盘统计（按 api_key_id 过滤）
 func (r *Store) GetAPIKeyDashboardStats(ctx context.Context, apiKeyID int64) (*UserDashboardStats, error) {
 	stats := &UserDashboardStats{}
-	today := timezone.Today()
+	today := r.calendar.Today()
 
 	// API Key 维度不需要统计 key 数量，设为 1
 	stats.TotalAPIKeys = 1

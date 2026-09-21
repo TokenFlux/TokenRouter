@@ -10,6 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -24,7 +27,6 @@ func (panicOnReadCloser) Read(_ []byte) (int, error) {
 func (panicOnReadCloser) Close() error { return nil }
 
 func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name          string
@@ -95,7 +97,7 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 
 			_, err := svc.Forward(context.Background(), c, firstAccount, body)
 			require.Error(t, err)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.True(t, errors.As(err, &failoverErr))
 			require.Len(t, upstream.bodies, 1)
 			require.Equal(t, tt.wantFirst, gjson.GetBytes(upstream.bodies[0], "model").String())
@@ -114,8 +116,8 @@ func TestOpenAIGatewayService_HandleFailoverSideEffects_DoesNotRereadResponseBod
 	svc := &OpenAIGatewayService{}
 	account := &Account{
 		ID:       88,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 	}
 	resp := &http.Response{
 		StatusCode: http.StatusTooManyRequests,
@@ -139,11 +141,11 @@ func openAIFailoverCachedBodyTestAccount(id int64, name string, mapping map[stri
 	return &Account{
 		ID:             id,
 		Name:           name,
-		Platform:       PlatformOpenAI,
-		Type:           AccountTypeOAuth,
+		Platform:       capability.PlatformOpenAI,
+		Type:           capability.AccountTypeOAuth,
 		Concurrency:    1,
 		Credentials:    credentials,
-		Status:         StatusActive,
+		Status:         billing.StatusActive,
 		Schedulable:    true,
 		RateMultiplier: f64p(1),
 	}

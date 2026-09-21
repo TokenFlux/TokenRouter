@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	coderws "github.com/coder/websocket"
 )
 
@@ -33,7 +34,7 @@ func (r *s11PlanningLiveAccounts) GetByID(ctx context.Context, id int64) (*Accou
 func TestLiveHandoffCancellationStopsBeforeAccountLookup(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	record := &LiveCallRecord{CallHash: "planning", Controller: LiveControllerPending, AccountID: 7, ExpiresAt: time.Now().Add(time.Minute)}
+	record := &session.LiveCallRecord{CallHash: "planning", Controller: session.LiveControllerPending, AccountID: 7, ExpiresAt: time.Now().Add(time.Minute)}
 	store := &s11PlanningLiveStore{liveTestStore: liveTestStore{record: record}, cancel: cancel}
 	accounts := &s11PlanningLiveAccounts{}
 	s := &OpenAIGatewayService{cache: store, accountRepo: accounts, liveObserverStopped: true}

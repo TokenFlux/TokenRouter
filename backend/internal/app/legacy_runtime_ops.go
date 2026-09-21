@@ -3,6 +3,10 @@
 package app
 
 import (
+	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+)
+
+import (
 	"context"
 	"fmt"
 
@@ -10,7 +14,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 type opsRuntimeReady struct{}
@@ -25,7 +28,7 @@ func provideOpsRuntime(
 	opsService *ops.OpsService,
 	opsIngressReject *ops.OpsIngressRejectAggregator,
 	manager *lifecycle.Manager,
-	dashboardAggregation *service.DashboardAggregationService,
+	dashboardAggregation *usage.DashboardAggregationService,
 ) *opsRuntimeReady {
 	manager.Register(lifecycle.Hook{Name: "OpsMetricsCollector", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if opsMetricsCollector != nil {

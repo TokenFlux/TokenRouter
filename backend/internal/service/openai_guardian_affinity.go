@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -57,7 +58,7 @@ func WithOpenAIGuardianParentAffinity(ctx context.Context, c *gin.Context, body 
 		return ctx
 	}
 
-	currentHash, legacyHash := deriveOpenAISessionHashes(parentID)
+	currentHash, legacyHash := scheduler.DeriveSessionHashes(parentID)
 	if currentHash == "" {
 		return ctx
 	}

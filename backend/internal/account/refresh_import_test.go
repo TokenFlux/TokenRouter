@@ -3,12 +3,13 @@ package account
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 导入和后台共享真实协调器；存储替身只实现同一身份的条件写入。

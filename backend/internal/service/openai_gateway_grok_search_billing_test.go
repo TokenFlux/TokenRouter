@@ -12,14 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"grok","input":"search something","tools":[{"type":"web_search"}],"stream":false}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -46,7 +48,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {
 	}}
 	svc := &OpenAIGatewayService{
 		httpUpstream:      upstream,
-		grokTokenProvider: NewGrokTokenProvider(repo, nil),
+		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
 	}
 
@@ -59,7 +61,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {
 }
 
 func TestForwardGrokResponses_PropagatesSearchCountFromSSE(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"grok","input":"search","tools":[{"type":"web_search"}],"stream":true}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -77,7 +79,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromSSE(t *testing.T) {
 	}}
 	svc := &OpenAIGatewayService{
 		httpUpstream:      upstream,
-		grokTokenProvider: NewGrokTokenProvider(repo, nil),
+		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
 	}
 
@@ -99,13 +101,13 @@ func TestGetSchedulableAccount_AppliesGrokFreeSoftGate(t *testing.T) {
 
 	account := healthyGrokOAuthGatewayTestAccount(8801, "tok")
 	account.Credentials["subscription_tier"] = "free"
-	account.Status = StatusActive
+	account.Status = billing.StatusActive
 	account.Schedulable = true
 
 	repo := &mockAccountRepoForPlatform{
 		accountsByID: map[int64]*Account{account.ID: account},
 	}
-	usageRepo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usagestats.AccountStats{
+	usageRepo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usage.AccountStats{
 		account.ID: {Tokens: 480_000}, // above 95% of 500k
 	}}
 	// 清理共享网关免费层门禁缓存，保证测试结果稳定。
@@ -146,13 +148,13 @@ func TestOpenAIGetSchedulableAccount_AppliesGrokFreeSoftGate(t *testing.T) {
 
 	account := healthyGrokOAuthGatewayTestAccount(8802, "tok")
 	account.Credentials["subscription_tier"] = "free"
-	account.Status = StatusActive
+	account.Status = billing.StatusActive
 	account.Schedulable = true
 
 	repo := &mockAccountRepoForPlatform{
 		accountsByID: map[int64]*Account{account.ID: account},
 	}
-	usageRepo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usagestats.AccountStats{
+	usageRepo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usage.AccountStats{
 		account.ID: {Tokens: 480_000},
 	}}
 	openaiGrokFreeQuotaGateCache.Range(func(key, _ any) bool {
@@ -183,5 +185,5 @@ func TestOpenAIGetSchedulableAccount_AppliesGrokFreeSoftGate(t *testing.T) {
 func TestCountGrokNativeSearchCallsFromJSON_MessagesStyleBody(t *testing.T) {
 	// 验证 Anthropic 缓冲的 Grok /v1/messages 路径使用同一计数器。
 	body := []byte(`{"id":"r1","output":[{"type":"web_search_call","id":"ws1"},{"type":"message","role":"assistant"}]}`)
-	require.Equal(t, 1, countGrokNativeSearchCallsFromJSONBytes(body))
+	require.Equal(t, 1, grok.CountGrokNativeSearchCallsFromJSONBytes(body))
 }

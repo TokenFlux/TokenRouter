@@ -3,7 +3,8 @@ package service
 import (
 	"strings"
 
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -11,19 +12,9 @@ import (
 )
 
 const (
-	codexReservedPythonToolName = nativeopenai.CodexReservedPythonToolName
-	codexPythonToolAlias        = nativeopenai.CodexPythonToolAlias
-	codexToolNameReverseKey     = "openai_codex_tool_name_reverse"
-	codexToolNameSessionKey     = "openai_codex_tool_name_session_reverse"
+	codexToolNameReverseKey = "openai_codex_tool_name_reverse"
+	codexToolNameSessionKey = "openai_codex_tool_name_session_reverse"
 )
-
-func aliasOpenAIOAuthReservedToolNames(reqBody map[string]any) (map[string]string, bool, error) {
-	return nativeopenai.AliasOpenAIOAuthReservedToolNames(reqBody)
-}
-
-func aliasOpenAIOAuthReservedToolNamesBody(body []byte) ([]byte, map[string]string, bool, error) {
-	return nativeopenai.AliasOpenAIOAuthReservedToolNamesBody(body)
-}
 
 func setCodexToolNameReverse(c *gin.Context, reverse map[string]string) {
 	if c == nil {
@@ -89,7 +80,7 @@ func updateCodexToolNameReverseForWSFrame(c *gin.Context, frame []byte, reverse 
 	case "response.create", "":
 		active := reverse
 		if !openAIWSFrameHasExplicitToolDeclarations(frame) {
-			active = mergeCodexToolNameReverseMaps(
+			active = openai.MergeCodexToolNameReverseMaps(
 				codexToolNameReverseForKey(c, codexToolNameSessionKey),
 				reverse,
 			)
@@ -110,28 +101,20 @@ func openAIWSFrameHasExplicitToolDeclarations(frame []byte) bool {
 	return false
 }
 
-func mergeCodexToolNameReverseMaps(base, overlay map[string]string) map[string]string {
-	return nativeopenai.MergeCodexToolNameReverseMaps(base, overlay)
-}
-
-func restoreCodexToolNamesInJSON(data []byte, reverse map[string]string) []byte {
-	return nativeopenai.RestoreCodexToolNamesInJSON(data, reverse)
-}
-
 func restoreCodexToolNamesFromContext(c *gin.Context, data []byte) []byte {
 	reverse := codexToolNameReverseFromContext(c)
 	switch strings.TrimSpace(gjson.GetBytes(data, "type").String()) {
 	case "session.created", "session.updated":
 		reverse = codexToolNameReverseForKey(c, codexToolNameSessionKey)
 	}
-	return restoreCodexToolNamesInJSON(data, reverse)
+	return openai.RestoreCodexToolNamesInJSON(data, reverse)
 }
 
 func restoreCodexToolNamesFromSSEContext(c *gin.Context, data []byte, eventType string) []byte {
 	if strings.TrimSpace(gjson.GetBytes(data, "type").String()) != "" || strings.TrimSpace(eventType) == "" {
 		return restoreCodexToolNamesFromContext(c, data)
 	}
-	compat := []byte(openAICompatPayloadWithEventType(string(data), eventType))
+	compat := []byte(openaicore.OpenAICompatPayloadWithEventType(string(data), eventType))
 	restored := restoreCodexToolNamesFromContext(c, compat)
 	if string(restored) == string(compat) {
 		return data

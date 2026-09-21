@@ -3,15 +3,16 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/account/transfer"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
 )
 
 // 真实 handler 与核心组合检查默认值、字段形状和故障响应。

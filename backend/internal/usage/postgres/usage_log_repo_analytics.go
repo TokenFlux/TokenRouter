@@ -9,8 +9,6 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/lib/pq"
 	"golang.org/x/sync/errgroup"
@@ -265,7 +263,7 @@ func (r *Store) getUserDashboardStatsFromAnalytics(ctx context.Context, userID i
 	})
 	group.Go(func() error {
 		// “今日”按业务时区单独切边界，不能用 UTC 日桶的午夜代替本地整日明细。
-		todayStart := timezone.Today()
+		todayStart := r.calendar.Today()
 		todayEnd := time.Now().UTC()
 		todayFilters := UsageLogFilters{
 			UserID: userID, IncludeOwnedTeam: true,
@@ -374,7 +372,7 @@ func (r *Store) getBatchAPIKeyUsageStatsFromAnalytics(ctx context.Context, apiKe
 	if err := rows.Err(); err != nil {
 		return nil, false, err
 	}
-	todayStart := timezone.Today()
+	todayStart := r.calendar.Today()
 	todayEnd := time.Now().UTC()
 	todayQuery, todayOK, todayErr := r.buildUsageAnalyticsQuery(ctx, UsageLogFilters{}, todayStart, todayEnd, false)
 	if todayErr != nil || !todayOK {
@@ -470,7 +468,7 @@ func (r *Store) getBatchUserUsageStatsFromAnalytics(ctx context.Context, userIDs
 	if err := rows.Err(); err != nil {
 		return nil, false, err
 	}
-	todayStart := timezone.Today()
+	todayStart := r.calendar.Today()
 	todayEnd := time.Now().UTC()
 	todayQuery, todayOK, todayErr := r.buildUsageAnalyticsQuery(ctx, UsageLogFilters{}, todayStart, todayEnd, false)
 	if todayErr != nil || !todayOK {

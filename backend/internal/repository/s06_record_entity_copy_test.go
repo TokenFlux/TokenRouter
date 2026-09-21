@@ -1,9 +1,10 @@
 package repository
 
 import (
+	"testing"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // Ent 行投影不能让返回记录的嵌套凭据修改反向污染原行对象。

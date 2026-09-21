@@ -11,6 +11,9 @@ import (
 	"testing"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,7 +35,7 @@ func (r *transportTempUnschedRepoStub) SetTempUnschedulable(_ context.Context, i
 
 func newTransportErrorTestGin(t *testing.T) *gin.Context {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	return c
@@ -46,12 +49,12 @@ func TestHandleUpstreamTransportError_TransientFailsOverWithoutEviction(t *testi
 	repo := &transportTempUnschedRepoStub{}
 	s := &GatewayService{accountRepo: repo}
 	c := newTransportErrorTestGin(t)
-	account := &Account{ID: 149, Name: "acc", Platform: PlatformAnthropic}
+	account := &Account{ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}
 
 	err := s.handleUpstreamTransportError(context.Background(), c, account,
-		errors.New(`Post "http://upstream/v1/messages?beta=true": EOF`), OpsUpstreamErrorEvent{})
+		errors.New(`Post "http://upstream/v1/messages?beta=true": EOF`), ops.OpsUpstreamErrorEvent{})
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &failoverErr) {
 		t.Fatalf("expected *UpstreamFailoverError, got %T: %v", err, err)
 	}
@@ -79,13 +82,13 @@ func TestHandleUpstreamTransportError_PersistentEvictsAccount(t *testing.T) {
 	repo := &transportTempUnschedRepoStub{}
 	s := &GatewayService{accountRepo: repo}
 	c := newTransportErrorTestGin(t)
-	account := &Account{ID: 149, Name: "acc", Platform: PlatformAnthropic}
+	account := &Account{ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}
 
 	before := time.Now()
 	err := s.handleUpstreamTransportError(context.Background(), c, account,
-		errors.New(`dial tcp 1.2.3.4:443: connect: connection refused`), OpsUpstreamErrorEvent{})
+		errors.New(`dial tcp 1.2.3.4:443: connect: connection refused`), ops.OpsUpstreamErrorEvent{})
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &failoverErr) {
 		t.Fatalf("expected *UpstreamFailoverError, got %T: %v", err, err)
 	}
@@ -111,12 +114,12 @@ func TestHandleUpstreamTransportError_ClientCanceledNoFailover(t *testing.T) {
 	repo := &transportTempUnschedRepoStub{}
 	s := &GatewayService{accountRepo: repo}
 	c := newTransportErrorTestGin(t)
-	account := &Account{ID: 149, Name: "acc", Platform: PlatformAnthropic}
+	account := &Account{ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}
 
 	inErr := context.Canceled
-	err := s.handleUpstreamTransportError(context.Background(), c, account, inErr, OpsUpstreamErrorEvent{})
+	err := s.handleUpstreamTransportError(context.Background(), c, account, inErr, ops.OpsUpstreamErrorEvent{})
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if errors.As(err, &failoverErr) {
 		t.Fatal("canceled client must not fail over to another account")
 	}
@@ -135,12 +138,12 @@ func TestHandleUpstreamTransportError_UpstreamDeadlineStillFailsOver(t *testing.
 	repo := &transportTempUnschedRepoStub{}
 	s := &GatewayService{accountRepo: repo}
 	c := newTransportErrorTestGin(t)
-	account := &Account{ID: 149, Name: "acc", Platform: PlatformAnthropic}
+	account := &Account{ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}
 
 	err := s.handleUpstreamTransportError(context.Background(), c, account,
-		context.DeadlineExceeded, OpsUpstreamErrorEvent{})
+		context.DeadlineExceeded, ops.OpsUpstreamErrorEvent{})
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &failoverErr) {
 		t.Fatalf("upstream deadline with live request context must fail over, got %T: %v", err, err)
 	}

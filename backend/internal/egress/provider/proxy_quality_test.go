@@ -2,10 +2,11 @@ package provider
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 
 	"github.com/stretchr/testify/require"
 )

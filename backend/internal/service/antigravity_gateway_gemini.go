@@ -6,7 +6,6 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
-	geminiwire "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/gin-gonic/gin"
 )
 
@@ -35,7 +34,7 @@ func WithForwardGeminiSession(groupID int64, sessionHash string) ForwardGeminiOp
 	}
 }
 
-func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte, isStickySession bool, options ...ForwardGeminiOption) (*ForwardResult, error) {
+func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Context, account *Account, originalModel string, action string, stream bool, body []byte, isStickySession bool, options ...ForwardGeminiOption) (*forwardcore.MessagesResult, error) {
 	start := time.Now()
 	opts := forwardGeminiOptions{}
 	for _, apply := range options {
@@ -48,8 +47,4 @@ func (s *AntigravityGatewayService) ForwardGemini(ctx context.Context, c *gin.Co
 	adapter.prefix = input.Prefix
 	result, err := forwardcore.Gemini(ctx, adapter, input)
 	return legacyForwardExecutionResult(result), err
-}
-
-func filterEmptyPartsFromGeminiRequest(body []byte) ([]byte, error) {
-	return geminiwire.FilterEmptyParts(body)
 }

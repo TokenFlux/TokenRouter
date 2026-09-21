@@ -4,8 +4,9 @@ package account
 import (
 	errors "errors"
 	fmt "fmt"
-	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
 	strings "strings"
+
+	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
 )
 
 func ApplyArchiveDefaults(item *transfer.DataAccount, defaults *transfer.OpenAIOAuthImportDefaults) {

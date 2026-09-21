@@ -3,22 +3,24 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestChannel_IsBedrockCCCompatEnabled_Enabled(t *testing.T) {
-	c := &Channel{
+	c := &routing.Channel{
 		FeaturesConfig: map[string]any{
-			featureKeyBedrockCCCompat: true,
+			bedrock.FeatureKeyBedrockCCCompat: true,
 		},
 	}
 	require.True(t, c.IsBedrockCCCompatEnabled("bedrock"))
 }
 
 func TestChannel_IsBedrockCCCompatEnabled_AppliesToAllPlatforms(t *testing.T) {
-	c := &Channel{
+	c := &routing.Channel{
 		FeaturesConfig: map[string]any{
-			featureKeyBedrockCCCompat: true,
+			bedrock.FeatureKeyBedrockCCCompat: true,
 		},
 	}
 	require.True(t, c.IsBedrockCCCompatEnabled("anthropic"))
@@ -27,37 +29,37 @@ func TestChannel_IsBedrockCCCompatEnabled_AppliesToAllPlatforms(t *testing.T) {
 }
 
 func TestChannel_IsBedrockCCCompatEnabled_Disabled(t *testing.T) {
-	c := &Channel{
+	c := &routing.Channel{
 		FeaturesConfig: map[string]any{
-			featureKeyBedrockCCCompat: false,
+			bedrock.FeatureKeyBedrockCCCompat: false,
 		},
 	}
 	require.False(t, c.IsBedrockCCCompatEnabled("bedrock"))
 }
 
 func TestChannel_IsBedrockCCCompatEnabled_NilFeaturesConfig(t *testing.T) {
-	c := &Channel{FeaturesConfig: nil}
+	c := &routing.Channel{FeaturesConfig: nil}
 	require.False(t, c.IsBedrockCCCompatEnabled("bedrock"))
 }
 
 func TestChannel_IsBedrockCCCompatEnabled_NilChannel(t *testing.T) {
-	var c *Channel
+	var c *routing.Channel
 	require.False(t, c.IsBedrockCCCompatEnabled("bedrock"))
 }
 
 func TestChannel_IsBedrockCCCompatEnabled_WrongType(t *testing.T) {
-	c := &Channel{
+	c := &routing.Channel{
 		FeaturesConfig: map[string]any{
-			featureKeyBedrockCCCompat: "yes",
+			bedrock.FeatureKeyBedrockCCCompat: "yes",
 		},
 	}
 	require.False(t, c.IsBedrockCCCompatEnabled("bedrock"))
 }
 
 func TestChannel_IsBedrockCCCompatEnabled_OldMapFormat(t *testing.T) {
-	c := &Channel{
+	c := &routing.Channel{
 		FeaturesConfig: map[string]any{
-			featureKeyBedrockCCCompat: map[string]any{"anthropic": true},
+			bedrock.FeatureKeyBedrockCCCompat: map[string]any{"anthropic": true},
 		},
 	}
 	require.True(t, c.IsBedrockCCCompatEnabled("anthropic"))
@@ -65,9 +67,9 @@ func TestChannel_IsBedrockCCCompatEnabled_OldMapFormat(t *testing.T) {
 }
 
 func TestChannel_IsBedrockCCCompatEnabled_OldBoolMapFormat(t *testing.T) {
-	c := &Channel{
+	c := &routing.Channel{
 		FeaturesConfig: map[string]any{
-			featureKeyBedrockCCCompat: map[string]bool{"anthropic": true},
+			bedrock.FeatureKeyBedrockCCCompat: map[string]bool{"anthropic": true},
 		},
 	}
 	require.True(t, c.IsBedrockCCCompatEnabled("anthropic"))
@@ -75,7 +77,7 @@ func TestChannel_IsBedrockCCCompatEnabled_OldBoolMapFormat(t *testing.T) {
 }
 
 func TestChannel_IsBedrockCCCompatEnabled_MissingKey(t *testing.T) {
-	c := &Channel{
+	c := &routing.Channel{
 		FeaturesConfig: map[string]any{
 			"other_feature": true,
 		},

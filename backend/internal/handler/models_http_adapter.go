@@ -5,10 +5,13 @@ import (
 	"context"
 	"slices"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -39,7 +42,7 @@ func (p modelsHTTPBackend) Resolve(ctx context.Context, groupID *int64, platform
 }
 func (p modelsHTTPBackend) PreferredSubscription(c *gin.Context) (*billing.UserSubscription, bool) {
 	bc, ok := middleware.GetAPIKeyBillingContext(c)
-	if !ok || bc == nil || bc.Mode != service.APIKeyBillingModeSubscription || bc.Subscription == nil {
+	if !ok || bc == nil || bc.Mode != apikey.APIKeyBillingModeSubscription || bc.Subscription == nil {
 		return nil, false
 	}
 	return bc.Subscription, true
@@ -62,7 +65,7 @@ func (p geminiModelReadTarget) Read(ctx context.Context, path string) (*gatewayh
 	res, err := p.service.ForwardAIStudioGET(ctx, p.account, path)
 	return modelHTTPResponse(res), err
 }
-func modelHTTPResponse(res *service.UpstreamHTTPResult) *gatewayhttp.ModelHTTPResponse {
+func modelHTTPResponse(res *gemini.HTTPResult) *gatewayhttp.ModelHTTPResponse {
 	if res == nil {
 		return nil
 	}
@@ -72,10 +75,10 @@ func (p modelsHTTPBackend) HasAntigravity(ctx context.Context, id *int64) (bool,
 	return p.h.geminiCompatService.HasAntigravityAccounts(ctx, id)
 }
 func (p modelsHTTPBackend) CapacityLimited(c *gin.Context, err error) {
-	markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
+	gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 }
 func (p modelsHTTPBackend) SafeModelSegment(model string) bool {
-	return service.IsSafeGeminiModelPathSegment(model)
+	return gemini.IsSafeGeminiModelPathSegment(model)
 }
 
 // 平台提供目录数据；筛选、默认回退与 HTTP 形状由目标 handler 唯一拥有。

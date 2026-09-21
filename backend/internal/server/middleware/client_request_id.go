@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/servertiming"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -28,26 +28,26 @@ func ClientRequestID() gin.HandlerFunc {
 
 		// 入口时间必须在读取请求体和账号调度之前记录，便于拆分请求体上传与应用内耗时。
 		ctx := c.Request.Context()
-		if _, ok := ctx.Value(ctxkey.RequestStartedAt).(time.Time); !ok {
-			ctx = context.WithValue(ctx, ctxkey.RequestStartedAt, time.Now())
+		if _, ok := ctx.Value(telemetry.RequestStartedAt).(time.Time); !ok {
+			ctx = context.WithValue(ctx, telemetry.RequestStartedAt, time.Now())
 		}
-		ctx = servertiming.WithHTTPTrace(ctx)
+		ctx = timing.WithHTTPTrace(ctx)
 
 		// 已存在的 context 值只可能来自受信任的内部调用；HTTP Header 永远不能覆盖它。
-		internalID, valid := normalizeCorrelationIDFromContext(ctx, ctxkey.ClientRequestID)
+		internalID, valid := normalizeCorrelationIDFromContext(ctx, telemetry.ClientRequestID)
 		if !valid {
 			internalID = uuid.NewString()
 		}
 		parentID, _ := normalizeCorrelationID(c.GetHeader(clientRequestIDHeader))
-		ctx = context.WithValue(ctx, ctxkey.ClientRequestID, internalID)
+		ctx = context.WithValue(ctx, telemetry.ClientRequestID, internalID)
 		if parentID != "" {
-			ctx = context.WithValue(ctx, ctxkey.ParentClientRequestID, parentID)
+			ctx = context.WithValue(ctx, telemetry.ParentClientRequestID, parentID)
 		}
-		requestLogger := logger.FromContext(ctx).With(zap.String("client_request_id", internalID))
+		requestLogger := logging.FromContext(ctx).With(zap.String("client_request_id", internalID))
 		if parentID != "" {
 			requestLogger = requestLogger.With(zap.String("parent_client_request_id", parentID))
 		}
-		ctx = logger.IntoContext(ctx, requestLogger)
+		ctx = logging.IntoContext(ctx, requestLogger)
 		c.Request = c.Request.WithContext(ctx)
 		// 内部关联头由服务独占；清除调用方伪造值，避免被其它转发路径带到上游。
 		c.Request.Header.Del(internalRequestIDHeader)
@@ -63,7 +63,7 @@ func ClientRequestID() gin.HandlerFunc {
 	}
 }
 
-func normalizeCorrelationIDFromContext(ctx context.Context, key ctxkey.Key) (string, bool) {
+func normalizeCorrelationIDFromContext(ctx context.Context, key telemetry.ContextKey) (string, bool) {
 	if ctx == nil {
 		return "", false
 	}

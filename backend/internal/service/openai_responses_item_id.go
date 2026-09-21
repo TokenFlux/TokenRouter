@@ -4,21 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	s09wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
-
-func shouldStripOpenAIResponsesInputItemID(itemType, id string) bool {
-	return nativeopenai.ShouldStripOpenAIResponsesInputItemID(itemType, id)
-}
-
-func shouldStripOpenAIResponsesNonPairCallID(itemType string) bool {
-	return s09wire.ShouldStripNonPairCallID(itemType)
-}
 
 func sanitizeOpenAIResponsesInputItemIDs(body []byte) ([]byte, bool, error) {
 	input := gjson.GetBytes(body, "input")
@@ -39,9 +31,9 @@ func sanitizeOpenAIResponsesInputItemIDs(body []byte) ([]byte, bool, error) {
 			itemType := item.Get("type")
 			id := item.Get("id")
 			trimmedItemType := strings.TrimSpace(itemType.String())
-			parsed.stripCallID = item.Get("call_id").Exists() && shouldStripOpenAIResponsesNonPairCallID(trimmedItemType)
+			parsed.stripCallID = item.Get("call_id").Exists() && s09wire.ShouldStripNonPairCallID(trimmedItemType)
 			if id.Type == gjson.String {
-				parsed.stripID = shouldStripOpenAIResponsesInputItemID(trimmedItemType, id.String())
+				parsed.stripID = openai.ShouldStripOpenAIResponsesInputItemID(trimmedItemType, id.String())
 			}
 		}
 		items = append(items, parsed)

@@ -8,9 +8,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -182,7 +188,7 @@ func (m *mockAccountRepoForGemini) UpdateSessionWindowEnd(ctx context.Context, i
 func (m *mockAccountRepoForGemini) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
 	return nil
 }
-func (m *mockAccountRepoForGemini) BulkUpdate(ctx context.Context, ids []int64, updates AccountBulkUpdate) (int64, error) {
+func (m *mockAccountRepoForGemini) BulkUpdate(ctx context.Context, ids []int64, updates accountcore.AccountBulkUpdate) (int64, error) {
 	return 0, nil
 }
 
@@ -207,12 +213,12 @@ var _ AccountRepository = (*mockAccountRepoForGemini)(nil)
 
 // mockGroupRepoForGemini Gemini 测试用的 group repo mock
 type mockGroupRepoForGemini struct {
-	groups           map[int64]*Group
+	groups           map[int64]*routing.Group
 	getByIDCalls     int
 	getByIDLiteCalls int
 }
 
-func (m *mockGroupRepoForGemini) GetByID(ctx context.Context, id int64) (*Group, error) {
+func (m *mockGroupRepoForGemini) GetByID(ctx context.Context, id int64) (*routing.Group, error) {
 	m.getByIDCalls++
 	if g, ok := m.groups[id]; ok {
 		return g, nil
@@ -220,7 +226,7 @@ func (m *mockGroupRepoForGemini) GetByID(ctx context.Context, id int64) (*Group,
 	return nil, errors.New("group not found")
 }
 
-func (m *mockGroupRepoForGemini) GetByIDLite(ctx context.Context, id int64) (*Group, error) {
+func (m *mockGroupRepoForGemini) GetByIDLite(ctx context.Context, id int64) (*routing.Group, error) {
 	m.getByIDLiteCalls++
 	if g, ok := m.groups[id]; ok {
 		return g, nil
@@ -229,23 +235,25 @@ func (m *mockGroupRepoForGemini) GetByIDLite(ctx context.Context, id int64) (*Gr
 }
 
 // Stub methods to implement GroupRepository interface
-func (m *mockGroupRepoForGemini) Create(ctx context.Context, group *Group) error { return nil }
-func (m *mockGroupRepoForGemini) Update(ctx context.Context, group *Group) error { return nil }
-func (m *mockGroupRepoForGemini) Delete(ctx context.Context, id int64) error     { return nil }
+func (m *mockGroupRepoForGemini) Create(ctx context.Context, group *routing.Group) error { return nil }
+func (m *mockGroupRepoForGemini) Update(ctx context.Context, group *routing.Group) error { return nil }
+func (m *mockGroupRepoForGemini) Delete(ctx context.Context, id int64) error             { return nil }
 func (m *mockGroupRepoForGemini) DeleteCascade(ctx context.Context, id int64) ([]int64, error) {
 	return nil, nil
 }
-func (m *mockGroupRepoForGemini) List(ctx context.Context, params pagination.PaginationParams) ([]Group, *pagination.PaginationResult, error) {
+func (m *mockGroupRepoForGemini) List(ctx context.Context, params pagination.PaginationParams) ([]routing.Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (m *mockGroupRepoForGemini) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]Group, *pagination.PaginationResult, error) {
+func (m *mockGroupRepoForGemini) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]routing.Group, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (m *mockGroupRepoForGemini) ListActive(ctx context.Context) ([]Group, error) { return nil, nil }
-func (m *mockGroupRepoForGemini) ListActiveByPlatform(ctx context.Context, platform string) ([]Group, error) {
+func (m *mockGroupRepoForGemini) ListActive(ctx context.Context) ([]routing.Group, error) {
 	return nil, nil
 }
-func (m *mockGroupRepoForGemini) ListActiveByPlatformLite(ctx context.Context, platform string) ([]Group, error) {
+func (m *mockGroupRepoForGemini) ListActiveByPlatform(ctx context.Context, platform string) ([]routing.Group, error) {
+	return nil, nil
+}
+func (m *mockGroupRepoForGemini) ListActiveByPlatformLite(ctx context.Context, platform string) ([]routing.Group, error) {
 	return m.ListActiveByPlatform(ctx, platform)
 }
 func (m *mockGroupRepoForGemini) ExistsByName(ctx context.Context, name string) (bool, error) {
@@ -266,11 +274,11 @@ func (m *mockGroupRepoForGemini) GetAccountIDsByGroupIDs(ctx context.Context, gr
 	return nil, nil
 }
 
-func (m *mockGroupRepoForGemini) UpdateSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error {
+func (m *mockGroupRepoForGemini) UpdateSortOrders(ctx context.Context, updates []routing.GroupSortOrderUpdate) error {
 	return nil
 }
 
-var _ GroupRepository = (*mockGroupRepoForGemini)(nil)
+var _ routing.GroupRepository = (*mockGroupRepoForGemini)(nil)
 
 // mockGatewayCacheForGemini Gemini 测试用的 cache mock
 type mockGatewayCacheForGemini struct {
@@ -327,9 +335,9 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_GeminiP
 
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
-			{ID: 2, Platform: PlatformGemini, Priority: 2, Status: StatusActive, Schedulable: true},
-			{ID: 3, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true}, // 应被隔离
+			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			{ID: 2, Platform: capability.PlatformGemini, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			{ID: 3, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}, // 应被隔离
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -338,7 +346,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_GeminiP
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -351,23 +359,23 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_GeminiP
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 	require.Equal(t, int64(1), acc.ID, "应选择优先级最高的 gemini 账户")
-	require.Equal(t, PlatformGemini, acc.Platform, "无分组时应只返回 gemini 平台账户")
+	require.Equal(t, capability.PlatformGemini, acc.Platform, "无分组时应只返回 gemini 平台账户")
 }
 
 func TestGeminiMessagesCompatService_GroupResolution_ReusesContextGroup(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(7)
-	group := &Group{
+	group := &routing.Group{
 		ID:       groupID,
-		Platform: PlatformGemini,
-		Status:   StatusActive,
+		Platform: capability.PlatformGemini,
+		Status:   billing.StatusActive,
 		Hydrated: true,
 	}
-	ctx = context.WithValue(ctx, ctxkey.Group, group)
+	ctx = requeststate.WithGroup(ctx, group)
 
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
+			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -376,7 +384,7 @@ func TestGeminiMessagesCompatService_GroupResolution_ReusesContextGroup(t *testi
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -393,17 +401,17 @@ func TestGeminiMessagesCompatService_GroupResolution_ReusesContextGroup(t *testi
 
 func TestGeminiMessagesCompatService_AdvancedGroupUsesGenericScore(t *testing.T) {
 	groupID := int64(71)
-	ctx := context.WithValue(context.Background(), ctxkey.Group, &Group{
+	ctx := requeststate.WithGroup(context.Background(), &routing.Group{
 		ID:            groupID,
-		Platform:      PlatformGemini,
-		SchedulerType: GroupSchedulerTypeAdvanced,
-		Status:        StatusActive,
+		Platform:      capability.PlatformGemini,
+		SchedulerType: routing.GroupSchedulerTypeAdvanced,
+		Status:        billing.StatusActive,
 		Hydrated:      true,
 	})
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
-			{ID: 2, Platform: PlatformGemini, Priority: 99, Status: StatusActive, Schedulable: true},
+			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			{ID: 2, Platform: capability.PlatformGemini, Priority: 99, Status: billing.StatusActive, Schedulable: true},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -422,7 +430,7 @@ func TestGeminiMessagesCompatService_AdvancedGroupUsesGenericScore(t *testing.T)
 	}
 	svc := &GeminiMessagesCompatService{
 		accountRepo:          repo,
-		groupRepo:            &mockGroupRepoForGemini{groups: map[int64]*Group{}},
+		groupRepo:            &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}},
 		cache:                &mockGatewayCacheForGemini{},
 		cfg:                  cfg,
 		advancedAccountStats: stats,
@@ -441,7 +449,7 @@ func TestGeminiMessagesCompatService_GroupResolution_UsesLiteFetch(t *testing.T)
 
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
+			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -451,8 +459,8 @@ func TestGeminiMessagesCompatService_GroupResolution_UsesLiteFetch(t *testing.T)
 
 	cache := &mockGatewayCacheForGemini{}
 	groupRepo := &mockGroupRepoForGemini{
-		groups: map[int64]*Group{
-			groupID: {ID: groupID, Platform: PlatformGemini},
+		groups: map[int64]*routing.Group{
+			groupID: {ID: groupID, Platform: capability.PlatformGemini},
 		},
 	}
 
@@ -475,8 +483,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_Antigra
 
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},      // 应被隔离
-			{ID: 2, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true}, // 应被选择
+			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},      // 应被隔离
+			{ID: 2, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}, // 应被选择
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -486,8 +494,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_Antigra
 
 	cache := &mockGatewayCacheForGemini{}
 	groupRepo := &mockGroupRepoForGemini{
-		groups: map[int64]*Group{
-			1: {ID: 1, Platform: PlatformAntigravity},
+		groups: map[int64]*routing.Group{
+			1: {ID: 1, Platform: capability.PlatformAntigravity},
 		},
 	}
 
@@ -502,7 +510,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_Antigra
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 	require.Equal(t, int64(2), acc.ID)
-	require.Equal(t, PlatformAntigravity, acc.Platform, "antigravity 分组应只返回 antigravity 账户")
+	require.Equal(t, capability.PlatformAntigravity, acc.Platform, "antigravity 分组应只返回 antigravity 账户")
 }
 
 // TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_OAuthPreferred 测试 OAuth 优先
@@ -511,8 +519,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_OAuthPr
 
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Type: AccountTypeAPIKey, Priority: 1, Status: StatusActive, Schedulable: true, LastUsedAt: nil},
-			{ID: 2, Platform: PlatformGemini, Type: AccountTypeOAuth, Priority: 1, Status: StatusActive, Schedulable: true, LastUsedAt: nil},
+			{ID: 1, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: nil},
+			{ID: 2, Platform: capability.PlatformGemini, Type: capability.AccountTypeOAuth, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: nil},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -521,7 +529,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_OAuthPr
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -533,7 +541,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_OAuthPr
 	require.NoError(t, err)
 	require.NotNil(t, acc)
 	require.Equal(t, int64(2), acc.ID, "同优先级且都未使用时，应优先选择 OAuth 账户")
-	require.Equal(t, AccountTypeOAuth, acc.Type)
+	require.Equal(t, capability.AccountTypeOAuth, acc.Type)
 }
 
 // TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_NoAvailableAccounts 测试无可用账户
@@ -546,7 +554,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_NoAvail
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -567,8 +575,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 	t.Run("粘性会话命中-同平台", func(t *testing.T) {
 		repo := &mockAccountRepoForGemini{
 			accounts: []Account{
-				{ID: 1, Platform: PlatformGemini, Priority: 2, Status: StatusActive, Schedulable: true},
-				{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
+				{ID: 1, Platform: capability.PlatformGemini, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+				{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
 			},
 			accountsByID: map[int64]*Account{},
 		}
@@ -580,7 +588,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 		cache := &mockGatewayCacheForGemini{
 			sessionBindings: map[string]int64{"gemini:session-123": 1},
 		}
-		groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+		groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 		svc := &GeminiMessagesCompatService{
 			accountRepo: repo,
@@ -597,8 +605,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 	t.Run("粘性会话平台不匹配-降级选择", func(t *testing.T) {
 		repo := &mockAccountRepoForGemini{
 			accounts: []Account{
-				{ID: 1, Platform: PlatformAntigravity, Priority: 2, Status: StatusActive, Schedulable: true}, // 粘性会话绑定
-				{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
+				{ID: 1, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true}, // 粘性会话绑定
+				{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
 			},
 			accountsByID: map[int64]*Account{},
 		}
@@ -609,7 +617,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 		cache := &mockGatewayCacheForGemini{
 			sessionBindings: map[string]int64{"gemini:session-123": 1}, // 绑定 antigravity 账户
 		}
-		groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+		groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 		svc := &GeminiMessagesCompatService{
 			accountRepo: repo,
@@ -622,14 +630,14 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 		require.NoError(t, err)
 		require.NotNil(t, acc)
 		require.Equal(t, int64(2), acc.ID, "粘性会话账户平台不匹配，应降级选择 gemini 账户")
-		require.Equal(t, PlatformGemini, acc.Platform)
+		require.Equal(t, capability.PlatformGemini, acc.Platform)
 	})
 
 	t.Run("粘性会话不命中无前缀缓存键", func(t *testing.T) {
 		repo := &mockAccountRepoForGemini{
 			accounts: []Account{
-				{ID: 1, Platform: PlatformGemini, Priority: 2, Status: StatusActive, Schedulable: true},
-				{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
+				{ID: 1, Platform: capability.PlatformGemini, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+				{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
 			},
 			accountsByID: map[int64]*Account{},
 		}
@@ -641,7 +649,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 		cache := &mockGatewayCacheForGemini{
 			sessionBindings: map[string]int64{"session-123": 1},
 		}
-		groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+		groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 		svc := &GeminiMessagesCompatService{
 			accountRepo: repo,
@@ -659,8 +667,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 	t.Run("粘性会话不可调度-清理并回退选择", func(t *testing.T) {
 		repo := &mockAccountRepoForGemini{
 			accounts: []Account{
-				{ID: 1, Platform: PlatformGemini, Priority: 2, Status: StatusDisabled, Schedulable: true},
-				{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
+				{ID: 1, Platform: capability.PlatformGemini, Priority: 2, Status: billing.StatusDisabled, Schedulable: true},
+				{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
 			},
 			accountsByID: map[int64]*Account{},
 		}
@@ -671,7 +679,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 		cache := &mockGatewayCacheForGemini{
 			sessionBindings: map[string]int64{"gemini:session-123": 1},
 		}
-		groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+		groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 		svc := &GeminiMessagesCompatService{
 			accountRepo: repo,
@@ -691,7 +699,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyS
 func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_ForcePlatformFallback(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(9)
-	ctx = context.WithValue(ctx, ctxkey.ForcePlatform, PlatformAntigravity)
+	ctx = apikey.WithForcePlatform(ctx, capability.PlatformAntigravity)
 
 	repo := &mockAccountRepoForGemini{
 		listByGroupFunc: func(ctx context.Context, groupID int64, platforms []string) ([]Account, error) {
@@ -699,17 +707,17 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_ForcePl
 		},
 		listByPlatformFunc: func(ctx context.Context, platforms []string) ([]Account, error) {
 			return []Account{
-				{ID: 1, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true},
+				{ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true},
 			}, nil
 		},
 		accountsByID: map[int64]*Account{
-			1: {ID: 1, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true},
+			1: {ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true},
 		},
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{
-		groupID: {ID: groupID, Platform: PlatformAntigravity, Status: StatusActive},
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{
+		groupID: {ID: groupID, Platform: capability.PlatformAntigravity, Status: billing.StatusActive},
 	}}
 
 	svc := &GeminiMessagesCompatService{
@@ -731,9 +739,9 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_NoModel
 		accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformGemini,
+				Platform:    capability.PlatformGemini,
 				Priority:    1,
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-1.0-pro": "gemini-1.0-pro"}},
 			},
@@ -745,7 +753,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_NoModel
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -756,9 +764,9 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_NoModel
 	acc, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "", "gemini-2.5-flash", nil)
 	require.Error(t, err)
 	require.Nil(t, acc)
-	var modelErr *GroupModelUnsupportedError
+	var modelErr *routing.GroupModelUnsupportedError
 	require.True(t, errors.As(err, &modelErr))
-	require.Equal(t, PlatformGemini, modelErr.Platform)
+	require.Equal(t, capability.PlatformGemini, modelErr.Platform)
 	require.Equal(t, "gemini-2.5-flash", modelErr.RequestedModel)
 	require.Equal(t, []string{"gemini-1.0-pro"}, modelErr.AvailableModels)
 	require.Contains(t, err.Error(), `The current group does not support the requested model "gemini-2.5-flash"`)
@@ -773,9 +781,9 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_ModelRa
 		accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformGemini,
+				Platform:    capability.PlatformGemini,
 				Priority:    1,
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-flash": "gemini-2.5-flash"}},
 				Extra: map[string]any{
@@ -786,9 +794,9 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_ModelRa
 			},
 			{
 				ID:          2,
-				Platform:    PlatformGemini,
+				Platform:    capability.PlatformGemini,
 				Priority:    2,
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-1.0-pro": "gemini-1.0-pro"}},
 			},
@@ -801,14 +809,14 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_ModelRa
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
-		groupRepo:   &mockGroupRepoForGemini{groups: map[int64]*Group{}},
+		groupRepo:   &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}},
 		cache:       &mockGatewayCacheForGemini{},
 	}
 
 	acc, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "", "gemini-2.5-flash", nil)
 	require.Error(t, err)
 	require.Nil(t, acc)
-	var modelErr *GroupModelUnsupportedError
+	var modelErr *routing.GroupModelUnsupportedError
 	require.False(t, errors.As(err, &modelErr))
 	require.Contains(t, err.Error(), "supporting model")
 }
@@ -817,8 +825,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyM
 	ctx := context.Background()
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
-			{ID: 2, Platform: PlatformGemini, Priority: 2, Status: StatusActive, Schedulable: true},
+			{ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
+			{ID: 2, Platform: capability.PlatformGemini, Priority: 2, Status: billing.StatusActive, Schedulable: true},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -829,7 +837,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_StickyM
 	cache := &mockGatewayCacheForGemini{
 		sessionBindings: map[string]int64{"gemini:session-999": 1},
 	}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -847,8 +855,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_SkipDis
 	ctx := context.Background()
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformAntigravity, Priority: 1, Status: StatusActive, Schedulable: true},
-			{ID: 2, Platform: PlatformGemini, Priority: 2, Status: StatusActive, Schedulable: true},
+			{ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			{ID: 2, Platform: capability.PlatformGemini, Priority: 2, Status: billing.StatusActive, Schedulable: true},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -857,7 +865,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_SkipDis
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -875,8 +883,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_Exclude
 	ctx := context.Background()
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true},
-			{ID: 2, Platform: PlatformGemini, Priority: 2, Status: StatusActive, Schedulable: true},
+			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			{ID: 2, Platform: capability.PlatformGemini, Priority: 2, Status: billing.StatusActive, Schedulable: true},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -885,7 +893,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_Exclude
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -909,7 +917,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_ListErr
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -927,8 +935,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_PreferO
 	ctx := context.Background()
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, Type: AccountTypeAPIKey},
-			{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, Type: AccountTypeOAuth},
+			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeAPIKey},
+			{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeOAuth},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -937,7 +945,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_PreferO
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -957,8 +965,8 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_PreferL
 	newTime := time.Now().Add(-1 * time.Hour)
 	repo := &mockAccountRepoForGemini{
 		accounts: []Account{
-			{ID: 1, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, LastUsedAt: &newTime},
-			{ID: 2, Platform: PlatformGemini, Priority: 1, Status: StatusActive, Schedulable: true, LastUsedAt: &oldTime},
+			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: &newTime},
+			{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: &oldTime},
 		},
 		accountsByID: map[int64]*Account{},
 	}
@@ -967,7 +975,7 @@ func TestGeminiMessagesCompatService_SelectAccountForModelWithExclusions_PreferL
 	}
 
 	cache := &mockGatewayCacheForGemini{}
-	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*Group{}}
+	groupRepo := &mockGroupRepoForGemini{groups: map[int64]*routing.Group{}}
 
 	svc := &GeminiMessagesCompatService{
 		accountRepo: repo,
@@ -990,12 +998,12 @@ func TestGeminiPlatformRouting_DocumentRouteDecision(t *testing.T) {
 	}{
 		{
 			name:            "Gemini平台走ForwardNative",
-			platform:        PlatformGemini,
+			platform:        capability.PlatformGemini,
 			expectedService: "gemini",
 		},
 		{
 			name:            "Antigravity平台走ForwardGemini",
-			platform:        PlatformAntigravity,
+			platform:        capability.PlatformAntigravity,
 			expectedService: "antigravity",
 		},
 	}
@@ -1006,7 +1014,7 @@ func TestGeminiPlatformRouting_DocumentRouteDecision(t *testing.T) {
 
 			// 模拟 Handler 层的路由逻辑
 			var serviceName string
-			if account.Platform == PlatformAntigravity {
+			if account.Platform == capability.PlatformAntigravity {
 				serviceName = "antigravity"
 			} else {
 				serviceName = "gemini"
@@ -1029,32 +1037,32 @@ func TestGeminiMessagesCompatService_isModelSupportedByAccount(t *testing.T) {
 	}{
 		{
 			name:     "Antigravity平台-支持gemini模型",
-			account:  &Account{Platform: PlatformAntigravity},
+			account:  &Account{Platform: capability.PlatformAntigravity},
 			model:    "gemini-2.5-flash",
 			expected: true,
 		},
 		{
 			name:     "Antigravity平台-支持claude模型",
-			account:  &Account{Platform: PlatformAntigravity},
+			account:  &Account{Platform: capability.PlatformAntigravity},
 			model:    "claude-sonnet-4-5",
 			expected: true,
 		},
 		{
 			name:     "Antigravity平台-不支持gpt模型",
-			account:  &Account{Platform: PlatformAntigravity},
+			account:  &Account{Platform: capability.PlatformAntigravity},
 			model:    "gpt-4",
 			expected: false,
 		},
 		{
 			name:     "Antigravity平台-空模型允许",
-			account:  &Account{Platform: PlatformAntigravity},
+			account:  &Account{Platform: capability.PlatformAntigravity},
 			model:    "",
 			expected: true,
 		},
 		{
 			name: "Antigravity平台-自定义映射-支持自定义模型",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{
 						"my-custom-model": "upstream-model",
@@ -1068,7 +1076,7 @@ func TestGeminiMessagesCompatService_isModelSupportedByAccount(t *testing.T) {
 		{
 			name: "Antigravity平台-自定义映射-不在映射中的模型不支持",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{
 						"my-custom-model": "upstream-model",
@@ -1080,14 +1088,14 @@ func TestGeminiMessagesCompatService_isModelSupportedByAccount(t *testing.T) {
 		},
 		{
 			name:     "Gemini平台-无映射配置-支持所有模型",
-			account:  &Account{Platform: PlatformGemini},
+			account:  &Account{Platform: capability.PlatformGemini},
 			model:    "gemini-2.5-flash",
 			expected: true,
 		},
 		{
 			name: "Gemini平台-有映射配置-未命中映射时按透传支持模型",
 			account: &Account{
-				Platform:    PlatformGemini,
+				Platform:    capability.PlatformGemini,
 				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-pro": "x"}},
 			},
 			model:    "gemini-2.5-flash",

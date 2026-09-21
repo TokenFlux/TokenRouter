@@ -5,9 +5,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"net/http"
+
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 type openAIForwardTransformAdapter struct{ openAIForwardPreludeAdapter }
@@ -57,7 +62,7 @@ func (p openAIForwardTransformAdapter) IsExplicitImageGenerationIntentMap(endpoi
 	return IsExplicitImageGenerationIntentMap(endpoint, model, body)
 }
 func (p openAIForwardTransformAdapter) IsOpenAIImageGenerationModel(model string) bool {
-	return isOpenAIImageGenerationModel(model)
+	return media.IsImageGenerationModel(model)
 }
 func (p openAIForwardTransformAdapter) IsCodexSparkModel(model string) bool {
 	return isCodexSparkModel(model)
@@ -86,7 +91,7 @@ func (p openAIForwardTransformAdapter) ValidateCodexSparkInput(body map[string]a
 func (p openAIForwardTransformAdapter) ApplyCodexImageGenerationBridgeInstructions(body map[string]any) bool {
 	return applyCodexImageGenerationBridgeInstructions(body)
 }
-func (p openAIForwardTransformAdapter) CodexTransform(body map[string]any, options native.CodexOAuthTransformOptions) native.CodexTransformResult {
+func (p openAIForwardTransformAdapter) CodexTransform(body map[string]any, options openai.CodexOAuthTransformOptions) openai.CodexTransformResult {
 	return applyCodexOAuthTransformWithOptions(body, options)
 }
 func (p openAIForwardTransformAdapter) EnsureCodexOAuthInstructionsField(body map[string]any) {
@@ -99,12 +104,12 @@ func (p openAIForwardTransformAdapter) ClientMetadata(body map[string]any) bool 
 	return applyCodexClientMetadata(body, p.account)
 }
 func (p openAIForwardTransformAdapter) AccountIdentity(body map[string]any) bool {
-	return applyCodexAccountIdentityClientMetadataMap(body, codexAccountIdentitySource(p.c, p.account), getAPIKeyIDFromContext(p.c))
+	return applyCodexAccountIdentityClientMetadataMap(body, codexAccountIdentitySource(p.c, p.account), gatewayhttp.APIKeyIDFromContext(p.c))
 }
 func (p openAIForwardTransformAdapter) ClearFingerprint() {
 	stageCodexFingerprintIDs(p.c, nil)
 }
-func (p openAIForwardTransformAdapter) Fingerprint(ctx context.Context, body map[string]any) (*native.FingerprintIDs, bool, error) {
+func (p openAIForwardTransformAdapter) Fingerprint(ctx context.Context, body map[string]any) (*openai.FingerprintIDs, bool, error) {
 	account, err := resolveCredentialAccount(ctx, p.s.accountRepo, p.account)
 	if err != nil {
 		return nil, false, fmt.Errorf("resolve Codex fingerprint account: %w", err)
@@ -115,7 +120,7 @@ func (p openAIForwardTransformAdapter) Fingerprint(ctx context.Context, body map
 		headers = p.c.Request.Header
 	}
 	ids := resolveCodexFingerprintIDsFromRequest(account, headers)
-	if applyCodexFingerprintClientMetadata(body, ids) {
+	if openai.ApplyCodexFingerprintClientMetadata(body, ids) {
 		changed = true
 	}
 	return ids, changed, nil
@@ -129,7 +134,7 @@ func (p openAIForwardTransformAdapter) FastDecision(ctx context.Context, model, 
 	return value
 }
 func (p openAIForwardTransformAdapter) FastBlocked(err error) {
-	var blocked *OpenAIFastBlockedError
+	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		writeOpenAIFastPolicyBlockedResponse(p.c, blocked)
 	}
@@ -138,7 +143,7 @@ func (p openAIForwardTransformAdapter) SanitizeOpenAIResponsesOrphanToolOutputs(
 	return sanitizeOpenAIResponsesOrphanToolOutputs(body, input, hasPrevious)
 }
 func (p openAIForwardTransformAdapter) FirstNonEmptyString(values ...any) string {
-	return firstNonEmptyString(values...)
+	return openai.FirstNonEmptyString(values...)
 }
 func (p openAIForwardTransformAdapter) OpenAIResponsesInputMayNeedTruncation(body []byte) bool {
 	return openAIResponsesInputMayNeedTruncation(body)
@@ -147,7 +152,7 @@ func (p openAIForwardTransformAdapter) TruncateOpenAIResponsesInputText(body map
 	return truncateOpenAIResponsesInputText(body)
 }
 func (p openAIForwardTransformAdapter) Marshal(body map[string]any) ([]byte, error) {
-	return marshalOpenAIUpstreamJSON(body)
+	return wirejson.Marshal(body)
 }
 func (p openAIForwardTransformAdapter) NormalizeTrigger(body []byte) ([]byte, bool, error) {
 	return NormalizeCompactionTriggerInputOrder(body)

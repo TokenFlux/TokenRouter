@@ -8,11 +8,16 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	"entgo.io/ent/dialect"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 
-	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 )
 
@@ -26,14 +31,14 @@ func TestUpdateCNUsageMonitorSnapshotCASWritesSnapshotAndOutboxAtomically(t *tes
 	expectedUpdatedAt := time.Date(2026, 8, 23, 2, 0, 0, 0, time.UTC)
 	mock.ExpectBegin()
 	mock.ExpectExec(`(?s)WITH updated AS \(.*updated_at = \$5.*INSERT INTO scheduler_outbox`).
-		WithArgs("", service.CNUsageMonitorSnapshotExtraKey, sqlmock.AnyArg(), int64(27), expectedUpdatedAt, service.SchedulerOutboxEventAccountChanged).
+		WithArgs("", accountcore.CNUsageMonitorSnapshotExtraKey, sqlmock.AnyArg(), int64(27), expectedUpdatedAt, scheduler.SchedulerOutboxEventAccountChanged).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	repo := newAccountRepositoryWithSQL(client, db, nil)
-	written, err := repo.UpdateCNUsageMonitorSnapshotCAS(context.Background(), 27, expectedUpdatedAt, &service.CNUsageMonitorSnapshot{
+	written, err := repo.UpdateCNUsageMonitorSnapshotCAS(context.Background(), 27, expectedUpdatedAt, &accountcore.CNUsageMonitorSnapshot{
 		Version:       1,
-		Adapter:       service.UpstreamUsageAdapterKimiBalance,
+		Adapter:       accountcore.UpstreamUsageAdapterKimiBalance,
 		IdentityHash:  "identity",
 		LastAttemptAt: expectedUpdatedAt,
 	}, "")
@@ -52,14 +57,14 @@ func TestUpdateCNUsageMonitorSnapshotCASRejectsStaleUpdatedAt(t *testing.T) {
 	expectedUpdatedAt := time.Date(2026, 8, 23, 2, 0, 0, 0, time.UTC)
 	mock.ExpectBegin()
 	mock.ExpectExec(`(?s)WITH updated AS \(.*updated_at = \$5.*INSERT INTO scheduler_outbox`).
-		WithArgs("", service.CNUsageMonitorSnapshotExtraKey, sqlmock.AnyArg(), int64(27), expectedUpdatedAt, service.SchedulerOutboxEventAccountChanged).
+		WithArgs("", accountcore.CNUsageMonitorSnapshotExtraKey, sqlmock.AnyArg(), int64(27), expectedUpdatedAt, scheduler.SchedulerOutboxEventAccountChanged).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectRollback()
 
 	repo := newAccountRepositoryWithSQL(client, db, nil)
-	written, err := repo.UpdateCNUsageMonitorSnapshotCAS(context.Background(), 27, expectedUpdatedAt, &service.CNUsageMonitorSnapshot{
+	written, err := repo.UpdateCNUsageMonitorSnapshotCAS(context.Background(), 27, expectedUpdatedAt, &accountcore.CNUsageMonitorSnapshot{
 		Version:       1,
-		Adapter:       service.UpstreamUsageAdapterKimiBalance,
+		Adapter:       accountcore.UpstreamUsageAdapterKimiBalance,
 		IdentityHash:  "stale",
 		LastAttemptAt: expectedUpdatedAt,
 	}, "")
@@ -90,34 +95,34 @@ func TestLockAndMergeAccountManagedExtraProtectsOllamaFields(t *testing.T) {
 			t.Cleanup(func() { _ = client.Close() })
 
 			mock.ExpectQuery(`(?s)`+regexp.QuoteMeta("SELECT")+`.*`+regexp.QuoteMeta("FOR NO KEY UPDATE")).
-				WithArgs(int64(29), service.PlatformAnthropic, service.AccountTypeAPIKey, `{"api_key":"key","base_url":"https://ollama.com"}`, nil).
+				WithArgs(int64(29), capability.PlatformAnthropic, capability.AccountTypeAPIKey, `{"api_key":"key","base_url":"https://ollama.com"}`, nil).
 				WillReturnRows(sqlmock.NewRows([]string{"ollama_group_unchanged", "ollama_proxy_unchanged", "ollama_session", "ollama_auto", "ollama_snapshot"}).
 					AddRow(tt.groupIdentityMatches, tt.proxyIdentityMatches, []byte(`"local-ciphertext"`), []byte(`true`), []byte(`{"status":"ok"}`)))
 
 			account := &service.Account{
-				ID: 29, Platform: service.PlatformAnthropic, Type: service.AccountTypeAPIKey,
+				ID: 29, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 				Credentials: map[string]any{"api_key": "key", "base_url": "https://ollama.com"},
 				Extra: map[string]any{
-					service.OllamaCloudUsageSessionExtraKey:     "forged-ciphertext",
-					service.OllamaCloudUsageAutoRefreshExtraKey: false,
-					service.OllamaCloudUsageSnapshotExtraKey:    map[string]any{"status": "forged"},
-					deprecatedUpstreamBillingProbeExtraKey:      map[string]any{"status": "stale"},
+					accountcore.OllamaCloudUsageSessionExtraKey:     "forged-ciphertext",
+					accountcore.OllamaCloudUsageAutoRefreshExtraKey: false,
+					accountcore.OllamaCloudUsageSnapshotExtraKey:    map[string]any{"status": "forged"},
+					deprecatedUpstreamBillingProbeExtraKey:          map[string]any{"status": "stale"},
 				},
 			}
 			got, err := lockAndMergeAccountManagedExtra(context.Background(), client, account)
 			require.NoError(t, err)
 			require.NotContains(t, got, deprecatedUpstreamBillingProbeExtraKey)
 			if tt.wantSession {
-				require.Equal(t, "local-ciphertext", got[service.OllamaCloudUsageSessionExtraKey])
-				require.Equal(t, true, got[service.OllamaCloudUsageAutoRefreshExtraKey])
+				require.Equal(t, "local-ciphertext", got[accountcore.OllamaCloudUsageSessionExtraKey])
+				require.Equal(t, true, got[accountcore.OllamaCloudUsageAutoRefreshExtraKey])
 			} else {
-				require.NotContains(t, got, service.OllamaCloudUsageSessionExtraKey)
-				require.NotContains(t, got, service.OllamaCloudUsageAutoRefreshExtraKey)
+				require.NotContains(t, got, accountcore.OllamaCloudUsageSessionExtraKey)
+				require.NotContains(t, got, accountcore.OllamaCloudUsageAutoRefreshExtraKey)
 			}
 			if tt.wantSnapshot {
-				require.Equal(t, map[string]any{"status": "ok"}, got[service.OllamaCloudUsageSnapshotExtraKey])
+				require.Equal(t, map[string]any{"status": "ok"}, got[accountcore.OllamaCloudUsageSnapshotExtraKey])
 			} else {
-				require.NotContains(t, got, service.OllamaCloudUsageSnapshotExtraKey)
+				require.NotContains(t, got, accountcore.OllamaCloudUsageSnapshotExtraKey)
 			}
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
@@ -136,7 +141,7 @@ func TestUpdateExtraDiscardsDeprecatedAccountExtraKeys(t *testing.T) {
 		WithArgs(`{"custom":"value"}`, int64(27)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO scheduler_outbox")).
-		WithArgs(service.SchedulerOutboxEventAccountChanged, int64(27), nil, nil, sqlmock.AnyArg()).
+		WithArgs(scheduler.SchedulerOutboxEventAccountChanged, int64(27), nil, nil, sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 	repo := newAccountRepositoryWithSQL(client, db, nil)
@@ -172,7 +177,7 @@ func TestBulkUpdateDiscardsDeprecatedLongContextBillingExtra(t *testing.T) {
 		"custom": "value",
 	}
 
-	rows, err := repo.BulkUpdate(context.Background(), []int64{27}, service.AccountBulkUpdate{Extra: extra})
+	rows, err := repo.BulkUpdate(context.Background(), []int64{27}, accountcore.AccountBulkUpdate{Extra: extra})
 
 	require.NoError(t, err)
 	require.Equal(t, int64(1), rows)
@@ -238,7 +243,7 @@ func TestBulkUpdateRollsBackWhenOutboxFails(t *testing.T) {
 	mock.ExpectRollback()
 
 	repo := newAccountRepositoryWithSQL(client, db, nil)
-	rows, err := repo.BulkUpdate(context.Background(), []int64{27, 28}, service.AccountBulkUpdate{Name: &name})
+	rows, err := repo.BulkUpdate(context.Background(), []int64{27, 28}, accountcore.AccountBulkUpdate{Name: &name})
 
 	require.EqualError(t, err, "outbox failed")
 	require.Zero(t, rows)

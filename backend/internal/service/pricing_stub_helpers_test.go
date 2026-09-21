@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,11 +23,11 @@ const openAILadderCatalogJSON = `{
 }`
 
 // newStubPricingServiceFromJSON 通过与生产相同的解析路径创建价格目录 stub。
-func newStubPricingServiceFromJSON(t *testing.T, body string) *PricingService {
+func newStubPricingServiceFromJSON(t *testing.T, body string) *provider.PricingService {
 	t.Helper()
 	service := newPricingServiceFixture(pricingServiceFixture{})
-	data, err := service.parsePricingData([]byte(body))
+	data, err := service.ParsePricingData([]byte(body))
 	require.NoError(t, err)
-	setPricingFixtureData(service, data)
+	service = newPricingServiceFixture(pricingServiceFixture{pricingData: data})
 	return service
 }

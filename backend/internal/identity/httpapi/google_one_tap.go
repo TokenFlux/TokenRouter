@@ -4,13 +4,14 @@ package httpapi
 import (
 	context "context"
 	errors "errors"
+	http "net/http"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	http "net/http"
-	strings "strings"
 )
 
 type GoogleOneTapOptions struct{ ClientID, FrontendRedirectURL string }

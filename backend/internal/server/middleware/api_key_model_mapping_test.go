@@ -10,28 +10,28 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestApplyAPIKeyModelRedirectRewritesJSONAndRestoresMetadataOnly(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"codex-auto-review"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	applyAPIKeyModelRedirect(c, &service.APIKey{ModelMapping: map[string]string{
+	applyAPIKeyModelRedirect(c, &apikey.APIKey{ModelMapping: map[string]string{
 		"codex-auto-review": "gpt-5.6-luna",
 	}})
 
 	body, err := io.ReadAll(c.Request.Body)
 	require.NoError(t, err)
 	require.Equal(t, "gpt-5.6-luna", gjson.GetBytes(body, "model").String())
-	require.Equal(t, "codex-auto-review", c.Request.Context().Value(ctxkey.ClientModel))
+	require.Equal(t, "codex-auto-review", c.Request.Context().Value(telemetry.ClientModel))
 
 	_, err = c.Writer.Write([]byte(`{"model":"upstream-luna","output_text":"upstream-luna"}`))
 	require.NoError(t, err)
@@ -39,12 +39,12 @@ func TestApplyAPIKeyModelRedirectRewritesJSONAndRestoresMetadataOnly(t *testing.
 }
 
 func TestApplyAPIKeyModelRedirectDiscoversStreamingUpstreamModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewBufferString(`{"model":"review"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
-	applyAPIKeyModelRedirect(c, &service.APIKey{ModelMapping: map[string]string{"review": "key-target"}})
+	applyAPIKeyModelRedirect(c, &apikey.APIKey{ModelMapping: map[string]string{"review": "key-target"}})
 
 	_, err := c.Writer.WriteString("data: {\"type\":\"response.completed\",\"response\":{\"model\":\"upstream-target\",\"output_text\":\"upstream-target\"}}\n\n")
 	require.NoError(t, err)
@@ -53,7 +53,7 @@ func TestApplyAPIKeyModelRedirectDiscoversStreamingUpstreamModel(t *testing.T) {
 }
 
 func TestApplyAPIKeyModelRedirectRewritesCompressedJSON(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	var compressed bytes.Buffer
 	writer := gzip.NewWriter(&compressed)
 	_, err := writer.Write([]byte(`{"model":"codex-auto-review","tools":[{"model":"tool-alias"}]}`))
@@ -65,7 +65,7 @@ func TestApplyAPIKeyModelRedirectRewritesCompressedJSON(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(compressed.Bytes()))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Request.Header.Set("Content-Encoding", "gzip")
-	applyAPIKeyModelRedirect(c, &service.APIKey{ModelMapping: map[string]string{
+	applyAPIKeyModelRedirect(c, &apikey.APIKey{ModelMapping: map[string]string{
 		"codex-auto-review": "gpt-5.6-luna",
 		"tool-alias":        "tool-target",
 	}})
@@ -78,7 +78,7 @@ func TestApplyAPIKeyModelRedirectRewritesCompressedJSON(t *testing.T) {
 }
 
 func TestApplyAPIKeyModelRedirectRewritesMultipartModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("model", "image-alias"))
@@ -89,7 +89,7 @@ func TestApplyAPIKeyModelRedirectRewritesMultipartModel(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(body.Bytes()))
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
-	applyAPIKeyModelRedirect(c, &service.APIKey{ModelMapping: map[string]string{"image-alias": "gpt-image-1"}})
+	applyAPIKeyModelRedirect(c, &apikey.APIKey{ModelMapping: map[string]string{"image-alias": "gpt-image-1"}})
 
 	require.NoError(t, c.Request.ParseMultipartForm(1<<20))
 	require.Equal(t, "gpt-image-1", c.Request.FormValue("model"))
@@ -97,19 +97,19 @@ func TestApplyAPIKeyModelRedirectRewritesMultipartModel(t *testing.T) {
 }
 
 func TestApplyAPIKeyModelRedirectRewritesGeminiURLModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-alias:generateContent", nil)
 	c.Params = gin.Params{{Key: "modelAction", Value: "/gemini-alias:generateContent"}}
 
-	applyAPIKeyModelRedirect(c, &service.APIKey{ModelMapping: map[string]string{"gemini-alias": "gemini-3.1-pro-preview"}})
+	applyAPIKeyModelRedirect(c, &apikey.APIKey{ModelMapping: map[string]string{"gemini-alias": "gemini-3.1-pro-preview"}})
 
 	require.Equal(t, "/gemini-3.1-pro-preview:generateContent", c.Param("modelAction"))
 }
 
 func TestApplyAPIKeyModelRedirectRewritesAdditionalToolModelsWithoutMainMatch(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(
@@ -117,7 +117,7 @@ func TestApplyAPIKeyModelRedirectRewritesAdditionalToolModelsWithoutMainMatch(t 
 	))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	applyAPIKeyModelRedirect(c, &service.APIKey{ModelMapping: map[string]string{"tool-alias": "tool-target"}})
+	applyAPIKeyModelRedirect(c, &apikey.APIKey{ModelMapping: map[string]string{"tool-alias": "tool-target"}})
 	body, err := io.ReadAll(c.Request.Body)
 	require.NoError(t, err)
 	require.Equal(t, "main-model", gjson.GetBytes(body, "model").String())
@@ -125,14 +125,14 @@ func TestApplyAPIKeyModelRedirectRewritesAdditionalToolModelsWithoutMainMatch(t 
 }
 
 func TestApplyAPIKeyModelRedirectComposesWithCompositeResponseRestore(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"review"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 	SetCompositeModelContext(c, "GPT/review", "review")
 
-	applyAPIKeyModelRedirect(c, &service.APIKey{ModelMapping: map[string]string{"review": "gpt-5.6-luna"}})
+	applyAPIKeyModelRedirect(c, &apikey.APIKey{ModelMapping: map[string]string{"review": "gpt-5.6-luna"}})
 	_, err := c.Writer.Write([]byte(`{"model":"gpt-5.6-luna"}`))
 	require.NoError(t, err)
 	require.JSONEq(t, `{"model":"GPT/review"}`, recorder.Body.String())

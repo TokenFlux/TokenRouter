@@ -165,7 +165,8 @@ func expectDashboardAggregateStatements(
 	dailyUserStart, dailyUserEnd time.Time,
 	dayStart, dayEnd time.Time,
 ) {
-	tzName := timezone.Name()
+	tzName := time.Local.String()
+
 	mock.ExpectExec("INSERT INTO usage_dashboard_hourly_users").
 		WithArgs(hourStart, hourEnd, tzName).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -184,11 +185,12 @@ func expectDashboardAggregateStatements(
 func TestDashboardAggregateRangeKeepsExactEndExclusive(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := newDashboardAggregationRepositoryWithSQL(db)
-	loc := timezone.Location()
+	loc := time.Local
+
 	start := time.Date(2026, 8, 4, 23, 15, 0, 0, loc)
 	end := time.Date(2026, 8, 5, 0, 0, 0, 0, loc)
 	hourStart := start.Truncate(time.Hour)
-	dayStart := truncateToDay(start)
+	dayStart := truncateToDay(start, timezone.NewCalendar(time.Local))
 
 	mock.ExpectBegin()
 	expectDashboardAggregateStatements(mock, hourStart, end, hourStart, end, dayStart, end)
@@ -202,12 +204,13 @@ func TestDashboardAggregateRangeKeepsExactEndExclusive(t *testing.T) {
 func TestDashboardRecomputeRangeIncludesExactEndBuckets(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := newDashboardAggregationRepositoryWithSQL(db)
-	loc := timezone.Location()
+	loc := time.Local
+
 	start := time.Date(2026, 8, 4, 23, 15, 0, 0, loc)
 	end := time.Date(2026, 8, 5, 0, 0, 0, 0, loc)
 	hourStart := start.Truncate(time.Hour)
 	hourEnd := end.Add(time.Hour)
-	dayStart := truncateToDay(start)
+	dayStart := truncateToDay(start, timezone.NewCalendar(time.Local))
 	dayEnd := end.AddDate(0, 0, 1)
 
 	mock.ExpectBegin()

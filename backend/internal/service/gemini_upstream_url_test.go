@@ -3,21 +3,22 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBuildGeminiAIStudioModelActionURL(t *testing.T) {
 	const base = "https://generativelanguage.googleapis.com"
 
-	got, err := buildGeminiAIStudioModelActionURL(base, "gemini-2.5-pro", "generateContent", false)
+	got, err := gemini.BuildGeminiAIStudioModelActionURL(base, "gemini-2.5-pro", "generateContent", false)
 	require.NoError(t, err)
 	require.Equal(t, base+"/v1beta/models/gemini-2.5-pro:generateContent", got)
 
-	got, err = buildGeminiAIStudioModelActionURL(base+"/", " gemini-2.5-flash ", "streamGenerateContent", true)
+	got, err = gemini.BuildGeminiAIStudioModelActionURL(base+"/", " gemini-2.5-flash ", "streamGenerateContent", true)
 	require.NoError(t, err)
 	require.Equal(t, base+"/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse", got)
 
-	got, err = buildGeminiAIStudioModelActionURL(base, "gemini-2.5-pro", "countTokens", false)
+	got, err = gemini.BuildGeminiAIStudioModelActionURL(base, "gemini-2.5-pro", "countTokens", false)
 	require.NoError(t, err)
 	require.Equal(t, base+"/v1beta/models/gemini-2.5-pro:countTokens", got)
 }
@@ -47,16 +48,16 @@ func TestBuildGeminiAIStudioModelActionURLRejectsNonConformingModel(t *testing.T
 		"   ",
 	} {
 		t.Run("model_"+model, func(t *testing.T) {
-			_, err := buildGeminiAIStudioModelActionURL(base, model, "generateContent", false)
+			_, err := gemini.BuildGeminiAIStudioModelActionURL(base, model, "generateContent", false)
 			require.Error(t, err, "model %q must be rejected", model)
-			require.False(t, IsSafeGeminiModelPathSegment(model))
+			require.False(t, gemini.IsSafeGeminiModelPathSegment(model))
 		})
 	}
 
 	// action 只允许已知取值，避免未来把可变字符串拼进 path。
-	_, err := buildGeminiAIStudioModelActionURL(base, "gemini-2.5-pro", "deleteModel", false)
+	_, err := gemini.BuildGeminiAIStudioModelActionURL(base, "gemini-2.5-pro", "deleteModel", false)
 	require.Error(t, err)
 
-	_, err = buildGeminiAIStudioModelActionURL("", "gemini-2.5-pro", "generateContent", false)
+	_, err = gemini.BuildGeminiAIStudioModelActionURL("", "gemini-2.5-pro", "generateContent", false)
 	require.Error(t, err)
 }

@@ -6,9 +6,10 @@ import (
 	rand "crypto/rand"
 	sha256 "crypto/sha256"
 	hex "encoding/hex"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
 	time "time"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 var (

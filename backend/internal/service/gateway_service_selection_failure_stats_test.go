@@ -5,6 +5,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 func TestCollectSelectionFailureStats(t *testing.T) {
@@ -16,29 +19,29 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 		// excluded
 		{
 			ID:          1,
-			Platform:    PlatformOpenAI,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 		},
 		// unschedulable
 		{
 			ID:          2,
-			Platform:    PlatformOpenAI,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Status:      billing.StatusActive,
 			Schedulable: false,
 		},
 		// platform filtered
 		{
 			ID:          3,
-			Platform:    PlatformAntigravity,
-			Status:      StatusActive,
+			Platform:    capability.PlatformAntigravity,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 		},
 		// model unsupported
 		{
 			ID:          4,
-			Platform:    PlatformOpenAI,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Credentials: map[string]any{
 				"model_mapping": map[string]any{
@@ -49,8 +52,8 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 		// model rate limited
 		{
 			ID:          5,
-			Platform:    PlatformOpenAI,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Extra: map[string]any{
 				"model_rate_limits": map[string]any{
@@ -63,14 +66,14 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 		// eligible
 		{
 			ID:          6,
-			Platform:    PlatformOpenAI,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 		},
 	}
 
 	excluded := map[int64]struct{}{1: {}}
-	stats := svc.collectSelectionFailureStats(context.Background(), accounts, model, PlatformOpenAI, excluded, false)
+	stats := svc.collectSelectionFailureStats(context.Background(), accounts, model, capability.PlatformOpenAI, excluded, false)
 
 	if stats.Total != 6 {
 		t.Fatalf("total=%d want=6", stats.Total)
@@ -99,12 +102,12 @@ func TestDiagnoseSelectionFailure_UnschedulableDetail(t *testing.T) {
 	svc := &GatewayService{}
 	acc := &Account{
 		ID:          7,
-		Platform:    PlatformOpenAI,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Status:      billing.StatusActive,
 		Schedulable: false,
 	}
 
-	diagnosis := svc.diagnoseSelectionFailure(context.Background(), acc, "gpt-5.4", PlatformOpenAI, map[int64]struct{}{}, false)
+	diagnosis := svc.diagnoseSelectionFailure(context.Background(), acc, "gpt-5.4", capability.PlatformOpenAI, map[int64]struct{}{}, false)
 	if diagnosis.Category != "unschedulable" {
 		t.Fatalf("category=%s want=unschedulable", diagnosis.Category)
 	}
@@ -119,8 +122,8 @@ func TestDiagnoseSelectionFailure_ModelRateLimitedDetail(t *testing.T) {
 	resetAt := time.Now().Add(2 * time.Minute).UTC().Format(time.RFC3339)
 	acc := &Account{
 		ID:          8,
-		Platform:    PlatformOpenAI,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Extra: map[string]any{
 			"model_rate_limits": map[string]any{
@@ -131,7 +134,7 @@ func TestDiagnoseSelectionFailure_ModelRateLimitedDetail(t *testing.T) {
 		},
 	}
 
-	diagnosis := svc.diagnoseSelectionFailure(context.Background(), acc, model, PlatformOpenAI, map[int64]struct{}{}, false)
+	diagnosis := svc.diagnoseSelectionFailure(context.Background(), acc, model, capability.PlatformOpenAI, map[int64]struct{}{}, false)
 	if diagnosis.Category != "model_rate_limited" {
 		t.Fatalf("category=%s want=model_rate_limited", diagnosis.Category)
 	}

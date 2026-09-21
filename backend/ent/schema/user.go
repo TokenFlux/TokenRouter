@@ -3,9 +3,6 @@ package schema
 import (
 	"fmt"
 
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -13,6 +10,8 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // User holds the schema definition for the User entity.
@@ -45,7 +44,7 @@ func (User) Fields() []ent.Field {
 			NotEmpty(),
 		field.String("role").
 			MaxLen(20).
-			Default(domain.RoleUser),
+			Default(identity.RoleUser),
 		field.Float("balance").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
@@ -56,7 +55,7 @@ func (User) Fields() []ent.Field {
 			Default(5),
 		field.String("status").
 			MaxLen(20).
-			Default(domain.StatusActive),
+			Default(identity.StatusActive),
 
 		// 可选资料字段（后续迁移加入，数据库默认值为空字符串）
 		field.String("username").
@@ -117,8 +116,8 @@ func (User) Fields() []ent.Field {
 			Default(0),
 		// 用户可创建的 API Key 数量上限，0 表示不限制。
 		field.Int("api_key_limit").
-			Default(domain.DefaultUserAPIKeyLimit).
-			Range(0, domain.MaxUserAPIKeyLimit),
+			Default(identity.DefaultUserAPIKeyLimit).
+			Range(0, identity.MaxUserAPIKeyLimit),
 	}
 }
 

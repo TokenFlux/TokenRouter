@@ -8,8 +8,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
+
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -18,14 +22,14 @@ type bmSettingRepo struct {
 	values map[string]string
 }
 
-func (r *bmSettingRepo) Get(_ context.Context, _ string) (*service.Setting, error) {
+func (r *bmSettingRepo) Get(_ context.Context, _ string) (*settingscore.Setting, error) {
 	panic("unexpected Get call")
 }
 
 func (r *bmSettingRepo) GetValue(_ context.Context, key string) (string, error) {
 	v, ok := r.values[key]
 	if !ok {
-		return "", service.ErrSettingNotFound
+		return "", settingscore.ErrSettingNotFound
 	}
 	return v, nil
 }
@@ -56,18 +60,16 @@ func (r *bmSettingRepo) Delete(_ context.Context, _ string) error {
 	panic("unexpected Delete call")
 }
 
-func newBackendModeSettingService(t *testing.T, enabled string) *service.SettingService {
+func newBackendModeSettingService(t *testing.T, enabled string) *admission.BackendMode {
 	t.Helper()
 
 	repo := &bmSettingRepo{
 		values: map[string]string{
-			service.SettingKeyBackendModeEnabled: enabled,
+			gateway.SettingKeyBackendModeEnabled: enabled,
 		},
 	}
-	svc := service.NewSettingService(repo, &config.Config{})
-	require.NoError(t, svc.UpdateSettings(context.Background(), &service.SystemSettings{
-		BackendModeEnabled: enabled == "true",
-	}))
+	svc := admission.NewBackendMode(repo, nil)
+	svc.Publish(enabled == "true")
 
 	return svc
 }
@@ -124,7 +126,6 @@ func TestBackendModeUserGuard(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
 
 			r := gin.New()
 			if tc.role != nil {
@@ -135,7 +136,7 @@ func TestBackendModeUserGuard(t *testing.T) {
 				})
 			}
 
-			var svc *service.SettingService
+			var svc *admission.BackendMode
 			if !tc.nilService {
 				svc = newBackendModeSettingService(t, tc.enabled)
 			}
@@ -395,11 +396,10 @@ func TestBackendModeAuthGuard(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
 
 			r := gin.New()
 
-			var svc *service.SettingService
+			var svc *admission.BackendMode
 			if !tc.nilService {
 				svc = newBackendModeSettingService(t, tc.enabled)
 			}

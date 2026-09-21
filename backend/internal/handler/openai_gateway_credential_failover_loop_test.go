@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,14 +16,31 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
+
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -88,7 +106,7 @@ func (r *grokCredentialHandlerRepo) SetError(_ context.Context, id int64, messag
 	}
 	for i := range r.accounts {
 		if r.accounts[i].ID == id {
-			r.accounts[i].Status = service.StatusError
+			r.accounts[i].Status = accountcore.StatusError
 			r.accounts[i].Schedulable = false
 			r.accounts[i].ErrorMessage = message
 		}
@@ -143,7 +161,7 @@ func (r *grokCredentialHandlerRepo) SetRateLimitedIfLater(ctx context.Context, i
 func (r *grokCredentialHandlerRepo) SetGrokCredentialErrorIfMatch(
 	_ context.Context,
 	id int64,
-	snapshot service.GrokCredentialMutationSnapshot,
+	snapshot accountcore.CredentialMutationSnapshot,
 	message string,
 ) (bool, error) {
 	r.mu.Lock()
@@ -157,7 +175,7 @@ func (r *grokCredentialHandlerRepo) SetGrokCredentialErrorIfMatch(
 		if r.setErrorErr != nil {
 			return false, r.setErrorErr
 		}
-		account.Status = service.StatusError
+		account.Status = accountcore.StatusError
 		account.Schedulable = false
 		account.ErrorMessage = message
 		return true, nil
@@ -168,7 +186,7 @@ func (r *grokCredentialHandlerRepo) SetGrokCredentialErrorIfMatch(
 func (r *grokCredentialHandlerRepo) SetGrokCredentialTempUnschedulableIfMatch(
 	_ context.Context,
 	id int64,
-	snapshot service.GrokCredentialMutationSnapshot,
+	snapshot accountcore.CredentialMutationSnapshot,
 	until time.Time,
 	_ string,
 ) (bool, error) {
@@ -190,7 +208,7 @@ func (r *grokCredentialHandlerRepo) SetGrokCredentialTempUnschedulableIfMatch(
 	return false, nil
 }
 
-func handlerGrokCredentialSnapshotMatches(account *service.Account, snapshot service.GrokCredentialMutationSnapshot) bool {
+func handlerGrokCredentialSnapshotMatches(account *service.Account, snapshot accountcore.CredentialMutationSnapshot) bool {
 	if account == nil {
 		return false
 	}
@@ -243,7 +261,7 @@ func (r *grokCredentialHandlerRepo) rateLimitedAccountIDs() []int64 {
 }
 
 type grokCredentialHandlerTokenCache struct {
-	service.GrokTokenCache
+	accountcore.AccessTokenCache
 	mu        sync.Mutex
 	deleteErr error
 }
@@ -284,24 +302,24 @@ type grokCredentialHandlerRefresher struct {
 	once    sync.Once
 }
 
-func (r *grokCredentialHandlerRefresher) CacheKey(account *service.Account) string {
-	return service.GrokTokenCacheKey(account)
+func (r *grokCredentialHandlerRefresher) CacheKey(account *accountcore.Record) string {
+	return accountcore.GrokTokenCacheKey(account)
 }
 
-func (r *grokCredentialHandlerRefresher) CanRefresh(account *service.Account) bool {
+func (r *grokCredentialHandlerRefresher) CanRefresh(account *accountcore.Record) bool {
 	return account != nil && account.IsGrokOAuth()
 }
 
-func (r *grokCredentialHandlerRefresher) NeedsRefresh(account *service.Account, _ time.Duration) bool {
+func (r *grokCredentialHandlerRefresher) NeedsRefresh(account *accountcore.Record, _ time.Duration) bool {
 	return account != nil && (account.ID == 801 || r.mode == "all_revoked")
 }
 
-func (r *grokCredentialHandlerRefresher) Refresh(ctx context.Context, _ *service.Account) (map[string]any, error) {
+func (r *grokCredentialHandlerRefresher) Refresh(ctx context.Context, _ *accountcore.Record) (map[string]any, error) {
 	switch r.mode {
 	case "revoked", "all_revoked", "mutation_set_error", "mutation_cache":
-		return nil, infraerrors.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "invalid_grant")
+		return nil, apperror.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "invalid_grant")
 	case "provider":
-		return nil, infraerrors.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "invalid_client")
+		return nil, apperror.New(http.StatusBadGateway, "GROK_OAUTH_TOKEN_REFRESH_FAILED", "invalid_client")
 	case "cancel":
 		r.once.Do(func() { close(r.started) })
 		<-ctx.Done()
@@ -314,7 +332,8 @@ func (r *grokCredentialHandlerRefresher) Refresh(ctx context.Context, _ *service
 }
 
 type grokCredentialHandlerUpstream struct {
-	service.HTTPUpstream
+	httpclient.
+		UpstreamTransport
 	mu            sync.Mutex
 	hits          []int64
 	requestURLs   []string
@@ -416,7 +435,6 @@ func (u *grokCredentialHandlerUpstream) requests() ([]string, []string) {
 }
 
 func TestResponsesCredentialFailoverLoop(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("revoked account selects healthy account", func(t *testing.T) {
 		h, repo, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "revoked")
@@ -447,7 +465,7 @@ func TestResponsesCredentialFailoverLoop(t *testing.T) {
 		router.ServeHTTP(recorder, req)
 
 		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
-		require.Contains(t, recorder.Body.String(), service.GrokCredentialUnavailableClientMessage)
+		require.Contains(t, recorder.Body.String(), forwardcore.GrokCredentialUnavailableClientMessage)
 		require.Empty(t, repo.errorIDs())
 		require.Empty(t, upstream.accountHits())
 		require.Equal(t, 1, repo.selectorCalls())
@@ -547,7 +565,7 @@ func TestResponsesCredentialFailoverLoop(t *testing.T) {
 				router.ServeHTTP(recorder, req)
 
 				require.Equal(t, http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
-				require.Contains(t, recorder.Body.String(), service.GrokCredentialUnavailableClientMessage)
+				require.Contains(t, recorder.Body.String(), forwardcore.GrokCredentialUnavailableClientMessage)
 				require.Empty(t, upstream.accountHits())
 				require.Equal(t, 1, repo.selectorCalls())
 			})
@@ -564,7 +582,7 @@ func TestResponsesCredentialFailoverLoop(t *testing.T) {
 		router.ServeHTTP(recorder, req)
 
 		require.Equal(t, http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
-		require.Contains(t, recorder.Body.String(), service.GrokCredentialUnavailableClientMessage)
+		require.Contains(t, recorder.Body.String(), forwardcore.GrokCredentialUnavailableClientMessage)
 		require.Equal(t, 1, repo.selectorCalls())
 		require.Empty(t, upstream.accountHits())
 		require.Empty(t, repo.errorIDs())
@@ -572,7 +590,6 @@ func TestResponsesCredentialFailoverLoop(t *testing.T) {
 }
 
 func TestResponsesGrok429FailoverIsBounded(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("first rate limited account selects healthy account", func(t *testing.T) {
 		_, repo, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "first_429")
@@ -608,7 +625,7 @@ func TestResponsesGrok429FailoverIsBounded(t *testing.T) {
 }
 
 func TestResponsesGrok402FailoverCooldown(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	_, repo, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "first_402")
 	defer cleanup()
 
@@ -634,7 +651,6 @@ func TestResponsesGrok402FailoverCooldown(t *testing.T) {
 }
 
 func TestResponsesGrok429FailoverHandlesMixedStatuses(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("429 then 500 stops after the bounded followup", func(t *testing.T) {
 		_, _, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "mixed_429_500")
@@ -678,7 +694,6 @@ func TestResponsesGrok429FailoverHandlesMixedStatuses(t *testing.T) {
 }
 
 func TestGrokMedia429FailoverIsBounded(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("first 429 selects one healthy followup", func(t *testing.T) {
 		_, _, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "first_429")
@@ -709,7 +724,7 @@ func TestGrokMedia429FailoverIsBounded(t *testing.T) {
 }
 
 func TestGrokOAuthCredentialFailoverAcrossHTTPHandlers(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	endpoints := []struct {
 		name   string
 		method string
@@ -747,7 +762,7 @@ func TestGrokOAuthCredentialFailoverAcrossHTTPHandlers(t *testing.T) {
 			router.ServeHTTP(recorder, req)
 
 			require.Equal(t, http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
-			require.Contains(t, recorder.Body.String(), service.GrokCredentialUnavailableClientMessage)
+			require.Contains(t, recorder.Body.String(), forwardcore.GrokCredentialUnavailableClientMessage)
 			require.NotContains(t, recorder.Body.String(), "revoked-refresh")
 			require.NotContains(t, recorder.Body.String(), "healthy-refresh")
 			require.Equal(t, []int64{801, 802}, repo.errorIDs())
@@ -757,7 +772,7 @@ func TestGrokOAuthCredentialFailoverAcrossHTTPHandlers(t *testing.T) {
 }
 
 func TestGrokOAuthMissingSelectedRowRetriesHealthyAccountWithoutMutation(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	_, repo, upstream, router, cleanup := newGrokCredentialFailoverHandler(t, "missing_row")
 	defer cleanup()
 	recorder := httptest.NewRecorder()
@@ -773,7 +788,7 @@ func TestGrokOAuthMissingSelectedRowRetriesHealthyAccountWithoutMutation(t *test
 }
 
 func TestResponsesWebSocketCredentialFailoverLoop(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	dial := func(t *testing.T, router *gin.Engine) (*coderws.Conn, func()) {
 		t.Helper()
 		server := httptest.NewServer(router)
@@ -822,7 +837,7 @@ func TestResponsesWebSocketCredentialFailoverLoop(t *testing.T) {
 		cancel()
 		var closeErr coderws.CloseError
 		require.ErrorAs(t, err, &closeErr)
-		require.Contains(t, closeErr.Reason, service.GrokCredentialUnavailableClientMessage)
+		require.Contains(t, closeErr.Reason, forwardcore.GrokCredentialUnavailableClientMessage)
 		require.Equal(t, 1, repo.selectorCalls())
 		require.Empty(t, upstream.accountHits())
 	})
@@ -849,7 +864,7 @@ var handlerRefresherStarted sync.Map
 
 func findHandlerRefresherStarted(router *gin.Engine) <-chan struct{} {
 	value, _ := handlerRefresherStarted.Load(router)
-	return value.(chan struct{})
+	return testassert.MustType[chan struct{}](value)
 }
 
 func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGatewayHandler, *grokCredentialHandlerRepo, *grokCredentialHandlerUpstream, *gin.Engine, func()) {
@@ -857,22 +872,22 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	groupID := int64(901)
 	accounts := []service.Account{
 		{
-			ID: 801, Name: "revoked", Platform: service.PlatformGrok, Type: service.AccountTypeOAuth,
-			Status: service.StatusActive, Schedulable: true, Concurrency: 1, Priority: 1,
+			ID: 801, Name: "revoked", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+			Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 1,
 			Credentials: map[string]any{
 				"access_token": "expired", "refresh_token": "revoked-refresh",
 				"expires_at": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
 			},
-			Extra: map[string]any{service.GrokMediaEligibleExtraKey: true},
+			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true},
 		},
 		{
-			ID: 802, Name: "healthy", Platform: service.PlatformGrok, Type: service.AccountTypeOAuth,
-			Status: service.StatusActive, Schedulable: true, Concurrency: 1, Priority: 2,
+			ID: 802, Name: "healthy", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+			Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 2,
 			Credentials: map[string]any{
 				"access_token": "healthy-access", "refresh_token": "healthy-refresh",
 				"expires_at": time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339),
 			},
-			Extra: map[string]any{service.GrokMediaEligibleExtraKey: true},
+			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true},
 		},
 	}
 	if mode == "postmap_cancel" || mode == "first_402" || mode == "first_429" || mode == "all_429" || mode == "mixed_429_500" || mode == "mixed_500_429" || mode == "oauth_429_apikey_500" {
@@ -880,17 +895,17 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	}
 	if mode == "all_429" || mode == "mixed_429_500" || mode == "mixed_500_429" || mode == "oauth_429_apikey_500" {
 		accounts = append(accounts, service.Account{
-			ID: 803, Name: "untried-healthy", Platform: service.PlatformGrok, Type: service.AccountTypeOAuth,
-			Status: service.StatusActive, Schedulable: true, Concurrency: 1, Priority: 3,
+			ID: 803, Name: "untried-healthy", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+			Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 3,
 			Credentials: map[string]any{
 				"access_token": "untried-healthy-access", "refresh_token": "untried-healthy-refresh",
 				"expires_at": time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339),
 			},
-			Extra: map[string]any{service.GrokMediaEligibleExtraKey: true},
+			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true},
 		})
 	}
 	if mode == "oauth_429_apikey_500" {
-		accounts[1].Type = service.AccountTypeAPIKey
+		accounts[1].Type = capability.AccountTypeAPIKey
 		accounts[1].Credentials = map[string]any{"api_key": "third-party-key"}
 	}
 	if mode == "all_revoked" {
@@ -911,10 +926,16 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	if mode == "mutation_cache" {
 		tokenCache.deleteErr = errors.New("cache delete failed")
 	}
-	var provider *service.GrokTokenProvider
+	var provider *accountcore.GrokTokenSource
 	if mode != "nil_provider" {
-		provider = service.NewGrokTokenProvider(repo, tokenCache)
-		provider.SetRefreshAPI(service.NewOAuthRefreshAPI(repo, tokenCache), refresher)
+		refresh := accountcore.NewOAuthRefreshAPI(grokCredentialTokenReader{repo}, tokenCache, accountcore.RefreshOptions{Now: time.Now, Warn: slog.Warn, Info: slog.Info, Error: slog.Error, Platform: accountcore.AccountRefreshPlatformPolicy()})
+		provider = &accountcore.GrokTokenSource{
+			Repository: grokCredentialTokenReader{repo}, Cache: tokenCache,
+			Policy: accountcore.GrokProviderRefreshPolicy(),
+			Refresh: func(ctx context.Context, record *accountcore.Record, window time.Duration) (*accountcore.OAuthRefreshResult, error) {
+				return refresh.RefreshIfNeeded(ctx, record, refresher, window)
+			},
+		}
 	}
 	upstream := &grokCredentialHandlerUpstream{}
 	switch mode {
@@ -936,30 +957,32 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	cfg.Gateway.MaxAccountSwitches = 3
-	billingCache := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCache := newBillingEligibilityFixture(cfg)
 	billingCache.Start()
 	gateway := service.NewOpenAIGatewayService(
-		repo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
-		service.NewBillingService(cfg, nil), nil, billingCache, upstream,
-		nil, &service.DeferredService{}, nil, provider, nil, nil, nil, nil, nil,
+		repo, nil, nil, nil, nil, nil, nil, cfg, nil, nil, billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil), nil, billingCache, upstream,
+		nil, &accountcore.DeferredService{}, nil, provider, nil, nil, nil, nil, nil,
 	)
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },
 		acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
 	}
-	h := NewOpenAIGatewayHandler(gateway, service.NewConcurrencyService(cache), billingCache, &service.APIKeyService{}, nil, nil, nil, nil, cfg)
-	apiKey := &service.APIKey{
+	h := NewOpenAIGatewayHandler(gateway, scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	},
+	), newFundingAdmissionFixture(billingCache, cfg), &apikey.APIKeyService{}, nil, nil, nil, nil, cfg)
+	apiKey := &apikey.APIKey{
 		ID: 902, GroupID: &groupID,
-		User: &service.User{ID: 903, Status: service.StatusActive},
-		Group: &service.Group{
+		User: &identity.User{ID: 903, Status: billing.StatusActive},
+		Group: &routing.Group{
 			ID:                   groupID,
-			Platform:             service.PlatformGrok,
-			Status:               service.StatusActive,
+			Platform:             capability.PlatformGrok,
+			Status:               billing.StatusActive,
 			AllowImageGeneration: true,
-			AllowedProtocols: []domain.ProtocolID{
-				domain.ProtocolAnthropicMessages,
-				domain.ProtocolOpenAIResponses,
-				domain.ProtocolOpenAIChatCompletions,
+			AllowedProtocols: []protocol.ProtocolID{
+				protocol.ProtocolAnthropicMessages,
+				protocol.ProtocolOpenAIResponses,
+				protocol.ProtocolOpenAIChatCompletions,
 			},
 		},
 	}

@@ -4,6 +4,10 @@ import (
 	"context"
 	"time"
 
+	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 )
@@ -13,10 +17,10 @@ import (
 func openAIWSImageIntentForRoutingModel(routingModel, upstreamModel string, body []byte, platform string) ([]byte, bool, bool) {
 	imageIntentBody := body
 	if routingModel != upstreamModel {
-		imageIntentBody = ReplaceModelInBody(body, routingModel)
+		imageIntentBody = openaiprotocol.ReplaceModelInBody(body, routingModel)
 	}
-	imageIntent := IsImageGenerationIntentForPlatform(openAIResponsesEndpoint, routingModel, imageIntentBody, platform)
-	explicitImageIntent := IsExplicitImageGenerationIntent(openAIResponsesEndpoint, routingModel, imageIntentBody)
+	imageIntent := IsImageGenerationIntentForPlatform(media.OpenAIResponsesEndpoint, routingModel, imageIntentBody, platform)
+	explicitImageIntent := IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, routingModel, imageIntentBody)
 	return imageIntentBody, imageIntent, explicitImageIntent
 }
 
@@ -30,7 +34,7 @@ func (s *OpenAIGatewayService) openAIWSIngressInterTurnIdleTimeout() time.Durati
 
 // newOpenAIWSDownstreamWriteContext 让下行写直接绑定客户端生命周期，
 // 排除独立的 ingress 租约取消信号，使租约丢失时当前帧可先完成，再发送重试关闭帧。
-func newOpenAIWSDownstreamWriteContext(controlCtx context.Context, hooks *OpenAIWSIngressHooks, timeout time.Duration) (context.Context, context.CancelFunc) {
+func newOpenAIWSDownstreamWriteContext(controlCtx context.Context, hooks *gatewayws.OpenAIIngressHooks, timeout time.Duration) (context.Context, context.CancelFunc) {
 	writeParent := controlCtx
 	if hooks != nil && hooks.ClientLifecycleContext != nil {
 		writeParent = hooks.ClientLifecycleContext
@@ -42,6 +46,6 @@ func newOpenAIWSDownstreamWriteContext(controlCtx context.Context, hooks *OpenAI
 }
 
 // ProxyResponsesWebSocketFromClient 保留现有平台适配入口，逐轮编排由 gateway/ws 持有。
-func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(ctx context.Context, c *gin.Context, clientConn *coderws.Conn, account *Account, token string, firstClientMessage []byte, hooks *OpenAIWSIngressHooks) error {
+func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(ctx context.Context, c *gin.Context, clientConn *coderws.Conn, account *Account, token string, firstClientMessage []byte, hooks *gatewayws.OpenAIIngressHooks) error {
 	return s.executeWSIngressAdapter(ctx, c, clientConn, account, token, firstClientMessage, hooks)
 }

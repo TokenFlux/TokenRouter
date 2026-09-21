@@ -4,13 +4,14 @@ package postgres
 import (
 	context "context"
 	errors "errors"
+	strings "strings"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	authidentity "github.com/TokenFlux/TokenRouter/ent/authidentity"
 	authidentitychannel "github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	strings "strings"
 )
 
 func (d *PendingFlowDatabase) FindLinuxDoCompatEmailUser(ctx context.Context, email string) (*identitycore.User, error) {

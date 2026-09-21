@@ -2,9 +2,10 @@ package account
 
 import (
 	"errors"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 旧批次写回失败时，同账号的新活动时间必须保留，不能由旧批次回填覆盖。

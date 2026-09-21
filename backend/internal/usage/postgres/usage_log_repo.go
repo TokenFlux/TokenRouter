@@ -177,6 +177,7 @@ type Store struct {
 	sql              sqlExecutor
 	db               *sql.DB
 	preAggregation   *preaggregation.PreAggregationSettingsService
+	calendar         timezone.Calendar
 
 	createBatchOnce     sync.Once
 	createBatchCh       chan usageLogCreateRequest
@@ -185,15 +186,15 @@ type Store struct {
 	bestEffortRecent    *gocache.Cache
 }
 
-func NewUsageLogRepository(client *dbent.Client, sqlDB *sql.DB, preAggregation *preaggregation.PreAggregationSettingsService) *Store {
-	repo := NewUsageLogRepositoryWithSQL(client, sqlDB)
+func NewUsageLogRepository(client *dbent.Client, sqlDB *sql.DB, preAggregation *preaggregation.PreAggregationSettingsService, calendar timezone.Calendar) *Store {
+	repo := NewUsageLogRepositoryWithSQL(client, sqlDB, calendar)
 	repo.preAggregation = preAggregation
 	return repo
 }
 
-func NewUsageLogRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *Store {
+func NewUsageLogRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor, calendar timezone.Calendar) *Store {
 	// 使用 scanSingleRow 替代 QueryRowContext，保证 ent.Tx 作为 sqlExecutor 可用。
-	repo := &Store{client: client, sql: sqlq}
+	repo := &Store{client: client, sql: sqlq, calendar: calendar}
 	if db, ok := sqlq.(*sql.DB); ok {
 		repo.db = db
 	}
@@ -291,12 +292,12 @@ func (r *Store) GetDashboardPublicStats(ctx context.Context, start, end time.Tim
 		return nil, err
 	}
 	if useAggregates {
-		if err := r.fillDashboardPublicTokenStatsAggregated(ctx, stats, timezone.Today()); err != nil {
+		if err := r.fillDashboardPublicTokenStatsAggregated(ctx, stats, r.calendar.Today()); err != nil {
 			return nil, err
 		}
 		return stats, nil
 	}
-	if err := r.fillDashboardPublicTokenStatsFromUsageLogs(ctx, stats, start, end, timezone.Today()); err != nil {
+	if err := r.fillDashboardPublicTokenStatsFromUsageLogs(ctx, stats, start, end, r.calendar.Today()); err != nil {
 		return nil, err
 	}
 	return stats, nil

@@ -12,10 +12,10 @@ import (
 	"sync"
 	"testing"
 
-	nativeupstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -284,8 +284,8 @@ func (s *OpenAIOAuthServiceSuite) TestExchangeCode_RequestErrorWithoutProxyRetur
 	_, err := s.svc.ExchangeCode(s.ctx, "code", "ver", DefaultRedirectURI, "", "")
 
 	require.Error(s.T(), err)
-	require.Equal(s.T(), "OPENAI_OAUTH_PROXY_REQUIRED", infraerrors.Reason(err))
-	require.Contains(s.T(), infraerrors.Message(err), "no proxy is configured")
+	require.Equal(s.T(), "OPENAI_OAUTH_PROXY_REQUIRED", apperror.Reason(err))
+	require.Contains(s.T(), apperror.Message(err), "no proxy is configured")
 }
 
 func (s *OpenAIOAuthServiceSuite) TestContextCancel() {
@@ -418,7 +418,7 @@ func (s *OpenAIOAuthServiceSuite) TestExchangeCode_WithTLSProfileUsesHTTPUpstrea
 	require.Equal(s.T(), "http://proxy.local:8080", upstream.proxyURL)
 	require.Equal(s.T(), int64(123), upstream.accountID)
 	require.Equal(s.T(), 2, upstream.accountConcurrency)
-	require.Equal(s.T(), nativeupstream.HTTPUpstreamProfileOpenAI, nativeupstream.HTTPUpstreamProfileFromContext(upstream.req.Context()))
+	require.Equal(s.T(), upstreamcore.HTTPUpstreamProfileOpenAI, upstreamcore.HTTPUpstreamProfileFromContext(upstream.req.Context()))
 	require.Equal(s.T(), "application/x-www-form-urlencoded", upstream.req.Header.Get("Content-Type"))
 	require.Equal(s.T(), "application/json", upstream.req.Header.Get("Accept"))
 	require.Equal(s.T(), "Token UA", upstream.req.Header.Get("User-Agent"))
@@ -444,7 +444,7 @@ func (s *OpenAIOAuthServiceSuite) TestRefreshToken_WithTLSProfileUsesHTTPUpstrea
 	require.True(s.T(), upstream.calledDoWithTLS)
 	require.Same(s.T(), profile, upstream.profile)
 	require.Equal(s.T(), "Refresh UA", upstream.req.Header.Get("User-Agent"))
-	require.Equal(s.T(), nativeupstream.HTTPUpstreamProfileOpenAI, nativeupstream.HTTPUpstreamProfileFromContext(upstream.req.Context()))
+	require.Equal(s.T(), upstreamcore.HTTPUpstreamProfileOpenAI, upstreamcore.HTTPUpstreamProfileFromContext(upstream.req.Context()))
 	require.Equal(s.T(), "refresh_token", upstream.form.Get("grant_type"))
 	require.Equal(s.T(), "refresh-token", upstream.form.Get("refresh_token"))
 	require.Equal(s.T(), "client-id", upstream.form.Get("client_id"))

@@ -615,14 +615,3 @@ func (h *OpsHandler) ListAlertEvents(c *gin.Context) {
 	}
 	response.Success(c, events)
 }
-
-// CompatIsPercentOrRateMetric 为旧测试及兼容入口提供精确委托。
-func CompatIsPercentOrRateMetric(metricType string) bool { return isPercentOrRateMetric(metricType) }
-
-// CompatValidateOpsAlertRulePayload 为旧测试及兼容入口提供精确委托。
-func CompatValidateOpsAlertRulePayload(raw map[string]json.RawMessage) (*opsAlertRuleValidatedInput, error) {
-	return validateOpsAlertRulePayload(raw)
-}
-
-// CompatOpsAlertRuleValidatedInput 是旧输入测试的类型转接。
-type CompatOpsAlertRuleValidatedInput = opsAlertRuleValidatedInput

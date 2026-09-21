@@ -3,6 +3,8 @@ package ws
 import (
 	"context"
 	"time"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 )
 
 // ClientSocket 把 HTTP WebSocket 限定为同步帧和关闭操作。
@@ -65,7 +67,7 @@ type PassthroughPort interface {
 	IsTerminal(string) bool
 	NormalizeTerminal(string) string
 	NormalizeTier(string) string
-	Warning(string, []byte) *UpstreamWarning
+	Warning(string, []byte) *forwardcore.UpstreamWarning
 	BeforeWrite(context.Context, string, []byte, bool, map[string][]string) error
 	RelayClose(RelayExit, int) (int, string, bool)
 	CloseError(int, string, error) error

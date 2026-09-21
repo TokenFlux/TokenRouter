@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,10 +16,10 @@ func accWithWindowEnd(id int64, end *time.Time) accountWithLoad {
 		account: &Account{
 			ID:               id,
 			Schedulable:      true,
-			Status:           StatusActive,
+			Status:           billing.StatusActive,
 			SessionWindowEnd: end,
 		},
-		loadInfo: &AccountLoadInfo{AccountID: id},
+		loadInfo: &scheduler.AccountLoadInfo{AccountID: id},
 	}
 }
 

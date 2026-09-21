@@ -4,62 +4,64 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTLSFingerprintProfileService_ResolveTLSProfileOpenAI(t *testing.T) {
-	svc := &TLSFingerprintProfileService{}
+	svc := &provider.TLSProfiles{}
 
 	openAIOAuth := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Extra:    map[string]any{"enable_tls_fingerprint": true},
 	}
-	require.NotNil(t, svc.ResolveTLSProfile(openAIOAuth), "OpenAI OAuth 开启后应返回内置默认 profile")
+	require.NotNil(t, svc.ResolveRequestTLS(accountTLSSelection(openAIOAuth, nil)), "OpenAI OAuth 开启后应返回内置默认 profile")
 
 	openAIAPIKey := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Extra:    map[string]any{"enable_tls_fingerprint": true},
 	}
-	require.Nil(t, svc.ResolveTLSProfile(openAIAPIKey), "OpenAI API Key 不应启用 TLS 指纹伪装")
+	require.Nil(t, svc.ResolveRequestTLS(accountTLSSelection(openAIAPIKey, nil)), "OpenAI API Key 不应启用 TLS 指纹伪装")
 }
 
 func TestTLSFingerprintProfileService_ResolveTLSProfileQoderCosy(t *testing.T) {
-	svc := &TLSFingerprintProfileService{}
+	svc := &provider.TLSProfiles{}
 
 	qoderCosy := &Account{
-		Platform: PlatformQoder,
-		Type:     AccountTypeCosy,
+		Platform: capability.PlatformQoder,
+		Type:     capability.AccountTypeCosy,
 		Extra:    map[string]any{"enable_tls_fingerprint": true},
 	}
-	require.NotNil(t, svc.ResolveTLSProfile(qoderCosy), "Qoder COSY 开启后应返回内置默认 profile")
+	require.NotNil(t, svc.ResolveRequestTLS(accountTLSSelection(qoderCosy, nil)), "Qoder COSY 开启后应返回内置默认 profile")
 
 	qoderOtherType := &Account{
-		Platform: PlatformQoder,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformQoder,
+		Type:     capability.AccountTypeOAuth,
 		Extra:    map[string]any{"enable_tls_fingerprint": true},
 	}
-	require.Nil(t, svc.ResolveTLSProfile(qoderOtherType), "非 COSY Qoder 账号不应启用 TLS 指纹伪装")
+	require.Nil(t, svc.ResolveRequestTLS(accountTLSSelection(qoderOtherType, nil)), "非 COSY Qoder 账号不应启用 TLS 指纹伪装")
 }
 
 func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 	account := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Extra: map[string]any{
 			"enable_tls_fingerprint":     true,
 			"tls_fingerprint_profile_id": int64(10),
 		},
 	}
-	profileSvc := NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: []*model.TLSFingerprintProfile{{ID: 10, Name: "fixed"}, {ID: 20, Name: "router"}}}, nil)
+	profileSvc := provider.NewTLSProfiles(egress.NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: []*egress.TLSFingerprintProfile{{ID: 10, Name: "fixed"}, {ID: 20, Name: "router"}}}, nil))
 	profileSvc.Start()
 
 	svc := &OpenAIGatewayService{tlsFPProfileService: profileSvc}
 
 	// 路由器命中优先使用规则目标模板。
-	routerProfile := svc.resolveOpenAITLSProfile(account, TLSFingerprintRouterMatchResult{
+	routerProfile := svc.resolveOpenAITLSProfile(account, egress.TLSFingerprintRouterMatchResult{
 		Matched:                 true,
 		TLSFingerprintProfileID: 20,
 	})
@@ -67,7 +69,7 @@ func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 	require.Equal(t, "router", routerProfile.Name)
 
 	// 规则目标模板不可用时安全回退账号固定模板。
-	fallbackProfile := svc.resolveOpenAITLSProfile(account, TLSFingerprintRouterMatchResult{
+	fallbackProfile := svc.resolveOpenAITLSProfile(account, egress.TLSFingerprintRouterMatchResult{
 		Matched:                 true,
 		TLSFingerprintProfileID: 404,
 	})
@@ -77,51 +79,53 @@ func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 
 // tlsProfileTestStore 通过相同读取入口提供固定测试策略。
 type tlsProfileTestStore struct {
-	TLSFingerprintProfileRepository
-	profiles []*model.TLSFingerprintProfile
+	egress.TLSFingerprintProfileRepository
+	profiles []*egress.TLSFingerprintProfile
 }
 
-func (s *tlsProfileTestStore) List(context.Context) ([]*model.TLSFingerprintProfile, error) {
+func (s *tlsProfileTestStore) List(context.Context) ([]*egress.TLSFingerprintProfile, error) {
 	return s.profiles, nil
 }
 
 // 测试通过公开构造与预热播种，避免依赖核心缓存布局。
-func newTLSProfileServiceWithCacheForTest(profiles map[int64]*model.TLSFingerprintProfile) *TLSFingerprintProfileService {
-	values := make([]*model.TLSFingerprintProfile, 0, len(profiles))
+func newTLSProfileServiceWithCacheForTest(profiles map[int64]*egress.TLSFingerprintProfile) *provider.TLSProfiles {
+	values := make([]*egress.TLSFingerprintProfile, 0, len(profiles))
 	for _, profile := range profiles {
 		values = append(values, profile)
 	}
-	service := NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: values}, nil)
+	service := provider.NewTLSProfiles(egress.NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: values}, nil))
 	service.Start()
 	return service
 }
 
-type cachedTLSFingerprintRouter struct{ *model.TLSFingerprintRouter }
+type cachedTLSFingerprintRouter struct {
+	*egress.TLSFingerprintRouter
+}
 
-func newCachedTLSFingerprintRouter(value *model.TLSFingerprintRouter) *cachedTLSFingerprintRouter {
+func newCachedTLSFingerprintRouter(value *egress.TLSFingerprintRouter) *cachedTLSFingerprintRouter {
 	return &cachedTLSFingerprintRouter{value}
 }
 
 type tlsRouterTestStore struct {
-	TLSFingerprintRouterRepository
-	values []*model.TLSFingerprintRouter
+	egress.TLSFingerprintRouterRepository
+	values []*egress.TLSFingerprintRouter
 }
 
-func (s *tlsRouterTestStore) List(context.Context) ([]*model.TLSFingerprintRouter, error) {
+func (s *tlsRouterTestStore) List(context.Context) ([]*egress.TLSFingerprintRouter, error) {
 	return s.values, nil
 }
-func newTLSRouterServiceWithCacheForTest(routers map[int64]*cachedTLSFingerprintRouter) *TLSFingerprintRouterService {
-	values := make([]*model.TLSFingerprintRouter, 0, len(routers))
+func newTLSRouterServiceWithCacheForTest(routers map[int64]*cachedTLSFingerprintRouter) *egress.TLSFingerprintRouterService {
+	values := make([]*egress.TLSFingerprintRouter, 0, len(routers))
 	for _, router := range routers {
 		values = append(values, router.TLSFingerprintRouter)
 	}
-	service := NewTLSFingerprintRouterService(&tlsRouterTestStore{values: values}, nil)
+	service := egress.NewTLSFingerprintRouterService(&tlsRouterTestStore{values: values}, nil)
 	service.Start()
 	return service
 }
 
-func newTLSFingerprintRouterTestService(routers ...*model.TLSFingerprintRouter) *TLSFingerprintRouterService {
-	service := NewTLSFingerprintRouterService(&tlsRouterTestStore{values: routers}, nil)
+func newTLSFingerprintRouterTestService(routers ...*egress.TLSFingerprintRouter) *egress.TLSFingerprintRouterService {
+	service := egress.NewTLSFingerprintRouterService(&tlsRouterTestStore{values: routers}, nil)
 	service.Start()
 	return service
 }

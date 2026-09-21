@@ -2,9 +2,10 @@
 package account
 
 import (
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	maps "maps"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 func NormalizeAccountConcurrency(platform, accountType string, concurrency int) int {

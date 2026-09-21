@@ -6,19 +6,25 @@ import (
 	"log/slog"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"go.uber.org/zap"
+
 	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-func completionKey(v *APIKey) *completion.KeySnapshot {
+func completionKey(v *apikey.APIKey) *completion.KeySnapshot {
 	if v == nil {
 		return nil
 	}
@@ -45,17 +51,18 @@ func completionKey(v *APIKey) *completion.KeySnapshot {
 	}
 	if g := v.Group; g != nil {
 		out.Group = &completion.GroupSnapshot{
-			ID:                    g.ID,
-			Platform:              g.Platform,
-			Price:                 projectPriceGroup(g),
-			RateMultiplier:        g.RateMultiplier,
-			PeakRateEnabled:       g.PeakRateEnabled,
-			PeakStart:             g.PeakStart,
-			PeakEnd:               g.PeakEnd,
-			PeakRateMultiplier:    g.PeakRateMultiplier,
-			Location:              timezone.Location(),
+			ID:                 g.ID,
+			Platform:           g.Platform,
+			Price:              projectPriceGroup(g),
+			RateMultiplier:     g.RateMultiplier,
+			PeakRateEnabled:    g.PeakRateEnabled,
+			PeakStart:          g.PeakStart,
+			PeakEnd:            g.PeakEnd,
+			PeakRateMultiplier: g.PeakRateMultiplier,
+			Location:           time.Local,
+
 			FreeOpenAIFast:        g.FreeOpenAIFast,
-			SupportsOpenAIFast:    groupSupportsOpenAIFast(g.Platform),
+			SupportsOpenAIFast:    routing.GroupSupportsOpenAIFast(g.Platform),
 			WebSearchPricePerCall: g.WebSearchPricePerCall,
 			SearchPricePer1k:      g.GetSearchPricePer1k(),
 			AudioPrice:            groupAudioPriceConfigFromAPIKey(v),
@@ -63,7 +70,7 @@ func completionKey(v *APIKey) *completion.KeySnapshot {
 	}
 	return completion.SnapshotKey(out)
 }
-func completionPayer(v *User) *completion.PayerSnapshot {
+func completionPayer(v *identity.User) *completion.PayerSnapshot {
 	if v == nil {
 		return nil
 	}
@@ -87,11 +94,11 @@ func completionAccount(v *Account) *completion.AccountSnapshot {
 		QuotaEligible:              v.IsAPIKeyOrBedrock(),
 		HasQuotaLimit:              v.HasAnyQuotaLimit(),
 		CredentialAccountID:        v.ParentAccountID,
-		Notification:               QuotaNotifyAccountView(v),
+		Notification:               accountprovider.QuotaNotification(&account.Record{ID: v.ID, Name: v.Name, Platform: v.Platform, Type: v.Type, Extra: v.Extra}),
 	}
 	return completion.SnapshotAccount(out)
 }
-func completionForwardResult(v *ForwardResult, a *Account) *completion.Result {
+func completionForwardResult(v *forwardcore.MessagesResult, a *Account) *completion.Result {
 	if v == nil {
 		return nil
 	}
@@ -132,7 +139,7 @@ func completionForwardResult(v *ForwardResult, a *Account) *completion.Result {
 	}
 	return completion.SnapshotResult(out)
 }
-func completionOpenAIResult(v *OpenAIForwardResult, a *Account) *completion.Result {
+func completionOpenAIResult(v *forwardcore.OpenAIResult, a *Account) *completion.Result {
 	if v == nil {
 		return nil
 	}
@@ -257,46 +264,25 @@ func (a completionAccounts) CredentialAccount(ctx context.Context, in completion
 type completionModels struct{}
 
 func (completionModels) Candidates(model string, alternates ...string) []string {
-	return usageBillingModelCandidates(model, alternates...)
+	return modelidentity.UsageCandidates(model, alternates...)
 }
 
-type completionLogWriter struct{ repo UsageLogRepository }
-
-func (w completionLogWriter) Create(ctx context.Context, row *usage.UsageLog) (bool, error) {
-	return w.repo.Create(ctx, UsageLogFromView(row))
+func completionObserver(component, message string) {
+	logging.LegacyPrintf(component, "%s", message)
 }
-
-type completionBestEffortLogWriter struct {
-	completionLogWriter
-	writer usageLogBestEffortWriter
-}
-
-func (w completionBestEffortLogWriter) CreateBestEffort(ctx context.Context, row *usage.UsageLog) error {
-	return w.writer.CreateBestEffort(ctx, UsageLogFromView(row))
-}
-func completionWriter(repo UsageLogRepository) completion.LogWriter {
-	if repo == nil {
-		return nil
-	}
-	w := completionLogWriter{repo}
-	if best, ok := repo.(usageLogBestEffortWriter); ok {
-		return completionBestEffortLogWriter{w, best}
-	}
-	return w
-}
-func completionObserver(component, message string) { logger.LegacyPrintf(component, "%s", message) }
 func completionEffects(d *billingDeps, updater APIKeyQuotaUpdater) *completion.CommitEffects {
 	out := &completion.CommitEffects{Funds: settlementEffects(d), Activity: d.deferredService, Observe: completionObserver}
 	if auth, ok := updater.(completion.AuthInvalidator); ok {
 		out.Auth = auth
 	}
 	if d.balanceNotifyService != nil {
-		out.Notifications = d.balanceNotifyService.native()
+		out.Notifications = d.balanceNotifyService
 	}
 	return out
 }
 func completionOptions(cfg *config.Config, now func() time.Time) completion.RecorderOptions {
-	o := completion.RecorderOptions{DefaultMultiplier: 1, Now: timezone.Now}
+	o := completion.RecorderOptions{DefaultMultiplier: 1, Now: timezone.NewCalendar(time.Local).
+		Now}
 	if cfg != nil {
 		o.Simple = cfg.RunMode == config.RunModeSimple
 		o.DefaultMultiplier = cfg.Default.RateMultiplier
@@ -311,19 +297,19 @@ func completionOptions(cfg *config.Config, now func() time.Time) completion.Reco
 func (s *GatewayService) CompletionRecorder(updater APIKeyQuotaUpdater) *completion.Recorder {
 	var calculator *billing.Calculator
 	if s.billingService != nil {
-		calculator = s.billingService.Calculator
+		calculator = s.billingService
 	}
 	var prices *billing.PriceResolver
 	if s.resolver != nil {
-		prices = s.resolver.PriceResolver
+		prices = s.resolver
 	}
 	rates := s.userGroupRateResolver
 	if rates == nil {
-		rates = newUserGroupRateResolver(s.userGroupRateRepo, s.userGroupRateCache, resolveUserGroupRateCacheTTL(s.cfg), &s.userGroupRateSF, "service.gateway")
+		rates = billing.NewGroupRateResolver(s.userGroupRateRepo, s.userGroupRateCache, resolveUserGroupRateCacheTTL(s.cfg), &s.userGroupRateSF, "service.gateway", logging.LegacyPrintf)
 	}
 	var cache completion.CacheInjectionPolicy
 	if s.settingService != nil {
-		cache = s.settingService
+		cache = s.settingService.Gateway
 	}
 	return completion.NewRecorder(completion.Dependencies{
 		Emit:           completionBillingEvent,
@@ -335,7 +321,7 @@ func (s *GatewayService) CompletionRecorder(updater APIKeyQuotaUpdater) *complet
 		Subscriptions:  usageSubscriptionResolverFrom(s.usageBillingRepo),
 		Rates:          rates,
 		Models:         completionModels{},
-		Logs:           completionWriter(s.usageLogRepo),
+		Logs:           completion.SnapshotLogWriter(s.usageLogRepo),
 		Effects:        completionEffects(s.billingDeps(), updater),
 		Observe:        completionObserver,
 	}, completionOptions(s.cfg, s.usageBillingNow))
@@ -343,15 +329,15 @@ func (s *GatewayService) CompletionRecorder(updater APIKeyQuotaUpdater) *complet
 func (s *OpenAIGatewayService) CompletionRecorder(updater APIKeyQuotaUpdater) *completion.Recorder {
 	var calculator *billing.Calculator
 	if s.billingService != nil {
-		calculator = s.billingService.Calculator
+		calculator = s.billingService
 	}
 	var prices *billing.PriceResolver
 	if s.resolver != nil {
-		prices = s.resolver.PriceResolver
+		prices = s.resolver
 	}
 	rates := s.userGroupRateResolver
 	if rates == nil {
-		rates = newUserGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway")
+		rates = billing.NewGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway", logging.LegacyPrintf)
 	}
 	var health completion.HealthObserver
 	if s.rateLimitService != nil {
@@ -368,12 +354,12 @@ func (s *OpenAIGatewayService) CompletionRecorder(updater APIKeyQuotaUpdater) *c
 		Accounts:      completionAccounts{s.accountRepo},
 		Health:        health,
 		Models:        completionModels{},
-		Logs:          completionWriter(s.usageLogRepo),
+		Logs:          completion.SnapshotLogWriter(s.usageLogRepo),
 		Effects:       completionEffects(s.billingDeps(), updater),
 		Observe:       completionObserver,
 	}, completionOptions(s.cfg, s.usageBillingNow))
 }
-func completionStats(channels *ChannelService, calculator *billing.Calculator) *billing.PriceResolver {
+func completionStats(channels *routing.ChannelService, calculator *billing.Calculator) *billing.PriceResolver {
 	var source billing.AccountStatsSource
 	if channels != nil {
 		source = LegacyAccountStatsSource{Service: channels}
@@ -391,8 +377,8 @@ func completionPricingOptions(v *recordUsageOpts) *completion.PricingOptions {
 func completionRequestIdentity(ctx context.Context, upstream, payload string) completion.RequestIdentity {
 	out := completion.RequestIdentity{Upstream: upstream, PayloadHash: payload}
 	if ctx != nil {
-		out.Client, _ = ctx.Value(ctxkey.ClientRequestID).(string)
-		out.Local, _ = ctx.Value(ctxkey.RequestID).(string)
+		out.Client, _ = ctx.Value(telemetry.ClientRequestID).(string)
+		out.Local, _ = ctx.Value(telemetry.RequestID).(string)
 	}
 	return out
 }
@@ -401,11 +387,11 @@ func completionRequestIdentity(ctx context.Context, upstream, payload string) co
 func completionBillingEvent(e completion.BillingEvent) {
 	switch e.Kind {
 	case "pricing_missing":
-		logger.L().With(zap.String("component", e.Component), zap.Strings("billing_models", e.Models), zap.String("requested_model", e.RequestedModel), zap.String("mapped_model", e.MappedModel), zap.String("upstream_model", e.UpstreamModel), zap.Int64("api_key_id", e.KeyID), zap.Int64("account_id", e.AccountID)).Warn("openai_usage.pricing_missing_record_zero_cost", zap.Error(e.Err))
+		logging.L().With(zap.String("component", e.Component), zap.Strings("billing_models", e.Models), zap.String("requested_model", e.RequestedModel), zap.String("mapped_model", e.MappedModel), zap.String("upstream_model", e.UpstreamModel), zap.Int64("api_key_id", e.KeyID), zap.Int64("account_id", e.AccountID)).Warn("openai_usage.pricing_missing_record_zero_cost", zap.Error(e.Err))
 	case "standard_pricing_missing":
-		logger.L().With(zap.String("component", e.Component), zap.String("request_id", e.RequestID)).Warn("openai_usage.standard_pricing_missing_free_fast_zero_cost", zap.Error(e.Err))
+		logging.L().With(zap.String("component", e.Component), zap.String("request_id", e.RequestID)).Warn("openai_usage.standard_pricing_missing_free_fast_zero_cost", zap.Error(e.Err))
 	case "search_free":
-		logger.L().Info("openai_usage.search_price_per_1k_explicit_free", zap.Int("search_count", e.SearchCount), zap.String("model", e.Model), zap.Int64("api_key_id", e.KeyID), zap.Any("group_id", e.GroupID))
+		logging.L().Info("openai_usage.search_price_per_1k_explicit_free", zap.Int("search_count", e.SearchCount), zap.String("model", e.Model), zap.Int64("api_key_id", e.KeyID), zap.Any("group_id", e.GroupID))
 	case "tier_downgrade":
 		slog.Info("billing.service_tier_downgraded", "component", e.Component, "request_id", e.RequestID, "requested_tier", e.RequestedTier, "response_tier", e.ObservedTier, "billed_tier", e.BilledTier, "platform", e.Platform, "account_id", e.AccountID)
 	}

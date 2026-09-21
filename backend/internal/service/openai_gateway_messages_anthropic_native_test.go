@@ -10,7 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -24,14 +25,14 @@ func nativeAnthropicTestAccount() *Account {
 	return &Account{
 		ID:          702,
 		Name:        "kimi-native",
-		Platform:    PlatformKimi,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformKimi,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":      "sk-test",
-			"api_protocol": APIProtocolAnthropic,
+			"api_protocol": accountcore.APIProtocolAnthropic,
 			"api_base_urls": map[string]any{
-				APIProtocolAnthropic: "http://anthropic.example",
+				accountcore.APIProtocolAnthropic: "http://anthropic.example",
 			},
 		},
 	}
@@ -40,7 +41,7 @@ func nativeAnthropicTestAccount() *Account {
 func nativeAnthropicGLMTestAccount() *Account {
 	account := nativeAnthropicTestAccount()
 	account.Name = "zhipu-native"
-	account.Platform = PlatformZhipu
+	account.Platform = capability.PlatformZhipu
 	return account
 }
 
@@ -84,7 +85,7 @@ data: {"type":"message_stop"}
 }
 
 func TestNativeAnthropicPassthroughRecordsOutputConfigEffort(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":false,` +
 		`"output_config":{"effort":"low"},` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
@@ -100,7 +101,7 @@ func TestNativeAnthropicPassthroughRecordsOutputConfigEffort(t *testing.T) {
 }
 
 func TestNativeAnthropicPassthroughThinkingEnabledFallback(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	// 未显式传 effort，但 thinking 已启用：k3 属于 passback-required 白名单，应兜底记为 high。
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":false,` +
 		`"thinking":{"type":"enabled","budget_tokens":1024},` +
@@ -117,7 +118,7 @@ func TestNativeAnthropicPassthroughThinkingEnabledFallback(t *testing.T) {
 }
 
 func TestNativeAnthropicPassthroughStreamRecordsEffort(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":true,` +
 		`"output_config":{"effort":"max"},` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
@@ -133,7 +134,7 @@ func TestNativeAnthropicPassthroughStreamRecordsEffort(t *testing.T) {
 }
 
 func TestNativeAnthropicPassthroughNoEffortStaysNil(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	// 既无 output_config.effort 也未启用 thinking：保持 nil，不做语义注入。
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":false,` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
@@ -148,7 +149,7 @@ func TestNativeAnthropicPassthroughNoEffortStaysNil(t *testing.T) {
 }
 
 func TestNativeAnthropicPassthroughNormalizesGLM53Thinking(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		name       string
 		stream     bool
@@ -192,7 +193,7 @@ func TestNativeAnthropicPassthroughNormalizesGLM53Thinking(t *testing.T) {
 }
 
 func TestNativeAnthropicPassthroughLeavesOtherThinkingUntouched(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		name string
 		body string

@@ -7,14 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 type NativeAnthropicOptions struct {

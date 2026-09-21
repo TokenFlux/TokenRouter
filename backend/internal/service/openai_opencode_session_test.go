@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -36,8 +38,8 @@ func openCodeSessionTestService() *OpenAIGatewayService {
 func openCodeSessionTestAccount(baseURL string) *Account {
 	return &Account{
 		ID:       1,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"base_url":                   baseURL,
 			credKeyHeaderOverrideEnabled: true,
@@ -98,7 +100,7 @@ func TestApplyOpenCodeSessionHeaderTrustBoundary(t *testing.T) {
 		},
 		{
 			name:      "oauth account",
-			account:   &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account:   &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			targetURL: "https://opencode.ai/zen/v1/responses",
 			incoming:  "conversation-123",
 		},
@@ -114,7 +116,7 @@ func TestApplyOpenCodeSessionHeaderTrustBoundary(t *testing.T) {
 }
 
 func TestOpenCodeSessionForwardedByResponsesBuildersAfterAccountOverride(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := openCodeSessionTestService()
 	account := openCodeSessionTestAccount("https://opencode.ai/zen/v1")
 	body := []byte(`{"model":"gpt-5","input":"hello"}`)
@@ -148,7 +150,7 @@ func TestOpenCodeSessionForwardedByResponsesBuildersAfterAccountOverride(t *test
 }
 
 func TestOpenCodeSessionMissingCallerValueKeepsExistingOverrideBehavior(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := openCodeSessionTestService()
 	account := openCodeSessionTestAccount("https://opencode.ai/zen/v1")
 	c := newOpenCodeSessionTestContext(t, "")
@@ -158,7 +160,7 @@ func TestOpenCodeSessionMissingCallerValueKeepsExistingOverrideBehavior(t *testi
 		[]byte(`{"model":"gpt-5","input":"hello"}`), "token", false, "", false,
 	)
 	require.NoError(t, err)
-	require.Equal(t, "fixed-account-value", getHeaderRaw(req.Header, "x-opencode-session"))
+	require.Equal(t, "fixed-account-value", anthropic.GetHeaderRaw(req.Header, "x-opencode-session"))
 }
 
 type openCodeSessionHTTPUpstream struct {
@@ -179,7 +181,7 @@ func (u *openCodeSessionHTTPUpstream) DoWithTLS(req *http.Request, proxyURL stri
 }
 
 func TestOpenCodeSessionForwardedByRawChatCompletionsAfterAccountOverride(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstream := &openCodeSessionHTTPUpstream{}
 	svc := openCodeSessionTestService()
 	svc.httpUpstream = upstream
@@ -198,7 +200,7 @@ func TestOpenCodeSessionForwardedByRawChatCompletionsAfterAccountOverride(t *tes
 }
 
 func TestOpenCodeSessionIsNotForwardedToOtherUpstreams(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := openCodeSessionTestService()
 	body := []byte(`{"model":"gpt-5","input":"hello"}`)
 
@@ -210,8 +212,8 @@ func TestOpenCodeSessionIsNotForwardedToOtherUpstreams(t *testing.T) {
 		t.Run(baseURL, func(t *testing.T) {
 			account := &Account{
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
 				Credentials: map[string]any{"base_url": baseURL},
 			}
 			c := newOpenCodeSessionTestContext(t, "private-conversation")

@@ -4,11 +4,13 @@
 package middleware
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	gin "github.com/gin-gonic/gin"
 )
 
-const maxAPIKeyAuthorizationHeaderBytes = service.MaxAPIKeyCredentialBytes + 128
+const maxAPIKeyAuthorizationHeaderBytes = apikey.MaxAPIKeyCredentialBytes + 128
 
 func abortTeamAPIKeyError(c *gin.Context, err error) bool { return keyhttp.AbortTeamError(c, err) }

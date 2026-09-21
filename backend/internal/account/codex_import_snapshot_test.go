@@ -1,8 +1,9 @@
 package account
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 索引必须独立持有和返回凭据值，调用方修改不能污染后续匹配。

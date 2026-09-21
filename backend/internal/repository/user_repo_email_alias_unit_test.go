@@ -4,18 +4,20 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/stretchr/testify/require"
 )
 
-func seedAliasUser(t *testing.T, repo *userRepository, email string) *service.User {
+func seedAliasUser(t *testing.T, repo *postgres.UserStore, email string) *identity.User {
 	t.Helper()
-	user := &service.User{
+	user := &identity.User{
 		Email:        email,
 		Username:     email,
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(context.Background(), user))
 	return user

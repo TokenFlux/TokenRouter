@@ -18,7 +18,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/group"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 // GroupCreate is the builder for creating a Group entity.
@@ -246,13 +248,13 @@ func (_c *GroupCreate) SetNillableSchedulerType(v *string) *GroupCreate {
 }
 
 // SetAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field.
-func (_c *GroupCreate) SetAdvancedSchedulerOverrides(v domain.GroupAdvancedSchedulerOverrides) *GroupCreate {
+func (_c *GroupCreate) SetAdvancedSchedulerOverrides(v policy.GroupAdvancedSchedulerOverrides) *GroupCreate {
 	_c.mutation.SetAdvancedSchedulerOverrides(v)
 	return _c
 }
 
 // SetNillableAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableAdvancedSchedulerOverrides(v *domain.GroupAdvancedSchedulerOverrides) *GroupCreate {
+func (_c *GroupCreate) SetNillableAdvancedSchedulerOverrides(v *policy.GroupAdvancedSchedulerOverrides) *GroupCreate {
 	if v != nil {
 		_c.SetAdvancedSchedulerOverrides(*v)
 	}
@@ -544,13 +546,13 @@ func (_c *GroupCreate) SetNillableAllowMessagesDispatch(v *bool) *GroupCreate {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (_c *GroupCreate) SetAllowedProtocols(v []domain.ProtocolID) *GroupCreate {
+func (_c *GroupCreate) SetAllowedProtocols(v []protocol.ProtocolID) *GroupCreate {
 	_c.mutation.SetAllowedProtocols(v)
 	return _c
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (_c *GroupCreate) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupCreate {
+func (_c *GroupCreate) SetProtocolFallbacks(v map[protocol.ProtocolID]protocol.ProtocolID) *GroupCreate {
 	_c.mutation.SetProtocolFallbacks(v)
 	return _c
 }
@@ -668,13 +670,13 @@ func (_c *GroupCreate) SetNillableDefaultMappedModel(v *string) *GroupCreate {
 }
 
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (_c *GroupCreate) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupCreate {
+func (_c *GroupCreate) SetMessagesDispatchModelConfig(v accessview.OpenAIMessagesDispatchModelConfig) *GroupCreate {
 	_c.mutation.SetMessagesDispatchModelConfig(v)
 	return _c
 }
 
 // SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupCreate {
+func (_c *GroupCreate) SetNillableMessagesDispatchModelConfig(v *accessview.OpenAIMessagesDispatchModelConfig) *GroupCreate {
 	if v != nil {
 		_c.SetMessagesDispatchModelConfig(*v)
 	}
@@ -682,13 +684,13 @@ func (_c *GroupCreate) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMe
 }
 
 // SetModelsListConfig sets the "models_list_config" field.
-func (_c *GroupCreate) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupCreate {
+func (_c *GroupCreate) SetModelsListConfig(v accessview.GroupModelsListConfig) *GroupCreate {
 	_c.mutation.SetModelsListConfig(v)
 	return _c
 }
 
 // SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupCreate {
+func (_c *GroupCreate) SetNillableModelsListConfig(v *accessview.GroupModelsListConfig) *GroupCreate {
 	if v != nil {
 		_c.SetModelsListConfig(*v)
 	}
@@ -696,13 +698,13 @@ func (_c *GroupCreate) SetNillableModelsListConfig(v *domain.GroupModelsListConf
 }
 
 // SetAvailabilityProbeConfig sets the "availability_probe_config" field.
-func (_c *GroupCreate) SetAvailabilityProbeConfig(v domain.GroupAvailabilityProbeConfig) *GroupCreate {
+func (_c *GroupCreate) SetAvailabilityProbeConfig(v accessview.GroupAvailabilityProbeConfig) *GroupCreate {
 	_c.mutation.SetAvailabilityProbeConfig(v)
 	return _c
 }
 
 // SetNillableAvailabilityProbeConfig sets the "availability_probe_config" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableAvailabilityProbeConfig(v *domain.GroupAvailabilityProbeConfig) *GroupCreate {
+func (_c *GroupCreate) SetNillableAvailabilityProbeConfig(v *accessview.GroupAvailabilityProbeConfig) *GroupCreate {
 	if v != nil {
 		_c.SetAvailabilityProbeConfig(*v)
 	}
@@ -752,7 +754,7 @@ func (_c *GroupCreate) SetNillableMaxReasoningEffortOverLimit(v *string) *GroupC
 }
 
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
-func (_c *GroupCreate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupCreate {
+func (_c *GroupCreate) SetReasoningEffortMappings(v []accessview.ReasoningEffortMapping) *GroupCreate {
 	_c.mutation.SetReasoningEffortMappings(v)
 	return _c
 }
@@ -1896,7 +1898,7 @@ func (u *GroupUpsert) UpdateSchedulerType() *GroupUpsert {
 }
 
 // SetAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field.
-func (u *GroupUpsert) SetAdvancedSchedulerOverrides(v domain.GroupAdvancedSchedulerOverrides) *GroupUpsert {
+func (u *GroupUpsert) SetAdvancedSchedulerOverrides(v policy.GroupAdvancedSchedulerOverrides) *GroupUpsert {
 	u.Set(group.FieldAdvancedSchedulerOverrides, v)
 	return u
 }
@@ -2298,7 +2300,7 @@ func (u *GroupUpsert) UpdateAllowMessagesDispatch() *GroupUpsert {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (u *GroupUpsert) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpsert {
+func (u *GroupUpsert) SetAllowedProtocols(v []protocol.ProtocolID) *GroupUpsert {
 	u.Set(group.FieldAllowedProtocols, v)
 	return u
 }
@@ -2310,7 +2312,7 @@ func (u *GroupUpsert) UpdateAllowedProtocols() *GroupUpsert {
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (u *GroupUpsert) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpsert {
+func (u *GroupUpsert) SetProtocolFallbacks(v map[protocol.ProtocolID]protocol.ProtocolID) *GroupUpsert {
 	u.Set(group.FieldProtocolFallbacks, v)
 	return u
 }
@@ -2418,7 +2420,7 @@ func (u *GroupUpsert) UpdateDefaultMappedModel() *GroupUpsert {
 }
 
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (u *GroupUpsert) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsert {
+func (u *GroupUpsert) SetMessagesDispatchModelConfig(v accessview.OpenAIMessagesDispatchModelConfig) *GroupUpsert {
 	u.Set(group.FieldMessagesDispatchModelConfig, v)
 	return u
 }
@@ -2430,7 +2432,7 @@ func (u *GroupUpsert) UpdateMessagesDispatchModelConfig() *GroupUpsert {
 }
 
 // SetModelsListConfig sets the "models_list_config" field.
-func (u *GroupUpsert) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsert {
+func (u *GroupUpsert) SetModelsListConfig(v accessview.GroupModelsListConfig) *GroupUpsert {
 	u.Set(group.FieldModelsListConfig, v)
 	return u
 }
@@ -2442,7 +2444,7 @@ func (u *GroupUpsert) UpdateModelsListConfig() *GroupUpsert {
 }
 
 // SetAvailabilityProbeConfig sets the "availability_probe_config" field.
-func (u *GroupUpsert) SetAvailabilityProbeConfig(v domain.GroupAvailabilityProbeConfig) *GroupUpsert {
+func (u *GroupUpsert) SetAvailabilityProbeConfig(v accessview.GroupAvailabilityProbeConfig) *GroupUpsert {
 	u.Set(group.FieldAvailabilityProbeConfig, v)
 	return u
 }
@@ -2496,7 +2498,7 @@ func (u *GroupUpsert) UpdateMaxReasoningEffortOverLimit() *GroupUpsert {
 }
 
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
-func (u *GroupUpsert) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpsert {
+func (u *GroupUpsert) SetReasoningEffortMappings(v []accessview.ReasoningEffortMapping) *GroupUpsert {
 	u.Set(group.FieldReasoningEffortMappings, v)
 	return u
 }
@@ -2792,7 +2794,7 @@ func (u *GroupUpsertOne) UpdateSchedulerType() *GroupUpsertOne {
 }
 
 // SetAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field.
-func (u *GroupUpsertOne) SetAdvancedSchedulerOverrides(v domain.GroupAdvancedSchedulerOverrides) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetAdvancedSchedulerOverrides(v policy.GroupAdvancedSchedulerOverrides) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetAdvancedSchedulerOverrides(v)
 	})
@@ -3261,7 +3263,7 @@ func (u *GroupUpsertOne) UpdateAllowMessagesDispatch() *GroupUpsertOne {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (u *GroupUpsertOne) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetAllowedProtocols(v []protocol.ProtocolID) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetAllowedProtocols(v)
 	})
@@ -3275,7 +3277,7 @@ func (u *GroupUpsertOne) UpdateAllowedProtocols() *GroupUpsertOne {
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (u *GroupUpsertOne) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetProtocolFallbacks(v map[protocol.ProtocolID]protocol.ProtocolID) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetProtocolFallbacks(v)
 	})
@@ -3401,7 +3403,7 @@ func (u *GroupUpsertOne) UpdateDefaultMappedModel() *GroupUpsertOne {
 }
 
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (u *GroupUpsertOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetMessagesDispatchModelConfig(v accessview.OpenAIMessagesDispatchModelConfig) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetMessagesDispatchModelConfig(v)
 	})
@@ -3415,7 +3417,7 @@ func (u *GroupUpsertOne) UpdateMessagesDispatchModelConfig() *GroupUpsertOne {
 }
 
 // SetModelsListConfig sets the "models_list_config" field.
-func (u *GroupUpsertOne) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetModelsListConfig(v accessview.GroupModelsListConfig) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetModelsListConfig(v)
 	})
@@ -3429,7 +3431,7 @@ func (u *GroupUpsertOne) UpdateModelsListConfig() *GroupUpsertOne {
 }
 
 // SetAvailabilityProbeConfig sets the "availability_probe_config" field.
-func (u *GroupUpsertOne) SetAvailabilityProbeConfig(v domain.GroupAvailabilityProbeConfig) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetAvailabilityProbeConfig(v accessview.GroupAvailabilityProbeConfig) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetAvailabilityProbeConfig(v)
 	})
@@ -3492,7 +3494,7 @@ func (u *GroupUpsertOne) UpdateMaxReasoningEffortOverLimit() *GroupUpsertOne {
 }
 
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
-func (u *GroupUpsertOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetReasoningEffortMappings(v []accessview.ReasoningEffortMapping) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetReasoningEffortMappings(v)
 	})
@@ -3958,7 +3960,7 @@ func (u *GroupUpsertBulk) UpdateSchedulerType() *GroupUpsertBulk {
 }
 
 // SetAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field.
-func (u *GroupUpsertBulk) SetAdvancedSchedulerOverrides(v domain.GroupAdvancedSchedulerOverrides) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetAdvancedSchedulerOverrides(v policy.GroupAdvancedSchedulerOverrides) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetAdvancedSchedulerOverrides(v)
 	})
@@ -4427,7 +4429,7 @@ func (u *GroupUpsertBulk) UpdateAllowMessagesDispatch() *GroupUpsertBulk {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (u *GroupUpsertBulk) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetAllowedProtocols(v []protocol.ProtocolID) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetAllowedProtocols(v)
 	})
@@ -4441,7 +4443,7 @@ func (u *GroupUpsertBulk) UpdateAllowedProtocols() *GroupUpsertBulk {
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (u *GroupUpsertBulk) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetProtocolFallbacks(v map[protocol.ProtocolID]protocol.ProtocolID) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetProtocolFallbacks(v)
 	})
@@ -4567,7 +4569,7 @@ func (u *GroupUpsertBulk) UpdateDefaultMappedModel() *GroupUpsertBulk {
 }
 
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (u *GroupUpsertBulk) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetMessagesDispatchModelConfig(v accessview.OpenAIMessagesDispatchModelConfig) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetMessagesDispatchModelConfig(v)
 	})
@@ -4581,7 +4583,7 @@ func (u *GroupUpsertBulk) UpdateMessagesDispatchModelConfig() *GroupUpsertBulk {
 }
 
 // SetModelsListConfig sets the "models_list_config" field.
-func (u *GroupUpsertBulk) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetModelsListConfig(v accessview.GroupModelsListConfig) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetModelsListConfig(v)
 	})
@@ -4595,7 +4597,7 @@ func (u *GroupUpsertBulk) UpdateModelsListConfig() *GroupUpsertBulk {
 }
 
 // SetAvailabilityProbeConfig sets the "availability_probe_config" field.
-func (u *GroupUpsertBulk) SetAvailabilityProbeConfig(v domain.GroupAvailabilityProbeConfig) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetAvailabilityProbeConfig(v accessview.GroupAvailabilityProbeConfig) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetAvailabilityProbeConfig(v)
 	})
@@ -4658,7 +4660,7 @@ func (u *GroupUpsertBulk) UpdateMaxReasoningEffortOverLimit() *GroupUpsertBulk {
 }
 
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
-func (u *GroupUpsertBulk) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetReasoningEffortMappings(v []accessview.ReasoningEffortMapping) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetReasoningEffortMappings(v)
 	})

@@ -1,4 +1,4 @@
-// 本文件拥有显式时区的日期计算；旧全局入口只负责提供默认时区。
+// 本文件拥有显式时区的日期计算，不负责进程初始化。
 package timezone
 
 import (
@@ -30,6 +30,22 @@ func (c Calendar) Now() time.Time {
 		return time.Now()
 	}
 	return time.Now().In(c.Location())
+}
+
+// UTCOffset 保留原偏移展示格式，计算时刻由调用方提供。
+func (c Calendar) UTCOffset(t time.Time) string {
+	_, offset := t.In(c.Location()).Zone()
+	hours := offset / 3600
+	minutes := (offset % 3600) / 60
+	if minutes < 0 {
+		minutes = -minutes
+	}
+	sign := "+"
+	if hours < 0 {
+		sign = "-"
+		hours = -hours
+	}
+	return fmt.Sprintf("%s%02d:%02d", sign, hours, minutes)
 }
 
 func (c Calendar) StartOfDay(t time.Time) time.Time {

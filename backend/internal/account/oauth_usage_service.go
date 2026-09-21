@@ -5,9 +5,10 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	errgroup "golang.org/x/sync/errgroup"
 	sync "sync"
 	time "time"
+
+	errgroup "golang.org/x/sync/errgroup"
 )
 
 type OAuthUsageReader interface {

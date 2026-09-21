@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"github.com/stretchr/testify/require"
@@ -68,7 +69,7 @@ func TestPrepareUsageLogInsert_SessionIDNullWhenAbsent(t *testing.T) {
 
 	empty := ""
 	preparedEmpty := prepareUsageLogInsert(newSessionIDUsageLog(&empty))
-	nsEmpty := preparedEmpty.args[len(preparedEmpty.args)-4].(sql.NullString)
+	nsEmpty := testassert.MustType[sql.NullString](preparedEmpty.args[len(preparedEmpty.args)-4])
 	require.False(t, nsEmpty.Valid, "empty session id must also be NULL")
 }
 

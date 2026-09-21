@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,8 +20,8 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 	mappedModel string,
 	reasoningEffort *string,
 	startTime time.Time,
-	clientToolMapping apicompat.ResponsesClientToolMapping,
-) (*ForwardResult, error) {
+	clientToolMapping bridge.ResponsesClientToolMapping,
+) (*forwardcore.MessagesResult, error) {
 	result, err := forwardcore.ResponsesBuffered(s.forwardResponse(resp), s.forwardOutput(c, true), originalModel, mappedModel, reasoningEffort, startTime, clientToolMapping)
 	return legacyForwardExecutionResult(result), err
 }
@@ -31,8 +32,8 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 	mappedModel string,
 	reasoningEffort *string,
 	startTime time.Time,
-	clientToolMapping apicompat.ResponsesClientToolMapping,
-) (*ForwardResult, error) {
+	clientToolMapping bridge.ResponsesClientToolMapping,
+) (*forwardcore.MessagesResult, error) {
 	result, err := forwardcore.ResponsesStreaming(s.forwardResponse(resp), s.forwardOutput(c, true), originalModel, mappedModel, reasoningEffort, startTime, clientToolMapping)
 	return legacyForwardExecutionResult(result), err
 }
@@ -43,7 +44,7 @@ func (s *GatewayService) handleCCBufferedFromAnthropic(
 	mappedModel string,
 	reasoningEffort *string,
 	startTime time.Time,
-) (*ForwardResult, error) {
+) (*forwardcore.MessagesResult, error) {
 	result, err := forwardcore.ChatBuffered(s.forwardResponse(resp), s.forwardOutput(c, false), originalModel, mappedModel, reasoningEffort, startTime)
 	return legacyForwardExecutionResult(result), err
 }
@@ -55,7 +56,7 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 	reasoningEffort *string,
 	startTime time.Time,
 	includeUsage bool,
-) (*ForwardResult, error) {
+) (*forwardcore.MessagesResult, error) {
 	result, err := forwardcore.ChatStreaming(s.forwardResponse(resp), s.forwardOutput(c, false), originalModel, mappedModel, reasoningEffort, startTime, includeUsage)
 	return legacyForwardExecutionResult(result), err
 }

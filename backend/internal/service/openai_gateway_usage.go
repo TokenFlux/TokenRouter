@@ -6,19 +6,26 @@ package service
 import (
 	"context"
 	"net/http"
-	"strconv"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	openaiupstream "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	quotaAccount "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // OpenAIRecordUsageInput input for recording usage
 type OpenAIRecordUsageInput struct {
-	Result             *OpenAIForwardResult
-	APIKey             *APIKey
-	User               *User
+	Result             *forwardcore.OpenAIResult
+	APIKey             *apikey.APIKey
+	User               *identity.User
 	Account            *Account
-	Subscription       *UserSubscription
+	Subscription       *billing.UserSubscription
 	InboundEndpoint    string
 	UpstreamEndpoint   string
 	UserAgent          string // 请求的 User-Agent
@@ -33,14 +40,14 @@ type OpenAIRecordUsageInput struct {
 	CyberBlocked  bool
 	// NativeCompactionV2 表示请求体运行时被识别为原生远程 compaction v2。
 	NativeCompactionV2 bool
-	ChannelUsageFields
+	routing.ChannelUsageFields
 }
 
 // CyberPolicyUsageInput 是 forward 错误路径中 cyber_policy 命中的补记用量入参。
 type CyberPolicyUsageInput struct {
-	APIKey             *APIKey
+	APIKey             *apikey.APIKey
 	Account            *Account
-	Subscription       *UserSubscription
+	Subscription       *billing.UserSubscription
 	RequestID          string
 	Model              string
 	Stream             bool
@@ -56,7 +63,7 @@ type CyberPolicyUsageInput struct {
 	QuotaPlatform      string
 	// NativeCompactionV2 保留错误路径中原生 compaction 标记。
 	NativeCompactionV2 bool
-	ChannelUsageFields
+	routing.ChannelUsageFields
 }
 
 // RecordCyberPolicyUsageLog 为未进入正常成功用量路径的 cyber_policy 命中补记用量。
@@ -76,92 +83,12 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	return s.CompletionRecorder(updater).Record(ctx, CompletionOpenAIInput(ctx, input), true)
 }
 
-// ParseCodexRateLimitHeaders extracts Codex usage limits from response headers.
-// Exported for use in ratelimit_service when handling OpenAI 429 responses.
-func ParseCodexRateLimitHeaders(headers http.Header) *OpenAICodexUsageSnapshot {
-	snapshot := &OpenAICodexUsageSnapshot{}
-	hasData := false
-
-	// Helper to parse float64 from header
-	parseFloat := func(key string) *float64 {
-		if v := headers.Get(key); v != "" {
-			if f, err := strconv.ParseFloat(v, 64); err == nil {
-				return &f
-			}
-		}
-		return nil
-	}
-
-	// Helper to parse int from header
-	parseInt := func(key string) *int {
-		if v := headers.Get(key); v != "" {
-			if i, err := strconv.Atoi(v); err == nil {
-				return &i
-			}
-		}
-		return nil
-	}
-
-	// Primary (weekly) limits
-	if v := parseFloat("x-codex-primary-used-percent"); v != nil {
-		snapshot.PrimaryUsedPercent = v
-		hasData = true
-	}
-	if v := parseInt("x-codex-primary-reset-after-seconds"); v != nil {
-		snapshot.PrimaryResetAfterSeconds = v
-		hasData = true
-	}
-	if v := parseInt("x-codex-primary-window-minutes"); v != nil {
-		snapshot.PrimaryWindowMinutes = v
-		hasData = true
-	}
-
-	// Secondary (5h) limits
-	if v := parseFloat("x-codex-secondary-used-percent"); v != nil {
-		snapshot.SecondaryUsedPercent = v
-		hasData = true
-	}
-	if v := parseInt("x-codex-secondary-reset-after-seconds"); v != nil {
-		snapshot.SecondaryResetAfterSeconds = v
-		hasData = true
-	}
-	if v := parseInt("x-codex-secondary-window-minutes"); v != nil {
-		snapshot.SecondaryWindowMinutes = v
-		hasData = true
-	}
-
-	// Overflow ratio
-	if v := parseFloat("x-codex-primary-over-secondary-limit-percent"); v != nil {
-		snapshot.PrimaryOverSecondaryPercent = v
-		hasData = true
-	}
-
-	if !hasData {
-		return nil
-	}
-
-	snapshot.UpdatedAt = time.Now().Format(time.RFC3339)
-	return snapshot
-}
-
-func codexSnapshotBaseTime(snapshot *OpenAICodexUsageSnapshot, fallback time.Time) time.Time {
-	return quotaAccount.CodexSnapshotBaseTime(snapshot, fallback)
-}
-
-func codexResetAtRFC3339(base time.Time, resetAfterSeconds *int) *string {
-	return quotaAccount.CodexResetAtRFC3339(base, resetAfterSeconds)
-}
-
-func buildCodexUsageExtraUpdates(snapshot *OpenAICodexUsageSnapshot, fallbackNow time.Time) map[string]any {
-	return quotaAccount.BuildCodexUsageExtraUpdates(snapshot, fallbackNow)
-}
-
 // updateCodexUsageSnapshot saves the Codex usage snapshot to account's Extra field
 // updateCodexUsageSnapshot 把 /responses 的 x-codex-* 全局头快照写入账号 codex_* Extra。
 // ⚠️ 调用方必须排除 spark 影子账号(account.IsShadow()):影子的 codex_* 仅由 QueryUsage
 // (/wham/usage bengalfox 道)更新,不能被全局头口径污染(外审第7轮 P1)。本函数仅持 accountID,
 // 无法在此自检影子,故守卫前置到各调用点。
-func (s *OpenAIGatewayService) updateCodexUsageSnapshot(ctx context.Context, accountID int64, snapshot *OpenAICodexUsageSnapshot) {
+func (s *OpenAIGatewayService) updateCodexUsageSnapshot(ctx context.Context, accountID int64, snapshot *openai.OpenAICodexUsageSnapshot) {
 	if snapshot == nil {
 		return
 	}
@@ -170,7 +97,7 @@ func (s *OpenAIGatewayService) updateCodexUsageSnapshot(ctx context.Context, acc
 	}
 
 	now := time.Now()
-	updates := buildCodexUsageExtraUpdates(snapshot, now)
+	updates := quotaAccount.BuildCodexUsageExtraUpdates(snapshot, now)
 	if len(updates) == 0 {
 		return
 	}
@@ -188,7 +115,7 @@ func (s *OpenAIGatewayService) UpdateCodexUsageSnapshotFromHeaders(ctx context.C
 	if accountID <= 0 || headers == nil {
 		return
 	}
-	if snapshot := ParseCodexRateLimitHeaders(headers); snapshot != nil {
+	if snapshot := openaiupstream.ParseCodexRateLimitHeaders(headers); snapshot != nil {
 		s.updateCodexUsageSnapshot(ctx, accountID, snapshot)
 	}
 }

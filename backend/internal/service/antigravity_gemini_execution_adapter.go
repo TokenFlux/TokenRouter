@@ -6,9 +6,19 @@ import (
 	"log"
 	"net/http"
 
+	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
@@ -33,17 +43,17 @@ func (a *geminiExecutionAdapter) ImageInputSize(body []byte) string {
 	return a.s.extractImageInputSize(body)
 }
 func (a *geminiExecutionAdapter) ImageTier(size string) string {
-	return normalizeOpenAIImageSizeTier(size)
+	return media.NormalizeImageSizeTier(size)
 }
 func (a *geminiExecutionAdapter) ZeroCount() { gatewayhttp.WriteForwardGeminiZeroCount(a.c) }
 func (a *geminiExecutionAdapter) MappedModel(model string) string {
 	return a.s.getMappedModel(a.account, model)
 }
 func (a *geminiExecutionAdapter) FeatureDenied() {
-	MarkOpsClientBusinessLimited(a.c, OpsClientBusinessLimitedReasonLocalFeatureGate)
+	gatewayhttp.MarkOpsClientBusinessLimited(a.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
 func (a *geminiExecutionAdapter) Credential(ctx context.Context) error {
-	token, err := a.s.tokenProvider.GetAccessToken(ctx, a.account)
+	token, err := accountToken(ctx, a.s.tokenProvider, a.account)
 	a.token = token
 	return err
 }
@@ -56,19 +66,19 @@ func (a *geminiExecutionAdapter) Transport() {
 	}
 }
 func (a *geminiExecutionAdapter) InjectIdentity(body []byte) ([]byte, error) {
-	return injectIdentityPatchToGeminiRequest(body)
+	return antigravity.InjectIdentityPatchToGeminiRequest(body)
 }
 func (a *geminiExecutionAdapter) CleanSchema(body []byte) ([]byte, error) {
-	return cleanGeminiRequest(body)
+	return antigravity.CleanGeminiRequest(body)
 }
 func (a *geminiExecutionAdapter) Wrap(project, model string, body []byte) ([]byte, error) {
-	return a.s.wrapV1InternalRequest(project, model, body)
+	return antigravity.WrapV1InternalRequest(project, model, body)
 }
 func (a *geminiExecutionAdapter) ProjectRequired(err error) bool {
-	return errors.Is(err, errAntigravityProjectIDRequired)
+	return errors.Is(err, antigravity.ErrProjectIDRequired)
 }
 func (a *geminiExecutionAdapter) Log(message string) {
-	logger.LegacyPrintf("service.antigravity_gateway", "%s", message)
+	logging.LegacyPrintf("service.antigravity_gateway", "%s", message)
 }
 func (a *geminiExecutionAdapter) StdLog(message string) { log.Printf("%s", message) }
 func (a *geminiExecutionAdapter) Retry(ctx context.Context, in forwardcore.GeminiExecution) error {
@@ -79,13 +89,13 @@ func (a *geminiExecutionAdapter) Retry(ctx context.Context, in forwardcore.Gemin
 	return err
 }
 func (a *geminiExecutionAdapter) SwitchError(err error) (bool, bool) {
-	if v, ok := IsAntigravityAccountSwitchError(err); ok {
+	if v, ok := antigravity.IsAntigravityAccountSwitchError(err); ok {
 		return v.IsStickySession, true
 	}
 	return false, false
 }
 func (a *geminiExecutionAdapter) Failover(status int, body []byte, retry, sticky bool) error {
-	return &UpstreamFailoverError{StatusCode: status, ResponseBody: body, RetryableOnSameAccount: retry, ForceCacheBilling: sticky}
+	return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseBody: body, RetryableOnSameAccount: retry, ForceCacheBilling: sticky}
 }
 func (a *geminiExecutionAdapter) ClientCanceled() bool { return a.c.Request.Context().Err() != nil }
 func (a *geminiExecutionAdapter) Recover(ctx context.Context, in forwardcore.GeminiExecution) (forwardcore.GeminiRecovery, error) {
@@ -101,13 +111,18 @@ func (a *geminiExecutionAdapter) Recover(ctx context.Context, in forwardcore.Gem
 		},
 		Do: a.retry.Options.Do,
 		FallbackEnabled: func(ctx context.Context) bool {
-			return a.s.settingService != nil && a.s.settingService.IsModelFallbackEnabled(ctx)
+			return a.s.settingService != nil && a.s.settingService.Routing.IsModelFallbackEnabled(ctx)
 		},
 		SignatureEnabled: func(ctx context.Context) bool {
-			return a.s.settingService != nil && a.s.settingService.IsSignatureRectifierEnabled(ctx)
+			return a.s.settingService != nil && a.s.settingService.Gateway.IsSignatureRectifierEnabled(ctx)
 		},
-		FallbackModel:   func(ctx context.Context) string { return a.s.settingService.GetFallbackModel(ctx, PlatformAntigravity) },
-		IsModelNotFound: isModelNotFoundError, CleanSignatures: CleanGeminiNativeThoughtSignatures, ReadErrorBody: a.s.readUpstreamErrorBody, ErrorDetail: a.s.getUpstreamErrorDetail, Observe: a.retry.Options.Observe,
+		FallbackModel: func(ctx context.Context) string {
+			return a.s.settingService.Routing.GetFallbackModel(ctx, capability.PlatformAntigravity)
+		},
+		IsModelNotFound: upstream.IsModelNotFoundOrBare404,
+		CleanSignatures: func(body []byte) []byte {
+			return protocolgemini.CleanNativeThoughtSignatures(body, bridge.DummyThoughtSignature)
+		}, ReadErrorBody: a.s.readUpstreamErrorBody, ErrorDetail: a.s.getUpstreamErrorDetail, Observe: a.retry.Options.Observe,
 	}
 	recovered, err := antigravity.RecoverGemini(ctx, antigravity.GeminiRecoveryInput{AccountID: a.account.ID, AccountName: a.account.Name, ProjectID: in.ProjectID, Model: in.Model, Action: in.UpstreamAction, AccessToken: a.token, Body: in.InjectedBody}, a.response, opts)
 	if err == nil {
@@ -123,20 +138,20 @@ func (a *geminiExecutionAdapter) Health(ctx context.Context, status int, headers
 	a.s.handleUpstreamError(ctx, a.prefix, a.account, status, headers, body, in.OriginalModel, in.GroupID, in.SessionHash, in.Sticky)
 }
 func (a *geminiExecutionAdapter) ErrorMessage(body []byte) string {
-	return extractAntigravityErrorMessage(body)
+	return google.ExtractPlatformMessage(body)
 }
 func (a *geminiExecutionAdapter) Sanitize(message string) string {
-	return sanitizeUpstreamErrorMessage(message)
+	return logredact.SanitizeUpstreamQueries(message)
 }
 func (a *geminiExecutionAdapter) Detail(body []byte) string { return a.s.getUpstreamErrorDetail(body) }
 func (a *geminiExecutionAdapter) SetError(status int, message, detail string) {
-	setOpsUpstreamError(a.c, status, message, detail)
+	gatewayhttp.SetOpsUpstreamError(a.c, status, message, detail)
 }
 func (a *geminiExecutionAdapter) GoogleConfigError(message string) bool {
-	return isGoogleProjectConfigError(message)
+	return upstream.IsGoogleProjectConfigError(message)
 }
 func (a *geminiExecutionAdapter) Observe(n forwardcore.Notice) {
-	appendOpsUpstreamError(a.c, OpsUpstreamErrorEvent{Platform: n.Platform, AccountID: n.AccountID, AccountName: n.AccountName, UpstreamStatusCode: n.UpstreamStatusCode, UpstreamRequestID: n.UpstreamRequestID, Kind: n.Kind, Message: n.Message, Detail: n.Detail})
+	gatewayhttp.AppendOpsUpstreamError(a.c, ops.OpsUpstreamErrorEvent{Platform: n.Platform, AccountID: n.AccountID, AccountName: n.AccountName, UpstreamStatusCode: n.UpstreamStatusCode, UpstreamRequestID: n.UpstreamRequestID, Kind: n.Kind, Message: n.Message, Detail: n.Detail})
 }
 func (a *geminiExecutionAdapter) ShouldFailover(status int) bool {
 	return a.s.shouldFailoverUpstreamError(status)
@@ -145,7 +160,7 @@ func (a *geminiExecutionAdapter) TruncateBytes(body []byte, n int) string {
 	return truncateForLog(body, n)
 }
 func (a *geminiExecutionAdapter) ErrorBody(status int, contentType string, body []byte) {
-	gatewayhttp.WriteForwardGeminiErrorBody(a.c, status, contentType, body, func() { MarkResponseCommitted(a.c) })
+	gatewayhttp.WriteForwardGeminiErrorBody(a.c, status, contentType, body, func() { gatewayhttp.MarkResponseCommitted(a.c) })
 }
 func (a *geminiExecutionAdapter) Execute(ctx context.Context, in forwardcore.GeminiExecution, h forwardcore.GeminiHooks) (upstream.AttemptResult, error) {
 	a.retry, a.params = a.s.antigravityRetryAdapter(antigravityRetryLoopParams{
@@ -167,5 +182,5 @@ func (a *geminiExecutionAdapter) Execute(ctx context.Context, in forwardcore.Gem
 	return (antigravity.Executor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocol.ProtocolGeminiGenerateContent, Body: in.Body, ResponseModel: in.OriginalModel, Stream: in.Stream, Target: target}, gatewayhttp.ResponseSink{Writer: a.c.Writer})
 }
 func (a *geminiExecutionAdapter) IsImageModel(model string) bool {
-	return isImageGenerationModel(model)
+	return antigravity.IsImageGenerationModel(model)
 }

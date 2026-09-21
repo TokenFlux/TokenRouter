@@ -4,10 +4,12 @@ import (
 	"errors"
 	"net/http"
 
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-
-	"github.com/TokenFlux/TokenRouter/internal/service"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,11 +20,6 @@ func (h *GatewayHandler) GeminiV1BetaListModels(c *gin.Context) {
 }
 
 // writeGeminiModelsListWithAPIKeyAliases 返回 Gemini 列表并追加当前可请求目标的精确别名。
-
-// appendAPIKeyAliasesToGeminiModelsJSON 克隆目标元数据，仅改写 Gemini 协议的模型字段。
-func appendAPIKeyAliasesToGeminiModelsJSON(body []byte, mapping map[string]string) []byte {
-	return newModelDisplayHandler().AppendAPIKeyAliasesToGeminiModelsJSON(body, mapping)
-}
 
 // GeminiV1BetaGetModel proxies:
 // GET /v1beta/models/{model}
@@ -38,7 +35,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	h.NewGeminiNativeHTTPHandler().GeminiV1BetaModels(c)
 }
 
-func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError) {
+func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError) {
 	if failoverErr == nil {
 		googleError(c, http.StatusBadGateway, "Upstream request failed")
 		return
@@ -49,7 +46,7 @@ func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverE
 
 	// 先检查透传规则
 	if h.errorPassthroughService != nil && len(responseBody) > 0 {
-		if rule := h.errorPassthroughService.MatchRule(service.PlatformGemini, statusCode, responseBody); rule != nil {
+		if rule := h.errorPassthroughService.MatchRule(capability.PlatformGemini, statusCode, responseBody); rule != nil {
 			// 确定响应状态码
 			respCode := statusCode
 			if !rule.PassthroughCode && rule.ResponseCode != nil {
@@ -57,13 +54,13 @@ func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverE
 			}
 
 			// 确定响应消息
-			msg := service.ExtractUpstreamErrorMessage(responseBody)
+			msg := upstream.ExtractErrorMessage(responseBody)
 			if !rule.PassthroughBody && rule.CustomMessage != nil {
 				msg = *rule.CustomMessage
 			}
 
 			if rule.SkipMonitoring {
-				c.Set(service.OpsSkipPassthroughKey, true)
+				c.Set(gatewayhttp.OpsSkipPassthroughKey, true)
 			}
 
 			googleError(c, respCode, msg)
@@ -72,8 +69,8 @@ func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverE
 	}
 
 	// 记录原始上游状态码，以便 ops 错误日志捕获真实的上游错误
-	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
-	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
+	upstreamMsg := upstream.ExtractErrorMessage(responseBody)
+	gatewayhttp.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
 	// 使用默认的错误映射
 	status, message := mapGeminiUpstreamError(statusCode)
@@ -103,11 +100,11 @@ func googleError(c *gin.Context, status int, message string) {
 
 // handleGeminiGroupModelUnsupportedError 将分组模型限制转换为 Google API 风格错误。
 func handleGeminiGroupModelUnsupportedError(c *gin.Context, err error) bool {
-	var modelErr *service.GroupModelUnsupportedError
+	var modelErr *routing.GroupModelUnsupportedError
 	if !errors.As(err, &modelErr) {
 		return false
 	}
-	service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+	gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 	googleError(c, http.StatusForbidden, modelErr.Error())
 	return true
 }

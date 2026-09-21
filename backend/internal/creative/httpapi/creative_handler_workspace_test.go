@@ -14,7 +14,6 @@ import (
 
 // TestCreativeRunScopeFromRequest 校验工作区 header 的缺失、非法值和大小写规范化。
 func TestCreativeRunScopeFromRequest(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("缺失 header", func(t *testing.T) {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())

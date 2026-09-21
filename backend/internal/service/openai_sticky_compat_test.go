@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -85,12 +85,11 @@ func TestSetStickySessionAccountID_DualWriteOldDisabled(t *testing.T) {
 }
 
 func TestSnapshotOpenAICompatibilityFallbackMetrics(t *testing.T) {
-	before := SnapshotOpenAICompatibilityFallbackMetrics()
-
-	ctx := context.WithValue(context.Background(), ctxkey.ThinkingEnabled, true)
-	_, _ = ThinkingEnabledFromContext(ctx)
+	ctx := requeststate.WithThinkingEnabled(context.Background(), true)
+	_, _ = requeststate.ThinkingEnabledFromContext(ctx)
 
 	after := SnapshotOpenAICompatibilityFallbackMetrics()
-	require.GreaterOrEqual(t, after.MetadataLegacyFallbackTotal, before.MetadataLegacyFallbackTotal+1)
-	require.GreaterOrEqual(t, after.MetadataLegacyFallbackThinkingEnabledTotal, before.MetadataLegacyFallbackThinkingEnabledTotal+1)
+	// 请求已使用唯一原生快照，不再发生旧 key 回退；公开字段继续保留。
+	require.Zero(t, after.MetadataLegacyFallbackTotal)
+	require.Zero(t, after.MetadataLegacyFallbackThinkingEnabledTotal)
 }

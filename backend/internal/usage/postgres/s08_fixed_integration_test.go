@@ -4,6 +4,10 @@
 package postgres
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"context"
 	"sync"
 	"sync/atomic"
@@ -12,6 +16,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/audit"
 	auditpg "github.com/TokenFlux/TokenRouter/internal/audit/postgres"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
@@ -68,7 +74,7 @@ func (r *s08PausedState) GetUsageAnalyticsAggregationState(ctx context.Context) 
 }
 func TestS08ManualBackfillPreservesConcurrentState(t *testing.T) {
 	ctx := context.Background()
-	base := NewAggregationStoreWithSQL(integrationDB)
+	base := NewAggregationStoreWithSQL(integrationDB, timezone.NewCalendar(time.Local))
 	saved, err := base.GetUsageAnalyticsAggregationState(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, base.SaveUsageAnalyticsAggregationState(ctx, saved)) })
@@ -150,17 +156,17 @@ func (r *s08RepairStore) RecomputeUsageAnalyticsRange(ctx context.Context, start
 func TestS08CanceledPartialCleanupRepairsCommittedData(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	u := mustCreateUser(t, client, &service.User{Email: "s08-cancel@test.local", Balance: 7})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: u.ID, Key: "sk-s08-cancel", Name: "k"})
+	u := mustCreateUser(t, client, &identity.User{Email: "s08-cancel@test.local", Balance: 7})
+	key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: u.ID, Key: "sk-s08-cancel", Name: "k"})
 	account := mustCreateAccount(t, client, &service.Account{Name: "s08-cancel"})
-	repo := NewUsageLogRepositoryWithSQL(client, integrationDB)
+	repo := NewUsageLogRepositoryWithSQL(client, integrationDB, timezone.NewCalendar(time.Local))
 	defer repo.StopUsageBatchers()
 	now := time.Now().UTC().Add(-72 * time.Hour)
 	for i := 0; i < 2; i++ {
 		_, e := repo.Create(ctx, &usage.UsageLog{UserID: u.ID, APIKeyID: key.ID, AccountID: account.ID, Model: "planning", TotalCost: 1, ActualCost: 1, CreatedAt: now})
 		require.NoError(t, e)
 	}
-	base := NewAggregationStoreWithSQL(integrationDB)
+	base := NewAggregationStoreWithSQL(integrationDB, timezone.NewCalendar(time.Local))
 	require.NoError(t, base.AggregateUsageAnalyticsRange(ctx, now.Add(-time.Hour), now.Add(time.Hour)))
 	ar := &s08RepairStore{AggregationStore: base, done: make(chan error, 1)}
 	agg := usage.NewDashboardAggregationService(ar, nil, nil)

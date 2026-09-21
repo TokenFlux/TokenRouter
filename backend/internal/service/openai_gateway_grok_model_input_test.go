@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	uuid "github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -18,7 +20,8 @@ func TestSanitizeGrokResponsesModelInputNormalizesReplayHistory(t *testing.T) {
 			{"type":"message","role":"assistant","id":"msg_complete","status":"completed","content":[{"type":"output_text","text":"kept"}]}
 		]}`)
 
-	patched, err := sanitizeGrokResponsesModelInput(body)
+	patched, err := (grok.BodyCodec{
+		NewID: uuid.NewString}).SanitizeGrokResponsesModelInput(body)
 	require.NoError(t, err)
 	require.Equal(t, "message", gjson.GetBytes(patched, "input.0.type").String())
 	require.Equal(t, "done", gjson.GetBytes(patched, "input.1.content").String())
@@ -39,7 +42,8 @@ func TestSanitizeGrokResponsesModelInputStripsOnlyNonPairCallIDs(t *testing.T) {
 		{"type":"function_call_output","call_id":"keep_function","output":"ok"}
 	]}`)
 
-	patched, err := sanitizeGrokResponsesModelInput(body)
+	patched, err := (grok.BodyCodec{
+		NewID: uuid.NewString}).SanitizeGrokResponsesModelInput(body)
 	require.NoError(t, err)
 	for i := 0; i < 3; i++ {
 		require.False(t, gjson.GetBytes(patched, "input."+strconv.Itoa(i)+".call_id").Exists())
@@ -60,7 +64,8 @@ func TestSanitizeGrokResponsesModelInputPairsCallsInTwoPasses(t *testing.T) {
 			{"role":"tool","tool_call_id":"orphan","content":{"value":1}}
 		]}`)
 
-	patched, err := sanitizeGrokResponsesModelInput(body)
+	patched, err := (grok.BodyCodec{
+		NewID: uuid.NewString}).SanitizeGrokResponsesModelInput(body)
 	require.NoError(t, err)
 	generated := gjson.GetBytes(patched, "input.1.call_id").String()
 	require.NotEmpty(t, generated)
@@ -95,7 +100,8 @@ func TestSanitizeGrokResponsesModelInputMapsAllItemAliasesAndRejectsConflicts(t 
 		{"type":"function_call_output","id":"duplicate_item","output":"ambiguous"}
 	]}`)
 
-	patched, err := sanitizeGrokResponsesModelInput(body)
+	patched, err := (grok.BodyCodec{
+		NewID: uuid.NewString}).SanitizeGrokResponsesModelInput(body)
 	require.NoError(t, err)
 	require.Equal(t, "call_canonical", gjson.GetBytes(patched, "input.0.call_id").String())
 	require.Equal(t, "call_canonical", gjson.GetBytes(patched, "input.1.call_id").String())
@@ -120,7 +126,8 @@ func TestSanitizeGrokResponsesModelInputPreservesGrokShellOutputImages(t *testin
 		{"type":"function_call_output","call_id":"call_b","content":"Read image file: /tmp/b.png","images":[{"type":"image","url":"data:image/jpeg;base64,QkI="}]}
 	]}`)
 
-	patched, err := sanitizeGrokResponsesModelInput(body)
+	patched, err := (grok.BodyCodec{
+		NewID: uuid.NewString}).SanitizeGrokResponsesModelInput(body)
 	require.NoError(t, err)
 	require.Equal(t, "function_call_output", gjson.GetBytes(patched, "input.2.type").String())
 	require.Equal(t, "Read image file: /tmp/a.png", gjson.GetBytes(patched, "input.2.output").String())
@@ -144,7 +151,8 @@ func TestSanitizeGrokResponsesModelInputPreservesGrok105StructuredOutputImages(t
 		]}
 	]}`)
 
-	patched, err := sanitizeGrokResponsesModelInput(body)
+	patched, err := (grok.BodyCodec{
+		NewID: uuid.NewString}).SanitizeGrokResponsesModelInput(body)
 	require.NoError(t, err)
 	require.Equal(t, "function_call_output", gjson.GetBytes(patched, "input.1.type").String())
 	require.Equal(t, "Read image file: /tmp/example.png", gjson.GetBytes(patched, "input.1.output").String())
@@ -160,7 +168,8 @@ func TestSanitizeGrokResponsesModelInputSkipsInvalidOutputImages(t *testing.T) {
 		{"role":"user","content":"continue"}
 	]}`)
 
-	patched, err := sanitizeGrokResponsesModelInput(body)
+	patched, err := (grok.BodyCodec{
+		NewID: uuid.NewString}).SanitizeGrokResponsesModelInput(body)
 	require.NoError(t, err)
 	require.Len(t, gjson.GetBytes(patched, "input").Array(), 2)
 	require.Equal(t, "function_call_output", gjson.GetBytes(patched, "input.0.type").String())
@@ -217,16 +226,16 @@ func TestGrokStructuredErrorCandidatesDoNotShadowTopLevelMessages(t *testing.T) 
 
 func TestGrokDecoderCompatibility422FailsOverWithoutCooldown(t *testing.T) {
 	body := []byte(`{"detail":"data did not match any variant of untagged enum ModelInput at input[3]"}`)
-	require.True(t, isGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, body))
-	require.True(t, isGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"message":"could not decode ModelInput at input.3"}`)))
-	require.True(t, isGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":{"type":"invalid_request_error"},"message":"could not deserialize ModelInput at input[3]"}`)))
-	require.True(t, isGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":"Failed to deserialize the JSON body into the target type: messages[1]: data did not match any variant of untagged enum Content at line 1 column 6577"}`)))
+	require.True(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, body))
+	require.True(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"message":"could not decode ModelInput at input.3"}`)))
+	require.True(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":{"type":"invalid_request_error"},"message":"could not deserialize ModelInput at input[3]"}`)))
+	require.True(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":"Failed to deserialize the JSON body into the target type: messages[1]: data did not match any variant of untagged enum Content at line 1 column 6577"}`)))
 	require.True(t, (&OpenAIGatewayService{}).shouldFailoverGrokUpstreamError(http.StatusUnprocessableEntity, body))
-	decision := classifyGrokUpstreamFailure(http.StatusUnprocessableEntity, body, "grok-4.5")
+	decision := grok.ClassifyGrokUpstreamFailure(http.StatusUnprocessableEntity, body, "grok-4.5")
 	require.False(t, decision.ShouldCooldown)
-	require.Equal(t, GrokFailureNone, decision.Class)
+	require.Equal(t, grok.GrokFailureNone, decision.Class)
 
-	require.False(t, isGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":{"message":"invalid user parameter"}}`)))
-	require.False(t, isGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":"messages[1].content is required"}`)))
-	require.False(t, isGrokDecoderCompatibilityError(http.StatusBadRequest, body))
+	require.False(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":{"message":"invalid user parameter"}}`)))
+	require.False(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":"messages[1].content is required"}`)))
+	require.False(t, grok.IsGrokDecoderCompatibilityError(http.StatusBadRequest, body))
 }

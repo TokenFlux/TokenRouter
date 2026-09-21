@@ -4,8 +4,9 @@ package identity
 import (
 	context "context"
 	errors "errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	strings "strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 )
 
 // WeChatOAuthOptions 是一次授权所需的配置投影，模式与地址解析仍由 HTTP 负责。

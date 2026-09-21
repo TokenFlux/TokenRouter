@@ -3,12 +3,13 @@ package openaiforward
 
 import (
 	"context"
+	"net/http"
+
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 type TemplateData struct{ ExistingInstructions, OriginalModel, NormalizedModel, BillingModel, UpstreamModel string }
@@ -48,7 +49,7 @@ type MessagesPorts interface {
 	LogIDLimit() int
 	Debug(msg string, fields ...zap.Field)
 	Info(msg string, fields ...zap.Field)
-	CodexTransform(body map[string]any, o native.CodexOAuthTransformOptions) native.CodexTransformResult
+	CodexTransform(body map[string]any, o openai.CodexOAuthTransformOptions) openai.CodexTransformResult
 	ToolNameReverse(value map[string]string)
 	ForcedTemplate() string
 	ForcedInstructions(body map[string]any, text string, data TemplateData) (bool, error)
@@ -98,7 +99,7 @@ type MessagesPorts interface {
 	UpdateGrokUsage(ctx context.Context, model string, h http.Header, status int)
 	BindTurnState(ctx context.Context, key, state string)
 	Sink() upstream.OutputSink
-	ResponseOptions(r *http.Response, original, billing, model string) native.MessagesResponseOptions
+	ResponseOptions(r *http.Response, original, billing, model string) openai.MessagesResponseOptions
 	CyberPolicy() bool
 	CyberError() error
 	BindResponseID(ctx context.Context, key, id string)

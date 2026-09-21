@@ -5,7 +5,7 @@ package handler
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +15,7 @@ func subscriptionLimitPtr(v float64) *float64 {
 
 func TestCalculateSubscriptionRemaining_IgnoresDisabledZeroLimit(t *testing.T) {
 	h := &GatewayHandler{}
-	sub := &service.UserSubscription{
+	sub := &billing.UserSubscription{
 		DailyLimitUSD:   subscriptionLimitPtr(10),
 		WeeklyLimitUSD:  subscriptionLimitPtr(0),
 		MonthlyLimitUSD: subscriptionLimitPtr(100),
@@ -29,7 +29,7 @@ func TestCalculateSubscriptionRemaining_IgnoresDisabledZeroLimit(t *testing.T) {
 
 func TestCalculateSubscriptionRemaining_NoPositiveLimitsReturnsUnlimited(t *testing.T) {
 	h := &GatewayHandler{}
-	sub := &service.UserSubscription{
+	sub := &billing.UserSubscription{
 		DailyLimitUSD:   subscriptionLimitPtr(0),
 		MonthlyLimitUSD: subscriptionLimitPtr(0),
 	}

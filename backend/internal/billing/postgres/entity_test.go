@@ -5,9 +5,11 @@ package postgres
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +18,7 @@ func TestTaskProjectionRequiresRegisteredScope(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
-	store := NewSettlementStore(db, nil)
+	store := NewSettlementStore(db, timezone.NewCalendar(time.Local), nil)
 	_, err = store.Reserve(context.Background(), &billing.TaskFundsCommand{Task: billing.TaskReference{Scope: "unknown", ID: "opaque", ReserveRequestID: "hold:opaque"}, RequestID: "hold:opaque"})
 	require.Error(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	egressredis "github.com/TokenFlux/TokenRouter/internal/egress/rediscache"
+	gatewayredis "github.com/TokenFlux/TokenRouter/internal/gateway/rediscache"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestSubscriptionsWaitForInFlightCallback(t *testing.T) {
 		make          func(*redis.Client) stoppableTLSFingerprintCache
 	}{
 		{"error", "error_passthrough_rules_updated", func(c *redis.Client) stoppableTLSFingerprintCache {
-			value, ok := NewErrorPassthroughCache(c).(stoppableTLSFingerprintCache)
+			value, ok := gatewayredis.NewErrorPassthroughCache(c).(stoppableTLSFingerprintCache)
 			require.True(t, ok)
 			return value
 		}},

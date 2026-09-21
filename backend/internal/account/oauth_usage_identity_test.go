@@ -3,11 +3,12 @@ package account
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 正负缓存与共享 flight 都维持账号命名空间，仅允许当前身份消费其结果。

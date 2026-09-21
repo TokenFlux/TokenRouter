@@ -3,6 +3,8 @@ package app
 import (
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	notificationhttp "github.com/TokenFlux/TokenRouter/internal/notification/httpapi"
 	paymenthttp "github.com/TokenFlux/TokenRouter/internal/payment/httpapi"
@@ -10,7 +12,6 @@ import (
 	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,7 +25,7 @@ func RegisterAuthRoutes(
 	jwtAuth servermiddleware.JWTAuthMiddleware,
 	auditLog servermiddleware.AuditLogMiddleware,
 	rateLimiter *servermiddleware.RateLimiter,
-	settingService *service.SettingService,
+	settingService *admission.BackendMode,
 	panelRateLimiter *servermiddleware.PanelRateLimiter,
 ) {
 	guards := identityhttp.AuthRouteMiddleware{JWT: gin.HandlerFunc(jwtAuth), Audit: gin.HandlerFunc(auditLog), BackendAuth: identityhttp.BackendModeAuthGuard(legacyBackendModeReader(settingService)), BackendUser: identityhttp.BackendModeUserGuard(legacyBackendModeReader(settingService)), Panel: panelRateLimiter.Global(), Limit: func(key string, n int, window time.Duration) gin.HandlerFunc {
@@ -40,7 +41,7 @@ func RegisterAuthRoutes(
 }
 
 // legacyBackendModeReader 保留原可空具体参数的语义，避免 typed nil 被当作有效端口。
-func legacyBackendModeReader(s *service.SettingService) identityhttp.BackendModeReader {
+func legacyBackendModeReader(s *admission.BackendMode) identityhttp.BackendModeReader {
 	if s == nil {
 		return nil
 	}

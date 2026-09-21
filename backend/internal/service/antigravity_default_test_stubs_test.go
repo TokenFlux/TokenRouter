@@ -5,6 +5,8 @@ package service
 import (
 	"context"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 )
 
 type defaultRateLimitCall struct {
@@ -51,7 +53,7 @@ type defaultDeleteSessionCall struct {
 }
 
 type stubSmartRetryCache struct {
-	GatewayCache
+	session.GatewayCache
 	deleteCalls []defaultDeleteSessionCall
 }
 

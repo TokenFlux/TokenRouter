@@ -2,20 +2,30 @@
 package handler
 
 import (
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	"context"
 	"errors"
 	"net/http"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-
-	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -24,22 +34,22 @@ type responsesAttemptBridge struct {
 	fixed                                                                    *openAIExecutionDependencies
 	h                                                                        *OpenAIGatewayHandler
 	c                                                                        *gin.Context
-	apiKey                                                                   *service.APIKey
+	apiKey                                                                   *apikey.APIKey
 	subject                                                                  middleware.AuthSubject
-	subscription                                                             *service.UserSubscription
+	subscription                                                             *billing.UserSubscription
 	reqLog                                                                   *zap.Logger
 	body, forwardBody, sessionHashBody                                       []byte
 	reqModel, forwardModel, sessionHash, previousResponseID, requestPlatform string
 	reqStream, nativeCompactionV2, legacyCompact, requireCompact             bool
 	streamStarted                                                            *bool
 	selectionCtx                                                             context.Context
-	channelMapping                                                           service.ChannelMappingResult
+	channelMapping                                                           routing.ChannelMappingResult
 	routingStart                                                             time.Time
-	requiredCapability                                                       service.OpenAIEndpointCapability
+	requiredCapability                                                       accountcore.OpenAIEndpointCapability
 	selection                                                                *service.AccountSelectionResult
 	account                                                                  *service.Account
 	accountReleaseFunc                                                       func()
-	result                                                                   *service.OpenAIForwardResult
+	result                                                                   *forwardcore.OpenAIResult
 	writerSizeBeforeForward                                                  int
 	cyberPolicyHandled, wroteFallback                                        bool
 	passthroughFailoverState                                                 openAIPassthroughFailoverState
@@ -50,7 +60,7 @@ type responsesAttemptBridge struct {
 func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.ResponseSelection, error) {
 	// Select account supporting the requested model
 	b.reqLog.Debug("openai.account_selecting", zap.Int("excluded_account_count", len(excluded)))
-	var scheduleDecision service.OpenAIAccountScheduleDecision
+	var scheduleDecision scheduler.PlatformDecision
 	var err error
 	b.selection, scheduleDecision, err = b.binding().selectAccountWithSchedulerForCapability(
 		b.selectionCtx,
@@ -58,9 +68,7 @@ func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.R
 		b.previousResponseID,
 		b.sessionHash,
 		b.reqModel,
-		excluded,
-		service.OpenAIUpstreamTransportAny,
-		b.requiredCapability,
+		excluded, egress.OpenAIUpstreamTransportAny, b.requiredCapability,
 		b.requireCompact,
 		false,
 		b.requestPlatform,
@@ -71,7 +79,7 @@ func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.R
 	if b.selection == nil || b.selection.Account == nil {
 		cls := classifyOpenAICompatibleNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel)
 		if !cls.ModelNotFound {
-			markOpsRoutingCapacityLimited(b.c)
+			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 		}
 		b.binding().handleStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, (*b.streamStarted))
 		return textflow.ResponseSelection{}, nil
@@ -89,7 +97,7 @@ func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.R
 		zap.Float64("load_skew", scheduleDecision.LoadSkew),
 	)
 	b.account = b.selection.Account
-	if b.previousResponseID != "" && b.requestPlatform == service.PlatformOpenAI && !b.account.IsOpenAIApiKey() {
+	if b.previousResponseID != "" && b.requestPlatform == capability.PlatformOpenAI && !b.account.IsOpenAIApiKey() {
 		// The public Responses HTTP API supports previous_response_id on API-key
 		// accounts. OAuth/SetupToken upstreams do not, so keep searching instead
 		// of silently deleting continuation state from a mixed account pool.
@@ -98,10 +106,10 @@ func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.R
 			b.selection.ReleaseFunc()
 			b.selection.ReleaseFunc = nil
 		}
-		skipped := &service.UpstreamFailoverError{
+		skipped := &forwardcore.UpstreamFailoverError{
 			StatusCode:       http.StatusBadRequest,
-			Stage:            service.GatewayFailureStageInference,
-			Scope:            service.GatewayFailureScopeRequest,
+			Stage:            forwardcore.GatewayFailureStageInference,
+			Scope:            forwardcore.GatewayFailureScopeRequest,
 			Reason:           service.OpenAIHTTPContinuationUnsupportedReason,
 			ClientStatusCode: http.StatusBadRequest,
 			ClientMessage:    "previous_response_id requires an OpenAI API-key account for HTTP requests",
@@ -116,19 +124,19 @@ func (b *responsesAttemptBridge) Select(excluded map[int64]struct{}) (textflow.R
 	}
 	b.sessionHash = ensureOpenAIPoolModeSessionHash(b.sessionHash, b.account)
 	b.reqLog.Debug("openai.account_selected", zap.Int64("account_id", b.account.ID), zap.String("account_name", b.account.Name))
-	setOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
 
 	return b.selectedView(), nil
 }
 
 // SelectionFailure 只执行单次 Responses 适配操作，不持有重试循环。
 func (b *responsesAttemptBridge) SelectionFailure(err error, excludedCount int, last *textflow.AttemptFailure) {
-	var lastFailoverErr *service.UpstreamFailoverError
+	var lastFailoverErr *forwardcore.UpstreamFailoverError
 	if last != nil {
 		errors.As(last.Cause, &lastFailoverErr)
 	}
 
-	if failoverClientGone(b.c) {
+	if gatewayhttp.FailoverClientGone(b.c) {
 		b.reqLog.Info("openai.account_select_aborted_client_disconnected", zap.Error(err))
 		return
 	}
@@ -137,15 +145,15 @@ func (b *responsesAttemptBridge) SelectionFailure(err error, excludedCount int, 
 		zap.Int("excluded_account_count", excludedCount),
 	)
 	if excludedCount == 0 {
-		if b.legacyCompact && errors.Is(err, service.ErrNoAvailableCompactAccounts) {
-			markOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
+		if b.legacyCompact && errors.Is(err, scheduler.ErrNoAvailableCompactAccounts) {
+			gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 			b.binding().handleStreamingAwareError(b.c, http.StatusServiceUnavailable, "compact_not_supported", "No available accounts support /responses/compact", (*b.streamStarted))
 			return
 		}
 		cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, b.requestPlatform)
 		cls = classifySelectionFailureError(err, cls)
 		if !cls.ModelNotFound {
-			markOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
+			gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 		}
 		b.binding().handleStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, (*b.streamStarted))
 		return
@@ -168,15 +176,15 @@ func (b *responsesAttemptBridge) Acquire() bool {
 func (b *responsesAttemptBridge) Forward() textflow.ResponseOutcome {
 	var err error
 	// Forward request
-	service.SetOpsLatencyMs(b.c, service.OpsRoutingLatencyMsKey, time.Since(b.routingStart).Milliseconds())
+	gatewayhttp.SetOpsLatencyMs(b.c, gatewayhttp.OpsRoutingLatencyMsKey, time.Since(b.routingStart).Milliseconds())
 	forwardStart := time.Now()
 	// 用扣除非语义心跳字节的口径快照：心跳注释不构成语义响应，
 	// 不能因心跳字节变化而放弃 failover 换号（#3887）。
-	b.writerSizeBeforeForward = service.OpenAICompactKeepaliveAdjustedWrittenSize(b.c)
+	b.writerSizeBeforeForward = gatewayhttp.OpenAICompactKeepaliveAdjustedWrittenSize(b.c)
 	// 跨透传边界时，从不可变的 canonical 请求体派生当前尝试体，
 	// 避免非透传上游拒绝透传账号产生的私有加密 reasoning 项。
 	attemptBody := b.binding().deriveOpenAIForwardAttemptBody(b.reqLog, b.forwardBody, b.account, &b.passthroughFailoverState)
-	b.result, err = func() (*service.OpenAIForwardResult, error) {
+	b.result, err = func() (*forwardcore.OpenAIResult, error) {
 		defer func() {
 			if b.accountReleaseFunc != nil {
 				b.accountReleaseFunc()
@@ -188,20 +196,20 @@ func (b *responsesAttemptBridge) Forward() textflow.ResponseOutcome {
 	if service.GetOpsCyberPolicy(b.c) != nil {
 		cyberBlockBodyHTTP = b.sessionHashBody
 	}
-	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyHTTP, clientRequestedUsageFields(b.c, b.channelMapping, b.reqModel, ""), service.HashUsageRequestPayload(b.body), b.nativeCompactionV2)
+	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyHTTP, gatewayhttp.ClientRequestedUsageFields(b.c, b.channelMapping, b.reqModel, ""), billing.HashUsageRequestPayload(b.body), b.nativeCompactionV2)
 	forwardDurationMs := time.Since(forwardStart).Milliseconds()
-	upstreamLatencyMs, _ := getContextInt64(b.c, service.OpsUpstreamLatencyMsKey)
+	upstreamLatencyMs, _ := getContextInt64(b.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 	responseLatencyMs := forwardDurationMs
 	if upstreamLatencyMs > 0 && forwardDurationMs > upstreamLatencyMs {
 		responseLatencyMs = forwardDurationMs - upstreamLatencyMs
 	}
-	service.SetOpsLatencyMs(b.c, service.OpsResponseLatencyMsKey, responseLatencyMs)
+	gatewayhttp.SetOpsLatencyMs(b.c, gatewayhttp.OpsResponseLatencyMsKey, responseLatencyMs)
 	if err == nil && b.result != nil && b.result.FirstTokenMs != nil {
-		service.SetOpsLatencyMs(b.c, service.OpsTimeToFirstTokenMsKey, int64(*b.result.FirstTokenMs))
+		gatewayhttp.SetOpsLatencyMs(b.c, gatewayhttp.OpsTimeToFirstTokenMsKey, int64(*b.result.FirstTokenMs))
 	}
 	out := textflow.ResponseOutcome{Outcome: textflow.Outcome{Attempt: openAIObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil}, Images: b.result != nil && b.result.ImageCount > 0}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
-	var retry *service.UpstreamFailoverError
+	var retry *forwardcore.UpstreamFailoverError
 	if errors.As(err, &retry) {
 		out.Failure = &textflow.AttemptFailure{Cause: err, Policy: retry.RetryFailure()}
 		out.FirstOutputRecovery = retry.SafeToFailoverAfterWrite
@@ -219,14 +227,14 @@ func (b *responsesAttemptBridge) Complete() {
 	}
 	stampOpenAIRequestedReasoningEffort(res, b.c)
 	userAgent := b.c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(b.c)
-	requestPayloadHash := service.HashUsageRequestPayload(b.body)
-	inboundEndpoint := GetInboundEndpoint(b.c)
+	clientIP := clientip.GetClientIP(b.c)
+	requestPayloadHash := billing.HashUsageRequestPayload(b.body)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
 	upstreamEndpoint := resolveOpenAIUpstreamEndpoint(b.c, b.account, res)
 	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.apiKey)
 	clientSessionID := service.ExtractClientSessionID(b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionOpenAIInput(usageRecordContextFromGin(b.c), &service.OpenAIRecordUsageInput{
+	completionInput := service.CompletionOpenAIInput(gatewayhttp.CompletionContext(b.c), &service.OpenAIRecordUsageInput{
 		Result:             res,
 		APIKey:             b.apiKey,
 		User:               b.apiKey.User,
@@ -250,7 +258,7 @@ func (b *responsesAttemptBridge) Complete() {
 	completionRuntime := b.binding().recorder
 	b.binding().submitOpenAIUsageRecordTask(b.c, res, func(ctx context.Context) {
 		if err := completionRuntime.Record(ctx, completionInput, true); err != nil {
-			logger.L().With(
+			logging.L().With(
 				zap.String("component", "handler.openai_gateway.responses"),
 				zap.Int64("user_id", completionUserID),
 				zap.Int64("api_key_id", completionInput.APIKey.ID),
@@ -274,11 +282,11 @@ func (b *responsesAttemptBridge) PartialImages(err error) {
 // RetryReady 只执行单次 Responses 适配操作，不持有重试循环。
 func (b *responsesAttemptBridge) RetryReady(failure *textflow.AttemptFailure) bool {
 	err := failure.Cause
-	var failoverErr *service.UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &failoverErr) {
 		return false
 	}
-	if failoverClientGone(b.c) {
+	if gatewayhttp.FailoverClientGone(b.c) {
 		b.reqLog.Info("openai.failover_aborted_client_disconnected",
 			zap.Int64("account_id", b.account.ID),
 			zap.Int("upstream_status", failoverErr.StatusCode),
@@ -304,7 +312,7 @@ func (b *responsesAttemptBridge) RetryReady(failure *textflow.AttemptFailure) bo
 
 // RetryWait 只执行单次 Responses 适配操作，不持有重试循环。
 func (b *responsesAttemptBridge) RetryWait(failure *textflow.AttemptFailure, retryLimit, retryCount int, retryDelay time.Duration) {
-	var failoverErr *service.UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	errors.As(failure.Cause, &failoverErr)
 	b.reqLog.Warn("openai.pool_mode_same_account_retry",
 		zap.Int64("account_id", b.account.ID),
@@ -317,7 +325,7 @@ func (b *responsesAttemptBridge) RetryWait(failure *textflow.AttemptFailure, ret
 
 // Switching 只执行单次 Responses 适配操作，不持有重试循环。
 func (b *responsesAttemptBridge) Switching(failure *textflow.AttemptFailure, switchCount, maxAccountSwitches int) {
-	var failoverErr *service.UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	errors.As(failure.Cause, &failoverErr)
 	failoverSwitchFields := []zap.Field{
 		zap.Int64("account_id", b.account.ID),
@@ -332,7 +340,7 @@ func (b *responsesAttemptBridge) Switching(failure *textflow.AttemptFailure, swi
 // OtherFailure 只执行单次 Responses 适配操作，不持有重试循环。
 func (b *responsesAttemptBridge) OtherFailure(err error) {
 	statusCode := 0
-	if v, ok := getContextInt64(b.c, service.OpsUpstreamStatusCodeKey); ok {
+	if v, ok := getContextInt64(b.c, gatewayhttp.OpsUpstreamStatusCodeKey); ok {
 		statusCode = int(v)
 	}
 	recordedWarning := b.binding().recordOpenAIForwardErrorCyberWarning(b.c, b.reqLog, b.apiKey, b.account, b.reqModel, statusCode, err)
@@ -344,7 +352,7 @@ func (b *responsesAttemptBridge) OtherFailure(err error) {
 	b.wroteFallback = false
 	// cyber warning 场景下，service 层可能已经把上游 response.failed/JSON 错误写给下游。
 	// 此时不再补写第二个 fallback，避免客户端看到重复的终止事件。
-	if !upstreamErrorAlreadyCommunicated && (!recordedWarning || service.OpenAICompactKeepaliveAdjustedWrittenSize(b.c) == b.writerSizeBeforeForward) {
+	if !upstreamErrorAlreadyCommunicated && (!recordedWarning || gatewayhttp.OpenAICompactKeepaliveAdjustedWrittenSize(b.c) == b.writerSizeBeforeForward) {
 		b.wroteFallback = b.binding().ensureOpenAIForwardErrorResponse(b.c, (*b.streamStarted), err)
 	}
 	b.fields = []zap.Field{
@@ -368,7 +376,7 @@ func (b *responsesAttemptBridge) Failed() {
 func (b *responsesAttemptBridge) Success() {
 	if b.result != nil {
 		// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
-		if b.account.Type == service.AccountTypeOAuth && !b.account.IsShadow() {
+		if b.account.Type == capability.AccountTypeOAuth && !b.account.IsShadow() {
 			b.binding().updateCodexUsageSnapshotFromHeaders(b.c.Request.Context(), b.account.ID, b.result.ResponseHeaders)
 		}
 		b.binding().reportOpenAIAccountScheduleResult(b.account, openAIAccountScheduleModel(b.c, b.account, b.forwardModel, b.requireCompact, b.result), openAIForwardSucceededForScheduling(b.result), b.result.FirstTokenMs)
@@ -389,10 +397,10 @@ func (b *responsesAttemptBridge) Completed(switchCount int) {
 func (b *responsesAttemptBridge) Context() context.Context { return b.c.Request.Context() }
 func (b *responsesAttemptBridge) CanAttempt() bool         { return openAIRequestAllowsFailoverReplay(b.c) }
 func (b *responsesAttemptBridge) selectedView() textflow.ResponseSelection {
-	return textflow.ResponseSelection{Selection: capturedTextSelection(b.account), Available: true, OAuth: failover.OAuth429Account{OpenAI: b.account.IsOpenAIOAuthLike(), Grok: b.account.Platform == service.PlatformGrok && b.account.Type == service.AccountTypeOAuth}}
+	return textflow.ResponseSelection{Selection: capturedTextSelection(b.account), Available: true, OAuth: failover.OAuth429Account{OpenAI: b.account.IsOpenAIOAuthLike(), Grok: b.account.Platform == capability.PlatformGrok && b.account.Type == capability.AccountTypeOAuth}}
 }
 func (b *responsesAttemptBridge) Exhausted(failure *textflow.AttemptFailure) {
-	var original *service.UpstreamFailoverError
+	var original *forwardcore.UpstreamFailoverError
 	if failure != nil && errors.As(failure.Cause, &original) {
 		b.binding().handleFailoverExhausted(b.c, original, *b.streamStarted)
 	} else {

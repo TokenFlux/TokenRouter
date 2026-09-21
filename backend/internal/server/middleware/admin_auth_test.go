@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -17,30 +20,29 @@ import (
 )
 
 func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{JWT: config.JWTConfig{Secret: "test-secret", ExpireHour: 1}}
-	authService := service.NewAuthService(nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	authService := identity.NewSessionService(identity.SessionOptions{Secret: cfg.JWT.Secret, ExpireHour: cfg.JWT.ExpireHour, AccessTokenExpireMinutes: cfg.JWT.AccessTokenExpireMinutes, RefreshTokenExpireDays: cfg.JWT.RefreshTokenExpireDays}, nil, nil, nil, nil)
 
-	admin := &service.User{
+	admin := &identity.User{
 		ID:           1,
 		Email:        "admin@example.com",
-		Role:         service.RoleAdmin,
-		Status:       service.StatusActive,
+		Role:         identity.RoleAdmin,
+		Status:       billing.StatusActive,
 		TokenVersion: 2,
 		Concurrency:  1,
 	}
 
 	userRepo := &stubUserRepo{
-		getByID: func(ctx context.Context, id int64) (*service.User, error) {
+		getByID: func(ctx context.Context, id int64) (*identity.User, error) {
 			if id != admin.ID {
-				return nil, service.ErrUserNotFound
+				return nil, identity.ErrUserNotFound
 			}
 			clone := *admin
 			return &clone, nil
 		},
 	}
-	userService := service.NewUserService(userRepo, nil, nil, nil)
+	userService := identity.NewUserService(userRepo, nil, nil, nil, service.RunBackgroundTask)
 
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAdminAuthMiddleware(authService, userService, nil, nil)))
@@ -49,7 +51,7 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 	})
 
 	t.Run("token_version_mismatch_rejected", func(t *testing.T) {
-		token, err := authService.GenerateToken(context.Background(), &service.User{
+		token, err := authService.GenerateToken(context.Background(), &identity.User{
 			ID:           admin.ID,
 			Email:        admin.Email,
 			Role:         admin.Role,
@@ -67,7 +69,7 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 	})
 
 	t.Run("token_version_match_allows", func(t *testing.T) {
-		token, err := authService.GenerateToken(context.Background(), &service.User{
+		token, err := authService.GenerateToken(context.Background(), &identity.User{
 			ID:           admin.ID,
 			Email:        admin.Email,
 			Role:         admin.Role,
@@ -84,7 +86,7 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 	})
 
 	t.Run("websocket_token_version_mismatch_rejected", func(t *testing.T) {
-		token, err := authService.GenerateToken(context.Background(), &service.User{
+		token, err := authService.GenerateToken(context.Background(), &identity.User{
 			ID:           admin.ID,
 			Email:        admin.Email,
 			Role:         admin.Role,
@@ -104,7 +106,7 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 	})
 
 	t.Run("websocket_token_version_match_allows", func(t *testing.T) {
-		token, err := authService.GenerateToken(context.Background(), &service.User{
+		token, err := authService.GenerateToken(context.Background(), &identity.User{
 			ID:           admin.ID,
 			Email:        admin.Email,
 			Role:         admin.Role,
@@ -124,37 +126,37 @@ func TestAdminAuthJWTValidatesTokenVersion(t *testing.T) {
 }
 
 type stubUserRepo struct {
-	getByID func(ctx context.Context, id int64) (*service.User, error)
+	getByID func(ctx context.Context, id int64) (*identity.User, error)
 }
 
-func (s *stubUserRepo) Create(ctx context.Context, user *service.User) error {
+func (s *stubUserRepo) Create(ctx context.Context, user *identity.User) error {
 	panic("unexpected Create call")
 }
 
-func (s *stubUserRepo) CreateWithNormalizedEmailGuard(ctx context.Context, user *service.User, normalizedEmail string) error {
+func (s *stubUserRepo) CreateWithNormalizedEmailGuard(ctx context.Context, user *identity.User, normalizedEmail string) error {
 	panic("unexpected CreateWithNormalizedEmailGuard call")
 }
 
-func (s *stubUserRepo) GetByID(ctx context.Context, id int64) (*service.User, error) {
+func (s *stubUserRepo) GetByID(ctx context.Context, id int64) (*identity.User, error) {
 	if s.getByID == nil {
 		panic("GetByID not stubbed")
 	}
 	return s.getByID(ctx, id)
 }
 
-func (s *stubUserRepo) GetByEmail(ctx context.Context, email string) (*service.User, error) {
+func (s *stubUserRepo) GetByEmail(ctx context.Context, email string) (*identity.User, error) {
 	panic("unexpected GetByEmail call")
 }
 
-func (s *stubUserRepo) GetFirstAdmin(ctx context.Context) (*service.User, error) {
+func (s *stubUserRepo) GetFirstAdmin(ctx context.Context) (*identity.User, error) {
 	panic("unexpected GetFirstAdmin call")
 }
 
-func (s *stubUserRepo) Update(ctx context.Context, user *service.User, fields service.UserUpdateFields) error {
+func (s *stubUserRepo) Update(ctx context.Context, user *identity.User, fields identity.UserUpdateFields) error {
 	panic("unexpected Update call")
 }
 
-func (s *stubUserRepo) UpdateWithNormalizedEmailGuard(ctx context.Context, user *service.User, normalizedEmail string, fields service.UserUpdateFields) error {
+func (s *stubUserRepo) UpdateWithNormalizedEmailGuard(ctx context.Context, user *identity.User, normalizedEmail string, fields identity.UserUpdateFields) error {
 	panic("unexpected UpdateWithNormalizedEmailGuard call")
 }
 
@@ -162,11 +164,11 @@ func (s *stubUserRepo) Delete(ctx context.Context, id int64) error {
 	panic("unexpected Delete call")
 }
 
-func (s *stubUserRepo) GetUserAvatar(ctx context.Context, userID int64) (*service.UserAvatar, error) {
+func (s *stubUserRepo) GetUserAvatar(ctx context.Context, userID int64) (*identity.UserAvatar, error) {
 	return nil, nil
 }
 
-func (s *stubUserRepo) UpsertUserAvatar(ctx context.Context, userID int64, input service.UpsertUserAvatarInput) (*service.UserAvatar, error) {
+func (s *stubUserRepo) UpsertUserAvatar(ctx context.Context, userID int64, input identity.UpsertUserAvatarInput) (*identity.UserAvatar, error) {
 	panic("unexpected UpsertUserAvatar call")
 }
 
@@ -174,11 +176,11 @@ func (s *stubUserRepo) DeleteUserAvatar(ctx context.Context, userID int64) error
 	panic("unexpected DeleteUserAvatar call")
 }
 
-func (s *stubUserRepo) List(ctx context.Context, params pagination.PaginationParams) ([]service.User, *pagination.PaginationResult, error) {
+func (s *stubUserRepo) List(ctx context.Context, params pagination.PaginationParams) ([]identity.User, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
 
-func (s *stubUserRepo) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters service.UserListFilters) ([]service.User, *pagination.PaginationResult, error) {
+func (s *stubUserRepo) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters identity.UserListFilters) ([]identity.User, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
 }
 
@@ -206,11 +208,11 @@ func (s *stubUserRepo) DeductBalance(ctx context.Context, id int64, amount float
 	panic("unexpected DeductBalance call")
 }
 
-func (s *stubUserRepo) AdjustBalance(ctx context.Context, id int64, delta float64) (service.BalanceChange, error) {
+func (s *stubUserRepo) AdjustBalance(ctx context.Context, id int64, delta float64) (identity.BalanceChange, error) {
 	panic("unexpected AdjustBalance call")
 }
 
-func (s *stubUserRepo) SetBalance(ctx context.Context, id int64, value float64) (service.BalanceChange, error) {
+func (s *stubUserRepo) SetBalance(ctx context.Context, id int64, value float64) (identity.BalanceChange, error) {
 	panic("unexpected SetBalance call")
 }
 
@@ -253,7 +255,7 @@ func (s *stubUserRepo) AddGroupToAllowedGroups(ctx context.Context, userID int64
 	panic("unexpected AddGroupToAllowedGroups call")
 }
 
-func (s *stubUserRepo) ListUserAuthIdentities(ctx context.Context, userID int64) ([]service.UserAuthIdentityRecord, error) {
+func (s *stubUserRepo) ListUserAuthIdentities(ctx context.Context, userID int64) ([]identity.UserAuthIdentityRecord, error) {
 	panic("unexpected ListUserAuthIdentities call")
 }
 
@@ -273,6 +275,6 @@ func (s *stubUserRepo) DisableTotp(ctx context.Context, userID int64) error {
 	panic("unexpected DisableTotp call")
 }
 
-func (s *stubUserRepo) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.User, error) {
+func (s *stubUserRepo) GetByIDIncludeDeleted(ctx context.Context, id int64) (*identity.User, error) {
 	panic("unexpected GetByIDIncludeDeleted call")
 }

@@ -11,8 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -120,16 +127,15 @@ type openAIWSStatusErrorDialer struct {
 	err    error
 }
 
-func (d *openAIWSStatusErrorDialer) Dial(context.Context, string, http.Header, string, *tlsfingerprint.Profile) (openAIWSClientConn, int, http.Header, error) {
+func (d *openAIWSStatusErrorDialer) Dial(context.Context, string, http.Header, string, *tlsfingerprint.Profile) (upstreamopenai.WSClientConn, int, http.Header, error) {
 	err := d.err
 	if err == nil {
 		err = errors.New("openai ws dial failed")
 	}
-	return nil, d.status, cloneHeader(d.header), err
+	return nil, d.status, upstreamcore.CloneHeader(d.header), err
 }
 
 func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	resetAt := time.Now().Add(2 * time.Hour).Unix()
 	upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
@@ -178,9 +184,9 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 	account := Account{
 		ID:          501,
 		Name:        "openai-ws-rate-limit-event",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -200,8 +206,8 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 		httpUpstream:     upstream,
 		cache:            &stubGatewayCache{},
 		cfg:              cfg,
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
+
+		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -215,7 +221,6 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 }
 
 func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnschedulable(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -245,9 +250,9 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 	account := Account{
 		ID:          506,
 		Name:        "openai-ws-forbidden-event",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -266,9 +271,9 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 		httpUpstream:     upstream,
 		cache:            &stubGatewayCache{},
 		cfg:              cfg,
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+
+		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	before := time.Now()
@@ -284,7 +289,6 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 }
 
 func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("x-codex-primary-used-percent", "100")
@@ -318,9 +322,9 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 	account := Account{
 		ID:          502,
 		Name:        "openai-ws-rate-limit-handshake",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -340,8 +344,8 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 		httpUpstream:     upstream,
 		cache:            &stubGatewayCache{},
 		cfg:              cfg,
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
+
+		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -356,7 +360,6 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 }
 
 func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -383,9 +386,9 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 	account := Account{
 		ID:          504,
 		Name:        "openai-ws-forbidden-handshake",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -404,9 +407,9 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 		httpUpstream:     upstream,
 		cache:            &stubGatewayCache{},
 		cfg:              cfg,
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+
+		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	before := time.Now()
@@ -421,7 +424,6 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 }
 
 func TestOpenAIGatewayService_Forward_WSv2Handshake502RecordsModelTransient(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("x-request-id", "req-ws-502")
@@ -435,9 +437,9 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake502RecordsModelTransient(t *t
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 	account := Account{
 		ID:          504,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test", "base_url": server.URL},
@@ -448,8 +450,8 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake502RecordsModelTransient(t *t
 		rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, cfg, nil, nil),
 		httpUpstream:     &httpUpstreamRecorder{},
 		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
+
+		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 	}
 	body := []byte(`{"model":"gpt-5.5","stream":false,"input":"hello"}`)
 
@@ -467,7 +469,6 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake502RecordsModelTransient(t *t
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageLimitPersistsRateLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := newOpenAIWSV2TestConfig()
 	cfg.Security.URLAllowlist.Enabled = false
@@ -494,9 +495,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 	account := Account{
 		ID:          503,
 		Name:        "openai-ingress-rate-limit",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -515,9 +516,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 		httpUpstream:     &httpUpstreamRecorder{},
 		cache:            &stubGatewayCache{},
 		cfg:              cfg,
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+
+		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -566,7 +567,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 	select {
 	case serverErr := <-serverErrCh:
 		require.Error(t, serverErr)
-		var failoverErr *UpstreamFailoverError
+		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, serverErr, &failoverErr)
 		require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
 		require.Len(t, repo.rateLimitCalls, 1)
@@ -577,7 +578,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403PersistsTempUnschedulable(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := newOpenAIWSV2TestConfig()
 	cfg.Security.URLAllowlist.Enabled = false
@@ -598,9 +598,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 	account := Account{
 		ID:          505,
 		Name:        "openai-ingress-forbidden-handshake",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -619,9 +619,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 		httpUpstream:     &httpUpstreamRecorder{},
 		cache:            &stubGatewayCache{},
 		cfg:              cfg,
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+
+		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -679,7 +679,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbiddenPersistsTempUnschedulable(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := newOpenAIWSV2TestConfig()
 	cfg.Security.URLAllowlist.Enabled = false
@@ -703,9 +702,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 	account := Account{
 		ID:          507,
 		Name:        "openai-ingress-forbidden-event",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -724,9 +723,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 		httpUpstream:     &httpUpstreamRecorder{},
 		cache:            &stubGatewayCache{},
 		cfg:              cfg,
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+
+		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -790,7 +789,7 @@ func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_ExhaustedSnapshotDoesNotS
 		rateLimitCh:   make(chan time.Time, 1),
 	}
 	svc := &OpenAIGatewayService{accountRepo: repo}
-	snapshot := &OpenAICodexUsageSnapshot{
+	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         ptrFloat64WS(100),
 		PrimaryResetAfterSeconds:   ptrIntWS(3600),
 		PrimaryWindowMinutes:       ptrIntWS(10080),
@@ -820,7 +819,7 @@ func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_NonExhaustedSnapshotDoesN
 		rateLimitCh:   make(chan time.Time, 1),
 	}
 	svc := &OpenAIGatewayService{accountRepo: repo}
-	snapshot := &OpenAICodexUsageSnapshot{
+	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         ptrFloat64WS(94),
 		PrimaryResetAfterSeconds:   ptrIntWS(3600),
 		PrimaryWindowMinutes:       ptrIntWS(10080),
@@ -851,7 +850,7 @@ func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_ThrottlesExtraWrites(t *t
 		accountRepo:           repo,
 		codexSnapshotThrottle: newAccountWriteThrottle(time.Hour),
 	}
-	snapshot := &OpenAICodexUsageSnapshot{
+	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         ptrFloat64WS(94),
 		PrimaryResetAfterSeconds:   ptrIntWS(3600),
 		PrimaryWindowMinutes:       ptrIntWS(10080),
@@ -883,9 +882,9 @@ func TestOpenAIGatewayService_GetSchedulableAccount_ExhaustedCodexExtraDoesNotSe
 	resetAt := time.Now().Add(6 * 24 * time.Hour)
 	account := Account{
 		ID:          701,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Extra: map[string]any{
@@ -907,40 +906,9 @@ func TestOpenAIGatewayService_GetSchedulableAccount_ExhaustedCodexExtraDoesNotSe
 	}
 }
 
-func TestAdminService_ListAccounts_ExhaustedCodexExtraDoesNotSetRateLimit(t *testing.T) {
-	resetAt := time.Now().Add(4 * 24 * time.Hour)
-	repo := &openAICodexExtraListRepo{
-		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{{
-			ID:          702,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeOAuth,
-			Status:      StatusActive,
-			Schedulable: true,
-			Concurrency: 1,
-			Extra: map[string]any{
-				"codex_7d_used_percent": 100.0,
-				"codex_7d_reset_at":     resetAt.UTC().Format(time.RFC3339),
-			},
-		}}},
-		rateLimitCh: make(chan time.Time, 1),
-	}
-	svc := &adminServiceImpl{accountRepo: repo}
-
-	accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, "", "", 0, "", "", "")
-	require.NoError(t, err)
-	require.Equal(t, int64(1), total)
-	require.Len(t, accounts, 1)
-	require.Nil(t, accounts[0].RateLimitResetAt)
-	select {
-	case persisted := <-repo.rateLimitCh:
-		t.Fatalf("不应在账号列表查询时将 codex extra 持久化为运行时限流状态: %v", persisted)
-	case <-time.After(2 * time.Second):
-	}
-}
-
 func TestOpenAIWSErrorHTTPStatusFromRaw_UsageLimitReachedIs429(t *testing.T) {
-	require.Equal(t, http.StatusTooManyRequests, openAIWSErrorHTTPStatusFromRaw("", "usage_limit_reached"))
-	require.Equal(t, http.StatusTooManyRequests, openAIWSErrorHTTPStatusFromRaw("rate_limit_exceeded", ""))
+	require.Equal(t, http.StatusTooManyRequests, upstreamopenai.WSErrorHTTPStatusFromRaw("", "usage_limit_reached"))
+	require.Equal(t, http.StatusTooManyRequests, upstreamopenai.WSErrorHTTPStatusFromRaw("rate_limit_exceeded", ""))
 }
 
 func TestOpenAIWSRateLimitFailoverError_OAuthKeepsSameAccountDeadline(t *testing.T) {
@@ -950,20 +918,20 @@ func TestOpenAIWSRateLimitFailoverError_OAuthKeepsSameAccountDeadline(t *testing
 
 	oauthErr := svc.newOpenAIWSRateLimitFailoverError(&Account{
 		ID:       904,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 	}, headers, body, "limited")
 	require.True(t, oauthErr.RetryableOnSameAccount)
 	require.False(t, oauthErr.SameAccountRetryDeadline.IsZero())
 	require.Positive(t, oauthErr.SameAccountRetryDelay)
 	require.LessOrEqual(t, oauthErr.SameAccountRetryDelay, openAIOAuth429MaxRetryDelay)
 	require.Equal(t, body, oauthErr.ResponseBody)
-	require.Equal(t, "30", oauthErr.ResponseHeaders.Get("Retry-After"))
+	require.Equal(t, "30", http.Header(oauthErr.ResponseHeaders).Get("Retry-After"))
 
 	apiKeyErr := svc.newOpenAIWSRateLimitFailoverError(&Account{
 		ID:       905,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 	}, headers, body, "limited")
 	require.False(t, apiKeyErr.RetryableOnSameAccount)
 	require.True(t, apiKeyErr.SameAccountRetryDeadline.IsZero())

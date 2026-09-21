@@ -4,29 +4,41 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // provideQoderChat 在组合根一次绑定依赖；HTTP 入口不再组装业务回调。
-func provideQoderChat(g *service.GatewayService, q *service.QoderGatewayService, c *service.ConcurrencyService, b *service.BillingCacheService, k *service.APIKeyService, h *handler.QoderGatewayHandler, r *service.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, manager *lifecycle.Manager, requests *gatewayRequestActivity) *gatewayhttp.QoderChatHandler {
+func provideQoderChat(g *service.GatewayService, q *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, c *scheduler.ConcurrencyService, b *admission.FundingAdmission, k *apikey.APIKeyService, h *handler.QoderGatewayHandler, r *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, manager *lifecycle.Manager, requests *gatewayRequestActivity) *gatewayhttp.QoderChatHandler {
 	activity := lifecycle.NewOperations("QoderRequestsAndAttempts")
 	manager.Register(lifecycle.Hook{Name: "QoderRequestsAndAttempts", StopOrder: 15, Stop: activity.StopContext})
 	q.BindAttemptActivity(activity.Enter)
 	h.BindRequestActivity(activity.Enter)
-	runtime := &qoderRuntime{Gateway: g, Qoder: q, Billing: b, Keys: k, Completions: pool, Recorder: recorders.Forward}
+	runtime := &qoderRuntime{Gateway: g, Qoder: q, Refresh: refresh, Billing: b, Keys: k, Completions: pool, Recorder: recorders.Forward}
 	useCase := gateway.NewQoderExecutor(3, 30*time.Second, c, runtime)
 	useCase.Enter = activity.Enter
 	result := &gatewayhttp.QoderChatHandler{Executor: useCase, Failure: h.QoderClientFailure}
@@ -40,7 +52,7 @@ func provideQoderChat(g *service.GatewayService, q *service.QoderGatewayService,
 		subject, _ := middleware.GetAuthSubjectFromContext(c)
 		subscription, _ := middleware.GetSubscriptionFromContext(c)
 		if r != nil {
-			service.BindErrorPassthroughService(c, r)
+			gatewayhttp.BindErrorPassthroughService(c, r)
 		}
 		handler.ObserveQoderRequest(c, parsed.Model, parsed.Stream)
 		var access *apikey.AccessSnapshot
@@ -49,14 +61,14 @@ func provideQoderChat(g *service.GatewayService, q *service.QoderGatewayService,
 		}
 		keyView, ok := gatewayhttp.EffectiveAPIKey(c)
 		if !ok {
-			keyView = service.APIKeyView(key)
+			keyView = apikey.CopyAPIKey(key)
 		}
-		inbound, outbound := handler.QoderEndpoints(c, service.PlatformQoder)
+		inbound, outbound := handler.QoderEndpoints(c, capability.PlatformQoder)
 		request := gateway.Request{
 			Access: access, UserID: subject.UserID, Concurrency: subject.Concurrency, Stream: parsed.Stream,
 			Body: append([]byte(nil), parsed.Body...), Model: parsed.Model,
 			Funding:  gateway.FundingState{Key: keyView, Subscription: subscription},
-			Metadata: gateway.RequestMetadata{Headers: c.Request.Header.Clone(), UserAgent: c.GetHeader("User-Agent"), ClientIP: ip.GetClientIP(c), InboundEndpoint: inbound, UpstreamEndpoint: outbound, QuotaPlatform: service.QuotaPlatform(c.Request.Context(), key), ClaudeCode: service.IsClaudeCodeClient(c.Request.Context()), StartedAt: parsed.StartedAt},
+			Metadata: gateway.RequestMetadata{Headers: c.Request.Header.Clone(), UserAgent: c.GetHeader("User-Agent"), ClientIP: clientip.GetClientIP(c), InboundEndpoint: inbound, UpstreamEndpoint: outbound, QuotaPlatform: service.QuotaPlatform(c.Request.Context(), key), ClaudeCode: requeststate.IsClaudeCodeClient(c.Request.Context()), StartedAt: parsed.StartedAt},
 		}
 		request.SessionHash = session.QoderRequestHash(request.Metadata.Headers, request.Body, "anthropic", &requeststate.SessionContext{ClientIP: request.Metadata.ClientIP, UserAgent: request.Metadata.UserAgent, APIKeyID: key.ID}, slog.Info)
 		return request, nil
@@ -86,8 +98,8 @@ type qoderHTTPObservation struct {
 }
 
 func (o *qoderHTTPObservation) Prepared(request gateway.Request) {
-	o.c.Request = o.c.Request.WithContext(service.WithRoutePlan(o.c.Request.Context(), request.Route))
-	service.SetOpsLatencyMs(o.c, service.OpsAuthLatencyMsKey, time.Since(request.Metadata.StartedAt).Milliseconds())
+	o.c.Request = o.c.Request.WithContext(requeststate.WithRoutePlan(o.c.Request.Context(), request.Route))
+	gatewayhttp.SetOpsLatencyMs(o.c, gatewayhttp.OpsAuthLatencyMsKey, time.Since(request.Metadata.StartedAt).Milliseconds())
 }
 func (o *qoderHTTPObservation) Selected(snapshot account.AccountSnapshot) {
 	handler.ObserveQoderSelection(o.c, snapshot.ID, snapshot.Platform)

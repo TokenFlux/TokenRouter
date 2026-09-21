@@ -16,7 +16,7 @@ import (
 
 // TestParseCreativeCreateRunMultipartStopsAtTotalLimit 验证解析阶段不会继续累积超出总量的文件。
 func TestParseCreativeCreateRunMultipartStopsAtTotalLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	require.NoError(t, writer.WriteField("group_id", "12"))

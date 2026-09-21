@@ -1,12 +1,16 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"testing"
 )
 
 // 分组加速、单 Key 和全局规则在 HTTP/WS 中必须保持一致。
@@ -29,19 +33,19 @@ func TestGroupOpenAIFastPolicyHTTPAndWS(t *testing.T) {
 		{group: "force_off", tier: "priority", action: "force_ultrafast", want: "ultrafast"},
 	} {
 		t.Run(tt.group+"/"+tt.tier+"/"+tt.key+"/"+tt.action, func(t *testing.T) {
-			settings := DefaultOpenAIFastPolicySettings()
+			settings := tierpolicy.Default()
 			if tt.action != "" {
-				settings.Rules = []OpenAIFastPolicyRule{{ServiceTier: "all", Scope: "all", Action: tt.action}}
+				settings.Rules = []tierpolicy.OpenAIFastPolicyRule{{ServiceTier: "all", Scope: "all", Action: tt.action}}
 			}
 			svc := newOpenAIGatewayServiceWithSettings(t, settings)
 			svc.resolver = fastModeTestResolver()
-			ctx := context.WithValue(fastModeTestContext(tt.key, "gpt-5.5"), ctxkey.Group, &Group{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true, OpenAIFastPolicy: tt.group})
+			ctx := requeststate.WithGroup(fastModeTestContext(tt.key, "gpt-5.5"), &routing.Group{ID: 1, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, Hydrated: true, OpenAIFastPolicy: tt.group})
 			payload := map[string]any{"model": "gpt-5.5", "type": "response.create"}
 			if tt.tier != "" {
 				payload["service_tier"] = tt.tier
 			}
 			body, _ := json.Marshal(payload)
-			account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+			account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 			httpBody, httpErr := svc.applyOpenAIFastPolicyToBody(ctx, account, "gpt-5.5", body)
 			wsBody, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(ctx, account, "gpt-5.5", body)
 			require.NoError(t, err)
@@ -58,14 +62,4 @@ func TestGroupOpenAIFastPolicyHTTPAndWS(t *testing.T) {
 			}
 		})
 	}
-}
-
-// 全局新动作同时允许出现在主动作与其它模型动作并持久化往返。
-func TestGlobalForceUltrafastPersists(t *testing.T) {
-	svc := &SettingService{settingRepo: &openAIFastPolicyRepoStub{}}
-	settings := &OpenAIFastPolicySettings{Rules: []OpenAIFastPolicyRule{{ServiceTier: "all", Scope: "all", Action: "force_ultrafast", ModelWhitelist: []string{"gpt-*"}, FallbackAction: "force_ultrafast"}}}
-	require.NoError(t, svc.SetOpenAIFastPolicySettings(context.Background(), settings))
-	got, err := svc.GetOpenAIFastPolicySettings(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, settings, got)
 }

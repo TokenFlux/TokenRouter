@@ -4,13 +4,16 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBuildOAuthMetadataUserID_FallbackWithoutAccountUUID(t *testing.T) {
 	svc := &GatewayService{}
 
-	parsed := &ParsedRequest{
+	parsed := &requeststate.ParsedRequest{
 		Model:          "claude-sonnet-4-5",
 		Stream:         true,
 		MetadataUserID: "",
@@ -18,11 +21,11 @@ func TestBuildOAuthMetadataUserID_FallbackWithoutAccountUUID(t *testing.T) {
 
 	account := &Account{
 		ID:    123,
-		Type:  AccountTypeOAuth,
+		Type:  capability.AccountTypeOAuth,
 		Extra: map[string]any{}, // intentionally missing account_uuid / claude_user_id
 	}
 
-	fp := &Fingerprint{ClientID: "deadbeef"} // should be used as user id in legacy format
+	fp := &anthropic.Fingerprint{ClientID: "deadbeef"} // should be used as user id in legacy format
 
 	got := svc.buildOAuthMetadataUserID(parsed, account, fp)
 	require.NotEmpty(t, got)
@@ -35,7 +38,7 @@ func TestBuildOAuthMetadataUserID_FallbackWithoutAccountUUID(t *testing.T) {
 func TestBuildOAuthMetadataUserID_UsesAccountUUIDWhenPresent(t *testing.T) {
 	svc := &GatewayService{}
 
-	parsed := &ParsedRequest{
+	parsed := &requeststate.ParsedRequest{
 		Model:          "claude-sonnet-4-5",
 		Stream:         true,
 		MetadataUserID: "",
@@ -43,7 +46,7 @@ func TestBuildOAuthMetadataUserID_UsesAccountUUIDWhenPresent(t *testing.T) {
 
 	account := &Account{
 		ID:   123,
-		Type: AccountTypeOAuth,
+		Type: capability.AccountTypeOAuth,
 		Extra: map[string]any{
 			"account_uuid":      "acc-uuid",
 			"claude_user_id":    "clientid123",
@@ -65,11 +68,11 @@ func TestBuildOAuthMetadataUserID_UsesAccountUUIDWhenPresent(t *testing.T) {
 // 因此直接比较完整 user_id 字符串即可判定 session_id 是否稳定。
 func TestBuildOAuthMetadataUserID_SessionIDStableAcrossTurns(t *testing.T) {
 	svc := &GatewayService{}
-	account := &Account{ID: 777, Type: AccountTypeOAuth, Extra: map[string]any{"account_uuid": "acc-uuid"}}
-	fp := &Fingerprint{ClientID: "clientid777", UserAgent: "claude-cli/2.1.161 (external, cli)"}
+	account := &Account{ID: 777, Type: capability.AccountTypeOAuth, Extra: map[string]any{"account_uuid": "acc-uuid"}}
+	fp := &anthropic.Fingerprint{ClientID: "clientid777", UserAgent: "claude-cli/2.1.161 (external, cli)"}
 
-	mustParse := func(body string) *ParsedRequest {
-		parsed, err := ParseGatewayRequest(NewRequestBodyRef([]byte(body)), PlatformAnthropic)
+	mustParse := func(body string) *requeststate.ParsedRequest {
+		parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef([]byte(body)), capability.PlatformAnthropic)
 		require.NoError(t, err)
 		return parsed
 	}

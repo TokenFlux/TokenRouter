@@ -4,12 +4,14 @@
 package middleware
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	gin "github.com/gin-gonic/gin"
 )
 
 // requestSessionBinding 委托身份 HTTP 适配。
-func requestSessionBinding(c *gin.Context) *service.SessionBinding {
+func requestSessionBinding(c *gin.Context) *identity.SessionBinding {
 	return identityhttp.RequestSessionBinding(c)
 }

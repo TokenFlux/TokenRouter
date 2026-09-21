@@ -13,12 +13,20 @@ import (
 	"testing"
 	"time"
 
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
 	"entgo.io/ent/dialect"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/rediscache"
+	identitytestkit "github.com/TokenFlux/TokenRouter/internal/identity/testkit"
+
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
+
 	entsql "entgo.io/ent/dialect/sql"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -39,10 +47,10 @@ func (d *s05FailNextTransaction) Tx(ctx context.Context) (dialect.Tx, error) {
 	return d.Driver.Tx(ctx)
 }
 
-type s05OAuthSettings struct{ service.SettingRepository }
+type s05OAuthSettings struct{ settingscore.Repository }
 
 func (s05OAuthSettings) GetValue(_ context.Context, key string) (string, error) {
-	if key == service.SettingKeyRegistrationEnabled {
+	if key == identity.SettingKeyRegistrationEnabled {
 		return "true", nil
 	}
 	return "", nil
@@ -70,15 +78,18 @@ func TestS05EmailOAuthBeginFailureCompensatesUser(t *testing.T) {
 			return v, e
 		})
 	})
-	users := NewUserRepository(client, integrationDB)
+	users := identitypostgres.NewUserStore(client, integrationDB)
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "s05-local-fixture-only"
 	cfg.JWT.ExpireHour = 1
 	cfg.JWT.RefreshTokenExpireDays = 1
 	cfg.Default.UserConcurrency = 1
-	settings := service.NewSettingService(s05OAuthSettings{}, cfg)
-	auth := service.NewAuthService(client, users, nil, NewRefreshTokenCache(testRedis(t)), cfg, settings, nil, nil, nil, nil, nil, nil, nil)
-	h := handler.NewAuthHandler(cfg, auth, nil, settings, nil, nil, nil, nil)
+	settings := identitytestkit.Settings(s05OAuthSettings{}, cfg)
+	auth := identitytestkit.Auth(client, &identity.AuthDependencies{Users: users, RefreshTokens: rediscache.NewRefreshTokenCache(testRedis(t)), Options: identitytestkit.AuthOptions(cfg), Settings: settings})
+	flow := &identity.PendingFlow{Store: identitypostgres.NewPendingRepository(client), Database: &identitypostgres.PendingFlowDatabase{Client: client, Auth: auth}, Auth: auth}
+	sessionHTTP := identityhttp.NewSessionHandler(auth, nil, settings, nil, nil, flow, identityhttp.SessionHTTPOptions{RunMode: cfg.RunMode})
+	pendingHTTP := identityhttp.NewPendingHandler(sessionHTTP, flow, identityhttp.PendingHTTPOptions{})
+	h := identityhttp.NewEmailOAuthHandler(pendingHTTP, nil, nil)
 	email := "s05-" + uuid.NewString() + "@example.invalid"
 	session, err := client.PendingAuthSession.Create().SetSessionToken(uuid.NewString()).SetIntent("login").SetProviderType("github").SetProviderKey("github").SetProviderSubject(uuid.NewString()).SetResolvedEmail(email).SetBrowserSessionKey("s05-browser").SetExpiresAt(time.Now().Add(time.Minute)).Save(ctx)
 	require.NoError(t, err)
@@ -93,7 +104,7 @@ func TestS05EmailOAuthBeginFailureCompensatesUser(t *testing.T) {
 	require.Equal(t, int64(1), driver.failures.Load(), "必须执行到注册已提交后的第二段 Begin")
 	require.Equal(t, http.StatusInternalServerError, recorder.Code, recorder.Body.String())
 	_, err = users.GetByEmail(ctx, email)
-	require.ErrorIs(t, err, service.ErrUserNotFound, "绑定事务无法开始时必须补偿已创建用户")
+	require.ErrorIs(t, err, identity.ErrUserNotFound, "绑定事务无法开始时必须补偿已创建用户")
 	stored, err := client.PendingAuthSession.Get(ctx, session.ID)
 	require.NoError(t, err)
 	require.Nil(t, stored.ConsumedAt)

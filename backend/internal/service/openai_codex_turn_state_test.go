@@ -6,15 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func newTurnStateTestContext(t *testing.T, apiKeyID int64, sessionID string) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -22,7 +23,7 @@ func newTurnStateTestContext(t *testing.T, apiKeyID int64, sessionID string) (*g
 		c.Request.Header.Set("session_id", sessionID)
 	}
 	if apiKeyID > 0 {
-		c.Set("api_key", &APIKey{ID: apiKeyID})
+		c.Set("api_key", &apikey.APIKey{ID: apiKeyID})
 	}
 	return c, recorder
 }
@@ -111,7 +112,7 @@ func TestWriteOpenAIPassthroughResponseHeaders_RelaysReasoningIncluded(t *testin
 	writeOpenAIPassthroughResponseHeaders(
 		dst,
 		src,
-		responseheaders.CompileHeaderFilter(config.ResponseHeaderConfig{}),
+		egress.CompileHeaderFilter(egress.ResponseHeaderOptions{}),
 	)
 	require.Equal(t, "1", dst.Get("X-Reasoning-Included"))
 }
@@ -149,8 +150,8 @@ func TestEnsureOpenAIRemoteCompactionV2BetaFeature(t *testing.T) {
 // 对齐真实 Codex：该头是会话级常量，挂在 OAuth 的每个请求上，而不是只在
 // 压缩回合出现（codex-rs build_model_client_beta_features_header）。
 func TestApplyOpenAICodexBetaFeatures(t *testing.T) {
-	oauthAccount := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
-	apiKeyAccount := &Account{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	oauthAccount := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	apiKeyAccount := &Account{ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 	c, _ := newTurnStateTestContext(t, 1, "session-beta")
 
 	headers := http.Header{}

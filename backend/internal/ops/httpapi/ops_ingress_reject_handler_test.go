@@ -5,17 +5,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	opsprovider "github.com/TokenFlux/TokenRouter/internal/ops/provider"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func newIngressRejectHandlerForTest() *OpsHandler {
-	return NewOpsHandler(service.NewOpsService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil))
+	return NewOpsHandler(ops.NewOpsService(nil, nil, nil, nil, nil, nil, nil, opsprovider.LogControl{}))
 }
 
 func TestListIngressRejectsValidatesFilters(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	for _, path := range []string{
 		"/api/v1/admin/ops/ingress-rejections?reason=not-valid",
 		"/api/v1/admin/ops/ingress-rejections?client_ip=not-an-ip",

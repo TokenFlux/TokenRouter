@@ -8,19 +8,19 @@ import (
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	schedulerhttp "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
 
-	adminhandler "github.com/TokenFlux/TokenRouter/internal/handler/admin"
+	backuphttp "github.com/TokenFlux/TokenRouter/internal/backup/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 // TestAdminImageStorageRoutesAreRemoved 验证异步图片存储配置下线且备份配置仍可用。
 func TestAdminImageStorageRoutesAreRemoved(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	router := gin.New()
 	admin := router.Group("/api/v1/admin")
 	h := &routeTestHandlers{
 		Admin: &routeTestAdminHandlers{
-			Backup: adminhandler.NewBackupHandler(nil, nil),
+			Backup: backuphttp.NewBackupHandler(nil, nil),
 		},
 	}
 	registerBackupRoutes(admin, h, func(c *gin.Context) { c.Next() })
@@ -66,15 +66,15 @@ func TestAdminImageStorageRoutesAreRemoved(t *testing.T) {
 
 // TestAdminUpstreamBillingProbeRoutesAreRemoved 锁定声明倍率探测管理接口全部返回普通 404。
 func TestAdminUpstreamBillingProbeRoutesAreRemoved(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	router := gin.New()
 	admin := router.Group("/api/v1/admin")
 	h := &routeTestHandlers{Admin: &routeTestAdminHandlers{
 		AccountManagement:    &accounthttp.ManagementHandler{},
 		SchedulerDiagnostics: &schedulerhttp.DiagnosticsHandler{},
-		OAuth:                &adminhandler.OAuthHandler{},
-		OpenAIOAuth:          &adminhandler.OpenAIOAuthHandler{},
-		CodexInviteReset:     &adminhandler.CodexInviteResetHandler{},
+		OAuth:                &accounthttp.ClaudeOAuthHandler{},
+		OpenAIOAuth:          &accounthttp.OpenAIOAuthHandler{},
+		CodexInviteReset:     &accounthttp.CodexInviteResetHandler{},
 	}}
 	registerAccountRoutes(admin, h, func(c *gin.Context) { c.Next() })
 
@@ -103,15 +103,15 @@ func TestAdminUpstreamBillingProbeRoutesAreRemoved(t *testing.T) {
 }
 
 func TestAdminAdvancedSchedulerScoreRoutesAreRegistered(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	router := gin.New()
 	admin := router.Group("/api/v1/admin")
 	h := &routeTestHandlers{Admin: &routeTestAdminHandlers{
 		AccountManagement:    &accounthttp.ManagementHandler{},
 		SchedulerDiagnostics: &schedulerhttp.DiagnosticsHandler{},
-		OAuth:                &adminhandler.OAuthHandler{},
-		OpenAIOAuth:          &adminhandler.OpenAIOAuthHandler{},
-		CodexInviteReset:     &adminhandler.CodexInviteResetHandler{},
+		OAuth:                &accounthttp.ClaudeOAuthHandler{},
+		OpenAIOAuth:          &accounthttp.OpenAIOAuthHandler{},
+		CodexInviteReset:     &accounthttp.CodexInviteResetHandler{},
 	}}
 	registerAccountRoutes(admin, h, func(c *gin.Context) { c.Next() })
 
@@ -125,7 +125,7 @@ func TestAdminAdvancedSchedulerScoreRoutesAreRegistered(t *testing.T) {
 
 // TestCanonicalBackupIDRouteGuard 验证备份通配路由只接受服务实际生成的 ID 格式。
 func TestCanonicalBackupIDRouteGuard(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	router := gin.New()
 	router.GET("/backups/:id", requireCanonicalBackupID, func(c *gin.Context) {
 		c.Status(http.StatusNoContent)

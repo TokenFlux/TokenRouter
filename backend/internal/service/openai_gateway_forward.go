@@ -4,21 +4,25 @@ import (
 	"bytes"
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
 // Forward forwards request to OpenAI API
-func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
+func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*forwardcore.OpenAIResult, error) {
 	var routeErr error
 	account, routeErr = accountForProtocolAttempt(ctx, account)
 	if routeErr != nil {
@@ -33,7 +37,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	startTime := prepared.StartedAt
 	canonicalImageIntentBody := prepared.CanonicalImageIntentBody
 	tlsRouterMatch := prepared.TLS
-	wsDecision := OpenAIWSProtocolDecision{Transport: OpenAIUpstreamTransport(prepared.Transport.Transport), Reason: prepared.Transport.Reason}
+	wsDecision := egress.OpenAIWSProtocolDecision{Transport: egress.OpenAIUpstreamTransport(prepared.Transport.Transport), Reason: prepared.Transport.Reason}
 	originalBody := prepared.OriginalBody
 	requestView := openAIRequestView{OpenAIRequestView: prepared.View}
 	reqModel, reqStream, promptCacheKey := requestView.Model, requestView.Stream, requestView.PromptCacheKey
@@ -108,7 +112,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	imageSizeTier := ""
 	imageInputSize := ""
 	if imageIntent {
-		var imageCfg OpenAIResponsesImageBillingConfig
+		var imageCfg media.OpenAIResponsesImageBillingConfig
 		var imageCfgErr error
 		if reqBody != nil {
 			imageCfg, imageCfgErr = resolveOpenAIResponsesImageBillingConfigDetailed(reqBody, billingModel)
@@ -128,15 +132,15 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	if err != nil {
 		return nil, err
 	}
-	SetOpsUpstreamModel(c, upstreamModel)
+	gatewayhttp.SetOpsUpstreamModel(c, upstreamModel)
 
-	if wsDecision.Transport == OpenAIUpstreamTransportResponsesWebsocketV2 {
+	if wsDecision.Transport == egress.OpenAIUpstreamTransportResponsesWebsocketV2 {
 		wsReqBody, err := ensureReqBody()
 		if err != nil {
 			return nil, err
 		}
 		adapter := &openAIHTTPWSForwardAdapter{s: s, c: c, account: account, clientPromptCacheKey: clientPromptCacheKey, token: token, decision: wsDecision, isCodexCLI: isCodexCLI, stream: reqStream, originalModel: originalModel, upstreamModel: upstreamModel, startedAt: startTime, tls: tlsRouterMatch, lineageGroupID: lineageGroupID, lineageSessionHash: lineageSessionHash}
-		result, err := gatewayws.RunHTTPForward(ctx, wsReqBody, gatewayws.HTTPForwardInput{AccountID: account.ID, AccountType: account.Type, UpstreamModel: upstreamModel, BillingModel: billingModel, ImageBillingModel: imageBillingModel, ImageSizeTier: imageSizeTier, ImageInputSize: imageInputSize, LineageEntryBody: lineageEntryBody, Stream: reqStream, RetryLimit: openAIWSReconnectRetryLimit, IDLogLimit: openAIWSIDValueMaxLen}, adapter)
+		result, err := gatewayws.RunHTTPForward(ctx, wsReqBody, gatewayws.HTTPForwardInput{AccountID: account.ID, AccountType: account.Type, UpstreamModel: upstreamModel, BillingModel: billingModel, ImageBillingModel: imageBillingModel, ImageSizeTier: imageSizeTier, ImageInputSize: imageInputSize, LineageEntryBody: lineageEntryBody, Stream: reqStream, RetryLimit: openAIWSReconnectRetryLimit, IDLogLimit: gatewayprovider.OpenAIWSIDValueMaxLen}, adapter)
 		return legacyWSForwardResult(result), err
 	}
 
@@ -148,7 +152,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		reasoningEffortValue = *reasoningEffort
 	}
 	firstOutputTimeout := time.Duration(0)
-	if reqStream && account.Platform == PlatformOpenAI {
+	if reqStream && account.Platform == capability.PlatformOpenAI {
 		firstOutputTimeout = s.openAIFirstOutputTimeout(reasoningEffortValue)
 	}
 
@@ -159,14 +163,14 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		ImageBillingModel: imageBillingModel, ImageSizeTier: imageSizeTier, ImageInputSize: imageInputSize,
 		Stream: reqStream, OAuth: account.IsOAuth(), Shadow: account.IsShadow(), Grok: account.IsGrok(), StartedAt: startTime,
 	}
-	exchange := nativeopenai.HTTPExchangeOptions{
+	exchange := openai.HTTPExchangeOptions{
 		StartedAt:          startTime,
 		FirstOutputTimeout: firstOutputTimeout,
 		RequestContext:     detachUpstreamContext,
 		Build: func(ctx context.Context, body []byte) (*http.Request, error) {
 			return s.buildUpstreamRequest(ctx, c, account, body, token, reqStream, promptCacheKey, isCodexCLI, tlsRouterMatch)
 		},
-		ApplyHeaders: func(headers http.Header) { applyCodexFingerprintHeaders(headers, fingerprintIDs) },
+		ApplyHeaders: func(headers http.Header) { openai.ApplyCodexFingerprintHeaders(headers, fingerprintIDs) },
 		Do: func(request *http.Request) (*http.Response, error) {
 			proxyURL := ""
 			if account.ProxyID != nil && account.Proxy != nil {
@@ -174,7 +178,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			}
 			return s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch))
 		},
-		Latency: func(elapsed time.Duration) { SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, elapsed.Milliseconds()) },
+		Latency: func(elapsed time.Duration) {
+			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, elapsed.Milliseconds())
+		},
 		HeaderTimeout: func() error {
 			return s.newOpenAIFirstOutputTimeoutError(ctx, c, account, startTime, originalModel, reasoningEffortValue, firstOutputTimeout, "response_headers", nil)
 		},
@@ -192,7 +198,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			})
 		},
 		func(entry []byte) {
-			digests := collectOpenAIEncryptedContentDigestsRaw(entry)
+			digests := openai.CollectOpenAIEncryptedContentDigestsRaw(entry)
 			if len(digests) == 0 {
 				return
 			}
@@ -208,54 +214,14 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 }
 
 func shouldForwardOpenAIResponsesViaRawChatCompletions(account *Account) bool {
-	if account != nil && account.resolvedProtocol != "" {
-		return account.resolvedProtocol == domain.ProtocolOpenAIChatCompletions
-	}
-	if account == nil || account.Type != AccountTypeAPIKey {
-		return false
-	}
-	if account.IsCNProvider() {
-		// CN 直接使用显式协议配置；adaptive 仅 DeepSeek / Kimi
-		// 有原生 Responses，GLM 回退 Chat Completions。
-		switch account.GetAPIProtocol() {
-		case APIProtocolChatCompletions:
-			return true
-		case APIProtocolAdaptive:
-			return !account.SupportsNativeCNResponses()
-		default:
-			return false
-		}
-	}
-	return openai_compat.ResolveUpstreamTextProtocol(account.Extra, openai_compat.TextProtocolResponses) == openai_compat.TextProtocolChatCompletions
+	return accountModelPolicy(account).RawChat()
 }
 
 // buildUpstreamRequest 保留旧签名，仅投影目标与原生请求选项。
-func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool, routerMatch ...TLSFingerprintRouterMatchResult) (*http.Request, error) {
-	return forward.BuildResponsesRequest(ctx, body, promptCacheKey, s.openAIRequestTarget(c, account, false), func(path string) { SetActualOpenAIUpstreamEndpoint(c, path) }, func(b []byte) []byte { return normalizeDeepSeekResponsesRequestBody(account, b) }, func(target string) nativeopenai.ResponsesRequestOptions {
+func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token string, isStream bool, promptCacheKey string, isCodexCLI bool, routerMatch ...egress.TLSFingerprintRouterMatchResult) (*http.Request, error) {
+	return forward.BuildResponsesRequest(ctx, body, promptCacheKey, s.openAIRequestTarget(c, account, false), func(path string) { gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, path) }, func(b []byte) []byte {
+		return forward.NormalizeCNResponsesBody(account != nil && account.UsesNativeCNResponses(), b)
+	}, func(target string) openai.ResponsesRequestOptions {
 		return s.nativeResponsesRequestOptions(ctx, c, account, token, target, isCodexCLI, routerMatch...)
 	})
-}
-
-// overrideBrowserUserAgent 检查请求的最终 user-agent，若为浏览器 UA 则替换为后台配置的 Codex UA。
-// 用于规避 Cloudflare 对浏览器型 UA 在 ChatGPT 内部接口上的访问质询。
-// 影响范围严格限定：仅 OAuth（Codex/ChatGPT 内部接口）账号生效；API Key 等其他账号原样透传。
-// 仅在识别为浏览器（Mozilla/...）时改写，其他 CLI/工具 UA 不动。
-func (s *OpenAIGatewayService) overrideBrowserUserAgent(ctx context.Context, account *Account, req *http.Request) {
-	if req == nil || account == nil {
-		return
-	}
-	if !account.IsOAuth() {
-		return
-	}
-	currentUA := req.Header.Get("user-agent")
-	if !nativeopenai.IsBrowserUserAgent(currentUA) {
-		return
-	}
-	codexUA := DefaultOpenAICodexUserAgent
-	if s != nil && s.settingService != nil {
-		if v := strings.TrimSpace(s.settingService.GetOpenAICodexUserAgent(ctx)); v != "" {
-			codexUA = v
-		}
-	}
-	req.Header.Set("user-agent", codexUA)
 }

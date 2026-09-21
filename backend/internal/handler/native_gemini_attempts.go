@@ -1,17 +1,26 @@
 package handler
 
 import (
+	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	"context"
 	"errors"
 	"net/http"
 
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-
 	"go.uber.org/zap"
 )
 
@@ -20,10 +29,10 @@ type nativeGeminiAttemptBridge struct {
 	messageAttemptBridge
 	modelName, action                                                          string
 	stream                                                                     bool
-	geminiConcurrency                                                          *ConcurrencyHelper
+	geminiConcurrency                                                          *gatewayhttp.ConcurrencyHelper
 	useDigestFallback                                                          bool
 	geminiDigestChain, geminiPrefixHash, geminiSessionUUID, matchedDigestChain string
-	channelMapping                                                             service.ChannelMappingResult
+	channelMapping                                                             routing.ChannelMappingResult
 	signatureState                                                             requeststate.GeminiSignatureState
 }
 
@@ -36,7 +45,7 @@ func (b *nativeGeminiAttemptBridge) Select(excluded map[int64]struct{}) (textflo
 		return textflow.Selection{}, err
 	}
 	b.account = b.selection.Account
-	setOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
 	change := b.signatureState.Select(b.account.ID, b.sessionKey != "", b.body)
 	if change.Clean {
 		if change.Missing {
@@ -44,7 +53,7 @@ func (b *nativeGeminiAttemptBridge) Select(excluded map[int64]struct{}) (textflo
 		} else {
 			b.reqLog.Info("gemini.sticky_session_account_switched", zap.Int64("from_account_id", change.PreviousAccountID), zap.Int64("to_account_id", b.account.ID), zap.Bool("clean_thought_signature", true))
 		}
-		b.body = service.CleanGeminiNativeThoughtSignatures(b.body)
+		b.body = protocolgemini.CleanNativeThoughtSignatures(b.body, bridge.DummyThoughtSignature)
 	}
 	return capturedTextSelection(b.account), nil
 
@@ -56,9 +65,9 @@ func (b *nativeGeminiAttemptBridge) FirstSelectionFailure(err error, _ bool) {
 	if handleGeminiGroupModelUnsupportedError(b.c, err) {
 		return
 	}
-	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, service.PlatformGemini)
+	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, capability.PlatformGemini)
 	if !cls.ModelNotFound {
-		markOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
+		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 	}
 	message := cls.Message
 	if !cls.ModelNotFound {
@@ -73,7 +82,7 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 	b.accountReleaseFunc = b.selection.ReleaseFunc
 	if !b.selection.Acquired {
 		if b.selection.WaitPlan == nil {
-			markOpsRoutingCapacityLimited(b.c)
+			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 			googleError(b.c, http.StatusServiceUnavailable, "No available Gemini accounts")
 			return false
 		}
@@ -121,7 +130,7 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 		}
 	}
 	// 账号槽位/等待计数需要在超时或断开时安全回收
-	b.accountReleaseFunc = wrapReleaseOnDone(b.c.Request.Context(), b.accountReleaseFunc)
+	b.accountReleaseFunc = scheduler.WrapRelease(b.c.Request.Context(), scheduler.ReleaseOnCancel, b.accountReleaseFunc)
 
 	return true
 }
@@ -133,10 +142,10 @@ func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflo
 
 	requestCtx := b.c.Request.Context()
 	if state.SwitchCount > 0 {
-		requestCtx = service.WithAccountSwitchCount(requestCtx, state.SwitchCount, b.binding().bridgeEnabled)
+		requestCtx = requeststate.WithAccountSwitchCount(requestCtx, state.SwitchCount)
 	}
 	sessionGroupID := derefGroupID(b.apiKey.GroupID)
-	if b.account.Platform == service.PlatformAntigravity && b.account.Type != service.AccountTypeAPIKey {
+	if b.account.Platform == capability.PlatformAntigravity && b.account.Type != capability.AccountTypeAPIKey {
 		b.result, err = b.binding().forwardAntigravityGemini(
 			requestCtx,
 			b.c,
@@ -157,7 +166,7 @@ func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflo
 	b.binding().reportSchedule(b.selection, b.account.ID, err == nil, b.result)
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
-	var retry *service.UpstreamFailoverError
+	var retry *forwardcore.UpstreamFailoverError
 	if errors.As(err, &retry) {
 		out.Failure = &textflow.AttemptFailure{Cause: err, Policy: retry.RetryFailure()}
 	}
@@ -177,7 +186,7 @@ func (b *nativeGeminiAttemptBridge) Complete(state textflow.AttemptState) {
 	completionModel := b.modelName
 	// 捕获请求信息（用于异步记录，避免在 goroutine 中访问 gin.Context）
 	userAgent := b.c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(b.c)
+	clientIP := clientip.GetClientIP(b.c)
 
 	// 保存 Gemini 内容摘要会话（用于 Fallback 匹配）
 	if b.useDigestFallback && b.geminiDigestChain != "" && b.geminiPrefixHash != "" {
@@ -195,15 +204,15 @@ func (b *nativeGeminiAttemptBridge) Complete(state textflow.AttemptState) {
 	}
 
 	// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
-	requestPayloadHash := service.HashUsageRequestPayload(b.body)
-	inboundEndpoint := GetInboundEndpoint(b.c)
-	upstreamEndpoint := GetUpstreamEndpoint(b.c, b.account.Platform)
+	requestPayloadHash := billing.HashUsageRequestPayload(b.body)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Platform)
 	// ForceCacheBilling 提前拍成标量，避免 worker 闭包保活 failover 状态里的响应体。
 	forceCacheBilling := state.ForceCacheBilling
 	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.apiKey)
 	clientSessionID := service.ExtractClientSessionID(b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionForwardInput(usageRecordContextFromGin(b.c), &service.RecordUsageInput{
+	completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(b.c), &service.RecordUsageInput{
 		Result:             b.result,
 		QuotaPlatform:      quotaPlatform,
 		APIKey:             b.apiKey,
@@ -225,7 +234,7 @@ func (b *nativeGeminiAttemptBridge) Complete(state textflow.AttemptState) {
 	b.binding().submitUsageRecordTask(b.c, func(ctx context.Context) {
 		// 长上下文阶梯由价格目录驱动，统一计费路径会根据模型与分组开关处理。
 		if err := completionRuntime.Record(ctx, completionInput, false); err != nil {
-			logger.L().With(
+			logging.L().With(
 				zap.String("component", "handler.gemini_v1beta.models"),
 				zap.Int64("user_id", completionActorID),
 				zap.Int64("api_key_id", completionInput.APIKey.ID),
@@ -251,7 +260,7 @@ func (b *nativeGeminiAttemptBridge) Intercept() bool      { return false }
 func (b *nativeGeminiAttemptBridge) Abandon(int64)        {}
 func (b *nativeGeminiAttemptBridge) Success()             {}
 func (b *nativeGeminiAttemptBridge) Exhausted(failure *textflow.AttemptFailure, _ string, _ bool) {
-	var original *service.UpstreamFailoverError
+	var original *forwardcore.UpstreamFailoverError
 	if failure != nil {
 		errors.As(failure.Cause, &original)
 	}

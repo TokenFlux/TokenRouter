@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +37,7 @@ func (r *countingModelRateLimitRepo) SetModelRateLimit(_ context.Context, _ int6
 
 func newImagesCooldownContext(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
@@ -42,13 +45,13 @@ func newImagesCooldownContext(t *testing.T) (*gin.Context, *httptest.ResponseRec
 }
 
 func imagesCooldownAccount() *Account {
-	return &Account{ID: 77, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "img-oauth"}
+	return &Account{ID: 77, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "img-oauth"}
 }
 
 func TestShouldCoolOpenAIImagesToolForError(t *testing.T) {
 	cases := []struct {
 		name string
-		err  *OpenAIImagesUpstreamError
+		err  *openai.OpenAIImagesUpstreamError
 		want bool
 	}{
 		{
@@ -59,7 +62,7 @@ func TestShouldCoolOpenAIImagesToolForError(t *testing.T) {
 		{
 			// 网关从模型文字里推断出来的判据：只说明这一轮没出图。
 			name: "synthesized_from_model_text",
-			err: &OpenAIImagesUpstreamError{
+			err: &openai.OpenAIImagesUpstreamError{
 				StatusCode:               http.StatusBadGateway,
 				Code:                     "image_generation_unavailable",
 				SynthesizedFromModelText: true,
@@ -69,7 +72,7 @@ func TestShouldCoolOpenAIImagesToolForError(t *testing.T) {
 		{
 			// 上游自己在 error 帧里点名该状态：这才是账号级证据，保持冷却。
 			name: "structured_upstream_error_frame",
-			err: &OpenAIImagesUpstreamError{
+			err: &openai.OpenAIImagesUpstreamError{
 				StatusCode: http.StatusBadGateway,
 				Code:       "image_generation_unavailable",
 			},
@@ -104,7 +107,7 @@ func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *
 	require.Zero(t, repo.calls, "模型闲聊不构成账号级证据，不得写 30 分钟冷却")
 
 	// 换号行为必须原样保留：本 PR 只撤销账号状态写入，不动 failover。
-	var failover *UpstreamFailoverError
+	var failover *forwardcore.UpstreamFailoverError
 	require.True(t, errors.As(err, &failover), "仍应触发换号，got %T", err)
 }
 
@@ -115,7 +118,7 @@ func TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAcc
 	svc := &OpenAIGatewayService{accountRepo: repo}
 	account := imagesCooldownAccount()
 
-	upstreamErr := &OpenAIImagesUpstreamError{
+	upstreamErr := &openai.OpenAIImagesUpstreamError{
 		StatusCode: http.StatusBadGateway,
 		ErrorType:  "upstream_error",
 		Code:       "image_generation_unavailable",
@@ -172,6 +175,6 @@ func TestOpenAIImagesTextFallback_MarksSynthesizedVerdicts(t *testing.T) {
 func TestOpenAIImagesTextFallback_RemainsRetryableAndThusCascades(t *testing.T) {
 	err := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
 	require.NotNil(t, err)
-	require.True(t, IsOpenAIImagesRetryableUpstreamError(err),
+	require.True(t, openai.IsOpenAIImagesRetryableUpstreamError(err),
 		"文字兜底判据是可重试的——正因如此，写账号冷却会沿号池级联")
 }

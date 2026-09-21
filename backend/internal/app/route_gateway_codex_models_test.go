@@ -9,6 +9,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -28,14 +29,13 @@ func newCodexModelsRemovalGatewayHandler(repo service.AccountRepository) *handle
 	gatewayService := service.NewGatewayService(
 		repo,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	return handler.NewGatewayHandler(
 		gatewayService,
 		nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		&config.Config{},
-		nil,
+		&config.Config{}, nil, nil,
 	)
 }
 
@@ -45,8 +45,8 @@ func TestGatewayRoutesModelsWithClientVersionUsesLocalList(t *testing.T) {
 		accounts: []service.Account{
 			{
 				ID:       1,
-				Platform: service.PlatformOpenAI,
-				Type:     service.AccountTypeAPIKey,
+				Platform: capability.PlatformOpenAI,
+				Type:     capability.AccountTypeAPIKey,
 				Credentials: map[string]any{
 					"api_key": "sk-test",
 					"model_mapping": map[string]any{
@@ -58,7 +58,7 @@ func TestGatewayRoutesModelsWithClientVersionUsesLocalList(t *testing.T) {
 	}
 	router := newGatewayRoutesTestRouterWithGatewayHandler(
 		newCodexModelsRemovalGatewayHandler(repo),
-		service.PlatformOpenAI,
+		capability.PlatformOpenAI,
 	)
 	paths := []string{
 		"/v1/models?client_version=0.144.0",
@@ -89,7 +89,7 @@ func TestGatewayRoutesModelsWithClientVersionUsesLocalList(t *testing.T) {
 
 // Codex manifest 路由应被移除，已有 Responses 兼容路由仍需保留。
 func TestGatewayRoutesCodexModelsManifestPathIsRemoved(t *testing.T) {
-	router := newGatewayRoutesTestRouter(service.PlatformOpenAI)
+	router := newGatewayRoutesTestRouter(capability.PlatformOpenAI)
 
 	req := httptest.NewRequest(http.MethodGet, "/backend-api/codex/models?client_version=0.144.0", nil)
 	recorder := httptest.NewRecorder()

@@ -1,21 +1,19 @@
 package middleware
 
 import (
-	"context"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/gin-gonic/gin"
 )
 
 // 旧 context 安装仅供历史测试夹具使用。
-func setGroupContext(c *gin.Context, group *service.Group) {
-	if !service.IsGroupContextValid(group) {
+func setGroupContext(c *gin.Context, group *routing.Group) {
+	if !routing.IsGroupContextValid(group) {
 		return
 	}
-	if existing, ok := c.Request.Context().Value(ctxkey.Group).(*service.Group); ok && existing != nil && existing.ID == group.ID && service.IsGroupContextValid(existing) {
+	if existing, ok := requeststate.GroupFromContext(c.Request.Context()); ok && existing != nil && existing.ID == group.ID && routing.IsGroupContextValid(existing) {
 		return
 	}
-	ctx := context.WithValue(c.Request.Context(), ctxkey.Group, group)
+	ctx := requeststate.WithGroup(c.Request.Context(), group)
 	c.Request = c.Request.WithContext(ctx)
 }

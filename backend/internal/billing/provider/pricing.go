@@ -32,13 +32,12 @@ type PricingRemoteClient interface {
 
 // PricingService 动态价格服务
 type PricingService struct {
-	options       *Options
-	optionsSource func() Options
-	remoteClient  PricingRemoteClient
-	mu            sync.RWMutex
-	pricingData   map[string]*LiteLLMModelPricing
-	lastUpdated   time.Time
-	localHash     string
+	options      *Options
+	remoteClient PricingRemoteClient
+	mu           sync.RWMutex
+	pricingData  map[string]*LiteLLMModelPricing
+	lastUpdated  time.Time
+	localHash    string
 	// fallback/override 文件在最近一次成功重建时的内容指纹，定时器据此判断是否
 	// 需要从本地目录缓存重建叠加层。
 	customFilesHash string
@@ -90,7 +89,7 @@ func (s *PricingService) Stop() {
 // startUpdateScheduler 启动定时调度器：每个周期先做远程目录哈希同步（配置了 remote_url 时），
 // 再比对 fallback/override 文件指纹做本地热重载（配置了任一文件时）。两者都未配置则不启动。
 func (s *PricingService) StartUpdateScheduler() {
-	if s == nil || s.options == nil && s.optionsSource == nil {
+	if s == nil || s.options == nil {
 		return
 	}
 	remoteEnabled := strings.TrimSpace(s.currentOptions().RemoteURL) != ""
@@ -233,7 +232,7 @@ func (s *PricingService) SyncWithRemote() error {
 
 // hasCustomPricingFiles 报告是否配置了 fallback/override 任一文件路径（不要求文件存在）。
 func (s *PricingService) HasCustomPricingFiles() bool {
-	if s == nil || s.options == nil && s.optionsSource == nil {
+	if s == nil || s.options == nil {
 		return false
 	}
 	return strings.TrimSpace(s.currentOptions().FallbackFile) != "" || strings.TrimSpace(s.currentOptions().OverrideFile) != ""
@@ -466,7 +465,7 @@ func (s *PricingService) ApplyPricingOverrides(raw map[string]json.RawMessage) m
 // loadPricingOverrideEntries 读取 override 文件的原始条目。未配置返回 nil；
 // 读取或解析失败打日志并跳过，不影响目录加载。
 func (s *PricingService) LoadPricingOverrideEntries() map[string]json.RawMessage {
-	if s == nil || s.options == nil && s.optionsSource == nil {
+	if s == nil || s.options == nil {
 		return nil
 	}
 	path := strings.TrimSpace(s.currentOptions().OverrideFile)
@@ -575,7 +574,7 @@ func (s *PricingService) MergeFallbackPricingData(data map[string]*LiteLLMModelP
 	if data == nil {
 		data = make(map[string]*LiteLLMModelPricing)
 	}
-	if s == nil || s.options == nil && s.optionsSource == nil || strings.TrimSpace(s.currentOptions().FallbackFile) == "" {
+	if s == nil || s.options == nil || strings.TrimSpace(s.currentOptions().FallbackFile) == "" {
 		return data
 	}
 	fallbackBody, err := os.ReadFile(s.currentOptions().FallbackFile)
@@ -664,7 +663,7 @@ func (s *PricingService) FetchRemoteHash() (string, error) {
 }
 
 func (s *PricingService) ValidatePricingURL(raw string) (string, error) {
-	if (s.options != nil || s.optionsSource != nil) && !s.currentOptions().URLAllowlistEnabled {
+	if (s.options != nil) && !s.currentOptions().URLAllowlistEnabled {
 		normalized, err := egress.ValidateURLFormat(raw, s.currentOptions().AllowInsecureHTTP)
 		if err != nil {
 			return "", fmt.Errorf("invalid pricing url: %w", err)
@@ -810,19 +809,7 @@ type Options struct {
 	ModelLookupCandidates func() func(string) []string
 }
 
-// NewPricingServiceWithOptionsSource 仅供旧构造转接，返回值仍由同一 provider 拥有全部状态。
-func NewPricingServiceWithOptionsSource(source func() Options, remote PricingRemoteClient, snapshots ...Snapshot) *PricingService {
-	s := NewPricingService(source(), remote)
-	if len(snapshots) > 0 {
-		s = NewPricingServiceFromSnapshot(source(), remote, snapshots[0])
-	}
-	s.optionsSource = source
-	return s
-}
 func (s *PricingService) currentOptions() Options {
-	if s.optionsSource != nil {
-		return s.optionsSource()
-	}
 	if s.options == nil {
 		return Options{}
 	}

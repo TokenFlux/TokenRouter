@@ -2,11 +2,12 @@
 package middleware
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
-func applyAPIKeyModelRedirect(c *gin.Context, apiKey *service.APIKey) {
-	gatewayhttp.ApplyAPIKeyModelRedirect(c, service.APIKeyView(apiKey))
+func applyAPIKeyModelRedirect(c *gin.Context, apiKey *apikey.APIKey) {
+	gatewayhttp.ApplyAPIKeyModelRedirect(c, apikey.CopyAPIKey(apiKey))
 }

@@ -3,20 +3,18 @@ package service
 
 import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/tidwall/gjson"
 )
 
-type UserMsgQueueCache = scheduler.UserMsgQueueCache
-type QueueLockResult = scheduler.QueueLockResult
-type UserMessageQueueService = scheduler.UserMessageQueueService
-
-func NewUserMessageQueueService(cache UserMsgQueueCache, rpm RPMCache, cfg *config.UserMessageQueueConfig) *UserMessageQueueService {
+func NewUserMessageQueueService(cache scheduler.UserMsgQueueCache, rpm scheduler.RPMCache, cfg *config.UserMessageQueueConfig) *scheduler.UserMessageQueueService {
 	var options *scheduler.MessageQueueOptions
 	if cfg != nil {
 		options = &scheduler.MessageQueueOptions{LockTTLMs: cfg.LockTTLMs, MinDelayMs: cfg.MinDelayMs, MaxDelayMs: cfg.MaxDelayMs}
 	}
-	return scheduler.NewUserMessageQueueService(cache, rpm, options, LegacySchedulerDiagnostics())
+	return scheduler.NewUserMessageQueueService(cache, rpm, options, scheduler.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event})
 }
 
 // IsRealUserMessage 检测是否为真实用户消息（非 tool_result）
@@ -24,7 +22,7 @@ func NewUserMessageQueueService(cache UserMsgQueueCache, rpm RPMCache, cfg *conf
 // 1. messages 非空
 // 2. 最后一条消息 role == "user"
 // 3. 最后一条消息 content（如果是数组）中不含 type:"tool_result" / "tool_use_result"
-func IsRealUserMessage(parsed *ParsedRequest) bool {
+func IsRealUserMessage(parsed *requeststate.ParsedRequest) bool {
 	if parsed == nil {
 		return false
 	}

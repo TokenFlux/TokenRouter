@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,7 +19,7 @@ func TestFilterByMinPriority(t *testing.T) {
 
 	t.Run("single account", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, Priority: 5}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, Priority: 5}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		result := filterByMinPriority(accounts)
 		require.Len(t, result, 1)
@@ -26,9 +28,9 @@ func TestFilterByMinPriority(t *testing.T) {
 
 	t.Run("multiple accounts same priority", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, Priority: 3}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, Priority: 3}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 3, Priority: 3}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, Priority: 3}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, Priority: 3}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 3, Priority: 3}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		result := filterByMinPriority(accounts)
 		require.Len(t, result, 3)
@@ -36,10 +38,10 @@ func TestFilterByMinPriority(t *testing.T) {
 
 	t.Run("filters to min priority only", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, Priority: 5}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, Priority: 1}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 3, Priority: 3}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 4, Priority: 1}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, Priority: 5}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, Priority: 1}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 3, Priority: 3}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 4, Priority: 1}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		result := filterByMinPriority(accounts)
 		require.Len(t, result, 2)
@@ -56,7 +58,7 @@ func TestFilterByMinLoadRate(t *testing.T) {
 
 	t.Run("single account", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1}, loadInfo: &AccountLoadInfo{LoadRate: 50}},
+			{account: &Account{ID: 1}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 50}},
 		}
 		result := filterByMinLoadRate(accounts)
 		require.Len(t, result, 1)
@@ -65,9 +67,9 @@ func TestFilterByMinLoadRate(t *testing.T) {
 
 	t.Run("multiple accounts same load rate", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1}, loadInfo: &AccountLoadInfo{LoadRate: 20}},
-			{account: &Account{ID: 2}, loadInfo: &AccountLoadInfo{LoadRate: 20}},
-			{account: &Account{ID: 3}, loadInfo: &AccountLoadInfo{LoadRate: 20}},
+			{account: &Account{ID: 1}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 20}},
+			{account: &Account{ID: 2}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 20}},
+			{account: &Account{ID: 3}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 20}},
 		}
 		result := filterByMinLoadRate(accounts)
 		require.Len(t, result, 3)
@@ -75,10 +77,10 @@ func TestFilterByMinLoadRate(t *testing.T) {
 
 	t.Run("filters to min load rate only", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1}, loadInfo: &AccountLoadInfo{LoadRate: 80}},
-			{account: &Account{ID: 2}, loadInfo: &AccountLoadInfo{LoadRate: 10}},
-			{account: &Account{ID: 3}, loadInfo: &AccountLoadInfo{LoadRate: 50}},
-			{account: &Account{ID: 4}, loadInfo: &AccountLoadInfo{LoadRate: 10}},
+			{account: &Account{ID: 1}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 80}},
+			{account: &Account{ID: 2}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 10}},
+			{account: &Account{ID: 3}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 50}},
+			{account: &Account{ID: 4}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 10}},
 		}
 		result := filterByMinLoadRate(accounts)
 		require.Len(t, result, 2)
@@ -88,9 +90,9 @@ func TestFilterByMinLoadRate(t *testing.T) {
 
 	t.Run("zero load rate", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1}, loadInfo: &AccountLoadInfo{LoadRate: 0}},
-			{account: &Account{ID: 2}, loadInfo: &AccountLoadInfo{LoadRate: 50}},
-			{account: &Account{ID: 3}, loadInfo: &AccountLoadInfo{LoadRate: 0}},
+			{account: &Account{ID: 1}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 0}},
+			{account: &Account{ID: 2}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 50}},
+			{account: &Account{ID: 3}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 0}},
 		}
 		result := filterByMinLoadRate(accounts)
 		require.Len(t, result, 2)
@@ -111,7 +113,7 @@ func TestSelectByLRU(t *testing.T) {
 
 	t.Run("single account", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, LastUsedAt: &now}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, LastUsedAt: &now}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		result := selectByLRU(accounts, false)
 		require.NotNil(t, result)
@@ -120,9 +122,9 @@ func TestSelectByLRU(t *testing.T) {
 
 	t.Run("selects least recently used", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, LastUsedAt: &now}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, LastUsedAt: &muchEarlier}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 3, LastUsedAt: &earlier}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, LastUsedAt: &now}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, LastUsedAt: &muchEarlier}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 3, LastUsedAt: &earlier}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		result := selectByLRU(accounts, false)
 		require.NotNil(t, result)
@@ -131,9 +133,9 @@ func TestSelectByLRU(t *testing.T) {
 
 	t.Run("nil LastUsedAt preferred over non-nil", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, LastUsedAt: &now}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, LastUsedAt: nil}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 3, LastUsedAt: &earlier}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, LastUsedAt: &now}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, LastUsedAt: nil}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 3, LastUsedAt: &earlier}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		result := selectByLRU(accounts, false)
 		require.NotNil(t, result)
@@ -142,9 +144,9 @@ func TestSelectByLRU(t *testing.T) {
 
 	t.Run("multiple nil LastUsedAt random selection", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, LastUsedAt: nil, Type: "session"}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, LastUsedAt: nil, Type: "session"}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 3, LastUsedAt: nil, Type: "session"}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, LastUsedAt: nil, Type: "session"}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, LastUsedAt: nil, Type: "session"}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 3, LastUsedAt: nil, Type: "session"}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		// 多次调用应该随机选择，验证结果都在候选范围内
 		validIDs := map[int64]bool{1: true, 2: true, 3: true}
@@ -158,8 +160,8 @@ func TestSelectByLRU(t *testing.T) {
 	t.Run("multiple same LastUsedAt random selection", func(t *testing.T) {
 		sameTime := now
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, LastUsedAt: &sameTime}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, LastUsedAt: &sameTime}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, LastUsedAt: &sameTime}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, LastUsedAt: &sameTime}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		// 多次调用应该随机选择
 		validIDs := map[int64]bool{1: true, 2: true}
@@ -172,9 +174,9 @@ func TestSelectByLRU(t *testing.T) {
 
 	t.Run("preferOAuth selects from OAuth accounts when multiple nil", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, LastUsedAt: nil, Type: "session"}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, LastUsedAt: nil, Type: AccountTypeOAuth}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 3, LastUsedAt: nil, Type: AccountTypeOAuth}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, LastUsedAt: nil, Type: "session"}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, LastUsedAt: nil, Type: capability.AccountTypeOAuth}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 3, LastUsedAt: nil, Type: capability.AccountTypeOAuth}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		// preferOAuth 时，应该从 OAuth 类型中选择
 		oauthIDs := map[int64]bool{2: true, 3: true}
@@ -187,8 +189,8 @@ func TestSelectByLRU(t *testing.T) {
 
 	t.Run("preferOAuth falls back to all when no OAuth", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, LastUsedAt: nil, Type: "session"}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, LastUsedAt: nil, Type: "session"}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, LastUsedAt: nil, Type: "session"}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, LastUsedAt: nil, Type: "session"}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		// 没有 OAuth 时，从所有候选中选择
 		validIDs := map[int64]bool{1: true, 2: true}
@@ -201,8 +203,8 @@ func TestSelectByLRU(t *testing.T) {
 
 	t.Run("preferOAuth only affects same LastUsedAt accounts", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, LastUsedAt: &earlier, Type: "session"}, loadInfo: &AccountLoadInfo{}},
-			{account: &Account{ID: 2, LastUsedAt: &now, Type: AccountTypeOAuth}, loadInfo: &AccountLoadInfo{}},
+			{account: &Account{ID: 1, LastUsedAt: &earlier, Type: "session"}, loadInfo: &scheduler.AccountLoadInfo{}},
+			{account: &Account{ID: 2, LastUsedAt: &now, Type: capability.AccountTypeOAuth}, loadInfo: &scheduler.AccountLoadInfo{}},
 		}
 		result := selectByLRU(accounts, true)
 		require.NotNil(t, result)
@@ -220,13 +222,13 @@ func TestLayeredFilterIntegration(t *testing.T) {
 		// 模拟真实场景：多个账号，不同优先级、负载率、最后使用时间
 		accounts := []accountWithLoad{
 			// 优先级 1，负载 50%
-			{account: &Account{ID: 1, Priority: 1, LastUsedAt: &now}, loadInfo: &AccountLoadInfo{LoadRate: 50}},
+			{account: &Account{ID: 1, Priority: 1, LastUsedAt: &now}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 50}},
 			// 优先级 1，负载 20%（最低）
-			{account: &Account{ID: 2, Priority: 1, LastUsedAt: &earlier}, loadInfo: &AccountLoadInfo{LoadRate: 20}},
+			{account: &Account{ID: 2, Priority: 1, LastUsedAt: &earlier}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 20}},
 			// 优先级 1，负载 20%（最低），更早使用
-			{account: &Account{ID: 3, Priority: 1, LastUsedAt: &muchEarlier}, loadInfo: &AccountLoadInfo{LoadRate: 20}},
+			{account: &Account{ID: 3, Priority: 1, LastUsedAt: &muchEarlier}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 20}},
 			// 优先级 2（较低优先）
-			{account: &Account{ID: 4, Priority: 2, LastUsedAt: &muchEarlier}, loadInfo: &AccountLoadInfo{LoadRate: 0}},
+			{account: &Account{ID: 4, Priority: 2, LastUsedAt: &muchEarlier}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 0}},
 		}
 
 		// 1. 取优先级最小的集合 → ID: 1, 2, 3
@@ -245,9 +247,9 @@ func TestLayeredFilterIntegration(t *testing.T) {
 
 	t.Run("all same priority and load rate", func(t *testing.T) {
 		accounts := []accountWithLoad{
-			{account: &Account{ID: 1, Priority: 1, LastUsedAt: &now}, loadInfo: &AccountLoadInfo{LoadRate: 50}},
-			{account: &Account{ID: 2, Priority: 1, LastUsedAt: &earlier}, loadInfo: &AccountLoadInfo{LoadRate: 50}},
-			{account: &Account{ID: 3, Priority: 1, LastUsedAt: &muchEarlier}, loadInfo: &AccountLoadInfo{LoadRate: 50}},
+			{account: &Account{ID: 1, Priority: 1, LastUsedAt: &now}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 50}},
+			{account: &Account{ID: 2, Priority: 1, LastUsedAt: &earlier}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 50}},
+			{account: &Account{ID: 3, Priority: 1, LastUsedAt: &muchEarlier}, loadInfo: &scheduler.AccountLoadInfo{LoadRate: 50}},
 		}
 
 		step1 := filterByMinPriority(accounts)

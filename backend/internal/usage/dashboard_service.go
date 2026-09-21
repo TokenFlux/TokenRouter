@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 const (
@@ -47,6 +49,7 @@ type DashboardPublicStats struct {
 
 // DashboardService 提供管理员仪表盘统计服务。
 type DashboardService struct {
+	calendar       timezone.Calendar
 	queryCaches    *dashboardQueryCaches
 	reporter       func(string, string, ...any)
 	readers        DashboardReaders
@@ -66,6 +69,7 @@ type DashboardService struct {
 }
 
 func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregationRepository, cache DashboardStatsCache, cfg *Options, readers ...DashboardReaders) *DashboardService {
+	calendar := timezone.NewCalendar(time.Local)
 	background := func(_ string, fn func()) bool { go fn(); return true }
 	if cfg != nil && cfg.RunBackground != nil {
 		background = cfg.RunBackground
@@ -84,6 +88,7 @@ func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregat
 	aggLookback := 2 * time.Minute
 	aggUsageDays := 90
 	if cfg != nil {
+		calendar = cfg.Calendar
 		if !cfg.Dashboard.Enabled {
 			cache = nil
 		}
@@ -111,6 +116,7 @@ func NewDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregat
 		aggEnabled = false
 	}
 	return &DashboardService{queryCaches: newDashboardQueryCaches(), reporter: usageReporter(cfg),
+		calendar:       calendar,
 		runBackground:  background,
 		readers:        sources,
 		usageRepo:      usageRepo,

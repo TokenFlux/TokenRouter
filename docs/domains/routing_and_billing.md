@@ -23,7 +23,7 @@
 | Usage billing record | 一次不可重复应用的资金/额度变更 | 以 `request_id + api_key_id` 认领，绑定付款用户、行为用户、团队、Key、分组和账号 |
 | Usage Log | 已完成请求的可查询事实 | 保存端点、模型链、token/媒体、金额和归属；用于统计与审计，不单独充当扣费账本 |
 
-分组配置、默认选择、管理与复制用例由 `internal/routing` 拥有，SQL/Ent 实现在 `routing/postgres`。渠道管理、模型映射、价卡读取和唯一渠道缓存也在 routing；app 将同一个存储和缓存实例提供给 Key、身份管理与 billing。旧 `service.Group` 仍用于未迁执行链的投影，旧管理方法委托新用例。分组管理直接读取 AccountStore/KeyStore；容量查询使用账号存储的批量或逐组只读投影，保留预取失败回退、空结果和逐行阈值取时点。分组与渠道的 CRUD、复制和排序 HTTP 在 `routing/httpapi`，普通/管理员 DTO 在其 `dto` 子包；分组用量、容量、关联 Key 和倍率/RPM 端点也由新 handler 组合窄接口；倍率配置由 billing 执行，Key 列表由 apikey 提供，用量和 Live 平台检查仍经 app 的过渡读取投影。
+分组配置、默认选择、管理与复制用例由 `internal/routing` 拥有，SQL/Ent 实现在 `routing/postgres`。渠道管理、模型映射、价卡读取和唯一渠道缓存也在 routing；app 将同一个存储和缓存实例提供给 Key、身份管理与 billing。分组值直接使用 `routing.Group`；原管理员聚合及分组管理转接已删除，管理调用直接进入所属用例。分组管理直接读取 AccountStore/KeyStore；容量查询使用账号存储的批量或逐组只读投影，保留预取失败回退、空结果和逐行阈值取时点。分组与渠道的 CRUD、复制和排序 HTTP 在 `routing/httpapi`，普通/管理员 DTO 在其 `dto` 子包；分组用量、容量、关联 Key 和倍率/RPM 端点也由新 handler 组合窄接口；倍率配置由 billing 执行，Key 列表由 apikey 提供，用量和 Live 平台检查仍经 app 的过渡读取投影。
 
 分组创建/更新涉及的默认切换、排序锁和账号关系复制/替换保留原事务边界；账号关联写入由 `account/postgres` 的同连接参与方法承担，用户授权清理由 `identity/postgres` 参与。调度 outbox 编码、同连接写入与消费归 `scheduler` 及其 Adapter；同事务 outbox 和提交后尽力发布保持各入口原边界。渠道缓存发布时取得独立副本，返回的嵌套 JSON 配置也与缓存隔离；管理输入或调用方修改副本不会改变其他请求的规则。
 
@@ -89,7 +89,7 @@ Anthropic 分组也支持同一套模型范围映射、上限与超限动作，�
 <a id="group_model_pricing"></a>
 ### 分组模型价卡与倍率继承
 
-价卡及金额算法的唯一实现位于 `billing/pricing`。billing 的 PriceResolver 通过 app 注入的渠道与模型候选端口按原顺序查价，纯规则先判断是否需要基础价；显式分组价格不增加渠道查询，按次/媒体价卡不增加 token 基础价查询。旧 BillingService 只投影用量、时刻、服务层级、最终 effort 和旧分组；计算由 billing.Calculator 委托同一纯算法。账号统计价卡和用户分组倍率也由 billing 拥有，两个网关的倍率缓存保持各自作用域。`PricingAt` 为零继续禁用渠道分时；模型峰谷所需默认时刻单独投影，不借此启用原本未启用的分时倍率。时区加载由 provider 完成，纯计算只接受显式 Location。
+价卡及金额算法的唯一实现位于 `billing/pricing`。app 直接构造 billing 的 Calculator 与 PriceResolver，旧 BillingService 和 ModelPricingResolver 包装已删除。PriceResolver 通过注入的渠道与模型候选端口按原顺序查价，纯规则先判断是否需要基础价；显式分组价格不增加渠道查询，按次/媒体价卡不增加 token 基础价查询。调用方只传递用量、时刻、服务层级、最终 effort 和分组价卡投影；图片任务的单张价解析也由同一 PriceResolver 提供。账号统计价卡和用户分组倍率由 billing 拥有，两个网关的倍率缓存保持各自作用域。`PricingAt` 为零继续禁用渠道分时；模型峰谷所需默认时刻单独投影，不借此启用原本未启用的分时倍率。时区加载由 provider 完成，纯计算只接受显式 Location。
 
 一次请求同时存在用户扣费和账号成本统计两个口径。用户扣费的基础价格按分组逐模型定价、渠道定价、内置模型定价的顺序解析，再叠加分组和订阅/用户倍率；最终路由账号不能改变用户价格。分组逐模型条目与渠道共用 token、按次、图片、视频、上下文区间和倍率能力。存在显式单价（包括零价）或有效 token 区间时，分组价卡覆盖渠道，分组与渠道都先把默认单价覆盖到基础价格，再应用区间；区间内未填写的价格桶、区间倍率以及未命中区间的请求均使用该默认价，默认价未填写的桶才继承内置单价。仅设置 Fast/Flex、Max 推理或分时倍率时，先解析渠道价格，没有渠道价再使用内置价格，然后只覆盖同名倍率；基础价、区间、价格来源和计费模式保持继承结果，空价卡不阻断继承。纯倍率不能把按次/媒体模式改成 token，也不能为缺价模型创造免费基础价。上下文区间只有倍率、没有可继承基础价时同样保持未定价；必须存在基础单价或命中区间的显式单价（包括零价），否则结算返回 `ErrModelPricingUnavailable`。其它区间有价不能让当前缺价范围变成免费。分组 Fast=1.5 会替换渠道 Fast=2，不相乘；不同维度与现有分组、峰值及订阅倍率正常组合。渠道仅含服务层级、Max 或分时倍率的条目也保留内置价格的全部价格桶和来源（包括图片 token 单价和内置峰谷规则），不执行显式单价卡的图片桶清理。分时配置本身即可构成有效价卡，无须同时填写单价。OpenAI 和通用网关按有效价卡识别媒体的 token 计费配置，不能以基础价格来源是否为分组/渠道来排除纯倍率价卡；继承到按图或视频按次价格时仍使用该模式，不乘 token 倍率。Qoder 使用相同的分组、渠道和内置价格回退，不再以别名或路由键身份禁止回退。价卡的最终价格倍率仍要求显式价格。启用 `free_openai_fast` 时只把用户资金分配的基础金额切换到 Standard，不能把 Fast 的账号统计基数或 Usage Log 明细覆盖掉。账号 `rate_multiplier` 只影响账号维度的成本统计和账号额度累计，不应偷偷改变用户/API Key 扣款。
 
@@ -125,7 +125,7 @@ Grok 媒体、搜索和 Voice 使用独立计价维度。视频按输出秒计�
 <a id="usage_settlement"></a>
 ## 用量结算
 
-旧 `recordUsageCore` 保留供应商用量归一化、模型/请求 ID 选择和 Usage Log 构造；资金预检、查价、分配和提交后资金处理委托 billing。`Eligibility.Check` 只处理资金准入，RPM 仍在旧入口之后执行。`simple` 只执行适用记录路径；`standard` 经 `Funds.Settle` 进入 billing/postgres 的闭合事务，不能因 context 中已有 Ent Tx 就自动参加外层事务。
+旧 `recordUsageCore` 保留供应商用量归一化、模型/请求 ID 选择和 Usage Log 构造；资金预检、查价、分配和提交后资金处理委托 billing。`Eligibility.Check` 只处理资金准入，`gateway/admission.FundingAdmission` 固定其与 scheduler RPM 的执行顺序：资金通过后才读取运行模式并累计 RPM，simple 跳过计数；Qoder 等待后仅复查资金。旧 BillingCacheService 包装已删除，身份、Key、推广和完成处理共用同一原生缓存实例。`simple` 只执行适用记录路径；`standard` 经 `Funds.Settle` 进入 billing/postgres 的闭合事务，不能因 context 中已有 Ent Tx 就自动参加外层事务。
 
 billing 从锁定的订阅快照生成有序分配与窗口更新，PostgreSQL Adapter 负责锁序、SQL 更新、outbox 和提交。外层身份/权益事务通过明确的 Ent Tx 参与入口复用连接；参与方法不提交、回滚或发布缓存/通知。
 
@@ -148,7 +148,11 @@ billing 从锁定的订阅快照生成有序分配与窗口更新，PostgreSQL A
 
 网关完成计算和提交次序由 `gateway/completion.Recorder` 唯一实现，app 在构造固定执行器前绑定同一 Forward/OpenAI 完成实例。HTTP、SSE、媒体和 WS turn 在提交任务前取得独立主体、资金来源、报文及模型快照；后台不再读取 Gin 或随后变化的请求对象。普通完成、Cyber 失败补记和 Live 零费用记录保留各自原资格，未把一种入口的部分失败扣费扩展到其它入口。
 
+普通结算的 `completion.Store` 由 app 直接绑定唯一 `billing/postgres.SettlementStore`，与任务 `Funds` 共用同一存储；已删除旧资金仓储构造与命令包装。订阅解析仍由该存储在原调用点读取，普通 `Apply` 保持自己的闭合事务，不因请求携带外层事务而自动加入。
+
 完成队列同时等待排队和同步溢出任务，停止后不能重开扩缩容；没有新增持久完成队列。队列或进程超时不表示资金已提交，分析记录也不能替代 billing 的真实幂等/事务结果。
+
+余额和账号额度阈值由 app 构造的唯一 `billing.BalanceNotifyService` 判断，完成处理直接使用该实例。账号配置通过 `account/provider.QuotaNotification` 投影；有事务返回状态时使用该状态中的用量和限额，没有时才按原时机回源。邮件呈现与投递仍由 notification 拥有，通知不参与资金提交。
 
 
 普通网关在资金事务成功后才尽力写 Usage Log。日志写入失败不能回滚已提交的扣费，也不能因重试日志而再次扣费；反过来，结算失败时不得写一条看似成功的正常使用记录。`usage_billing_dedup` 和实际余额/订阅/配额更新是资金效果的幂等边界，Usage Log 是分析、用户账单展示和运维排查的事实视图。

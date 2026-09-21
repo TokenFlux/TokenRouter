@@ -4,7 +4,10 @@ import (
 	"errors"
 	"strings"
 
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
 )
@@ -62,26 +65,17 @@ func ClearOpsCyberPolicy(c *gin.Context) {
 	c.Set(opsCyberPolicyKey, (*CyberPolicyMark)(nil))
 }
 
-// DetectOpenAICyberPolicy 精确识别上游 cyber_policy 错误。
-func DetectOpenAICyberPolicy(payload []byte) (bool, string, string) {
-	return detectOpenAICyberPolicy(payload)
-}
-
-func detectOpenAICyberPolicy(payload []byte) (bool, string, string) {
-	return nativeopenai.DetectOpenAICyberPolicy(payload)
-}
-
 // markOpenAICyberPolicyEvent 记录 WS 各种错误终止事件中的 cyber_policy 证据。
 // 统一入口避免不同传输路径重复维护 usage 与响应体截断逻辑。
-func markOpenAICyberPolicyEvent(c *gin.Context, payload []byte, upstreamStatus int, usage *OpenAIUsage) bool {
-	hit, code, message := detectOpenAICyberPolicy(payload)
+func markOpenAICyberPolicyEvent(c *gin.Context, payload []byte, upstreamStatus int, usage *openai.ForwardUsage) bool {
+	hit, code, message := upstreamopenai.DetectOpenAICyberPolicy(payload)
 	if !hit {
 		return false
 	}
 	mark := CyberPolicyMark{
 		Code:           code,
 		Message:        message,
-		Body:           truncateString(string(payload), 4096),
+		Body:           logredact.TruncateUTF8(string(payload), 4096),
 		UpstreamStatus: upstreamStatus,
 	}
 	if usage != nil {

@@ -3,10 +3,12 @@
 package middleware
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+
 	context "context"
 
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	gin "github.com/gin-gonic/gin"
 )
 
@@ -19,7 +21,7 @@ type stepUpGrantChecker interface {
 
 // stepUpUserReader 抽象用户读取能力（检查 TOTP 是否启用）。
 type stepUpUserReader interface {
-	GetByID(ctx context.Context, id int64) (*service.User, error)
+	GetByID(ctx context.Context, id int64) (*identity.User, error)
 }
 
 // stepUpSettingReader 抽象 step-up 功能开关读取能力（由 SettingService 实现）。
@@ -42,16 +44,16 @@ func StepUpSessionKey(c *gin.Context, userID int64) string {
 //
 // 失败响应使用可区分的错误码，前端据此弹出 TOTP 验证对话框后重试。
 func NewStepUpAuthMiddleware(
-	totpService *service.TotpService,
-	userService *service.UserService,
-	settingService *service.SettingService,
+	totpService *identity.TotpService,
+	userService *identity.UserService,
+	settingService *identity.RuntimeSettings,
 ) StepUpAuthMiddleware {
 	return StepUpAuthMiddleware(stepUpAuth(totpService, userService, stepUpSettingsOrNil(settingService)))
 }
 
 // stepUpSettingsOrNil 将可能为 nil 的具体指针归一化为接口，
 // 避免 typed-nil 装箱后绕过 enforceStepUp 内的 nil 判断。
-func stepUpSettingsOrNil(settingService *service.SettingService) stepUpSettingReader {
+func stepUpSettingsOrNil(settingService *identity.RuntimeSettings) stepUpSettingReader {
 	if settingService == nil {
 		return nil
 	}
@@ -68,9 +70,9 @@ func stepUpAuth(grantChecker stepUpGrantChecker, userReader stepUpUserReader, se
 // 校验失败时写入错误响应并中止请求，返回 false；通过返回 true。
 func EnforceStepUp(
 	c *gin.Context,
-	totpService *service.TotpService,
-	userService *service.UserService,
-	settingService *service.SettingService,
+	totpService *identity.TotpService,
+	userService *identity.UserService,
+	settingService *identity.RuntimeSettings,
 ) bool {
 	return enforceStepUp(c, totpService, userService, stepUpSettingsOrNil(settingService))
 }
@@ -80,8 +82,8 @@ func EnforceStepUp(
 // 持久化设置读到开关为开启状态，不应依赖二次读取——读取失败会导致门控被跳过）。
 func EnforceStepUpAlways(
 	c *gin.Context,
-	totpService *service.TotpService,
-	userService *service.UserService,
+	totpService *identity.TotpService,
+	userService *identity.UserService,
 ) bool {
 	return enforceStepUp(c, totpService, userService, nil)
 }

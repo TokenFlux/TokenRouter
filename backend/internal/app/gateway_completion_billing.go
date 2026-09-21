@@ -22,7 +22,7 @@ type GatewayCompletionRecorders struct {
 
 // ProvideGatewayCompletionRecorders 供父装配同时替换旧请求完成回调。
 // 请求须先生成 completion.Input 快照，再交给既有完成执行器，禁止闭包保留 Gin。
-func ProvideGatewayCompletionRecorders(forward *service.GatewayService, openai *service.OpenAIGatewayService, keys *service.APIKeyService) GatewayCompletionRecorders {
+func ProvideGatewayCompletionRecorders(forward *service.GatewayService, openai *service.OpenAIGatewayService, keys *apikey.APIKeyService) GatewayCompletionRecorders {
 	return GatewayCompletionRecorders{Forward: forward.CompletionRecorder(keys), OpenAI: openai.CompletionRecorder(keys)}
 }
 

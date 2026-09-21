@@ -5,16 +5,21 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeImageResponseOptions(c *gin.Context) native.ImageResponseOptions {
-	return native.ImageResponseOptions{
+func (s *OpenAIGatewayService) nativeImageResponseOptions(c *gin.Context) upstreamopenai.ImageResponseOptions {
+	return upstreamopenai.ImageResponseOptions{
 
 		PreserveContentType: s.cfg != nil && !s.cfg.Security.ResponseHeaders.Enabled,
 
@@ -24,21 +29,21 @@ func (s *OpenAIGatewayService) nativeImageResponseOptions(c *gin.Context) native
 
 		ClassifyReadError: func(err error) error {
 			if shouldClassifyOpenAIUpstreamStreamReadError(err, c.Request.Context()) {
-				return newOpenAIUpstreamStreamReadError(err)
+				return upstreamopenai.NewUpstreamStreamReadError(err)
 			}
 			return err
 		},
 
-		ResponseHeaders: func(dst, src http.Header) { responseheaders.WriteFilteredHeaders(dst, src, s.responseHeaderFilter) },
+		ResponseHeaders: func(dst, src http.Header) { provider.WriteFilteredHeaders(dst, src, s.responseHeaderFilter) },
 
-		ObserveError: func(status int, message, detail string) { setOpsUpstreamError(c, status, message, detail) },
+		ObserveError: func(status int, message, detail string) { gatewayhttp.SetOpsUpstreamError(c, status, message, detail) },
 
-		WriteHTTPError: func(err *native.OpenAIImagesUpstreamError) bool {
+		WriteHTTPError: func(err *upstreamopenai.OpenAIImagesUpstreamError) bool {
 			return writeOpenAIImagesUpstreamErrorResponse(c, err)
 		},
 
 		EmptyOutput: func(body []byte) error {
-			return &UpstreamFailoverError{StatusCode: http.StatusBadGateway, ResponseBody: body, RetryableOnSameAccount: true}
+			return &forwardcore.UpstreamFailoverError{StatusCode: http.StatusBadGateway, ResponseBody: body, RetryableOnSameAccount: true}
 		},
 
 		Summary: s.summarizeOpenAIImagesNoOutputBody,
@@ -51,18 +56,20 @@ func (s *OpenAIGatewayService) nativeImageResponseOptions(c *gin.Context) native
 
 		KeepaliveInterval: s.openAIImageStreamKeepaliveInterval,
 
-		Logf: func(format string, args ...any) { logger.LegacyPrintf("service.openai_gateway", format, args...) },
+		Logf: func(format string, args ...any) {
+			logging.LegacyPrintf("service.openai_gateway", format, args...)
+		},
 	}
 }
 
 // openAIImagesForwardResult 仅恢复旧网关交付和计费投影，不重算用量。
-func openAIImagesForwardResult(result upstream.AttemptResult, parsed *OpenAIImagesRequest, imageCount int) *OpenAIForwardResult {
-	return &OpenAIForwardResult{
+func openAIImagesForwardResult(result upstream.AttemptResult, parsed *media.ImageRequest, imageCount int) *forwardcore.OpenAIResult {
+	return &forwardcore.OpenAIResult{
 
 		RequestID:       result.RequestID,
 		UpstreamHeaders: result.UpstreamHeaders,
 
-		Usage: OpenAIUsage{
+		Usage: openai.ForwardUsage{
 			InputTokens:              result.Usage.InputTokens,
 			OutputTokens:             result.Usage.OutputTokens,
 			CacheReadInputTokens:     result.Usage.CacheReadInputTokens,

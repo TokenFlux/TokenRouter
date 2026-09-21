@@ -1,6 +1,10 @@
 package service
 
-import "github.com/gin-gonic/gin"
+import (
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/gin-gonic/gin"
+)
 
 // 请求级 hint 仅限 HTTP：缺失表示 unknown，false/true 都表示已完成 canonical 判定。
 const openAIImageIntentHintContextKey = "openai_image_intent_hint"
@@ -9,14 +13,14 @@ type openAIImageIntentClassifier func(endpoint string, requestedModel string, bo
 
 // SetOpenAIImageIntentHint 只写入请求级 canonical 判定，不记录 attempt-local 结果。
 func SetOpenAIImageIntentHint(c *gin.Context, imageIntent bool) {
-	if c == nil || GetOpenAIClientTransport(c) != OpenAIClientTransportHTTP {
+	if c == nil || gatewayhttp.GetOpenAIClientTransport(c) != gatewayhttp.OpenAIClientTransportHTTP {
 		return
 	}
 	c.Set(openAIImageIntentHintContextKey, imageIntent)
 }
 
 func getOpenAIImageIntentHint(c *gin.Context) (imageIntent bool, known bool) {
-	if c == nil || GetOpenAIClientTransport(c) != OpenAIClientTransportHTTP {
+	if c == nil || gatewayhttp.GetOpenAIClientTransport(c) != gatewayhttp.OpenAIClientTransportHTTP {
 		return false, false
 	}
 	value, ok := c.Get(openAIImageIntentHintContextKey)
@@ -36,7 +40,7 @@ func resolveOpenAIImageIntentHint(
 	if imageIntent, known := getOpenAIImageIntentHint(c); known {
 		return imageIntent
 	}
-	imageIntent := classify(openAIResponsesEndpoint, requestedModel, canonicalBody)
+	imageIntent := classify(media.OpenAIResponsesEndpoint, requestedModel, canonicalBody)
 	SetOpenAIImageIntentHint(c, imageIntent)
 	return imageIntent
 }
@@ -53,7 +57,7 @@ func resolveOpenAIPassthroughImageIntent(
 	imageIntent := resolveOpenAIImageIntentHint(c, canonicalRequestedModel, canonicalBody, classify)
 	if attemptInvalidated {
 		// strip/compact 改写只重算当前 attempt，不得把变换后的结果写回请求级 canonical hint。
-		imageIntent = classify(openAIResponsesEndpoint, attemptRequestedModel, attemptBody)
+		imageIntent = classify(media.OpenAIResponsesEndpoint, attemptRequestedModel, attemptBody)
 	}
 	return imageIntent
 }

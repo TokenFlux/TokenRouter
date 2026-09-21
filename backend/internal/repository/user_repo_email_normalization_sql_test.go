@@ -5,6 +5,7 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/TokenFlux/TokenRouter/migrations"
 	"github.com/stretchr/testify/require"
 )
@@ -23,6 +24,6 @@ func TestNormalizedUserEmailSQLMatchesMigrationIndex(t *testing.T) {
 		}, value)
 	}
 	compactMigration := stripWhitespace(string(content))
-	compactQueryExpression := stripWhitespace(normalizedUserEmailSQL)
+	compactQueryExpression := stripWhitespace(postgres.IdentityNormalizedUserEmailSQL)
 	require.Contains(t, compactMigration, compactQueryExpression)
 }

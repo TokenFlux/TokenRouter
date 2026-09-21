@@ -8,15 +8,18 @@ import (
 	"context"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
 // ============================================================
-// StubConcurrencyCache — service.ConcurrencyCache 的空实现
+// StubConcurrencyCache — scheduler.ConcurrencyCache 的空实现
 // ============================================================
 
 // 编译期接口断言
-var _ service.ConcurrencyCache = StubConcurrencyCache{}
+var _ scheduler.ConcurrencyCache = StubConcurrencyCache{}
 
 // StubConcurrencyCache 是 ConcurrencyCache 的默认空实现，所有方法返回零值。
 type StubConcurrencyCache struct{}
@@ -52,17 +55,17 @@ func (c StubConcurrencyCache) IncrementWaitCount(_ context.Context, _ int64, _ i
 	return true, nil
 }
 func (c StubConcurrencyCache) DecrementWaitCount(_ context.Context, _ int64) error { return nil }
-func (c StubConcurrencyCache) GetAccountsLoadBatch(_ context.Context, accounts []service.AccountWithConcurrency) (map[int64]*service.AccountLoadInfo, error) {
-	result := make(map[int64]*service.AccountLoadInfo, len(accounts))
+func (c StubConcurrencyCache) GetAccountsLoadBatch(_ context.Context, accounts []scheduler.AccountWithConcurrency) (map[int64]*scheduler.AccountLoadInfo, error) {
+	result := make(map[int64]*scheduler.AccountLoadInfo, len(accounts))
 	for _, acc := range accounts {
-		result[acc.ID] = &service.AccountLoadInfo{AccountID: acc.ID, LoadRate: 0}
+		result[acc.ID] = &scheduler.AccountLoadInfo{AccountID: acc.ID, LoadRate: 0}
 	}
 	return result, nil
 }
-func (c StubConcurrencyCache) GetUsersLoadBatch(_ context.Context, users []service.UserWithConcurrency) (map[int64]*service.UserLoadInfo, error) {
-	result := make(map[int64]*service.UserLoadInfo, len(users))
+func (c StubConcurrencyCache) GetUsersLoadBatch(_ context.Context, users []scheduler.UserWithConcurrency) (map[int64]*scheduler.UserLoadInfo, error) {
+	result := make(map[int64]*scheduler.UserLoadInfo, len(users))
 	for _, u := range users {
-		result[u.ID] = &service.UserLoadInfo{UserID: u.ID, LoadRate: 0}
+		result[u.ID] = &scheduler.UserLoadInfo{UserID: u.ID, LoadRate: 0}
 	}
 	return result, nil
 }
@@ -84,10 +87,10 @@ func (c StubConcurrencyCache) CleanupStaleProcessSlots(_ context.Context, _ stri
 }
 
 // ============================================================
-// StubGatewayCache — service.GatewayCache 的空实现
+// StubGatewayCache — session.GatewayCache 的空实现
 // ============================================================
 
-var _ service.GatewayCache = StubGatewayCache{}
+var _ session.GatewayCache = StubGatewayCache{}
 
 type StubGatewayCache struct{}
 
@@ -128,10 +131,11 @@ func (c StubGatewayCache) ReleaseGrokVideoBilled(_ context.Context, _ string) er
 }
 
 // ============================================================
-// StubSessionLimitCache — service.SessionLimitCache 的空实现
+// StubSessionLimitCache — scheduler.SessionLimitCache 的空实现
 // ============================================================
 
-var _ service.SessionLimitCache = StubSessionLimitCache{}
+var _ scheduler.SessionLimitCache = StubSessionLimitCache{}
+var _ billing.WindowCostCache = StubSessionLimitCache{}
 
 type StubSessionLimitCache struct{}
 

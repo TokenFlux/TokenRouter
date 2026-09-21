@@ -2,9 +2,10 @@
 package account
 
 import (
-	singleflight "golang.org/x/sync/singleflight"
 	sync "sync"
 	time "time"
+
+	singleflight "golang.org/x/sync/singleflight"
 )
 
 type OAuthAPIUsageCache struct {

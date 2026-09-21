@@ -6,12 +6,13 @@ import (
 	context "context"
 	rand "crypto/rand"
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	protocol "github.com/go-webauthn/webauthn/protocol"
-	webauthn "github.com/go-webauthn/webauthn/webauthn"
 	io "io"
 	strings "strings"
 	time "time"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	protocol "github.com/go-webauthn/webauthn/protocol"
+	webauthn "github.com/go-webauthn/webauthn/webauthn"
 )
 
 const (

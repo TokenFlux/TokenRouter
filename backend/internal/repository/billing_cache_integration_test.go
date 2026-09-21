@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingredis "github.com/TokenFlux/TokenRouter/internal/billing/rediscache"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -21,18 +22,18 @@ type BillingCacheSuite struct {
 func (s *BillingCacheSuite) TestUserBalance() {
 	tests := []struct {
 		name string
-		fn   func(ctx context.Context, rdb *redis.Client, cache service.BillingCache)
+		fn   func(ctx context.Context, rdb *redis.Client, cache billing.BillingCache)
 	}{
 		{
 			name: "missing_key_returns_redis_nil",
-			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache billing.BillingCache) {
 				_, err := cache.GetUserBalance(ctx, 1)
 				require.ErrorIs(s.T(), err, redis.Nil, "expected redis.Nil for missing balance key")
 			},
 		},
 		{
 			name: "deduct_on_nonexistent_is_noop",
-			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache billing.BillingCache) {
 				userID := int64(1)
 				balanceKey := fmt.Sprintf("%s%d", "billing:balance:", userID)
 
@@ -44,7 +45,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 		},
 		{
 			name: "set_and_get_with_ttl",
-			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache billing.BillingCache) {
 				userID := int64(2)
 				balanceKey := fmt.Sprintf("%s%d", "billing:balance:", userID)
 
@@ -61,7 +62,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 		},
 		{
 			name: "deduct_reduces_balance",
-			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache billing.BillingCache) {
 				userID := int64(3)
 
 				require.NoError(s.T(), cache.SetUserBalance(ctx, userID, 10.5), "SetUserBalance")
@@ -74,7 +75,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 		},
 		{
 			name: "invalidate_removes_key",
-			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache billing.BillingCache) {
 				userID := int64(100)
 				balanceKey := fmt.Sprintf("%s%d", "billing:balance:", userID)
 
@@ -96,7 +97,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 		},
 		{
 			name: "deduct_refreshes_ttl",
-			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache billing.BillingCache) {
 				userID := int64(103)
 				balanceKey := fmt.Sprintf("%s%d", "billing:balance:", userID)
 
@@ -122,7 +123,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			rdb := testRedis(s.T())
-			cache := NewBillingCache(rdb)
+			cache := billingredis.NewBillingCache(rdb)
 			ctx := context.Background()
 
 			tt.fn(ctx, rdb, cache)
@@ -135,12 +136,12 @@ func (s *BillingCacheSuite) TestUserBalance() {
 func (s *BillingCacheSuite) TestDeductUserBalance_ErrorPropagation() {
 	tests := []struct {
 		name      string
-		fn        func(ctx context.Context, cache service.BillingCache)
+		fn        func(ctx context.Context, cache billing.BillingCache)
 		expectErr bool
 	}{
 		{
 			name: "key_not_exists_returns_nil",
-			fn: func(ctx context.Context, cache service.BillingCache) {
+			fn: func(ctx context.Context, cache billing.BillingCache) {
 				// key 不存在时，Lua 脚本返回 0（redis.Nil），应返回 nil 而非错误
 				err := cache.DeductUserBalance(ctx, 99999, 1.0)
 				require.NoError(s.T(), err, "DeductUserBalance on non-existent key should return nil")
@@ -148,7 +149,7 @@ func (s *BillingCacheSuite) TestDeductUserBalance_ErrorPropagation() {
 		},
 		{
 			name: "existing_key_deducts_successfully",
-			fn: func(ctx context.Context, cache service.BillingCache) {
+			fn: func(ctx context.Context, cache billing.BillingCache) {
 				require.NoError(s.T(), cache.SetUserBalance(ctx, 200, 50.0))
 				err := cache.DeductUserBalance(ctx, 200, 10.0)
 				require.NoError(s.T(), err, "DeductUserBalance should succeed")
@@ -160,7 +161,7 @@ func (s *BillingCacheSuite) TestDeductUserBalance_ErrorPropagation() {
 		},
 		{
 			name: "cancelled_context_propagates_error",
-			fn: func(ctx context.Context, cache service.BillingCache) {
+			fn: func(ctx context.Context, cache billing.BillingCache) {
 				require.NoError(s.T(), cache.SetUserBalance(ctx, 201, 50.0))
 
 				cancelCtx, cancel := context.WithCancel(ctx)
@@ -175,7 +176,7 @@ func (s *BillingCacheSuite) TestDeductUserBalance_ErrorPropagation() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			rdb := testRedis(s.T())
-			cache := NewBillingCache(rdb)
+			cache := billingredis.NewBillingCache(rdb)
 			ctx := context.Background()
 			tt.fn(ctx, cache)
 		})

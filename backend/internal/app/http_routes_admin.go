@@ -3,7 +3,7 @@ package app
 import (
 	routeaccount "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	routeapikey "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
-	native_apikey_httpapi_dto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+	"github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
 	routeaudit "github.com/TokenFlux/TokenRouter/internal/audit/httpapi"
 	routebackup "github.com/TokenFlux/TokenRouter/internal/backup/httpapi"
 	routebilling "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
@@ -16,13 +16,13 @@ import (
 	routeops "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
 	routepromotion "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
 	routerouting "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
-	native_routing_httpapi_dto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	routescheduler "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
 	routesearch "github.com/TokenFlux/TokenRouter/internal/search/httpapi"
 	serverhttp "github.com/TokenFlux/TokenRouter/internal/server/httpapi"
 	routesettings "github.com/TokenFlux/TokenRouter/internal/settings/httpapi"
 	routesite "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
-	native_team_httpapi "github.com/TokenFlux/TokenRouter/internal/team/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/team/httpapi"
 	routeusageadmin "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/admin"
 	gin "github.com/gin-gonic/gin"
 )
@@ -68,14 +68,14 @@ func provideAdminRouteMount(eAdminTLSFingerprintProfile *routeegress.TLSFingerpr
 	eAdminRedeem *routebilling.AdminRedeemHandler,
 	eNotification *routenotification.Handler,
 	eAdminBackup *routebackup.BackupHandler,
-	eAdminAPIKey *routeapikey.AdminAPIKeyHandler[native_routing_httpapi_dto.Group],
+	eAdminAPIKey *routeapikey.AdminAPIKeyHandler[routingdto.Group],
 	eAdminProxy *routeegress.ProxyHandler,
 	eAdminGroup *routerouting.GroupHandler,
 	eAdminOAuth *routeaccount.ClaudeOAuthHandler,
 	eAdminUsage *routeusageadmin.UsageHandler,
 	eAdminPromo *routepromotion.PromoHandler,
-	eAdminTeam *native_team_httpapi.AdminHandler,
-	eAdminUser *routeidentity.AdminUserHandler[native_apikey_httpapi_dto.APIKey[native_routing_httpapi_dto.Group]],
+	eAdminTeam *httpapi.AdminHandler,
+	eAdminUser *routeidentity.AdminUserHandler[dto.APIKey[routingdto.Group]],
 	eAdminOps *routeops.OpsHandler,
 	eSearch *routesearch.Handler) adminRouteMount {
 	return func(v1 *gin.RouterGroup, security httpRouteSecurity, protocolCatalog gin.HandlerFunc) {

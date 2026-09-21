@@ -71,7 +71,7 @@ Gemini 原生入口返回 Google 形状，Anthropic/OpenAI 入口返回对应客
 
 结果分别报告已观测 usage（包括显式零）、语义输出、旧 TTFT、内联图片张数及失败分类。`countTokens` 原有的本地估算单独携带，不计入实际 usage 或资金事实；旧调用者的图片回退与结算条件保持。流式输出不新增整流缓冲，也不统一不同入口的断开处理。
 
-Gemini 授权会话和三类 OAuth 编排、project/tier 发现、token 回填及刷新资格由 `account` 拥有；协议交换、Drive 与 Resource Manager 位于 `upstream/gemini/codeassist`。原 project/账号缓存键和刷新 CAS 保持。构造不启动清理，app 统一启动与停止；停止超时保留未完成状态，不把旧有限重试仍在收尾称为已排空。
+Gemini 授权会话和三类 OAuth 编排、project/tier 发现、token 回填及刷新资格由 `account.GeminiAuthorization` 拥有；协议交换、Drive 与 Resource Manager 位于 `upstream/gemini/codeassist`。app 直接构造授权实例，完整配置在 app 投影，provider 组合协议参数；动态 OAuth 配置仍在原调用时点读取。管理员 tier 刷新使用 account 的原生管理选项。原 project/账号缓存键和刷新 CAS 保持。构造不启动清理，app 统一启动与停止；停止超时保留未完成状态，不把旧有限重试仍在收尾称为已排空。
 
 Batch 客户端与 JSONL 编码、创作 generateContent 技术调用及图片解码已接入原生实现。`protocol/gemini` 为批量与创作保留明确 wire 变体；任务输入只投影必要字段，任务状态机、最后完成/清理和资金处理仍由原任务用例负责。Vertex URL/token 端口现已绑定 `upstream/vertex` 与账号缓存协调；Gemini 不 import Vertex，原生执行仍通过显式 URL/认证输入复用协议输出。
 
@@ -81,6 +81,6 @@ Batch 客户端与 JSONL 编码、创作 generateContent 技术调用及图片�
 
 `upstream/vertex` 拥有 project/location 端点、Claude 模型日期及 body 变体、Beta 过滤、Batch 与 GCS 技术调用。签名交换使用 `upstream/internal/googleauth` 的 RSA JWT 原语；只接收已投影密钥和代理，不读取账号、缓存或完整配置。凭据 JSON 的历史字段选择、显式 project 和逐模型 location 覆盖由 `account` 拥有。私钥不会进入通用执行结果。
 
-访问 token 继续使用 `vertex:service_account:` 身份摘要及原 Redis cache/lock、TTL 和五分钟偏移。竞争者正常等待 200ms 再读取缓存；B03 修复使等待取消立即返回取消错误，既不继续回读，也不发起交换。Redis 故障仍按原行为降级；本阶段不新增锁协议或多实例保证。
+访问 token 继续使用 `vertex:service_account:` 身份摘要及原 Redis cache/lock、TTL 和五分钟偏移。`account/provider` 唯一组合凭据解析、身份摘要、代理投影与交换，Claude、Gemini 和批量图片消费者共用该入口。竞争者正常等待 200ms 再读取缓存；B03 修复使等待取消立即返回取消错误，既不继续回读，也不发起交换。Redis 故障仍按原行为降级；本阶段不新增锁协议或多实例保证。
 
 Claude 与 Gemini 的单次执行继续复用已迁的协议输出链，Vertex 通过调用方投影接入，不建立平台间 import 或新的账号切换循环。Batch 提交、读取、取消和 GCS 上传/分页/删除/对象流只有一份技术实现；对象流仍由接收方关闭。任务归属、结果状态转换、受控清理及资金捕获保留在原任务用例，等待 S13。

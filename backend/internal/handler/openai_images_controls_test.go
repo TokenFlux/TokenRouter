@@ -6,6 +6,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -14,7 +24,6 @@ import (
 )
 
 func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw","size":"1024x1024"}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -23,22 +32,22 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 	groupID := int64(111)
-	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      222,
 		GroupID: &groupID,
-		Group: &service.Group{
+		Group: &routing.Group{
 			ID:                   groupID,
 			AllowImageGeneration: false,
 		},
-		User: &service.User{ID: 333},
+		User: &identity.User{ID: 333},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 333, Concurrency: 1})
 
 	h := &OpenAIGatewayHandler{
 		gatewayService:      &service.OpenAIGatewayService{},
-		billingCacheService: &service.BillingCacheService{},
-		apiKeyService:       &service.APIKeyService{},
-		concurrencyHelper:   NewConcurrencyHelper(&service.ConcurrencyService{}, SSEPingFormatNone, 0),
+		billingCacheService: &admission.FundingAdmission{},
+		apiKeyService:       &apikey.APIKeyService{},
+		concurrencyHelper:   gatewayhttp.NewConcurrencyHelper(&scheduler.ConcurrencyService{}, gatewayhttp.SSEPingFormatNone, 0),
 	}
 
 	h.Images(c)
@@ -50,13 +59,13 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 
 // TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel 验证同步 Images 入口在渠道映射后校验模型族。
 func TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	groupID := int64(112)
-	channelService := newGatewayModelsChannelServiceForTest(groupID, service.PlatformOpenAI, service.Channel{
+	channelService := newGatewayModelsChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
 		ID:     112,
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 		ModelMapping: map[string]map[string]string{
-			service.PlatformOpenAI: {
+			capability.PlatformOpenAI: {
 				"draw-alias":  "gpt-image-1",
 				"gpt-image-2": "gpt-5.4",
 			},
@@ -82,15 +91,15 @@ func TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = req
-			apiKey := &service.APIKey{
+			apiKey := &apikey.APIKey{
 				ID:      223,
 				GroupID: &groupID,
-				Group: &service.Group{
+				Group: &routing.Group{
 					ID:                   groupID,
-					Platform:             service.PlatformOpenAI,
+					Platform:             capability.PlatformOpenAI,
 					AllowImageGeneration: tt.allowImage,
 				},
-				User: &service.User{ID: 334},
+				User: &identity.User{ID: 334},
 			}
 			c.Set(string(middleware2.ContextKeyAPIKey), apiKey)
 			c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 334, Concurrency: 1})

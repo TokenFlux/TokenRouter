@@ -9,11 +9,17 @@ import (
 	"strings"
 	"testing"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -21,7 +27,7 @@ type GroupRepoSuite struct {
 	suite.Suite
 	ctx  context.Context
 	tx   *dbent.Tx
-	repo *groupRepository
+	repo *routingpostgres.GroupStore
 }
 
 type forbidSQLExecutor struct {
@@ -42,7 +48,7 @@ func (s *GroupRepoSuite) SetupTest() {
 	s.ctx = context.Background()
 	tx := testEntTx(s.T())
 	s.tx = tx
-	s.repo = newGroupRepositoryWithSQL(tx.Client(), tx)
+	s.repo = newGroupStoreFixture(tx.Client(), tx)
 }
 
 func TestGroupRepoSuite(t *testing.T) {
@@ -53,16 +59,16 @@ func TestGroupRepoSuite(t *testing.T) {
 
 func (s *GroupRepoSuite) TestCreate() {
 	webSearchPrice := 0.008
-	group := &service.Group{
+	group := &routing.Group{
 		Name:                  "test-create",
-		Platform:              service.PlatformOpenAI,
+		Platform:              capability.PlatformOpenAI,
 		RateMultiplier:        1.0,
 		IsExclusive:           false,
-		Status:                service.StatusActive,
+		Status:                billing.StatusActive,
 		WebSearchPricePerCall: &webSearchPrice,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformOpenAI),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformOpenAI),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformOpenAI),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformOpenAI),
 		ResponsesImagePolicy: "inherit",
 	}
 
@@ -78,15 +84,15 @@ func (s *GroupRepoSuite) TestCreate() {
 }
 
 func (s *GroupRepoSuite) TestCreateFromSourcePreservesPriorityAndFiltersIneligibleAccounts() {
-	source := &service.Group{
+	source := &routing.Group{
 		Name:             "duplicate-source",
-		Platform:         service.PlatformOpenAI,
+		Platform:         capability.PlatformOpenAI,
 		RateMultiplier:   1,
-		Status:           service.StatusActive,
+		Status:           billing.StatusActive,
 		RequireOAuthOnly: true,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformOpenAI),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformOpenAI),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformOpenAI),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformOpenAI),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, source))
@@ -101,14 +107,14 @@ func (s *GroupRepoSuite) TestCreateFromSourcePreservesPriorityAndFiltersIneligib
 			s.ctx,
 			s.tx,
 			"INSERT INTO accounts (name, platform, type, deleted_at) VALUES ($1, $2, $3, $4) RETURNING id",
-			[]any{name, service.PlatformOpenAI, accountType, deletedAt},
+			[]any{name, capability.PlatformOpenAI, accountType, deletedAt},
 			&id,
 		))
 		return id
 	}
-	oauthID := insertAccount("duplicate-oauth", service.AccountTypeOAuth, false)
-	apiKeyID := insertAccount("duplicate-apikey", service.AccountTypeAPIKey, false)
-	deletedID := insertAccount("duplicate-deleted", service.AccountTypeOAuth, true)
+	oauthID := insertAccount("duplicate-oauth", capability.AccountTypeOAuth, false)
+	apiKeyID := insertAccount("duplicate-apikey", capability.AccountTypeAPIKey, false)
+	deletedID := insertAccount("duplicate-deleted", capability.AccountTypeOAuth, true)
 	for _, accountID := range []int64{oauthID, apiKeyID, deletedID} {
 		_, err := s.tx.ExecContext(
 			s.ctx,
@@ -119,7 +125,7 @@ func (s *GroupRepoSuite) TestCreateFromSourcePreservesPriorityAndFiltersIneligib
 		s.Require().NoError(err)
 	}
 
-	duplicate := &service.Group{
+	duplicate := &routing.Group{
 		Name:                 "duplicate-source (Copy)",
 		Platform:             source.Platform,
 		RateMultiplier:       source.RateMultiplier,
@@ -127,8 +133,8 @@ func (s *GroupRepoSuite) TestCreateFromSourcePreservesPriorityAndFiltersIneligib
 		RequireOAuthOnly:     true,
 		DuplicateOperationID: strings.Repeat("a", 64),
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(source.Platform),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(source.Platform),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(source.Platform),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(source.Platform),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.CreateFromSource(s.ctx, duplicate, source.ID))
@@ -165,25 +171,25 @@ func (s *GroupRepoSuite) TestCreateFromSourcePreservesPriorityAndFiltersIneligib
 func (s *GroupRepoSuite) TestGetByID_NotFound() {
 	_, err := s.repo.GetByID(s.ctx, 999999)
 	s.Require().Error(err, "expected error for non-existent ID")
-	s.Require().ErrorIs(err, service.ErrGroupNotFound)
+	s.Require().ErrorIs(err, routing.ErrGroupNotFound)
 }
 
 func (s *GroupRepoSuite) TestGetByIDLite_DoesNotUseAccountCount() {
-	group := &service.Group{
+	group := &routing.Group{
 		Name:           "lite-group",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
 
 	spy := &forbidSQLExecutor{}
-	repo := newGroupRepositoryWithSQL(s.tx.Client(), spy)
+	repo := newGroupStoreFixture(s.tx.Client(), spy)
 
 	got, err := repo.GetByIDLite(s.ctx, group.ID)
 	s.Require().NoError(err)
@@ -192,15 +198,15 @@ func (s *GroupRepoSuite) TestGetByIDLite_DoesNotUseAccountCount() {
 }
 
 func (s *GroupRepoSuite) TestUpdate() {
-	group := &service.Group{
+	group := &routing.Group{
 		Name:           "original",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
@@ -215,20 +221,20 @@ func (s *GroupRepoSuite) TestUpdate() {
 }
 
 func (s *GroupRepoSuite) TestGetByID_PreservesMessagesDispatchModelConfig() {
-	group := &service.Group{
+	group := &routing.Group{
 		Name:           "openai-dispatch",
-		Platform:       service.PlatformOpenAI,
+		Platform:       capability.PlatformOpenAI,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
-		AllowedProtocols: []domain.ProtocolID{
-			domain.ProtocolAnthropicMessages,
-			domain.ProtocolOpenAIResponses,
-			domain.ProtocolOpenAIChatCompletions,
+		Status:         billing.StatusActive,
+		AllowedProtocols: []protocol.ProtocolID{
+			protocol.ProtocolAnthropicMessages,
+			protocol.ProtocolOpenAIResponses,
+			protocol.ProtocolOpenAIChatCompletions,
 		},
 		AllowMessagesDispatch: true,
 		DefaultMappedModel:    "gpt-5.4",
-		MessagesDispatchModelConfig: service.OpenAIMessagesDispatchModelConfig{
+		MessagesDispatchModelConfig: routing.OpenAIMessagesDispatchModelConfig{
 			OpusMappedModel:   "gpt-5.4",
 			SonnetMappedModel: "gpt-5.3-codex",
 			HaikuMappedModel:  "gpt-5.4-mini",
@@ -237,7 +243,7 @@ func (s *GroupRepoSuite) TestGetByID_PreservesMessagesDispatchModelConfig() {
 			},
 		},
 
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformOpenAI),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformOpenAI),
 		ResponsesImagePolicy: "inherit",
 	}
 
@@ -250,15 +256,15 @@ func (s *GroupRepoSuite) TestGetByID_PreservesMessagesDispatchModelConfig() {
 }
 
 func (s *GroupRepoSuite) TestDelete() {
-	group := &service.Group{
+	group := &routing.Group{
 		Name:           "to-delete",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
@@ -268,7 +274,7 @@ func (s *GroupRepoSuite) TestDelete() {
 
 	_, err = s.repo.GetByID(s.ctx, group.ID)
 	s.Require().Error(err, "expected error after delete")
-	s.Require().ErrorIs(err, service.ErrGroupNotFound)
+	s.Require().ErrorIs(err, routing.ErrGroupNotFound)
 }
 
 // --- List / ListWithFilters ---
@@ -277,26 +283,26 @@ func (s *GroupRepoSuite) TestList() {
 	baseGroups, basePage, err := s.repo.List(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10})
 	s.Require().NoError(err, "List base")
 
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g2",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
 
@@ -310,96 +316,96 @@ func (s *GroupRepoSuite) TestListWithFilters_Platform() {
 	baseGroups, _, err := s.repo.ListWithFilters(
 		s.ctx,
 		pagination.PaginationParams{Page: 1, PageSize: 10},
-		service.PlatformOpenAI,
+		capability.PlatformOpenAI,
 		"",
 		"",
 		nil,
 	)
 	s.Require().NoError(err, "ListWithFilters base")
 
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g2",
-		Platform:       service.PlatformOpenAI,
+		Platform:       capability.PlatformOpenAI,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformOpenAI),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformOpenAI),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformOpenAI),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformOpenAI),
 		ResponsesImagePolicy: "inherit",
 	}))
 
-	groups, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, service.PlatformOpenAI, "", "", nil)
+	groups, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, capability.PlatformOpenAI, "", "", nil)
 	s.Require().NoError(err)
 	s.Require().Len(groups, len(baseGroups)+1)
 	// Verify all groups are OpenAI platform
 	for _, g := range groups {
-		s.Require().Equal(service.PlatformOpenAI, g.Platform)
+		s.Require().Equal(capability.PlatformOpenAI, g.Platform)
 	}
 }
 
 func (s *GroupRepoSuite) TestListWithFilters_Status() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g2",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusDisabled,
+		Status:         billing.StatusDisabled,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
 
-	groups, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, "", service.StatusDisabled, "", nil)
+	groups, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, "", billing.StatusDisabled, "", nil)
 	s.Require().NoError(err)
 	s.Require().Len(groups, 1)
-	s.Require().Equal(service.StatusDisabled, groups[0].Status)
+	s.Require().Equal(billing.StatusDisabled, groups[0].Status)
 }
 
 func (s *GroupRepoSuite) TestListWithFilters_IsExclusive() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g2",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    true,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
 
@@ -411,12 +417,12 @@ func (s *GroupRepoSuite) TestListWithFilters_IsExclusive() {
 }
 
 func (s *GroupRepoSuite) TestListWithFilters_Search() {
-	newRepo := func() (*groupRepository, context.Context) {
+	newRepo := func() (*routingpostgres.GroupStore, context.Context) {
 		tx := testEntTx(s.T())
-		return newGroupRepositoryWithSQL(tx.Client(), tx), context.Background()
+		return newGroupStoreFixture(tx.Client(), tx), context.Background()
 	}
 
-	containsID := func(groups []service.Group, id int64) bool {
+	containsID := func(groups []routing.Group, id int64) bool {
 		for i := range groups {
 			if groups[i].ID == id {
 				return true
@@ -425,22 +431,22 @@ func (s *GroupRepoSuite) TestListWithFilters_Search() {
 		return false
 	}
 
-	mustCreate := func(repo *groupRepository, ctx context.Context, g *service.Group) *service.Group {
+	mustCreate := func(repo *routingpostgres.GroupStore, ctx context.Context, g *routing.Group) *routing.Group {
 		s.Require().NoError(repo.Create(ctx, g))
 		s.Require().NotZero(g.ID)
 		return g
 	}
 
-	newGroup := func(name string) *service.Group {
-		return &service.Group{
+	newGroup := func(name string) *routing.Group {
+		return &routing.Group{
 			Name:           name,
-			Platform:       service.PlatformAnthropic,
+			Platform:       capability.PlatformAnthropic,
 			RateMultiplier: 1.0,
 			IsExclusive:    false,
-			Status:         service.StatusActive,
+			Status:         billing.StatusActive,
 
-			AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-			ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+			AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+			ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 			ResponsesImagePolicy: "inherit",
 		}
 	}
@@ -519,44 +525,44 @@ func (s *GroupRepoSuite) TestListWithFilters_Search() {
 }
 
 func (s *GroupRepoSuite) TestUpdateSortOrders_BatchCaseWhen() {
-	g1 := &service.Group{
+	g1 := &routing.Group{
 		Name:           "sort-g1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
-	g2 := &service.Group{
+	g2 := &routing.Group{
 		Name:           "sort-g2",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
-	g3 := &service.Group{
+	g3 := &routing.Group{
 		Name:           "sort-g3",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g1))
 	s.Require().NoError(s.repo.Create(s.ctx, g2))
 	s.Require().NoError(s.repo.Create(s.ctx, g3))
 
-	err := s.repo.UpdateSortOrders(s.ctx, []service.GroupSortOrderUpdate{
+	err := s.repo.UpdateSortOrders(s.ctx, []routing.GroupSortOrderUpdate{
 		{ID: g1.ID, SortOrder: 30},
 		{ID: g2.ID, SortOrder: 10},
 		{ID: g3.ID, SortOrder: 20},
@@ -576,15 +582,15 @@ func (s *GroupRepoSuite) TestUpdateSortOrders_BatchCaseWhen() {
 }
 
 func (s *GroupRepoSuite) TestUpdateSortOrders_MissingGroupNoPartialUpdate() {
-	g1 := &service.Group{
+	g1 := &routing.Group{
 		Name:           "sort-no-partial",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g1))
@@ -593,12 +599,12 @@ func (s *GroupRepoSuite) TestUpdateSortOrders_MissingGroupNoPartialUpdate() {
 	s.Require().NoError(err)
 	beforeSort := before.SortOrder
 
-	err = s.repo.UpdateSortOrders(s.ctx, []service.GroupSortOrderUpdate{
+	err = s.repo.UpdateSortOrders(s.ctx, []routing.GroupSortOrderUpdate{
 		{ID: g1.ID, SortOrder: 99},
 		{ID: 99999999, SortOrder: 1},
 	})
 	s.Require().Error(err)
-	s.Require().ErrorIs(err, service.ErrGroupNotFound)
+	s.Require().ErrorIs(err, routing.ErrGroupNotFound)
 
 	after, err := s.repo.GetByID(s.ctx, g1.ID)
 	s.Require().NoError(err)
@@ -606,26 +612,26 @@ func (s *GroupRepoSuite) TestUpdateSortOrders_MissingGroupNoPartialUpdate() {
 }
 
 func (s *GroupRepoSuite) TestListWithFilters_AccountCount() {
-	g1 := &service.Group{
+	g1 := &routing.Group{
 		Name:           "g1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
-	g2 := &service.Group{
+	g2 := &routing.Group{
 		Name:           "g2",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    true,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g1))
@@ -636,7 +642,7 @@ func (s *GroupRepoSuite) TestListWithFilters_AccountCount() {
 		s.ctx,
 		s.tx,
 		"INSERT INTO accounts (name, platform, type) VALUES ($1, $2, $3) RETURNING id",
-		[]any{"acc1", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"acc1", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&accountID,
 	))
 	_, err := s.tx.ExecContext(s.ctx, "INSERT INTO account_groups (account_id, group_id, created_at) VALUES ($1, $2, NOW())", accountID, g1.ID)
@@ -645,7 +651,7 @@ func (s *GroupRepoSuite) TestListWithFilters_AccountCount() {
 	s.Require().NoError(err)
 
 	isExclusive := true
-	groups, page, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, service.PlatformAnthropic, service.StatusActive, "", &isExclusive)
+	groups, page, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, capability.PlatformAnthropic, billing.StatusActive, "", &isExclusive)
 	s.Require().NoError(err, "ListWithFilters")
 	s.Require().Equal(int64(1), page.Total)
 	s.Require().Len(groups, 1)
@@ -659,26 +665,26 @@ func (s *GroupRepoSuite) TestListActive() {
 	baseGroups, err := s.repo.ListActive(s.ctx)
 	s.Require().NoError(err, "ListActive base")
 
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "active1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "inactive1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusDisabled,
+		Status:         billing.StatusDisabled,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
 
@@ -697,41 +703,41 @@ func (s *GroupRepoSuite) TestListActive() {
 }
 
 func (s *GroupRepoSuite) TestListActiveByPlatform() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g1",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g2",
-		Platform:       service.PlatformOpenAI,
+		Platform:       capability.PlatformOpenAI,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformOpenAI),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformOpenAI),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformOpenAI),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformOpenAI),
 		ResponsesImagePolicy: "inherit",
 	}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "g3",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusDisabled,
+		Status:         billing.StatusDisabled,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
 
-	groups, err := s.repo.ListActiveByPlatform(s.ctx, service.PlatformAnthropic)
+	groups, err := s.repo.ListActiveByPlatform(s.ctx, capability.PlatformAnthropic)
 	s.Require().NoError(err, "ListActiveByPlatform")
 	// 1 default anthropic group + 1 test active anthropic group = 2 total
 	s.Require().Len(groups, 2)
@@ -749,15 +755,15 @@ func (s *GroupRepoSuite) TestListActiveByPlatform() {
 // --- ExistsByName ---
 
 func (s *GroupRepoSuite) TestExistsByName() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.Group{
+	s.Require().NoError(s.repo.Create(s.ctx, &routing.Group{
 		Name:           "existing-group",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}))
 
@@ -773,15 +779,15 @@ func (s *GroupRepoSuite) TestExistsByName() {
 // --- GetAccountCount ---
 
 func (s *GroupRepoSuite) TestGetAccountCount() {
-	group := &service.Group{
+	group := &routing.Group{
 		Name:           "g-count",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
@@ -791,7 +797,7 @@ func (s *GroupRepoSuite) TestGetAccountCount() {
 		s.ctx,
 		s.tx,
 		"INSERT INTO accounts (name, platform, type) VALUES ($1, $2, $3) RETURNING id",
-		[]any{"a1", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"a1", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&a1,
 	))
 	var a2 int64
@@ -799,7 +805,7 @@ func (s *GroupRepoSuite) TestGetAccountCount() {
 		s.ctx,
 		s.tx,
 		"INSERT INTO accounts (name, platform, type) VALUES ($1, $2, $3) RETURNING id",
-		[]any{"a2", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"a2", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&a2,
 	))
 
@@ -814,15 +820,15 @@ func (s *GroupRepoSuite) TestGetAccountCount() {
 }
 
 func (s *GroupRepoSuite) TestGetAccountCount_Empty() {
-	group := &service.Group{
+	group := &routing.Group{
 		Name:           "g-empty",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
@@ -836,15 +842,15 @@ func (s *GroupRepoSuite) TestGetAccountCount_Empty() {
 // 当分组内存在 disabled 或 schedulable=false 的账号时，ActiveAccountCount 必须小于 AccountCount，
 // 且与 GetAccountCount 返回的 active 值一致。
 func (s *GroupRepoSuite) TestListWithFilters_ActiveAccountCount_LessThanTotal() {
-	g := &service.Group{
+	g := &routing.Group{
 		Name:           "g-mixed-status",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g))
@@ -854,7 +860,7 @@ func (s *GroupRepoSuite) TestListWithFilters_ActiveAccountCount_LessThanTotal() 
 		s.Require().NoError(scanSingleRow(
 			s.ctx, s.tx,
 			"INSERT INTO accounts (name, platform, type, status, schedulable) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-			[]any{name, service.PlatformAnthropic, service.AccountTypeOAuth, status, schedulable},
+			[]any{name, capability.PlatformAnthropic, capability.AccountTypeOAuth, status, schedulable},
 			&id,
 		))
 		return id
@@ -867,20 +873,20 @@ func (s *GroupRepoSuite) TestListWithFilters_ActiveAccountCount_LessThanTotal() 
 	}
 
 	// 账号 1：active + schedulable，同时计入 total 与 active。
-	link(insertAccount("acc-active-sched", service.StatusActive, true))
+	link(insertAccount("acc-active-sched", billing.StatusActive, true))
 	// 账号 2：disabled，仅计入 total。
-	link(insertAccount("acc-disabled", service.StatusDisabled, true))
+	link(insertAccount("acc-disabled", billing.StatusDisabled, true))
 	// 账号 3：active 但不可调度，仅计入 total。
-	link(insertAccount("acc-unschedulable", service.StatusActive, false))
+	link(insertAccount("acc-unschedulable", billing.StatusActive, false))
 
 	// --- ListWithFilters 路径 ---
 	isExclusive := false
 	groups, _, err := s.repo.ListWithFilters(s.ctx,
 		pagination.PaginationParams{Page: 1, PageSize: 100},
-		service.PlatformAnthropic, service.StatusActive, "", &isExclusive)
+		capability.PlatformAnthropic, billing.StatusActive, "", &isExclusive)
 	s.Require().NoError(err)
 
-	var found *service.Group
+	var found *routing.Group
 	for i := range groups {
 		if groups[i].ID == g.ID {
 			found = &groups[i]
@@ -902,15 +908,15 @@ func (s *GroupRepoSuite) TestListWithFilters_ActiveAccountCount_LessThanTotal() 
 // rate_limit / overload / temp_unschedulable 都会让账号退出当前调度池，
 // 因此 ActiveAccountCount 必须与真实调度查询口径一致。
 func (s *GroupRepoSuite) TestListWithFilters_RateLimitedAccountCount() {
-	g := &service.Group{
+	g := &routing.Group{
 		Name:           "g-rate-limited",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g))
@@ -918,31 +924,31 @@ func (s *GroupRepoSuite) TestListWithFilters_RateLimitedAccountCount() {
 	var normalID int64
 	s.Require().NoError(scanSingleRow(s.ctx, s.tx,
 		"INSERT INTO accounts (name, platform, type) VALUES ($1, $2, $3) RETURNING id",
-		[]any{"acc-normal", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"acc-normal", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&normalID))
 
 	var rateLimitedID int64
 	s.Require().NoError(scanSingleRow(s.ctx, s.tx,
 		"INSERT INTO accounts (name, platform, type, rate_limit_reset_at) VALUES ($1, $2, $3, NOW() + INTERVAL '1 hour') RETURNING id",
-		[]any{"acc-rate-limited", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"acc-rate-limited", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&rateLimitedID))
 
 	var overloadedID int64
 	s.Require().NoError(scanSingleRow(s.ctx, s.tx,
 		"INSERT INTO accounts (name, platform, type, overload_until) VALUES ($1, $2, $3, NOW() + INTERVAL '1 hour') RETURNING id",
-		[]any{"acc-overloaded", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"acc-overloaded", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&overloadedID))
 
 	var tempUnschedulableID int64
 	s.Require().NoError(scanSingleRow(s.ctx, s.tx,
 		"INSERT INTO accounts (name, platform, type, temp_unschedulable_until) VALUES ($1, $2, $3, NOW() + INTERVAL '1 hour') RETURNING id",
-		[]any{"acc-temp-unschedulable", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"acc-temp-unschedulable", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&tempUnschedulableID))
 
 	var expiredID int64
 	s.Require().NoError(scanSingleRow(s.ctx, s.tx,
 		"INSERT INTO accounts (name, platform, type, expires_at, auto_pause_on_expired) VALUES ($1, $2, $3, NOW() - INTERVAL '1 hour', TRUE) RETURNING id",
-		[]any{"acc-expired", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"acc-expired", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&expiredID))
 
 	_, err := s.tx.ExecContext(s.ctx,
@@ -969,10 +975,10 @@ func (s *GroupRepoSuite) TestListWithFilters_RateLimitedAccountCount() {
 	isExclusive := false
 	groups, _, err := s.repo.ListWithFilters(s.ctx,
 		pagination.PaginationParams{Page: 1, PageSize: 100},
-		service.PlatformAnthropic, service.StatusActive, "", &isExclusive)
+		capability.PlatformAnthropic, billing.StatusActive, "", &isExclusive)
 	s.Require().NoError(err)
 
-	var found *service.Group
+	var found *routing.Group
 	for i := range groups {
 		if groups[i].ID == g.ID {
 			found = &groups[i]
@@ -999,15 +1005,15 @@ func (s *GroupRepoSuite) TestListWithFilters_RateLimitedAccountCount() {
 // --- DeleteAccountGroupsByGroupID ---
 
 func (s *GroupRepoSuite) TestDeleteAccountGroupsByGroupID() {
-	g := &service.Group{
+	g := &routing.Group{
 		Name:           "g-del",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g))
@@ -1016,7 +1022,7 @@ func (s *GroupRepoSuite) TestDeleteAccountGroupsByGroupID() {
 		s.ctx,
 		s.tx,
 		"INSERT INTO accounts (name, platform, type) VALUES ($1, $2, $3) RETURNING id",
-		[]any{"acc-del", service.PlatformAnthropic, service.AccountTypeOAuth},
+		[]any{"acc-del", capability.PlatformAnthropic, capability.AccountTypeOAuth},
 		&accountID,
 	))
 	_, err := s.tx.ExecContext(s.ctx, "INSERT INTO account_groups (account_id, group_id, created_at) VALUES ($1, $2, NOW())", accountID, g.ID)
@@ -1032,15 +1038,15 @@ func (s *GroupRepoSuite) TestDeleteAccountGroupsByGroupID() {
 }
 
 func (s *GroupRepoSuite) TestDeleteAccountGroupsByGroupID_MultipleAccounts() {
-	g := &service.Group{
+	g := &routing.Group{
 		Name:           "g-multi",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, g))
@@ -1051,7 +1057,7 @@ func (s *GroupRepoSuite) TestDeleteAccountGroupsByGroupID_MultipleAccounts() {
 			s.ctx,
 			s.tx,
 			"INSERT INTO accounts (name, platform, type) VALUES ($1, $2, $3) RETURNING id",
-			[]any{name, service.PlatformAnthropic, service.AccountTypeOAuth},
+			[]any{name, capability.PlatformAnthropic, capability.AccountTypeOAuth},
 			&id,
 		))
 		return id
@@ -1077,15 +1083,15 @@ func (s *GroupRepoSuite) TestDeleteAccountGroupsByGroupID_MultipleAccounts() {
 // --- 软删除过滤测试 ---
 
 func (s *GroupRepoSuite) TestDelete_SoftDelete_NotVisibleInList() {
-	group := &service.Group{
+	group := &routing.Group{
 		Name:           "to-soft-delete",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
@@ -1107,19 +1113,19 @@ func (s *GroupRepoSuite) TestDelete_SoftDelete_NotVisibleInList() {
 	// 验证 GetByID 也无法找到
 	_, err = s.repo.GetByID(s.ctx, group.ID)
 	s.Require().Error(err)
-	s.Require().ErrorIs(err, service.ErrGroupNotFound)
+	s.Require().ErrorIs(err, routing.ErrGroupNotFound)
 }
 
 func (s *GroupRepoSuite) TestDelete_SoftDeletedGroup_lockForUpdate() {
-	group := &service.Group{
+	group := &routing.Group{
 		Name:           "lock-soft-delete",
-		Platform:       service.PlatformAnthropic,
+		Platform:       capability.PlatformAnthropic,
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
-		Status:         service.StatusActive,
+		Status:         billing.StatusActive,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformAnthropic),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
@@ -1132,22 +1138,22 @@ func (s *GroupRepoSuite) TestDelete_SoftDeletedGroup_lockForUpdate() {
 	// 这证明 lockForUpdate 的 deleted_at IS NULL 过滤正在工作
 	_, err = s.repo.GetByID(s.ctx, group.ID)
 	s.Require().Error(err, "should fail to get soft-deleted group")
-	s.Require().ErrorIs(err, service.ErrGroupNotFound)
+	s.Require().ErrorIs(err, routing.ErrGroupNotFound)
 }
 
 // TestModelPricingRoundTrip 验证分组完整价卡通过 JSONB 创建、更新和清空，不需要新增表列。
 func (s *GroupRepoSuite) TestModelPricingRoundTrip() {
 	fast, flex, max, price, outputMultiplier := 1.5, 0.4, 2.0, 0.0, 3.0
-	group := &service.Group{Name: "pricing-roundtrip", Platform: service.PlatformOpenAI, RateMultiplier: 1,
-		Status: service.StatusActive, LongContextPricingEnabled: true, FreeOpenAIFast: true,
-		ModelPricing: []service.ChannelModelPricing{{Platform: service.PlatformOpenAI, Models: []string{"gpt-test"}, BillingMode: service.BillingModeToken,
+	group := &routing.Group{Name: "pricing-roundtrip", Platform: capability.PlatformOpenAI, RateMultiplier: 1,
+		Status: billing.StatusActive, LongContextPricingEnabled: true, FreeOpenAIFast: true,
+		ModelPricing: []routing.ChannelModelPricing{{Platform: capability.PlatformOpenAI, Models: []string{"gpt-test"}, BillingMode: routing.BillingModeToken,
 			InputPrice: &price, FastMultiplier: &fast, FlexMultiplier: &flex, MaxReasoningEffortMultiplier: &max,
-			Intervals: []service.PricingInterval{{MinTokens: 100, OutputMultiplier: &outputMultiplier}},
-			TimePricing: &service.ChannelTimePricing{Timezone: "Asia/Tokyo", WeekdaysOnly: true,
-				Periods: []service.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 0.5}}}}},
+			Intervals: []routing.PricingInterval{{MinTokens: 100, OutputMultiplier: &outputMultiplier}},
+			TimePricing: &routing.ChannelTimePricing{Timezone: "Asia/Tokyo", WeekdaysOnly: true,
+				Periods: []routing.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 0.5}}}}},
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformOpenAI),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformOpenAI),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(capability.PlatformOpenAI),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(capability.PlatformOpenAI),
 		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
@@ -1162,7 +1168,7 @@ func (s *GroupRepoSuite) TestModelPricingRoundTrip() {
 	updated, err := s.repo.GetByID(s.ctx, got.ID)
 	s.Require().NoError(err)
 	s.Require().Equal(got.ModelPricing, updated.ModelPricing)
-	updated.ModelPricing = []service.ChannelModelPricing{}
+	updated.ModelPricing = []routing.ChannelModelPricing{}
 	s.Require().NoError(s.repo.Update(s.ctx, updated))
 	empty, err := s.repo.GetByID(s.ctx, updated.ID)
 	s.Require().NoError(err)

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
@@ -20,6 +21,8 @@ func NewResponsesExecutor(runtime ResponseRuntime, standard, responses ResponseO
 	return &ResponsesExecutor{runtime, standard, responses}
 }
 func (e *ResponsesExecutor) Execute(ctx context.Context, in execution.Request, sink upstream.OutputSink) (execution.ExecutionResult, error) {
+	ctx = requeststate.WithExecutionHints(ctx, in.Hints)
+	ctx = requeststate.WithRoutingState(ctx, in.Routing)
 	session, err := e.runtime.Open(ctx, in, sink)
 	if err != nil {
 		return execution.ExecutionResult{}, err

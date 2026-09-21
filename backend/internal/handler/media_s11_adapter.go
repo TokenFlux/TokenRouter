@@ -2,16 +2,30 @@
 package handler
 
 import (
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	routingerrors "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	"context"
 	"errors"
 	"net/http"
 	"strings"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	upstreamgrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -22,28 +36,28 @@ type generationRequestAdapter struct {
 	grok                                    bool
 	h                                       *OpenAIGatewayHandler
 	c                                       *gin.Context
-	apiKey                                  *service.APIKey
+	apiKey                                  *apikey.APIKey
 	subject                                 middleware2.AuthSubject
-	subscription                            *service.UserSubscription
+	subscription                            *billing.UserSubscription
 	reqLog                                  *zap.Logger
 	streamStarted                           *bool
-	parsed                                  *service.OpenAIImagesRequest
+	parsed                                  *gatewaymedia.ImageRequest
 	body                                    []byte
 	requestModel, routingModel, sessionHash string
-	channelMapping                          service.ChannelMappingResult
-	endpoint                                service.GrokMediaEndpoint
+	channelMapping                          routingerrors.ChannelMappingResult
+	endpoint                                upstreamgrok.GrokMediaEndpoint
 	requestID, contentType, videoCreated    string
 	boundAccountID                          int64
 	selection                               *service.AccountSelectionResult
-	decision                                service.OpenAIAccountScheduleDecision
-	oauth429                                service.OpenAIOAuth429FailoverState
+	decision                                scheduler.PlatformDecision
+	oauth429                                failover.OAuth429State
 	writerBefore                            int
 }
 
 func (p *generationRequestAdapter) SelectGeneration(ctx context.Context, excluded map[int64]struct{}) (gatewaymedia.GenerationSelection, bool, error) {
 	var err error
 	if p.grok {
-		p.selection, p.decision, err = p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", p.sessionHash, p.routingModel, excluded, service.OpenAIUpstreamTransportHTTPSSE, grokMediaRequiredCapability(p.endpoint), false, false, service.PlatformGrok)
+		p.selection, p.decision, err = p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", p.sessionHash, p.routingModel, excluded, egress.OpenAIUpstreamTransportHTTPSSE, grokMediaRequiredCapability(p.endpoint), false, false, capability.PlatformGrok)
 	} else {
 		p.selection, p.decision, err = p.h.gatewayService.SelectAccountWithSchedulerForImages(ctx, p.apiKey.GroupID, p.sessionHash, p.requestModel, excluded, p.parsed.RequiredCapability)
 	}
@@ -61,7 +75,7 @@ func (p *generationRequestAdapter) ActivateGeneration(_ gatewaymedia.GenerationS
 	if !p.grok {
 		p.reqLog.Debug("openai.images.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
 	}
-	setOpsSelectedAccount(p.c, account.ID, account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(p.c, account.ID, account.Platform)
 }
 
 func (p *generationRequestAdapter) GenerationEligible(ctx context.Context, _ gatewaymedia.GenerationSelection) (bool, string, error) {
@@ -79,7 +93,7 @@ func (p *generationRequestAdapter) StartGenerationKeepalive() func() {
 }
 func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gatewaymedia.GenerationSelection, body []byte) gatewaymedia.GenerationOutcome {
 	account := p.selection.Account
-	var result *service.OpenAIForwardResult
+	var result *forwardcore.OpenAIResult
 	var err error
 	p.writerBefore = p.c.Writer.Size()
 	if p.grok {
@@ -97,15 +111,15 @@ func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gate
 		after = service.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(p.c)
 	}
 	outcome := gatewaymedia.GenerationOutcome{Result: generationResultView(result), Err: err, OutputChanged: after != p.writerBefore}
-	var failure *service.UpstreamFailoverError
+	var failure *forwardcore.UpstreamFailoverError
 	if errors.As(err, &failure) {
 		outcome.Failure = failure.RetryFailure()
 		outcome.ReportFailure = failure.ShouldReportAccountScheduleFailure()
 	}
-	var imageErr *service.OpenAIImagesUpstreamError
+	var imageErr *openai.OpenAIImagesUpstreamError
 	if errors.As(err, &imageErr) {
 		outcome.ImageError = true
-		outcome.ImageErrorRetryable = service.IsOpenAIImagesRetryableUpstreamError(imageErr)
+		outcome.ImageErrorRetryable = openai.IsOpenAIImagesRetryableUpstreamError(imageErr)
 		outcome.ImageErrorStatus = imageErr.StatusCode
 		outcome.ImageErrorType = imageErr.ErrorType
 		outcome.ImageErrorCode = imageErr.Code
@@ -131,7 +145,9 @@ func (p *generationRequestAdapter) SwitchGeneration(gatewaymedia.GenerationSelec
 func (p *generationRequestAdapter) StopGeneration429(_ gatewaymedia.GenerationSelection, status, count int) bool {
 	return p.h.gatewayService.ShouldStopOpenAIOAuth429Failover(p.selection.Account, status, count, &p.oauth429)
 }
-func (p *generationRequestAdapter) GenerationClientGone() bool { return failoverClientGone(p.c) }
+func (p *generationRequestAdapter) GenerationClientGone() bool {
+	return gatewayhttp.FailoverClientGone(p.c)
+}
 func (p *generationRequestAdapter) logSchedule() {
 	name := "openai.images"
 	if p.grok {
@@ -163,16 +179,16 @@ func (p *generationRequestAdapter) ObserveGeneration(e gatewaymedia.GenerationEv
 	case "ineligible":
 		p.reqLog.Warn(name+".account_eligibility_rejected", zap.Int64("account_id", e.Selection.Account.ID), zap.String("reason", e.Reason), zap.Bool("probe_failed", e.ProbeFailed))
 	case "routing":
-		service.SetOpsLatencyMs(p.c, service.OpsRoutingLatencyMsKey, e.Elapsed.Milliseconds())
+		gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsRoutingLatencyMsKey, e.Elapsed.Milliseconds())
 	case "response":
 		elapsed := e.Elapsed.Milliseconds()
-		upstream, _ := getContextInt64(p.c, service.OpsUpstreamLatencyMsKey)
+		upstream, _ := getContextInt64(p.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 		if upstream > 0 && elapsed > upstream {
 			elapsed -= upstream
 		}
-		service.SetOpsLatencyMs(p.c, service.OpsResponseLatencyMsKey, elapsed)
+		gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsResponseLatencyMsKey, elapsed)
 		if !p.grok && e.Outcome.Result != nil && e.Outcome.Result.FirstTokenMs != nil {
-			service.SetOpsLatencyMs(p.c, service.OpsTimeToFirstTokenMsKey, int64(*e.Outcome.Result.FirstTokenMs))
+			gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsTimeToFirstTokenMsKey, int64(*e.Outcome.Result.FirstTokenMs))
 		}
 	case "partial":
 		p.reqLog.Warn(name+".forward_partial_error_with_image_result", zap.Int64("account_id", e.Selection.Account.ID), zap.Int("image_count", e.Outcome.Result.ImageCount), zap.Error(e.Outcome.Err))
@@ -212,7 +228,7 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 	result := legacyGenerationResult(value)
 	if result != nil {
 		// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
-		if account.Type == service.AccountTypeOAuth && !account.IsShadow() {
+		if account.Type == capability.AccountTypeOAuth && !account.IsShadow() {
 			h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.ID, result.ResponseHeaders)
 		}
 		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), true, result.FirstTokenMs)
@@ -221,13 +237,13 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 	}
 
 	userAgent := c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(c)
-	requestPayloadHash := service.HashUsageRequestPayload(body)
+	clientIP := clientip.GetClientIP(c)
+	requestPayloadHash := billing.HashUsageRequestPayload(body)
 	if parsed.Multipart {
-		requestPayloadHash = service.HashUsageRequestPayload([]byte(parsed.StickySessionSeed()))
+		requestPayloadHash = billing.HashUsageRequestPayload([]byte(parsed.StickySessionSeed()))
 	}
-	inboundEndpoint := GetInboundEndpoint(c)
-	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
 	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 	clientSessionID := service.ExtractClientSessionID(c)
 
@@ -253,7 +269,7 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 		ChannelUsageFields: channelMapping.ToUsageFields(requestModel, upstreamModel),
 	})
 	completionRecorder := h.completionRuntime()
-	completionLog := logger.L().With(
+	completionLog := logging.L().With(
 		zap.String("component", "handler.openai_gateway.images"),
 		zap.Int64("user_id", subject.UserID),
 		zap.Int64("api_key_id", apiKey.ID),
@@ -273,19 +289,19 @@ func (p *generationRequestAdapter) completeGrok(requestCtx context.Context, valu
 	result := legacyGenerationResult(value)
 	if isGrokVideoCreateEndpoint(endpoint) && strings.TrimSpace(result.ResponseID) != "" {
 		// 视频创建阶段暂不扣费，保存模型、时长和分辨率供完成查询定价。
-		pending := service.GrokVideoPendingBilling{
+		pending := gatewaymedia.GrokVideoPendingBilling{
 			Model:                requestModel,
 			BillingModel:         firstNonEmptyString(result.BillingModel, requestModel),
 			UpstreamModel:        result.UpstreamModel,
 			VideoResolution:      result.VideoResolution,
 			VideoDurationSeconds: result.VideoDurationSeconds,
-			OriginalModel:        clientRequestedModel(c, requestModel),
+			OriginalModel:        gatewayhttp.ClientRequestedModel(c, requestModel),
 			// 用创建受理到首次发现完成的墙钟时间记录端到端耗时。
 			CreatedAt: videoCreateStartedAt,
 		}
 		h.gatewayService.MediaVideoTasks().TrackCreated(requestCtx, apiKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.ID, pending, grokVideoObserver{log: reqLog})
 	}
-	if endpoint == service.GrokMediaEndpointVideoStatus || endpoint == service.GrokMediaEndpointVideoContent {
+	if endpoint == upstreamgrok.GrokMediaEndpointVideoStatus || endpoint == upstreamgrok.GrokMediaEndpointVideoContent {
 		taskID := strings.TrimSpace(requestID)
 		if billResult := prepareGrokVideoCompletionBilling(requestCtx, h, reqLog, apiKey, subject, taskID, result); billResult != nil {
 			recordGrokMediaUsage(c, h, reqLog, apiKey, subject, subscription, account, billResult, billResult.Model, channelMapping, body, taskID)
@@ -295,40 +311,40 @@ func (p *generationRequestAdapter) completeGrok(requestCtx context.Context, valu
 	}
 }
 
-func generationResultView(r *service.OpenAIForwardResult) *gatewaymedia.GenerationResult {
+func generationResultView(r *forwardcore.OpenAIResult) *gatewaymedia.GenerationResult {
 	if r == nil {
 		return nil
 	}
-	return gatewaymedia.CloneGenerationResult(&gatewaymedia.GenerationResult{RequestID: r.RequestID, ResponseID: r.ResponseID, Model: r.Model, BillingModel: r.BillingModel, UpstreamModel: r.UpstreamModel, Usage: r.Usage, Stream: r.Stream, Duration: r.Duration, FirstTokenMs: r.FirstTokenMs, ImageCount: r.ImageCount, VideoCount: r.VideoCount, VideoDurationSeconds: r.VideoDurationSeconds, ImageSize: r.ImageSize, ImageInputSize: r.ImageInputSize, ImageOutputSize: r.ImageOutputSize, ImageSizeSource: r.ImageSizeSource, VideoResolution: r.VideoResolution, ImageOutputSizes: r.ImageOutputSizes, ImageSizeBreakdown: r.ImageSizeBreakdown, Headers: r.UpstreamHeaders.Clone(), ResponseHeaders: r.ResponseHeaders.Clone()})
+	return gatewaymedia.CloneGenerationResult(&gatewaymedia.GenerationResult{RequestID: r.RequestID, ResponseID: r.ResponseID, Model: r.Model, BillingModel: r.BillingModel, UpstreamModel: r.UpstreamModel, Usage: r.Usage, Stream: r.Stream, Duration: r.Duration, FirstTokenMs: r.FirstTokenMs, ImageCount: r.ImageCount, VideoCount: r.VideoCount, VideoDurationSeconds: r.VideoDurationSeconds, ImageSize: r.ImageSize, ImageInputSize: r.ImageInputSize, ImageOutputSize: r.ImageOutputSize, ImageSizeSource: r.ImageSizeSource, VideoResolution: r.VideoResolution, ImageOutputSizes: r.ImageOutputSizes, ImageSizeBreakdown: r.ImageSizeBreakdown, Headers: http.Header(r.UpstreamHeaders).Clone(), ResponseHeaders: http.Header(r.ResponseHeaders).Clone()})
 }
 
-func legacyGenerationResult(r *gatewaymedia.GenerationResult) *service.OpenAIForwardResult {
+func legacyGenerationResult(r *gatewaymedia.GenerationResult) *forwardcore.OpenAIResult {
 	if r == nil {
 		return nil
 	}
 	r = gatewaymedia.CloneGenerationResult(r)
-	return &service.OpenAIForwardResult{RequestID: r.RequestID, ResponseID: r.ResponseID, Model: r.Model, BillingModel: r.BillingModel, UpstreamModel: r.UpstreamModel, Usage: r.Usage, Stream: r.Stream, Duration: r.Duration, FirstTokenMs: r.FirstTokenMs, ImageCount: r.ImageCount, VideoCount: r.VideoCount, VideoDurationSeconds: r.VideoDurationSeconds, ImageSize: r.ImageSize, ImageInputSize: r.ImageInputSize, ImageOutputSize: r.ImageOutputSize, ImageSizeSource: r.ImageSizeSource, VideoResolution: r.VideoResolution, ImageOutputSizes: r.ImageOutputSizes, ImageSizeBreakdown: r.ImageSizeBreakdown, UpstreamHeaders: http.Header(r.Headers).Clone(), ResponseHeaders: http.Header(r.ResponseHeaders).Clone()}
+	return &forwardcore.OpenAIResult{RequestID: r.RequestID, ResponseID: r.ResponseID, Model: r.Model, BillingModel: r.BillingModel, UpstreamModel: r.UpstreamModel, Usage: r.Usage, Stream: r.Stream, Duration: r.Duration, FirstTokenMs: r.FirstTokenMs, ImageCount: r.ImageCount, VideoCount: r.VideoCount, VideoDurationSeconds: r.VideoDurationSeconds, ImageSize: r.ImageSize, ImageInputSize: r.ImageInputSize, ImageOutputSize: r.ImageOutputSize, ImageSizeSource: r.ImageSizeSource, VideoResolution: r.VideoResolution, ImageOutputSizes: r.ImageOutputSizes, ImageSizeBreakdown: r.ImageSizeBreakdown, UpstreamHeaders: http.Header(r.Headers).Clone(), ResponseHeaders: http.Header(r.ResponseHeaders).Clone()}
 }
 
 // 媒体最终错误接口只适配父层共同错误分类、风控观察和响应写入。
 func (p *generationRequestAdapter) MediaClassify() gatewayhttp.MediaNoAccount {
-	platform := service.PlatformOpenAI
+	platform := capability.PlatformOpenAI
 	routing := p.requestModel
 	if p.grok {
-		platform = service.PlatformGrok
+		platform = capability.PlatformGrok
 		routing = p.routingModel
 	}
 	result := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.requestModel, routing, platform)
 	return gatewayhttp.MediaNoAccount{ModelNotFound: result.ModelNotFound, Status: result.Status, Type: result.ErrType, Message: result.Message}
 }
 func (p *generationRequestAdapter) MediaNoAvailable(err error) bool {
-	return errors.Is(err, service.ErrNoAvailableAccounts)
+	return errors.Is(err, scheduler.ErrNoAvailableAccounts)
 }
 func (p *generationRequestAdapter) MediaCapacity(err error, conditional bool) {
 	if conditional {
-		markOpsRoutingCapacityLimitedIfNoAvailable(p.c, err)
+		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, err)
 	} else {
-		markOpsRoutingCapacityLimited(p.c)
+		gatewayhttp.MarkOpsRoutingCapacityLimited(p.c)
 	}
 }
 func (p *generationRequestAdapter) MediaError(status int, typ, message string, stream bool) {
@@ -339,7 +355,7 @@ func (p *generationRequestAdapter) MediaError(status int, typ, message string, s
 	}
 }
 func (p *generationRequestAdapter) MediaFailover(err error, stream bool) {
-	var value *service.UpstreamFailoverError
+	var value *forwardcore.UpstreamFailoverError
 	if errors.As(err, &value) {
 		p.h.handleFailoverExhausted(p.c, value, stream)
 	}
@@ -348,7 +364,7 @@ func (p *generationRequestAdapter) MediaSimpleExhausted() {
 	p.h.handleFailoverExhaustedSimple(p.c, 502, *p.streamStarted)
 }
 func (p *generationRequestAdapter) mediaStatus() int {
-	status, _ := getContextInt64(p.c, service.OpsUpstreamStatusCodeKey)
+	status, _ := getContextInt64(p.c, gatewayhttp.OpsUpstreamStatusCodeKey)
 	return int(status)
 }
 func (p *generationRequestAdapter) MediaForwardCyber(err error) bool {
@@ -362,7 +378,7 @@ func (p *generationRequestAdapter) MediaReportUnexpected(result *gatewaymedia.Ge
 }
 func (p *generationRequestAdapter) MediaCommunicated(err error) bool {
 	if p.grok {
-		return service.IsResponseCommitted(p.c)
+		return gatewayhttp.IsResponseCommitted(p.c)
 	}
 	return openAIForwardErrorAlreadyCommunicated(p.c, p.writerBefore, err)
 }

@@ -3,11 +3,12 @@ package service
 
 import (
 	context "context"
-	provider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	slices "slices"
 	sort "sort"
 	time "time"
+
+	provider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // channelModelKey 渠道缓存复合键（显式包含 platform 防止跨平台同名模型冲突）
@@ -26,7 +27,7 @@ type channelGroupPlatformKey struct {
 // wildcardPricingEntry 通配符定价条目
 type wildcardPricingEntry struct {
 	prefix  string
-	pricing *ChannelModelPricing
+	pricing *routing.ChannelModelPricing
 }
 
 // wildcardMappingEntry 通配符映射条目
@@ -37,36 +38,36 @@ type wildcardMappingEntry struct {
 
 // channelCache 渠道缓存快照（扁平化哈希结构，热路径 O(1) 查找）
 type channelCache struct {
-	sourceChannels []Channel
+	sourceChannels []routing.Channel
 	fromChannels   bool
 	// 热路径查找
-	pricingByGroupModel     map[channelModelKey]*ChannelModelPricing            // (groupID, platform, model) → 定价
+	pricingByGroupModel     map[channelModelKey]*routing.ChannelModelPricing    // (groupID, platform, model) → 定价
 	wildcardByGroupPlatform map[channelGroupPlatformKey][]*wildcardPricingEntry // (groupID, platform) → 通配符定价（按配置顺序，先匹配先使用）
 	mappingByGroupModel     map[channelModelKey]string                          // (groupID, platform, model) → 映射目标
 	wildcardMappingByGP     map[channelGroupPlatformKey][]*wildcardMappingEntry // (groupID, platform) → 通配符映射（按配置顺序，先匹配先使用）
-	channelByGroupID        map[int64]*Channel                                  // groupID → 渠道
+	channelByGroupID        map[int64]*routing.Channel                          // groupID → 渠道
 	groupPlatform           map[int64]string                                    // groupID → platform
 
 	// 冷路径（CRUD 操作）
-	byID     map[int64]*Channel
+	byID     map[int64]*routing.Channel
 	loadedAt time.Time
 }
 
 // newEmptyChannelCache 创建空的渠道缓存（所有 map 已初始化）
 func newEmptyChannelCache() *channelCache {
 	return &channelCache{
-		pricingByGroupModel:     make(map[channelModelKey]*ChannelModelPricing),
+		pricingByGroupModel:     make(map[channelModelKey]*routing.ChannelModelPricing),
 		wildcardByGroupPlatform: make(map[channelGroupPlatformKey][]*wildcardPricingEntry),
 		mappingByGroupModel:     make(map[channelModelKey]string),
 		wildcardMappingByGP:     make(map[channelGroupPlatformKey][]*wildcardMappingEntry),
-		channelByGroupID:        make(map[int64]*Channel),
+		channelByGroupID:        make(map[int64]*routing.Channel),
 		groupPlatform:           make(map[int64]string),
-		byID:                    make(map[int64]*Channel),
+		byID:                    make(map[int64]*routing.Channel),
 	}
 }
 
 // populateChannelCache 只记录旧测试的输入，真正编译在 routing 的生产入口执行。
-func populateChannelCache(channels []Channel, platforms map[int64]string) *channelCache {
+func populateChannelCache(channels []routing.Channel, platforms map[int64]string) *channelCache {
 	fixture := newEmptyChannelCache()
 	fixture.sourceChannels = channels
 	fixture.fromChannels = true
@@ -75,27 +76,27 @@ func populateChannelCache(channels []Channel, platforms map[int64]string) *chann
 }
 
 type legacyChannelFixtureRepo struct {
-	ChannelRepository
-	channels  []Channel
+	routing.ChannelRepository
+	channels  []routing.Channel
 	platforms map[int64]string
 }
 
-func (r *legacyChannelFixtureRepo) ListAll(context.Context) ([]Channel, error) {
+func (r *legacyChannelFixtureRepo) ListAll(context.Context) ([]routing.Channel, error) {
 	return r.channels, nil
 }
 func (r *legacyChannelFixtureRepo) GetGroupPlatforms(context.Context, []int64) (map[int64]string, error) {
 	return r.platforms, nil
 }
-func (r *legacyChannelFixtureRepo) GetByID(_ context.Context, id int64) (*Channel, error) {
+func (r *legacyChannelFixtureRepo) GetByID(_ context.Context, id int64) (*routing.Channel, error) {
 	for i := range r.channels {
 		if r.channels[i].ID == id {
 			return r.channels[i].Clone(), nil
 		}
 	}
-	return nil, ErrChannelNotFound
+	return nil, routing.ErrChannelNotFound
 }
-func seedLegacyChannelFixture(service *ChannelService, fixture *channelCache) {
-	var channels []Channel
+func seedChannelFixture(fixture *channelCache) *routing.ChannelService {
+	var channels []routing.Channel
 	if fixture.fromChannels {
 		channels = fixture.sourceChannels
 	} else {
@@ -160,5 +161,5 @@ func seedLegacyChannelFixture(service *ChannelService, fixture *channelCache) {
 			channels = append(channels, *ch)
 		}
 	}
-	service.ChannelService = routing.NewChannelService(&legacyChannelFixtureRepo{channels: channels, platforms: fixture.groupPlatform}, nil, routing.ChannelOptions{Now: time.Now, LoadLocation: provider.LoadPricingLocation})
+	return routing.NewChannelService(&legacyChannelFixtureRepo{channels: channels, platforms: fixture.groupPlatform}, nil, routing.ChannelOptions{Now: time.Now, LoadLocation: provider.LoadPricingLocation})
 }

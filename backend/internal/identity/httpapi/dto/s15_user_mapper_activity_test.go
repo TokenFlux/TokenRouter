@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,12 +16,12 @@ func TestUserFromServiceAdmin_MapsActivityTimestamps(t *testing.T) {
 	lastActiveAt := lastLoginAt.Add(15 * time.Minute)
 	lastUsedAt := lastLoginAt.Add(45 * time.Minute)
 
-	out := UserFromServiceAdmin(&service.User{
+	out := UserFromServiceAdmin(&identity.User{
 		ID:           42,
 		Email:        "admin@example.com",
 		Username:     "admin",
-		Role:         service.RoleAdmin,
-		Status:       service.StatusActive,
+		Role:         identity.RoleAdmin,
+		Status:       billing.StatusActive,
 		LastActiveAt: &lastActiveAt,
 		LastUsedAt:   &lastUsedAt,
 	})

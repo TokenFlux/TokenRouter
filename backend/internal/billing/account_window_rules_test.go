@@ -1,10 +1,11 @@
 package billing
 
 import (
-	"github.com/stretchr/testify/require"
 	"math"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 非正数与非数值限额保持旧严格正数判断，不触发窗口消费重置。

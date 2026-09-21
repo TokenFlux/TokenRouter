@@ -14,7 +14,7 @@ func (s *HealthService) ApplyCNConcurrencyLimit(
 	account *Record, reason string,
 ) {
 	until := s.options.Now().Add(time.Duration(OpenAI403CooldownMinutesDefault) * time.Minute)
-	s.notifyAccountSchedulingBlocked(account, until, "cn_concurrency_limit")
+	s.notifyAccountSchedulingBlocked(account, until, CNConcurrencyLimitReason)
 	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
 		s.options.Warn("cn_concurrency_limit_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
 		return
@@ -119,3 +119,6 @@ func (s *HealthService) ApplyCNQuotaSnapshotCooldown(ctx context.Context, accoun
 	}
 	return false
 }
+
+// CNConcurrencyLimitReason 保留并发限制状态的原来源标记。
+const CNConcurrencyLimitReason = "cn_concurrency_limit"

@@ -462,6 +462,8 @@ func (h *CompatibleTextHandler) ChatCompletions(c *gin.Context) {
 
 func (h *CompatibleTextHandler) executeCompatible(c *gin.Context, call CompatibleTextCall, kind execution.TextKind) {
 	request := execution.Request{
+		Hints:       requeststate.ExecutionHintsFromContext(c.Request.Context()),
+		Routing:     requeststate.RoutingStateFromContext(c.Request.Context()),
 		Route:       call.Route,
 		UserID:      call.Subject.UserID,
 		Concurrency: call.Subject.Concurrency,

@@ -8,24 +8,27 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(t *testing.T) {
 
 	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
+	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
 	accountRepo := &rateLimitAccountRepoStub{}
 	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
-	rl.SetSettingService(NewSettingService(settingsRepo, &config.Config{}))
+	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour)
 	account := &Account{
 		ID:          1001,
-		Platform:    PlatformOpenAI,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Extra: map[string]any{
 			"codex_7d_used_percent": 91.5,
@@ -39,11 +42,11 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(
 	require.Equal(t, 1, accountRepo.tempCalls)
 	require.NotNil(t, account.TempUnschedulableUntil)
 	require.WithinDuration(t, until, *account.TempUnschedulableUntil, time.Second)
-	require.True(t, IsAccountSchedulingThresholdReason(accountRepo.lastTempReason))
+	require.True(t, accountcore.IsAccountSchedulingThresholdReason(accountRepo.lastTempReason))
 
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal([]byte(accountRepo.lastTempReason), &payload))
-	require.Equal(t, PlatformOpenAI, payload["platform"])
+	require.Equal(t, capability.PlatformOpenAI, payload["platform"])
 	require.Equal(t, "7d", payload["window"])
 	require.Equal(t, float64(80), payload["threshold_percent"])
 	require.Equal(t, float64(91.5), payload["used_percent"])
@@ -53,17 +56,17 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(
 func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInReason(t *testing.T) {
 
 	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
+	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
 
 	accountRepo := &rateLimitAccountRepoStub{}
 	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
-	rl.SetSettingService(NewSettingService(settingsRepo, &config.Config{}))
+	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour)
 	account := &Account{
 		ID:          1003,
-		Platform:    PlatformOpenAI,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Credentials: map[string]any{
 			"account_scheduling_threshold": 80,
@@ -107,17 +110,17 @@ func (r *fableSchedulingThresholdRepoStub) SetModelRateLimit(_ context.Context, 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableModels(t *testing.T) {
 
 	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"anthropic":100}`
+	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"anthropic":100}`
 
 	accountRepo := &fableSchedulingThresholdRepoStub{}
 	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
-	rl.SetSettingService(NewSettingService(settingsRepo, &config.Config{}))
+	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(4 * 24 * time.Hour).Truncate(time.Second)
 	account := &Account{
 		ID:          1004,
-		Platform:    PlatformAnthropic,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAnthropic,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Credentials: map[string]any{
 			"account_scheduling_threshold": 60,
@@ -135,9 +138,9 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableMo
 	require.False(t, blocked, "the Fable-only window must not pause the whole account")
 	require.Zero(t, accountRepo.tempCalls)
 	require.Equal(t, 1, accountRepo.modelCalls)
-	require.Equal(t, anthropicFableRateLimitKey, accountRepo.lastModelScope)
+	require.Equal(t, accountcore.AnthropicFableRateLimitKey, accountRepo.lastModelScope)
 	require.WithinDuration(t, until, accountRepo.lastModelReset, time.Second)
-	require.True(t, IsAccountSchedulingThresholdReason(accountRepo.lastModelReason))
+	require.True(t, accountcore.IsAccountSchedulingThresholdReason(accountRepo.lastModelReason))
 	require.False(t, account.IsSchedulableForModel("claude-fable-5"))
 	require.False(t, account.IsSchedulableForModel("claude-fable-5[1m]"))
 	require.True(t, account.IsSchedulableForModel("claude-opus-4-8"))
@@ -151,15 +154,15 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableMo
 func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnschedulable(t *testing.T) {
 
 	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
+	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
 	accountRepo := &rateLimitAccountRepoStub{}
 	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
-	rl.SetSettingService(NewSettingService(settingsRepo, &config.Config{}))
+	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour).Truncate(time.Second)
-	existingReason := BuildDetailedAccountSchedulingThresholdReason(AccountSchedulingThresholdReasonInput{
-		Platform:         PlatformOpenAI,
+	existingReason := accountcore.BuildDetailedAccountSchedulingThresholdReason(accountcore.AccountSchedulingThresholdReasonInput{
+		Platform:         capability.PlatformOpenAI,
 		Window:           "7d",
 		ThresholdPercent: 80,
 		UsedPercent:      91.5,
@@ -168,8 +171,8 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 	})
 	account := &Account{
 		ID:                      1002,
-		Platform:                PlatformOpenAI,
-		Status:                  StatusActive,
+		Platform:                capability.PlatformOpenAI,
+		Status:                  billing.StatusActive,
 		Schedulable:             true,
 		TempUnschedulableUntil:  &until,
 		TempUnschedulableReason: existingReason,
@@ -191,16 +194,16 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 func TestRateLimitService_ApplyAccountSchedulingThreshold_UnsupportedPlatformDoesNotBlock(t *testing.T) {
 
 	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
+	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
 	accountRepo := &rateLimitAccountRepoStub{}
 	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
-	rl.SetSettingService(NewSettingService(settingsRepo, &config.Config{}))
+	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	account := &Account{
 		ID:          2002,
 		Platform:    "kiro",
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Credentials: map[string]any{
 			"account_scheduling_threshold": 1,

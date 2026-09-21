@@ -3,20 +3,21 @@ package postgres
 
 import (
 	context "context"
-	dialect "entgo.io/ent/dialect"
-	entsql "entgo.io/ent/dialect/sql"
 	errors "errors"
 	fmt "fmt"
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	identityadoptiondecision "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
-	pendingauthsession "github.com/TokenFlux/TokenRouter/ent/pendingauthsession"
-	dbpredicate "github.com/TokenFlux/TokenRouter/ent/predicate"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	fnv "hash/fnv"
 	sort "sort"
 	strings "strings"
 	sync "sync"
 	time "time"
+
+	dialect "entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	identityadoptiondecision "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
+	pendingauthsession "github.com/TokenFlux/TokenRouter/ent/pendingauthsession"
+	dbpredicate "github.com/TokenFlux/TokenRouter/ent/predicate"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 type AuthPendingIdentityService struct {

@@ -4,11 +4,12 @@ package rediscache
 import (
 	context "context"
 	json "encoding/json"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	redis "github.com/redis/go-redis/v9"
 	slog "log/slog"
 	sync "sync"
 	time "time"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	redis "github.com/redis/go-redis/v9"
 )
 
 const (

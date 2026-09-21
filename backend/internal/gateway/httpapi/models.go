@@ -58,7 +58,7 @@ func NewModelsHandler(backend ModelsBackend, catalog ModelsCatalog) *ModelsHandl
 }
 
 // customListEnabled 复用 routing 的分组规则，仅投影列表配置。
-func customListEnabled(g *apikey.Group) bool {
+func customListEnabled(g *routing.Group) bool {
 	if g == nil {
 		return false
 	}
@@ -539,7 +539,7 @@ func GrokModelSupportsConfigurableReasoning(modelID string) bool {
 	}
 }
 
-func CompositeGroupAvailableToUser(apiKey *apikey.APIKey, preferredSubscription *billing.UserSubscription, group *apikey.Group) bool {
+func CompositeGroupAvailableToUser(apiKey *apikey.APIKey, preferredSubscription *billing.UserSubscription, group *routing.Group) bool {
 	if apiKey == nil || apiKey.User == nil || group == nil || !group.IsActive() {
 		return false
 	}

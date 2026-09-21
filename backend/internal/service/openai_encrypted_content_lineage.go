@@ -1,10 +1,10 @@
 package service
 
 import (
-	"encoding/json"
 	"strings"
 
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,26 +22,6 @@ const openAIWSFallbackReasonInvalidEncryptedContent = "invalid_encrypted_content
 // openAIWSIngressSessionHashContextKey 在 gin context 中携带 ingress 会话哈希，
 // 供 HTTP bridge turn 内的 lineage 记录复用同一会话键。
 const openAIWSIngressSessionHashContextKey = "openai_ws_ingress_session_hash"
-
-func openAIEncryptedContentDigest(encrypted string) string {
-	return native.OpenAIEncryptedContentDigest(encrypted)
-}
-
-func collectOpenAIEncryptedContentDigestsRaw(payload []byte) []string {
-	return native.CollectOpenAIEncryptedContentDigestsRaw(payload)
-}
-
-func stripOpenAIInvalidEncryptedContentItems(reqBody map[string]any, invalid map[string]struct{}) int {
-	return native.StripOpenAIInvalidEncryptedContentItems(reqBody, invalid)
-}
-
-func stripOpenAIInvalidEncryptedContentFromReplayItems(items []json.RawMessage, invalid map[string]struct{}) ([]json.RawMessage, int) {
-	return native.StripOpenAIInvalidEncryptedContentFromReplayItems(items, invalid)
-}
-
-func stripOpenAIInvalidEncryptedContentRaw(payload []byte, invalid map[string]struct{}) ([]byte, int, error) {
-	return native.StripOpenAIInvalidEncryptedContentRaw(payload, invalid)
-}
 
 // markOpenAIWSInvalidEncryptedContentLineage 把本次被上游拒绝的密文摘要写入
 // 会话 lineage。digests 须在剥离前收集。
@@ -89,7 +69,7 @@ func (s *OpenAIGatewayService) markOpenAIWSInvalidEncryptedContentLineageFromPay
 	accountID int64,
 	turn int,
 ) {
-	digests := collectOpenAIEncryptedContentDigestsRaw(payload)
+	digests := openai.CollectOpenAIEncryptedContentDigestsRaw(payload)
 	if len(digests) == 0 {
 		return
 	}
@@ -98,7 +78,7 @@ func (s *OpenAIGatewayService) markOpenAIWSInvalidEncryptedContentLineageFromPay
 		s.openAIWSLineageSessionHashFromContext(c, payload),
 		digests,
 	)
-	logOpenAIWSModeInfo("%s account_id=%d turn=%d digests=%d", logKey, accountID, turn, len(digests))
+	gatewayprovider.LogOpenAIWSModeInfo("%s account_id=%d turn=%d digests=%d", logKey, accountID, turn, len(digests))
 }
 
 // stripSessionInvalidEncryptedContentLogged 对 payload 执行会话失效密文剥离并
@@ -111,19 +91,18 @@ func (s *OpenAIGatewayService) stripSessionInvalidEncryptedContentLogged(
 	accountID int64,
 	turn int,
 ) ([]byte, int) {
-	strippedPayload, strippedCount, stripErr := stripOpenAIInvalidEncryptedContentRaw(payload, invalid)
+	strippedPayload, strippedCount, stripErr := openai.StripOpenAIInvalidEncryptedContentRaw(payload, invalid)
 	if stripErr != nil {
-		logOpenAIWSModeInfo(
+		gatewayprovider.LogOpenAIWSModeInfo(
 			"%s_skip account_id=%d turn=%d reason=strip_error cause=%s",
 			logKey,
 			accountID,
-			turn,
-			truncateOpenAIWSLogValue(stripErr.Error(), openAIWSLogValueMaxLen),
+			turn, gatewayprovider.TruncateOpenAIWSLogValue(stripErr.Error(), gatewayprovider.OpenAIWSLogValueMaxLen),
 		)
 		return payload, 0
 	}
 	if strippedCount > 0 {
-		logOpenAIWSModeInfo(
+		gatewayprovider.LogOpenAIWSModeInfo(
 			"%s account_id=%d turn=%d stripped_items=%d",
 			logKey,
 			accountID,

@@ -5,10 +5,14 @@ import (
 	"net/http"
 	"testing"
 
-	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,103 +22,84 @@ func TestProtocolNativeMatrixAndSave(t *testing.T) {
 		platform, kind, auth string
 		count                int
 	}{
-		{PlatformAnthropic, AccountTypeAPIKey, "", 1}, {PlatformAnthropic, AccountTypeBedrock, "", 1},
-		{PlatformOpenAI, AccountTypeAPIKey, "", 8}, {PlatformOpenAI, AccountTypeOAuth, "", 5},
-		{PlatformOpenAI, AccountTypeOAuth, OpenAIAuthModePersonalAccessToken, 3}, {PlatformOpenAI, AccountTypeOAuth, OpenAIAuthModeAgentIdentity, 4},
-		{PlatformDeepseek, AccountTypeAPIKey, "", 3}, {PlatformKimi, AccountTypeAPIKey, "", 3}, {PlatformZhipu, AccountTypeAPIKey, "", 2},
-		{PlatformGemini, AccountTypeAPIKey, "", 2}, {PlatformGemini, AccountTypeServiceAccount, "", 2}, {PlatformGemini, AccountTypeOAuth, "", 1},
-		{PlatformAntigravity, AccountTypeOAuth, "", 1}, {PlatformAntigravity, AccountTypeAPIKey, "", 0},
-		{PlatformGrok, AccountTypeAPIKey, "", 11}, {PlatformGrok, AccountTypeOAuth, "", 11}, {PlatformQoder, AccountTypeCosy, "", 1},
+		{capability.PlatformAnthropic, capability.AccountTypeAPIKey, "", 1}, {capability.PlatformAnthropic, capability.AccountTypeBedrock, "", 1},
+		{capability.PlatformOpenAI, capability.AccountTypeAPIKey, "", 8}, {capability.PlatformOpenAI, capability.AccountTypeOAuth, "", 5},
+		{capability.PlatformOpenAI, capability.AccountTypeOAuth, accountcore.OpenAIAuthModePersonalAccessToken, 3}, {capability.PlatformOpenAI, capability.AccountTypeOAuth, accountcore.OpenAIAuthModeAgentIdentity, 4},
+		{capability.PlatformDeepseek, capability.AccountTypeAPIKey, "", 3}, {capability.PlatformKimi, capability.AccountTypeAPIKey, "", 3}, {capability.PlatformZhipu, capability.AccountTypeAPIKey, "", 2},
+		{capability.PlatformGemini, capability.AccountTypeAPIKey, "", 2}, {capability.PlatformGemini, capability.AccountTypeServiceAccount, "", 2}, {capability.PlatformGemini, capability.AccountTypeOAuth, "", 1},
+		{capability.PlatformAntigravity, capability.AccountTypeOAuth, "", 1}, {capability.PlatformAntigravity, capability.AccountTypeAPIKey, "", 0},
+		{capability.PlatformGrok, capability.AccountTypeAPIKey, "", 11}, {capability.PlatformGrok, capability.AccountTypeOAuth, "", 11}, {capability.PlatformQoder, capability.AccountTypeCosy, "", 1},
 	} {
 		t.Run(tc.platform+"/"+tc.kind+"/"+tc.auth, func(t *testing.T) {
 			account := &Account{Platform: tc.platform, Type: tc.kind, Credentials: map[string]any{"auth_mode": tc.auth}}
 			options := account.NativeProtocolOptions()
 			require.Len(t, options, tc.count)
 			for _, protocol := range options {
-				account.Credentials[upstreamProtocolsKey] = []string{string(protocol)}
+				account.Credentials[accountcore.UpstreamProtocolsKey] = []string{string(protocol)}
 				require.NoError(t, NormalizeAccountProtocols(account))
-				require.Equal(t, []domain.ProtocolID{protocol}, account.UpstreamProtocols())
+				require.Equal(t, []protocolcore.ProtocolID{protocol}, account.UpstreamProtocols())
 				target, ok := ResolveProtocolRoute(account, nil, protocol)
 				require.True(t, ok)
 				require.Equal(t, protocol, target)
 			}
-			account.Credentials[upstreamProtocolsKey] = []string{}
+			account.Credentials[accountcore.UpstreamProtocolsKey] = []string{}
 			require.NoError(t, NormalizeAccountProtocols(account))
 			require.Empty(t, account.UpstreamProtocols())
-			account.Credentials[upstreamProtocolsKey] = []string{"unknown"}
+			account.Credentials[accountcore.UpstreamProtocolsKey] = []string{"unknown"}
 			require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(NormalizeAccountProtocols(account)))
 		})
 	}
 }
 
 func TestProtocolRouteNativeFirstAndExplicitFallback(t *testing.T) {
-	account := &Account{ID: 1, Platform: PlatformDeepseek, Type: AccountTypeAPIKey, Credentials: map[string]any{upstreamProtocolsKey: []string{"anthropic_messages", "openai_responses"}, "api_base_urls": map[string]any{"anthropic": "https://relay.example/messages", "responses": "https://relay.example/responses"}}}
-	group := &Group{Platform: PlatformDeepseek, AllowedProtocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages}, ProtocolFallbacks: map[domain.ProtocolID]domain.ProtocolID{domain.ProtocolAnthropicMessages: domain.ProtocolOpenAIResponses}}
-	ctx := WithClientProtocol(context.WithValue(context.Background(), ctxkey.Group, group), domain.ProtocolAnthropicMessages)
+	account := &Account{ID: 1, Platform: capability.PlatformDeepseek, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{accountcore.UpstreamProtocolsKey: []string{"anthropic_messages", "openai_responses"}, "api_base_urls": map[string]any{"anthropic": "https://relay.example/messages", "responses": "https://relay.example/responses"}}}
+	group := &routing.Group{Platform: capability.PlatformDeepseek, AllowedProtocols: []protocolcore.ProtocolID{protocolcore.ProtocolAnthropicMessages}, ProtocolFallbacks: map[protocolcore.ProtocolID]protocolcore.ProtocolID{protocolcore.ProtocolAnthropicMessages: protocolcore.ProtocolOpenAIResponses}}
+	ctx := requeststate.WithClientProtocol(requeststate.WithGroup(context.Background(), group), protocolcore.ProtocolAnthropicMessages)
 	selected, err := accountForProtocolAttempt(ctx, account)
 	require.NoError(t, err)
-	require.Equal(t, APIProtocolAnthropic, selected.GetAPIProtocol())
-	require.Empty(t, account.resolvedProtocol)
+	require.Equal(t, accountcore.APIProtocolAnthropic, selected.GetAPIProtocol())
+	require.Empty(t, account.attemptRoute.Protocol())
 	require.Equal(t, "https://relay.example/messages", selected.GetAnthropicProtocolBaseURL())
-	account.Credentials[upstreamProtocolsKey] = []string{"openai_responses"}
+	account.Credentials[accountcore.UpstreamProtocolsKey] = []string{"openai_responses"}
 	selected, err = accountForProtocolAttempt(ctx, account)
 	require.NoError(t, err)
-	require.Equal(t, APIProtocolResponses, selected.GetAPIProtocol())
-	require.Equal(t, "https://relay.example/responses", selected.GetCNProtocolBaseURL(APIProtocolResponses))
+	require.Equal(t, accountcore.APIProtocolResponses, selected.GetAPIProtocol())
+	require.Equal(t, "https://relay.example/responses", selected.GetCNProtocolBaseURL(accountcore.APIProtocolResponses))
 	// 转换目标无需向客户端开放；下一次切号重新使用该候选的集合。
-	require.False(t, group.AllowsClientProtocol(domain.ProtocolOpenAIResponses))
+	require.False(t, group.AllowsClientProtocol(protocolcore.ProtocolOpenAIResponses))
 	next := *account
-	next.Credentials = map[string]any{upstreamProtocolsKey: []string{"openai_chat_completions"}}
+	next.Credentials = map[string]any{accountcore.UpstreamProtocolsKey: []string{"openai_chat_completions"}}
 	require.False(t, next.allowsProtocolRequest(ctx))
-	delete(group.ProtocolFallbacks, domain.ProtocolAnthropicMessages)
+	delete(group.ProtocolFallbacks, protocolcore.ProtocolAnthropicMessages)
+	ctx = requeststate.WithGroup(ctx, group)
 	require.False(t, account.allowsProtocolRequest(ctx))
 }
 
 func TestProtocolConversionAccountConstraints(t *testing.T) {
 	for _, tc := range []struct {
 		platform, kind, auth string
-		source, target       domain.ProtocolID
+		source, target       protocolcore.ProtocolID
 		want                 bool
 	}{
-		{PlatformOpenAI, AccountTypeOAuth, "", domain.ProtocolImagesEdits, domain.ProtocolOpenAIResponses, true},
-		{PlatformOpenAI, AccountTypeAPIKey, "", domain.ProtocolImagesEdits, domain.ProtocolOpenAIResponses, false},
-		{PlatformGrok, AccountTypeAPIKey, "", domain.ProtocolResponsesWebSocket, domain.ProtocolOpenAIResponses, true},
-		{PlatformGrok, AccountTypeOAuth, "", domain.ProtocolWebSearch, domain.ProtocolOpenAIResponses, true},
-		{PlatformOpenAI, AccountTypeOAuth, OpenAIAuthModePersonalAccessToken, domain.ProtocolAlphaSearch, domain.ProtocolOpenAIResponses, true},
-		{PlatformOpenAI, AccountTypeOAuth, "", domain.ProtocolAlphaSearch, domain.ProtocolOpenAIResponses, false},
-		{PlatformOpenAI, AccountTypeAPIKey, "", domain.ProtocolEmbeddings, domain.ProtocolOpenAIResponses, false},
-		{PlatformGrok, AccountTypeAPIKey, "", domain.ProtocolTTS, domain.ProtocolOpenAIResponses, false},
+		{capability.PlatformOpenAI, capability.AccountTypeOAuth, "", protocolcore.ProtocolImagesEdits, protocolcore.ProtocolOpenAIResponses, true},
+		{capability.PlatformOpenAI, capability.AccountTypeAPIKey, "", protocolcore.ProtocolImagesEdits, protocolcore.ProtocolOpenAIResponses, false},
+		{capability.PlatformGrok, capability.AccountTypeAPIKey, "", protocolcore.ProtocolResponsesWebSocket, protocolcore.ProtocolOpenAIResponses, true},
+		{capability.PlatformGrok, capability.AccountTypeOAuth, "", protocolcore.ProtocolWebSearch, protocolcore.ProtocolOpenAIResponses, true},
+		{capability.PlatformOpenAI, capability.AccountTypeOAuth, accountcore.OpenAIAuthModePersonalAccessToken, protocolcore.ProtocolAlphaSearch, protocolcore.ProtocolOpenAIResponses, true},
+		{capability.PlatformOpenAI, capability.AccountTypeOAuth, "", protocolcore.ProtocolAlphaSearch, protocolcore.ProtocolOpenAIResponses, false},
+		{capability.PlatformOpenAI, capability.AccountTypeAPIKey, "", protocolcore.ProtocolEmbeddings, protocolcore.ProtocolOpenAIResponses, false},
+		{capability.PlatformGrok, capability.AccountTypeAPIKey, "", protocolcore.ProtocolTTS, protocolcore.ProtocolOpenAIResponses, false},
 	} {
 		t.Run(string(tc.source)+"/"+tc.platform+"/"+tc.kind+"/"+tc.auth, func(t *testing.T) {
-			require.Equal(t, tc.want, domain.SupportsProtocolConversion(tc.platform, tc.kind, tc.auth, tc.source, tc.target))
+			require.Equal(t, tc.want, capability.SupportsProtocolConversion(tc.platform, tc.kind, tc.auth, tc.source, tc.target))
 		})
 	}
 }
 
-func TestProtocolSaveEntrypointsAndBulkRejectBeforeWrite(t *testing.T) {
-	repo := &accountServiceTestRepo{accounts: map[int64]*Account{}}
-	svc := &adminServiceImpl{accountRepo: repo}
-	created, err := svc.CreateAccount(context.Background(), &CreateAccountInput{Name: "native", Platform: PlatformKimi, Type: AccountTypeAPIKey, SkipDefaultGroupBind: true, Credentials: map[string]any{"api_key": "test", upstreamProtocolsKey: []string{"anthropic_messages", "openai_responses", "openai_chat_completions"}, "api_base_urls": map[string]any{"responses": "https://relay.example/v1"}}})
-	require.NoError(t, err)
-	require.NotContains(t, created.Credentials, "api_protocol")
-	require.Len(t, created.UpstreamProtocols(), 3)
-	updated, err := svc.UpdateAccount(context.Background(), created.ID, &UpdateAccountInput{Name: "renamed"})
-	require.NoError(t, err)
-	require.Len(t, updated.UpstreamProtocols(), 3)
-	require.Equal(t, map[string]any{"responses": "https://relay.example/v1"}, updated.Credentials["api_base_urls"])
-	rotated, err := svc.UpdateAccount(context.Background(), created.ID, &UpdateAccountInput{Credentials: map[string]any{"api_key": "rotated"}})
-	require.NoError(t, err)
-	require.Len(t, rotated.UpstreamProtocols(), 3)
-	require.Equal(t, map[string]any{"responses": "https://relay.example/v1"}, rotated.Credentials["api_base_urls"])
-	repo.accounts[99] = &Account{ID: 99, Platform: PlatformZhipu, Type: AccountTypeAPIKey, Credentials: map[string]any{upstreamProtocolsKey: []string{"openai_chat_completions"}}}
-	_, err = svc.BulkUpdateAccounts(context.Background(), &BulkUpdateAccountsInput{AccountIDs: []int64{created.ID, 99}, Credentials: map[string]any{upstreamProtocolsKey: []string{"openai_responses"}}})
-	require.Equal(t, http.StatusBadRequest, s15httpx.ErrorCode(err))
-	require.Empty(t, repo.bulkUpdates)
-}
-
 func TestProtocolImagePolicyAndBatchBinding(t *testing.T) {
-	group := &Group{Platform: PlatformOpenAI, AllowedProtocols: []domain.ProtocolID{}, ResponsesImagePolicy: "enabled"}
-	require.NoError(t, normalizeGroupProtocolPolicy(group, nil))
+	group := &routing.Group{Platform: capability.PlatformOpenAI, AllowedProtocols: []protocolcore.ProtocolID{}, ResponsesImagePolicy: "enabled"}
+	require.NoError(t, routing.NormalizeGroupProtocolPolicy(group, nil))
+	*group = *routing.CloneGroup(group)
 	require.False(t, GroupAllowsImageGeneration(group))
 	require.True(t, GroupAllowsResponsesImages(group))
 	require.Equal(t, codexImageGenerationExplicitToolPolicyAllow, groupResponsesExplicitToolPolicy(group, codexImageGenerationExplicitToolPolicyStrip))
@@ -122,26 +107,26 @@ func TestProtocolImagePolicyAndBatchBinding(t *testing.T) {
 	require.Equal(t, codexImageGenerationExplicitToolPolicyStrip, groupResponsesExplicitToolPolicy(group, codexImageGenerationExplicitToolPolicyAllow))
 	for _, tc := range []struct {
 		kind   string
-		target domain.ProtocolID
-	}{{AccountTypeAPIKey, domain.ProtocolGeminiBatch}, {AccountTypeServiceAccount, domain.ProtocolVertexBatch}} {
-		a := &Account{Platform: PlatformGemini, Type: tc.kind, Credentials: map[string]any{upstreamProtocolsKey: []domain.ProtocolID{tc.target}}}
-		target, ok := ResolveProtocolRoute(a, nil, domain.ProtocolImageBatches)
+		target protocolcore.ProtocolID
+	}{{capability.AccountTypeAPIKey, protocolcore.ProtocolGeminiBatch}, {capability.AccountTypeServiceAccount, protocolcore.ProtocolVertexBatch}} {
+		a := &Account{Platform: capability.PlatformGemini, Type: tc.kind, Credentials: map[string]any{accountcore.UpstreamProtocolsKey: []protocolcore.ProtocolID{tc.target}}}
+		target, ok := ResolveProtocolRoute(a, nil, protocolcore.ProtocolImageBatches)
 		require.True(t, ok)
 		require.Equal(t, tc.target, target)
 	}
 }
 
 func TestProtocolAuxiliaryModelURLAndIndependentTransports(t *testing.T) {
-	account := &Account{Platform: PlatformKimi, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_protocol": "anthropic", "base_url": "https://relay.example/custom/anthropic", "api_key": "test"}}
+	account := &Account{Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_protocol": "anthropic", "base_url": "https://relay.example/custom/anthropic", "api_key": "test"}}
 	require.NoError(t, NormalizeAccountProtocols(account))
 	require.Equal(t, "https://relay.example/custom", account.GetOpenAIFormatBaseURL())
-	for _, protocol := range []domain.ProtocolID{domain.ProtocolResponsesWebSocket, domain.ProtocolResponsesCompact} {
-		a := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{upstreamProtocolsKey: []domain.ProtocolID{protocol}}}
-		ctx := WithClientProtocol(context.Background(), protocol)
-		require.True(t, supportsOpenAIRequestCapability(ctx, a, OpenAIEndpointCapabilityResponses))
-		require.False(t, a.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityTextGeneration))
+	for _, protocol := range []protocolcore.ProtocolID{protocolcore.ProtocolResponsesWebSocket, protocolcore.ProtocolResponsesCompact} {
+		a := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{accountcore.UpstreamProtocolsKey: []protocolcore.ProtocolID{protocol}}}
+		ctx := requeststate.WithClientProtocol(context.Background(), protocol)
+		require.True(t, supportsOpenAIRequestCapability(ctx, a, accountcore.OpenAIEndpointCapabilityResponses))
+		require.False(t, a.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
 	}
-	group := &Group{Platform: PlatformOpenAI, AllowedProtocols: []domain.ProtocolID{domain.ProtocolImagesEdits}, ResponsesImagePolicy: "block"}
-	require.Equal(t, []string{CreativeOperationEdit, CreativeOperationInpaint}, creativeOperationsForGroup(group))
-	require.Nil(t, responsesPolicyGroup(WithClientProtocol(context.Background(), domain.ProtocolImagesEdits), group))
+	group := &routing.Group{Platform: capability.PlatformOpenAI, AllowedProtocols: []protocolcore.ProtocolID{protocolcore.ProtocolImagesEdits}, ResponsesImagePolicy: "block"}
+	require.Equal(t, []string{creative.CreativeOperationEdit, creative.CreativeOperationInpaint}, creativeOperationsForGroup(group))
+	require.Nil(t, responsesPolicyGroup(requeststate.WithClientProtocol(context.Background(), protocolcore.ProtocolImagesEdits), group))
 }

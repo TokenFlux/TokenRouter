@@ -10,7 +10,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/stretchr/testify/require"
 )
@@ -30,11 +36,11 @@ func captureStdLog(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-func newTestBillingService() *BillingService {
+func newTestBillingService() *billing.Calculator {
 	return NewBillingService(&config.Config{}, nil)
 }
 
-func newTestBillingServiceWithOpenAILadderCatalog(t *testing.T) *BillingService {
+func newTestBillingServiceWithOpenAILadderCatalog(t *testing.T) *billing.Calculator {
 	t.Helper()
 	return NewBillingService(&config.Config{}, newStubPricingServiceFromJSON(t, openAILadderCatalogJSON))
 }
@@ -43,7 +49,7 @@ func TestCalculateCost_BasicComputation(t *testing.T) {
 	svc := newTestBillingService()
 
 	// 使用 claude-sonnet-4 的回退价格：Input $3/MTok, Output $15/MTok
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:  1000,
 		OutputTokens: 500,
 	}
@@ -62,7 +68,7 @@ func TestCalculateCost_BasicComputation(t *testing.T) {
 func TestCalculateCost_WithCacheTokens(t *testing.T) {
 	svc := newTestBillingService()
 
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:         1000,
 		OutputTokens:        500,
 		CacheCreationTokens: 2000,
@@ -83,7 +89,7 @@ func TestCalculateCost_WithCacheTokens(t *testing.T) {
 func TestCalculateCost_RateMultiplier(t *testing.T) {
 	svc := newTestBillingService()
 
-	tokens := UsageTokens{InputTokens: 1000, OutputTokens: 500}
+	tokens := billingpricing.UsageTokens{InputTokens: 1000, OutputTokens: 500}
 
 	cost1x, err := svc.CalculateCost("claude-sonnet-4", tokens, 1.0)
 	require.NoError(t, err)
@@ -263,7 +269,7 @@ func TestGetModelPricing_OpenAIGPT54MiniFallback(t *testing.T) {
 func TestCalculateCost_OpenAIGPT54LongContextAppliesWholeSessionMultipliers(t *testing.T) {
 	svc := newTestBillingServiceWithOpenAILadderCatalog(t)
 
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:  300000,
 		OutputTokens: 4000,
 	}
@@ -285,7 +291,7 @@ func TestCalculateCost_OpenAIGPT54LongContextMarkerRequiresActualCostIncrease(t 
 
 	cost, err := svc.CalculateCostWithServiceTier(
 		"gpt-5.4-2026-03-05",
-		UsageTokens{InputTokens: 300000},
+		billingpricing.UsageTokens{InputTokens: 300000},
 		0,
 		"",
 	)
@@ -308,7 +314,7 @@ func TestCalculateCost_OpenAILongContextBoundaryIncludesCacheTokens(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cost, err := svc.CalculateCost("gpt-5.4", UsageTokens{
+			cost, err := svc.CalculateCost("gpt-5.4", billingpricing.UsageTokens{
 				InputTokens:         100000,
 				CacheCreationTokens: 100000,
 				CacheReadTokens:     tt.cacheRead,
@@ -351,7 +357,7 @@ func TestCalculateCost_GPT56SolMarketplaceIntervalsMatchSettlement(t *testing.T)
 	require.InDelta(t, 75.0, longInterval.FastCacheWritePricePerToken*1_000_000, 1e-10)
 	require.InDelta(t, 6.0, longInterval.FastCacheReadPricePerToken*1_000_000, 1e-10)
 
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:         100000,
 		CacheCreationTokens: 100000,
 		CacheReadTokens:     72001,
@@ -397,7 +403,7 @@ func TestCalculateCost_GPT56SolMarketplaceIntervalsMatchSettlement(t *testing.T)
 }
 
 func TestApplyLongContextDisplayMultipliersScalesAllCachePrices(t *testing.T) {
-	pricing := &ModelPricing{
+	pricing := &billingpricing.ModelPricing{
 		InputPricePerToken:                 1,
 		InputPricePerTokenPriority:         2,
 		OutputPricePerToken:                3,
@@ -443,11 +449,11 @@ func TestCalculateCostUnified_ExplicitIntervalsDoNotReapplyLongContextMultiplier
 	longOutput := 41e-6
 	longCacheWrite := 4e-6
 	longCacheRead := 0.4e-6
-	resolved := &ResolvedPricing{
-		Mode:        BillingModeToken,
+	resolved := &billingpricing.ResolvedPricing{
+		Mode:        routing.BillingModeToken,
 		BasePricing: basePricing,
-		Source:      PricingSourceChannel,
-		Intervals: []PricingInterval{
+		Source:      billingpricing.PricingSourceChannel,
+		Intervals: []routing.PricingInterval{
 			{
 				MinTokens: 0, MaxTokens: &shortMax,
 				InputPrice: &shortInput, OutputPrice: &shortOutput,
@@ -460,7 +466,7 @@ func TestCalculateCostUnified_ExplicitIntervalsDoNotReapplyLongContextMultiplier
 			},
 		},
 	}
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:         100000,
 		CacheCreationTokens: 100000,
 		CacheReadTokens:     72001,
@@ -468,7 +474,7 @@ func TestCalculateCostUnified_ExplicitIntervalsDoNotReapplyLongContextMultiplier
 	}
 	const groupRate = 2.0
 
-	cost, err := svc.CalculateCostUnified(CostInput{
+	cost, err := svc.CalculateCostUnified(billing.CostInput{
 		Ctx:            context.Background(),
 		Model:          "gpt-5.6-sol",
 		Tokens:         tokens,
@@ -502,7 +508,7 @@ func TestCalculateCostUnified_ExplicitIntervalsDoNotReapplyLongContextMultiplier
 func TestCalculateCost_OpenAIGPT55ProLongContextAppliesWholeSessionMultipliers(t *testing.T) {
 	svc := newTestBillingServiceWithOpenAILadderCatalog(t)
 
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:  300000,
 		OutputTokens: 4000,
 	}
@@ -525,7 +531,7 @@ func TestCalculateCost_OpenAIGPT54LongContextAppliesMultiplierToCacheRead(t *tes
 	svc := newTestBillingServiceWithOpenAILadderCatalog(t)
 
 	// InputTokens + CacheReadTokens = 1000 + 300000 = 301000 > 272000 阈值
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:     1000,
 		CacheReadTokens: 300000,
 		OutputTokens:    1000,
@@ -553,7 +559,7 @@ func TestCalculateCost_OpenAIGPT54NoLongContextKeepsCacheReadAtBasePrice(t *test
 	svc := newTestBillingServiceWithOpenAILadderCatalog(t)
 
 	// InputTokens + CacheReadTokens = 1000 + 100000 = 101000 < 272000 阈值，不触发长上下文
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:     1000,
 		CacheReadTokens: 100000,
 		OutputTokens:    1000,
@@ -575,7 +581,7 @@ func TestCalculateCost_OpenAIGPT54LongContextAppliesMultiplierToCacheCreation(t 
 	svc := newTestBillingServiceWithOpenAILadderCatalog(t)
 
 	// InputTokens + CacheReadTokens = 1000 + 300000 = 301000 > 272000 阈值
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:         1000,
 		CacheReadTokens:     300000,
 		CacheCreationTokens: 10000,
@@ -596,7 +602,7 @@ func TestCalculateCost_OpenAIGPT54NoLongContextKeepsCacheCreationAtBasePrice(t *
 	svc := newTestBillingServiceWithOpenAILadderCatalog(t)
 
 	// InputTokens + CacheReadTokens = 1000 + 100000 = 101000 < 272000 阈值，不触发长上下文
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:         1000,
 		CacheReadTokens:     100000,
 		CacheCreationTokens: 10000,
@@ -615,7 +621,7 @@ func TestCalculateCost_OpenAIGPT54NoLongContextKeepsCacheCreationAtBasePrice(t *
 // 使用手工构造的 pricing（参考 TestCalculateCost_SupportsCacheBreakdown 的写法）
 // 以便同时控制 SupportsCacheBreakdown + 长上下文阈值。
 func TestCalculateCost_LongContextAppliesMultiplierToCacheCreation5mAnd1h(t *testing.T) {
-	svc := newBillingServiceWithPrices(&config.Config{}, nil, map[string]*ModelPricing{
+	svc := newBillingServiceWithPrices(&config.Config{}, nil, map[string]*billingpricing.ModelPricing{
 		"claude-sonnet-4": {
 			InputPricePerToken:          3e-6,
 			OutputPricePerToken:         15e-6,
@@ -630,7 +636,7 @@ func TestCalculateCost_LongContextAppliesMultiplierToCacheCreation5mAnd1h(t *tes
 	})
 
 	// InputTokens + CacheReadTokens = 1000 + 300000 = 301000 > 272000 阈值
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:           1000,
 		CacheReadTokens:       300000,
 		CacheCreation5mTokens: 8000,
@@ -648,7 +654,7 @@ func TestCalculateCost_LongContextAppliesMultiplierToCacheCreation5mAnd1h(t *tes
 }
 
 func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
-	svc := newTestBillingService()
+	prices := billingpricing.DefaultFallbackPrices()
 
 	tests := []struct {
 		name             string
@@ -727,7 +733,7 @@ func TestGetFallbackPricing_FamilyMatching(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pricing := svc.getFallbackPricing(tt.model)
+			pricing := billingpricing.LookupFallbackPrice(prices, tt.model, modelidentity.PricingPolicy(strings.ToLower(tt.model)))
 			if tt.expectNilPricing {
 				require.Nil(t, pricing)
 				return
@@ -766,7 +772,7 @@ func TestCalculateCost_DoubaoEmbeddingVisionDifferentialInput(t *testing.T) {
 	svc := newTestBillingService()
 
 	// 图文混合输入：prompt_tokens=1340，其中图片 token=28、文本 token=1312。
-	cost, err := svc.CalculateCost("doubao-embedding-vision", UsageTokens{
+	cost, err := svc.CalculateCost("doubao-embedding-vision", billingpricing.UsageTokens{
 		InputTokens:      1340,
 		ImageInputTokens: 28,
 	}, 1.0)
@@ -779,14 +785,14 @@ func TestCalculateCost_DoubaoEmbeddingVisionDifferentialInput(t *testing.T) {
 	require.Zero(t, cost.OutputCost)
 
 	// 纯文本：全部按文本档计费，与原单价路径一致，无图片输入费用。
-	textOnly := UsageTokens{InputTokens: 1340}
+	textOnly := billingpricing.UsageTokens{InputTokens: 1340}
 	costText, err := svc.CalculateCost("doubao-embedding-vision", textOnly, 1.0)
 	require.NoError(t, err)
 	require.InDelta(t, float64(1340)*0.098e-6, costText.InputCost, 1e-15)
 	require.Zero(t, costText.ImageInputCost)
 
 	// 上游异常回传图片 token 超过总输入时，按总输入 token 上限计费，避免文本 token 变负。
-	costWeird, err := svc.CalculateCost("doubao-embedding-vision", UsageTokens{
+	costWeird, err := svc.CalculateCost("doubao-embedding-vision", billingpricing.UsageTokens{
 		InputTokens:      10,
 		ImageInputTokens: 50,
 	}, 1.0)
@@ -803,21 +809,21 @@ func TestCalculateCost_DoubaoEmbeddingVisionDifferentialInput(t *testing.T) {
 func TestComputeTokenBreakdown_GptImage2ImageEditIssue4386(t *testing.T) {
 	svc := newTestBillingService()
 
-	pricing := &ModelPricing{
+	pricing := &billingpricing.ModelPricing{
 		InputPricePerToken:       5e-6,
 		ImageInputPricePerToken:  8e-6,
 		OutputPricePerToken:      10e-6,
 		ImageOutputPricePerToken: 30e-6,
 		ImageOutputPriceExplicit: true,
 	}
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:       371,
 		ImageInputTokens:  352,
 		OutputTokens:      439,
 		ImageOutputTokens: 439,
 	}
 
-	cost := svc.computeTokenBreakdown(pricing, tokens, 1.0, "", false)
+	cost := svc.ComputeTokenBreakdown(pricing, tokens, 1.0, "", false)
 
 	wantTextInput := float64(19) * 5e-6     // 0.000095
 	wantImageInput := float64(352) * 8e-6   // 0.002816
@@ -832,7 +838,7 @@ func TestComputeTokenBreakdown_GptImage2ImageEditIssue4386(t *testing.T) {
 func TestCalculateCostWithLongContext_BelowThreshold(t *testing.T) {
 	svc := newTestBillingService()
 
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:     50000,
 		OutputTokens:    1000,
 		CacheReadTokens: 100000,
@@ -852,7 +858,7 @@ func TestCalculateCostWithLongContext_AboveThreshold_CacheExceedsThreshold(t *te
 
 	// 缓存 210k + 输入 10k = 220k > 200k 阈值
 	// 缓存已超阈值：范围内 200k 缓存，范围外 10k 缓存 + 10k 输入
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:     10000,
 		OutputTokens:    1000,
 		CacheReadTokens: 210000,
@@ -861,14 +867,14 @@ func TestCalculateCostWithLongContext_AboveThreshold_CacheExceedsThreshold(t *te
 	require.NoError(t, err)
 
 	// 范围内：200k cache + 0 input + 1k output
-	inRange, _ := svc.CalculateCost("claude-sonnet-4", UsageTokens{
+	inRange, _ := svc.CalculateCost("claude-sonnet-4", billingpricing.UsageTokens{
 		InputTokens:     0,
 		OutputTokens:    1000,
 		CacheReadTokens: 200000,
 	}, 1.0)
 
 	// 范围外：10k cache + 10k input，倍率 2.0
-	outRange, _ := svc.CalculateCost("claude-sonnet-4", UsageTokens{
+	outRange, _ := svc.CalculateCost("claude-sonnet-4", billingpricing.UsageTokens{
 		InputTokens:     10000,
 		CacheReadTokens: 10000,
 	}, 2.0)
@@ -881,7 +887,7 @@ func TestCalculateCostWithLongContext_AboveThreshold_CacheBelowThreshold(t *test
 
 	// 缓存 100k + 输入 150k = 250k > 200k 阈值
 	// 缓存未超阈值：范围内 100k 缓存 + 100k 输入，范围外 50k 输入
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:     150000,
 		OutputTokens:    1000,
 		CacheReadTokens: 100000,
@@ -898,7 +904,7 @@ func TestCalculateCostWithLongContext_AboveThreshold_CacheBelowThreshold(t *test
 
 func TestCalculateCostWithLongContext_MarkerRequiresActualCostIncrease(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{InputTokens: 300000}
+	tokens := billingpricing.UsageTokens{InputTokens: 300000}
 
 	cost, err := svc.CalculateCostWithLongContext("claude-sonnet-4", tokens, 0, 200000, 2.0)
 
@@ -910,7 +916,7 @@ func TestCalculateCostWithLongContext_MarkerRequiresActualCostIncrease(t *testin
 func TestCalculateCostWithLongContext_DisabledThreshold(t *testing.T) {
 	svc := newTestBillingService()
 
-	tokens := UsageTokens{InputTokens: 300000, CacheReadTokens: 0}
+	tokens := billingpricing.UsageTokens{InputTokens: 300000, CacheReadTokens: 0}
 
 	// threshold <= 0 应禁用长上下文计费
 	cost1, err := svc.CalculateCostWithLongContext("claude-sonnet-4", tokens, 1.0, 0, 2.0)
@@ -925,7 +931,7 @@ func TestCalculateCostWithLongContext_DisabledThreshold(t *testing.T) {
 func TestCalculateCostWithLongContext_ExtraMultiplierLessEqualOne(t *testing.T) {
 	svc := newTestBillingService()
 
-	tokens := UsageTokens{InputTokens: 300000}
+	tokens := billingpricing.UsageTokens{InputTokens: 300000}
 
 	// extraMultiplier <= 1 应禁用长上下文计费
 	cost, err := svc.CalculateCostWithLongContext("claude-sonnet-4", tokens, 1.0, 200000, 1.0)
@@ -1005,7 +1011,7 @@ func TestIsModelSupported(t *testing.T) {
 func TestCalculateCost_ZeroTokens(t *testing.T) {
 	svc := newTestBillingService()
 
-	cost, err := svc.CalculateCost("claude-sonnet-4", UsageTokens{}, 1.0)
+	cost, err := svc.CalculateCost("claude-sonnet-4", billingpricing.UsageTokens{}, 1.0)
 	require.NoError(t, err)
 	require.Equal(t, 0.0, cost.TotalCost)
 	require.Equal(t, 0.0, cost.ActualCost)
@@ -1016,7 +1022,7 @@ func TestCalculateCostWithConfig(t *testing.T) {
 	cfg.Default.RateMultiplier = 1.5
 	svc := NewBillingService(cfg, nil)
 
-	tokens := UsageTokens{InputTokens: 1000, OutputTokens: 500}
+	tokens := billingpricing.UsageTokens{InputTokens: 1000, OutputTokens: 500}
 	cost, err := svc.CalculateCostWithConfig("claude-sonnet-4", tokens)
 	require.NoError(t, err)
 
@@ -1029,7 +1035,7 @@ func TestCalculateCostWithConfig_ZeroMultiplier(t *testing.T) {
 	cfg.Default.RateMultiplier = 0
 	svc := NewBillingService(cfg, nil)
 
-	tokens := UsageTokens{InputTokens: 1000}
+	tokens := billingpricing.UsageTokens{InputTokens: 1000}
 	cost, err := svc.CalculateCostWithConfig("claude-sonnet-4", tokens)
 	require.NoError(t, err)
 
@@ -1072,9 +1078,9 @@ func TestForceUpdatePricing_NilService(t *testing.T) {
 
 func TestCalculateCostWithLongContext_PropagatesError(t *testing.T) {
 	// 使用空的 fallback prices 让 GetModelPricing 失败
-	svc := newBillingServiceWithPrices(&config.Config{}, nil, make(map[string]*ModelPricing))
+	svc := newBillingServiceWithPrices(&config.Config{}, nil, make(map[string]*billingpricing.ModelPricing))
 
-	tokens := UsageTokens{InputTokens: 300000, CacheReadTokens: 0}
+	tokens := billingpricing.UsageTokens{InputTokens: 300000, CacheReadTokens: 0}
 	_, err := svc.CalculateCostWithLongContext("unknown-model", tokens, 1.0, 200000, 2.0)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "pricing not found")
@@ -1148,17 +1154,17 @@ func TestGetModelPricing_GrokOfficialFamilyCards(t *testing.T) {
 func TestCalculateCostUnified_GroupLongContextToggleUsesPresetLadder(t *testing.T) {
 	svc := newTestBillingService()
 	resolver := NewModelPricingResolver(nil, svc)
-	tokens := UsageTokens{InputTokens: 250000, OutputTokens: 1000}
+	tokens := billingpricing.UsageTokens{InputTokens: 250000, OutputTokens: 1000}
 
-	off := &Group{LongContextPricingEnabled: false}
-	disabled, err := svc.CalculateCostUnified(CostInput{
-		Model: "grok-4.5", Group: off, Tokens: tokens, RateMultiplier: 1, Resolver: resolver,
+	off := &routing.Group{LongContextPricingEnabled: false}
+	disabled, err := svc.CalculateCostUnified(billing.CostInput{
+		Model: "grok-4.5", Group: projectPriceGroup(off), Tokens: tokens, RateMultiplier: 1, Resolver: resolver,
 	})
 	require.NoError(t, err)
 
-	on := &Group{LongContextPricingEnabled: true}
-	enabled, err := svc.CalculateCostUnified(CostInput{
-		Model: "grok-4.5", Group: on, Tokens: tokens, RateMultiplier: 1, Resolver: resolver,
+	on := &routing.Group{LongContextPricingEnabled: true}
+	enabled, err := svc.CalculateCostUnified(billing.CostInput{
+		Model: "grok-4.5", Group: projectPriceGroup(on), Tokens: tokens, RateMultiplier: 1, Resolver: resolver,
 	})
 	require.NoError(t, err)
 
@@ -1195,7 +1201,7 @@ func TestGetModelPricing_UnknownGrokTextFallsBackToGrok46(t *testing.T) {
 	} {
 		_, err := svc.GetModelPricing(model)
 		require.Error(t, err, "non-text grok family %s must not inherit grok-4.5 token rates", model)
-		require.ErrorIs(t, err, ErrModelPricingUnavailable)
+		require.ErrorIs(t, err, billingpricing.ErrModelPricingUnavailable)
 	}
 
 	// 已知价格卡保持自身费率，不回退到 4.5 系列底价。
@@ -1257,7 +1263,7 @@ func TestGetModelPricing_GrokCatalogFallbacks(t *testing.T) {
 }
 
 func TestCalculateCost_SupportsCacheBreakdown(t *testing.T) {
-	svc := newBillingServiceWithPrices(&config.Config{}, nil, map[string]*ModelPricing{
+	svc := newBillingServiceWithPrices(&config.Config{}, nil, map[string]*billingpricing.ModelPricing{
 		"claude-sonnet-4": {
 			InputPricePerToken:     3e-6,
 			OutputPricePerToken:    15e-6,
@@ -1267,7 +1273,7 @@ func TestCalculateCost_SupportsCacheBreakdown(t *testing.T) {
 		},
 	})
 
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:           1000,
 		OutputTokens:          500,
 		CacheCreation5mTokens: 100000,
@@ -1282,20 +1288,19 @@ func TestCalculateCost_SupportsCacheBreakdown(t *testing.T) {
 }
 
 func TestComputeCacheCreationCost_CapsContradictoryBreakdownAtAggregate(t *testing.T) {
-	svc := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
-	pricing := &ModelPricing{
+	pricing := &billingpricing.ModelPricing{
 		SupportsCacheBreakdown: true,
 		CacheCreation5mPrice:   1,
 		CacheCreation1hPrice:   1,
 	}
 
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		CacheCreationTokens:   463184,
 		CacheCreation5mTokens: 463184,
 		CacheCreation1hTokens: 463184,
 	}
 
-	cost := svc.computeCacheCreationCost(pricing, tokens, 0, 1)
+	cost := billingpricing.ComputeCacheCreationCost(pricing, tokens, 0, 1)
 	require.Equal(t, float64(tokens.CacheCreationTokens), cost,
 		"billed cache-creation token equivalent must not exceed the positive aggregate")
 }
@@ -1303,61 +1308,61 @@ func TestComputeCacheCreationCost_CapsContradictoryBreakdownAtAggregate(t *testi
 func TestNormalizeCacheCreationBreakdown_BillingSafetyInvariant(t *testing.T) {
 	tests := []struct {
 		name   string
-		tokens UsageTokens
+		tokens billingpricing.UsageTokens
 		want5m int
 		want1h int
 	}{
 		{
 			name:   "preserves ratio when capping",
-			tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 90, CacheCreation1hTokens: 60},
+			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 90, CacheCreation1hTokens: 60},
 			want5m: 60,
 			want1h: 40,
 		},
 		{
 			name:   "details below aggregate unchanged",
-			tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 30, CacheCreation1hTokens: 60},
+			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 30, CacheCreation1hTokens: 60},
 			want5m: 30,
 			want1h: 60,
 		},
 		{
 			name:   "absent 5m detail unchanged",
-			tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation1hTokens: 60},
+			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation1hTokens: 60},
 			want5m: 0,
 			want1h: 60,
 		},
 		{
 			name:   "absent 1h detail unchanged",
-			tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 30},
+			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: 30},
 			want5m: 30,
 			want1h: 0,
 		},
 		{
 			name:   "negative detail clamped",
-			tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -50, CacheCreation1hTokens: 60},
+			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -50, CacheCreation1hTokens: 60},
 			want5m: 0,
 			want1h: 60,
 		},
 		{
 			name:   "negative detail cannot hide oversized positive detail",
-			tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -50, CacheCreation1hTokens: 150},
+			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -50, CacheCreation1hTokens: 150},
 			want5m: 0,
 			want1h: 100,
 		},
 		{
 			name:   "integer boundary details capped without overflow",
-			tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: int(^uint(0) >> 1), CacheCreation1hTokens: int(^uint(0) >> 1)},
+			tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: int(^uint(0) >> 1), CacheCreation1hTokens: int(^uint(0) >> 1)},
 			want5m: 50,
 			want1h: 50,
 		},
 		{
 			name:   "integer boundary aggregate avoids float conversion overflow",
-			tokens: UsageTokens{CacheCreationTokens: int(^uint(0) >> 1), CacheCreation5mTokens: int(^uint(0) >> 1), CacheCreation1hTokens: 1},
+			tokens: billingpricing.UsageTokens{CacheCreationTokens: int(^uint(0) >> 1), CacheCreation5mTokens: int(^uint(0) >> 1), CacheCreation1hTokens: 1},
 			want5m: int(^uint(0) >> 1),
 			want1h: 0,
 		},
 		{
 			name:   "zero aggregate unchanged",
-			tokens: UsageTokens{CacheCreation5mTokens: 90, CacheCreation1hTokens: 60},
+			tokens: billingpricing.UsageTokens{CacheCreation5mTokens: 90, CacheCreation1hTokens: 60},
 			want5m: 90,
 			want1h: 60,
 		},
@@ -1373,8 +1378,7 @@ func TestNormalizeCacheCreationBreakdown_BillingSafetyInvariant(t *testing.T) {
 }
 
 func TestComputeCacheCreationCost_PreservesZeroDetailFallback(t *testing.T) {
-	svc := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
-	pricing := &ModelPricing{
+	pricing := &billingpricing.ModelPricing{
 		SupportsCacheBreakdown: true,
 		CacheCreation5mPrice:   4e-6,
 		CacheCreation1hPrice:   5e-6,
@@ -1382,16 +1386,16 @@ func TestComputeCacheCreationCost_PreservesZeroDetailFallback(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		tokens UsageTokens
+		tokens billingpricing.UsageTokens
 	}{
-		{name: "zero details", tokens: UsageTokens{CacheCreationTokens: 100}},
-		{name: "one negative detail", tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -25}},
-		{name: "both negative details", tokens: UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -25, CacheCreation1hTokens: -75}},
+		{name: "zero details", tokens: billingpricing.UsageTokens{CacheCreationTokens: 100}},
+		{name: "one negative detail", tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -25}},
+		{name: "both negative details", tokens: billingpricing.UsageTokens{CacheCreationTokens: 100, CacheCreation5mTokens: -25, CacheCreation1hTokens: -75}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cost := svc.computeCacheCreationCost(pricing, tt.tokens, 0, 1)
+			cost := billingpricing.ComputeCacheCreationCost(pricing, tt.tokens, 0, 1)
 			require.InDelta(t, 100*4e-6, cost, 1e-12)
 		})
 	}
@@ -1400,7 +1404,7 @@ func TestComputeCacheCreationCost_PreservesZeroDetailFallback(t *testing.T) {
 func TestCalculateCost_LargeTokenCount(t *testing.T) {
 	svc := newTestBillingService()
 
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:  1_000_000,
 		OutputTokens: 1_000_000,
 	}
@@ -1426,22 +1430,22 @@ func TestServiceTierCostMultiplier(t *testing.T) {
 
 func TestCalculateCostWithServiceTier_ChannelFlexMultiplier(t *testing.T) {
 	svc := newTestBillingService()
-	channelPricing := &ChannelModelPricing{
+	channelPricing := &routing.ChannelModelPricing{
 		FlexMultiplier: testPtrFloat64(0.25),
 		InputPrice:     testPtrFloat64(10e-6),
 		OutputPrice:    testPtrFloat64(20e-6),
 	}
-	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50}
-	standard, err := svc.calculateCostInternal("claude-sonnet-4", tokens, 1, "", channelPricing)
+	tokens := billingpricing.UsageTokens{InputTokens: 100, OutputTokens: 50}
+	standard, err := svc.CalculateCostInternal("claude-sonnet-4", tokens, 1, "", channelPricing)
 	require.NoError(t, err)
-	flex, err := svc.calculateCostInternal("claude-sonnet-4", tokens, 1, "flex", channelPricing)
+	flex, err := svc.CalculateCostInternal("claude-sonnet-4", tokens, 1, "flex", channelPricing)
 	require.NoError(t, err)
 	require.InDelta(t, standard.TotalCost*0.25, flex.TotalCost, 1e-12)
 }
 
 func TestCalculateCostWithServiceTier_OpenAIPriorityUsesPriorityPricing(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50, CacheReadTokens: 20}
+	tokens := billingpricing.UsageTokens{InputTokens: 100, OutputTokens: 50, CacheReadTokens: 20}
 
 	baseCost, err := svc.CalculateCost("gpt-5.1-codex", tokens, 1.0)
 	require.NoError(t, err)
@@ -1457,7 +1461,7 @@ func TestCalculateCostWithServiceTier_OpenAIPriorityUsesPriorityPricing(t *testi
 
 func TestCalculateCostWithServiceTier_FlexAppliesHalfMultiplier(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50, CacheCreationTokens: 40, CacheReadTokens: 20}
+	tokens := billingpricing.UsageTokens{InputTokens: 100, OutputTokens: 50, CacheCreationTokens: 40, CacheReadTokens: 20}
 
 	baseCost, err := svc.CalculateCost("gpt-5.4", tokens, 1.0)
 	require.NoError(t, err)
@@ -1474,7 +1478,7 @@ func TestCalculateCostWithServiceTier_FlexAppliesHalfMultiplier(t *testing.T) {
 
 func TestCalculateCostWithServiceTier_Gpt54MiniPriorityFallsBackToTierMultiplier(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{InputTokens: 120, OutputTokens: 30, CacheCreationTokens: 12, CacheReadTokens: 8}
+	tokens := billingpricing.UsageTokens{InputTokens: 120, OutputTokens: 30, CacheCreationTokens: 12, CacheReadTokens: 8}
 
 	baseCost, err := svc.CalculateCost("gpt-5.4-mini", tokens, 1.0)
 	require.NoError(t, err)
@@ -1491,7 +1495,7 @@ func TestCalculateCostWithServiceTier_Gpt54MiniPriorityFallsBackToTierMultiplier
 
 func TestCalculateCostWithServiceTier_Gpt54NanoFlexAppliesHalfMultiplier(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50, CacheCreationTokens: 40, CacheReadTokens: 20}
+	tokens := billingpricing.UsageTokens{InputTokens: 100, OutputTokens: 50, CacheCreationTokens: 40, CacheReadTokens: 20}
 
 	baseCost, err := svc.CalculateCost("gpt-5.4-nano", tokens, 1.0)
 	require.NoError(t, err)
@@ -1508,7 +1512,7 @@ func TestCalculateCostWithServiceTier_Gpt54NanoFlexAppliesHalfMultiplier(t *test
 
 func TestCalculateCostWithServiceTier_PriorityFallsBackToTierMultiplierWithoutExplicitPriorityPrice(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{InputTokens: 120, OutputTokens: 30, CacheCreationTokens: 12, CacheReadTokens: 8}
+	tokens := billingpricing.UsageTokens{InputTokens: 120, OutputTokens: 30, CacheCreationTokens: 12, CacheReadTokens: 8}
 
 	baseCost, err := svc.CalculateCost("claude-sonnet-4", tokens, 1.0)
 	require.NoError(t, err)
@@ -1525,7 +1529,7 @@ func TestCalculateCostWithServiceTier_PriorityFallsBackToTierMultiplierWithoutEx
 
 func TestCalculateCostWithServiceTier_ClaudeOpus48FastUsesDoublePricing(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:           100,
 		OutputTokens:          50,
 		CacheCreation5mTokens: 40,
@@ -1559,7 +1563,7 @@ func TestCalculateCostWithServiceTier_ClaudeOpus48FastUsesDoublePricing(t *testi
 
 func TestBillingServiceGetModelPricing_UsesDynamicPriorityFields(t *testing.T) {
 	pricingSvc := newPricingServiceFixture(pricingServiceFixture{
-		pricingData: map[string]*LiteLLMModelPricing{
+		pricingData: map[string]*billingpricing.LiteLLMModelPricing{
 			"gpt-5.4": {
 				InputCostPerToken:               2.5e-6,
 				InputCostPerTokenPriority:       5e-6,
@@ -1608,7 +1612,7 @@ func TestBillingServiceGetModelPricing_OpenAIFallbackGpt52Variants(t *testing.T)
 
 func TestCalculateCostWithServiceTier_PriorityFallsBackToTierMultiplierWhenExplicitPriceMissing(t *testing.T) {
 	svc := NewBillingService(&config.Config{}, newPricingServiceFixture(pricingServiceFixture{
-		pricingData: map[string]*LiteLLMModelPricing{
+		pricingData: map[string]*billingpricing.LiteLLMModelPricing{
 			"custom-no-priority": {
 				InputCostPerToken:           1e-6,
 				OutputCostPerToken:          2e-6,
@@ -1617,7 +1621,7 @@ func TestCalculateCostWithServiceTier_PriorityFallsBackToTierMultiplierWhenExpli
 			},
 		},
 	}))
-	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50, CacheCreationTokens: 40, CacheReadTokens: 20}
+	tokens := billingpricing.UsageTokens{InputTokens: 100, OutputTokens: 50, CacheCreationTokens: 40, CacheReadTokens: 20}
 
 	baseCost, err := svc.CalculateCost("custom-no-priority", tokens, 1.0)
 	require.NoError(t, err)
@@ -1652,7 +1656,7 @@ func TestGetModelPricing_OpenAIGpt52FallbacksExposePriorityPrices(t *testing.T) 
 
 func TestGetModelPricing_MapsDynamicPriorityFieldsIntoBillingPricing(t *testing.T) {
 	svc := NewBillingService(&config.Config{}, newPricingServiceFixture(pricingServiceFixture{
-		pricingData: map[string]*LiteLLMModelPricing{
+		pricingData: map[string]*billingpricing.LiteLLMModelPricing{
 			"dynamic-tier-model": {
 				InputCostPerToken:                   1e-6,
 				InputCostPerTokenPriority:           2e-6,
@@ -1708,7 +1712,7 @@ func TestGetModelPricingWithChannel_NilChannelPricing_ReturnsOriginal(t *testing
 func TestGetModelPricingWithChannel_OverrideInputPriceOnly(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		InputPrice: testPtrFloat64(99e-6),
 	}
 	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
@@ -1725,7 +1729,7 @@ func TestGetModelPricingWithChannel_OverrideInputPriceOnly(t *testing.T) {
 func TestGetModelPricingWithChannel_PriceMultiplierAppliesAfterOverrides(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		PriceMultiplier: testPtrFloat64(2),
 		InputPrice:      testPtrFloat64(10e-6),
 	}
@@ -1740,7 +1744,7 @@ func TestGetModelPricingWithChannel_PriceMultiplierAppliesAfterOverrides(t *test
 func TestGetModelPricingWithChannel_PreservesNativeTierRatio(t *testing.T) {
 	svc := newTestBillingService()
 
-	pricing, err := svc.GetModelPricingWithChannel("gpt-5.4", &ChannelModelPricing{
+	pricing, err := svc.GetModelPricingWithChannel("gpt-5.4", &routing.ChannelModelPricing{
 		InputPrice:      testPtrFloat64(10e-6),
 		OutputPrice:     testPtrFloat64(40e-6),
 		CacheWritePrice: testPtrFloat64(8e-6),
@@ -1757,8 +1761,8 @@ func TestGetModelPricingWithChannel_PreservesNativeTierRatio(t *testing.T) {
 
 func TestCalculateCostWithChannelFastModeMultiplierUsesFinalStandardPrice(t *testing.T) {
 	svc := newTestBillingService()
-	channelPricing := &ChannelModelPricing{
-		Platform:           PlatformOpenAI,
+	channelPricing := &routing.ChannelModelPricing{
+		Platform:           capability.PlatformOpenAI,
 		PriceMultiplier:    testPtrFloat64(1.25),
 		FastModeMultiplier: testPtrFloat64(1.5),
 		InputPrice:         testPtrFloat64(10e-6),
@@ -1768,7 +1772,7 @@ func TestCalculateCostWithChannelFastModeMultiplierUsesFinalStandardPrice(t *tes
 		CacheReadPrice:     testPtrFloat64(2e-6),
 		ImageOutputPrice:   testPtrFloat64(30e-6),
 	}
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:         100,
 		ImageInputTokens:    20,
 		OutputTokens:        50,
@@ -1777,9 +1781,9 @@ func TestCalculateCostWithChannelFastModeMultiplierUsesFinalStandardPrice(t *tes
 		CacheReadTokens:     40,
 	}
 
-	standard, err := svc.calculateCostInternal("gpt-5.4", tokens, 1, "", channelPricing)
+	standard, err := svc.CalculateCostInternal("gpt-5.4", tokens, 1, "", channelPricing)
 	require.NoError(t, err)
-	fast, err := svc.calculateCostInternal("gpt-5.4", tokens, 1, "priority", channelPricing)
+	fast, err := svc.CalculateCostInternal("gpt-5.4", tokens, 1, "priority", channelPricing)
 	require.NoError(t, err)
 
 	// 显式渠道倍率覆盖模型内置 priority 单价，并统一作用于文本、图片和缓存费用。
@@ -1795,7 +1799,7 @@ func TestCalculateCostWithChannelFastModeMultiplierUsesFinalStandardPrice(t *tes
 func TestGetModelPricingWithChannel_DoesNotMutateFallbackPricing(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		InputPrice: testPtrFloat64(99e-6),
 	}
 	_, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
@@ -1810,7 +1814,7 @@ func TestGetModelPricingWithChannel_DoesNotMutateFallbackPricing(t *testing.T) {
 func TestGetModelPricingWithChannel_OverrideOutputPriceOnly(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		OutputPrice: testPtrFloat64(88e-6),
 	}
 	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
@@ -1827,7 +1831,7 @@ func TestGetModelPricingWithChannel_OverrideOutputPriceOnly(t *testing.T) {
 func TestGetModelPricingWithChannel_OverrideAllFields(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		InputPrice:       testPtrFloat64(10e-6),
 		OutputPrice:      testPtrFloat64(20e-6),
 		CacheWritePrice:  testPtrFloat64(5e-6),
@@ -1852,7 +1856,7 @@ func TestGetModelPricingWithChannel_OverrideAllFields(t *testing.T) {
 func TestGetModelPricingWithChannel_CacheWritePriceAffects5mAnd1h(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		CacheWritePrice: testPtrFloat64(7e-6),
 	}
 	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
@@ -1867,7 +1871,7 @@ func TestGetModelPricingWithChannel_CacheWritePriceAffects5mAnd1h(t *testing.T) 
 func TestGetModelPricingWithChannel_CacheWriteTTLPricesCanDiffer(t *testing.T) {
 	svc := newTestBillingService()
 
-	pricing, err := svc.GetModelPricingWithChannel("claude-fable-5-1", &ChannelModelPricing{
+	pricing, err := svc.GetModelPricingWithChannel("claude-fable-5-1", &routing.ChannelModelPricing{
 		CacheWritePrice:   testPtrFloat64(13e-6),
 		CacheWrite1hPrice: testPtrFloat64(21e-6),
 	})
@@ -1895,7 +1899,7 @@ func TestGetModelPricing_Fable51FallbackPricing(t *testing.T) {
 func TestGetModelPricingWithChannel_CacheReadPriceAffectsPriority(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		CacheReadPrice: testPtrFloat64(2e-6),
 	}
 	pricing, err := svc.GetModelPricingWithChannel("claude-sonnet-4", chPricing)
@@ -1909,7 +1913,7 @@ func TestGetModelPricingWithChannel_CacheReadPriceAffectsPriority(t *testing.T) 
 func TestGetModelPricingWithChannel_UnknownModelReturnsError(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		InputPrice: testPtrFloat64(1e-6),
 	}
 	pricing, err := svc.GetModelPricingWithChannel("totally-unknown-model", chPricing)
@@ -1921,7 +1925,7 @@ func TestGetModelPricingWithChannel_UnknownModelReturnsError(t *testing.T) {
 func TestGetModelPricingWithChannel_NilImageOutputPriceZerosAndMarksExplicit(t *testing.T) {
 	svc := newTestBillingService()
 
-	chPricing := &ChannelModelPricing{
+	chPricing := &routing.ChannelModelPricing{
 		InputPrice:  testPtrFloat64(10e-6),
 		OutputPrice: testPtrFloat64(20e-6),
 		// 图片输出价格有意保持为空
@@ -1936,18 +1940,18 @@ func TestGetModelPricingWithChannel_NilImageOutputPriceZerosAndMarksExplicit(t *
 func TestComputeTokenBreakdown_ExplicitZeroImagePrice_NoFallback(t *testing.T) {
 	svc := newTestBillingService()
 
-	pricing := &ModelPricing{
+	pricing := &billingpricing.ModelPricing{
 		InputPricePerToken:       3e-6,
 		OutputPricePerToken:      15e-6,
 		ImageOutputPricePerToken: 0,
 		ImageOutputPriceExplicit: true,
 	}
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:       100,
 		OutputTokens:      200,
 		ImageOutputTokens: 50,
 	}
-	bd := svc.computeTokenBreakdown(pricing, tokens, 1.0, "", false)
+	bd := svc.ComputeTokenBreakdown(pricing, tokens, 1.0, "", false)
 
 	// 图片输出令牌不应回退到常规输出价格
 	require.Equal(t, 0.0, bd.ImageOutputCost)
@@ -1958,18 +1962,18 @@ func TestComputeTokenBreakdown_ExplicitZeroImagePrice_NoFallback(t *testing.T) {
 func TestComputeTokenBreakdown_NonExplicitZeroImagePrice_FallsBackToOutput(t *testing.T) {
 	svc := newTestBillingService()
 
-	pricing := &ModelPricing{
+	pricing := &billingpricing.ModelPricing{
 		InputPricePerToken:       3e-6,
 		OutputPricePerToken:      15e-6,
 		ImageOutputPricePerToken: 0,
 		ImageOutputPriceExplicit: false,
 	}
-	tokens := UsageTokens{
+	tokens := billingpricing.UsageTokens{
 		InputTokens:       100,
 		OutputTokens:      200,
 		ImageOutputTokens: 50,
 	}
-	bd := svc.computeTokenBreakdown(pricing, tokens, 1.0, "", false)
+	bd := svc.ComputeTokenBreakdown(pricing, tokens, 1.0, "", false)
 
 	// 未显式设置时应回退到常规输出价格
 	require.InDelta(t, 50*15e-6, bd.ImageOutputCost, 1e-12)

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // AlphaSearchTarget 不暴露完整账号，准备好的请求禁止序列化或日志展开。
@@ -38,7 +38,7 @@ type AlphaSearch struct{ Options AlphaSearchOptions }
 
 func (e AlphaSearch) Execute(ctx context.Context, input upstream.AttemptInput, sink upstream.OutputSink) (upstream.AttemptResult, error) {
 	o := e.Options
-	target := &native.AlphaSearchTarget{
+	target := &openai.AlphaSearchTarget{
 		AccountID:         o.AccountID,
 		Request:           o.Request,
 		ResponsesFallback: o.ResponsesFallback,
@@ -53,5 +53,5 @@ func (e AlphaSearch) Execute(ctx context.Context, input upstream.AttemptInput, s
 		Headers:           o.Headers,
 	}
 	input.Target = target
-	return (native.AlphaSearchExecutor{}).Execute(ctx, input, sink)
+	return (openai.AlphaSearchExecutor{}).Execute(ctx, input, sink)
 }

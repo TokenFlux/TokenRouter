@@ -2,8 +2,9 @@ package postgres
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/account"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // UpdateUsageSessionWindowEndIfUnchanged 保留原窗口更新的独立提交与尽力事件，不覆盖新身份或较新窗口。

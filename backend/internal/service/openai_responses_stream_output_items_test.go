@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -11,7 +12,7 @@ import (
 // 累积器只建模一个 reasoning 和一个 message，经其重建会把多 item 回合压缩成
 // 单个伪造 message。
 func TestNormalizeResponsesStreamingTerminalOutputPreservesReportedItems(t *testing.T) {
-	doneItems := newResponsesStreamOutputItems()
+	doneItems := bridge.NewResponsesStreamOutputItems()
 
 	doneItems.Observe([]byte(`{
 		"type":"response.output_item.done",
@@ -24,7 +25,7 @@ func TestNormalizeResponsesStreamingTerminalOutputPreservesReportedItems(t *test
 		"item":{"id":"msg_1","type":"message","status":"completed","phase":"final_answer","role":"assistant","content":[{"type":"output_text","text":"shipped","annotations":[],"logprobs":[]}]}
 	}`))
 
-	normalized, changed := normalizeResponsesStreamingTerminalOutput(
+	normalized, changed := bridge.NormalizeResponsesStreamingTerminalOutput(
 		[]byte(`{"type":"response.completed","response":{"status":"completed","output":[]}}`),
 		nil,
 		doneItems,
@@ -51,7 +52,7 @@ func TestNormalizeResponsesStreamingTerminalOutputPreservesReportedItems(t *test
 
 // item 按 output_index 排序，而不是按到达顺序排序。
 func TestResponsesStreamOutputItemsOrderByOutputIndex(t *testing.T) {
-	doneItems := newResponsesStreamOutputItems()
+	doneItems := bridge.NewResponsesStreamOutputItems()
 	doneItems.Observe([]byte(`{"type":"response.output_item.done","output_index":2,"item":{"id":"c","type":"message"}}`))
 	doneItems.Observe([]byte(`{"type":"response.output_item.done","output_index":0,"item":{"id":"a","type":"reasoning"}}`))
 
@@ -63,13 +64,13 @@ func TestResponsesStreamOutputItemsOrderByOutputIndex(t *testing.T) {
 
 // 从未报告 done item 的流继续使用原有重建路径。
 func TestNormalizeResponsesStreamingTerminalOutputIgnoresNonDoneEvents(t *testing.T) {
-	doneItems := newResponsesStreamOutputItems()
+	doneItems := bridge.NewResponsesStreamOutputItems()
 	doneItems.Observe([]byte(`{"type":"response.output_item.added","output_index":0,"item":{"id":"msg_1","type":"message"}}`))
 	doneItems.Observe([]byte(`{"type":"response.output_text.delta","output_index":0,"delta":"hi"}`))
 	require.False(t, doneItems.HasItems())
 
 	raw := []byte(`{"type":"response.completed","response":{"status":"completed","output":[]}}`)
-	normalized, changed := normalizeResponsesStreamingTerminalOutput(raw, nil, doneItems, nil)
+	normalized, changed := bridge.NormalizeResponsesStreamingTerminalOutput(raw, nil, doneItems, nil)
 	require.False(t, changed)
 	require.Equal(t, string(raw), string(normalized))
 }
@@ -77,7 +78,7 @@ func TestNormalizeResponsesStreamingTerminalOutputIgnoresNonDoneEvents(t *testin
 // 终止事件可能带有非空但被截断的 output：流报告了两个 item，终止事件只带一个，
 // 且其 id 不是流中报告的 id。此时以已报告 item 为准。
 func TestNormalizeResponsesStreamingTerminalOutputRepairsTruncatedOutput(t *testing.T) {
-	doneItems := newResponsesStreamOutputItems()
+	doneItems := bridge.NewResponsesStreamOutputItems()
 	doneItems.Observe([]byte(`{
 		"type":"response.output_item.done","output_index":0,
 		"item":{"id":"rs_real","type":"reasoning","status":"in_progress","summary":[]}
@@ -87,7 +88,7 @@ func TestNormalizeResponsesStreamingTerminalOutputRepairsTruncatedOutput(t *test
 		"item":{"id":"msg_real","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"shipped","annotations":[],"logprobs":[]}]}
 	}`))
 
-	normalized, changed := normalizeResponsesStreamingTerminalOutput([]byte(`{
+	normalized, changed := bridge.NormalizeResponsesStreamingTerminalOutput([]byte(`{
 		"type":"response.completed",
 		"response":{"status":"completed","output":[{"type":"message","role":"assistant","id":"msg_fabricated","status":"completed","content":[{"type":"output_text","text":"shipped","annotations":[],"logprobs":[]}]}]}
 	}`), nil, doneItems, nil)
@@ -102,14 +103,14 @@ func TestNormalizeResponsesStreamingTerminalOutputRepairsTruncatedOutput(t *test
 
 // 已完整的终止 output 不应被重写。
 func TestNormalizeResponsesStreamingTerminalOutputLeavesCompleteOutputAlone(t *testing.T) {
-	doneItems := newResponsesStreamOutputItems()
+	doneItems := bridge.NewResponsesStreamOutputItems()
 	doneItems.Observe([]byte(`{
 		"type":"response.output_item.done","output_index":0,
 		"item":{"id":"msg_real","type":"message","status":"completed"}
 	}`))
 
 	raw := []byte(`{"type":"response.completed","response":{"status":"completed","output":[{"type":"message","id":"msg_upstream","status":"completed","vendor":"keep"}]}}`)
-	normalized, changed := normalizeResponsesStreamingTerminalOutput(raw, nil, doneItems, nil)
+	normalized, changed := bridge.NormalizeResponsesStreamingTerminalOutput(raw, nil, doneItems, nil)
 	require.False(t, changed)
 	require.Equal(t, string(raw), string(normalized))
 }

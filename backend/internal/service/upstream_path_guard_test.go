@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -60,7 +62,7 @@ func TestSanitizedUpstreamPathSuffixRejectsNonConformingSegments(t *testing.T) {
 	}
 	for _, suffix := range rejected {
 		t.Run("reject_"+suffix, func(t *testing.T) {
-			got, ok := sanitizedUpstreamPathSuffix(suffix)
+			got, ok := upstream.SanitizedUpstreamPathSuffix(suffix)
 			require.False(t, ok, "suffix %q must be rejected", suffix)
 			require.Empty(t, got)
 		})
@@ -76,7 +78,7 @@ func TestSanitizedUpstreamPathSuffixRejectsNonConformingSegments(t *testing.T) {
 	}
 	for suffix, want := range accepted {
 		t.Run("accept_"+suffix, func(t *testing.T) {
-			got, ok := sanitizedUpstreamPathSuffix(suffix)
+			got, ok := upstream.SanitizedUpstreamPathSuffix(suffix)
 			require.True(t, ok, "suffix %q must be accepted", suffix)
 			require.Equal(t, want, got)
 		})
@@ -85,17 +87,17 @@ func TestSanitizedUpstreamPathSuffixRejectsNonConformingSegments(t *testing.T) {
 
 func TestSanitizedUpstreamPathSuffixEnforcesBounds(t *testing.T) {
 	longSegment := "/"
-	for i := 0; i < maxUpstreamPathSegmentLen+1; i++ {
+	for i := 0; i < upstream.MaxUpstreamPathSegmentLen+1; i++ {
 		longSegment += "a"
 	}
-	_, ok := sanitizedUpstreamPathSuffix(longSegment)
+	_, ok := upstream.SanitizedUpstreamPathSuffix(longSegment)
 	require.False(t, ok, "over-long segment must be rejected")
 
 	deep := ""
-	for i := 0; i <= maxUpstreamPathSegments; i++ {
+	for i := 0; i <= upstream.MaxUpstreamPathSegments; i++ {
 		deep += "/a"
 	}
-	_, ok = sanitizedUpstreamPathSuffix(deep)
+	_, ok = upstream.SanitizedUpstreamPathSuffix(deep)
 	require.False(t, ok, "over-deep suffix must be rejected")
 }
 
@@ -103,7 +105,6 @@ func TestSanitizedUpstreamPathSuffixEnforcesBounds(t *testing.T) {
 // /responses/*subpath 的子路径不得改变上游请求的路径结构；不合规时既不参与拼接，
 // 也不会被误判成 compact 请求。
 func TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	nonConformingPaths := []string{
 		"/v1/responses/../../x/y",
@@ -120,12 +121,12 @@ func TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths(t *testing
 		t.Run(path, func(t *testing.T) {
 			c := newResponsesSuffixTestContext(t, path)
 
-			require.False(t, IsForwardableOpenAIResponsesRequestPath(c),
+			require.False(t, httpapi.IsForwardableOpenAIResponsesRequestPath(c),
 				"path %q must be rejected at the gateway edge", path)
-			require.Empty(t, openAIResponsesRequestPathSuffix(c),
+			require.Empty(t, httpapi.OpenAIResponsesRequestPathSuffix(c),
 				"path %q must never contribute an upstream path suffix", path)
 			require.Equal(t, chatgptCodexURL,
-				appendOpenAIResponsesRequestPathSuffix(chatgptCodexURL, openAIResponsesRequestPathSuffix(c)))
+				appendOpenAIResponsesRequestPathSuffix(chatgptCodexURL, httpapi.OpenAIResponsesRequestPathSuffix(c)))
 			require.False(t, isOpenAIResponsesCompactPath(c))
 		})
 	}
@@ -140,8 +141,8 @@ func TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths(t *testing
 	} {
 		t.Run("forwardable_"+path, func(t *testing.T) {
 			c := newResponsesSuffixTestContext(t, path)
-			require.True(t, IsForwardableOpenAIResponsesRequestPath(c))
-			require.Equal(t, want, openAIResponsesRequestPathSuffix(c))
+			require.True(t, httpapi.IsForwardableOpenAIResponsesRequestPath(c))
+			require.Equal(t, want, httpapi.OpenAIResponsesRequestPathSuffix(c))
 		})
 	}
 }
@@ -149,10 +150,10 @@ func TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths(t *testing
 func TestIsOpenAIResponsesInputTokensRequestPath(t *testing.T) {
 	for _, path := range []string{"/v1/responses/input_tokens", "/responses/input_tokens", "/backend-api/codex/responses/input_tokens"} {
 		c := newResponsesSuffixTestContext(t, path)
-		require.True(t, IsOpenAIResponsesInputTokensRequestPath(c), "path=%s", path)
+		require.True(t, httpapi.IsOpenAIResponsesInputTokensRequestPath(c), "path=%s", path)
 	}
 	c := newResponsesSuffixTestContext(t, "/v1/responses/compact")
-	require.False(t, IsOpenAIResponsesInputTokensRequestPath(c))
+	require.False(t, httpapi.IsOpenAIResponsesInputTokensRequestPath(c))
 }
 
 func TestAppendOpenAIResponsesRequestPathSuffixRefusesUnsafeSuffix(t *testing.T) {

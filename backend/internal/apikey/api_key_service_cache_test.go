@@ -5,12 +5,13 @@ package apikey
 
 import (
 	context "context"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	redis "github.com/redis/go-redis/v9"
-	require "github.com/stretchr/testify/require"
 	atomic "sync/atomic"
 	testing "testing"
 	time "time"
+
+	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	redis "github.com/redis/go-redis/v9"
+	require "github.com/stretchr/testify/require"
 )
 
 type authRepoStub struct {

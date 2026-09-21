@@ -3,8 +3,9 @@ package identity
 
 import (
 	errors "errors"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // Pending 流程值不包含 cookie、HTTP 状态或事务句柄。

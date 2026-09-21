@@ -2,9 +2,23 @@
 package app
 
 import (
-	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
+	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+	provider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
-	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
+	anthropic "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
 
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 
@@ -17,44 +31,46 @@ import (
 
 func provideGatewayForRouting(nativeUsageStore *usagepostgres.Store,
 	models *routing.ModelList,
+	catalogue *routing.RequestableCatalogue,
 	accountRepo service.AccountRepository,
-	groupRepo service.GroupRepository,
-	usageLogRepo service.UsageLogRepository,
-	usageBillingRepo service.UsageBillingRepository,
-	userRepo service.UserRepository,
-	userSubRepo service.UserSubscriptionRepository,
-	userGroupRateRepo service.UserGroupRateRepository,
-	cache service.GatewayCache,
+	groupRepo routing.GroupRepository,
+	usageLogRepo usage.UsageLogRepository,
+	usageBillingRepo completion.Store,
+	userRepo identity.UserRepository,
+	userSubRepo billing.UserSubscriptionRepository,
+	userGroupRateRepo billing.UserGroupRateRepository,
+	cache session.GatewayCache,
 	cfg *config.Config,
 	schedulerSnapshot *service.SchedulerSnapshotService,
-	concurrencyService *service.ConcurrencyService,
-	billingService *service.BillingService,
+	concurrencyService *scheduler.ConcurrencyService,
+	billingService *billing.Calculator,
 	rateLimitService *service.RateLimitService,
-	billingCacheService *service.BillingCacheService,
-	identityService *service.RequestFingerprintService,
-	httpUpstream service.HTTPUpstream,
-	deferredService *service.DeferredService,
-	claudeTokenProvider *service.ClaudeTokenProvider,
-	sessionLimitCache service.SessionLimitCache,
-	rpmCache service.RPMCache,
-	digestStore *service.DigestSessionStore,
-	settingService *service.SettingService,
-	tlsFPProfileService *service.TLSFingerprintProfileService,
-	channelService *service.ChannelService,
-	resolver *service.ModelPricingResolver,
-	balanceNotifyService *service.BalanceNotifyService,
-	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
+	billingCacheService *billing.Eligibility,
+	identityService *anthropic.RequestFingerprint,
+	httpUpstream httpclient.UpstreamTransport, deferredService *account.DeferredService,
+	claudeTokenProvider *account.ClaudeTokenSource,
+	sessionLimitCache scheduler.SessionLimitCache,
+	windowCostCache billing.WindowCostCache,
+	rpmCache scheduler.RPMCache,
+	digestStore *session.DigestSessionStore,
+	settingService *gatewayprovider.RuntimeReaders,
+	tlsFPProfileService *provider.TLSProfiles,
+	channelService *routing.ChannelService,
+	resolver *billing.PriceResolver,
+	balanceNotifyService *billing.BalanceNotifyService,
+	userPlatformQuotaRepo billing.UserPlatformQuotaRepository,
 ) *service.GatewayService {
-	gateway := service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo, cache, cfg, schedulerSnapshot, concurrencyService, billingService, rateLimitService, billingCacheService, identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, balanceNotifyService, userPlatformQuotaRepo, models)
+	gateway := service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo, cache, cfg, schedulerSnapshot, concurrencyService, billingService, rateLimitService, billingCacheService, identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, windowCostCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, balanceNotifyService, userPlatformQuotaRepo, models)
 	gateway.BindUsageWindowSource(usageWindowStats{nativeUsageStore})
+	gateway.BindModelCatalogue(catalogue)
 	return gateway
 }
 
 // provideRoutingModelList 由 app 投影原 15 秒默认 TTL；缓存无构造启动副作用。
-func provideRoutingModelList(repo service.AccountRepository, cfg *config.Config) *routing.ModelList {
+func provideRoutingModelList(repo *accountpostgres.AccountStore, cfg *config.Config) *routing.ModelList {
 	ttl := 15 * time.Second
 	if cfg != nil && cfg.Gateway.ModelsListCacheTTLSeconds > 0 {
 		ttl = time.Duration(cfg.Gateway.ModelsListCacheTTLSeconds) * time.Second
 	}
-	return routing.NewModelList(legacybridge.ModelListReader(repo), ttl)
+	return routing.NewModelList(catalogueReader(repo), ttl)
 }

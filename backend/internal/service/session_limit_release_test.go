@@ -5,12 +5,15 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 // sessionLimitReleaseCacheStub 记录 UnregisterSession 调用，用于验证释放逻辑
 type sessionLimitReleaseCacheStub struct {
-	SessionLimitCache
+	scheduler.SessionLimitCache
 
 	unregistered map[int64][]string
 	err          error
@@ -33,8 +36,8 @@ func (s *sessionLimitReleaseCacheStub) UnregisterSession(_ context.Context, acco
 func newSessionLimitTestAccount() *Account {
 	return &Account{
 		ID:       42,
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformAnthropic,
+		Type:     capability.AccountTypeOAuth,
 		Extra:    map[string]any{"max_sessions": 1},
 	}
 }
@@ -61,14 +64,14 @@ func TestReleaseAccountSession_ReleasesRegisteredSlot(t *testing.T) {
 func TestReleaseAccountSession_NoOpForInapplicableAccounts(t *testing.T) {
 	apiKeyAcc := &Account{
 		ID:       43,
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformAnthropic,
+		Type:     capability.AccountTypeAPIKey,
 		Extra:    map[string]any{"max_sessions": 1},
 	}
 	noLimitAcc := &Account{
 		ID:       44,
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformAnthropic,
+		Type:     capability.AccountTypeOAuth,
 	}
 	enabledAcc := newSessionLimitTestAccount()
 

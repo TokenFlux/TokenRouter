@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestS09AnthropicPriorHeartbeatPreservesReadFailureBoundary(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newMinimalGatewayService()
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -30,7 +31,7 @@ func TestS09AnthropicPriorHeartbeatPreservesReadFailureBoundary(t *testing.T) {
 	result, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
 	require.Error(t, err)
 	require.NotNil(t, result)
-	var failover *UpstreamFailoverError
+	var failover *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failover))
 	require.Contains(t, rec.Body.String(), "stream_read_error")
 	require.Equal(t, "prior", c.Writer.Header().Get("X-Fixture"))

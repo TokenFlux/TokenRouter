@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/servertiming"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,7 +21,7 @@ func runServerTimingRequest(
 	handler gin.HandlerFunc,
 ) *httptest.ResponseRecorder {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	engine := gin.New()
 	engine.Use(ServerTiming(enabled))
 	engine.Any("/*path", func(c *gin.Context) {
@@ -34,10 +34,10 @@ func runServerTimingRequest(
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, path, nil)
 	if adminMarker != "" {
-		request.Header.Set(servertiming.AdminUIHeader, adminMarker)
+		request.Header.Set(timing.AdminUIHeader, adminMarker)
 	}
 	if userMarker != "" {
-		request.Header.Set(servertiming.UserUIHeader, userMarker)
+		request.Header.Set(timing.UserUIHeader, userMarker)
 	}
 	engine.ServeHTTP(recorder, request)
 	return recorder
@@ -77,12 +77,12 @@ func TestServerTimingScopesAndRoleGate(t *testing.T) {
 			recorder := runServerTimingRequest(t, tt.enabled, tt.path, tt.adminMarker, tt.userMarker, tt.role, func(c *gin.Context) {
 				c.JSON(http.StatusOK, gin.H{"ok": true})
 			})
-			header := recorder.Header().Get(servertiming.HeaderName)
+			header := recorder.Header().Get(timing.HeaderName)
 			if tt.wantHeader && header == "" {
-				t.Fatalf("%s header missing", servertiming.HeaderName)
+				t.Fatalf("%s header missing", timing.HeaderName)
 			}
 			if !tt.wantHeader && header != "" {
-				t.Fatalf("unexpected %s header: %q", servertiming.HeaderName, header)
+				t.Fatalf("unexpected %s header: %q", timing.HeaderName, header)
 			}
 			if header != "" && (!strings.Contains(header, "total;dur=") || !strings.Contains(header, `cache;desc="bypass"`)) {
 				t.Fatalf("incomplete timing header: %q", header)
@@ -134,13 +134,13 @@ func TestIsUserTimingPath(t *testing.T) {
 func TestServerTimingCollectorIsRequestScoped(t *testing.T) {
 	active := false
 	recorder := runServerTimingRequest(t, true, "/api/v1/keys", "1", "", "admin", func(c *gin.Context) {
-		active = servertiming.Active(c.Request.Context())
+		active = timing.Active(c.Request.Context())
 		c.Status(http.StatusNoContent)
 	})
 	if !active {
 		t.Fatal("collector was not attached to marked request context")
 	}
-	if recorder.Header().Get(servertiming.HeaderName) == "" {
+	if recorder.Header().Get(timing.HeaderName) == "" {
 		t.Fatal("timing header missing from status-only response")
 	}
 }
@@ -149,14 +149,14 @@ func TestServerTimingCollectorForUserUIMarker(t *testing.T) {
 	active := false
 	// 使用 allowlist 外的路径，确保采集行为只由用户端 UI 标记触发。
 	recorder := runServerTimingRequest(t, true, "/api/v1/settings/public", "", "1", "admin", func(c *gin.Context) {
-		active = servertiming.Active(c.Request.Context())
+		active = timing.Active(c.Request.Context())
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 	if !active {
 		t.Fatal("collector was not attached for user UI marker")
 	}
 	// 即使路径不在用户 allowlist 内，管理员角色仍可收到耗时响应头。
-	if recorder.Header().Get(servertiming.HeaderName) == "" {
+	if recorder.Header().Get(timing.HeaderName) == "" {
 		t.Fatal("admin timing header missing for user-UI-marked request")
 	}
 }
@@ -166,7 +166,7 @@ func TestServerTimingFinalizesBeforeEarlyCommit(t *testing.T) {
 		c.Status(http.StatusAccepted)
 		c.Writer.WriteHeaderNow()
 	})
-	if got := recorder.Header().Get(servertiming.HeaderName); got == "" {
+	if got := recorder.Header().Get(timing.HeaderName); got == "" {
 		t.Fatal("timing header was not written before response commit")
 	}
 }
@@ -175,7 +175,7 @@ func TestServerTimingFinalizesOnFlush(t *testing.T) {
 	recorder := runServerTimingRequest(t, true, "/api/v1/admin/export", "", "", "admin", func(c *gin.Context) {
 		c.Writer.Flush()
 	})
-	if got := recorder.Header().Get(servertiming.HeaderName); got == "" {
+	if got := recorder.Header().Get(timing.HeaderName); got == "" {
 		t.Fatal("timing header was not written before stream flush")
 	}
 }
@@ -196,7 +196,7 @@ func TestServerTimingStatusResponses(t *testing.T) {
 			if recorder.Code != tt.status {
 				t.Fatalf("status = %d, want %d", recorder.Code, tt.status)
 			}
-			if got := recorder.Header().Get(servertiming.HeaderName); got == "" {
+			if got := recorder.Header().Get(timing.HeaderName); got == "" {
 				t.Fatalf("timing header missing from status %d response", tt.status)
 			}
 		})
@@ -231,7 +231,7 @@ func TestServerTimingCacheOutcome(t *testing.T) {
 				c.JSON(http.StatusOK, gin.H{"ok": true})
 			})
 			want := `cache;desc="` + tt.want + `"`
-			if got := recorder.Header().Get(servertiming.HeaderName); !strings.Contains(got, want) {
+			if got := recorder.Header().Get(timing.HeaderName); !strings.Contains(got, want) {
 				t.Fatalf("timing header %q does not contain %q", got, want)
 			}
 		})
@@ -242,12 +242,12 @@ func TestServerTimingResponseHeaderForWebSocket(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/ops/ws/qps", nil)
-	collector := servertiming.New(time.Now())
-	c.Request = c.Request.WithContext(servertiming.WithCollector(c.Request.Context(), collector))
+	collector := timing.New(time.Now())
+	c.Request = c.Request.WithContext(timing.WithCollector(c.Request.Context(), collector))
 	c.Set(string(ContextKeyUserRole), "admin")
 
 	header := ServerTimingResponseHeader(c)
-	if header.Get(servertiming.HeaderName) == "" {
+	if header.Get(timing.HeaderName) == "" {
 		t.Fatal("WebSocket response header missing timing value")
 	}
 

@@ -4,9 +4,10 @@ package account
 import (
 	context "context"
 	fmt "fmt"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	maps "maps"
 	strings "strings"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 func (s *Admin) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Record, error) {

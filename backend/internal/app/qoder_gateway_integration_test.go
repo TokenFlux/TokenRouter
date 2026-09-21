@@ -16,33 +16,46 @@ import (
 	"testing"
 	"time"
 
+	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 
 	accountpg "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+
 	keypg "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	billingpg "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+
 	billingredis "github.com/TokenFlux/TokenRouter/internal/billing/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+
 	routingpg "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	schedulerredis "github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
+
 	usagepg "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
+
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
@@ -57,7 +70,7 @@ func (r s09BalanceReader) GetByID(ctx context.Context, id int64) (*billing.UserS
 
 // TestS09QoderHTTPStorageChain 使用真实 PostgreSQL/Redis、原完成 worker 和本地供应商 HTTP。
 func TestS09QoderHTTPStorageChain(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	f := newDatabaseFixture(t)
 	ctx := context.Background()
 	container, err := tcredis.Run(ctx, "redis:8.4-alpine")
@@ -127,10 +140,10 @@ func TestS09QoderHTTPStorageChain(t *testing.T) {
 			require.Zero(t, count)
 		})
 	}
-	funds := billing.NewFunds(billingpg.NewSettlementStore(f.db, nil))
-	facts := usagepg.NewUsageLogRepository(f.client, f.db, nil)
+	funds := billing.NewFunds(billingpg.NewSettlementStore(f.db, timezone.NewCalendar(time.Local), nil))
+	facts := usagepg.NewUsageLogRepository(f.client, f.db, nil, timezone.NewCalendar(time.Local))
 	t.Cleanup(facts.StopUsageBatchers)
-	pool := service.NewUsageRecordWorkerPoolWithOptions(service.UsageRecordWorkerPoolOptions{WorkerCount: 1, QueueSize: 8, TaskTimeout: 5 * time.Second})
+	pool := completion.NewUsageRecordWorkerPoolWithOptions(completion.UsageRecordWorkerPoolOptions{Observe: gatewaytelemetry.Completion, WorkerCount: 1, QueueSize: 8, TaskTimeout: 5 * time.Second})
 	pool.Start()
 	t.Cleanup(pool.Stop)
 	keys := keypg.NewKeyStore(f.client, f.db, nil)
@@ -139,7 +152,7 @@ func TestS09QoderHTTPStorageChain(t *testing.T) {
 	accounts := accountpg.NewAccountStore(f.client, f.db, accountpg.AccountStoreOptions{Group: func(g *dbent.Group) *accessview.GroupConfig {
 		return (*accessview.GroupConfig)(routingpg.GroupFromEnt(g))
 	}})
-	eligibility := billing.NewEligibility(billingredis.NewBillingCache(rdb), s09BalanceReader{f.db}, nil, billingpg.NewUserPlatformQuotaRepository(f.client), func() billing.EligibilityOptions { return billing.EligibilityOptions{RunMode: "standard"} }, nil, billing.NewQuotaCoordinator())
+	eligibility := billing.NewEligibility(billingredis.NewBillingCache(rdb), s09BalanceReader{f.db}, nil, billingpg.NewUserPlatformQuotaRepository(f.client, timezone.NewCalendar(time.Local)), func() billing.EligibilityOptions { return billing.EligibilityOptions{RunMode: "standard"} }, nil, billing.NewQuotaCoordinator())
 	eligibility.Start()
 	t.Cleanup(eligibility.Stop)
 	price := &pricing.ResolvedPricing{Mode: pricing.BillingModeToken, Source: pricing.PricingSourceGroup, BasePricing: &pricing.ModelPricing{InputPricePerToken: 0.01, OutputPricePerToken: 0.02}}

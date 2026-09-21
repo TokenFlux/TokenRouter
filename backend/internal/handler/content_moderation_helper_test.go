@@ -5,8 +5,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/moderation"
+	"github.com/TokenFlux/TokenRouter/internal/team"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -14,15 +19,15 @@ import (
 func TestBuildContentModerationInputTeamKeyUsesActorAndKeepsBillingAttribution(t *testing.T) {
 	c := newContentModerationHelperTestContext()
 	teamID := int64(301)
-	apiKey := &service.APIKey{
+	apiKey := &apikey.APIKey{
 		ID:        401,
 		UserID:    202,
 		TeamID:    &teamID,
-		User:      &service.User{ID: 101, Email: "owner@example.com"},
-		ActorUser: &service.User{ID: 202, Email: "member@example.com"},
+		User:      &identity.User{ID: 101, Email: "owner@example.com"},
+		ActorUser: &identity.User{ID: 202, Email: "member@example.com"},
 	}
 
-	input := buildContentModerationInput(c, apiKey, middleware2.AuthSubject{UserID: 101}, service.ContentModerationProtocolOpenAIChat, "gpt-5", []byte(`{"messages":[]}`))
+	input := buildContentModerationInput(c, apiKey, middleware2.AuthSubject{UserID: 101}, moderation.ContentModerationProtocolOpenAIChat, "gpt-5", []byte(`{"messages":[]}`))
 
 	require.Equal(t, int64(202), input.UserID)
 	require.Equal(t, "member@example.com", input.UserEmail)
@@ -35,12 +40,12 @@ func TestBuildContentModerationInputTeamKeyUsesActorAndKeepsBillingAttribution(t
 func TestBuildOpenAICyberWarningInputTeamKeyUsesActorEmail(t *testing.T) {
 	c := newContentModerationHelperTestContext()
 	teamID := int64(301)
-	apiKey := &service.APIKey{
+	apiKey := &apikey.APIKey{
 		ID:        401,
 		UserID:    202,
 		TeamID:    &teamID,
-		User:      &service.User{ID: 101, Email: "owner@example.com"},
-		ActorUser: &service.User{ID: 202, Email: "member@example.com"},
+		User:      &identity.User{ID: 101, Email: "owner@example.com"},
+		ActorUser: &identity.User{ID: 202, Email: "member@example.com"},
 	}
 
 	input := buildOpenAICyberWarningInput(c, apiKey, nil, "gpt-5", http.StatusBadRequest, nil, "cyber_policy", "prompt")
@@ -52,9 +57,9 @@ func TestBuildOpenAICyberWarningInputTeamKeyUsesActorEmail(t *testing.T) {
 }
 
 func TestResolveContentModerationIdentityPersonalKeyFallsBackToBillingUser(t *testing.T) {
-	apiKey := &service.APIKey{
+	apiKey := &apikey.APIKey{
 		UserID: 303,
-		User:   &service.User{ID: 303, Email: "personal@example.com"},
+		User:   &identity.User{ID: 303, Email: "personal@example.com"},
 	}
 
 	identity := resolveContentModerationIdentity(apiKey, middleware2.AuthSubject{UserID: 303})
@@ -67,11 +72,11 @@ func TestResolveContentModerationIdentityPersonalKeyFallsBackToBillingUser(t *te
 
 func TestResolveContentModerationIdentityTeamKeyWithoutActorUsesKeyOwnerAndMembership(t *testing.T) {
 	teamID := int64(404)
-	apiKey := &service.APIKey{
+	apiKey := &apikey.APIKey{
 		UserID:         505,
 		TeamID:         &teamID,
-		User:           &service.User{ID: 606, Email: "owner@example.com"},
-		TeamMembership: &service.TeamMembership{UserID: 505, Email: "member@example.com"},
+		User:           &identity.User{ID: 606, Email: "owner@example.com"},
+		TeamMembership: &team.TeamMembership{UserID: 505, Email: "member@example.com"},
 	}
 
 	identity := resolveContentModerationIdentity(apiKey, middleware2.AuthSubject{UserID: 606})
@@ -93,7 +98,7 @@ func TestResolveContentModerationIdentityWithoutAPIKeyFallsBackToSubject(t *test
 
 // newContentModerationHelperTestContext 构造具备请求路径的最小网关上下文。
 func newContentModerationHelperTestContext() *gin.Context {
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	return c

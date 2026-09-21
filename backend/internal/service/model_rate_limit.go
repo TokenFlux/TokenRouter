@@ -3,42 +3,28 @@ package service
 import (
 	"context"
 
-	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
-	"strings"
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 )
 
 const (
 	modelRateLimitsKey                 = "model_rate_limits"
 	antigravityGeminiModelRateLimitKey = "antigravity:gemini"
-	openAIImageGenerationRateLimitKey  = "openai:image_generation"
-	openAICodexSparkRateLimitReason    = "openai_codex_spark_rate_limit"
-	// anthropicFableRateLimitKey 是 Anthropic 7d_oi（Fable 专属 7d 窗口）限流的
-	// 家族级 scope：命中后所有 Fable 变体（含 [1m] 等后缀）都不再调度到该账号。
-	anthropicFableRateLimitKey = accountcore.AnthropicFableRateLimitKey
+	openAIImageGenerationRateLimitKey  = accountcore.OpenAIImageGenerationRateLimitKey
+	openAICodexSparkRateLimitReason    = accountcore.CodexSparkRateLimitReason
 )
 
 // isRateLimitActiveForKey 检查指定 key 的限流是否生效
 func (a *Account) isRateLimitActiveForKey(key string) bool {
-	resetAt := a.modelRateLimitResetAt(key)
-	return resetAt != nil && time.Now().Before(*resetAt)
+	return AccountRecordView(a).ModelRateLimitActive(key)
 }
 
 // getRateLimitRemainingForKey 获取指定 key 的限流剩余时间，0 表示未限流或已过期
 func (a *Account) getRateLimitRemainingForKey(key string) time.Duration {
-	resetAt := a.modelRateLimitResetAt(key)
-	if resetAt == nil {
-		return 0
-	}
-	remaining := time.Until(*resetAt)
-	if remaining > 0 {
-		return remaining
-	}
-	return 0
+	return AccountRecordView(a).ModelRateLimitRemaining(key)
 }
 
 func (a *Account) isModelRateLimitedWithContext(ctx context.Context, requestedModel string) bool {
@@ -67,112 +53,15 @@ func (a *Account) GetModelRateLimitRemainingTimeWithContext(ctx context.Context,
 }
 
 func (a *Account) modelRateLimitKeysForRequest(ctx context.Context, requestedModel string) []string {
-	if a == nil {
-		return nil
-	}
-
-	modelKey := a.GetMappedModel(requestedModel)
-	switch a.Platform {
-	case PlatformOpenAI, PlatformGrok:
-		modelKey = canonicalOpenAIAccountSchedulingModel(a, requestedModel)
-	case PlatformAntigravity:
-		modelKey = resolveFinalAntigravityModelKey(ctx, a, requestedModel)
-	}
-	modelKey = strings.TrimSpace(modelKey)
-	if modelKey == "" {
-		return nil
-	}
-
-	keys := []string{modelKey}
-	switch a.Platform {
-	case PlatformAntigravity:
-		if isAntigravityGeminiModel(modelKey) && modelKey != antigravityGeminiModelRateLimitKey {
-			keys = append(keys, antigravityGeminiModelRateLimitKey)
-		}
-	case PlatformOpenAI:
-		if openAIImageGenerationRateLimitApplies(ctx, requestedModel, modelKey) && modelKey != openAIImageGenerationRateLimitKey {
-			keys = append(keys, openAIImageGenerationRateLimitKey)
-		}
-	case PlatformAnthropic:
-		if isAnthropicFableModel(modelKey) && modelKey != anthropicFableRateLimitKey {
-			keys = append(keys, anthropicFableRateLimitKey)
-		}
-	}
-	return keys
+	return accountModelPolicy(a).LimitKeys(ctx, requestedModel)
 }
 
-func isAnthropicFableModel(model string) bool { return claude.IsAnthropicFableModel(model) }
-
-func openAIImageGenerationRateLimitApplies(ctx context.Context, requestedModel, modelKey string) bool {
-	if isOpenAIImageGenerationModel(requestedModel) || isOpenAIImageGenerationModel(modelKey) {
-		return true
-	}
-	return OpenAIImageGenerationIntentFromContext(ctx)
+// 旧请求入口只读取本次 thinking，模型规则由原生适配器执行。
+func resolveFinalAntigravityModelKey(ctx context.Context, value *Account, model string) string {
+	return accountprovider.FinalAntigravityModel(AccountRecordView(value), model, modelHealthThinking(ctx))
 }
 
-// WithOpenAIImageGenerationIntent 标记当前 OpenAI 请求会触发生图能力。
-func WithOpenAIImageGenerationIntent(ctx context.Context) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return context.WithValue(ctx, ctxkey.OpenAIImageGenerationIntent, true)
-}
-
-// OpenAIImageGenerationIntentFromContext 读取请求是否带有 OpenAI 生图意图标记。
-func OpenAIImageGenerationIntentFromContext(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-	enabled, ok := ctx.Value(ctxkey.OpenAIImageGenerationIntent).(bool)
-	return ok && enabled
-}
-
-// WithOpenAIImagesEndpoint 标记请求从 /v1/images/* 专用生图端点入站。
-func WithOpenAIImagesEndpoint(ctx context.Context) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return context.WithValue(ctx, ctxkey.OpenAIImagesEndpoint, true)
-}
-
-// OpenAIImagesEndpointFromContext 读取请求是否来自 /v1/images/* 专用生图端点。
-func OpenAIImagesEndpointFromContext(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-	enabled, ok := ctx.Value(ctxkey.OpenAIImagesEndpoint).(bool)
-	return ok && enabled
-}
-
-func resolveFinalAntigravityModelKey(ctx context.Context, account *Account, requestedModel string) string {
-	modelKey := mapAntigravityModel(account, requestedModel)
-	if modelKey == "" {
-		return ""
-	}
-	// thinking 会影响 Antigravity 最终模型名（例如 claude-sonnet-4-5 -> claude-sonnet-4-5-thinking）
-	if enabled, ok := ThinkingEnabledFromContext(ctx); ok {
-		modelKey = applyThinkingModelSuffix(modelKey, enabled)
-	}
-	return modelKey
-}
-
-func isAntigravityGeminiModel(model string) bool {
-	return strings.HasPrefix(normalizeAntigravityModelName(model), "gemini-")
-}
-
+// 旧限流入口共用原生模型与 Gemini 家族 key。
 func antigravityModelRateLimitKeys(model string) []string {
-	model = strings.TrimSpace(model)
-	if model == "" {
-		return nil
-	}
-	keys := []string{model}
-	if isAntigravityGeminiModel(model) && model != antigravityGeminiModelRateLimitKey {
-		keys = append(keys, antigravityGeminiModelRateLimitKey)
-	}
-	return keys
-}
-
-// modelRateLimitResetAt 只投影健康读取值。
-func (a *Account) modelRateLimitResetAt(scope string) *time.Time {
-	return AccountRecordView(a).ModelRateLimitResetAt(scope)
+	return accountprovider.AntigravityModelLimitKeys(model)
 }

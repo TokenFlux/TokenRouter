@@ -3,6 +3,7 @@ package handler
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -18,8 +19,8 @@ const kiroReasoningCanonicalBody = `{"model":"gpt-5.1","stream":false,"input":[`
 func newOpenAIPassthroughAccount(id int64, passthrough bool) *service.Account {
 	return &service.Account{
 		ID:       id,
-		Platform: service.PlatformOpenAI,
-		Type:     service.AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Extra:    map[string]any{"openai_passthrough": passthrough},
 	}
 }

@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	"github.com/stretchr/testify/require"
 )
@@ -21,8 +22,8 @@ func TestS06GroupProbeLeaseAndAtomicResult(t *testing.T) {
 	suffix := time.Now().UnixNano()
 	group, err := client.Group.Create().SetName(fmt.Sprintf("s06-probe-%d", suffix)).
 		SetPlatform(routing.PlatformOpenAI).
-		SetAllowedProtocols(domain.DefaultGroupClientProtocols(routing.PlatformOpenAI)).
-		SetProtocolFallbacks(domain.DefaultProtocolFallbacks(routing.PlatformOpenAI)).
+		SetAllowedProtocols(capability.DefaultGroupClientProtocols(routing.PlatformOpenAI)).
+		SetProtocolFallbacks(capability.DefaultProtocolFallbacks(routing.PlatformOpenAI)).
 		SetAvailabilityProbeConfig(routing.GroupAvailabilityProbeConfig{Enabled: true, IntervalMinutes: 5, ModelID: "gpt-test", TimeoutSeconds: 10}).Save(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Group.DeleteOneID(group.ID).Exec(context.Background())) })

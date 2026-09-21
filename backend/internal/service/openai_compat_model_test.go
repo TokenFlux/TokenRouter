@@ -16,11 +16,17 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -71,80 +77,8 @@ func (r *openAICompatBlockingReadCloser) Close() error {
 	return nil
 }
 
-func TestNormalizeOpenAICompatRequestedModel(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{name: "gpt reasoning alias strips xhigh", input: "gpt-5.4-xhigh", want: "gpt-5.4"},
-		{name: "gpt reasoning alias strips max", input: "gpt-5.6-sol-max", want: "gpt-5.6-sol"},
-		{name: "gpt reasoning alias keeps unsupported ultra", input: "gpt-5.6-terra-ultra", want: "gpt-5.6-terra-ultra"},
-		{name: "gpt luna strips max", input: "gpt-5.6-luna-max", want: "gpt-5.6-luna"},
-		{name: "gpt luna keeps unsupported ultra suffix", input: "gpt-5.6-luna-ultra", want: "gpt-5.6-luna-ultra"},
-		{name: "old gpt keeps unsupported max suffix", input: "gpt-5.5-max", want: "gpt-5.5-max"},
-		{name: "gpt reasoning alias strips none", input: "gpt-5.4-none", want: "gpt-5.4"},
-		{name: "codex max model stays intact", input: "gpt-5.1-codex-max", want: "gpt-5.1-codex-max"},
-		{name: "non openai model unchanged", input: "claude-opus-4-6", want: "claude-opus-4-6"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, NormalizeOpenAICompatRequestedModel(tt.input))
-		})
-	}
-}
-
-func TestApplyOpenAICompatModelNormalization(t *testing.T) {
-	t.Parallel()
-
-	t.Run("derives xhigh from model suffix when output config missing", func(t *testing.T) {
-		req := &protocolanthropic.AnthropicRequest{Model: "gpt-5.4-xhigh"}
-
-		applyOpenAICompatModelNormalization(req)
-
-		require.Equal(t, "gpt-5.4", req.Model)
-		require.NotNil(t, req.OutputConfig)
-		require.Equal(t, "max", req.OutputConfig.Effort)
-	})
-
-	t.Run("does not derive unsupported ultra suffix", func(t *testing.T) {
-		req := &protocolanthropic.AnthropicRequest{Model: "gpt-5.6-terra-ultra"}
-
-		applyOpenAICompatModelNormalization(req)
-
-		require.Equal(t, "gpt-5.6-terra-ultra", req.Model)
-		require.Nil(t, req.OutputConfig)
-	})
-
-	t.Run("explicit output config wins over model suffix", func(t *testing.T) {
-		req := &protocolanthropic.AnthropicRequest{
-			Model:        "gpt-5.4-xhigh",
-			OutputConfig: &protocolanthropic.AnthropicOutputConfig{Effort: "low"},
-		}
-
-		applyOpenAICompatModelNormalization(req)
-
-		require.Equal(t, "gpt-5.4", req.Model)
-		require.NotNil(t, req.OutputConfig)
-		require.Equal(t, "low", req.OutputConfig.Effort)
-	})
-
-	t.Run("non openai model is untouched", func(t *testing.T) {
-		req := &protocolanthropic.AnthropicRequest{Model: "claude-opus-4-6"}
-
-		applyOpenAICompatModelNormalization(req)
-
-		require.Equal(t, "claude-opus-4-6", req.Model)
-		require.Nil(t, req.OutputConfig)
-	})
-}
-
 func TestForwardAsAnthropic_UsesExactFableMessagesDispatchModel(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -171,8 +105,8 @@ func TestForwardAsAnthropic_UsesExactFableMessagesDispatchModel(t *testing.T) {
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -193,7 +127,6 @@ func TestForwardAsAnthropic_UsesExactFableMessagesDispatchModel(t *testing.T) {
 
 func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -220,8 +153,8 @@ func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -252,7 +185,6 @@ func TestForwardAsAnthropic_NormalizesRoutingAndEffortForGpt54XHigh(t *testing.T
 
 func TestForwardAsAnthropic_PreservesMaxForFinalGPT56ResponsesModel(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name          string
@@ -340,8 +272,8 @@ func rawGPT56ResponsesAPIKeyAccount(requestedModel, mappedModel string) *Account
 	return &Account{
 		ID:          501,
 		Name:        "gpt56-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":       "sk-test",
@@ -357,8 +289,8 @@ func rawGPT56ResponsesOAuthAccount(requestedModel, mappedModel string) *Account 
 	return &Account{
 		ID:          502,
 		Name:        "gpt56-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -370,7 +302,6 @@ func rawGPT56ResponsesOAuthAccount(requestedModel, mappedModel string) *Account 
 
 func TestForwardAsAnthropic_MappedClaudeModelAcceptsChatUsageShape(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -401,8 +332,8 @@ func TestForwardAsAnthropic_MappedClaudeModelAcceptsChatUsageShape(t *testing.T)
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -427,7 +358,6 @@ func TestForwardAsAnthropic_MappedClaudeModelAcceptsChatUsageShape(t *testing.T)
 
 func TestForwardAsAnthropic_InjectsPromptCacheKeyForAPIKeyMessagesDispatch(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -454,8 +384,8 @@ func TestForwardAsAnthropic_InjectsPromptCacheKeyForAPIKeyMessagesDispatch(t *te
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -473,7 +403,6 @@ func TestForwardAsAnthropic_InjectsPromptCacheKeyForAPIKeyMessagesDispatch(t *te
 
 func TestForwardAsAnthropic_AutoDerivesPromptCacheKeyWhenMessagesDispatchHasNoSessionID(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -500,8 +429,8 @@ func TestForwardAsAnthropic_AutoDerivesPromptCacheKeyWhenMessagesDispatchHasNoSe
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -515,12 +444,11 @@ func TestForwardAsAnthropic_AutoDerivesPromptCacheKeyWhenMessagesDispatchHasNoSe
 	cacheKey := gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String()
 	require.NotEmpty(t, cacheKey)
 	require.True(t, strings.HasPrefix(cacheKey, "anthropic-digest-"))
-	require.Equal(t, generateSessionUUID(isolateOpenAISessionID(0, cacheKey)), upstream.lastReq.Header.Get("session_id"))
+	require.Equal(t, upstreamcore.GenerateSessionUUID(upstreamcore.IsolateSessionID(0, cacheKey)), upstream.lastReq.Header.Get("session_id"))
 }
 
 func TestForwardAsAnthropic_GPT6AstraPromptCacheIdentityStableAcrossAppendedTurns(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	for _, mappedModel := range []string{"gpt-6-astra"} {
 		mappedModel := mappedModel
@@ -538,8 +466,8 @@ func TestForwardAsAnthropic_GPT6AstraPromptCacheIdentityStableAcrossAppendedTurn
 			account := &Account{
 				ID:          6615,
 				Name:        "openai-apikey",
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
 				Concurrency: 1,
 				Credentials: map[string]any{
 					"api_key":  "sk-test",
@@ -580,7 +508,6 @@ func TestForwardAsAnthropic_GPT6AstraPromptCacheIdentityStableAcrossAppendedTurn
 
 func TestForwardAsAnthropic_DoesNotAutoDerivePromptCacheKeyForNonCodexModel(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -607,8 +534,8 @@ func TestForwardAsAnthropic_DoesNotAutoDerivePromptCacheKeyForNonCodexModel(t *t
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -626,7 +553,6 @@ func TestForwardAsAnthropic_DoesNotAutoDerivePromptCacheKeyForNonCodexModel(t *t
 // OAuth Messages 即使映射到非 Codex 模型，也通过 ChatGPT Codex 端点并恢复官方身份头。
 func TestForwardAsAnthropic_OAuthNonCodexModelRestoresCodexIdentity(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -643,8 +569,8 @@ func TestForwardAsAnthropic_OAuthNonCodexModelRestoresCodexIdentity(t *testing.T
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -656,12 +582,11 @@ func TestForwardAsAnthropic_OAuthNonCodexModelRestoresCodexIdentity(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
-	requireOpenAIMessagesCodexIdentity(t, upstream.lastReq, codexCLIUserAgent, openai.CodexDefaultOriginator)
+	requireOpenAIMessagesCodexIdentity(t, upstream.lastReq, openai.CodexCLIUserAgent, openai.CodexDefaultOriginator)
 }
 
 func TestForwardAsAnthropic_TrimsFullReplayOnlyForCodexCompatModels(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	messages := make([]string, 0, openAICompatAnthropicReplayMaxTailMessages+3)
 	for i := 0; i < openAICompatAnthropicReplayMaxTailMessages+3; i++ {
@@ -696,8 +621,8 @@ func TestForwardAsAnthropic_TrimsFullReplayOnlyForCodexCompatModels(t *testing.T
 		account := &Account{
 			ID:          1,
 			Name:        "openai-apikey",
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
 			Concurrency: 1,
 			Credentials: map[string]any{
 				"api_key":  "sk-test",
@@ -725,7 +650,6 @@ func TestForwardAsAnthropic_TrimsFullReplayOnlyForCodexCompatModels(t *testing.T
 
 func TestForwardAsAnthropic_OAuthCompatKeepsFullReplayForCacheGrowth(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	messages := make([]string, 0, openAICompatAnthropicReplayMaxTailMessages+3)
 	for i := 0; i < openAICompatAnthropicReplayMaxTailMessages+3; i++ {
@@ -746,8 +670,8 @@ func TestForwardAsAnthropic_OAuthCompatKeepsFullReplayForCacheGrowth(t *testing.
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -768,7 +692,6 @@ func TestForwardAsAnthropic_OAuthCompatKeepsFullReplayForCacheGrowth(t *testing.
 
 func TestForwardAsAnthropic_AttachesPreviousResponseIDForCompatContinuation(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{}
 	svc := &OpenAIGatewayService{
@@ -778,14 +701,14 @@ func TestForwardAsAnthropic_AttachesPreviousResponseIDForCompatContinuation(t *t
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.openai.com/v1",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesContinuationSupported: true},
+		Extra: map[string]any{accountcore.ExtraKeyResponsesContinuationSupported: true},
 	}
 
 	firstBody := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"first"}],"stream":false}`)
@@ -821,7 +744,6 @@ func TestForwardAsAnthropic_AttachesPreviousResponseIDForCompatContinuation(t *t
 
 func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDWhenCapabilityDisabled(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_disabled", "gpt-5.3-codex")}
 	svc := &OpenAIGatewayService{
@@ -831,8 +753,8 @@ func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDWhenCapabilityDisable
 	account := &Account{
 		ID:          1,
 		Name:        "nested-sub2api",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -855,7 +777,6 @@ func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDWhenCapabilityDisable
 
 func TestForwardAsAnthropic_ReplaysWithoutContinuationWhenNestedOAuthRejectsHTTPPreviousResponseID(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{}
 	svc := &OpenAIGatewayService{
@@ -865,14 +786,14 @@ func TestForwardAsAnthropic_ReplaysWithoutContinuationWhenNestedOAuthRejectsHTTP
 	account := &Account{
 		ID:          1,
 		Name:        "nested-sub2api",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://inner-sub2api.example/v1",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesContinuationSupported: true},
+		Extra: map[string]any{accountcore.ExtraKeyResponsesContinuationSupported: true},
 	}
 	svc.bindOpenAICompatSessionResponseID(context.Background(), nil, account, "stable-cache-key", "resp_nested")
 	body := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"second"}],"stream":false}`)
@@ -901,7 +822,6 @@ func TestForwardAsAnthropic_ReplaysWithoutContinuationWhenNestedOAuthRejectsHTTP
 
 func TestForwardAsAnthropic_PreviousResponseIDKeepsMultiToolCallContext(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{}
 	svc := &OpenAIGatewayService{
@@ -911,14 +831,14 @@ func TestForwardAsAnthropic_PreviousResponseIDKeepsMultiToolCallContext(t *testi
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.openai.com/v1",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesContinuationSupported: true},
+		Extra: map[string]any{accountcore.ExtraKeyResponsesContinuationSupported: true},
 	}
 
 	firstBody := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"inspect files"}],"stream":false}`)
@@ -957,7 +877,6 @@ func TestForwardAsAnthropic_PreviousResponseIDKeepsMultiToolCallContext(t *testi
 
 func TestForwardAsAnthropic_ReplaysFullToolHistoryWhenPreviousResponseUnavailable(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{}
 	svc := &OpenAIGatewayService{
@@ -967,14 +886,14 @@ func TestForwardAsAnthropic_ReplaysFullToolHistoryWhenPreviousResponseUnavailabl
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.openai.com/v1",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesContinuationSupported: true},
+		Extra: map[string]any{accountcore.ExtraKeyResponsesContinuationSupported: true},
 	}
 
 	svc.bindOpenAICompatSessionResponseID(context.Background(), nil, account, "stable-cache-key", "resp_missing")
@@ -993,7 +912,7 @@ func TestForwardAsAnthropic_ReplaysFullToolHistoryWhenPreviousResponseUnavailabl
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(secondBody))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	tlsMatch := TLSFingerprintRouterMatchResult{Matched: true, UpstreamUserAgent: "router-agent"}
+	tlsMatch := egress.TLSFingerprintRouterMatchResult{Matched: true, UpstreamUserAgent: "router-agent"}
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, secondBody, "stable-cache-key", "gpt-5.3-codex", tlsMatch)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1026,7 +945,6 @@ func TestOpenAICompatPreviousResponseUnavailableRecognitionIsStrict(t *testing.T
 
 func TestForwardAsAnthropic_PreviousResponseUnavailableRetryFailureDoesNotLoop(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	unavailable := func() *http.Response {
 		return &http.Response{
@@ -1042,11 +960,11 @@ func TestForwardAsAnthropic_PreviousResponseUnavailableRetryFailureDoesNotLoop(t
 	}
 	account := &Account{
 		ID:          1,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://api.openai.com/v1"},
-		Extra:       map[string]any{openai_compat.ExtraKeyResponsesContinuationSupported: true},
+		Extra:       map[string]any{accountcore.ExtraKeyResponsesContinuationSupported: true},
 	}
 	svc.bindOpenAICompatSessionResponseID(context.Background(), nil, account, "stable-cache-key", "resp_missing")
 	body := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
@@ -1062,7 +980,6 @@ func TestForwardAsAnthropic_PreviousResponseUnavailableRetryFailureDoesNotLoop(t
 
 func TestForwardAsAnthropic_DisablesAPIKeyContinuationWhenUpstreamRequiresWebSocketV2(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{}
 	svc := &OpenAIGatewayService{
@@ -1072,14 +989,14 @@ func TestForwardAsAnthropic_DisablesAPIKeyContinuationWhenUpstreamRequiresWebSoc
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.openai.com/v1",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesContinuationSupported: true},
+		Extra: map[string]any{accountcore.ExtraKeyResponsesContinuationSupported: true},
 	}
 
 	svc.bindOpenAICompatSessionResponseID(context.Background(), nil, account, "stable-cache-key", "resp_http_unsupported")
@@ -1122,7 +1039,6 @@ func TestForwardAsAnthropic_DisablesAPIKeyContinuationWhenUpstreamRequiresWebSoc
 
 func TestForwardAsAnthropic_APIKeyMetadataSessionSurvivesChangingCacheControlAnchorAfterContinuationDisabled(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	metadata := `{"user_id":"{\"device_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"account_uuid\":\"\",\"session_id\":\"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa\"}"}`
 	firstBody := []byte(`{"model":"claude-haiku-4-5-20251001","max_tokens":16,"metadata":` + metadata + `,"system":[{"type":"text","text":"project docs","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":"first"}],"stream":false}`)
@@ -1144,14 +1060,14 @@ func TestForwardAsAnthropic_APIKeyMetadataSessionSurvivesChangingCacheControlAnc
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.openai.com/v1",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesContinuationSupported: true},
+		Extra: map[string]any{accountcore.ExtraKeyResponsesContinuationSupported: true},
 	}
 
 	firstRec := httptest.NewRecorder()
@@ -1188,7 +1104,6 @@ func TestForwardAsAnthropic_APIKeyMetadataSessionSurvivesChangingCacheControlAnc
 
 func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDForOAuthCompat(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_next", "gpt-5.4")}
 	svc := &OpenAIGatewayService{
@@ -1198,8 +1113,8 @@ func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDForOAuthCompat(t *tes
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1222,7 +1137,6 @@ func TestForwardAsAnthropic_DoesNotAttachPreviousResponseIDForOAuthCompat(t *tes
 
 func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_first", "gpt-5.4")
 	firstResp.Header.Set("x-codex-turn-state", "turn_state_first")
@@ -1237,8 +1151,8 @@ func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1256,7 +1170,7 @@ func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, firstResult)
 	require.Empty(t, upstream.requests[0].Header.Get("x-codex-turn-state"))
-	requireOpenAIMessagesCodexIdentity(t, upstream.requests[0], codexCLIUserAgent, openai.CodexDefaultOriginator)
+	requireOpenAIMessagesCodexIdentity(t, upstream.requests[0], openai.CodexCLIUserAgent, openai.CodexDefaultOriginator)
 
 	secondBody := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"second"}],"stream":false}`)
 	secondRec := httptest.NewRecorder()
@@ -1268,15 +1182,14 @@ func TestForwardAsAnthropic_ReusesOAuthCodexTurnState(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, secondResult)
 	require.Equal(t, "turn_state_first", upstream.requests[1].Header.Get("x-codex-turn-state"))
-	require.Equal(t, generateSessionUUID(isolateOpenAIUpstreamSessionID(0, account, "stable-cache-key")), upstream.requests[1].Header.Get("session_id"))
+	require.Equal(t, upstreamcore.GenerateSessionUUID(isolateOpenAIUpstreamSessionID(0, account, "stable-cache-key")), upstream.requests[1].Header.Get("session_id"))
 	require.Empty(t, upstream.requests[1].Header.Get("conversation_id"))
-	requireOpenAIMessagesCodexIdentity(t, upstream.requests[1], codexCLIUserAgent, openai.CodexDefaultOriginator)
+	requireOpenAIMessagesCodexIdentity(t, upstream.requests[1], openai.CodexCLIUserAgent, openai.CodexDefaultOriginator)
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "prompt_cache_key").Exists())
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "previous_response_id").Exists())
 }
 
 func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	const tuiUA = "codex-tui/9.9.9 (Mac OS X 14.0; arm64) iTerm (codex-tui; 9.9.9)"
 	tests := []struct {
@@ -1297,7 +1210,7 @@ func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
 			name:           "第三方UA回退为默认Codex身份",
 			userAgent:      "third-party-client/1.0.0",
 			originator:     "opencode",
-			wantUserAgent:  codexCLIUserAgent,
+			wantUserAgent:  openai.CodexCLIUserAgent,
 			wantOriginator: openai.CodexDefaultOriginator,
 		},
 	}
@@ -1320,8 +1233,8 @@ func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
 			account := &Account{
 				ID:          1,
 				Name:        "openai-oauth",
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeOAuth,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeOAuth,
 				Concurrency: 1,
 				Credentials: map[string]any{
 					"access_token":       "oauth-token",
@@ -1339,7 +1252,6 @@ func TestForwardAsAnthropic_OAuthRestoresCodexIdentityHeaders(t *testing.T) {
 
 func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_digest_first", "gpt-5.4")
 	firstResp.Header.Set("x-codex-turn-state", "turn_state_digest_first")
@@ -1354,8 +1266,8 @@ func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1375,7 +1287,7 @@ func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey
 	firstSessionID := upstream.requests[0].Header.Get("session_id")
 	require.NotEmpty(t, firstSessionID)
 	require.Empty(t, upstream.requests[0].Header.Get("x-codex-turn-state"))
-	requireOpenAIMessagesCodexIdentity(t, upstream.requests[0], codexCLIUserAgent, openai.CodexDefaultOriginator)
+	requireOpenAIMessagesCodexIdentity(t, upstream.requests[0], openai.CodexCLIUserAgent, openai.CodexDefaultOriginator)
 	require.False(t, gjson.GetBytes(upstream.bodies[0], "prompt_cache_key").Exists())
 
 	secondBody := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"first"},{"role":"assistant","content":"ok"},{"role":"user","content":"second"}],"stream":false}`)
@@ -1390,14 +1302,13 @@ func TestForwardAsAnthropic_OAuthDigestFallbackReusesTurnStateWithoutExplicitKey
 	require.Equal(t, firstSessionID, upstream.requests[1].Header.Get("session_id"))
 	require.Equal(t, "turn_state_digest_first", upstream.requests[1].Header.Get("x-codex-turn-state"))
 	require.Empty(t, upstream.requests[1].Header.Get("conversation_id"))
-	requireOpenAIMessagesCodexIdentity(t, upstream.requests[1], codexCLIUserAgent, openai.CodexDefaultOriginator)
+	requireOpenAIMessagesCodexIdentity(t, upstream.requests[1], openai.CodexCLIUserAgent, openai.CodexDefaultOriginator)
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "prompt_cache_key").Exists())
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "previous_response_id").Exists())
 }
 
 func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesDigestPrefixRewrite(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_metadata_first", "gpt-5.5")
 	firstResp.Header.Set("x-codex-turn-state", "turn_state_metadata_first")
@@ -1412,8 +1323,8 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesDigestPrefixRewrite(t *t
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1454,7 +1365,6 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesDigestPrefixRewrite(t *t
 
 func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnchor(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	firstResp := openAICompatSSECompletedResponse("resp_oauth_cache_anchor_first", "gpt-5.5")
 	firstResp.Header.Set("x-codex-turn-state", "turn_state_cache_anchor_first")
@@ -1469,8 +1379,8 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnch
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1511,7 +1421,6 @@ func TestForwardAsAnthropic_OAuthMetadataSessionSurvivesChangingCacheControlAnch
 
 func TestForwardAsAnthropic_OAuthKeepsSystemAsDeveloperInput(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_system", "gpt-5.4")}
 	svc := &OpenAIGatewayService{
@@ -1521,8 +1430,8 @@ func TestForwardAsAnthropic_OAuthKeepsSystemAsDeveloperInput(t *testing.T) {
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1545,12 +1454,11 @@ func TestForwardAsAnthropic_OAuthKeepsSystemAsDeveloperInput(t *testing.T) {
 	instructions := gjson.GetBytes(upstream.lastBody, "instructions")
 	require.True(t, instructions.Exists())
 	require.Empty(t, instructions.String())
-	requireOpenAIMessagesCodexIdentity(t, upstream.requests[0], codexCLIUserAgent, openai.CodexDefaultOriginator)
+	requireOpenAIMessagesCodexIdentity(t, upstream.requests[0], openai.CodexCLIUserAgent, openai.CodexDefaultOriginator)
 }
 
 func TestForwardAsAnthropic_OAuthAddsClaudeCodeTodoGuardForCompatModel(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_todo_guard", "gpt-5.5")}
 	svc := &OpenAIGatewayService{
@@ -1560,8 +1468,8 @@ func TestForwardAsAnthropic_OAuthAddsClaudeCodeTodoGuardForCompatModel(t *testin
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1587,7 +1495,6 @@ func TestForwardAsAnthropic_OAuthAddsClaudeCodeTodoGuardForCompatModel(t *testin
 
 func TestForwardAsAnthropic_OAuthPreservesClaudeCodeToolCallID(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_oauth_tool", "gpt-5.4")}
 	svc := &OpenAIGatewayService{
@@ -1597,8 +1504,8 @@ func TestForwardAsAnthropic_OAuthPreservesClaudeCodeToolCallID(t *testing.T) {
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1624,7 +1531,6 @@ func TestForwardAsAnthropic_OAuthPreservesClaudeCodeToolCallID(t *testing.T) {
 
 func TestForwardAsAnthropic_StoresStreamingResponseIDWithoutUsage(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{}
 	svc := &OpenAIGatewayService{
@@ -1634,14 +1540,14 @@ func TestForwardAsAnthropic_StoresStreamingResponseIDWithoutUsage(t *testing.T) 
 	account := &Account{
 		ID:          1,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.openai.com/v1",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesContinuationSupported: true},
+		Extra: map[string]any{accountcore.ExtraKeyResponsesContinuationSupported: true},
 	}
 
 	firstBody := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"first"}],"stream":true}`)
@@ -1688,7 +1594,7 @@ func requireOpenAIMessagesCodexIdentity(t *testing.T, req *http.Request, wantUse
 	require.NotNil(t, req)
 	require.Equal(t, wantUserAgent, req.Header.Get("User-Agent"))
 	require.Equal(t, wantOriginator, req.Header.Get("originator"))
-	require.Equal(t, codexCLIVersion, req.Header.Get("version"))
+	require.Equal(t, openai.CodexCLIVersion, req.Header.Get("version"))
 	require.Equal(t, "responses=experimental", req.Header.Get("OpenAI-Beta"))
 }
 
@@ -1708,7 +1614,6 @@ func openAICompatSSEResponseWithoutUsage(responseID, model string) *http.Respons
 
 func TestForwardAsAnthropic_ForcedCodexInstructionsTemplatePrependsRenderedInstructions(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	templateDir := t.TempDir()
 	templatePath := filepath.Join(templateDir, "codex-instructions.md.tmpl")
@@ -1742,8 +1647,8 @@ func TestForwardAsAnthropic_ForcedCodexInstructionsTemplatePrependsRenderedInstr
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1759,7 +1664,6 @@ func TestForwardAsAnthropic_ForcedCodexInstructionsTemplatePrependsRenderedInstr
 
 func TestForwardAsAnthropic_ForcedCodexInstructionsTemplateUsesCachedTemplateContent(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1789,8 +1693,8 @@ func TestForwardAsAnthropic_ForcedCodexInstructionsTemplateUsesCachedTemplateCon
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1805,7 +1709,6 @@ func TestForwardAsAnthropic_ForcedCodexInstructionsTemplateUsesCachedTemplateCon
 }
 
 func TestForwardAsAnthropic_ClientDisconnectDrainsUpstreamUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1834,8 +1737,8 @@ func TestForwardAsAnthropic_ClientDisconnectDrainsUpstreamUsage(t *testing.T) {
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1852,7 +1755,6 @@ func TestForwardAsAnthropic_ClientDisconnectDrainsUpstreamUsage(t *testing.T) {
 }
 
 func TestForwardAsAnthropic_TerminalUsageWithoutUpstreamCloseReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1876,8 +1778,8 @@ func TestForwardAsAnthropic_TerminalUsageWithoutUpstreamCloseReturns(t *testing.
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1886,7 +1788,7 @@ func TestForwardAsAnthropic_TerminalUsageWithoutUpstreamCloseReturns(t *testing.
 	}
 
 	type forwardResult struct {
-		result *OpenAIForwardResult
+		result *forwardcore.OpenAIResult
 		err    error
 	}
 	resultCh := make(chan forwardResult, 1)
@@ -1908,7 +1810,6 @@ func TestForwardAsAnthropic_TerminalUsageWithoutUpstreamCloseReturns(t *testing.
 }
 
 func TestForwardAsAnthropic_EventNamedTerminalWithoutUpstreamCloseReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1937,8 +1838,8 @@ func TestForwardAsAnthropic_EventNamedTerminalWithoutUpstreamCloseReturns(t *tes
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -1947,7 +1848,7 @@ func TestForwardAsAnthropic_EventNamedTerminalWithoutUpstreamCloseReturns(t *tes
 	}
 
 	type forwardResult struct {
-		result *OpenAIForwardResult
+		result *forwardcore.OpenAIResult
 		err    error
 	}
 	resultCh := make(chan forwardResult, 1)
@@ -1969,7 +1870,6 @@ func TestForwardAsAnthropic_EventNamedTerminalWithoutUpstreamCloseReturns(t *tes
 }
 
 func TestForwardAsAnthropic_EventNamedTerminalWithKeepaliveReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2005,8 +1905,8 @@ func TestForwardAsAnthropic_EventNamedTerminalWithKeepaliveReturns(t *testing.T)
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -2015,7 +1915,7 @@ func TestForwardAsAnthropic_EventNamedTerminalWithKeepaliveReturns(t *testing.T)
 	}
 
 	type forwardResult struct {
-		result *OpenAIForwardResult
+		result *forwardcore.OpenAIResult
 		err    error
 	}
 	resultCh := make(chan forwardResult, 1)
@@ -2037,7 +1937,6 @@ func TestForwardAsAnthropic_EventNamedTerminalWithKeepaliveReturns(t *testing.T)
 }
 
 func TestForwardAsAnthropic_BufferedTerminalWithoutUpstreamCloseReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2060,8 +1959,8 @@ func TestForwardAsAnthropic_BufferedTerminalWithoutUpstreamCloseReturns(t *testi
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -2070,7 +1969,7 @@ func TestForwardAsAnthropic_BufferedTerminalWithoutUpstreamCloseReturns(t *testi
 	}
 
 	type forwardResult struct {
-		result *OpenAIForwardResult
+		result *forwardcore.OpenAIResult
 		err    error
 	}
 	resultCh := make(chan forwardResult, 1)
@@ -2093,7 +1992,6 @@ func TestForwardAsAnthropic_BufferedTerminalWithoutUpstreamCloseReturns(t *testi
 }
 
 func TestHandleAnthropicBufferedStreamingResponse_OverridesUpstreamContentType(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2130,7 +2028,6 @@ func TestHandleAnthropicBufferedStreamingResponse_OverridesUpstreamContentType(t
 }
 
 func TestForwardAsAnthropic_BufferedEventNamedTerminalWithoutUpstreamCloseReturns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2158,8 +2055,8 @@ func TestForwardAsAnthropic_BufferedEventNamedTerminalWithoutUpstreamCloseReturn
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -2168,7 +2065,7 @@ func TestForwardAsAnthropic_BufferedEventNamedTerminalWithoutUpstreamCloseReturn
 	}
 
 	type forwardResult struct {
-		result *OpenAIForwardResult
+		result *forwardcore.OpenAIResult
 		err    error
 	}
 	resultCh := make(chan forwardResult, 1)
@@ -2191,7 +2088,6 @@ func TestForwardAsAnthropic_BufferedEventNamedTerminalWithoutUpstreamCloseReturn
 }
 
 func TestForwardAsAnthropic_MissingTerminalBeforeOutputReturnsFailoverAndOps(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2210,8 +2106,8 @@ func TestForwardAsAnthropic_MissingTerminalBeforeOutputReturnsFailoverAndOps(t *
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -2221,7 +2117,7 @@ func TestForwardAsAnthropic_MissingTerminalBeforeOutputReturnsFailoverAndOps(t *
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "gpt-5.1")
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.True(t, errors.As(err, &failoverErr), "missing terminal before output must use failover path")
 	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
 	require.Contains(t, string(failoverErr.ResponseBody), "OpenAI messages stream ended before a terminal event")
@@ -2241,7 +2137,6 @@ func TestForwardAsAnthropic_MissingTerminalBeforeOutputReturnsFailoverAndOps(t *
 }
 
 func TestForwardAsAnthropic_MissingTerminalAfterOutputRecordsOpsWithoutFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2265,8 +2160,8 @@ func TestForwardAsAnthropic_MissingTerminalAfterOutputRecordsOpsWithoutFailover(
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -2277,7 +2172,7 @@ func TestForwardAsAnthropic_MissingTerminalAfterOutputRecordsOpsWithoutFailover(
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "gpt-5.1")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing terminal event")
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr), "partial output must not be replayed through failover")
 	require.NotNil(t, result)
 	require.False(t, result.ClientDisconnect)
@@ -2295,7 +2190,6 @@ func TestForwardAsAnthropic_MissingTerminalAfterOutputRecordsOpsWithoutFailover(
 }
 
 func TestForwardAsAnthropic_MissingTerminalAfterClientDisconnectSkipsOpsAndFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2318,8 +2212,8 @@ func TestForwardAsAnthropic_MissingTerminalAfterClientDisconnectSkipsOpsAndFailo
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -2330,17 +2224,16 @@ func TestForwardAsAnthropic_MissingTerminalAfterClientDisconnectSkipsOpsAndFailo
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "gpt-5.1")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing terminal event")
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.NotNil(t, result)
 	require.True(t, result.ClientDisconnect)
 	require.Empty(t, rec.Body.String())
-	_, ok := c.Get(OpsUpstreamErrorsKey)
+	_, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
 	require.False(t, ok, "client disconnect must not be attributed as an upstream error")
 }
 
 func TestForwardAsAnthropic_CompleteStreamDoesNotRecordMissingTerminalOps(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2368,8 +2261,8 @@ func TestForwardAsAnthropic_CompleteStreamDoesNotRecordMissingTerminalOps(t *tes
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -2383,21 +2276,20 @@ func TestForwardAsAnthropic_CompleteStreamDoesNotRecordMissingTerminalOps(t *tes
 	require.Equal(t, 9, result.Usage.InputTokens)
 	require.Equal(t, 4, result.Usage.OutputTokens)
 	require.Contains(t, rec.Body.String(), "event: message_stop")
-	_, ok := c.Get(OpsUpstreamErrorsKey)
+	_, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
 	require.False(t, ok)
 }
 
-func openAICompatOpsEvents(t *testing.T, c *gin.Context) []*OpsUpstreamErrorEvent {
+func openAICompatOpsEvents(t *testing.T, c *gin.Context) []*ops.OpsUpstreamErrorEvent {
 	t.Helper()
-	v, ok := c.Get(OpsUpstreamErrorsKey)
+	v, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
 	require.True(t, ok)
-	events, ok := v.([]*OpsUpstreamErrorEvent)
+	events, ok := v.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
 	return events
 }
 
 func TestForwardAsAnthropic_UpstreamRequestIgnoresClientCancel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -2423,8 +2315,8 @@ func TestForwardAsAnthropic_UpstreamRequestIgnoresClientCancel(t *testing.T) {
 	account := &Account{
 		ID:          1,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",

@@ -6,6 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	httpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -15,7 +18,7 @@ import (
 
 func newCompactBodySignalTestContext(t *testing.T, path string, body []byte) *gin.Context {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
@@ -45,8 +48,8 @@ func TestNormalizeOpenAIResponsesCompactRequest_RemoteV2StaysOnResponses(t *test
 	require.False(t, isOpenAILegacyCompactPath(c))
 	require.True(t, isBareOpenAIResponsesPath(c))
 	require.True(t, isOpenAIRemoteCompactionV2Request(normalized))
-	require.Equal(t, service.OpenAIEndpointCapabilityRemoteCompactionV2,
-		openAIResponsesRequiredCapabilityForRequest(false, true, false, service.PlatformOpenAI))
+	require.Equal(t, account.OpenAIEndpointCapabilityRemoteCompactionV2,
+		openAIResponsesRequiredCapabilityForRequest(false, true, false, capability.PlatformOpenAI))
 	require.Equal(t, body, normalized)
 	require.True(t, gjson.GetBytes(normalized, "stream").Bool())
 	require.True(t, gjson.GetBytes(normalized, "store").Bool())
@@ -54,13 +57,13 @@ func TestNormalizeOpenAIResponsesCompactRequest_RemoteV2StaysOnResponses(t *test
 	require.Equal(t, "max", gjson.GetBytes(normalized, "reasoning.effort").String())
 	require.Equal(t, "all_turns", gjson.GetBytes(normalized, "reasoning.context").String())
 
-	reqStream, streamOK := parseOpenAICompatibleStream(normalized)
+	reqStream, streamOK := httpapi.ParseOpenAICompatibleStream(normalized)
 	require.True(t, streamOK)
 	require.True(t, reqStream)
 
 	_, seedExists := c.Get(service.OpenAICompactSessionSeedKeyForTest())
 	require.False(t, seedExists)
-	_, streamMarkerExists := c.Get(service.OpenAICompactClientStreamKeyForTest())
+	_, streamMarkerExists := c.Get(httpapi.OpenAICompactClientStreamKeyForTest())
 	require.False(t, streamMarkerExists)
 	// 原生 V2 保持路径的同时必须留下协商标记，供出站请求补齐 beta feature。
 	require.True(t, c.GetBool("openai_native_compaction_v2"))
@@ -182,7 +185,7 @@ func TestNormalizeOpenAIResponsesCompactRequest_NonRemoteV2BodySignalPromoted(t 
 			require.Equal(t, "/v1/responses/compact", c.Request.URL.Path)
 			require.False(t, gjson.GetBytes(normalized, "stream").Exists())
 
-			marked, exists := c.Get(service.OpenAICompactClientStreamKeyForTest())
+			marked, exists := c.Get(httpapi.OpenAICompactClientStreamKeyForTest())
 			require.Equal(t, tt.wantMarked, exists)
 			if tt.wantMarked {
 				require.Equal(t, true, marked)
@@ -236,6 +239,6 @@ func TestNormalizeOpenAIResponsesCompactRequest_PathBasedStreamTrueNotMarked(t *
 
 	_, ok := h.normalizeOpenAIResponsesCompactRequest(c, zap.NewNop(), body)
 	require.True(t, ok)
-	_, exists := c.Get(service.OpenAICompactClientStreamKeyForTest())
+	_, exists := c.Get(httpapi.OpenAICompactClientStreamKeyForTest())
 	require.False(t, exists)
 }

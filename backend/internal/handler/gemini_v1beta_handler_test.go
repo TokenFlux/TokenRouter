@@ -8,25 +8,28 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
-	gemini "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 
+	gemini "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGeminiV1BetaListModels_CustomGroupListUsesNativeResponse(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
-	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
-		Group: &service.Group{
-			Platform: service.PlatformGemini,
-			ModelsListConfig: service.GroupModelsListConfig{
+	c.Set(string(middleware.ContextKeyAPIKey), &apikey.APIKey{
+		Group: &routing.Group{
+			Platform: capability.PlatformGemini,
+			ModelsListConfig: routing.GroupModelsListConfig{
 				Enabled: true,
 				Models:  []string{"gemini-2.5-pro", "models/gemini-custom"},
 			},
@@ -46,20 +49,20 @@ func TestGeminiV1BetaListModels_CustomGroupListUsesNativeResponse(t *testing.T) 
 
 // 自定义分组列表沿用 Key 别名投影，保留目标元数据且不暴露列表外目标或通配符。
 func TestGeminiV1BetaListModels_CustomGroupListPreservesAPIKeyAliases(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1beta/models", nil)
-	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+	c.Set(string(middleware.ContextKeyAPIKey), &apikey.APIKey{
 		ModelMapping: map[string]string{
 			"my-gemini":      "gemini-2.5-pro",
 			"custom-alias":   "gemini-custom",
 			"unlisted-alias": "gemini-2.5-flash",
 			"wildcard-*":     "gemini-2.5-pro",
 		},
-		Group: &service.Group{
-			Platform: service.PlatformGemini,
-			ModelsListConfig: service.GroupModelsListConfig{
+		Group: &routing.Group{
+			Platform: capability.PlatformGemini,
+			ModelsListConfig: routing.GroupModelsListConfig{
 				Enabled: true,
 				Models:  []string{"gemini-2.5-pro", "models/gemini-custom"},
 			},
@@ -81,20 +84,20 @@ func TestGeminiV1BetaListModels_CustomGroupListPreservesAPIKeyAliases(t *testing
 }
 
 func TestGeminiV1BetaListModels_ForcedAntigravityIgnoresCustomGroupList(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodGet, "/antigravity/v1beta/models", nil)
-	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
-		Group: &service.Group{
-			Platform: service.PlatformGemini,
-			ModelsListConfig: service.GroupModelsListConfig{
+	c.Set(string(middleware.ContextKeyAPIKey), &apikey.APIKey{
+		Group: &routing.Group{
+			Platform: capability.PlatformGemini,
+			ModelsListConfig: routing.GroupModelsListConfig{
 				Enabled: true,
 				Models:  []string{"gemini-custom"},
 			},
 		},
 	})
-	c.Set(string(middleware.ContextKeyForcePlatform), service.PlatformAntigravity)
+	c.Set(string(middleware.ContextKeyForcePlatform), capability.PlatformAntigravity)
 
 	(&GatewayHandler{}).GeminiV1BetaListModels(c)
 
@@ -105,8 +108,8 @@ func TestGeminiV1BetaListModels_ForcedAntigravityIgnoresCustomGroupList(t *testi
 }
 
 func TestCustomGeminiModelsList_DisabledKeepsExistingFlow(t *testing.T) {
-	group := &service.Group{
-		ModelsListConfig: service.GroupModelsListConfig{
+	group := &routing.Group{
+		ModelsListConfig: routing.GroupModelsListConfig{
 			Enabled: false,
 			Models:  []string{"gemini-2.5-pro"},
 		},
@@ -127,13 +130,13 @@ func TestGeminiV1BetaHandler_PlatformRoutingInvariant(t *testing.T) {
 	}{
 		{
 			name:            "Gemini平台使用ForwardNative",
-			platform:        service.PlatformGemini,
+			platform:        capability.PlatformGemini,
 			expectedService: "GeminiMessagesCompatService.ForwardNative",
 			description:     "Gemini OAuth 账户直接调用 Google API",
 		},
 		{
 			name:            "Antigravity平台使用ForwardGemini",
-			platform:        service.PlatformAntigravity,
+			platform:        capability.PlatformAntigravity,
 			expectedService: "AntigravityGatewayService.ForwardGemini",
 			description:     "Antigravity 账户通过 CRS 中转，支持 Gemini 协议",
 		},
@@ -143,7 +146,7 @@ func TestGeminiV1BetaHandler_PlatformRoutingInvariant(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// 模拟 GeminiV1BetaModels 中的路由决策 (lines 199-205 in gemini_v1beta_handler.go)
 			var routedService string
-			if tt.platform == service.PlatformAntigravity {
+			if tt.platform == capability.PlatformAntigravity {
 				routedService = "AntigravityGatewayService.ForwardGemini"
 			} else {
 				routedService = "GeminiMessagesCompatService.ForwardNative"
@@ -252,21 +255,21 @@ func TestGeminiV1BetaHandler_GetModelAntigravityFallback(t *testing.T) {
 func TestShouldFallbackGeminiModel_KnownFallbackOn404(t *testing.T) {
 	t.Parallel()
 
-	res := &service.UpstreamHTTPResult{StatusCode: http.StatusNotFound}
+	res := &gemini.HTTPResult{StatusCode: http.StatusNotFound}
 	require.True(t, shouldFallbackGeminiModel("gemini-3.1-pro-preview-customtools", res))
 }
 
 func TestShouldFallbackGeminiModel_UnknownModelOn404(t *testing.T) {
 	t.Parallel()
 
-	res := &service.UpstreamHTTPResult{StatusCode: http.StatusNotFound}
+	res := &gemini.HTTPResult{StatusCode: http.StatusNotFound}
 	require.False(t, shouldFallbackGeminiModel("gemini-future-model", res))
 }
 
 func TestShouldFallbackGeminiModel_DelegatesScopeFallback(t *testing.T) {
 	t.Parallel()
 
-	res := &service.UpstreamHTTPResult{
+	res := &gemini.HTTPResult{
 		StatusCode: http.StatusForbidden,
 		Headers:    http.Header{"Www-Authenticate": []string{"Bearer error=\"insufficient_scope\""}},
 		Body:       []byte("insufficient authentication scopes"),

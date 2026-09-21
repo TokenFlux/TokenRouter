@@ -4,10 +4,11 @@ package repository
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/stretchr/testify/require"
 )
 
 // 管理校验后、配置行锁前发生真实凭据轮换；字段补丁必须保留新 token 和未选配置。

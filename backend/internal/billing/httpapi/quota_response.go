@@ -2,9 +2,10 @@
 package httpapi
 
 import (
+	time "time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	time "time"
 )
 
 // QuotaResponse 保留用户/管理员的平台额度 JSON 字段与 RFC3339 时间格式。
@@ -35,6 +36,6 @@ func QuotaResponse(view billing.PlatformQuotaView, includeWindowStart bool) map[
 }
 
 // LazyZeroQuotaForResponse 保留现有展示调用形状；规则委托 billing 日期投影。
-func LazyZeroQuotaForResponse(r billing.UserPlatformQuotaRecord, now time.Time, includeWindowStart bool) map[string]any {
-	return QuotaResponse(billing.ProjectPlatformQuota(r, now, timezone.NewCalendar(timezone.Location())), includeWindowStart)
+func LazyZeroQuotaForResponse(r billing.UserPlatformQuotaRecord, now time.Time, includeWindowStart bool, calendar timezone.Calendar) map[string]any {
+	return QuotaResponse(billing.ProjectPlatformQuota(r, now, calendar), includeWindowStart)
 }

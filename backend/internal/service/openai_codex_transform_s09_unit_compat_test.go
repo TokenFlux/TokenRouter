@@ -4,11 +4,11 @@
 package service
 
 import (
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
-type codexInputFilterOptions = native.CodexInputFilterOptions
+type codexInputFilterOptions = openai.CodexInputFilterOptions
 
 func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []any {
-	return native.FilterCodexInputWithOptions(input, opts)
+	return openai.FilterCodexInputWithOptions(input, opts)
 }

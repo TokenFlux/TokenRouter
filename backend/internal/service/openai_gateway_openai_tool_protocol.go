@@ -8,51 +8,52 @@ import (
 	"io"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
 
 const openAIResponsesClientToolMappingContextKey = "openai_responses_client_tool_mapping"
 
-func hasOpenAIResponsesClientToolMapping(mapping apicompat.ResponsesClientToolMapping) bool {
+func hasOpenAIResponsesClientToolMapping(mapping bridge.ResponsesClientToolMapping) bool {
 	return len(mapping.CustomTools) > 0 || mapping.ToolSearch || len(mapping.NamespaceTools) > 0
 }
 
 // adaptOpenAIResponsesClientTools 将 Codex 专用工具降级为上游可接受的 function 工具。
-func adaptOpenAIResponsesClientTools(body []byte) ([]byte, apicompat.ResponsesClientToolMapping, error) {
+func adaptOpenAIResponsesClientTools(body []byte) ([]byte, bridge.ResponsesClientToolMapping, error) {
 	if !needsOpenAIResponsesClientToolAdaptation(body) {
-		return body, apicompat.ResponsesClientToolMapping{}, nil
+		return body, bridge.ResponsesClientToolMapping{}, nil
 	}
-	return adaptOpenAIResponsesClientToolsWithMapping(body, apicompat.ResponsesClientToolMapping{})
+	return adaptOpenAIResponsesClientToolsWithMapping(body, bridge.ResponsesClientToolMapping{})
 }
 
 // adaptOpenAIResponsesClientToolsWithMapping 支持在 bridge 多轮请求中继承工具映射。
 // body 已由上游请求解析过，但仍严格拒绝尾随 JSON，避免静默丢弃请求内容。
 func adaptOpenAIResponsesClientToolsWithMapping(
 	body []byte,
-	inherited apicompat.ResponsesClientToolMapping,
-) ([]byte, apicompat.ResponsesClientToolMapping, error) {
+	inherited bridge.ResponsesClientToolMapping,
+) ([]byte, bridge.ResponsesClientToolMapping, error) {
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
 	var requestBody map[string]any
 	if err := decoder.Decode(&requestBody); err != nil {
-		return body, apicompat.ResponsesClientToolMapping{}, fmt.Errorf("decode OpenAI Responses client tools: %w", err)
+		return body, bridge.ResponsesClientToolMapping{}, fmt.Errorf("decode OpenAI Responses client tools: %w", err)
 	}
 	var trailingValue any
 	if err := decoder.Decode(&trailingValue); !errors.Is(err, io.EOF) {
 		if err == nil {
 			err = errors.New("multiple JSON values")
 		}
-		return body, apicompat.ResponsesClientToolMapping{}, fmt.Errorf("decode OpenAI Responses client tools trailing data: %w", err)
+		return body, bridge.ResponsesClientToolMapping{}, fmt.Errorf("decode OpenAI Responses client tools trailing data: %w", err)
 	}
-	mapping, changed, err := apicompat.AdaptResponsesClientToolsWithInheritedMapping(requestBody, inherited)
+	mapping, changed, err := bridge.AdaptResponsesClientToolsWithInheritedMapping(requestBody, inherited)
 	if err != nil || !changed {
 		return body, mapping, err
 	}
-	rebuilt, err := marshalOpenAIUpstreamJSON(requestBody)
+	rebuilt, err := wirejson.Marshal(requestBody)
 	if err != nil {
-		return body, apicompat.ResponsesClientToolMapping{}, fmt.Errorf("encode OpenAI Responses client tools: %w", err)
+		return body, bridge.ResponsesClientToolMapping{}, fmt.Errorf("encode OpenAI Responses client tools: %w", err)
 	}
 	return rebuilt, mapping, nil
 }
@@ -80,17 +81,17 @@ func needsOpenAIResponsesClientToolAdaptation(body []byte) bool {
 	return needsAdaptation
 }
 
-func openAIResponsesClientToolMapping(c *gin.Context) (apicompat.ResponsesClientToolMapping, bool) {
+func openAIResponsesClientToolMapping(c *gin.Context) (bridge.ResponsesClientToolMapping, bool) {
 	if c == nil {
-		return apicompat.ResponsesClientToolMapping{}, false
+		return bridge.ResponsesClientToolMapping{}, false
 	}
 	value, ok := c.Get(openAIResponsesClientToolMappingContextKey)
-	mapping, typed := value.(apicompat.ResponsesClientToolMapping)
+	mapping, typed := value.(bridge.ResponsesClientToolMapping)
 	return mapping, ok && typed && hasOpenAIResponsesClientToolMapping(mapping)
 }
 
 // setOpenAIResponsesClientToolMapping 写入本次账号尝试的工具映射；空映射会清理旧账号状态。
-func setOpenAIResponsesClientToolMapping(c *gin.Context, mapping apicompat.ResponsesClientToolMapping) {
+func setOpenAIResponsesClientToolMapping(c *gin.Context, mapping bridge.ResponsesClientToolMapping) {
 	if c == nil {
 		return
 	}
@@ -107,7 +108,7 @@ func clearOpenAIResponsesClientToolMapping(c *gin.Context) {
 		return
 	}
 	if _, exists := c.Get(openAIResponsesClientToolMappingContextKey); exists {
-		c.Set(openAIResponsesClientToolMappingContextKey, apicompat.ResponsesClientToolMapping{})
+		c.Set(openAIResponsesClientToolMappingContextKey, bridge.ResponsesClientToolMapping{})
 	}
 }
 
@@ -116,15 +117,6 @@ func restoreOpenAIResponsesClientToolPayload(c *gin.Context, payload []byte) ([]
 	if !ok || !json.Valid(payload) {
 		return payload, nil
 	}
-	restored, _, err := apicompat.RestoreResponsesClientToolPayload(payload, mapping)
+	restored, _, err := bridge.RestoreResponsesClientToolPayload(payload, mapping)
 	return restored, err
-}
-
-// OpenAI 与 Grok 使用同一 Responses SSE 恢复器；保留包装函数名以隔离两条映射状态。
-func newOpenAIResponsesClientToolStreamBody(
-	source io.ReadCloser,
-	mapping apicompat.ResponsesClientToolMapping,
-	maxLineSize int,
-) io.ReadCloser {
-	return newResponsesClientToolStreamBody(source, mapping, maxLineSize)
 }

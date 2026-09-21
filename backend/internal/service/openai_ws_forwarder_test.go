@@ -6,84 +6,17 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 )
-
-// TestIsOpenAIWSTokenEvent_TerminalEventsExcluded 覆盖 isOpenAIWSTokenEvent 的回归用例。
-// 重点验证终止事件（response.completed / response.done）不再被当作 token event，
-// 否则当上游没有可识别的 delta 时，firstTokenMs 会被填到终止时刻，
-// 等于把"总耗时"误报为"首 token 延迟"（issue #2651）。
-func TestIsOpenAIWSTokenEvent_TerminalEventsExcluded(t *testing.T) {
-	cases := []struct {
-		name      string
-		eventType string
-		want      bool
-	}{
-		{name: "empty", eventType: "", want: false},
-		{name: "whitespace_trimmed_empty", eventType: "   ", want: false},
-
-		{name: "response.created", eventType: "response.created", want: false},
-		{name: "response.in_progress", eventType: "response.in_progress", want: false},
-		{name: "response.output_item.added", eventType: "response.output_item.added", want: false},
-		{name: "response.output_item.done", eventType: "response.output_item.done", want: false},
-
-		{name: "terminal_response.completed", eventType: "response.completed", want: false},
-		{name: "terminal_response.done", eventType: "response.done", want: false},
-		{name: "terminal_response.completed_padded", eventType: "  response.completed  ", want: false},
-		{name: "terminal_response.done_padded", eventType: "  response.done  ", want: false},
-
-		{name: "delta_text", eventType: "response.output_text.delta", want: true},
-		{name: "delta_audio_transcript", eventType: "response.audio_transcript.delta", want: true},
-		{name: "delta_function_call_arguments", eventType: "response.function_call_arguments.delta", want: true},
-
-		{name: "output_text_done", eventType: "response.output_text.done", want: true},
-		{name: "output_text_annotation_added", eventType: "response.output_text.annotation.added", want: true},
-
-		{name: "output_audio_done", eventType: "response.output_audio.done", want: true},
-
-		{name: "reasoning_summary_delta", eventType: "response.reasoning_summary_text.delta", want: true},
-
-		{name: "unrelated_event_error", eventType: "error", want: false},
-		{name: "unknown_event_without_match", eventType: "response.reasoning_summary_part.added", want: false},
-	}
-
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			got := isOpenAIWSTokenEvent(tc.eventType)
-			require.Equal(t, tc.want, got, "isOpenAIWSTokenEvent(%q)", tc.eventType)
-		})
-	}
-}
-
-func TestOpenAIForwardResultSucceededForScheduling_TerminalEvents(t *testing.T) {
-	tests := []struct {
-		name     string
-		result   *OpenAIForwardResult
-		expected bool
-	}{
-		{name: "nil legacy result", result: nil, expected: true},
-		{name: "non websocket zero value", result: &OpenAIForwardResult{}, expected: true},
-		{name: "websocket legacy empty terminal", result: &OpenAIForwardResult{OpenAIWSMode: true}, expected: true},
-		{name: "completed", result: &OpenAIForwardResult{OpenAIWSMode: true, UpstreamTerminalEvent: "response.completed"}, expected: true},
-		{name: "done", result: &OpenAIForwardResult{OpenAIWSMode: true, UpstreamTerminalEvent: "response.done"}, expected: true},
-		{name: "failed", result: &OpenAIForwardResult{OpenAIWSMode: true, UpstreamTerminalEvent: "response.failed"}, expected: false},
-		{name: "incomplete", result: &OpenAIForwardResult{OpenAIWSMode: true, UpstreamTerminalEvent: "response.incomplete"}, expected: false},
-		{name: "cancelled", result: &OpenAIForwardResult{OpenAIWSMode: true, UpstreamTerminalEvent: "response.cancelled"}, expected: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.expected, tt.result.SucceededForScheduling())
-		})
-	}
-}
 
 func TestOpenAIWSTerminalEvent_ResponseFailedRecordsModelTransient(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil)
-	account := &Account{ID: 5201, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 5201, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 	payload := []byte(`{"type":"response.failed","response":{"error":{"code":"server_error","message":"Internal error"}}}`)
 
 	for range 2 {
@@ -103,8 +36,8 @@ func TestOpenAIWSTerminalFailureReturnsExplicitPolicyDecision(t *testing.T) {
 	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	account := &Account{
 		ID:       5206,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusUnprocessableEntity)},
@@ -118,7 +51,7 @@ func TestOpenAIWSTerminalFailureReturnsExplicitPolicyDecision(t *testing.T) {
 
 	require.Equal(t, "response.failed", terminalPolicy.TerminalEvent)
 	require.Equal(t, http.StatusUnprocessableEntity, terminalPolicy.StatusCode)
-	require.Equal(t, ErrorPolicyCustomMatched, terminalPolicy.Decision.Policy)
+	require.Equal(t, accountcore.ErrorPolicyCustomMatched, terminalPolicy.Decision.Policy)
 	require.True(t, terminalPolicy.Decision.ShouldFailover(account, terminalPolicy.StatusCode, false))
 	require.Equal(t, 1, repo.setErrorCalls)
 }
@@ -131,8 +64,8 @@ func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
 	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	account := &Account{
 		ID:       5207,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusBadGateway)},
@@ -145,9 +78,9 @@ func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
 	)
 
 	require.Equal(t, http.StatusBadGateway, terminalPolicy.StatusCode)
-	require.Equal(t, ErrorPolicyNone, terminalPolicy.Decision.Policy)
+	require.Equal(t, accountcore.ErrorPolicyNone, terminalPolicy.Decision.Policy)
 	require.False(t, terminalPolicy.Decision.ShouldFailover(
-		account, terminalPolicy.StatusCode, openAIStreamFailedEventShouldFailover(payload, "request blocked by policy"),
+		account, terminalPolicy.StatusCode, openai.OpenAIStreamFailedEventShouldFailover(payload, "request blocked by policy"),
 	))
 	require.Zero(t, repo.setErrorCalls)
 }
@@ -155,7 +88,7 @@ func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
 func TestOpenAIWSErrorEvent_ServerErrorRecordsModelTransient(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil)
-	account := &Account{ID: 5203, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 5203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 	payload := []byte(`{"type":"error","error":{"code":"server_error","type":"server_error","message":"Internal error"}}`)
 
 	for range 2 {
@@ -179,8 +112,8 @@ func TestOpenAIWSErrorPolicyStatus_PreservesExplicitStatusAndFallbackMapping(t *
 func TestOpenAIWSDial5xxRecordsModelTransient(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil)
-	account := &Account{ID: 5202, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
-	dialErr := &openAIWSDialError{
+	account := &Account{ID: 5202, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	dialErr := &openai.WSDialError{
 		StatusCode:      http.StatusBadGateway,
 		ResponseHeaders: http.Header{"X-Request-Id": []string{"req-ws-502"}},
 		ResponseBody:    []byte(`{"error":{"message":"bad gateway"}}`),
@@ -202,8 +135,8 @@ func TestOpenAIWSPoolModeErrorUsesConfiguredRetry(t *testing.T) {
 	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil)
 	account := &Account{
 		ID:       5204,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"pool_mode":                    true,
 			"pool_mode_retry_status_codes": []any{float64(http.StatusBadGateway)},
@@ -214,7 +147,7 @@ func TestOpenAIWSPoolModeErrorUsesConfiguredRetry(t *testing.T) {
 		context.Background(), account, "gpt-5.5", http.StatusBadGateway, http.Header{}, []byte(`{"error":{"message":"bad gateway"}}`),
 	)
 
-	require.Equal(t, ErrorPolicyPoolBypassed, decision.Policy)
+	require.Equal(t, accountcore.ErrorPolicyPoolBypassed, decision.Policy)
 	require.True(t, decision.RetryableOnSameAccount(account, http.StatusBadGateway))
 	require.False(t, svc.isOpenAIAccountModelRuntimeBlocked(account, "gpt-5.5"))
 }
@@ -238,8 +171,8 @@ func TestOpenAIWSCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	account := &Account{
 		ID:       5205,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"pool_mode":                  true,
 			"custom_error_codes_enabled": true,
@@ -251,29 +184,8 @@ func TestOpenAIWSCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 		context.Background(), account, "gpt-5.5", http.StatusUnprocessableEntity, http.Header{}, []byte(`{"error":{"message":"configured"}}`),
 	)
 
-	require.Equal(t, ErrorPolicyCustomMatched, decision.Policy)
+	require.Equal(t, accountcore.ErrorPolicyCustomMatched, decision.Policy)
 	require.True(t, decision.StopScheduling)
 	require.False(t, decision.RetryableOnSameAccount(account, http.StatusUnprocessableEntity))
 	require.Equal(t, 1, repo.setErrorCalls)
-}
-
-// TestIsOpenAIWSTokenEvent_DisjointWithTerminal 守护「token 事件集合与终止事件集合互斥」的不变量。
-// firstTokenMs 的计算依赖于 isTokenEvent && !isTerminalEvent；
-// 若两者再次出现交集，则 issue #2651 描述的 latency 误报会重现。
-func TestIsOpenAIWSTokenEvent_DisjointWithTerminal(t *testing.T) {
-	terminalEvents := []string{
-		"response.completed",
-		"response.done",
-		"response.failed",
-		"response.incomplete",
-		"response.cancelled",
-		"response.canceled",
-	}
-	for _, ev := range terminalEvents {
-		ev := ev
-		t.Run(ev, func(t *testing.T) {
-			require.True(t, isOpenAIWSTerminalEvent(ev), "expected terminal event %q to be classified as terminal", ev)
-			require.False(t, isOpenAIWSTokenEvent(ev), "terminal event %q must NOT be classified as token event (issue #2651)", ev)
-		})
-	}
 }

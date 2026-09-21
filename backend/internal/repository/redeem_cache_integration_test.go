@@ -7,18 +7,20 @@ import (
 	"testing"
 	"time"
 
+	billingredis "github.com/TokenFlux/TokenRouter/internal/billing/rediscache"
+
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
 type RedeemCacheSuite struct {
 	IntegrationRedisSuite
-	cache *redeemCache
+	cache *billingredis.RedeemCache
 }
 
 func (s *RedeemCacheSuite) SetupTest() {
 	s.IntegrationRedisSuite.SetupTest()
-	s.cache = NewRedeemCache(s.rdb).(*redeemCache)
+	s.cache = billingredis.NewRedeemCache(s.rdb)
 }
 
 func (s *RedeemCacheSuite) TestGetRedeemAttemptCount_Missing() {

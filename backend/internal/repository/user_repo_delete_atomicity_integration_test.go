@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,12 +33,12 @@ func TestUserRepository_DeleteUser_AtomicWithAPIKeys(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
 
-	userRepo := NewUserRepository(client, integrationDB)
-	apiKeyRepo := NewAPIKeyRepository(client, integrationDB)
+	userRepo := postgres.NewUserStore(client, integrationDB)
+	apiKeyRepo := newKeyStoreFixture(client, integrationDB)
 
-	user := mustCreateUser(t, client, &service.User{})
-	key1 := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: fmt.Sprintf("sk-atomic-a-%d", user.ID)})
-	key2 := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: fmt.Sprintf("sk-atomic-b-%d", user.ID)})
+	user := mustCreateUser(t, client, &identity.User{})
+	key1 := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: fmt.Sprintf("sk-atomic-a-%d", user.ID)})
+	key2 := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: fmt.Sprintf("sk-atomic-b-%d", user.ID)})
 
 	t.Cleanup(func() {
 		// 集成测试使用全局客户端，补充清理避免残留数据影响后续用例。
@@ -59,7 +63,7 @@ func TestUserRepository_DeleteUser_AtomicWithAPIKeys(t *testing.T) {
 	require.NoError(t, err, "回滚后用户必须仍存在")
 	require.Equal(t, user.ID, gotUser.ID)
 
-	keys, _, err := apiKeyRepo.ListByUserID(ctx, user.ID, listParams, service.APIKeyListFilters{})
+	keys, _, err := apiKeyRepo.ListByUserID(ctx, user.ID, listParams, apikey.APIKeyListFilters{})
 	require.NoError(t, err, "查询回滚后的密钥")
 	require.Len(t, keys, 2, "回滚后密钥必须仍为可用状态")
 
@@ -81,7 +85,7 @@ func TestUserRepository_DeleteUser_AtomicWithAPIKeys(t *testing.T) {
 	_, err = userRepo.GetByID(ctx, user.ID)
 	require.Error(t, err, "提交后用户应被软删除")
 
-	keysAfter, _, err := apiKeyRepo.ListByUserID(ctx, user.ID, listParams, service.APIKeyListFilters{})
+	keysAfter, _, err := apiKeyRepo.ListByUserID(ctx, user.ID, listParams, apikey.APIKeyListFilters{})
 	require.NoError(t, err, "查询提交后的密钥")
 	require.Empty(t, keysAfter, "提交后密钥应全部被软删除")
 

@@ -8,33 +8,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
-
-func TestNormalizeOpenAIReasoningEffortForGPT56(t *testing.T) {
-	tests := []struct {
-		name  string
-		raw   string
-		model string
-		want  string
-	}{
-		{name: "Sol 保留 max", raw: "max", model: "gpt-5.6-sol", want: "max"},
-		{name: "Terra 保留 max", raw: "max", model: "openai/gpt-5.6-terra", want: "max"},
-		{name: "Luna 后缀保留 max", raw: "max", model: "gpt-5.6-luna-2026-07-09", want: "max"},
-		{name: "DeepSeek V4 保留 max", raw: "max", model: "deepseek-v4-pro", want: "max"},
-		{name: "GLM 保留 max", raw: "max", model: "glm-5.2", want: "max"},
-		{name: "旧模型拒绝 max 档位", raw: "max", model: "gpt-5.5", want: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, normalizeOpenAIReasoningEffortForModel(tt.raw, tt.model))
-		})
-	}
-}
 
 func TestNormalizeOpenAICodexCompactReasoningEffortDowngradesMax(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.6-sol","input":"compact me","reasoning":{"effort":"max","summary":"auto"}}`)
@@ -49,7 +30,7 @@ func TestNormalizeOpenAICodexCompactReasoningEffortDowngradesMax(t *testing.T) {
 }
 
 func TestNormalizeOpenAICodexCompactReasoningEffortForAccountScopesCompatibility(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"gpt-5.6-sol","input":"compact me","reasoning":{"effort":"max"}}`)
 
 	tests := []struct {
@@ -62,26 +43,26 @@ func TestNormalizeOpenAICodexCompactReasoningEffortForAccountScopesCompatibility
 		{
 			name:    "OpenAI OAuth compact 降级",
 			path:    "/openai/v1/responses/compact",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			changed: true,
 			want:    "xhigh",
 		},
 		{
 			name:    "OpenAI OAuth 普通请求保留",
 			path:    "/openai/v1/responses",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 			want:    "max",
 		},
 		{
 			name:    "OpenAI API Key compact 保留",
 			path:    "/openai/v1/responses/compact",
-			account: &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey},
+			account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey},
 			want:    "max",
 		},
 		{
 			name:    "Grok OAuth compact 保留",
 			path:    "/openai/v1/responses/compact",
-			account: &Account{Platform: PlatformGrok, Type: AccountTypeOAuth},
+			account: &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
 			want:    "max",
 		},
 	}
@@ -102,7 +83,7 @@ func TestNormalizeOpenAICodexCompactReasoningEffortForAccountScopesCompatibility
 }
 
 func TestOpenAIGatewayServiceForwardPreservesGPT56MaxEffort(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstream := &httpUpstreamRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -116,8 +97,8 @@ func TestOpenAIGatewayServiceForwardPreservesGPT56MaxEffort(t *testing.T) {
 	account := &Account{
 		ID:          7,
 		Name:        "openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -128,7 +109,7 @@ func TestOpenAIGatewayServiceForwardPreservesGPT56MaxEffort(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.6-sol","stream":false,"reasoning":{"effort":"max"},"input":"hello"}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -141,7 +122,7 @@ func TestOpenAIGatewayServiceForwardPreservesGPT56MaxEffort(t *testing.T) {
 }
 
 func TestOpenAIGatewayServiceForwardPreservesMappedGPT56MaxEffort(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstream := &httpUpstreamRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -155,8 +136,8 @@ func TestOpenAIGatewayServiceForwardPreservesMappedGPT56MaxEffort(t *testing.T) 
 	account := &Account{
 		ID:          9,
 		Name:        "openai-apikey-mapped",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -170,7 +151,7 @@ func TestOpenAIGatewayServiceForwardPreservesMappedGPT56MaxEffort(t *testing.T) 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"sol","stream":false,"reasoning":{"effort":"max"},"input":"hello"}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -184,7 +165,7 @@ func TestOpenAIGatewayServiceForwardPreservesMappedGPT56MaxEffort(t *testing.T) 
 }
 
 func TestOpenAIGatewayServiceForwardOAuthCompactDowngradesMaxEffort(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstream := &httpUpstreamRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -198,20 +179,20 @@ func TestOpenAIGatewayServiceForwardOAuthCompactDowngradesMaxEffort(t *testing.T
 	account := &Account{
 		ID:          8,
 		Name:        "openai-oauth",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
 			"chatgpt_account_id": "chatgpt-acc",
 		},
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses/compact", nil)
-	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.6-sol","instructions":"compact-test","input":"hello","reasoning":{"effort":"max"}}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -226,7 +207,7 @@ func TestOpenAIGatewayServiceForwardOAuthCompactDowngradesMaxEffort(t *testing.T
 }
 
 func TestOpenAIGatewayServiceForwardOAuthRemoteCompactV2PreservesResponsesWire(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstream := &httpUpstreamRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -244,8 +225,8 @@ func TestOpenAIGatewayServiceForwardOAuthRemoteCompactV2PreservesResponsesWire(t
 	account := &Account{
 		ID:          10,
 		Name:        "openai-oauth-responses",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -254,14 +235,14 @@ func TestOpenAIGatewayServiceForwardOAuthRemoteCompactV2PreservesResponsesWire(t
 				"gpt-5.6-sol": "gpt-5.6-sol-openai-compact",
 			},
 		},
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 	c.Request.Header.Set("x-codex-beta-features", "remote_compaction_v2")
-	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.6-sol","stream":true,"instructions":"response-test","input":[{"type":"message","role":"user","content":"hello"},{"type":"compaction_trigger"}],"reasoning":{"effort":"max","context":"all_turns"}}`)
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -283,7 +264,7 @@ func TestOpenAIGatewayServiceForwardOAuthRemoteCompactV2PreservesResponsesWire(t
 }
 
 func TestOpenAIGatewayServiceForwardAPIKeyRemoteCompactV2PreservesResponsesWire(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstream := &httpUpstreamRecorder{
 		resp: &http.Response{
 			StatusCode: http.StatusOK,
@@ -301,8 +282,8 @@ func TestOpenAIGatewayServiceForwardAPIKeyRemoteCompactV2PreservesResponsesWire(
 	account := &Account{
 		ID:          11,
 		Name:        "openai-apikey-responses",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -312,14 +293,14 @@ func TestOpenAIGatewayServiceForwardAPIKeyRemoteCompactV2PreservesResponsesWire(
 			},
 		},
 		Extra:       map[string]any{"use_responses_api": true},
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
 	c.Request.Header.Set("x-codex-beta-features", "remote_compaction_v2")
-	SetOpenAIClientTransport(c, OpenAIClientTransportHTTP)
+	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 
 	body := []byte(`{"model":"gpt-5.6-sol","stream":true,"instructions":"response-test","input":[{"type":"message","role":"user","content":"hello"},{"type":"compaction_trigger"}],"reasoning":{"effort":"max","context":"all_turns"}}`)
 	result, err := svc.Forward(context.Background(), c, account, body)

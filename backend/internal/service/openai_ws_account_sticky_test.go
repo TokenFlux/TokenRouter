@@ -5,7 +5,19 @@ import (
 	"testing"
 	"time"
 
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,9 +26,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Hit(t *testing.T
 	groupID := int64(23)
 	account := Account{
 		ID:          2,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 2,
 		Extra: map[string]any{
@@ -24,14 +36,17 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Hit(t *testing.T
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	cfg := newOpenAIWSV2TestConfig()
 
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
-		cache:              cache,
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 	}
 
@@ -53,9 +68,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedM
 	groupID := int64(23)
 	account := Account{
 		ID:          77,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 2,
 		Extra: map[string]any{
@@ -65,13 +80,16 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_QuotaAutoPausedM
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	cfg := newOpenAIWSV2TestConfig()
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
-		cache:              cache,
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 	}
 
@@ -94,9 +112,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_RateLimitedMiss(
 	rateLimitedUntil := time.Now().Add(30 * time.Minute)
 	account := Account{
 		ID:               12,
-		Platform:         PlatformOpenAI,
-		Type:             AccountTypeAPIKey,
-		Status:           StatusActive,
+		Platform:         capability.PlatformOpenAI,
+		Type:             capability.AccountTypeAPIKey,
+		Status:           billing.StatusActive,
 		Schedulable:      true,
 		Concurrency:      1,
 		RateLimitResetAt: &rateLimitedUntil,
@@ -105,13 +123,16 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_RateLimitedMiss(
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	cfg := newOpenAIWSV2TestConfig()
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
-		cache:              cache,
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 	}
 
@@ -131,9 +152,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheck
 	rateLimitedUntil := time.Now().Add(30 * time.Minute)
 	staleAccount := &Account{
 		ID:          13,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Extra: map[string]any{
@@ -142,9 +163,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheck
 	}
 	dbAccount := Account{
 		ID:               13,
-		Platform:         PlatformOpenAI,
-		Type:             AccountTypeAPIKey,
-		Status:           StatusActive,
+		Platform:         capability.PlatformOpenAI,
+		Type:             capability.AccountTypeAPIKey,
+		Status:           billing.StatusActive,
 		Schedulable:      true,
 		Concurrency:      1,
 		RateLimitResetAt: &rateLimitedUntil,
@@ -153,16 +174,19 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheck
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	cfg := newOpenAIWSV2TestConfig()
 	snapshotCache := &openAISnapshotCacheStub{
 		accountsByID: map[int64]*Account{dbAccount.ID: staleAccount},
 	}
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{dbAccount}},
-		cache:              cache,
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{dbAccount}},
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 		schedulerSnapshot:  NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil),
 	}
@@ -182,9 +206,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Excluded(t *test
 	groupID := int64(23)
 	account := Account{
 		ID:          8,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Extra: map[string]any{
@@ -192,13 +216,16 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_Excluded(t *test
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	cfg := newOpenAIWSV2TestConfig()
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
-		cache:              cache,
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 	}
 
@@ -214,9 +241,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_APIKeyForceHTTPH
 	groupID := int64(23)
 	account := Account{
 		ID:          11,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Extra: map[string]any{
@@ -225,13 +252,16 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_APIKeyForceHTTPH
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	cfg := newOpenAIWSV2TestConfig()
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
-		cache:              cache,
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 	}
 
@@ -252,9 +282,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_OAuthForceHTTPIg
 	groupID := int64(23)
 	account := Account{
 		ID:          12,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Extra: map[string]any{
@@ -263,12 +293,15 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_OAuthForceHTTPIg
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
-		cache:              cache,
-		cfg:                newOpenAIWSV2TestConfig(),
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:       cache,
+		cfg:         newOpenAIWSV2TestConfig(),
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 	}
 
@@ -285,9 +318,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_BusyKeepsSticky(
 	accounts := []Account{
 		{
 			ID:          21,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
@@ -297,9 +330,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_BusyKeepsSticky(
 		},
 		{
 			ID:          22,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    9,
@@ -310,7 +343,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_BusyKeepsSticky(
 	}
 
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	cfg := newOpenAIWSV2TestConfig()
 	cfg.Gateway.Scheduling.StickySessionMaxWaiting = 2
 	cfg.Gateway.Scheduling.StickySessionWaitTimeout = 30 * time.Second
@@ -326,10 +359,13 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_BusyKeepsSticky(
 	}
 
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: accounts},
-		cache:              cache,
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(concurrencyCache),
+		accountRepo: stubOpenAIAccountRepo{accounts: accounts},
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 	}
 
@@ -350,9 +386,9 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_CapabilityMismat
 	groupID := int64(25)
 	account := Account{
 		ID:          31,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -363,13 +399,16 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_CapabilityMismat
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	cfg := newOpenAIWSV2TestConfig()
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
-		cache:              cache,
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:       cache,
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 	}
 
@@ -381,7 +420,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_CapabilityMismat
 		"resp_prev_capability",
 		"text-embedding-3-small",
 		nil,
-		OpenAIEndpointCapabilityEmbeddings,
+		accountcore.OpenAIEndpointCapabilityEmbeddings,
 		false,
 	)
 	require.NoError(t, err)
@@ -399,25 +438,25 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseIDUsesResolvedRouti
 	ctx := context.Background()
 	groupID := int64(26)
 	price := 0.01
-	channel := Channel{
+	channel := routing.Channel{
 		ID:                 78,
-		Status:             StatusActive,
+		Status:             billing.StatusActive,
 		RestrictModels:     true,
-		BillingModelSource: BillingModelSourceUpstream,
+		BillingModelSource: routing.BillingModelSourceUpstream,
 		ModelMapping: map[string]map[string]string{
-			PlatformOpenAI: {"client-alias": "channel-model"},
+			capability.PlatformOpenAI: {"client-alias": "channel-model"},
 		},
-		ModelPricing: []ChannelModelPricing{{
-			Platform:   PlatformOpenAI,
+		ModelPricing: []routing.ChannelModelPricing{{
+			Platform:   capability.PlatformOpenAI,
 			Models:     []string{"allowed-upstream"},
 			InputPrice: &price,
 		}},
 	}
 	account := Account{
 		ID:          32,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -432,13 +471,16 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseIDUsesResolvedRouti
 		},
 	}
 	cache := &stubGatewayCache{}
-	store := NewOpenAIWSStateStore(cache)
+	store := session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
 	svc := &OpenAIGatewayService{
-		accountRepo:        stubOpenAIAccountRepo{accounts: []Account{account}},
-		cache:              cache,
-		cfg:                newOpenAIWSV2TestConfig(),
-		channelService:     newRequestableModelsChannelService(groupID, PlatformOpenAI, channel),
-		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
+		accountRepo:    stubOpenAIAccountRepo{accounts: []Account{account}},
+		cache:          cache,
+		cfg:            newOpenAIWSV2TestConfig(),
+		channelService: routingtestkit.Channel(groupID, capability.PlatformOpenAI, channel),
+		concurrencyService: scheduler.NewConcurrencyService(stubConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		),
 		openaiWSStateStore: store,
 		rateLimitService:   newAdvancedSchedulerRateLimitService("true"),
 	}
@@ -451,9 +493,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseIDUsesResolvedRouti
 		"",
 		"client-alias",
 		"dispatch-model",
-		nil,
-		OpenAIUpstreamTransportResponsesWebsocketV2,
-		OpenAIEndpointCapabilityTextGeneration,
+		nil, egress.OpenAIUpstreamTransportResponsesWebsocketV2, accountcore.OpenAIEndpointCapabilityTextGeneration,
 		false,
 		false,
 	)

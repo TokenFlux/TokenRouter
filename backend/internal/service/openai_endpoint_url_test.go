@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +37,7 @@ func TestBuildOpenAIResponsesInputTokensURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := buildOpenAIResponsesInputTokensURL(tt.base); got != tt.want {
+			if got := httpclient.BuildOpenAIResponsesInputTokensURL(tt.base); got != tt.want {
 				t.Fatalf("buildOpenAIResponsesInputTokensURL(%q) = %q, want %q", tt.base, got, tt.want)
 			}
 		})
@@ -62,7 +63,7 @@ func TestBuildOpenAIEndpointURLPreservesURLComponents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, buildOpenAIEndpointURL(tt.base, tt.endpoint))
+			require.Equal(t, tt.want, httpclient.BuildOpenAIEndpointURL(tt.base, tt.endpoint))
 		})
 	}
 }

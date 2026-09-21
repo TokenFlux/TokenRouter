@@ -3,16 +3,19 @@ package service
 import (
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 func normalizeOpenAIMessagesDispatchMappedModel(model string) string {
-	model = NormalizeOpenAICompatRequestedModel(strings.TrimSpace(model))
+	model = gatewayprovider.NormalizeOpenAICompatRequestedModel(strings.TrimSpace(model))
 	return strings.TrimSpace(model)
 }
 
-func normalizeOpenAIMessagesDispatchModelConfig(cfg OpenAIMessagesDispatchModelConfig) OpenAIMessagesDispatchModelConfig {
+func normalizeOpenAIMessagesDispatchModelConfig(cfg routing.OpenAIMessagesDispatchModelConfig) routing.OpenAIMessagesDispatchModelConfig {
 	return routing.NormalizeMessagesDispatchConfig(cfg, normalizeOpenAIMessagesDispatchMappedModel)
 }
 
@@ -33,7 +36,8 @@ func claudeMessagesDispatchFamily(model string) string {
 	}
 }
 
-func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
+// ResolveMessagesDispatchModel 只适配尚未迁出的平台动态型号来源，不再扩展分组实体。
+func ResolveMessagesDispatchModel(g *routing.Group, requestedModel string) string {
 	if g == nil {
 		return ""
 	}
@@ -42,7 +46,7 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 		return ""
 	}
 
-	if g.Platform == PlatformGrok {
+	if g.Platform == capability.PlatformGrok {
 		if claudeMessagesDispatchFamily(requestedModel) == "" {
 			return ""
 		}
@@ -55,7 +59,7 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 
 	// 国产供应商不使用 OpenAI Messages 的分组级模型映射；模型改写由渠道与
 	// 账号 model_mapping 完成，避免历史脏配置把 GPT 模型发送给 CN 上游。
-	if IsCNProvider(g.Platform) {
+	if account.IsCNProvider(g.Platform) {
 		return ""
 	}
 
@@ -77,8 +81,12 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 	}
 }
 
-func sanitizeGroupMessagesDispatchFields(g *Group) {
-	view := groupRules(g)
+// 旧同包测试的调用随后随平台适配迁移，规则只保留上方一份实现。
+
+func sanitizeGroupMessagesDispatchFields(g *routing.Group) {
+	view := g
 	routing.SanitizeGroupMessagesDispatchFields(view)
-	ApplyRoutingGroup(g, view)
+	if g != nil && view != nil {
+		*g = *routing.CloneGroup(view)
+	}
 }

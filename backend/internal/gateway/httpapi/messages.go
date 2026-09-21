@@ -310,7 +310,9 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 		kind = execution.TextGeminiMessages
 	}
 	request := execution.Request{
-		Route: call.Route, UserID: subject.UserID, Concurrency: subject.Concurrency, Stream: reqStream, Body: body, Model: reqModel,
+		Hints:   requeststate.ExecutionHintsFromContext(c.Request.Context()),
+		Routing: requeststate.RoutingStateFromContext(c.Request.Context()),
+		Route:   call.Route, UserID: subject.UserID, Concurrency: subject.Concurrency, Stream: reqStream, Body: body, Model: reqModel,
 		Funding: execution.FundingState{Key: apiKey, Subscription: subscription}, SessionHash: sessionKey,
 		Metadata: execution.RequestMetadata{ClaudeCode: isClaudeCodeClient},
 		Text:     execution.TextState{Kind: kind, Parsed: parsedReq, Platform: platform, BoundAccountID: sessionBoundAccountID, HasBoundSession: hasBoundSession, GeminiBody: call.GeminiBody, GeminiModel: call.GeminiModel},

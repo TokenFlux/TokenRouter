@@ -27,6 +27,20 @@ type RefreshFailureObserver interface {
 	PrepareRefreshFailure(int64) func(RefreshFailureNotice)
 }
 
+// PrepareRefreshFailureNotice 在写入前冻结认证身份和通知代次，不重复安装旧阻断。
+func PrepareRefreshFailureNotice(observer RefreshFailureObserver, value *Record) func(time.Time, string) {
+	if observer == nil || value == nil {
+		return func(time.Time, string) {}
+	}
+	notice := FailureNotice(value)
+	publish := observer.PrepareRefreshFailure(value.ID)
+	return func(until time.Time, reason string) {
+		notice.Until = until
+		notice.Reason = reason
+		publish(notice)
+	}
+}
+
 // RefreshCredentialIdentity 与凭据 CAS 使用相同平台/type/凭据/代理维度，不包含被失败操作改变的健康字段。
 func RefreshCredentialIdentity(value *Record) string {
 	if value == nil {

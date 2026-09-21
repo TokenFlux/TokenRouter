@@ -1,9 +1,10 @@
 package app
 
 import (
+	"testing"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // 分组直读只获得模型投影；平台目录仍在每次实际读取时取得，返回值不污染目录。

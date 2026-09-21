@@ -2,50 +2,57 @@ package middleware
 
 import (
 	"bytes"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	testkit "github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
-func compositeMiddlewareTestKey() *service.APIKey {
-	group := &service.Group{
-		ID: 7, Name: "OpenAI", Platform: service.PlatformOpenAI, Status: service.StatusActive, IsExclusive: true,
-		AllowedProtocols: []domain.ProtocolID{
-			domain.ProtocolOpenAIResponses,
-			domain.ProtocolOpenAIChatCompletions,
+func compositeMiddlewareTestKey() *apikey.APIKey {
+	group := &routing.Group{
+		ID: 7, Name: "OpenAI", Platform: capability.PlatformOpenAI, Status: billing.StatusActive, IsExclusive: true,
+		AllowedProtocols: []protocol.ProtocolID{
+			protocol.ProtocolOpenAIResponses,
+			protocol.ProtocolOpenAIChatCompletions,
 		},
 	}
-	return &service.APIKey{
-		ID: 1, UserID: 2, IsComposite: true, User: &service.User{ID: 2, Status: service.StatusActive},
-		CompositeGroups: []service.APIKeyCompositeGroup{{GroupID: 7, Prefix: "GPT", NormalizedPrefix: "gpt", Group: group}},
+	return &apikey.APIKey{
+		ID: 1, UserID: 2, IsComposite: true, User: &identity.User{ID: 2, Status: billing.StatusActive},
+		CompositeGroups: []apikey.APIKeyCompositeGroup{{GroupID: 7, Prefix: "GPT", NormalizedPrefix: "gpt", Group: group}},
 	}
 }
 
 // compositeMiddlewareMultiGroupTestKey 构造可验证单请求跨分组模型拒绝行为的复合 Key。
-func compositeMiddlewareMultiGroupTestKey() *service.APIKey {
+func compositeMiddlewareMultiGroupTestKey() *apikey.APIKey {
 	key := compositeMiddlewareTestKey()
-	group := &service.Group{ID: 8, Name: "Claude", Platform: service.PlatformAnthropic, Status: service.StatusActive, IsExclusive: true}
-	key.CompositeGroups = append(key.CompositeGroups, service.APIKeyCompositeGroup{
+	group := &routing.Group{ID: 8, Name: "Claude", Platform: capability.PlatformAnthropic, Status: billing.StatusActive, IsExclusive: true}
+	key.CompositeGroups = append(key.CompositeGroups, apikey.APIKeyCompositeGroup{
 		GroupID: 8, Prefix: "Claude", NormalizedPrefix: "claude", Group: group,
 	})
 	return key
 }
 
 func TestResolveCompositeAPIKeyRequestJSON(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{"model":"gPt/vendor/model","messages":[]}`))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService := testkit.NewService(nil, nil, nil, nil, nil, nil, nil)
 	apiKeyService.Start()
 	selected, err := resolveCompositeAPIKeyRequest(c, apiKeyService, compositeMiddlewareTestKey())
 	require.NoError(t, err)
@@ -53,8 +60,8 @@ func TestResolveCompositeAPIKeyRequestJSON(t *testing.T) {
 	require.Equal(t, int64(7), *selected.GroupID)
 	// 后续路由门禁必须读取复合 Key 最终选中分组的协议策略。
 	require.NotNil(t, selected.Group)
-	require.True(t, selected.Group.AllowsClientProtocol(domain.ProtocolOpenAIResponses))
-	require.False(t, selected.Group.AllowsClientProtocol(domain.ProtocolAnthropicMessages))
+	require.True(t, selected.Group.AllowsClientProtocol(protocol.ProtocolOpenAIResponses))
+	require.False(t, selected.Group.AllowsClientProtocol(protocol.ProtocolAnthropicMessages))
 	body, err := io.ReadAll(c.Request.Body)
 	require.NoError(t, err)
 	require.Equal(t, "vendor/model", gjson.GetBytes(body, "model").String())
@@ -77,7 +84,7 @@ func TestResolveCompositeAPIKeyRequestMultipart(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
-	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService := testkit.NewService(nil, nil, nil, nil, nil, nil, nil)
 	apiKeyService.Start()
 	_, err = resolveCompositeAPIKeyRequest(c, apiKeyService, compositeMiddlewareTestKey())
 	require.NoError(t, err)
@@ -99,7 +106,7 @@ func TestResolveCompositeAPIKeyRequestGeminiURL(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/GPT/vendor/model:generateContent", bytes.NewBufferString(`{}`))
 	c.Params = gin.Params{{Key: "modelAction", Value: "/GPT/vendor/model:generateContent"}}
-	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService := testkit.NewService(nil, nil, nil, nil, nil, nil, nil)
 	apiKeyService.Start()
 	selected, err := resolveCompositeAPIKeyRequest(c, apiKeyService, compositeMiddlewareTestKey())
 	require.NoError(t, err)
@@ -108,7 +115,7 @@ func TestResolveCompositeAPIKeyRequestGeminiURL(t *testing.T) {
 }
 
 func TestResolveCompositeAPIKeyRequestAdditionalModels(t *testing.T) {
-	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService := testkit.NewService(nil, nil, nil, nil, nil, nil, nil)
 	apiKeyService.Start()
 
 	t.Run("rewrites additional model from selected group", func(t *testing.T) {
@@ -134,12 +141,12 @@ func TestResolveCompositeAPIKeyRequestAdditionalModels(t *testing.T) {
 		c.Request.Header.Set("Content-Type", "application/json")
 
 		_, err := resolveCompositeAPIKeyRequest(c, apiKeyService, compositeMiddlewareMultiGroupTestKey())
-		require.ErrorIs(t, err, service.ErrCompositeKeyUnsupported)
+		require.ErrorIs(t, err, apikey.ErrCompositeKeyUnsupported)
 	})
 }
 
 func TestResolveCompositeAPIKeyRequestSpecialEndpoints(t *testing.T) {
-	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService := testkit.NewService(nil, nil, nil, nil, nil, nil, nil)
 	apiKeyService.Start()
 
 	listContext, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -170,7 +177,7 @@ func TestResolveCompositeAPIKeyRequestSpecialEndpoints(t *testing.T) {
 	realtimeContext, _ := gin.CreateTestContext(httptest.NewRecorder())
 	realtimeContext.Request = httptest.NewRequest(http.MethodPost, "/v1/live", nil)
 	_, err = resolveCompositeAPIKeyRequest(realtimeContext, apiKeyService, compositeMiddlewareTestKey())
-	require.ErrorIs(t, err, service.ErrCompositeKeyUnsupported)
+	require.ErrorIs(t, err, apikey.ErrCompositeKeyUnsupported)
 
 	require.True(t, isCompositeKeyUnsupportedEndpoint(
 		http.MethodGet,
@@ -202,19 +209,18 @@ func TestReplaceCompositeResponseModel(t *testing.T) {
 }
 
 func TestAbortCompositeKeyErrorPreservesProtocolShape(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	openAIRecorder := httptest.NewRecorder()
 	openAIContext, _ := gin.CreateTestContext(openAIRecorder)
 	openAIContext.Request = httptest.NewRequest(http.MethodPost, "/v1/live", nil)
-	abortCompositeKeyError(openAIContext, service.ErrCompositeKeyUnsupported)
+	abortCompositeKeyError(openAIContext, apikey.ErrCompositeKeyUnsupported)
 	require.Equal(t, http.StatusBadRequest, openAIRecorder.Code)
 	require.Equal(t, "COMPOSITE_KEY_ENDPOINT_UNSUPPORTED", gjson.Get(openAIRecorder.Body.String(), "error.code").String())
 
 	anthropicRecorder := httptest.NewRecorder()
 	anthropicContext, _ := gin.CreateTestContext(anthropicRecorder)
 	anthropicContext.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	abortCompositeKeyError(anthropicContext, service.ErrCompositeKeyPrefixRequired)
+	abortCompositeKeyError(anthropicContext, apikey.ErrCompositeKeyPrefixRequired)
 	require.Equal(t, http.StatusBadRequest, anthropicRecorder.Code)
 	require.Equal(t, "error", gjson.Get(anthropicRecorder.Body.String(), "type").String())
 	require.Equal(t, "COMPOSITE_KEY_MODEL_PREFIX_REQUIRED", gjson.Get(anthropicRecorder.Body.String(), "error.code").String())

@@ -125,8 +125,3 @@ func (s *OpsService) GetSystemLogSinkHealth() OpsSystemLogSinkHealth {
 	}
 	return s.systemLogSink.Health()
 }
-
-// CompatMarshalSystemLogCleanupConditions 为旧入口提供过渡委托。
-func CompatMarshalSystemLogCleanupConditions(filter *OpsSystemLogCleanupFilter) string {
-	return marshalSystemLogCleanupConditions(filter)
-}

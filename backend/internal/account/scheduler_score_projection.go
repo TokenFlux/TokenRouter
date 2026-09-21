@@ -3,8 +3,9 @@ package account
 
 import (
 	context "context"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	sort "sort"
+
+	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 // SchedulerScoreAccounts 仅查询管理评分所需的候选集合，保持筛选与分页独立。

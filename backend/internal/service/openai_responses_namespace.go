@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -20,7 +22,7 @@ const openAIResponsesNamespaceNamesContextKey = "openai_responses_namespace_name
 // WSv2 出口不经过 HTTP 回程还原，因此始终保持 namespace 原样。
 func shouldFlattenOpenAIResponsesNamespaces(
 	account *Account,
-	transport OpenAIUpstreamTransport,
+	transport egress.OpenAIUpstreamTransport,
 	passthroughEnabled bool,
 	compactPath bool,
 ) bool {
@@ -30,7 +32,7 @@ func shouldFlattenOpenAIResponsesNamespaces(
 	if !compactPath && !account.IsOpenAIResponsesFlattenNamespacesEnabled() {
 		return false
 	}
-	if transport == OpenAIUpstreamTransportResponsesWebsocketV2 && !passthroughEnabled {
+	if transport == egress.OpenAIUpstreamTransportResponsesWebsocketV2 && !passthroughEnabled {
 		return false
 	}
 	return true
@@ -39,11 +41,11 @@ func shouldFlattenOpenAIResponsesNamespaces(
 // shouldStripOpenAIResponsesInputNamespaces removes residual input item
 // namespaces for OpenAI OAuth and API Key HTTP forwarding. Native WSv2 keeps
 // namespaces because that protocol supports them and does not restore payloads.
-func shouldStripOpenAIResponsesInputNamespaces(account *Account, transport OpenAIUpstreamTransport, passthroughEnabled bool) bool {
+func shouldStripOpenAIResponsesInputNamespaces(account *Account, transport egress.OpenAIUpstreamTransport, passthroughEnabled bool) bool {
 	if account == nil || (!account.IsOpenAIOAuthLike() && !account.IsOpenAIApiKey()) {
 		return false
 	}
-	if transport == OpenAIUpstreamTransportResponsesWebsocketV2 && !passthroughEnabled {
+	if transport == egress.OpenAIUpstreamTransportResponsesWebsocketV2 && !passthroughEnabled {
 		return false
 	}
 	return true
@@ -65,7 +67,7 @@ func shouldStripOpenAIResponsesInputNamespaces(account *Account, transport OpenA
 //   - 摊平模式下调用项已被改写成平名，残留 namespace 指向的声明已不存在，一律清理。
 func shouldKeepOpenAIResponsesToolCallNamespaces(
 	account *Account,
-	transport OpenAIUpstreamTransport,
+	transport egress.OpenAIUpstreamTransport,
 	passthroughEnabled bool,
 	compactPath bool,
 	body []byte,
@@ -124,14 +126,14 @@ func flattenOpenAIResponsesNamespaces(c *gin.Context, body []byte) ([]byte, erro
 	if err := json.Unmarshal(body, &requestBody); err != nil {
 		return body, fmt.Errorf("decode OpenAI namespace body: %w", err)
 	}
-	names, changed, err := apicompat.FlattenResponsesNamespacesExcept(requestBody, map[string]bool{"image_gen": true})
+	names, changed, err := bridge.FlattenResponsesNamespacesExcept(requestBody, map[string]bool{"image_gen": true})
 	if err != nil {
 		return body, err
 	}
 	if !changed {
 		return body, nil
 	}
-	rebuilt, err := marshalOpenAIUpstreamJSON(requestBody)
+	rebuilt, err := wirejson.Marshal(requestBody)
 	if err != nil {
 		return body, fmt.Errorf("encode OpenAI namespace body: %w", err)
 	}
@@ -188,7 +190,7 @@ func stripOpenAIResponsesInputNamespaces(body []byte, keepToolCallNamespaces boo
 	return stripped, nil
 }
 
-func setOpenAIResponsesNamespaceNames(c *gin.Context, names map[string]apicompat.ResponsesNamespaceName) {
+func setOpenAIResponsesNamespaceNames(c *gin.Context, names map[string]bridge.ResponsesNamespaceName) {
 	if c != nil && len(names) > 0 {
 		c.Set(openAIResponsesNamespaceNamesContextKey, names)
 	}
@@ -201,11 +203,11 @@ func clearOpenAIResponsesNamespaceNames(c *gin.Context) {
 		return
 	}
 	if _, exists := c.Get(openAIResponsesNamespaceNamesContextKey); exists {
-		c.Set(openAIResponsesNamespaceNamesContextKey, map[string]apicompat.ResponsesNamespaceName(nil))
+		c.Set(openAIResponsesNamespaceNamesContextKey, map[string]bridge.ResponsesNamespaceName(nil))
 	}
 }
 
-func openAIResponsesNamespaceNames(c *gin.Context) map[string]apicompat.ResponsesNamespaceName {
+func openAIResponsesNamespaceNames(c *gin.Context) map[string]bridge.ResponsesNamespaceName {
 	if c == nil {
 		return nil
 	}
@@ -213,7 +215,7 @@ func openAIResponsesNamespaceNames(c *gin.Context) map[string]apicompat.Response
 	if !ok {
 		return nil
 	}
-	names, _ := value.(map[string]apicompat.ResponsesNamespaceName)
+	names, _ := value.(map[string]bridge.ResponsesNamespaceName)
 	return names
 }
 
@@ -222,7 +224,7 @@ func restoreOpenAIResponsesNamespacePayload(c *gin.Context, payload []byte) ([]b
 	if len(names) == 0 || !json.Valid(payload) {
 		return payload, nil
 	}
-	restored, changed, err := apicompat.RestoreResponsesNamespaceCalls(payload, names)
+	restored, changed, err := bridge.RestoreResponsesNamespaceCalls(payload, names)
 	if err != nil {
 		return payload, err
 	}

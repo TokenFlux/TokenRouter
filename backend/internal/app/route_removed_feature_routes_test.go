@@ -5,7 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler"
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -14,10 +15,10 @@ import (
 
 // TestRemovedFeatureRoutesReturnNotFound 锁定下线功能的用户端和管理端路径不再注册。
 func TestRemovedFeatureRoutesReturnNotFound(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	router := gin.New()
 	// 身份处理器已通过模块嵌入组合，夹具需提供外层接收者后才能登记方法值。
-	allHandlers := &routeTestHandlers{User: &handler.UserHandler{}, Admin: &routeTestAdminHandlers{}}
+	allHandlers := &routeTestHandlers{User: &identityhttp.UserHandler{}, Admin: &routeTestAdminHandlers{}}
 	RegisterUserRoutes(
 		router.Group("/api/v1"),
 		allHandlers,

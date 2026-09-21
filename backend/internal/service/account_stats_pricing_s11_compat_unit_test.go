@@ -7,6 +7,9 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 // applyAccountStatsCost resolves the account stats cost for a usage log entry.
@@ -14,13 +17,13 @@ import (
 // the 4-level priority chain via resolveAccountStatsCost.
 func applyAccountStatsCost(
 	ctx context.Context,
-	usageLog *UsageLog,
-	cs *ChannelService, bs *BillingService,
+	usageLog *usage.UsageLog,
+	cs *routing.ChannelService, bs *billing.Calculator,
 	accountID int64, groupID int64,
 	upstreamModel, requestedModel, channelMappedModel string,
-	tokens UsageTokens,
+	tokens pricing.UsageTokens,
 	totalCost float64,
-	resolvers ...*ModelPricingResolver,
+	resolvers ...*billing.PriceResolver,
 ) {
 	model := upstreamModel
 	if model == "" {
@@ -64,13 +67,13 @@ func applyAccountStatsCost(
 // serviceTier 是最终参与用户计费的服务层级，仅用于优先级 3。
 func resolveAccountStatsCost(
 	ctx context.Context,
-	channelService *ChannelService,
-	billingService *BillingService,
+	channelService *routing.ChannelService,
+	billingService *billing.Calculator,
 	accountID int64,
 	groupID int64,
 	upstreamModel string,
 	requestedModel string,
-	tokens UsageTokens,
+	tokens pricing.UsageTokens,
 	requestCount int,
 	totalCost float64,
 	serviceTier string,
@@ -82,14 +85,14 @@ func resolveAccountStatsCost(
 // resolveAccountStatsCostWithMapped 委托 billing 的唯一账号统计规则。
 func resolveAccountStatsCostWithMapped(
 	ctx context.Context,
-	channelService *ChannelService,
-	billingService *BillingService,
+	channelService *routing.ChannelService,
+	billingService *billing.Calculator,
 	accountID int64,
 	groupID int64,
 	upstreamModel string,
 	requestedModel string,
 	channelMappedModel string,
-	tokens UsageTokens,
+	tokens pricing.UsageTokens,
 	requestCount int,
 	totalCost float64,
 	serviceTier string,
@@ -105,7 +108,7 @@ func resolveAccountStatsCostWithMapped(
 	}
 	var calculator *billing.Calculator
 	if billingService != nil {
-		calculator = billingService.Calculator
+		calculator = billingService
 	}
 	resolver := billing.NewPriceResolver(nil, calculator, nil, nil, source)
 	return resolver.ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: upstreamModel, RequestedModel: requestedModel, MappedModel: channelMappedModel, Tokens: tokens, RequestCount: requestCount, UserTotalCost: totalCost, ServiceTier: serviceTier, ReasoningEffort: effort})

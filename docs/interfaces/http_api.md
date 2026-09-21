@@ -36,15 +36,17 @@ RequestLogger
 
 ## 路由族
 
-账号管理展示值与脱敏映射位于 `account/httpapi/dto`，代理展示值位于 `egress/httpapi/dto`；旧 DTO 入口只作投影和委托。敏感字段、省略/空集合及代理管理员字段边界保持原契约，非敏感的嵌套 map、slice 和时间指针使用独立副本，不能通过修改展示结果污染账号配置。账号备份、即时/计划测试和 API Key 上游用量查询已直接使用 account/httpapi；账号 CRUD、列表、复制/恢复、批量管理、凭据字段更新、刷新/重授权、隐私、调度开关、额度重置及健康恢复已直接绑定 `account/httpapi.ManagementHandler`；模型目录、实时模型同步、tier 和详细统计也使用新入口；高级调度诊断直接绑定 `scheduler/httpapi.DiagnosticsHandler`，旧 AccountHandler 不再构造于生产依赖图。备份导出继续要求原 step-up，导入继续使用同一管理员幂等 helper。
+账号管理展示值与脱敏映射位于 `account/httpapi/dto`，代理展示值位于 `egress/httpapi/dto`；旧 DTO 入口只作投影和委托。敏感字段、省略/空集合及代理管理员字段边界保持原契约，非敏感的嵌套 map、slice 和时间指针使用独立副本，不能通过修改展示结果污染账号配置。账号备份、即时/计划测试和 API Key 上游用量查询已直接使用 account/httpapi；账号 CRUD、列表、复制/恢复、批量管理、凭据字段更新、刷新/重授权、隐私、调度开关、额度重置及健康恢复已直接绑定 `account/httpapi.ManagementHandler`；模型目录、实时模型同步、tier 和详细统计也使用新入口；高级调度诊断直接绑定 `scheduler/httpapi.DiagnosticsHandler`，旧 AccountHandler 及其构造/展示转接已删除。旧管理员聚合 HTTP 包 `internal/handler/admin` 已删除，综合设置由 `settings/httpapi` 直接组合各领域端点；SMTP、预聚合和创作状态分别调用其原生处理器。备份导出继续要求原 step-up，导入继续使用同一管理员幂等 helper。
 
 订阅、兑换、平台额度和套餐的用户/管理员 handler 与 DTO 位于 `billing/httpapi`，原路由汇总直接绑定这些实例。URL、认证/幂等中间件顺序、reason、CSV 和分页排序保持原契约；额度 HTTP 不直接读取仓储，用户存在性由用例的只读端口处理。管理员套餐保留原 Ent 的字段省略及 `edges` 形状，公开套餐使用独立投影。
 
 用户资料、会话、七类身份、强认证与用户管理 HTTP 位于 `identity/httpapi`，团队位于 `team/httpapi`，Key 生命周期和凭据入口位于 `apikey/httpapi`。app 组合同一组身份处理器供原路由调用；微信支付 OAuth 在 payment/httpapi 单独接入原路径。HTTP 适配保留历史 DTO 形状与凭据差异，安全 `Principal` 和 Key 的 `AccessSnapshot` 分别表达身份与付款/成员上下文；旧 context 读取入口只作兼容投影。
 
+网关 HTTP 请求的 Ops 观测键、流错误快照和传输标记由 `gateway/httpapi` 拥有；每个 WS turn 独立保留首个错误及当次账号/模型/规则匹配快照。旧转发消费者直接使用这一实现，采集队列与持久化继续由 Ops 拥有。错误规则只改变原客户端展示与监控跳过语义，不改变重试和结算。
+
 用量与 Dashboard 的用户/管理员入口位于 `usage/httpapi`；`/v1/usage` 及 Antigravity 用量自省直接绑定新的公开 handler，保留 quota_limited/unrestricted、日期范围、余额/指定订阅区别及 best-effort 统计。审计入口位于 `audit/httpapi`，清空的原 TOTP 与管理员 API Key 拒绝规则继续有效；Ops 管理与实时入口位于 `ops/httpapi`。路由路径、中间件顺序、JSON/CSV、分页、ETag/304 和 WebSocket 子协议保持原契约，具体留痕保证见[清理与留存](../operations/observability_and_data_lifecycle.md#data_cleanup)。
 
-通知模板、SMTP 测试和公开退订直接绑定 notification/httpapi；搜索配置、管理测试和额度重置绑定 search/httpapi；风险配置、日志、媒体、Cyber 和解封绑定 moderation/httpapi。原 URL、中间件次序、幂等边界和返回字段保持。公开设置及页面由 site/httpapi 提供，旧设置 handler 只保留兼容委托。
+通知模板、SMTP 测试和公开退订直接绑定 notification/httpapi；搜索配置、管理测试和额度重置绑定 search/httpapi；风险配置、日志、媒体、Cyber 和解封绑定 moderation/httpapi。原 URL、中间件次序、幂等边界和返回字段保持。公开设置及页面由 site/httpapi 提供，旧公开设置和用户用量 handler 包装已删除；原 API 与 embed 契约直接验证原生实例。
 
 网关 HTTP、SSE、模型和计数入口直接绑定 app 构造的 `gateway/httpapi` 对象；Responses WebSocket 与 Live 使用独立 Handler。旧入口只提供兼容调用，路由不为迁移改变 URL、认证顺序、裸路径别名或 Responses 子路径白名单。普通 Key 的协议门禁不提前读取 body，复合 Key 保持原模型读取与报文恢复时机。实际账号循环由 gateway/text、媒体或会话用例拥有；每次 attempt 的模型与完成输入独立。
 
@@ -205,7 +207,7 @@ site 拥有 targeting 校验、余额/有效订阅匹配、开始结束边界、
 
 业务错误由 `ApplicationError` 映射为 HTTP status，并可返回 `reason` 和字符串 `metadata`。未知错误按 500 处理并只在服务端记录脱敏详情。分页数据使用 `items`、`total`、`page`、`page_size` 和 `pages`；创建与异步接受分别可以返回 201/202。
 
-唯一错误实体位于 `pkg/apperror`，HTTP 映射和面板 envelope 位于 `server/httpx`。旧 `pkg/errors` 和 `pkg/response` 保留兼容入口；错误类型别名维持 `errors.Is/As`、cause 和 metadata 复制语义。新核心使用具名类别；兼容期仍保留旧 code 数值和字段，自定义状态码也不能因提取而归并成另一类错误。
+唯一错误实体位于 `pkg/apperror`，HTTP 映射和面板 envelope 位于 `server/httpx`；旧 `pkg/errors` 和 `pkg/response` 转接已删除。消费者直接使用具名类别，保留原 code 数值、字段、`errors.Is/As`、cause 和 metadata 复制语义；自定义状态码仍按原值映射。
 
 管理员 `GET /api/v1/admin/usage` 的每条记录可包含 `detailed_timing`。该对象由同一内部请求 ID 关联 `http.access` 日志得到，字段是相对于 Sub2API 入口的毫秒时间点，包括账号槽位、上游连接/写入、首字节、首个 SSE、首个可见输出和首次下游 Flush；历史记录或观测日志缺失时省略该对象。
 

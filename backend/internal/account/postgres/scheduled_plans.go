@@ -4,8 +4,9 @@ package postgres
 import (
 	context "context"
 	sql "database/sql"
-	account "github.com/TokenFlux/TokenRouter/internal/account"
 	time "time"
+
+	account "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 type scheduledTestPlanRepository struct {

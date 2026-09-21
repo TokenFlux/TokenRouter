@@ -20,7 +20,7 @@ import (
 )
 
 func init() {
-	gin.SetMode(gin.TestMode)
+
 }
 
 func TestInjectSiteTitle(t *testing.T) {

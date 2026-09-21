@@ -6,8 +6,9 @@ import (
 	"time"
 
 	billingpg "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 func newDashboardAggregationRepositoryWithSQL(q sqlExecutor) *AggregationStore {
-	return NewAggregationStoreWithSQL(q, func(ctx context.Context, t time.Time) error { return billingpg.ArchiveUsageDedup(ctx, q, t) })
+	return NewAggregationStoreWithSQL(q, timezone.NewCalendar(time.Local), func(ctx context.Context, t time.Time) error { return billingpg.ArchiveUsageDedup(ctx, q, t) })
 }

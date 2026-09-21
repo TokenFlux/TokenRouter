@@ -7,9 +7,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
@@ -22,25 +21,34 @@ func provideAccountImportProbes(manager *lifecycle.Manager) *account.GrokImportP
 
 func provideGrokOAuthWithImports(
 	queue *account.GrokImportProbeScheduler,
-	grokOAuthService *service.GrokOAuthService,
-	adminService service.AdminService,
-	quotaService *service.GrokQuotaService,
-	reconciler service.GrokOAuthReconciler,
+	grokOAuthService *account.GrokAuthorization,
+	adminService *account.Admin,
+	proxies *egress.ProxyAdmin,
+	tasks *lifecycle.Tasks,
+	quotaService *account.GrokQuotaService,
+	reconciler account.GrokOAuthReconciler,
 ) *accounthttp.GrokOAuthHandler {
-	ops := legacybridge.GrokAccountOperations{Source: adminService}
+	proxyURL := func(ctx context.Context, id int64) (string, bool, error) {
+		value, err := proxies.GetProxy(ctx, id)
+		if err != nil || value == nil {
+			return "", false, err
+		}
+		return value.URL(), true, nil
+	}
+	runTask := func(label string, work func()) { tasks.Go(label, work) }
 	var auth *account.GrokAuthorization
 	if grokOAuthService != nil {
-		auth = grokOAuthService.Core()
+		auth = grokOAuthService
 	}
 	var quota *account.GrokQuotaService
 	if quotaService != nil {
-		quota = quotaService.Core()
+		quota = quotaService
 	}
-	imports := account.NewGrokAccountImport(auth, account.GrokAccountImportOptions{Get: ops.Get, Create: ops.Create, Update: ops.Update, NormalizeToken: grok.NormalizeSSOToken, LogError: slog.Error, RunTask: legacybridge.RunGrokImportTask, Schedule: func(value *account.Record) {
-		snapshot := ops.ImportSnapshot(value)
+	imports := account.NewGrokAccountImport(auth, account.GrokAccountImportOptions{Get: adminService.GetAccount, Create: adminService.CreateAccount, Update: adminService.UpdateAccount, NormalizeToken: grok.NormalizeSSOToken, LogError: slog.Error, RunTask: runTask, Schedule: func(value *account.Record) {
+		snapshot := value.RoutingSnapshot()
 		queue.Schedule(grokQuotaImportProbe{quota}, &snapshot)
 	}})
-	return accounthttp.NewGrokOAuthHandler(auth, imports, quota, accounthttp.GrokOAuthHTTPOptions{ProxyURL: ops.ProxyURL, RuntimeSanity: func() any { return grok.RuntimeSanity() }, Reconciler: reconciler})
+	return accounthttp.NewGrokOAuthHandler(auth, imports, quota, accounthttp.GrokOAuthHTTPOptions{ProxyURL: proxyURL, RuntimeSanity: func() any { return grok.RuntimeSanity() }, Reconciler: reconciler})
 }
 
 // 导入队列只读取探测摘要，不暴露完整额度或凭据。

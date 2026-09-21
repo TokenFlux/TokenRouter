@@ -9,9 +9,12 @@ import (
 	"strings"
 	"time"
 
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,47 +24,13 @@ const (
 	grokCredentialMutationTimeout     = 5 * time.Second
 	grokCredentialMutationConfirmWait = 250 * time.Millisecond
 	grokCredentialCacheCleanupTimeout = 500 * time.Millisecond
-
-	GrokCredentialUnavailableClientMessage = "No healthy Grok OAuth account is currently available"
-
-	GrokCredentialReasonRevoked          GatewayFailureReason = "grok_oauth_credential_revoked"
-	GrokCredentialReasonMissing          GatewayFailureReason = "grok_oauth_credentials_missing"
-	GrokCredentialReasonEntitlement      GatewayFailureReason = "grok_oauth_entitlement_action_required"
-	GrokCredentialReasonProxyInvalid     GatewayFailureReason = "grok_oauth_proxy_invalid"
-	GrokCredentialReasonRefreshTransient GatewayFailureReason = "grok_oauth_refresh_transient"
-	GrokCredentialReasonProviderConfig   GatewayFailureReason = "grok_oauth_provider_config"
-	GrokCredentialReasonProviderDown     GatewayFailureReason = "grok_oauth_provider_unavailable"
-	GrokCredentialReasonAccountChanged   GatewayFailureReason = "grok_oauth_account_state_changed"
-	GrokCredentialReasonStateUpdate      GatewayFailureReason = "grok_oauth_account_state_update_failed"
-	GrokCredentialReasonFailoverTimeout  GatewayFailureReason = "grok_oauth_failover_timeout"
 )
 
 var errGrokCredentialStateUpdateFailed = errors.New("grok oauth account state update failed")
 
-type grokCredentialFailureClass struct {
-	scope     GatewayFailureScope
-	reason    GatewayFailureReason
-	action    NextAccountAction
-	permanent bool
-	transient bool
-	message   string
-	snapshot  *GrokCredentialMutationSnapshot
-}
-
-// GrokCredentialMutationSnapshot 兼容旧平台执行入口，值类型归账号模块。
-type GrokCredentialMutationSnapshot = accountcore.CredentialMutationSnapshot
-
-func withGrokCredentialFailureSnapshot(err error, account *Account) error {
-	return accountcore.WithGrokCredentialFailureSnapshot(err, AccountRecordView(account))
-}
-
-func grokCredentialFailureSnapshot(err error) (GrokCredentialMutationSnapshot, bool) {
-	return accountcore.GrokCredentialFailureSnapshot(err)
-}
-
 type grokCredentialConditionalStateRepository interface {
-	SetGrokCredentialErrorIfMatch(context.Context, int64, GrokCredentialMutationSnapshot, string) (bool, error)
-	SetGrokCredentialTempUnschedulableIfMatch(context.Context, int64, GrokCredentialMutationSnapshot, time.Time, string) (bool, error)
+	SetGrokCredentialErrorIfMatch(context.Context, int64, accountcore.CredentialMutationSnapshot, string) (bool, error)
+	SetGrokCredentialTempUnschedulableIfMatch(context.Context, int64, accountcore.CredentialMutationSnapshot, time.Time, string) (bool, error)
 }
 
 // GetRequestCredential 在建立任何上游传输前应用请求路径的凭据和故障切换契约。
@@ -83,19 +52,19 @@ func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.
 		return "", "", err
 	}
 	if s == nil || s.grokTokenProvider == nil {
-		return "", "", s.newGrokCredentialFailover(c, account, grokCredentialFailureClass{
-			scope:   GatewayFailureScopeProvider,
-			reason:  GrokCredentialReasonProviderConfig,
-			action:  NextAccountStop,
-			message: "Grok OAuth credential provider is unavailable",
+		return "", "", s.newGrokCredentialFailover(c, account, forwardcore.GrokCredentialFailure{
+			Scope:   forwardcore.GatewayFailureScopeProvider,
+			Reason:  forwardcore.GrokCredentialReasonProviderConfig,
+			Action:  forwardcore.NextAccountStop,
+			Message: "Grok OAuth credential provider is unavailable",
 		})
 	}
 	if s.isOpenAIAccountRuntimeBlocked(account) {
-		return "", "", s.newGrokCredentialFailover(c, account, grokCredentialFailureClass{
-			scope:   GatewayFailureScopeAccount,
-			reason:  GrokCredentialReasonAccountChanged,
-			action:  NextAccountRetry,
-			message: "Grok OAuth account is not currently schedulable",
+		return "", "", s.newGrokCredentialFailover(c, account, forwardcore.GrokCredentialFailure{
+			Scope:   forwardcore.GatewayFailureScopeAccount,
+			Reason:  forwardcore.GrokCredentialReasonAccountChanged,
+			Action:  forwardcore.NextAccountRetry,
+			Message: "Grok OAuth account is not currently schedulable",
 		})
 	}
 
@@ -104,22 +73,22 @@ func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.
 		defer cancel()
 	}
 	if budgetExpired {
-		return "", "", s.newGrokCredentialFailover(c, account, grokCredentialFailureClass{
-			scope:   GatewayFailureScopeRequest,
-			reason:  GrokCredentialReasonFailoverTimeout,
-			action:  NextAccountStop,
-			message: "Grok OAuth credential failover budget exhausted",
+		return "", "", s.newGrokCredentialFailover(c, account, forwardcore.GrokCredentialFailure{
+			Scope:   forwardcore.GatewayFailureScopeRequest,
+			Reason:  forwardcore.GrokCredentialReasonFailoverTimeout,
+			Action:  forwardcore.NextAccountStop,
+			Message: "Grok OAuth credential failover budget exhausted",
 		})
 	}
 
 	token, kind, err := s.GetAccessToken(credentialCtx, account)
 	if err == nil {
 		if s.isOpenAIAccountRuntimeBlocked(account) {
-			return "", "", s.newGrokCredentialFailover(c, account, grokCredentialFailureClass{
-				scope:   GatewayFailureScopeAccount,
-				reason:  GrokCredentialReasonAccountChanged,
-				action:  NextAccountRetry,
-				message: "Grok OAuth account is not currently schedulable",
+			return "", "", s.newGrokCredentialFailover(c, account, forwardcore.GrokCredentialFailure{
+				Scope:   forwardcore.GatewayFailureScopeAccount,
+				Reason:  forwardcore.GrokCredentialReasonAccountChanged,
+				Action:  forwardcore.NextAccountRetry,
+				Message: "Grok OAuth account is not currently schedulable",
 			})
 		}
 		return token, kind, nil
@@ -128,22 +97,22 @@ func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.
 		return "", "", parentErr
 	}
 	if credentialCtx.Err() != nil {
-		return "", "", s.newGrokCredentialFailover(c, account, grokCredentialFailureClass{
-			scope:   GatewayFailureScopeRequest,
-			reason:  GrokCredentialReasonFailoverTimeout,
-			action:  NextAccountStop,
-			message: "Grok OAuth credential failover budget exhausted",
+		return "", "", s.newGrokCredentialFailover(c, account, forwardcore.GrokCredentialFailure{
+			Scope:   forwardcore.GatewayFailureScopeRequest,
+			Reason:  forwardcore.GrokCredentialReasonFailoverTimeout,
+			Action:  forwardcore.NextAccountStop,
+			Message: "Grok OAuth credential failover budget exhausted",
 		})
 	}
 
-	class := classifyGrokCredentialFailure(account, err)
-	if snapshot, ok := grokCredentialFailureSnapshot(err); ok {
-		class.snapshot = &snapshot
+	class := forwardcore.ClassifyGrokCredentialFailure(account != nil && account.ProxyID != nil, err)
+	if snapshot, ok := accountcore.GrokCredentialFailureSnapshot(err); ok {
+		class.SetSnapshot(&snapshot)
 	}
 	if ctx.Err() != nil {
 		return "", "", ctx.Err()
 	}
-	if class.permanent || class.transient {
+	if class.Permanent || class.Transient {
 		freshToken, mutationErr := s.applyGrokCredentialAccountFailure(credentialCtx, account, class)
 		if freshToken != "" {
 			return freshToken, "oauth", nil
@@ -153,33 +122,33 @@ func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.
 				return "", "", ctx.Err()
 			}
 			if credentialCtx.Err() != nil {
-				return "", "", s.newGrokCredentialFailover(c, account, grokCredentialFailureClass{
-					scope:   GatewayFailureScopeRequest,
-					reason:  GrokCredentialReasonFailoverTimeout,
-					action:  NextAccountStop,
-					message: "Grok OAuth credential failover budget exhausted",
+				return "", "", s.newGrokCredentialFailover(c, account, forwardcore.GrokCredentialFailure{
+					Scope:   forwardcore.GatewayFailureScopeRequest,
+					Reason:  forwardcore.GrokCredentialReasonFailoverTimeout,
+					Action:  forwardcore.NextAccountStop,
+					Message: "Grok OAuth credential failover budget exhausted",
 				})
 			}
-			if errors.Is(mutationErr, errOAuthRefreshAccountStateChanged) {
-				class = grokCredentialFailureClass{
-					scope:   GatewayFailureScopeAccount,
-					reason:  GrokCredentialReasonAccountChanged,
-					action:  NextAccountRetry,
-					message: "Grok OAuth account eligibility changed",
+			if errors.Is(mutationErr, accountcore.ErrRefreshAccountStateChanged) {
+				class = forwardcore.GrokCredentialFailure{
+					Scope:   forwardcore.GatewayFailureScopeAccount,
+					Reason:  forwardcore.GrokCredentialReasonAccountChanged,
+					Action:  forwardcore.NextAccountRetry,
+					Message: "Grok OAuth account eligibility changed",
 				}
-			} else if errors.Is(mutationErr, errOAuthRefreshAccountRereadFailed) {
-				class = grokCredentialFailureClass{
-					scope:   GatewayFailureScopeProvider,
-					reason:  GrokCredentialReasonProviderDown,
-					action:  NextAccountStop,
-					message: "Grok OAuth account state is temporarily unavailable",
+			} else if errors.Is(mutationErr, accountcore.ErrRefreshAccountRereadFailed) {
+				class = forwardcore.GrokCredentialFailure{
+					Scope:   forwardcore.GatewayFailureScopeProvider,
+					Reason:  forwardcore.GrokCredentialReasonProviderDown,
+					Action:  forwardcore.NextAccountStop,
+					Message: "Grok OAuth account state is temporarily unavailable",
 				}
 			} else {
-				class = grokCredentialFailureClass{
-					scope:   GatewayFailureScopeProvider,
-					reason:  GrokCredentialReasonStateUpdate,
-					action:  NextAccountStop,
-					message: "Grok OAuth account state could not be updated safely",
+				class = forwardcore.GrokCredentialFailure{
+					Scope:   forwardcore.GatewayFailureScopeProvider,
+					Reason:  forwardcore.GrokCredentialReasonStateUpdate,
+					Action:  forwardcore.NextAccountStop,
+					Message: "Grok OAuth account state could not be updated safely",
 				}
 			}
 		}
@@ -206,63 +175,7 @@ func grokCredentialAcquisitionContext(ctx context.Context, c *gin.Context) (cont
 	return acquireCtx, cancel, false
 }
 
-func classifyGrokCredentialFailure(account *Account, err error) grokCredentialFailureClass {
-	stableReason := strings.ToLower(strings.TrimSpace(infraerrors.Reason(err)))
-	message := ""
-	if err != nil {
-		message = strings.ToLower(err.Error())
-	}
-	contains := func(values ...string) bool {
-		for _, value := range values {
-			if strings.Contains(stableReason, value) || strings.Contains(message, value) {
-				return true
-			}
-		}
-		return false
-	}
-	var providerConfigErr *providerConfigurationRefreshError
-	var containmentErr *providerCycleContainmentRefreshError
-
-	switch {
-	case errors.Is(err, errGrokOAuthRefreshTokenMissing), errors.Is(err, errGrokOAuthAccessTokenMissing), errors.Is(err, errGrokOAuthAccessTokenExpired):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeAccount, reason: GrokCredentialReasonMissing, action: NextAccountRetry, permanent: true, message: "Grok OAuth credentials are missing or expired"}
-	case contains("invalid_grant", "invalid_refresh_token", "token_expired", "refresh_token_reused", "refresh_token_invalidated", "app_session_terminated"):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeAccount, reason: GrokCredentialReasonRevoked, action: NextAccountRetry, permanent: true, message: "Grok OAuth credentials require account action"}
-	case contains("spending limit", "run out of credits", "out of credits", "credits exhausted", "included free usage"):
-		// 账单限额与滚动免费额度耗尽无需更换 OAuth 凭证即可恢复。
-		// 将刷新失败视为临时故障，使账号之后仍可再次探测额度。
-		return grokCredentialFailureClass{scope: GatewayFailureScopeAccount, reason: GrokCredentialReasonRefreshTransient, action: NextAccountRetry, transient: true, message: "Grok OAuth billing quota is temporarily exhausted"}
-	case contains("grok_oauth_entitlement_denied", "entitlement_denied", "access_denied", "subscription required", "no active grok subscription"):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeAccount, reason: GrokCredentialReasonEntitlement, action: NextAccountRetry, permanent: true, message: "Grok OAuth entitlement requires account action"}
-	case errors.Is(err, errGrokOAuthConfiguredProxyMiss), contains("grok_oauth_proxy_not_found"):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeAccount, reason: GrokCredentialReasonProxyInvalid, action: NextAccountRetry, permanent: true, message: "Grok OAuth account proxy configuration is invalid"}
-	case errors.Is(err, errOAuthRefreshAccountRereadFailed):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderDown, action: NextAccountStop, message: "Grok OAuth account state is temporarily unavailable"}
-	case errors.Is(err, errOAuthRefreshCredentialPersist):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderDown, action: NextAccountStop, message: "Grok OAuth shared credential state is temporarily unavailable"}
-	case errors.As(err, &containmentErr):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderDown, action: NextAccountStop, message: "Grok OAuth provider state is temporarily unavailable"}
-	case errors.Is(err, errOAuthRefreshAccountStateChanged):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeAccount, reason: GrokCredentialReasonAccountChanged, action: NextAccountRetry, message: "Grok OAuth account eligibility changed"}
-	case errors.As(err, &providerConfigErr):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderConfig, action: NextAccountStop, message: "Grok OAuth provider configuration is unavailable"}
-	case errors.Is(err, errGrokOAuthRefreshNotConfigured), contains("invalid_client", "unauthorized_client", "invalid_scope", "unknown scope", "grok oauth service is not configured", "grok_oauth_proxy_not_available"):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderConfig, action: NextAccountStop, message: "Grok OAuth provider configuration is unavailable"}
-	case contains("grok_oauth_proxy_lookup_failed"),
-		contains("grok_oauth_token_refresh_failed") && contains("status 403") && (account == nil || account.ProxyID == nil):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderDown, action: NextAccountStop, message: "Grok OAuth provider is temporarily unavailable"}
-	case contains("grok_oauth_client_init_failed") && (account == nil || account.ProxyID == nil):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderConfig, action: NextAccountStop, message: "Grok OAuth provider configuration is unavailable"}
-	case contains("grok_oauth_request_failed") && (account == nil || account.ProxyID == nil):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderDown, action: NextAccountStop, message: "Grok OAuth provider is temporarily unavailable"}
-	case contains("status 429", "status 500", "status 502", "status 503", "status 504") && (account == nil || account.ProxyID == nil):
-		return grokCredentialFailureClass{scope: GatewayFailureScopeProvider, reason: GrokCredentialReasonProviderDown, action: NextAccountStop, message: "Grok OAuth provider is temporarily unavailable"}
-	default:
-		return grokCredentialFailureClass{scope: GatewayFailureScopeAccount, reason: GrokCredentialReasonRefreshTransient, action: NextAccountRetry, transient: true, message: "Grok OAuth credential refresh is temporarily unavailable"}
-	}
-}
-
-func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Context, account *Account, class grokCredentialFailureClass) (string, error) {
+func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Context, account *Account, class forwardcore.GrokCredentialFailure) (string, error) {
 	if s == nil || account == nil || ctx == nil || ctx.Err() != nil {
 		if ctx != nil {
 			return "", ctx.Err()
@@ -276,21 +189,21 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 	defer mutationMu.Unlock()
 	stateRepo, hasConditionalStateRepo := s.accountRepo.(grokCredentialConditionalStateRepository)
 	snapshot := grokCredentialMutationSnapshot(account)
-	if class.snapshot != nil {
-		snapshot = *class.snapshot
+	if class.Snapshot() != nil {
+		snapshot = *class.Snapshot()
 	}
 	if token, err := s.validateCurrentGrokCredentialFailure(ctx, account.ID, snapshot, class); err != nil || token != "" {
 		return token, err
 	}
 
-	if class.permanent {
+	if class.Permanent {
 		if token, ok := s.grokCredentialConcurrentlyRefreshedToken(ctx, account.ID, snapshot); ok {
 			return token, nil
 		}
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		rollbackRuntime := s.blockGrokCredentialRuntime(account, time.Time{}, string(class.reason))
+		rollbackRuntime := s.blockGrokCredentialRuntime(account, time.Time{}, string(class.Reason))
 		keepRuntimeBlock := false
 		runtimeRollbackDone := false
 		defer func() {
@@ -311,11 +224,11 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 			cancel()
 			return "", err
 		}
-		updated, err := stateRepo.SetGrokCredentialErrorIfMatch(stateCtx, account.ID, snapshot, string(class.reason))
+		updated, err := stateRepo.SetGrokCredentialErrorIfMatch(stateCtx, account.ID, snapshot, string(class.Reason))
 		requestErr := ctx.Err()
 		cancel()
 		if err != nil {
-			slog.Warn("grok_credential_failure.set_error_failed", "account_id", account.ID, "reason", class.reason, "error", err)
+			slog.Warn("grok_credential_failure.set_error_failed", "account_id", account.ID, "reason", class.Reason, "error", err)
 			if requestErr != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				if s.grokCredentialMutationCommitted(account.ID, class, time.Time{}) {
 					updated = true
@@ -344,10 +257,10 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 			return "", fmt.Errorf("%w: token provider is not configured", errGrokCredentialStateUpdateFailed)
 		}
 		invalidateCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), grokCredentialCacheCleanupTimeout)
-		err = s.grokTokenProvider.InvalidateToken(invalidateCtx, account)
+		err = s.grokTokenProvider.InvalidateToken(invalidateCtx, AccountRecordView(account))
 		cancel()
 		if err != nil {
-			slog.Warn("grok_credential_failure.invalidate_token_failed", "account_id", account.ID, "reason", class.reason, "error", err)
+			slog.Warn("grok_credential_failure.invalidate_token_failed", "account_id", account.ID, "reason", class.Reason, "error", err)
 			if ctx.Err() != nil {
 				return "", ctx.Err()
 			}
@@ -359,12 +272,12 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 		return "", nil
 	}
 
-	if class.transient {
-		until := time.Now().Add(tokenRefreshTempUnschedDuration)
+	if class.Transient {
+		until := time.Now().Add(accountcore.TokenRefreshTempUnschedDuration)
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		rollbackRuntime := s.blockGrokCredentialRuntime(account, until, string(class.reason))
+		rollbackRuntime := s.blockGrokCredentialRuntime(account, until, string(class.Reason))
 		keepRuntimeBlock := false
 		runtimeRollbackDone := false
 		defer func() {
@@ -387,11 +300,11 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 			cancel()
 			return "", err
 		}
-		updated, err := stateRepo.SetGrokCredentialTempUnschedulableIfMatch(stateCtx, account.ID, snapshot, until, string(class.reason))
+		updated, err := stateRepo.SetGrokCredentialTempUnschedulableIfMatch(stateCtx, account.ID, snapshot, until, string(class.Reason))
 		requestErr := ctx.Err()
 		cancel()
 		if err != nil {
-			slog.Warn("grok_credential_failure.set_temp_unschedulable_failed", "account_id", account.ID, "reason", class.reason, "error", err)
+			slog.Warn("grok_credential_failure.set_temp_unschedulable_failed", "account_id", account.ID, "reason", class.Reason, "error", err)
 			if requestErr != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				if s.grokCredentialMutationCommitted(account.ID, class, until) {
 					updated = true
@@ -425,8 +338,8 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 func (s *OpenAIGatewayService) validateCurrentGrokCredentialFailure(
 	ctx context.Context,
 	accountID int64,
-	snapshot GrokCredentialMutationSnapshot,
-	class grokCredentialFailureClass,
+	snapshot accountcore.CredentialMutationSnapshot,
+	class forwardcore.GrokCredentialFailure,
 ) (string, error) {
 	if s == nil || s.accountRepo == nil || accountID <= 0 || ctx == nil || ctx.Err() != nil {
 		if ctx != nil {
@@ -438,55 +351,55 @@ func (s *OpenAIGatewayService) validateCurrentGrokCredentialFailure(
 	defer cancel()
 	latest, err := s.accountRepo.GetByID(checkCtx, accountID)
 	if err != nil {
-		if errors.Is(err, ErrAccountNotFound) {
-			return "", errOAuthRefreshAccountStateChanged
+		if errors.Is(err, accountcore.ErrAccountNotFound) {
+			return "", accountcore.ErrRefreshAccountStateChanged
 		}
-		return "", fmt.Errorf("%w: %v", errOAuthRefreshAccountRereadFailed, err)
+		return "", fmt.Errorf("%w: %v", accountcore.ErrRefreshAccountRereadFailed, err)
 	}
 	if latest == nil || !latest.IsGrokOAuth() || !latest.IsSchedulable() || s.isOpenAIAccountRuntimeBlocked(latest) {
-		return "", errOAuthRefreshAccountStateChanged
+		return "", accountcore.ErrRefreshAccountStateChanged
 	}
 	latestSnapshot := grokCredentialMutationSnapshot(latest)
 	if latestSnapshot.CredentialsJSON != snapshot.CredentialsJSON ||
-		!grokCredentialProxyIDsEqual(latestSnapshot.ProxyID, snapshot.ProxyID) {
+		!accountcore.GrokCredentialProxyIDsEqual(latestSnapshot.ProxyID, snapshot.ProxyID) {
 		if token, ok := s.grokCredentialConcurrentlyRefreshedToken(ctx, accountID, snapshot); ok {
 			return token, nil
 		}
-		return "", errOAuthRefreshAccountStateChanged
+		return "", accountcore.ErrRefreshAccountStateChanged
 	}
 
 	// 已配置代理不属于账号行的 CAS 身份；重新检查加载后的代理对象，
 	// 让同 ID 的代理恢复结果优先于过期的代理无效失败。
-	if class.reason == GrokCredentialReasonProxyInvalid {
+	if class.Reason == forwardcore.GrokCredentialReasonProxyInvalid {
 		if latest.ProxyID == nil || latest.Proxy != nil {
-			return "", errOAuthRefreshAccountStateChanged
+			return "", accountcore.ErrRefreshAccountStateChanged
 		}
 	} else if latest.ProxyID != nil && latest.Proxy == nil {
-		return "", errOAuthRefreshAccountStateChanged
+		return "", accountcore.ErrRefreshAccountStateChanged
 	}
 
-	if class.reason == GrokCredentialReasonMissing {
+	if class.Reason == forwardcore.GrokCredentialReasonMissing {
 		expiresAt := latest.GetCredentialAsTime("expires_at")
 		credentialsStillMissing := strings.TrimSpace(latest.GetGrokAccessToken()) == "" ||
 			strings.TrimSpace(latest.GetGrokRefreshToken()) == "" || expiresAt == nil || !time.Now().Before(*expiresAt)
 		if !credentialsStillMissing {
-			return "", errOAuthRefreshAccountStateChanged
+			return "", accountcore.ErrRefreshAccountStateChanged
 		}
 	}
 	return "", nil
 }
 
-func (s *OpenAIGatewayService) grokCredentialMutationLock(accountID int64) *oauthRefreshLocalLock {
-	actual, _ := s.grokCredentialMutationLocks.LoadOrStore(accountID, newOAuthRefreshLocalLock())
-	mu, ok := actual.(*oauthRefreshLocalLock)
+func (s *OpenAIGatewayService) grokCredentialMutationLock(accountID int64) *accountcore.RefreshLock {
+	actual, _ := s.grokCredentialMutationLocks.LoadOrStore(accountID, accountcore.NewRefreshLock())
+	mu, ok := actual.(*accountcore.RefreshLock)
 	if !ok {
-		mu = newOAuthRefreshLocalLock()
+		mu = accountcore.NewRefreshLock()
 		s.grokCredentialMutationLocks.Store(accountID, mu)
 	}
 	return mu
 }
 
-func (s *OpenAIGatewayService) grokCredentialMutationCommitted(accountID int64, class grokCredentialFailureClass, until time.Time) bool {
+func (s *OpenAIGatewayService) grokCredentialMutationCommitted(accountID int64, class forwardcore.GrokCredentialFailure, until time.Time) bool {
 	if s == nil || s.accountRepo == nil || accountID <= 0 {
 		return false
 	}
@@ -496,28 +409,28 @@ func (s *OpenAIGatewayService) grokCredentialMutationCommitted(accountID int64, 
 	if err != nil || latest == nil {
 		return false
 	}
-	if class.permanent {
-		return latest.Status == StatusError && !latest.Schedulable && latest.ErrorMessage == string(class.reason)
+	if class.Permanent {
+		return latest.Status == accountcore.StatusError && !latest.Schedulable && latest.ErrorMessage == string(class.Reason)
 	}
-	if class.transient {
+	if class.Transient {
 		return latest.TempUnschedulableUntil != nil && !latest.TempUnschedulableUntil.Before(until) &&
-			latest.TempUnschedulableReason == string(class.reason)
+			latest.TempUnschedulableReason == string(class.Reason)
 	}
 	return false
 }
 
-func grokCredentialMutationSnapshot(account *Account) GrokCredentialMutationSnapshot {
+func grokCredentialMutationSnapshot(account *Account) accountcore.CredentialMutationSnapshot {
 	return accountcore.GrokCredentialMutationSnapshot(AccountRecordView(account))
 }
 
-func (s *OpenAIGatewayService) resolveGrokCredentialCASMiss(ctx context.Context, accountID int64, snapshot GrokCredentialMutationSnapshot) (string, error) {
+func (s *OpenAIGatewayService) resolveGrokCredentialCASMiss(ctx context.Context, accountID int64, snapshot accountcore.CredentialMutationSnapshot) (string, error) {
 	if ctx.Err() != nil {
 		return "", ctx.Err()
 	}
 	if token, ok := s.grokCredentialConcurrentlyRefreshedToken(ctx, accountID, snapshot); ok {
 		return token, nil
 	}
-	return "", errOAuthRefreshAccountStateChanged
+	return "", accountcore.ErrRefreshAccountStateChanged
 }
 
 func (s *OpenAIGatewayService) blockGrokCredentialRuntime(account *Account, until time.Time, reason string) func() {
@@ -561,7 +474,7 @@ func (s *OpenAIGatewayService) blockGrokCredentialRuntime(account *Account, unti
 	}
 }
 
-func (s *OpenAIGatewayService) grokCredentialConcurrentlyRefreshedToken(ctx context.Context, accountID int64, baseline GrokCredentialMutationSnapshot) (string, bool) {
+func (s *OpenAIGatewayService) grokCredentialConcurrentlyRefreshedToken(ctx context.Context, accountID int64, baseline accountcore.CredentialMutationSnapshot) (string, bool) {
 	if s == nil || s.accountRepo == nil || accountID <= 0 || ctx == nil || ctx.Err() != nil {
 		return "", false
 	}
@@ -572,7 +485,7 @@ func (s *OpenAIGatewayService) grokCredentialConcurrentlyRefreshedToken(ctx cont
 		return "", false
 	}
 	latestSnapshot := grokCredentialMutationSnapshot(latest)
-	if !grokCredentialProxyIDsEqual(latestSnapshot.ProxyID, baseline.ProxyID) ||
+	if !accountcore.GrokCredentialProxyIDsEqual(latestSnapshot.ProxyID, baseline.ProxyID) ||
 		latestSnapshot.CredentialsJSON == baseline.CredentialsJSON || !latest.IsSchedulable() ||
 		(latest.ProxyID != nil && latest.Proxy == nil) || s.isOpenAIAccountRuntimeBlocked(latest) {
 		return "", false
@@ -588,29 +501,23 @@ func (s *OpenAIGatewayService) grokCredentialConcurrentlyRefreshedToken(ctx cont
 	return latestToken, true
 }
 
-func grokCredentialProxyIDsEqual(left, right *int64) bool {
-	return accountcore.GrokCredentialProxyIDsEqual(left, right)
-}
-
-func (s *OpenAIGatewayService) newGrokCredentialFailover(c *gin.Context, account *Account, class grokCredentialFailureClass) error {
-	if strings.TrimSpace(class.message) == "" {
-		class.message = "Grok OAuth credentials are unavailable"
+func (s *OpenAIGatewayService) newGrokCredentialFailover(c *gin.Context, account *Account, class forwardcore.GrokCredentialFailure) error {
+	if strings.TrimSpace(class.Message) == "" {
+		class.Message = "Grok OAuth credentials are unavailable"
 	}
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
-		Platform:  PlatformGrok,
+	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
+		Platform:  capability.PlatformGrok,
 		AccountID: account.ID,
-		Stage:     string(GatewayFailureStageAccountAuth),
-		Scope:     string(class.scope),
-		Reason:    string(class.reason),
+		Stage:     string(forwardcore.GatewayFailureStageAccountAuth),
+		Scope:     string(class.Scope),
+		Reason:    string(class.Reason),
 		Kind:      "credential_failover",
-		Message:   class.message,
+		Message:   class.Message,
 	})
-	return &UpstreamFailoverError{
-		Stage:             GatewayFailureStageAccountAuth,
-		Scope:             class.scope,
-		Reason:            class.reason,
-		NextAccountAction: class.action,
-		ClientStatusCode:  http.StatusServiceUnavailable,
-		ClientMessage:     GrokCredentialUnavailableClientMessage,
+	return &forwardcore.UpstreamFailoverError{
+		Stage:  forwardcore.GatewayFailureStageAccountAuth,
+		Scope:  class.Scope,
+		Reason: class.Reason, NextAccountAction: class.Action, ClientStatusCode: http.StatusServiceUnavailable,
+		ClientMessage: forwardcore.GrokCredentialUnavailableClientMessage,
 	}
 }

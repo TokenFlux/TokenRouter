@@ -3,10 +3,11 @@ package requeststate
 
 import (
 	"errors"
+	"strings"
+
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"strings"
 )
 
 type OpenAIRequestView struct {

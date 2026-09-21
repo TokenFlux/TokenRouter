@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // ImagesTarget 是已准备的单次技术目标，不能序列化请求中的凭据。
@@ -18,7 +18,7 @@ type ImagesOptions struct {
 	Model, ResponseFormat, StreamPrefix string
 	StartedAt                           time.Time
 	Request                             *http.Request `json:"-"`
-	Options                             native.ImageResponseOptions
+	Options                             openai.ImageResponseOptions
 	Enter                               func() (func(), error)
 	Do                                  func(*http.Request) (*http.Response, error)
 	TransportError                      func(error) error
@@ -36,7 +36,7 @@ type Images struct{ Options ImagesOptions }
 
 func (e Images) Execute(ctx context.Context, input upstream.AttemptInput, sink upstream.OutputSink) (upstream.AttemptResult, error) {
 	o := e.Options
-	target := &native.ImagesTarget{
+	target := &openai.ImagesTarget{
 		AccountID:       o.AccountID,
 		OAuth:           o.OAuth,
 		Model:           o.Model,
@@ -54,5 +54,5 @@ func (e Images) Execute(ctx context.Context, input upstream.AttemptInput, sink u
 		ResponseError:   o.ResponseError,
 	}
 	input.Target = target
-	return (native.ImagesExecutor{}).Execute(ctx, input, sink)
+	return (openai.ImagesExecutor{}).Execute(ctx, input, sink)
 }

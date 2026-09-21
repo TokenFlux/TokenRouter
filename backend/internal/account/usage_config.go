@@ -3,8 +3,9 @@ package account
 
 import (
 	json "encoding/json"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	strings "strings"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 // EffectiveUpstreamUsageConfig 解析账号的生效配置。缺少配置时使用安全的默认适配器。

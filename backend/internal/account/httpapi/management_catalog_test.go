@@ -2,9 +2,10 @@ package httpapi
 
 import (
 	"encoding/json"
+	"testing"
+
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // JSON 变体必须保留零值字段与 Grok 的原省略字段。

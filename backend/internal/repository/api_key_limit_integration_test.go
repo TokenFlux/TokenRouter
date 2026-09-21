@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,8 +24,8 @@ func TestAPIKeyRepository_CreateSerializesLastAvailableSlot(t *testing.T) {
 	user, err := integrationEntClient.User.Create().
 		SetEmail(email).
 		SetPasswordHash("test-password-hash").
-		SetRole(service.RoleUser).
-		SetStatus(service.StatusActive).
+		SetRole(identity.RoleUser).
+		SetStatus(billing.StatusActive).
 		SetAPIKeyLimit(1).
 		Save(ctx)
 	require.NoError(t, err)
@@ -32,7 +34,7 @@ func TestAPIKeyRepository_CreateSerializesLastAvailableSlot(t *testing.T) {
 		_, _ = integrationDB.ExecContext(context.Background(), "DELETE FROM users WHERE id = $1", user.ID)
 	})
 
-	repo := newAPIKeyRepositoryWithSQL(integrationEntClient, integrationDB)
+	repo := newKeyStoreFixture(integrationEntClient, integrationDB)
 	start := make(chan struct{})
 	errs := make([]error, 2)
 	var wg sync.WaitGroup
@@ -44,7 +46,7 @@ func TestAPIKeyRepository_CreateSerializesLastAvailableSlot(t *testing.T) {
 			errs[index] = repo.Create(ctx, newLimitedAPIKey(
 				user.ID,
 				fmt.Sprintf("sk-limit-concurrent-%d-%d", time.Now().UnixNano(), index),
-				service.StatusAPIKeyActive,
+				apikey.StatusAPIKeyActive,
 			))
 		}(index)
 	}
@@ -56,7 +58,7 @@ func TestAPIKeyRepository_CreateSerializesLastAvailableSlot(t *testing.T) {
 		switch {
 		case createErr == nil:
 			succeeded++
-		case errors.Is(createErr, service.ErrAPIKeyLimitReached):
+		case errors.Is(createErr, apikey.ErrAPIKeyLimitReached):
 			limited++
 		default:
 			require.NoError(t, createErr)

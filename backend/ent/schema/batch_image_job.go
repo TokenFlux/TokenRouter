@@ -3,14 +3,13 @@ package schema
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // BatchImageJob 定义异步批量图片任务的数据结构。
@@ -58,8 +57,8 @@ func (BatchImageJob) Fields() []ent.Field {
 		field.Float("actual_cost").Optional().Nillable().SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
 		// 批量任务先占订阅、再冻结余额；这两个字段共同构成完整预占快照。
 		field.Float("balance_hold_amount").SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).Default(0),
-		field.JSON("subscription_hold_allocations", []domain.BillingAllocation{}).
-			Default(func() []domain.BillingAllocation { return []domain.BillingAllocation{} }).
+		field.JSON("subscription_hold_allocations", []billing.BillingAllocation{}).
+			Default(func() []billing.BillingAllocation { return []billing.BillingAllocation{} }).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 		// 分别快照订阅默认倍率和按量倍率，供混合结算按来源还原价格。
 		field.Float("subscription_rate_multiplier").SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).Default(1),

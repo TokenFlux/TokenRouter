@@ -11,11 +11,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -62,12 +69,8 @@ func (c *antigravityCompatTokenCache) ReleaseRefreshLock(context.Context, string
 	return nil
 }
 
-func newAntigravityCompatService(cfg config.GatewayConfig, upstream HTTPUpstream) *AntigravityGatewayService {
-	tokenProvider := NewAntigravityTokenProvider(
-		nil,
-		&antigravityCompatTokenCache{token: "fresh-oauth-token"},
-		nil,
-	)
+func newAntigravityCompatService(cfg config.GatewayConfig, upstream httpclient.UpstreamTransport) *AntigravityGatewayService {
+	tokenProvider := newAntigravityTokenSourceForTest(&antigravityCompatTokenCache{token: "fresh-oauth-token"})
 	return NewAntigravityGatewayService(
 		nil,
 		nil,
@@ -75,7 +78,7 @@ func newAntigravityCompatService(cfg config.GatewayConfig, upstream HTTPUpstream
 		tokenProvider,
 		nil,
 		upstream,
-		NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: cfg}),
+		newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: cfg}),
 		nil,
 	)
 }
@@ -84,9 +87,9 @@ func newAntigravityCompatAccount(accountType string) *Account {
 	return &Account{
 		ID:          3757,
 		Name:        "antigravity-compat",
-		Platform:    PlatformAntigravity,
+		Platform:    capability.PlatformAntigravity,
 		Type:        accountType,
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "stale-account-token",
@@ -120,19 +123,18 @@ func antigravityCompatSuccessResponse() *http.Response {
 }
 
 func TestAntigravityCompatOAuthUsesNativeTokenAndRoute(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name string
 		path string
 		body []byte
-		call func(*AntigravityGatewayService, context.Context, *gin.Context, *Account, []byte) (*ForwardResult, error)
+		call func(*AntigravityGatewayService, context.Context, *gin.Context, *Account, []byte) (*forwardcore.MessagesResult, error)
 	}{
 		{
 			name: "chat completions",
 			path: "/v1/chat/completions",
 			body: []byte(`{"model":"gemini-3.1-pro-high","messages":[{"role":"user","content":"Reply exactly: ok"}]}`),
-			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*forwardcore.MessagesResult, error) {
 				return svc.ForwardAsChatCompletions(ctx, c, account, body, nil)
 			},
 		},
@@ -140,7 +142,7 @@ func TestAntigravityCompatOAuthUsesNativeTokenAndRoute(t *testing.T) {
 			name: "responses",
 			path: "/v1/responses",
 			body: []byte(`{"model":"gemini-3.1-pro-high","input":"Reply exactly: ok"}`),
-			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*forwardcore.MessagesResult, error) {
 				return svc.ForwardAsResponses(ctx, c, account, body, nil)
 			},
 		},
@@ -165,7 +167,7 @@ func TestAntigravityCompatOAuthUsesNativeTokenAndRoute(t *testing.T) {
 			)
 			c, recorder := newAntigravityCompatContext(http.MethodPost, tt.path, tt.body)
 
-			result, err := tt.call(svc, context.Background(), c, newAntigravityCompatAccount(AccountTypeOAuth), tt.body)
+			result, err := tt.call(svc, context.Background(), c, newAntigravityCompatAccount(capability.AccountTypeOAuth), tt.body)
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
@@ -188,7 +190,7 @@ func TestAntigravityCompatOAuthUsesNativeTokenAndRoute(t *testing.T) {
 
 // TestAntigravityCompatResponsesRestoresNamespaceTools 验证原生网关不会破坏 Codex namespace 工具协议。
 func TestAntigravityCompatResponsesRestoresNamespaceTools(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		name   string
 		stream bool
@@ -219,7 +221,7 @@ func TestAntigravityCompatResponsesRestoresNamespaceTools(t *testing.T) {
 			result, err := svc.ForwardAsResponses(
 				context.Background(),
 				c,
-				newAntigravityCompatAccount(AccountTypeOAuth),
+				newAntigravityCompatAccount(capability.AccountTypeOAuth),
 				tt.body,
 				nil,
 			)
@@ -238,7 +240,7 @@ func TestAntigravityCompatResponsesRestoresNamespaceTools(t *testing.T) {
 
 // TestAntigravityCompatChatRestoresForkToolNames 验证原生路径继续执行 fork 的工具名双向映射。
 func TestAntigravityCompatChatRestoresForkToolNames(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		name   string
 		stream bool
@@ -269,7 +271,7 @@ func TestAntigravityCompatChatRestoresForkToolNames(t *testing.T) {
 			result, err := svc.ForwardAsChatCompletions(
 				context.Background(),
 				c,
-				newAntigravityCompatAccount(AccountTypeOAuth),
+				newAntigravityCompatAccount(capability.AccountTypeOAuth),
 				tt.body,
 				nil,
 			)
@@ -287,27 +289,26 @@ func TestAntigravityCompatChatRestoresForkToolNames(t *testing.T) {
 }
 
 func TestAntigravityCompatRejectsUnsupportedAccountType(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name        string
 		path        string
 		accountType string
-		call        func(*AntigravityGatewayService, context.Context, *gin.Context, *Account, []byte) (*ForwardResult, error)
+		call        func(*AntigravityGatewayService, context.Context, *gin.Context, *Account, []byte) (*forwardcore.MessagesResult, error)
 	}{
 		{
 			name:        "chat completions upstream",
 			path:        "/v1/chat/completions",
-			accountType: AccountTypeUpstream,
-			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+			accountType: capability.AccountTypeUpstream,
+			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*forwardcore.MessagesResult, error) {
 				return svc.ForwardAsChatCompletions(ctx, c, account, body, nil)
 			},
 		},
 		{
 			name:        "responses setup token",
 			path:        "/v1/responses",
-			accountType: AccountTypeSetupToken,
-			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+			accountType: capability.AccountTypeSetupToken,
+			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*forwardcore.MessagesResult, error) {
 				return svc.ForwardAsResponses(ctx, c, account, body, nil)
 			},
 		},
@@ -374,7 +375,7 @@ func TestBuildAntigravityCompatGeminiBody_ConfiguresMixedToolInvocations(t *test
 }
 
 func TestAntigravityCompatChatMixedBuiltInToolsEnableServerSideInvocations(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{antigravityCompatSuccessResponse()}}
 	svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, upstream)
 	body := []byte(`{
@@ -390,7 +391,7 @@ func TestAntigravityCompatChatMixedBuiltInToolsEnableServerSideInvocations(t *te
 	}`)
 	c, _ := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", body)
 
-	result, err := svc.ForwardAsChatCompletions(context.Background(), c, newAntigravityCompatAccount(AccountTypeOAuth), body, nil)
+	result, err := svc.ForwardAsChatCompletions(context.Background(), c, newAntigravityCompatAccount(capability.AccountTypeOAuth), body, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -403,7 +404,7 @@ func TestAntigravityCompatChatMixedBuiltInToolsEnableServerSideInvocations(t *te
 }
 
 func TestAntigravityCompatPreservesChatTokenLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		name string
 		body string
@@ -446,7 +447,7 @@ func TestAntigravityCompatPreservesChatTokenLimit(t *testing.T) {
 			result, err := svc.ForwardAsChatCompletions(
 				context.Background(),
 				c,
-				newAntigravityCompatAccount(AccountTypeOAuth),
+				newAntigravityCompatAccount(capability.AccountTypeOAuth),
 				body,
 				nil,
 			)
@@ -472,7 +473,7 @@ func TestPreserveChatCompletionTokenLimitIgnoresAbsentAndNonPositiveValues(t *te
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			claudeRequest := &protocolanthropic.AnthropicRequest{MaxTokens: 99}
-			preserveChatCompletionTokenLimit(&tt.request, claudeRequest)
+			antigravity.PreserveChatCompletionTokenLimit(&tt.request, claudeRequest)
 			require.Equal(t, 99, claudeRequest.MaxTokens)
 		})
 	}
@@ -481,7 +482,7 @@ func TestPreserveChatCompletionTokenLimitIgnoresAbsentAndNonPositiveValues(t *te
 func antigravityCompatIntPtr(v int) *int { return &v }
 
 func TestAntigravityCompatRoutesByMappedModelFamily(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		model         string
 		wantSessionID bool
@@ -500,7 +501,7 @@ func TestAntigravityCompatRoutesByMappedModelFamily(t *testing.T) {
 			result, err := svc.ForwardAsChatCompletions(
 				context.Background(),
 				c,
-				newAntigravityCompatAccount(AccountTypeOAuth),
+				newAntigravityCompatAccount(capability.AccountTypeOAuth),
 				body,
 				nil,
 			)
@@ -515,7 +516,7 @@ func TestAntigravityCompatRoutesByMappedModelFamily(t *testing.T) {
 }
 
 func TestAntigravityCompatUnauthorizedIsCredentialFailure(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstream := &queuedHTTPUpstreamStub{responses: []*http.Response{{
 		StatusCode: http.StatusUnauthorized,
 		Header:     http.Header{"X-Request-Id": []string{"auth-3757"}},
@@ -528,41 +529,40 @@ func TestAntigravityCompatUnauthorizedIsCredentialFailure(t *testing.T) {
 	result, err := svc.ForwardAsChatCompletions(
 		context.Background(),
 		c,
-		newAntigravityCompatAccount(AccountTypeOAuth),
+		newAntigravityCompatAccount(capability.AccountTypeOAuth),
 		body,
 		nil,
 	)
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
-	require.Equal(t, GatewayFailureStageAccountAuth, failoverErr.Stage)
-	require.Equal(t, GatewayFailureScopeAccount, failoverErr.Scope)
+	require.Equal(t, forwardcore.GatewayFailureStageAccountAuth, failoverErr.Stage)
+	require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
 	require.Equal(t, AntigravityCredentialRejectedReason, failoverErr.Reason)
-	require.Equal(t, NextAccountRetry, failoverErr.NextAccountAction)
+	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
 	require.Equal(t, AntigravityCredentialRejectedClientMessage, failoverErr.ClientMessage)
-	require.Equal(t, "auth-3757", failoverErr.ResponseHeaders.Get("X-Request-Id"))
+	require.Equal(t, "auth-3757", http.Header(failoverErr.ResponseHeaders).Get("X-Request-Id"))
 	require.Empty(t, recorder.Body.String())
 }
 
 func TestAntigravityCompatEmptyStreamTriggersFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name string
-		run  func(*AntigravityGatewayService, *gin.Context, *http.Response) (*antigravityStreamResult, error)
+		run  func(*AntigravityGatewayService, *gin.Context, *http.Response) (*antigravity.StreamResult, error)
 	}{
 		{
 			name: "chat completions",
-			run: func(svc *AntigravityGatewayService, c *gin.Context, resp *http.Response) (*antigravityStreamResult, error) {
+			run: func(svc *AntigravityGatewayService, c *gin.Context, resp *http.Response) (*antigravity.StreamResult, error) {
 				return svc.handleChatCompletionsStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", true)
 			},
 		},
 		{
 			name: "responses",
-			run: func(svc *AntigravityGatewayService, c *gin.Context, resp *http.Response) (*antigravityStreamResult, error) {
-				return svc.handleResponsesStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", apicompat.ResponsesClientToolMapping{})
+			run: func(svc *AntigravityGatewayService, c *gin.Context, resp *http.Response) (*antigravity.StreamResult, error) {
+				return svc.handleResponsesStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", bridge.ResponsesClientToolMapping{})
 			},
 		},
 	}
@@ -580,7 +580,7 @@ func TestAntigravityCompatEmptyStreamTriggersFailover(t *testing.T) {
 			result, err := tt.run(svc, c, resp)
 
 			require.Nil(t, result)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.True(t, failoverErr.RetryableOnSameAccount)
 			require.Empty(t, recorder.Body.String())
@@ -590,22 +590,21 @@ func TestAntigravityCompatEmptyStreamTriggersFailover(t *testing.T) {
 }
 
 func TestAntigravityCompatUsageOnlyStreamTriggersFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name string
-		run  func(*AntigravityGatewayService, *gin.Context, *http.Response) (*antigravityStreamResult, error)
+		run  func(*AntigravityGatewayService, *gin.Context, *http.Response) (*antigravity.StreamResult, error)
 	}{
 		{
 			name: "chat completions",
-			run: func(svc *AntigravityGatewayService, c *gin.Context, resp *http.Response) (*antigravityStreamResult, error) {
+			run: func(svc *AntigravityGatewayService, c *gin.Context, resp *http.Response) (*antigravity.StreamResult, error) {
 				return svc.handleChatCompletionsStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", true)
 			},
 		},
 		{
 			name: "responses",
-			run: func(svc *AntigravityGatewayService, c *gin.Context, resp *http.Response) (*antigravityStreamResult, error) {
-				return svc.handleResponsesStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", apicompat.ResponsesClientToolMapping{})
+			run: func(svc *AntigravityGatewayService, c *gin.Context, resp *http.Response) (*antigravity.StreamResult, error) {
+				return svc.handleResponsesStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", bridge.ResponsesClientToolMapping{})
 			},
 		},
 	}
@@ -625,7 +624,7 @@ func TestAntigravityCompatUsageOnlyStreamTriggersFailover(t *testing.T) {
 			result, err := tt.run(svc, c, resp)
 
 			require.Nil(t, result)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.True(t, failoverErr.RetryableOnSameAccount)
 			require.Empty(t, recorder.Body.String())
@@ -635,19 +634,18 @@ func TestAntigravityCompatUsageOnlyStreamTriggersFailover(t *testing.T) {
 }
 
 func TestAntigravityCompatUsageOnlyNonStreamingTriggersFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name string
 		path string
 		body []byte
-		call func(*AntigravityGatewayService, context.Context, *gin.Context, *Account, []byte) (*ForwardResult, error)
+		call func(*AntigravityGatewayService, context.Context, *gin.Context, *Account, []byte) (*forwardcore.MessagesResult, error)
 	}{
 		{
 			name: "chat completions",
 			path: "/v1/chat/completions",
 			body: []byte(`{"model":"gemini-3.1-pro-high","messages":[{"role":"user","content":"ok"}]}`),
-			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*forwardcore.MessagesResult, error) {
 				return svc.ForwardAsChatCompletions(ctx, c, account, body, nil)
 			},
 		},
@@ -655,7 +653,7 @@ func TestAntigravityCompatUsageOnlyNonStreamingTriggersFailover(t *testing.T) {
 			name: "responses",
 			path: "/v1/responses",
 			body: []byte(`{"model":"gemini-3.1-pro-high","input":"ok"}`),
-			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+			call: func(svc *AntigravityGatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) (*forwardcore.MessagesResult, error) {
 				return svc.ForwardAsResponses(ctx, c, account, body, nil)
 			},
 		},
@@ -677,12 +675,12 @@ func TestAntigravityCompatUsageOnlyNonStreamingTriggersFailover(t *testing.T) {
 				svc,
 				context.Background(),
 				c,
-				newAntigravityCompatAccount(AccountTypeOAuth),
+				newAntigravityCompatAccount(capability.AccountTypeOAuth),
 				tt.body,
 			)
 
 			require.Nil(t, result)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.True(t, failoverErr.RetryableOnSameAccount)
 			require.Empty(t, recorder.Body.String())
@@ -692,7 +690,7 @@ func TestAntigravityCompatUsageOnlyNonStreamingTriggersFailover(t *testing.T) {
 }
 
 func TestAntigravityCompatChatStreamMapsToolCallAndUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, nil)
 	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", nil)
 	body := `data: {"response":{"responseId":"resp_3757","candidates":[{"content":{"parts":[{"functionCall":{"id":"call_3757","name":"get_weather","args":{"city":"Tokyo"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":3}}}` + "\n\n"
@@ -722,7 +720,7 @@ func TestAntigravityCompatChatStreamMapsToolCallAndUsage(t *testing.T) {
 }
 
 func TestAntigravityCompatFirstEventTimeoutTriggersFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityCompatService(
 		config.GatewayConfig{MaxLineSize: defaultMaxLineSize, StreamDataIntervalTimeout: 1},
 		nil,
@@ -731,7 +729,7 @@ func TestAntigravityCompatFirstEventTimeoutTriggersFailover(t *testing.T) {
 	reader, writer := io.Pipe()
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: reader}
 	type outcome struct {
-		result *antigravityStreamResult
+		result *antigravity.StreamResult
 		err    error
 	}
 	done := make(chan outcome, 1)
@@ -744,7 +742,7 @@ func TestAntigravityCompatFirstEventTimeoutTriggersFailover(t *testing.T) {
 	select {
 	case got := <-done:
 		require.Nil(t, got.result)
-		var failoverErr *UpstreamFailoverError
+		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, got.err, &failoverErr)
 		require.True(t, failoverErr.RetryableOnSameAccount)
 		require.Empty(t, recorder.Header().Get("Content-Type"))
@@ -758,7 +756,7 @@ func TestAntigravityCompatFirstEventTimeoutTriggersFailover(t *testing.T) {
 }
 
 func TestAntigravityCompatClientDisconnectDrainsUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, nil)
 	c, _ := newAntigravityCompatContext(http.MethodPost, "/v1/chat/completions", nil)
 	c.Writer = &antigravityFailingWriter{ResponseWriter: c.Writer, failAfter: 0}
@@ -783,7 +781,7 @@ func TestAntigravityCompatClientDisconnectDrainsUsage(t *testing.T) {
 }
 
 func TestAntigravityCompatStreamErrorCommitsSingleTerminalFrame(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityCompatService(config.GatewayConfig{MaxLineSize: defaultMaxLineSize}, nil)
 	c, recorder := newAntigravityCompatContext(http.MethodPost, "/v1/responses", nil)
 	body := []byte(`data: {"response":{"responseId":"resp_3757","candidates":[{"content":{"parts":[{"text":"partial"}]}}],"usageMetadata":{"promptTokenCount":8,"candidatesTokenCount":1}}}` + "\n\n")
@@ -796,16 +794,16 @@ func TestAntigravityCompatStreamErrorCommitsSingleTerminalFrame(t *testing.T) {
 		},
 	}
 
-	result, err := svc.handleResponsesStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", apicompat.ResponsesClientToolMapping{})
+	result, err := svc.handleResponsesStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", bridge.ResponsesClientToolMapping{})
 
 	require.Error(t, err)
 	require.Nil(t, result)
-	require.True(t, IsResponseCommitted(c))
+	require.True(t, gatewayhttp.IsResponseCommitted(c))
 	require.Equal(t, 1, strings.Count(recorder.Body.String(), "event: error"))
 }
 
 func TestAntigravityCompatKeepaliveAfterFirstEvent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityCompatService(
 		config.GatewayConfig{MaxLineSize: defaultMaxLineSize, StreamKeepaliveInterval: 1},
 		nil,
@@ -816,7 +814,7 @@ func TestAntigravityCompatKeepaliveAfterFirstEvent(t *testing.T) {
 	done := make(chan error, 1)
 
 	go func() {
-		_, err := svc.handleResponsesStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", apicompat.ResponsesClientToolMapping{})
+		_, err := svc.handleResponsesStreamingFromAntigravity(c, resp, time.Now(), "gemini-3.1-pro-high", bridge.ResponsesClientToolMapping{})
 		done <- err
 	}()
 	_, err := io.WriteString(

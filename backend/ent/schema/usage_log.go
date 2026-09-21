@@ -4,8 +4,6 @@ package schema
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -13,6 +11,7 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // UsageLog 定义使用日志实体的 schema。
@@ -108,7 +107,7 @@ func (UsageLog) Fields() []ent.Field {
 		field.Float("balance_amount_usd").
 			Default(0).
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
-		field.JSON("billing_allocations", []domain.BillingAllocation{}).
+		field.JSON("billing_allocations", []billing.BillingAllocation{}).
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 		field.Float("rate_multiplier").

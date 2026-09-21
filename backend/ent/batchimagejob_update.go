@@ -14,7 +14,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/batchimagejob"
 	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // BatchImageJobUpdate is the builder for updating BatchImageJob entities.
@@ -537,13 +537,13 @@ func (_u *BatchImageJobUpdate) AddBalanceHoldAmount(v float64) *BatchImageJobUpd
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (_u *BatchImageJobUpdate) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *BatchImageJobUpdate {
+func (_u *BatchImageJobUpdate) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *BatchImageJobUpdate {
 	_u.mutation.SetSubscriptionHoldAllocations(v)
 	return _u
 }
 
 // AppendSubscriptionHoldAllocations appends value to the "subscription_hold_allocations" field.
-func (_u *BatchImageJobUpdate) AppendSubscriptionHoldAllocations(v []domain.BillingAllocation) *BatchImageJobUpdate {
+func (_u *BatchImageJobUpdate) AppendSubscriptionHoldAllocations(v []billing.BillingAllocation) *BatchImageJobUpdate {
 	_u.mutation.AppendSubscriptionHoldAllocations(v)
 	return _u
 }
@@ -1929,13 +1929,13 @@ func (_u *BatchImageJobUpdateOne) AddBalanceHoldAmount(v float64) *BatchImageJob
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (_u *BatchImageJobUpdateOne) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *BatchImageJobUpdateOne {
+func (_u *BatchImageJobUpdateOne) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *BatchImageJobUpdateOne {
 	_u.mutation.SetSubscriptionHoldAllocations(v)
 	return _u
 }
 
 // AppendSubscriptionHoldAllocations appends value to the "subscription_hold_allocations" field.
-func (_u *BatchImageJobUpdateOne) AppendSubscriptionHoldAllocations(v []domain.BillingAllocation) *BatchImageJobUpdateOne {
+func (_u *BatchImageJobUpdateOne) AppendSubscriptionHoldAllocations(v []billing.BillingAllocation) *BatchImageJobUpdateOne {
 	_u.mutation.AppendSubscriptionHoldAllocations(v)
 	return _u
 }

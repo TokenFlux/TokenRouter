@@ -9,10 +9,12 @@ import (
 	"testing"
 	"time"
 
+	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/authidentity"
 	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -20,7 +22,7 @@ type UserProfileIdentityRepoSuite struct {
 	suite.Suite
 	ctx    context.Context
 	client *dbent.Client
-	repo   *userRepository
+	repo   *postgres.UserStore
 }
 
 func TestUserProfileIdentityRepoSuite(t *testing.T) {
@@ -30,7 +32,7 @@ func TestUserProfileIdentityRepoSuite(t *testing.T) {
 func (s *UserProfileIdentityRepoSuite) SetupTest() {
 	s.ctx = context.Background()
 	s.client = testEntClient(s.T())
-	s.repo = newUserRepositoryWithSQL(s.client, integrationDB)
+	s.repo = postgres.NewUserStoreWithSQL(s.client, integrationDB)
 
 	_, err := integrationDB.ExecContext(s.ctx, `
 TRUNCATE TABLE
@@ -57,7 +59,7 @@ func (s *UserProfileIdentityRepoSuite) mustCreateUser(label string) *dbent.User 
 	return user
 }
 
-func (s *UserProfileIdentityRepoSuite) mustCreatePendingAuthSession(key AuthIdentityKey) *dbent.PendingAuthSession {
+func (s *UserProfileIdentityRepoSuite) mustCreatePendingAuthSession(key postgres.AuthIdentityKey) *dbent.PendingAuthSession {
 	s.T().Helper()
 
 	session, err := s.client.PendingAuthSession.Create().
@@ -78,14 +80,14 @@ func (s *UserProfileIdentityRepoSuite) TestCreateAndLookupCanonicalAndChannelIde
 	user := s.mustCreateUser("canonical-channel")
 
 	verifiedAt := time.Now().UTC().Truncate(time.Second)
-	created, err := s.repo.CreateAuthIdentity(s.ctx, CreateAuthIdentityInput{
+	created, err := s.repo.CreateAuthIdentity(s.ctx, postgres.CreateAuthIdentityInput{
 		UserID: user.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "wechat",
 			ProviderKey:     "wechat-open",
 			ProviderSubject: "union-123",
 		},
-		Channel: &AuthIdentityChannelKey{
+		Channel: &postgres.AuthIdentityChannelKey{
 			ProviderType:   "wechat",
 			ProviderKey:    "wechat-open",
 			Channel:        "mp",
@@ -118,14 +120,14 @@ func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_IsIdempotentAn
 	owner := s.mustCreateUser("owner")
 	other := s.mustCreateUser("other")
 
-	first, err := s.repo.BindAuthIdentityToUser(s.ctx, BindAuthIdentityInput{
+	first, err := s.repo.BindAuthIdentityToUser(s.ctx, postgres.BindAuthIdentityInput{
 		UserID: owner.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "linuxdo",
 			ProviderKey:     "linuxdo-main",
 			ProviderSubject: "subject-1",
 		},
-		Channel: &AuthIdentityChannelKey{
+		Channel: &postgres.AuthIdentityChannelKey{
 			ProviderType:   "linuxdo",
 			ProviderKey:    "linuxdo-main",
 			Channel:        "oauth",
@@ -137,14 +139,14 @@ func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_IsIdempotentAn
 	})
 	s.Require().NoError(err)
 
-	second, err := s.repo.BindAuthIdentityToUser(s.ctx, BindAuthIdentityInput{
+	second, err := s.repo.BindAuthIdentityToUser(s.ctx, postgres.BindAuthIdentityInput{
 		UserID: owner.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "linuxdo",
 			ProviderKey:     "linuxdo-main",
 			ProviderSubject: "subject-1",
 		},
-		Channel: &AuthIdentityChannelKey{
+		Channel: &postgres.AuthIdentityChannelKey{
 			ProviderType:   "linuxdo",
 			ProviderKey:    "linuxdo-main",
 			Channel:        "oauth",
@@ -160,24 +162,24 @@ func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_IsIdempotentAn
 	s.Require().Equal("second", second.Identity.Metadata["username"])
 	s.Require().Equal("write", second.Channel.Metadata["scope"])
 
-	_, err = s.repo.BindAuthIdentityToUser(s.ctx, BindAuthIdentityInput{
+	_, err = s.repo.BindAuthIdentityToUser(s.ctx, postgres.BindAuthIdentityInput{
 		UserID: other.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "linuxdo",
 			ProviderKey:     "linuxdo-main",
 			ProviderSubject: "subject-1",
 		},
 	})
-	s.Require().ErrorIs(err, ErrAuthIdentityOwnershipConflict)
+	s.Require().ErrorIs(err, postgres.ErrAuthIdentityOwnershipConflict)
 
-	_, err = s.repo.BindAuthIdentityToUser(s.ctx, BindAuthIdentityInput{
+	_, err = s.repo.BindAuthIdentityToUser(s.ctx, postgres.BindAuthIdentityInput{
 		UserID: other.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "linuxdo",
 			ProviderKey:     "linuxdo-main",
 			ProviderSubject: "subject-2",
 		},
-		Channel: &AuthIdentityChannelKey{
+		Channel: &postgres.AuthIdentityChannelKey{
 			ProviderType:   "linuxdo",
 			ProviderKey:    "linuxdo-main",
 			Channel:        "oauth",
@@ -185,7 +187,7 @@ func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_IsIdempotentAn
 			ChannelSubject: "subject-1",
 		},
 	})
-	s.Require().ErrorIs(err, ErrAuthIdentityChannelOwnershipConflict)
+	s.Require().ErrorIs(err, postgres.ErrAuthIdentityChannelOwnershipConflict)
 }
 
 func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_ReusesLegacyWeChatAliasRecords() {
@@ -211,14 +213,14 @@ func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_ReusesLegacyWe
 		Save(s.ctx)
 	s.Require().NoError(err)
 
-	bound, err := s.repo.BindAuthIdentityToUser(s.ctx, BindAuthIdentityInput{
+	bound, err := s.repo.BindAuthIdentityToUser(s.ctx, postgres.BindAuthIdentityInput{
 		UserID: user.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "wechat",
 			ProviderKey:     "wechat-main",
 			ProviderSubject: "union-legacy-123",
 		},
-		Channel: &AuthIdentityChannelKey{
+		Channel: &postgres.AuthIdentityChannelKey{
 			ProviderType:   "wechat",
 			ProviderKey:    "wechat-main",
 			Channel:        "oa",
@@ -264,14 +266,14 @@ func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_ReusesLegacyWe
 func (s *UserProfileIdentityRepoSuite) TestCreateAuthIdentity_RejectsChannelProviderMismatch() {
 	user := s.mustCreateUser("provider-mismatch-create")
 
-	_, err := s.repo.CreateAuthIdentity(s.ctx, CreateAuthIdentityInput{
+	_, err := s.repo.CreateAuthIdentity(s.ctx, postgres.CreateAuthIdentityInput{
 		UserID: user.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "wechat",
 			ProviderKey:     "wechat-main",
 			ProviderSubject: "union-create-mismatch",
 		},
-		Channel: &AuthIdentityChannelKey{
+		Channel: &postgres.AuthIdentityChannelKey{
 			ProviderType:   "linuxdo",
 			ProviderKey:    "linuxdo-main",
 			Channel:        "oauth",
@@ -279,20 +281,20 @@ func (s *UserProfileIdentityRepoSuite) TestCreateAuthIdentity_RejectsChannelProv
 			ChannelSubject: "openid-create-mismatch",
 		},
 	})
-	s.Require().ErrorIs(err, ErrAuthIdentityChannelProviderMismatch)
+	s.Require().ErrorIs(err, postgres.ErrAuthIdentityChannelProviderMismatch)
 }
 
 func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_RejectsChannelProviderMismatch() {
 	user := s.mustCreateUser("provider-mismatch-bind")
 
-	_, err := s.repo.BindAuthIdentityToUser(s.ctx, BindAuthIdentityInput{
+	_, err := s.repo.BindAuthIdentityToUser(s.ctx, postgres.BindAuthIdentityInput{
 		UserID: user.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "wechat",
 			ProviderKey:     "wechat-main",
 			ProviderSubject: "union-bind-mismatch",
 		},
-		Channel: &AuthIdentityChannelKey{
+		Channel: &postgres.AuthIdentityChannelKey{
 			ProviderType:   "wechat",
 			ProviderKey:    "wechat-legacy",
 			Channel:        "oa",
@@ -300,7 +302,7 @@ func (s *UserProfileIdentityRepoSuite) TestBindAuthIdentityToUser_RejectsChannel
 			ChannelSubject: "openid-bind-mismatch",
 		},
 	})
-	s.Require().ErrorIs(err, ErrAuthIdentityChannelProviderMismatch)
+	s.Require().ErrorIs(err, postgres.ErrAuthIdentityChannelProviderMismatch)
 }
 
 func (s *UserProfileIdentityRepoSuite) TestWithUserProfileIdentityTx_RollsBackIdentityAndGrantOnError() {
@@ -308,9 +310,9 @@ func (s *UserProfileIdentityRepoSuite) TestWithUserProfileIdentityTx_RollsBackId
 	expectedErr := errors.New("rollback")
 
 	err := s.repo.WithUserProfileIdentityTx(s.ctx, func(txCtx context.Context) error {
-		_, err := s.repo.CreateAuthIdentity(txCtx, CreateAuthIdentityInput{
+		_, err := s.repo.CreateAuthIdentity(txCtx, postgres.CreateAuthIdentityInput{
 			UserID: user.ID,
-			Canonical: AuthIdentityKey{
+			Canonical: postgres.AuthIdentityKey{
 				ProviderType:    "oidc",
 				ProviderKey:     "https://issuer.example",
 				ProviderSubject: "subject-rollback",
@@ -318,10 +320,10 @@ func (s *UserProfileIdentityRepoSuite) TestWithUserProfileIdentityTx_RollsBackId
 		})
 		s.Require().NoError(err)
 
-		inserted, err := s.repo.RecordProviderGrant(txCtx, ProviderGrantRecordInput{
+		inserted, err := s.repo.RecordProviderGrant(txCtx, postgres.ProviderGrantRecordInput{
 			UserID:       user.ID,
 			ProviderType: "oidc",
-			GrantReason:  ProviderGrantReasonFirstBind,
+			GrantReason:  postgres.ProviderGrantReasonFirstBind,
 		})
 		s.Require().NoError(err)
 		s.Require().True(inserted)
@@ -329,7 +331,7 @@ func (s *UserProfileIdentityRepoSuite) TestWithUserProfileIdentityTx_RollsBackId
 	})
 	s.Require().ErrorIs(err, expectedErr)
 
-	_, err = s.repo.GetUserByCanonicalIdentity(s.ctx, AuthIdentityKey{
+	_, err = s.repo.GetUserByCanonicalIdentity(s.ctx, postgres.AuthIdentityKey{
 		ProviderType:    "oidc",
 		ProviderKey:     "https://issuer.example",
 		ProviderSubject: "subject-rollback",
@@ -343,7 +345,7 @@ FROM user_provider_default_grants
 WHERE user_id = $1 AND provider_type = $2 AND grant_reason = $3`,
 		user.ID,
 		"oidc",
-		string(ProviderGrantReasonFirstBind),
+		string(postgres.ProviderGrantReasonFirstBind),
 	).Scan(&count))
 	s.Require().Zero(count)
 }
@@ -351,26 +353,26 @@ WHERE user_id = $1 AND provider_type = $2 AND grant_reason = $3`,
 func (s *UserProfileIdentityRepoSuite) TestRecordProviderGrant_IsIdempotentPerReason() {
 	user := s.mustCreateUser("grant")
 
-	inserted, err := s.repo.RecordProviderGrant(s.ctx, ProviderGrantRecordInput{
+	inserted, err := s.repo.RecordProviderGrant(s.ctx, postgres.ProviderGrantRecordInput{
 		UserID:       user.ID,
 		ProviderType: "wechat",
-		GrantReason:  ProviderGrantReasonFirstBind,
+		GrantReason:  postgres.ProviderGrantReasonFirstBind,
 	})
 	s.Require().NoError(err)
 	s.Require().True(inserted)
 
-	inserted, err = s.repo.RecordProviderGrant(s.ctx, ProviderGrantRecordInput{
+	inserted, err = s.repo.RecordProviderGrant(s.ctx, postgres.ProviderGrantRecordInput{
 		UserID:       user.ID,
 		ProviderType: "wechat",
-		GrantReason:  ProviderGrantReasonFirstBind,
+		GrantReason:  postgres.ProviderGrantReasonFirstBind,
 	})
 	s.Require().NoError(err)
 	s.Require().False(inserted)
 
-	inserted, err = s.repo.RecordProviderGrant(s.ctx, ProviderGrantRecordInput{
+	inserted, err = s.repo.RecordProviderGrant(s.ctx, postgres.ProviderGrantRecordInput{
 		UserID:       user.ID,
 		ProviderType: "wechat",
-		GrantReason:  ProviderGrantReasonSignup,
+		GrantReason:  postgres.ProviderGrantReasonSignup,
 	})
 	s.Require().NoError(err)
 	s.Require().True(inserted)
@@ -388,9 +390,9 @@ WHERE user_id = $1 AND provider_type = $2`,
 
 func (s *UserProfileIdentityRepoSuite) TestUpsertIdentityAdoptionDecision_PersistsAndLinksIdentity() {
 	user := s.mustCreateUser("adoption")
-	identity, err := s.repo.CreateAuthIdentity(s.ctx, CreateAuthIdentityInput{
+	identity, err := s.repo.CreateAuthIdentity(s.ctx, postgres.CreateAuthIdentityInput{
 		UserID: user.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "wechat",
 			ProviderKey:     "wechat-open",
 			ProviderSubject: "union-adoption",
@@ -400,7 +402,7 @@ func (s *UserProfileIdentityRepoSuite) TestUpsertIdentityAdoptionDecision_Persis
 
 	session := s.mustCreatePendingAuthSession(identity.IdentityRef())
 
-	first, err := s.repo.UpsertIdentityAdoptionDecision(s.ctx, IdentityAdoptionDecisionInput{
+	first, err := s.repo.UpsertIdentityAdoptionDecision(s.ctx, postgres.IdentityAdoptionDecisionInput{
 		PendingAuthSessionID: session.ID,
 		AdoptDisplayName:     true,
 		AdoptAvatar:          false,
@@ -410,7 +412,7 @@ func (s *UserProfileIdentityRepoSuite) TestUpsertIdentityAdoptionDecision_Persis
 	s.Require().False(first.AdoptAvatar)
 	s.Require().Nil(first.IdentityID)
 
-	second, err := s.repo.UpsertIdentityAdoptionDecision(s.ctx, IdentityAdoptionDecisionInput{
+	second, err := s.repo.UpsertIdentityAdoptionDecision(s.ctx, postgres.IdentityAdoptionDecisionInput{
 		PendingAuthSessionID: session.ID,
 		IdentityID:           &identity.Identity.ID,
 		AdoptDisplayName:     true,
@@ -430,9 +432,9 @@ func (s *UserProfileIdentityRepoSuite) TestUpsertIdentityAdoptionDecision_Persis
 
 func (s *UserProfileIdentityRepoSuite) TestUpsertIdentityAdoptionDecision_ReassignsExistingIdentityReference() {
 	user := s.mustCreateUser("adoption-reassign")
-	identity, err := s.repo.CreateAuthIdentity(s.ctx, CreateAuthIdentityInput{
+	identity, err := s.repo.CreateAuthIdentity(s.ctx, postgres.CreateAuthIdentityInput{
 		UserID: user.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "wechat",
 			ProviderKey:     "wechat-open",
 			ProviderSubject: "union-adoption-reassign",
@@ -441,7 +443,7 @@ func (s *UserProfileIdentityRepoSuite) TestUpsertIdentityAdoptionDecision_Reassi
 	s.Require().NoError(err)
 
 	firstSession := s.mustCreatePendingAuthSession(identity.IdentityRef())
-	firstDecision, err := s.repo.UpsertIdentityAdoptionDecision(s.ctx, IdentityAdoptionDecisionInput{
+	firstDecision, err := s.repo.UpsertIdentityAdoptionDecision(s.ctx, postgres.IdentityAdoptionDecisionInput{
 		PendingAuthSessionID: firstSession.ID,
 		IdentityID:           &identity.Identity.ID,
 		AdoptDisplayName:     true,
@@ -452,7 +454,7 @@ func (s *UserProfileIdentityRepoSuite) TestUpsertIdentityAdoptionDecision_Reassi
 	s.Require().Equal(identity.Identity.ID, *firstDecision.IdentityID)
 
 	secondSession := s.mustCreatePendingAuthSession(identity.IdentityRef())
-	secondDecision, err := s.repo.UpsertIdentityAdoptionDecision(s.ctx, IdentityAdoptionDecisionInput{
+	secondDecision, err := s.repo.UpsertIdentityAdoptionDecision(s.ctx, postgres.IdentityAdoptionDecisionInput{
 		PendingAuthSessionID: secondSession.ID,
 		IdentityID:           &identity.Identity.ID,
 		AdoptDisplayName:     false,
@@ -475,7 +477,7 @@ func (s *UserProfileIdentityRepoSuite) TestWithUserProfileIdentityTx_AllowsAvata
 	s.Require().NotNil(model)
 
 	err = s.repo.WithUserProfileIdentityTx(s.ctx, func(txCtx context.Context) error {
-		_, err := s.repo.UpsertUserAvatar(txCtx, user.ID, service.UpsertUserAvatarInput{
+		_, err := s.repo.UpsertUserAvatar(txCtx, user.ID, identitycore.UpsertUserAvatarInput{
 			StorageProvider: "remote_url",
 			URL:             "https://cdn.example.com/avatar.png",
 		})
@@ -483,7 +485,7 @@ func (s *UserProfileIdentityRepoSuite) TestWithUserProfileIdentityTx_AllowsAvata
 			return err
 		}
 		// 只改头像时用户行没有任何列需要写，掩码为空——与 UserService.updateProfile 一致。
-		return s.repo.Update(txCtx, model, service.UserUpdateFields{})
+		return s.repo.Update(txCtx, model, identitycore.UserUpdateFields{})
 	})
 	s.Require().NoError(err)
 
@@ -496,7 +498,7 @@ func (s *UserProfileIdentityRepoSuite) TestWithUserProfileIdentityTx_AllowsAvata
 func (s *UserProfileIdentityRepoSuite) TestUserAvatarCRUDAndUserLookup() {
 	user := s.mustCreateUser("avatar")
 
-	inlineAvatar, err := s.repo.UpsertUserAvatar(s.ctx, user.ID, service.UpsertUserAvatarInput{
+	inlineAvatar, err := s.repo.UpsertUserAvatar(s.ctx, user.ID, identitycore.UpsertUserAvatarInput{
 		StorageProvider: "inline",
 		URL:             "data:image/png;base64,QUJD",
 		ContentType:     "image/png",
@@ -513,7 +515,7 @@ func (s *UserProfileIdentityRepoSuite) TestUserAvatarCRUDAndUserLookup() {
 	s.Require().Equal("image/png", loadedAvatar.ContentType)
 	s.Require().Equal(3, loadedAvatar.ByteSize)
 
-	_, err = s.repo.UpsertUserAvatar(s.ctx, user.ID, service.UpsertUserAvatarInput{
+	_, err = s.repo.UpsertUserAvatar(s.ctx, user.ID, identitycore.UpsertUserAvatarInput{
 		StorageProvider: "remote_url",
 		URL:             "https://cdn.example.com/avatar.png",
 	})

@@ -10,15 +10,16 @@ import (
 	json "encoding/json"
 	errors "errors"
 	fmt "fmt"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	jwt "github.com/golang-jwt/jwt/v5"
-	req "github.com/imroc/req/v3"
-	gjson "github.com/tidwall/gjson"
 	big "math/big"
 	url "net/url"
 	strconv "strconv"
 	strings "strings"
 	time "time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	jwt "github.com/golang-jwt/jwt/v5"
+	req "github.com/imroc/req/v3"
+	gjson "github.com/tidwall/gjson"
 )
 
 type OidcTokenResponse = identity.OIDCTokenResponse

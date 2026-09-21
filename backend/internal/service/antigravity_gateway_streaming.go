@@ -5,13 +5,17 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/gin-gonic/gin"
 )
 
 func (s *AntigravityGatewayService) writeClaudeError(c *gin.Context, status int, errType, message string) error {
-	MarkResponseCommitted(c)
+	gatewayhttp.MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"type":  "error",
 		"error": gin.H{"type": errType, "message": message},
@@ -25,13 +29,13 @@ func (s *AntigravityGatewayService) WriteMappedClaudeError(c *gin.Context, accou
 }
 
 func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
-	MarkResponseCommitted(c)
-	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(body))
-	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	gatewayhttp.MarkResponseCommitted(c)
+	upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(body))
+	upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
 	logBody, maxBytes := s.getLogConfig()
 	upstreamDetail := s.getUpstreamErrorDetail(body)
-	setOpsUpstreamError(c, upstreamStatus, upstreamMsg, upstreamDetail)
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+	gatewayhttp.SetOpsUpstreamError(c, upstreamStatus, upstreamMsg, upstreamDetail)
+	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 		Platform:           account.Platform,
 		AccountID:          account.ID,
 		AccountName:        account.Name,
@@ -44,11 +48,11 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 
 	// 记录上游错误详情便于排障（可选：由配置控制；不回显到客户端）
 	if logBody {
-		logger.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] upstream_error status=%d body=%s", upstreamStatus, truncateForLog(body, maxBytes))
+		logging.LegacyPrintf("service.antigravity_gateway", "[antigravity-Forward] upstream_error status=%d body=%s", upstreamStatus, truncateForLog(body, maxBytes))
 	}
 
 	// 检查错误透传规则
-	if ptStatus, ptErrType, ptErrMsg, matched := applyErrorPassthroughRule(
+	if ptStatus, ptErrType, ptErrMsg, matched := gatewayhttp.ApplyErrorPassthroughRule(
 		c, account.Platform, upstreamStatus, body,
 		0, "", "",
 	); matched {
@@ -69,7 +73,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 	case 400:
 		statusCode = http.StatusBadRequest
 		errType = "invalid_request_error"
-		errMsg = getPassthroughOrDefault(upstreamMsg, "Invalid request")
+		errMsg = antigravity.GetPassthroughOrDefault(upstreamMsg, "Invalid request")
 	case 401:
 		statusCode = http.StatusBadGateway
 		errType = "authentication_error"
@@ -103,7 +107,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 }
 
 func (s *AntigravityGatewayService) writeGoogleError(c *gin.Context, status int, message string) error {
-	MarkResponseCommitted(c)
+	gatewayhttp.MarkResponseCommitted(c)
 	statusStr := "UNKNOWN"
 	switch status {
 	case 400:

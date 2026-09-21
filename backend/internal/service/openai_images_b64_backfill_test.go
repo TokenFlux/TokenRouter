@@ -12,7 +12,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -37,8 +43,8 @@ func b64BackfillAccount(enabled bool) *Account {
 	account := &Account{
 		ID:       7,
 		Name:     "openai-apikey",
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://relay.example.com/v1",
@@ -64,7 +70,7 @@ func TestBackfillOpenAIImagesB64JSON(t *testing.T) {
 	tests := []struct {
 		name          string
 		enabled       bool
-		parsed        *OpenAIImagesRequest
+		parsed        *media.ImageRequest
 		body          string
 		upstream      *httpUpstreamRecorder
 		wantB64       []string
@@ -121,7 +127,7 @@ func TestBackfillOpenAIImagesB64JSON(t *testing.T) {
 		{
 			name:          "客户端显式要求 url 时不回填",
 			enabled:       true,
-			parsed:        &OpenAIImagesRequest{ResponseFormat: "url"},
+			parsed:        &media.ImageRequest{ResponseFormat: "url"},
 			body:          `{"created":1,"data":[{"url":"https://cdn.example.com/a.png"}]}`,
 			upstream:      &httpUpstreamRecorder{resp: b64BackfillImageResponse(http.StatusOK, "image/png", b64BackfillPNGBytes)},
 			wantB64:       []string{""},
@@ -203,7 +209,7 @@ func TestBackfillOpenAIImagesB64JSON_DownloadRequestShape(t *testing.T) {
 	account := b64BackfillAccount(true)
 	proxyID := int64(3)
 	account.ProxyID = &proxyID
-	account.Proxy = &Proxy{Protocol: "http", Host: "127.0.0.1", Port: 7890}
+	account.Proxy = &egress.Proxy{Protocol: "http", Host: "127.0.0.1", Port: 7890}
 
 	body := []byte(`{"created":1,"data":[{"url":"https://cdn.example.com/a%2Fb/?sig=abc%2Fdef"}]}`)
 	got := svc.backfillOpenAIImagesB64JSON(context.Background(), account, nil, body)
@@ -220,8 +226,8 @@ func TestBackfillOpenAIImagesB64JSON_DownloadRequestShape(t *testing.T) {
 	_, hasDeadline := req.Context().Deadline()
 	require.True(t, hasDeadline)
 	// 目的地与重定向各跳都必须解析到公网地址；重定向本身保持跟随。
-	require.True(t, HTTPUpstreamPublicHostsOnly(req.Context()))
-	require.False(t, HTTPUpstreamRedirectsDisabled(req.Context()))
+	require.True(t, upstreamcore.HTTPUpstreamPublicHostsOnly(req.Context()))
+	require.False(t, upstreamcore.HTTPUpstreamRedirectsDisabled(req.Context()))
 }
 
 func TestBackfillOpenAIImagesB64JSON_RejectsPrivateHosts(t *testing.T) {
@@ -277,7 +283,7 @@ func TestIsBackfillImageContent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, isBackfillImageContent(tt.data))
+			require.Equal(t, tt.want, openai.IsBackfillImageContent(tt.data))
 		})
 	}
 }
@@ -295,7 +301,7 @@ func TestBackfillOpenAIImagesB64JSON_NonObjectBodies(t *testing.T) {
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1024x1024"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -303,7 +309,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL(t *test
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
-	c.Set("api_key", &APIKey{ID: 42})
+	c.Set("api_key", &apikey.APIKey{ID: 42})
 
 	svc := &OpenAIGatewayService{cfg: &config.Config{}}
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
@@ -337,7 +343,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL(t *test
 	require.Equal(t, "https://relay.example.com/v1/images/generations", upstream.requests[0].URL.String())
 	require.Equal(t, http.MethodGet, upstream.requests[1].Method)
 	require.Equal(t, "https://cdn.example.com/cat.png", upstream.requests[1].URL.String())
-	require.True(t, HTTPUpstreamPublicHostsOnly(upstream.requests[1].Context()))
+	require.True(t, upstreamcore.HTTPUpstreamPublicHostsOnly(upstream.requests[1].Context()))
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	wantB64 := base64.StdEncoding.EncodeToString(b64BackfillPNGBytes)
@@ -348,7 +354,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyBackfillsB64JSONFromURL(t *test
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyLeavesURLOnlyResponseWhenDisabled(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"1024x1024"}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
@@ -356,7 +362,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyLeavesURLOnlyResponseWhenDisabl
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
-	c.Set("api_key", &APIKey{ID: 42})
+	c.Set("api_key", &apikey.APIKey{ID: 42})
 
 	svc := &OpenAIGatewayService{cfg: &config.Config{}}
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
@@ -391,12 +397,12 @@ func TestBackfillOpenAIImagesB64JSON_ForkBoundaries(t *testing.T) {
 	upstream := &httpUpstreamRecorder{}
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
 	account := b64BackfillAccount(true)
-	require.Equal(t, body, svc.backfillOpenAIImagesB64JSON(t.Context(), account, &OpenAIImagesRequest{Stream: true}, body))
+	require.Equal(t, body, svc.backfillOpenAIImagesB64JSON(t.Context(), account, &media.ImageRequest{Stream: true}, body))
 	invalid := append(append([]byte{}, body...), []byte("invalid")...)
 	require.Equal(t, invalid, svc.backfillOpenAIImagesB64JSON(t.Context(), account, nil, invalid))
-	account.Type = AccountTypeOAuth
+	account.Type = capability.AccountTypeOAuth
 	require.Equal(t, body, svc.backfillOpenAIImagesB64JSON(t.Context(), account, nil, body))
-	account.Type, account.Platform = AccountTypeAPIKey, PlatformGrok
+	account.Type, account.Platform = capability.AccountTypeAPIKey, capability.PlatformGrok
 	require.Equal(t, body, svc.backfillOpenAIImagesB64JSON(t.Context(), account, nil, body))
 	account = b64BackfillAccount(true)
 	svc.cfg.Security.URLAllowlist.Enabled = true
@@ -407,7 +413,7 @@ func TestBackfillOpenAIImagesB64JSON_ForkBoundaries(t *testing.T) {
 
 // 超限下载及伪装为图片的 data URI 都保持原始结果，不能影响主请求成功。
 func TestBackfillOpenAIImagesB64JSON_SizeAndDataURLValidation(t *testing.T) {
-	oversized := make([]byte, openAIImageMaxDownloadBytes+1)
+	oversized := make([]byte, openai.OpenAIImageMaxDownloadBytes+1)
 	copy(oversized, b64BackfillPNGBytes)
 	upstream := &httpUpstreamRecorder{resp: b64BackfillImageResponse(200, "image/png", oversized)}
 	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
@@ -431,7 +437,7 @@ func TestBackfillOpenAIImagesB64JSON_PreservesBillingMetadata(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	resp := b64BackfillImageResponse(200, "application/json", []byte(body))
-	usage, count, sizes, err := svc.handleOpenAIImagesNonStreamingResponse(t.Context(), resp, c, b64BackfillAccount(true), &OpenAIImagesRequest{Size: "1024x1024"})
+	usage, count, sizes, err := svc.handleOpenAIImagesNonStreamingResponse(t.Context(), resp, c, b64BackfillAccount(true), &media.ImageRequest{Size: "1024x1024"})
 	require.NoError(t, err)
 	require.Equal(t, 10, usage.InputTokens)
 	require.Equal(t, 20, usage.OutputTokens)

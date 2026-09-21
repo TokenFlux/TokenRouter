@@ -8,13 +8,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	promotionpostgres "github.com/TokenFlux/TokenRouter/internal/promotion/postgres"
+
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
+	"github.com/TokenFlux/TokenRouter/internal/settings"
+	settingspostgres "github.com/TokenFlux/TokenRouter/internal/settings/postgres"
 	"github.com/stretchr/testify/require"
 )
 
 // 两个调用在尝试加锁前汇合，锁内读取不得依赖修复前的错误交错。
 type s12PlanningAffiliateBarrier struct {
-	service.AffiliateRepository
+	promotion.AffiliateRepository
 	ready chan struct{}
 	calls atomic.Int32
 }
@@ -34,7 +40,7 @@ func TestAffiliateCapConcurrentAccrualUsesLockedLatestTotal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	c := testEntClient(t)
-	repo := NewAffiliateRepository(c, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(c, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 	inviter, e := c.User.Create().SetEmail("s12-inviter@example.com").SetPasswordHash("hash").Save(ctx)
 	require.NoError(t, e)
 	invitee, e := c.User.Create().SetEmail("s12-invitee@example.com").SetPasswordHash("hash").Save(ctx)
@@ -45,8 +51,8 @@ func TestAffiliateCapConcurrentAccrualUsesLockedLatestTotal(t *testing.T) {
 	require.NoError(t, e)
 	_, e = repo.BindInviter(ctx, invitee.ID, inviter.ID)
 	require.NoError(t, e)
-	sr := NewSettingRepository(c)
-	keys := []string{service.SettingKeyAffiliateEnabled, service.SettingKeyAffiliateRebateRate, service.SettingKeyAffiliateRebatePerInviteeCap, service.SettingKeyAffiliateRebateFreezeHours, service.SettingKeyAffiliateRebateDurationDays}
+	sr := settings.New(settingspostgres.NewSettingRepository(c))
+	keys := []string{promotion.SettingKeyAffiliateEnabled, promotion.SettingKeyAffiliateRebateRate, promotion.SettingKeyAffiliateRebatePerInviteeCap, promotion.SettingKeyAffiliateRebateFreezeHours, promotion.SettingKeyAffiliateRebateDurationDays}
 	original, err := sr.GetMultiple(ctx, keys)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -55,9 +61,9 @@ func TestAffiliateCapConcurrentAccrualUsesLockedLatestTotal(t *testing.T) {
 		}
 		require.NoError(t, sr.SetMultiple(context.Background(), original))
 	})
-	require.NoError(t, sr.SetMultiple(ctx, map[string]string{service.SettingKeyAffiliateEnabled: "true", service.SettingKeyAffiliateRebateRate: "100", service.SettingKeyAffiliateRebatePerInviteeCap: "10", service.SettingKeyAffiliateRebateFreezeHours: "0", service.SettingKeyAffiliateRebateDurationDays: "0"}))
+	require.NoError(t, sr.SetMultiple(ctx, map[string]string{promotion.SettingKeyAffiliateEnabled: "true", promotion.SettingKeyAffiliateRebateRate: "100", promotion.SettingKeyAffiliateRebatePerInviteeCap: "10", promotion.SettingKeyAffiliateRebateFreezeHours: "0", promotion.SettingKeyAffiliateRebateDurationDays: "0"}))
 	barrier := &s12PlanningAffiliateBarrier{AffiliateRepository: repo, ready: make(chan struct{})}
-	svc := service.NewAffiliateService(barrier, service.NewSettingService(sr, nil), nil, nil)
+	svc := promotion.NewAffiliateService(barrier, promotion.NewRuntimeSettings(sr), nil, nil, promotion.Runtime{})
 	errs := make(chan error, 2)
 	for range 2 {
 		go func() { _, e := svc.AccrueInviteRebate(ctx, invitee.ID, 8); errs <- e }()

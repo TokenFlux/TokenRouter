@@ -2,9 +2,9 @@ package service
 
 import (
 	context "context"
-	fmt "fmt"
-	ctxkey "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
@@ -19,50 +19,15 @@ type advancedSchedulerEffectiveSettings struct {
 	stickyEscape                advancedStickyEscapeConfig
 }
 
-func ValidateGroupAdvancedSchedulerOverrides(overrides GroupAdvancedSchedulerOverrides) error {
-	return policy.ValidateGroupOverrides(overrides)
-}
-
 func validateAdvancedSchedulerEffectiveWeights(weights GatewayAdvancedSchedulerScoreWeightsView) error {
 	return policy.ValidateEffectiveWeights(policy.ScoreWeights(weights))
-}
-
-func CloneGroupAdvancedSchedulerOverrides(overrides GroupAdvancedSchedulerOverrides) GroupAdvancedSchedulerOverrides {
-	return accessview.CloneGroupAdvancedSchedulerOverrides(overrides)
-}
-
-// advancedSchedulerGlobalWeightsForValidation 直接读取设置仓库，避免写入校验依赖短 TTL 热路径缓存。
-func GroupValidationWeights(
-	ctx context.Context, settings *SettingService,
-) (GatewayAdvancedSchedulerScoreWeightsView, error) {
-	gateway := &OpenAIGatewayService{}
-	if settings != nil {
-		gateway.cfg = settings.cfg
-	}
-	baseWeights := gateway.openAIWSSchedulerWeights()
-	if !baseWeights.configWeights().IsValid() {
-		baseWeights = (&OpenAIGatewayService{}).openAIWSSchedulerWeights()
-	}
-	if settings == nil || settings.settingRepo == nil {
-		return baseWeights, nil
-	}
-
-	values, err := settings.settingRepo.GetMultiple(ctx, advancedSchedulerRuntimeSettingKeys())
-	if err != nil {
-		return GatewayAdvancedSchedulerScoreWeightsView{}, fmt.Errorf("load advanced scheduler settings: %w", err)
-	}
-	globalWeights := applyAdvancedSchedulerWeightOverrides(baseWeights, parseAdvancedSchedulerWeightOverrides(values))
-	if !globalWeights.configWeights().IsValid() {
-		return baseWeights, nil
-	}
-	return globalWeights, nil
 }
 
 func resolveAdvancedSchedulerEffectiveSettings(
 	baseTopK int,
 	baseWeights GatewayAdvancedSchedulerScoreWeightsView,
 	global advancedSchedulerRuntimeSettings,
-	overrides GroupAdvancedSchedulerOverrides,
+	overrides routing.GroupAdvancedSchedulerOverrides,
 ) advancedSchedulerEffectiveSettings {
 	v := policy.ResolveEffective(baseTopK, policy.ScoreWeights(baseWeights), policy.RuntimeSettings{
 		StickyWeightedEnabled: global.stickyWeightedEnabled, SubscriptionPriorityEnabled: global.subscriptionPriorityEnabled, LbTopKOverride: global.lbTopKOverride, WeightOverrides: global.weightOverrides,
@@ -78,12 +43,12 @@ func resolveAdvancedSchedulerEffectiveSettings(
 // advancedSchedulerEffectiveSettingsForGroup 将分组覆盖置于运行时全局设置之上。
 func (s *OpenAIGatewayService) advancedSchedulerEffectiveSettingsForGroup(
 	ctx context.Context,
-	group *Group,
+	group *routing.Group,
 ) advancedSchedulerEffectiveSettings {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	var overrides GroupAdvancedSchedulerOverrides
+	var overrides routing.GroupAdvancedSchedulerOverrides
 	if group != nil && group.UsesAdvancedScheduler() {
 		overrides = group.AdvancedSchedulerOverrides
 	}
@@ -108,12 +73,12 @@ func (s *OpenAIGatewayService) advancedSchedulerEffectiveSettingsForRequest(
 }
 
 // advancedSchedulerGroupForRequest 优先复用请求上下文的最终分组，必要时再读取调度快照。
-func (s *OpenAIGatewayService) advancedSchedulerGroupForRequest(ctx context.Context, groupID *int64) *Group {
+func (s *OpenAIGatewayService) advancedSchedulerGroupForRequest(ctx context.Context, groupID *int64) *routing.Group {
 	if groupID == nil || *groupID <= 0 {
 		return nil
 	}
 	if ctx != nil {
-		if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(group) && group.ID == *groupID {
+		if group, ok := requeststate.GroupFromContext(ctx); ok && routing.IsGroupContextValid(group) && group.ID == *groupID {
 			return group
 		}
 	}

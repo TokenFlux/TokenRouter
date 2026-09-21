@@ -6,23 +6,26 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 type adminUsageRepoCapture struct {
-	service.UsageLogRepository
+	usage.UsageLogRepository
 	listParams   pagination.PaginationParams
-	listFilters  usagestats.UsageLogFilters
-	statsFilters usagestats.UsageLogFilters
-	logs         []service.UsageLog
+	listFilters  usage.UsageLogFilters
+	statsFilters usage.UsageLogFilters
+	logs         []usage.UsageLog
 }
 
-func (s *adminUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
+func (s *adminUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usage.UsageLogFilters) ([]usage.UsageLog, *pagination.PaginationResult, error) {
 	s.listParams = params
 	s.listFilters = filters
 	return s.logs, &pagination.PaginationResult{
@@ -34,26 +37,26 @@ func (s *adminUsageRepoCapture) ListWithFilters(ctx context.Context, params pagi
 }
 
 type adminUsageTimingOpsRepo struct {
-	service.OpsRepository
-	timings map[string]*service.OpsRequestTiming
+	ops.OpsRepository
+	timings map[string]*ops.OpsRequestTiming
 }
 
-func (r *adminUsageTimingOpsRepo) ListRequestTimings(_ context.Context, ids []string) (map[string]*service.OpsRequestTiming, error) {
+func (r *adminUsageTimingOpsRepo) ListRequestTimings(_ context.Context, ids []string) (map[string]*ops.OpsRequestTiming, error) {
 	return r.timings, nil
 }
 
 func TestAdminUsageListIncludesDetailedTiming(t *testing.T) {
 	firstByte := int64(120000)
-	usageRepo := &adminUsageRepoCapture{logs: []service.UsageLog{{
+	usageRepo := &adminUsageRepoCapture{logs: []usage.UsageLog{{
 		RequestID: "client:req-internal-1",
 		Model:     "gpt-5",
 	}}}
-	opsRepo := &adminUsageTimingOpsRepo{timings: map[string]*service.OpsRequestTiming{
+	opsRepo := &adminUsageTimingOpsRepo{timings: map[string]*ops.OpsRequestTiming{
 		"req-internal-1": {UpstreamFirstResponseByteMs: &firstByte},
 	}}
-	usageSvc := service.NewUsageService(usageRepo)
-	opsSvc := service.NewOpsService(opsRepo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	handler := newLegacyUsageHandlerFixture(usageSvc, nil, nil, nil, opsSvc)
+	usageSvc := usage.NewUsageService(usageRepo)
+	opsSvc := ops.NewOpsService(opsRepo, nil, nil, nil, nil, nil, nil, nil)
+	handler := NewUsageHandler(usageSvc, nil, nil, nil, opsSvc, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.GET("/admin/usage", handler.List)
 
@@ -77,15 +80,15 @@ func TestAdminUsageListIncludesDetailedTiming(t *testing.T) {
 	require.Equal(t, int64(120000), *response.Data.Items[0].DetailedTiming.UpstreamFirstResponseByteMs)
 }
 
-func (s *adminUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, error) {
+func (s *adminUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters usage.UsageLogFilters) (*usage.UsageStats, error) {
 	s.statsFilters = filters
-	return &usagestats.UsageStats{}, nil
+	return &usage.UsageStats{}, nil
 }
 
 func newAdminUsageRequestTypeTestRouter(repo *adminUsageRepoCapture) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	usageSvc := service.NewUsageService(repo)
-	handler := newLegacyUsageHandlerFixture(usageSvc, nil, nil, nil, nil)
+
+	usageSvc := usage.NewUsageService(repo)
+	handler := NewUsageHandler(usageSvc, nil, nil, nil, nil, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.GET("/admin/usage", handler.List)
 	router.GET("/admin/usage/stats", handler.Stats)
@@ -102,7 +105,7 @@ func TestAdminUsageListRequestTypePriority(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.NotNil(t, repo.listFilters.RequestType)
-	require.Equal(t, int16(service.RequestTypeWSV2), *repo.listFilters.RequestType)
+	require.Equal(t, int16(usage.RequestTypeWSV2), *repo.listFilters.RequestType)
 	require.Nil(t, repo.listFilters.Stream)
 }
 
@@ -116,7 +119,7 @@ func TestAdminUsageListUsesRequestedModelForDisplayModelFilter(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "grok-imagine-video-1.5", repo.listFilters.Model)
-	require.Equal(t, usagestats.ModelSourceRequested, repo.listFilters.ModelFilterSource)
+	require.Equal(t, usage.ModelSourceRequested, repo.listFilters.ModelFilterSource)
 }
 
 // 团队筛选必须原样传入列表仓储，避免管理员看到其他团队的记录。
@@ -200,7 +203,7 @@ func TestAdminUsageStatsRequestTypePriority(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.NotNil(t, repo.statsFilters.RequestType)
-	require.Equal(t, int16(service.RequestTypeStream), *repo.statsFilters.RequestType)
+	require.Equal(t, int16(usage.RequestTypeStream), *repo.statsFilters.RequestType)
 	require.Nil(t, repo.statsFilters.Stream)
 }
 
@@ -214,7 +217,7 @@ func TestAdminUsageStatsUsesRequestedModelForDisplayModelFilter(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "grok-imagine-video-1.5", repo.statsFilters.Model)
-	require.Equal(t, usagestats.ModelSourceRequested, repo.statsFilters.ModelFilterSource)
+	require.Equal(t, usage.ModelSourceRequested, repo.statsFilters.ModelFilterSource)
 }
 
 // 汇总统计必须与列表使用同一团队条件。

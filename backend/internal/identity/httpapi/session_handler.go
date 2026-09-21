@@ -3,13 +3,14 @@ package httpapi
 
 import (
 	context "context"
+	slog "log/slog"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	slog "log/slog"
-	strings "strings"
 )
 
 // SessionHTTPSettings 每次操作读取动态开关，保持各入口原有生效时机。

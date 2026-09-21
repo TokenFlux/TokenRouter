@@ -5,13 +5,15 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
-	ristretto "github.com/dgraph-io/ristretto"
 	slog "log/slog"
 	maps "maps"
 	rand "math/rand/v2"
 	"slices"
 	time "time"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	ristretto "github.com/dgraph-io/ristretto"
 )
 
 const KeyApiKeyAuthSnapshotVersion = 40
@@ -578,7 +580,7 @@ func (s *APIKeyService) KeySnapshotToAPIKey(key string, snapshot *APIKeyAuthSnap
 		apiKey.TeamMembership = cloneMembership(snapshot.TeamMembership)
 	}
 	if snapshot.Group != nil {
-		apiKey.Group = &Group{
+		apiKey.Group = &routing.Group{
 			ID:                              snapshot.Group.ID,
 			Name:                            snapshot.Group.Name,
 			Platform:                        snapshot.Group.Platform,
@@ -646,7 +648,7 @@ func (s *APIKeyService) KeySnapshotToAPIKey(key string, snapshot *APIKeyAuthSnap
 }
 
 // KeyAuthGroupSnapshotFromGroup 将分组复制到认证缓存，避免复合映射共享可变对象。
-func KeyAuthGroupSnapshotFromGroup(group *Group) *APIKeyAuthGroupSnapshot {
+func KeyAuthGroupSnapshotFromGroup(group *routing.Group) *APIKeyAuthGroupSnapshot {
 	if group == nil {
 		return nil
 	}
@@ -676,11 +678,11 @@ func KeyAuthGroupSnapshotFromGroup(group *Group) *APIKeyAuthGroupSnapshot {
 }
 
 // KeyGroupFromAuthSnapshot 为单次请求还原独立分组对象。
-func KeyGroupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
+func KeyGroupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *routing.Group {
 	if snapshot == nil {
 		return nil
 	}
-	return &Group{
+	return &routing.Group{
 		ID: snapshot.ID, Name: snapshot.Name, Platform: snapshot.Platform, SchedulerType: snapshot.SchedulerType,
 		AdvancedSchedulerOverrides: accessview.CloneGroupAdvancedSchedulerOverrides(snapshot.AdvancedSchedulerOverrides), IsExclusive: snapshot.IsExclusive,
 		Status: snapshot.Status, Hydrated: true, RateMultiplier: snapshot.RateMultiplier,

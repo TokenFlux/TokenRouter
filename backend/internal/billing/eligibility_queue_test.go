@@ -4,10 +4,11 @@ package billing
 import (
 	context "context"
 	errors "errors"
-	require "github.com/stretchr/testify/require"
 	atomic "sync/atomic"
 	testing "testing"
 	time "time"
+
+	require "github.com/stretchr/testify/require"
 )
 
 type billingCacheWorkerStub struct {

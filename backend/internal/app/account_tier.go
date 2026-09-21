@@ -3,14 +3,12 @@ package app
 
 import (
 	account "github.com/TokenFlux/TokenRouter/internal/account"
-	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // provideAccountTier 使用同一个账号配置用例，停止纳入原后台预算。
-func provideAccountTier(admin *account.Admin, source *service.GeminiOAuthService, manager *lifecycle.Manager) *account.TierManagement {
-	core := account.NewTierManagement(admin, legacybridge.AccountTierOptions(source))
+func provideAccountTier(admin *account.Admin, source *account.GeminiAuthorization, manager *lifecycle.Manager) *account.TierManagement {
+	core := account.NewTierManagement(admin, account.AccountTierManagementOptions(source))
 	manager.Register(lifecycle.Hook{Name: "AccountTier", StopOrder: 26, Stop: core.StopContext})
 	return core
 }

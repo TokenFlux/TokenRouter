@@ -2,22 +2,20 @@
 package service
 
 import (
-	slog "log/slog"
-	url "net/url"
-	strings "strings"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	domain "github.com/TokenFlux/TokenRouter/internal/domain"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type Account struct {
-	// resolvedCandidate 只属于本次尝试，不能进入共享缓存或持久化。
-	resolvedCandidate *routing.CandidatePlan
-	// resolvedProtocol 仅属于本次转发副本，不能写入共享快照。
-	resolvedProtocol domain.ProtocolID
+	// attemptRoute 仅由尚未清零的执行入口携带，不参与账号持久化或缓存编码。
+	attemptRoute requeststate.AttemptRoute
 
 	ID                      int64
 	Name                    string
@@ -62,33 +60,11 @@ type Account struct {
 	ParentAccountID *int64 // non-nil → 影子账号（不持凭据，透传母账号凭据）
 	QuotaDimension  string // 用量维度："" / "global" / "spark"
 
-	Proxy         *Proxy
+	Proxy         *egress.Proxy
 	AccountGroups []AccountGroup
 	GroupIDs      []int64
-	Groups        []*Group
+	Groups        []*routing.Group
 }
-
-type OpenAIEndpointCapability = accountcore.OpenAIEndpointCapability
-
-const OpenAIEndpointCapabilityTextGeneration = accountcore.OpenAIEndpointCapabilityTextGeneration
-const OpenAIEndpointCapabilityEmbeddings = accountcore.OpenAIEndpointCapabilityEmbeddings
-const OpenAIEndpointCapabilityAlphaSearch = accountcore.OpenAIEndpointCapabilityAlphaSearch
-const OpenAIEndpointCapabilityLive = accountcore.OpenAIEndpointCapabilityLive
-const OpenAIEndpointCapabilityGrokMediaGeneration = accountcore.OpenAIEndpointCapabilityGrokMediaGeneration
-const OpenAIEndpointCapabilityResponses = accountcore.OpenAIEndpointCapabilityResponses
-const OpenAIEndpointCapabilityRemoteCompactionV2 = accountcore.OpenAIEndpointCapabilityRemoteCompactionV2
-
-const openAIWorkloadCapabilitiesCredentialKey = accountcore.OpenAIWorkloadCapabilitiesCredentialKey
-
-const GeminiProviderTypeCredentialKey = accountcore.GeminiProviderTypeCredentialKey
-const GeminiProviderTypeThirdParty = accountcore.GeminiProviderTypeThirdParty
-
-const GrokMediaEligibleExtraKey = accountcore.GrokMediaEligibleExtraKey
-
-const OpenAIAuthModePersonalAccessToken = accountcore.OpenAIAuthModePersonalAccessToken
-const openAIAuthModeCredentialKey = accountcore.OpenAIAuthModeCredentialKey
-
-type TempUnschedulableRule = accountcore.TempUnschedulableRule
 
 func (a *Account) IsActive() bool {
 	var view *accountcore.Record
@@ -342,7 +318,7 @@ func (a *Account) IsTempUnschedulableEnabled() bool {
 	return view.IsTempUnschedulableEnabled()
 }
 
-func (a *Account) GetTempUnschedulableRules() []TempUnschedulableRule {
+func (a *Account) GetTempUnschedulableRules() []accountcore.TempUnschedulableRule {
 	var view *accountcore.Record
 	if a != nil {
 		view = &accountcore.Record{LoadLocation: time.LoadLocation, Credentials: a.Credentials}
@@ -350,35 +326,16 @@ func (a *Account) GetTempUnschedulableRules() []TempUnschedulableRule {
 	return view.GetTempUnschedulableRules()
 }
 
-const OpenAICompactModeForceOn = accountcore.OpenAICompactModeForceOn
-const OpenAICompactModeForceOff = accountcore.OpenAICompactModeForceOff
-const openAINativeCompactionV2ModeExtraKey = accountcore.OpenAINativeCompactionV2ModeExtraKey
-
 func (a *Account) GetModelMapping() map[string]string {
-	return accountcore.ResolveModelMapping(protocolRecord(a), legacyAccountModelDefaults())
-}
-
-func (a *Account) isFinalModelWhitelisted(finalModel string) bool {
-	return protocolRecord(a).FinalModelWhitelisted(finalModel, legacyAccountModelDefaults(), legacyAccountModelRules(a))
-}
-
-func normalizeQoderModelForWhitelist(model string) string {
-	trimmed := strings.TrimSpace(model)
-	if trimmed == "" {
-		return ""
-	}
-	if info, ok := lookupQoderModelAlias(trimmed); ok {
-		return strings.TrimSpace(info.Key)
-	}
-	return trimmed
+	return accountcore.ResolveModelMapping(protocolRecord(a), accountprovider.ModelDefaults())
 }
 
 func (a *Account) IsModelSupported(requestedModel string) bool {
-	return protocolRecord(a).IsModelSupported(requestedModel, legacyAccountModelDefaults(), legacyAccountModelRules(a))
+	return protocolRecord(a).IsModelSupported(requestedModel, accountprovider.ModelDefaults(), accountprovider.ModelRules(protocolRecord(a)))
 }
 
 func (a *Account) GetConfiguredRequestModels() []string {
-	return protocolRecord(a).GetConfiguredRequestModels(legacyAccountModelDefaults())
+	return protocolRecord(a).GetConfiguredRequestModels(accountprovider.ModelDefaults())
 }
 
 // GetMappedModel 获取映射后的模型名（支持通配符，最长优先匹配）
@@ -390,12 +347,7 @@ func (a *Account) GetMappedModel(requestedModel string) string {
 
 func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string, matched bool) {
 	mapping := a.GetModelMapping()
-	if a.resolvedCandidate != nil {
-		snapshot := accountcore.AccountSnapshot{ID: a.ID, Platform: a.Platform, ModelPolicy: accountcore.NewModelRoutingSnapshot(a.Platform, mapping)}
-		candidate, matched := a.resolvedCandidate.ResolveModel(snapshot, requestedModel)
-		return candidate.Models.AccountMappedModel, matched
-	}
-	return accountcore.ResolveMappedModel(a.Platform, mapping, requestedModel)
+	return a.attemptRoute.ResolveModel(a.ID, a.Platform, mapping, requestedModel)
 }
 
 func (a *Account) GetOpenAICompactMode() string {
@@ -695,24 +647,7 @@ func (a *Account) IsCodingPlan() bool {
 
 // GetAPIProtocol 为原有平台适配器提供协议变体：请求副本使用已解析目标，
 // 统一账号的地址/维护流程使用分协议模式，旧对象继续保留历史读取默认值。
-func (a *Account) GetAPIProtocol() string {
-	if a != nil && a.resolvedProtocol != "" {
-		switch a.resolvedProtocol {
-		case domain.ProtocolAnthropicMessages:
-			return APIProtocolAnthropic
-		case domain.ProtocolOpenAIResponses:
-			return APIProtocolResponses
-		case domain.ProtocolOpenAIChatCompletions:
-			return APIProtocolChatCompletions
-		}
-	}
-
-	var view *accountcore.Record
-	if a != nil {
-		view = &accountcore.Record{Platform: a.Platform, Type: a.Type, Credentials: a.Credentials}
-	}
-	return view.ConfiguredAPIProtocol()
-}
+func (a *Account) GetAPIProtocol() string { return accountProtocolTarget(a).GetAPIProtocol() }
 
 func (a *Account) SupportsNativeCNResponses() bool {
 	var view *accountcore.Record
@@ -725,87 +660,30 @@ func (a *Account) SupportsNativeCNResponses() bool {
 // UsesNativeCNResponses 报告当前账号是否应按原生 Responses 协议转发
 // （显式 responses，或 adaptive 且平台具备原生端点）。
 func (a *Account) UsesNativeCNResponses() bool {
-	if a == nil || !a.SupportsNativeCNResponses() {
-		return false
-	}
-	switch a.GetAPIProtocol() {
-	case APIProtocolResponses, APIProtocolAdaptive:
-		return true
-	default:
-		return false
-	}
+	return accountProtocolTarget(a).UsesNativeCNResponses()
 }
 
 // IsAdaptiveAPIProtocol 报告账号是否按入站协议动态选择供应商原生端点。
 func (a *Account) IsAdaptiveAPIProtocol() bool {
-	return a.GetAPIProtocol() == APIProtocolAdaptive
+	return accountProtocolTarget(a).IsAdaptiveAPIProtocol()
 }
 
 // GetCNProtocolBaseURL 返回国产供应商指定协议的上游 base URL。
 // adaptive 账号优先使用 api_base_urls 中的分协议地址，缺失时按平台和
 // account_mode 使用官方默认端点。base_url 继续作为 Chat Completions 地址兼容旧字段。
 func (a *Account) GetCNProtocolBaseURL(protocol string) string {
-	if a == nil || !a.IsCNProvider() {
-		return ""
-	}
-	if _, unified := a.Credentials[upstreamProtocolsKey]; unified || a.IsAdaptiveAPIProtocol() {
-		if baseURLs, ok := a.Credentials["api_base_urls"].(map[string]any); ok {
-			if baseURL, ok := baseURLs[protocol].(string); ok && strings.TrimSpace(baseURL) != "" {
-				return strings.TrimSpace(baseURL)
-			}
-		}
-		if protocol == APIProtocolChatCompletions {
-			if baseURL := strings.TrimSpace(a.GetCredential("base_url")); baseURL != "" {
-				return baseURL
-			}
-		}
-	}
-	return a.defaultCNProtocolBaseURL(protocol)
-}
-
-func (a *Account) defaultCNProtocolBaseURL(protocol string) string {
-	var view *accountcore.Record
-	if a != nil {
-		view = &accountcore.Record{LoadLocation: time.LoadLocation, Credentials: a.Credentials,
-			Platform: a.Platform}
-	}
-	return view.DefaultCNProtocolBaseURL(protocol)
+	return accountProtocolTarget(a).GetCNProtocolBaseURL(protocol)
 }
 
 // IsAnthropicProtocol 报告账号是否以原生 Anthropic 协议接入上游
 // （/v1/messages 直通，适配 Claude Code 等客户端）。
-func (a *Account) IsAnthropicProtocol() bool {
-	return a.GetAPIProtocol() == APIProtocolAnthropic
-}
+func (a *Account) IsAnthropicProtocol() bool { return accountProtocolTarget(a).IsAnthropicProtocol() }
 
 // GetAnthropicProtocolBaseURL 返回 Anthropic 协议账号的上游 base_url
 // （上游路径为 {base}/v1/messages）。优先取凭证 base_url，缺失时按
 // 供应商 × 接入模式返回默认端点。非 Anthropic 协议账号返回空串。
 func (a *Account) GetAnthropicProtocolBaseURL() string {
-	if a == nil || (!a.IsAnthropicProtocol() && !a.IsAdaptiveAPIProtocol()) {
-		return ""
-	}
-	if _, unified := a.Credentials[upstreamProtocolsKey]; unified || a.IsAdaptiveAPIProtocol() {
-		return a.GetCNProtocolBaseURL(APIProtocolAnthropic)
-	}
-	if a.Type == AccountTypeAPIKey || a.Type == AccountTypeUpstream {
-		if baseURL := strings.TrimSpace(a.GetCredential("base_url")); baseURL != "" {
-			return baseURL
-		}
-	}
-	switch a.Platform {
-	case PlatformKimi:
-		if a.GetAccountMode() == AccountModeCoding {
-			return DefaultKimiCodingAnthropicBaseURL
-		}
-		return DefaultKimiPayGAnthropicBaseURL
-	case PlatformZhipu:
-		return DefaultZhipuAnthropicBaseURL
-	case PlatformDeepseek:
-		return DefaultDeepseekAnthropicBaseURL
-	default:
-		return ""
-	}
+	return accountProtocolTarget(a).GetAnthropicProtocolBaseURL()
 }
 
 // GetOpenAIFormatBaseURL 返回供 OpenAI 格式端点（/v1/models、/v1/chat/completions
@@ -813,50 +691,7 @@ func (a *Account) GetAnthropicProtocolBaseURL() string {
 // 一致；anthropic 协议下，官方端点映射到对应的 OpenAI 格式端点，自定义中继则
 // 只移除末尾的 /anthropic 协议段，保留中继 host 与路径前缀。
 func (a *Account) GetOpenAIFormatBaseURL() string {
-	if a == nil {
-		return ""
-	}
-	// 迁移后的固定 Messages 账号通过地址槽识别模型同步根，不能丢失中继前缀。
-	anthropicBase := a.IsAnthropicProtocol()
-	if _, unified := a.Credentials[upstreamProtocolsKey]; unified && a.IsCNProvider() {
-		urls, _ := a.Credentials["api_base_urls"].(map[string]any)
-		chat, _ := urls[APIProtocolChatCompletions].(string)
-		messages, _ := urls[APIProtocolAnthropic].(string)
-		anthropicBase = chat == "" && messages != "" && messages == a.GetCredential("base_url")
-	}
-	if !anthropicBase {
-		return a.GetOpenAIBaseURL()
-	}
-
-	if baseURL := strings.TrimSpace(a.GetCredential("base_url")); baseURL != "" {
-		if !isDefaultCNAnthropicBaseURL(baseURL) {
-			return stripCNAnthropicPathSuffix(baseURL)
-		}
-	}
-	switch a.Platform {
-	case PlatformKimi:
-		if a.GetAccountMode() == AccountModeCoding {
-			return DefaultKimiCodingBaseURL
-		}
-		return DefaultKimiPayGBaseURL
-	case PlatformZhipu:
-		if a.GetAccountMode() == AccountModeCoding {
-			return DefaultZhipuCodingBaseURL
-		}
-		return DefaultZhipuPayGBaseURL
-	case PlatformDeepseek:
-		return DefaultDeepseekBaseURL
-	default:
-		return a.GetOpenAIBaseURL()
-	}
-}
-
-func isDefaultCNAnthropicBaseURL(baseURL string) bool {
-	return accountcore.IsDefaultCNAnthropicBaseURL(baseURL)
-}
-
-func stripCNAnthropicPathSuffix(baseURL string) string {
-	return accountcore.StripCNAnthropicPathSuffix(baseURL)
+	return accountProtocolTarget(a).GetOpenAIFormatBaseURL()
 }
 
 func (a *Account) GetCNAPIKey() string {
@@ -894,65 +729,6 @@ func (a *Account) GetOpenAIRefreshToken() string {
 			Type:     a.Type}
 	}
 	return view.GetOpenAIRefreshToken()
-}
-
-// GetGrokBaseURL 返回 Grok 文本与 Responses 流量使用的上游地址。
-// 媒体流量必须通过 GetGrokMediaBaseURL 明确选择其独立的凭据边界。
-// 存储的 base_url 只改写转发端点；OAuth 授权与令牌刷新始终使用官方认证端点。
-func (a *Account) GetGrokBaseURL() string {
-	if a == nil || !a.IsGrok() {
-		return ""
-	}
-	if a.IsGrokOAuth() {
-		return a.GetGrokBaseURLOr(xai.DefaultCLIBaseURL)
-	}
-	return a.GetGrokBaseURLOr(xai.DefaultBaseURL)
-}
-
-// GetGrokBaseURLOr 优先使用账号显式端点，无效时回退到调用方给定的默认地址。
-// 官方 OAuth 端点在此归一化；自定义端点仍由构造请求的 URL 信任策略审核。
-func (a *Account) GetGrokBaseURLOr(defaultBaseURL string) string {
-	if a == nil || !a.IsGrok() {
-		return ""
-	}
-	defaultBaseURL = strings.TrimRight(strings.TrimSpace(defaultBaseURL), "/")
-	if defaultBaseURL == "" {
-		if a.IsGrokOAuth() {
-			defaultBaseURL = xai.DefaultCLIBaseURL
-		} else {
-			defaultBaseURL = xai.DefaultBaseURL
-		}
-	}
-	baseURL := strings.TrimSpace(a.GetCredential("base_url"))
-	if baseURL == "" {
-		return defaultBaseURL
-	}
-	if !a.IsGrokOAuth() {
-		return baseURL
-	}
-	// 显式区域、公共 API 或自定义端点保持固定；自定义端点由能读取配置的请求构造器执行 URL 策略校验。
-	if validated, err := xai.ValidateTrustedBaseURL(baseURL); err == nil {
-		return validated
-	}
-	if parsed, err := url.Parse(baseURL); err == nil && parsed.Scheme != "" && parsed.Host != "" &&
-		parsed.User == nil && parsed.RawQuery == "" && parsed.Fragment == "" {
-		return strings.TrimRight(baseURL, "/")
-	}
-	return defaultBaseURL
-}
-
-// GetGrokMediaBaseURL 返回 Grok Imagine 媒体接口使用的上游地址。
-// CLI 订阅网关会拒绝较大的 Base64 请求体，因此 OAuth 文本流量解析到 CLI 网关时，
-// 媒体改走 api.x.ai；手工选择的官方、区域或自定义端点仍原样用于媒体。
-func (a *Account) GetGrokMediaBaseURL() string {
-	if !a.IsGrok() {
-		return ""
-	}
-	baseURL := a.GetGrokBaseURL()
-	if a.IsGrokOAuth() && isGrokCLIProxyTarget(baseURL) {
-		return xai.DefaultBaseURL
-	}
-	return baseURL
 }
 
 func (a *Account) GetGrokAccessToken() string {
@@ -1053,47 +829,17 @@ func (a *Account) GetOpenAISessionID() string {
 	return view.GetOpenAISessionID()
 }
 
-func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapability) bool {
+func (a *Account) SupportsOpenAIEndpointCapability(capability accountcore.OpenAIEndpointCapability) bool {
 	return protocolRecord(a).SupportsOpenAIEndpointCapability(capability, a.GrokMediaGenerationEligibility)
 }
 
 // GrokMediaGenerationEligibility 判断 Grok 账号能否承接新的图片或视频生成请求。
 // OAuth 媒体必须有明确的付费资格观测，否则按拒绝处理；管理员显式覆盖优先于探测数据。
 func (a *Account) GrokMediaGenerationEligibility() (bool, string) {
-	if a == nil || !a.IsGrok() {
-		return false, "not_grok"
-	}
-	if override, ok := grokMediaEligibilityOverride(a.Extra); ok {
-		if override {
-			return true, "override_enabled"
-		}
-		return false, "override_disabled"
-	}
-	if a.Type != AccountTypeOAuth {
-		return true, "non_oauth"
-	}
-
-	billing, err := grokBillingSnapshotFromExtra(a.Extra)
-	if err != nil || billing == nil {
-		return false, "billing_unobserved"
-	}
-	if billing.StatusCode == 403 || billing.WeeklyStatusCode == 403 || billing.MonthlyStatusCode == 403 {
-		return false, "billing_forbidden"
-	}
-	if isKnownGrokFreeAccount(a) {
-		return false, "billing_free_tier"
-	}
-	if !grokBillingHasAuthoritativeQuota(billing) {
-		return false, "billing_inconclusive"
-	}
-	return true, "eligible"
+	return accountcore.GrokMediaGenerationEligibility(AccountRecordView(a), accountprovider.GrokTierRules())
 }
 
-func grokMediaEligibilityOverride(extra map[string]any) (bool, bool) {
-	return accountcore.GrokMediaEligibilityOverride(extra)
-}
-
-func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapability) bool {
+func (a *Account) SupportsOpenAIImageCapability(capability accountcore.OpenAIImagesCapability) bool {
 	var view *accountcore.Record
 	if a != nil {
 		view = &accountcore.Record{LoadLocation: time.LoadLocation, Platform: a.Platform,
@@ -1190,17 +936,6 @@ func (a *Account) IsOpenAIResponsesWebSocketV2Enabled() bool {
 	return view.IsOpenAIResponsesWebSocketV2Enabled()
 }
 
-const OpenAIWSIngressModeOff = accountcore.OpenAIWSIngressModeOff
-const OpenAIWSIngressModeShared = accountcore.OpenAIWSIngressModeShared
-const OpenAIWSIngressModeDedicated = accountcore.OpenAIWSIngressModeDedicated
-const OpenAIWSIngressModeCtxPool = accountcore.OpenAIWSIngressModeCtxPool
-const OpenAIWSIngressModePassthrough = accountcore.OpenAIWSIngressModePassthrough
-const OpenAIWSIngressModeHTTPBridge = accountcore.OpenAIWSIngressModeHTTPBridge
-
-func normalizeOpenAIWSIngressDefaultMode(mode string) string {
-	return accountcore.NormalizeOpenAIWSIngressDefaultMode(mode)
-}
-
 func (a *Account) ResolveOpenAIResponsesWebSocketV2Mode(defaultMode string) string {
 	var view *accountcore.Record
 	if a != nil {
@@ -1249,45 +984,6 @@ func (a *Account) IsAnthropicAPIKeyPassthroughEnabled() bool {
 	return view.IsAnthropicAPIKeyPassthroughEnabled()
 }
 
-// WebSearch 模拟三态常量
-const (
-	WebSearchModeDefault  = "default"  // 跟随渠道配置
-	WebSearchModeEnabled  = "enabled"  // 强制开启
-	WebSearchModeDisabled = "disabled" // 强制关闭
-)
-
-const OpenAIOAuthClientPolicyAny = accountcore.OpenAIOAuthClientPolicyAny
-const OpenAIOAuthClientPolicyCodexOnly = accountcore.OpenAIOAuthClientPolicyCodexOnly
-const OpenAIOAuthClientPolicyTLSRouterMatchedOnly = accountcore.OpenAIOAuthClientPolicyTLSRouterMatchedOnly
-
-// GetWebSearchEmulationMode 返回账号的 WebSearch 模拟模式。
-// 三态：default（跟随渠道）/ enabled（强制开启）/ disabled（强制关闭）。
-// 兼容旧 bool 值：true→enabled, false→default（并记录 debug 日志）。
-func (a *Account) GetWebSearchEmulationMode() string {
-	if a == nil || a.Platform != PlatformAnthropic || a.Type != AccountTypeAPIKey || a.Extra == nil {
-		return WebSearchModeDefault
-	}
-	raw := a.Extra[featureKeyWebSearchEmulation]
-	// Tolerant: legacy bool values (pre-migration or stale writes)
-	if b, ok := raw.(bool); ok {
-		slog.Debug("legacy bool web_search_emulation value", "account_id", a.ID, "value", b)
-		if b {
-			return WebSearchModeEnabled
-		}
-		return WebSearchModeDefault
-	}
-	mode, ok := raw.(string)
-	if !ok {
-		return WebSearchModeDefault
-	}
-	switch mode {
-	case WebSearchModeEnabled, WebSearchModeDisabled:
-		return mode
-	default:
-		return WebSearchModeDefault
-	}
-}
-
 func (a *Account) IsCodexCLIOnlyEnabled() bool {
 	var view *accountcore.Record
 	if a != nil {
@@ -1327,12 +1023,6 @@ func (a *Account) GetCodexCLIOnlyAllowedClients() []string {
 	}
 	return view.GetCodexCLIOnlyAllowedClients()
 }
-
-type WindowCostSchedulability = accountcore.WindowCostSchedulability
-
-const WindowCostSchedulable = accountcore.WindowCostSchedulable
-const WindowCostStickyOnly = accountcore.WindowCostStickyOnly
-const WindowCostNotSchedulable = accountcore.WindowCostNotSchedulable
 
 func (a *Account) IsAnthropicOAuthOrSetupToken() bool {
 	var view *accountcore.Record
@@ -1615,18 +1305,6 @@ func (a *Account) GetQuotaNotifyTotalThresholdType() string {
 	return view.GetQuotaNotifyTotalThresholdType()
 }
 
-func ComputeQuotaResetAt(extra map[string]any) {
-	accountcore.ComputeQuotaResetAt(extra, time.Now(), time.LoadLocation)
-}
-
-func NormalizeFixedQuotaWindows(extra map[string]any) {
-	accountcore.NormalizeFixedQuotaWindows(extra, time.Now(), time.LoadLocation)
-}
-
-func ValidateQuotaResetConfig(extra map[string]any) error {
-	return accountcore.ValidateQuotaResetConfig(extra, time.LoadLocation)
-}
-
 func (a *Account) HasAnyQuotaLimit() bool {
 	var view *accountcore.Record
 	if a != nil {
@@ -1677,26 +1355,17 @@ func (a *Account) GetRPMStrategy() string { return accountRuntimeConfig(a).GetRP
 
 func (a *Account) GetRPMStickyBuffer() int { return accountRuntimeConfig(a).GetRPMStickyBuffer() }
 
-func (a *Account) CheckRPMSchedulability(currentRPM int) WindowCostSchedulability {
+func (a *Account) CheckRPMSchedulability(currentRPM int) accountcore.WindowCostSchedulability {
 	return accountRuntimeConfig(a).CheckRPMSchedulability(currentRPM)
 }
 
-func (a *Account) CheckWindowCostSchedulability(currentWindowCost float64) WindowCostSchedulability {
+func (a *Account) CheckWindowCostSchedulability(currentWindowCost float64) accountcore.WindowCostSchedulability {
 	return accountRuntimeConfig(a).CheckWindowCostSchedulability(currentWindowCost)
 }
 
 func (a *Account) GetCurrentWindowStartTime() time.Time {
 	return accountRuntimeConfig(a).GetCurrentWindowStartTime(time.Now())
 }
-
-// parseExtraInt 从 extra 字段解析 int 值
-// ParseExtraInt 从 extra 字段的 any 值解析为 int。
-// 支持 int, int64, float64, json.Number, string 类型，无法解析时返回 0。
-func ParseExtraInt(value any) int {
-	return parseExtraInt(value)
-}
-
-func parseExtraInt(value any) int { return accountcore.ParseExtraInt(value) }
 
 func (a *Account) IsShadow() bool {
 	var view *accountcore.Record
@@ -1725,4 +1394,15 @@ func (a *Account) QuotaDimensionOrDefault() string {
 // accountRuntimeConfig 仅投影即时读取所需字段，不复制或增加缓存实例。
 func accountRuntimeConfig(a *Account) *accountcore.RuntimeConfig {
 	return &accountcore.RuntimeConfig{Extra: a.Extra, Concurrency: a.Concurrency, SessionWindowStart: a.SessionWindowStart, SessionWindowEnd: a.SessionWindowEnd}
+}
+
+// 旧账号入口仅投影执行所需字段，端点选择由原生 provider 拥有。
+func (a *Account) GetGrokBaseURL() string {
+	return accountprovider.GrokAccountBaseURL(AccountRecordView(a))
+}
+func (a *Account) GetGrokBaseURLOr(fallback string) string {
+	return accountprovider.GrokAccountBaseURLOr(AccountRecordView(a), fallback)
+}
+func (a *Account) GetGrokMediaBaseURL() string {
+	return accountprovider.GrokAccountMediaBaseURL(AccountRecordView(a))
 }

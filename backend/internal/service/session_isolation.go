@@ -5,27 +5,20 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 )
 
-const SessionIsolationSourceOpenAI = session.SessionIsolationSourceOpenAI
-const SessionIsolationSourceOpenAIPreviousResponse = session.SessionIsolationSourceOpenAIPreviousResponse
-const SessionIsolationSourceGateway = session.SessionIsolationSourceGateway
-const SessionIsolationSourceGemini = session.SessionIsolationSourceGemini
-const SessionIsolationConflictMessage = session.SessionIsolationConflictMessage
-
-var ErrSessionIsolationConflict = session.ErrSessionIsolationConflict
-
 // EnsureSessionIsolation 记录显式会话 owner，并在目标分组开启隔离时拒绝跨分组切入。
-func (s *GatewayService) EnsureSessionIsolation(ctx context.Context, apiKey *APIKey, userID int64, source, sessionHash string) error {
+func (s *GatewayService) EnsureSessionIsolation(ctx context.Context, apiKey *apikey.APIKey, userID int64, source, sessionHash string) error {
 	return ensureSessionIsolation(ctx, s.cache, apiKey, userID, source, sessionHash, stickySessionTTL)
 }
 
 // EnsureSessionIsolation 记录 OpenAI 显式会话 owner，并在目标分组开启隔离时拒绝跨分组切入。
-func (s *OpenAIGatewayService) EnsureSessionIsolation(ctx context.Context, apiKey *APIKey, userID int64, source, sessionHash string) error {
+func (s *OpenAIGatewayService) EnsureSessionIsolation(ctx context.Context, apiKey *apikey.APIKey, userID int64, source, sessionHash string) error {
 	return ensureSessionIsolation(ctx, s.cache, apiKey, userID, source, sessionHash, openaiStickySessionTTL)
 }
-func ensureSessionIsolation(ctx context.Context, cache GatewayCache, key *APIKey, userID int64, source, hash string, ttl time.Duration) error {
+func ensureSessionIsolation(ctx context.Context, cache session.GatewayCache, key *apikey.APIKey, userID int64, source, hash string, ttl time.Duration) error {
 	if key == nil {
 		return nil
 	}

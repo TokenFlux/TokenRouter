@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,7 @@ func TestQoderChatSystemTextPreservesDeveloperMessages(t *testing.T) {
 		{Role: "user", Content: []byte(`"Hello"`)},
 	}
 
-	systemText := qoderChatSystemText(messages)
+	systemText := qoder.QoderChatSystemText(messages)
 
 	require.Contains(t, systemText, "You are helpful")
 	require.Contains(t, systemText, "Be concise")
@@ -30,7 +31,7 @@ func TestQoderChatSystemTextOnlySystemMessages(t *testing.T) {
 		{Role: "user", Content: []byte(`"Hello"`)},
 	}
 
-	systemText := qoderChatSystemText(messages)
+	systemText := qoder.QoderChatSystemText(messages)
 
 	require.Equal(t, "You are helpful", systemText)
 }
@@ -42,7 +43,7 @@ func TestQoderChatSystemTextOnlyDeveloperMessages(t *testing.T) {
 		{Role: "user", Content: []byte(`"Hello"`)},
 	}
 
-	systemText := qoderChatSystemText(messages)
+	systemText := qoder.QoderChatSystemText(messages)
 
 	require.Equal(t, "Be concise", systemText)
 }
@@ -54,7 +55,7 @@ func TestQoderChatSystemTextEmptyWhenNoSystemOrDeveloper(t *testing.T) {
 		{Role: "assistant", Content: []byte(`"Hi"`)},
 	}
 
-	systemText := qoderChatSystemText(messages)
+	systemText := qoder.QoderChatSystemText(messages)
 
 	require.Equal(t, "", systemText)
 }
@@ -68,7 +69,7 @@ func TestQoderChatSystemTextMultipleDeveloperMessages(t *testing.T) {
 		{Role: "user", Content: []byte(`"Hello"`)},
 	}
 
-	systemText := qoderChatSystemText(messages)
+	systemText := qoder.QoderChatSystemText(messages)
 
 	require.Contains(t, systemText, "You are helpful")
 	require.Contains(t, systemText, "Be concise")

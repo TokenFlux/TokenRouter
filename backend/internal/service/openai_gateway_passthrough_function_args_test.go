@@ -14,15 +14,16 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestHandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	argsA := `{"cmd":"echo hi","meta":{"nested":[1,{"ok":true}],"quote":"a}b"}}`
 	argsB := `{"path":"/tmp/file","patch":{"ops":[{"op":"replace","value":{"lines":["x","y"]}}]}}`
@@ -73,7 +74,6 @@ func TestHandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments(t *
 }
 
 func TestForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","input":"run a command","stream":true}`)
 	rec := httptest.NewRecorder()
@@ -98,7 +98,7 @@ func TestForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle(t *
 	}}
 	account := passthroughArgsFallbackAccount()
 	account.Extra = map[string]any{
-		openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
+		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 	}
 	svc := &OpenAIGatewayService{
 		cfg:          passthroughArgsTestConfig(),
@@ -193,8 +193,8 @@ func passthroughArgsFallbackAccount() *Account {
 	return &Account{
 		ID:          102,
 		Name:        "passthrough-args-openai-apikey",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
@@ -208,7 +208,7 @@ func collectPassthroughArgsSSEDataPayloads(t *testing.T, body string) []string {
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	var events []string
 	for scanner.Scan() {
-		data, ok := extractOpenAISSEDataLine(scanner.Text())
+		data, ok := openai.ExtractSSEDataLine(scanner.Text())
 		if !ok {
 			continue
 		}

@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -16,17 +19,17 @@ type gatewayTTLSettingRepo struct {
 	data map[string]string
 }
 
-func (r *gatewayTTLSettingRepo) Get(context.Context, string) (*Setting, error) {
-	return nil, ErrSettingNotFound
+func (r *gatewayTTLSettingRepo) Get(context.Context, string) (*settingscore.Setting, error) {
+	return nil, settingscore.ErrSettingNotFound
 }
 
 func (r *gatewayTTLSettingRepo) GetValue(_ context.Context, key string) (string, error) {
 	if r == nil {
-		return "", ErrSettingNotFound
+		return "", settingscore.ErrSettingNotFound
 	}
 	v, ok := r.data[key]
 	if !ok {
-		return "", ErrSettingNotFound
+		return "", settingscore.ErrSettingNotFound
 	}
 	return v, nil
 }
@@ -112,7 +115,7 @@ func TestReplaceModelInBody_PreservesTopLevelFieldOrder(t *testing.T) {
 func TestNormalizeClaudeOAuthRequestBody_PreservesTopLevelFieldOrder(t *testing.T) {
 	body := []byte(`{"alpha":1,"model":"claude-3-5-sonnet-latest","temperature":0.2,"system":"You are OpenCode, the best coding agent on the planet.","messages":[],"tool_choice":{"type":"auto"},"omega":2}`)
 
-	result, modelID := normalizeClaudeOAuthRequestBody(body, "claude-3-5-sonnet-latest", claudeOAuthNormalizeOptions{
+	result, modelID := claude.NormalizeClaudeOAuthRequestBody(body, "claude-3-5-sonnet-latest", claude.ClaudeOAuthNormalizeOptions{
 		InjectMetadata: true,
 		MetadataUserID: "user-1",
 	})
@@ -122,7 +125,7 @@ func TestNormalizeClaudeOAuthRequestBody_PreservesTopLevelFieldOrder(t *testing.
 	assertJSONTokenOrder(t, resultStr, `"alpha"`, `"model"`, `"temperature"`, `"system"`, `"messages"`, `"omega"`, `"tools"`, `"metadata"`, `"max_tokens"`)
 	require.Contains(t, resultStr, `"temperature":0.2`)
 	require.NotContains(t, resultStr, `"tool_choice"`)
-	require.Contains(t, resultStr, `"system":"`+claudeCodeSystemPrompt+`"`)
+	require.Contains(t, resultStr, `"system":"`+claude.ClaudeCodeSystemPrompt+`"`)
 	require.Contains(t, resultStr, `"tools":[]`)
 	require.Contains(t, resultStr, `"metadata":{"user_id":"user-1"}`)
 	require.Contains(t, resultStr, `"max_tokens":128000`)
@@ -131,19 +134,19 @@ func TestNormalizeClaudeOAuthRequestBody_PreservesTopLevelFieldOrder(t *testing.
 func TestInjectClaudeCodePrompt_PreservesFieldOrder(t *testing.T) {
 	body := []byte(`{"alpha":1,"system":[{"id":"block-1","type":"text","text":"Custom"}],"messages":[],"omega":2}`)
 
-	result := injectClaudeCodePrompt(body, []any{
+	result := claude.InjectClaudeCodePrompt(body, []any{
 		map[string]any{"id": "block-1", "type": "text", "text": "Custom"},
 	})
 	resultStr := string(result)
 
 	assertJSONTokenOrder(t, resultStr, `"alpha"`, `"system"`, `"messages"`, `"omega"`)
-	require.Contains(t, resultStr, `{"id":"block-1","type":"text","text":"`+claudeCodeSystemPrompt+`\n\nCustom"}`)
+	require.Contains(t, resultStr, `{"id":"block-1","type":"text","text":"`+claude.ClaudeCodeSystemPrompt+`\n\nCustom"}`)
 }
 
 func TestEnforceCacheControlLimit_PreservesTopLevelFieldOrder(t *testing.T) {
 	body := []byte(`{"alpha":1,"system":[{"type":"text","text":"s1","cache_control":{"type":"ephemeral"}},{"type":"text","text":"s2","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":[{"type":"text","text":"m1","cache_control":{"type":"ephemeral"}},{"type":"text","text":"m2","cache_control":{"type":"ephemeral"}},{"type":"text","text":"m3","cache_control":{"type":"ephemeral"}}]}],"omega":2}`)
 
-	result := enforceCacheControlLimit(body)
+	result := claude.EnforceCacheControlLimit(body)
 	resultStr := string(result)
 
 	assertJSONTokenOrder(t, resultStr, `"alpha"`, `"system"`, `"messages"`, `"omega"`)
@@ -153,7 +156,7 @@ func TestEnforceCacheControlLimit_PreservesTopLevelFieldOrder(t *testing.T) {
 func TestEnforceCacheControlLimit_CountsToolsAndPreservesMessageAnchorsFirst(t *testing.T) {
 	body := []byte(`{"alpha":1,"system":[{"type":"text","text":"sys","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":[{"type":"text","text":"m1","cache_control":{"type":"ephemeral"}},{"type":"text","text":"m2","cache_control":{"type":"ephemeral"}},{"type":"text","text":"m3","cache_control":{"type":"ephemeral"}}]}],"tools":[{"name":"a","input_schema":{},"cache_control":{"type":"ephemeral"}}],"omega":2}`)
 
-	result := enforceCacheControlLimit(body)
+	result := claude.EnforceCacheControlLimit(body)
 	resultStr := string(result)
 
 	assertJSONTokenOrder(t, resultStr, `"alpha"`, `"system"`, `"messages"`, `"tools"`, `"omega"`)
@@ -168,7 +171,7 @@ func TestEnforceCacheControlLimit_CountsToolsAndPreservesMessageAnchorsFirst(t *
 func TestInjectAnthropicCacheControlTTL1h_OnlyUpdatesExistingEphemeralCacheControl(t *testing.T) {
 	body := []byte(`{"alpha":1,"cache_control":{"type":"ephemeral"},"system":[{"type":"text","text":"sys","cache_control":{"type":"ephemeral","ttl":"5m"}},{"type":"text","text":"plain"}],"messages":[{"role":"user","content":[{"type":"text","text":"hi","cache_control":{"type":"ephemeral"}},{"type":"text","text":"non","cache_control":{"type":"persistent","ttl":"5m"}}]}],"tools":[{"name":"a","input_schema":{},"cache_control":{"type":"ephemeral"}}],"omega":2}`)
 
-	result := injectAnthropicCacheControlTTL1h(body)
+	result := claude.InjectAnthropicCacheControlTTL1h(body)
 	resultStr := string(result)
 
 	assertJSONTokenOrder(t, resultStr, `"alpha"`, `"cache_control"`, `"system"`, `"messages"`, `"tools"`, `"omega"`)
@@ -182,12 +185,12 @@ func TestInjectAnthropicCacheControlTTL1h_OnlyUpdatesExistingEphemeralCacheContr
 
 func TestGatewayCacheTTLGlobalSetting_TargetResolution(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
-		SettingKeyEnableAnthropicCacheTTL1hInjection: "true",
+		gateway.SettingKeyEnableAnthropicCacheTTL1hInjection: "true",
 	}}
 	svc := &GatewayService{
-		settingService: NewSettingService(repo, &config.Config{}),
+		settingService: newExecutionReadersFixture(repo, &config.Config{}),
 	}
-	account := &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth}
+	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}
 
 	target, ok := svc.resolveCacheTTLUsageOverrideTarget(context.Background(), account)
 	require.True(t, ok)
@@ -199,23 +202,23 @@ func TestGatewayCacheTTLGlobalSetting_TargetResolution(t *testing.T) {
 	}
 	target, ok = svc.resolveCacheTTLUsageOverrideTarget(context.Background(), account)
 	require.True(t, ok)
-	require.Equal(t, cacheTTLTarget1h, target)
+	require.Equal(t, claude.CacheTTLTarget1h, target)
 }
 
 func TestGatewayCacheTTLGlobalSetting_RequestInjectionScope(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
-		SettingKeyEnableAnthropicCacheTTL1hInjection: "true",
+		gateway.SettingKeyEnableAnthropicCacheTTL1hInjection: "true",
 	}}
 	svc := &GatewayService{
-		settingService: NewSettingService(repo, &config.Config{}),
+		settingService: newExecutionReadersFixture(repo, &config.Config{}),
 	}
 
-	require.True(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth}))
-	require.True(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: PlatformAnthropic, Type: AccountTypeSetupToken}))
-	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: PlatformAnthropic, Type: AccountTypeAPIKey}))
-	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth}))
+	require.True(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}))
+	require.True(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}))
+	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}))
+	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}))
 
-	repo.data[SettingKeyEnableAnthropicCacheTTL1hInjection] = "false"
-	svc.settingService.GatewaySettings().InvalidateForwarding()
-	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: PlatformAnthropic, Type: AccountTypeOAuth}))
+	repo.data[gateway.SettingKeyEnableAnthropicCacheTTL1hInjection] = "false"
+	svc.settingService.Gateway.InvalidateForwarding()
+	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}))
 }

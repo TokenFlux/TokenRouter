@@ -3,8 +3,9 @@ package identity
 
 import (
 	context "context"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	time "time"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // Error definitions for user attribute operations

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +31,7 @@ func TestCleanGeminiNativeThoughtSignatures_ReplacesNestedThoughtSignatures(t *t
 		"signature": "keep_me"
 	}`)
 
-	cleaned := CleanGeminiNativeThoughtSignatures(input)
+	cleaned := protocolgemini.CleanNativeThoughtSignatures(input, bridge.DummyThoughtSignature)
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(cleaned, &got))
@@ -44,7 +46,7 @@ func TestCleanGeminiNativeThoughtSignatures_ReplacesNestedThoughtSignatures(t *t
 func TestCleanGeminiNativeThoughtSignatures_InvalidJSONReturnsOriginal(t *testing.T) {
 	input := []byte(`{"contents":[invalid-json]}`)
 
-	cleaned := CleanGeminiNativeThoughtSignatures(input)
+	cleaned := protocolgemini.CleanNativeThoughtSignatures(input, bridge.DummyThoughtSignature)
 
 	require.Equal(t, input, cleaned)
 }

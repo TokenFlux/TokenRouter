@@ -1,10 +1,11 @@
 package lifecycle
 
 import (
-	"github.com/stretchr/testify/require"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 重启只发出一次关闭请求；关闭会取消尚未触发的延迟回调。

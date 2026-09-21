@@ -3,9 +3,10 @@ package account
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"

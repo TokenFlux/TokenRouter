@@ -1,6 +1,10 @@
 package service
 
-import "time"
+import (
+	"time"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+)
 
 type AccountGroup struct {
 	AccountID int64
@@ -8,5 +12,5 @@ type AccountGroup struct {
 	CreatedAt time.Time
 
 	Account *Account
-	Group   *Group
+	Group   *routing.Group
 }

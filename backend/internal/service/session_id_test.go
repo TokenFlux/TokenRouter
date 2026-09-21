@@ -8,14 +8,16 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func newSessionHeaderContext(t *testing.T, headers map[string]string) *gin.Context {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	for k, v := range headers {
@@ -91,9 +93,9 @@ func TestExtractClientSessionID_GrokConversationHeader(t *testing.T) {
 	c := newSessionHeaderContext(t, map[string]string{
 		grokConversationIDHeader: "grok-native-session",
 	})
-	c.Set("api_key", &APIKey{
+	c.Set("api_key", &apikey.APIKey{
 		ID:    42,
-		Group: &Group{Platform: PlatformGrok},
+		Group: &routing.Group{Platform: capability.PlatformGrok},
 	})
 
 	require.Equal(t, "grok-native-session", ExtractClientSessionID(c))
@@ -103,11 +105,11 @@ func TestExtractClientSessionID_EmptyForcedRouteFallsBackToGrokGroup(t *testing.
 	c := newSessionHeaderContext(t, map[string]string{
 		grokConversationIDHeader: "grok-group-session",
 	})
-	c.Set("api_key", &APIKey{
+	c.Set("api_key", &apikey.APIKey{
 		ID:    44,
-		Group: &Group{Platform: PlatformGrok},
+		Group: &routing.Group{Platform: capability.PlatformGrok},
 	})
-	c.Request = c.Request.WithContext(context.WithValue(context.Background(), ctxkey.ForcePlatform, ""))
+	c.Request = c.Request.WithContext(apikey.WithForcePlatform(context.Background(), ""))
 
 	require.Equal(t, "grok-group-session", ExtractClientSessionID(c))
 }
@@ -116,11 +118,11 @@ func TestExtractClientSessionID_GrokConversationHeaderForForcedRoute(t *testing.
 	c := newSessionHeaderContext(t, map[string]string{
 		grokConversationIDHeader: "grok-composite-session",
 	})
-	c.Set("api_key", &APIKey{
+	c.Set("api_key", &apikey.APIKey{
 		ID:    43,
-		Group: &Group{Platform: PlatformAnthropic},
+		Group: &routing.Group{Platform: capability.PlatformAnthropic},
 	})
-	c.Request = c.Request.WithContext(context.WithValue(context.Background(), ctxkey.ForcePlatform, PlatformGrok))
+	c.Request = c.Request.WithContext(apikey.WithForcePlatform(context.Background(), capability.PlatformGrok))
 
 	require.Equal(t, "grok-composite-session", ExtractClientSessionID(c))
 }

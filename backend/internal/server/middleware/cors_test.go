@@ -12,7 +12,7 @@ import (
 
 func init() {
 	// cors_test 与 security_headers_test 在同一个包，但 init 是幂等的
-	gin.SetMode(gin.TestMode)
+
 }
 
 // --- Task 8.2: 验证 CORS 条件化头部 ---

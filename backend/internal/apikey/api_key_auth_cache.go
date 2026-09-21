@@ -2,8 +2,9 @@
 package apikey
 
 import (
-	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
 	time "time"
+
+	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）

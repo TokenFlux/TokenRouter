@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
@@ -21,7 +22,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/ops/provider"
 	opsredis "github.com/TokenFlux/TokenRouter/internal/ops/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/settings/preaggregation"
 	"github.com/redis/go-redis/v9"
@@ -29,12 +29,12 @@ import (
 )
 
 func provideOpsRepository(db *sql.DB) ops.OpsRepository { return opspostgres.NewOpsRepository(db) }
-func provideOpsService(repo ops.OpsRepository, settings *settings.Store, options *ops.Options, accounts *accountpostgres.AccountStore, users *identitypostgres.UserStore, c *scheduler.ConcurrencyService, sink *ops.OpsSystemLogSink, legacySettings *service.SettingService, worker *apikey.AuthCacheInvalidationWorker, keys *service.APIKeyService, pre *preaggregation.PreAggregationSettingsService) *ops.OpsService {
+func provideOpsService(repo ops.OpsRepository, settings *settings.Store, options *ops.Options, accounts *accountpostgres.AccountStore, users *identitypostgres.UserStore, c *scheduler.ConcurrencyService, sink *ops.OpsSystemLogSink, quota *account.QuotaSettingsCache, worker *apikey.AuthCacheInvalidationWorker, keys *apikey.APIKeyService, pre *preaggregation.PreAggregationSettingsService) *ops.OpsService {
 	s := ops.NewOpsService(repo, settings, options, opsAccounts{accounts}, opsUsers{users}, c, sink, provider.LogControl{})
 	s.SetPreAggregationSettings(pre)
-	s.SetOpenAIQuotaAutoPauseSettingsSink(legacySettings.SetOpenAIQuotaAutoPauseSettings)
-	legacySettings.WarmOpenAIQuotaAutoPauseSettings(context.Background())
-	s.SetAuthObservers(worker, keys.APIKeyService)
+	s.SetOpenAIQuotaAutoPauseSettingsSink(quota.SetOpenAIQuotaAutoPauseSettings)
+	quota.WarmOpenAIQuotaAutoPauseSettings(context.Background())
+	s.SetAuthObservers(worker, keys)
 	return s
 }
 func provideOpsCollector(repo ops.OpsRepository, settings *settings.Store, accounts *accountpostgres.AccountStore, c *scheduler.ConcurrencyService, db *sql.DB, r *redis.Client, options *ops.Options) *ops.OpsMetricsCollector {
@@ -63,13 +63,13 @@ func provideOpsIngress(repo ops.OpsRepository, s *ops.OpsService) *ops.OpsIngres
 	s.SetIngressRejectAggregator(a)
 	return a
 }
-func provideReleaseClient(cfg *config.Config) service.GitHubReleaseClient {
+func provideReleaseClient(cfg *config.Config) provider.ReleaseClient {
 	return provider.NewReleaseClient(provider.ReleaseOptions{ProxyURL: cfg.Update.ProxyURL, AllowDirectOnProxyError: cfg.Security.ProxyFallback.AllowDirectOnError, GitHubToken: os.Getenv("UPDATE_GITHUB_TOKEN")})
 }
-func provideReleaseQuery(cache ops.UpdateCache, client service.GitHubReleaseClient, info BuildInfo) *ops.ReleaseQuery {
+func provideReleaseQuery(cache ops.UpdateCache, client provider.ReleaseClient, info BuildInfo) *ops.ReleaseQuery {
 	return ops.NewReleaseQuery(cache, client, info.Version, info.BuildType)
 }
-func provideUpdateMaintenance(query *ops.ReleaseQuery, client service.GitHubReleaseClient) *service.UpdateService {
+func provideUpdateMaintenance(query *ops.ReleaseQuery, client provider.ReleaseClient) *maintenance.UpdateService {
 	return maintenance.NewUpdateService(query, provider.NewBinaryInstaller(client, nil))
 }
 func provideOpsOptions(cfg *config.Config) *ops.Options {

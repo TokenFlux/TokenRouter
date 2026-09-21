@@ -51,7 +51,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/userdisabledpublicgroup"
 	"github.com/TokenFlux/TokenRouter/ent/userplatformquota"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -660,7 +663,7 @@ func init() {
 	// batchimagejobDescSubscriptionHoldAllocations is the schema descriptor for subscription_hold_allocations field.
 	batchimagejobDescSubscriptionHoldAllocations := batchimagejobFields[25].Descriptor()
 	// batchimagejob.DefaultSubscriptionHoldAllocations holds the default value on creation for the subscription_hold_allocations field.
-	batchimagejob.DefaultSubscriptionHoldAllocations = batchimagejobDescSubscriptionHoldAllocations.Default.(func() []domain.BillingAllocation)
+	batchimagejob.DefaultSubscriptionHoldAllocations = batchimagejobDescSubscriptionHoldAllocations.Default.(func() []billing.BillingAllocation)
 	// batchimagejobDescSubscriptionRateMultiplier is the schema descriptor for subscription_rate_multiplier field.
 	batchimagejobDescSubscriptionRateMultiplier := batchimagejobFields[26].Descriptor()
 	// batchimagejob.DefaultSubscriptionRateMultiplier holds the default value on creation for the subscription_rate_multiplier field.
@@ -809,7 +812,7 @@ func init() {
 	// creativerunDescSubscriptionHoldAllocations is the schema descriptor for subscription_hold_allocations field.
 	creativerunDescSubscriptionHoldAllocations := creativerunFields[21].Descriptor()
 	// creativerun.DefaultSubscriptionHoldAllocations holds the default value on creation for the subscription_hold_allocations field.
-	creativerun.DefaultSubscriptionHoldAllocations = creativerunDescSubscriptionHoldAllocations.Default.(func() []domain.BillingAllocation)
+	creativerun.DefaultSubscriptionHoldAllocations = creativerunDescSubscriptionHoldAllocations.Default.(func() []billing.BillingAllocation)
 	// creativerunDescBaseUnitPrice is the schema descriptor for base_unit_price field.
 	creativerunDescBaseUnitPrice := creativerunFields[22].Descriptor()
 	// creativerun.DefaultBaseUnitPrice holds the default value on creation for the base_unit_price field.
@@ -1086,7 +1089,7 @@ func init() {
 	// groupDescAdvancedSchedulerOverrides is the schema descriptor for advanced_scheduler_overrides field.
 	groupDescAdvancedSchedulerOverrides := groupFields[13].Descriptor()
 	// group.DefaultAdvancedSchedulerOverrides holds the default value on creation for the advanced_scheduler_overrides field.
-	group.DefaultAdvancedSchedulerOverrides = groupDescAdvancedSchedulerOverrides.Default.(domain.GroupAdvancedSchedulerOverrides)
+	group.DefaultAdvancedSchedulerOverrides = groupDescAdvancedSchedulerOverrides.Default.(policy.GroupAdvancedSchedulerOverrides)
 	// groupDescDisplayBrand is the schema descriptor for display_brand field.
 	groupDescDisplayBrand := groupFields[14].Descriptor()
 	// group.DefaultDisplayBrand holds the default value on creation for the display_brand field.
@@ -1156,11 +1159,11 @@ func init() {
 	// groupDescAllowedProtocols is the schema descriptor for allowed_protocols field.
 	groupDescAllowedProtocols := groupFields[36].Descriptor()
 	// group.DefaultAllowedProtocols holds the default value on creation for the allowed_protocols field.
-	group.DefaultAllowedProtocols = groupDescAllowedProtocols.Default.([]domain.ProtocolID)
+	group.DefaultAllowedProtocols = groupDescAllowedProtocols.Default.([]protocol.ProtocolID)
 	// groupDescProtocolFallbacks is the schema descriptor for protocol_fallbacks field.
 	groupDescProtocolFallbacks := groupFields[37].Descriptor()
 	// group.DefaultProtocolFallbacks holds the default value on creation for the protocol_fallbacks field.
-	group.DefaultProtocolFallbacks = groupDescProtocolFallbacks.Default.(map[domain.ProtocolID]domain.ProtocolID)
+	group.DefaultProtocolFallbacks = groupDescProtocolFallbacks.Default.(map[protocol.ProtocolID]protocol.ProtocolID)
 	// groupDescResponsesImagePolicy is the schema descriptor for responses_image_policy field.
 	groupDescResponsesImagePolicy := groupFields[38].Descriptor()
 	// group.DefaultResponsesImagePolicy holds the default value on creation for the responses_image_policy field.
@@ -1198,15 +1201,15 @@ func init() {
 	// groupDescMessagesDispatchModelConfig is the schema descriptor for messages_dispatch_model_config field.
 	groupDescMessagesDispatchModelConfig := groupFields[46].Descriptor()
 	// group.DefaultMessagesDispatchModelConfig holds the default value on creation for the messages_dispatch_model_config field.
-	group.DefaultMessagesDispatchModelConfig = groupDescMessagesDispatchModelConfig.Default.(domain.OpenAIMessagesDispatchModelConfig)
+	group.DefaultMessagesDispatchModelConfig = groupDescMessagesDispatchModelConfig.Default.(accessview.OpenAIMessagesDispatchModelConfig)
 	// groupDescModelsListConfig is the schema descriptor for models_list_config field.
 	groupDescModelsListConfig := groupFields[47].Descriptor()
 	// group.DefaultModelsListConfig holds the default value on creation for the models_list_config field.
-	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(domain.GroupModelsListConfig)
+	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(accessview.GroupModelsListConfig)
 	// groupDescAvailabilityProbeConfig is the schema descriptor for availability_probe_config field.
 	groupDescAvailabilityProbeConfig := groupFields[48].Descriptor()
 	// group.DefaultAvailabilityProbeConfig holds the default value on creation for the availability_probe_config field.
-	group.DefaultAvailabilityProbeConfig = groupDescAvailabilityProbeConfig.Default.(domain.GroupAvailabilityProbeConfig)
+	group.DefaultAvailabilityProbeConfig = groupDescAvailabilityProbeConfig.Default.(accessview.GroupAvailabilityProbeConfig)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
 	groupDescRpmLimit := groupFields[49].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
@@ -1226,7 +1229,7 @@ func init() {
 	// groupDescReasoningEffortMappings is the schema descriptor for reasoning_effort_mappings field.
 	groupDescReasoningEffortMappings := groupFields[52].Descriptor()
 	// group.DefaultReasoningEffortMappings holds the default value on creation for the reasoning_effort_mappings field.
-	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]domain.ReasoningEffortMapping)
+	group.DefaultReasoningEffortMappings = groupDescReasoningEffortMappings.Default.([]accessview.ReasoningEffortMapping)
 	// groupDescSessionIsolationEnabled is the schema descriptor for session_isolation_enabled field.
 	groupDescSessionIsolationEnabled := groupFields[53].Descriptor()
 	// group.DefaultSessionIsolationEnabled holds the default value on creation for the session_isolation_enabled field.

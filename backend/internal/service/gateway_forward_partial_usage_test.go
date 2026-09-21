@@ -10,7 +10,12 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -58,7 +63,7 @@ func newForwardPartialUsageServiceForTest(upstream *anthropicHTTPUpstreamRecorde
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     &RateLimitService{},
-		deferredService:      &DeferredService{},
+		deferredService:      &accountcore.DeferredService{},
 	}
 }
 
@@ -66,26 +71,26 @@ func newAnthropicOAuthAccountForPartialUsageTest() *Account {
 	return &Account{
 		ID:          501,
 		Name:        "anthropic-oauth-partial-usage",
-		Platform:    PlatformAnthropic,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformAnthropic,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "oauth-token",
 		},
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 	}
 }
 
 func TestGatewayService_Forward_StreamMissingTerminalPreservesPartialUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	c.Request.Header.Set("anthropic-beta", claude.BetaFastMode)
 
 	body := []byte(`{"model":"claude-3-5-sonnet-latest","stream":true,"speed":"fast","messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`)
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
 
 	// newapi 类聚合上游可能已在 start/delta 事件中下发 usage，却在 stop 前直接断流。
@@ -111,7 +116,7 @@ func TestGatewayService_Forward_StreamMissingTerminalPreservesPartialUsage(t *te
 	}}
 	svc := newForwardPartialUsageServiceForTest(upstream)
 
-	ctx := SetClaudeCodeClient(context.Background(), true)
+	ctx := requeststate.SetClaudeCodeClient(context.Background(), true)
 	result, err := svc.Forward(ctx, c, newAnthropicOAuthAccountForPartialUsageTest(), parsed)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing terminal event")
@@ -126,13 +131,13 @@ func TestGatewayService_Forward_StreamMissingTerminalPreservesPartialUsage(t *te
 }
 
 func TestGatewayService_Forward_StreamReadErrorAfterOutputPreservesPartialUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	body := []byte(`{"model":"claude-3-5-sonnet-latest","stream":true,"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`)
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
 	upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -153,13 +158,13 @@ func TestGatewayService_Forward_StreamReadErrorAfterOutputPreservesPartialUsage(
 }
 
 func TestGatewayService_Forward_StreamErrorWithoutUsageReturnsNilResult(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	body := []byte(`{"model":"claude-3-5-sonnet-latest","stream":true,"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`)
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
 	upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -175,13 +180,13 @@ func TestGatewayService_Forward_StreamErrorWithoutUsageReturnsNilResult(t *testi
 }
 
 func TestGatewayService_Forward_FailoverErrorKeepsNilResult(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	body := []byte(`{"model":"claude-3-5-sonnet-latest","stream":true,"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`)
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
 	upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -194,19 +199,19 @@ func TestGatewayService_Forward_FailoverErrorKeepsNilResult(t *testing.T) {
 
 	result, err := svc.Forward(context.Background(), c, newAnthropicOAuthAccountForPartialUsageTest(), parsed)
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Nil(t, result, "failover 错误必须保持结果为 nil，防止重试成功后双重计费")
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamMissingTerminalPreservesPartialUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	body := []byte(`{"model":"claude-3-7-sonnet-20250219","stream":true,"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`)
-	parsed := &ParsedRequest{Body: NewRequestBodyRef(body), Model: "claude-3-7-sonnet-20250219", Stream: true}
+	parsed := &requeststate.ParsedRequest{Body: requeststate.NewRequestBodyRef(body), Model: "claude-3-7-sonnet-20250219", Stream: true}
 	upstreamSSE := strings.Join([]string{
 		`data: {"type":"message_start","message":{"usage":{"input_tokens":9,"cache_read_input_tokens":2}}}`,
 		"",
@@ -236,12 +241,12 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamMissingTerminalP
 }
 
 func TestGatewayService_Forward_PreOutputSSEOverloadedErrorUsesSemantic529(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	body := []byte(`{"model":"claude-3-5-sonnet-latest","stream":true,"messages":[{"role":"user","content":"hello"}]}`)
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
 	const errorJSON = `{"type":"error","error":{"details":null,"type":"overloaded_error","message":"Overloaded"},"request_id":"req_01"}`
 	upstream := &anthropicHTTPUpstreamRecorder{resp: &http.Response{
@@ -256,7 +261,7 @@ func TestGatewayService_Forward_PreOutputSSEOverloadedErrorUsesSemantic529(t *te
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil, nil),
-		deferredService:      &DeferredService{},
+		deferredService:      &accountcore.DeferredService{},
 	}
 	account := newAnthropicOAuthAccountForPartialUsageTest()
 	account.Credentials["temp_unschedulable_enabled"] = true
@@ -266,7 +271,7 @@ func TestGatewayService_Forward_PreOutputSSEOverloadedErrorUsesSemantic529(t *te
 	result, err := svc.Forward(context.Background(), c, account, parsed)
 	require.Error(t, err)
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, 529, failoverErr.StatusCode)
 	require.JSONEq(t, errorJSON, string(failoverErr.ResponseBody))
@@ -276,12 +281,12 @@ func TestGatewayService_Forward_PreOutputSSEOverloadedErrorUsesSemantic529(t *te
 }
 
 func TestGatewayService_Forward_PostOutputSSEOverloadedErrorKeepsExistingStatus(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	body := []byte(`{"model":"claude-3-5-sonnet-latest","stream":true,"messages":[{"role":"user","content":"hello"}]}`)
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), PlatformAnthropic)
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
 	const errorJSON = `{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`
 	fixture := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":1}}}\n\n" + "event: error\ndata: " + errorJSON + "\n\n"
@@ -297,12 +302,12 @@ func TestGatewayService_Forward_PostOutputSSEOverloadedErrorKeepsExistingStatus(
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil, nil),
-		deferredService:      &DeferredService{},
+		deferredService:      &accountcore.DeferredService{},
 	}
 	result, err := svc.Forward(context.Background(), c, newAnthropicOAuthAccountForPartialUsageTest(), parsed)
 	require.Error(t, err)
 	require.Nil(t, result)
-	var sseErr *sseStreamErrorEventError
+	var sseErr *claude.StreamErrorEventError
 	require.ErrorAs(t, err, &sseErr)
 	require.JSONEq(t, errorJSON, sseErr.RawData)
 	require.Contains(t, rec.Body.String(), "message_start")

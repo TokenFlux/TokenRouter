@@ -5,10 +5,12 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	sort "sort"
 	time "time"
+
+	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 var MaxExpiresAt = time.Date(2099, 12, 31, 23, 59, 59, 0, time.UTC)
@@ -824,7 +826,7 @@ func (s *SubscriptionService) ListUserSubscriptions(ctx context.Context, userID 
 	if err != nil {
 		return nil, err
 	}
-	NormalizeExpiredWindows(subs)
+	normalizeExpiredWindows(subs, s.clock.calendar())
 	NormalizeSubscriptionStatus(subs)
 	return subs, nil
 }
@@ -834,7 +836,7 @@ func (s *SubscriptionService) ListActiveUserSubscriptions(ctx context.Context, u
 	if err != nil {
 		return nil, err
 	}
-	NormalizeExpiredWindows(subs)
+	normalizeExpiredWindows(subs, s.clock.calendar())
 	NormalizeSubscriptionStatus(subs)
 	return subs, nil
 }
@@ -844,7 +846,7 @@ func (s *SubscriptionService) ListSubscriptionsBySourceOrderID(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	NormalizeExpiredWindows(subs)
+	normalizeExpiredWindows(subs, s.clock.calendar())
 	NormalizeSubscriptionStatus(subs)
 	return subs, nil
 }
@@ -855,7 +857,7 @@ func (s *SubscriptionService) ListPlanSubscriptions(ctx context.Context, planID 
 	if err != nil {
 		return nil, nil, err
 	}
-	NormalizeExpiredWindows(subs)
+	normalizeExpiredWindows(subs, s.clock.calendar())
 	NormalizeSubscriptionStatus(subs)
 	return subs, pag, nil
 }
@@ -866,15 +868,15 @@ func (s *SubscriptionService) List(ctx context.Context, page, pageSize int, user
 	if err != nil {
 		return nil, nil, err
 	}
-	NormalizeExpiredWindows(subs)
+	normalizeExpiredWindows(subs, s.clock.calendar())
 	NormalizeSubscriptionStatus(subs)
 	return subs, pag, nil
 }
 
-func NormalizeExpiredWindows(subs []UserSubscription) {
+func normalizeExpiredWindows(subs []UserSubscription, calendar timezone.Calendar) {
 	for i := range subs {
 		sub := &subs[i]
-		if sub.NeedsDailyReset() {
+		if sub.NeedsDailyReset(calendar) {
 			sub.DailyWindowStart = nil
 			sub.DailyUsageUSD = 0
 		}
@@ -1011,7 +1013,7 @@ func (s *SubscriptionService) ValidateAndCheckLimits(sub *UserSubscription) (nee
 	case SubscriptionStatusRevoked:
 		return false, ErrSubscriptionNotFound
 	}
-	if sub.NeedsDailyReset() {
+	if sub.NeedsDailyReset(s.clock.calendar()) {
 		sub.DailyUsageUSD = 0
 		needsMaintenance = true
 	}
@@ -1089,7 +1091,7 @@ func (s *SubscriptionService) CalculateProgress(sub *UserSubscription) *Subscrip
 	if sub.Plan != nil {
 		progress.PlanName = sub.Plan.Name
 	}
-	if limit, ok := NormalizedWindowProgress(sub.DailyLimitUSD, sub.DailyUsageUSD, sub.DailyResetTime(), sub.DailyWindowStart, SubscriptionDailyWindow); ok {
+	if limit, ok := NormalizedWindowProgress(sub.DailyLimitUSD, sub.DailyUsageUSD, sub.DailyResetTime(s.clock.calendar()), sub.DailyWindowStart, SubscriptionDailyWindow); ok {
 		progress.Daily = limit
 	}
 	if limit, ok := NormalizedWindowProgress(sub.WeeklyLimitUSD, sub.WeeklyUsageUSD, sub.WeeklyResetTime(), sub.WeeklyWindowStart, SubscriptionWeeklyWindow); ok {

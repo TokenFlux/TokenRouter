@@ -14,7 +14,9 @@ import (
 	"context"
 	"net/http"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +30,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (*forwardcore.OpenAIResult, error) {
 	adapter := &openAINativeAnthropicAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account}, kind: forward.NativeMessages}
 	result, err := forward.ForwardNativeMessages(ctx, body, defaultMappedModel, adapter)
 	return openAIForwardResultFromHTTP(result), err
@@ -46,11 +48,9 @@ func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(ctx context.C
 		headers = c.Request.Header
 	}
 	return forward.BuildNativeAnthropicRequest(ctx, body, apiKey, targetURL, forward.NativeAnthropicRequestOptions{
-		Headers: headers, GetHeader: getHeaderRaw, OverrideValue: account.HeaderOverrideValue,
-		Sanitize: sanitizeAnthropicBodyForBetaTokens, AllowedHeader: func(key string) bool { return allowedHeaders[key] },
-		WireCasing: resolveWireCasing, AddHeader: addHeaderRaw, SetHeader: setHeaderRaw,
+		Headers: headers, GetHeader: anthropic.GetHeaderRaw, OverrideValue: account.HeaderOverrideValue,
+		Sanitize: anthropic.SanitizeAnthropicBodyForBetaTokens, AllowedHeader: func(key string) bool { return allowedHeaders[key] },
+		WireCasing: anthropic.ResolveWireCasing, AddHeader: anthropic.AddHeaderRaw, SetHeader: anthropic.SetHeaderRaw,
 		AuthHeader: func(h http.Header, key string) { setAnthropicAPIKeyAuthHeader(h, account, key) }, ApplyOverrides: account.ApplyHeaderOverrides,
 	})
 }
-
-func claudeUsageToOpenAIUsage(u *ClaudeUsage) OpenAIUsage { return forward.AnthropicUsageToOpenAI(u) }

@@ -46,7 +46,7 @@ func TestProvideHTTPServerEnablesBoundedH2C(t *testing.T) {
 }
 
 func TestConfigureTrustedProxies(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		name string
 		cfg  Options

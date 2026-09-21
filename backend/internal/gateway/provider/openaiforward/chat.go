@@ -7,17 +7,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
+	"go.uber.org/zap"
 )
 
 // CursorResponsesUnsupportedFields 保留原 Responses 形状的专属过滤字段。
@@ -205,7 +206,7 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 			return nil, fmt.Errorf("unmarshal for codex transform: %w", err)
 		}
 		isJSONObjectFormat := strings.EqualFold(strings.TrimSpace(gjson.GetBytes(responsesBody, "text.format.type").String()), "json_object")
-		codexResult := p.CodexTransform(reqBody, native.CodexOAuthTransformOptions{
+		codexResult := p.CodexTransform(reqBody, openai.CodexOAuthTransformOptions{
 			SkipDefaultInstructions:             !isResponsesShape,
 			OmitPromotedSystemMessagesFromInput: !isResponsesShape && !isJSONObjectFormat,
 		})
@@ -318,13 +319,13 @@ func RunChat(ctx context.Context, body []byte, promptCacheKey, defaultMappedMode
 	// 9. Handle normal response
 	var result *Result
 	var handleErr error
-	var nativeResult *native.CompatResponseResult
+	var nativeResult *openai.CompatResponseResult
 	output := upstream.NewDeferredOutputContext(p.Sink())
 	options := p.ChatResponseOptions(resp, originalModel, billingModel, upstreamModel)
 	if clientStream {
-		nativeResult, handleErr = native.ReadChatStreaming(resp, output, options, originalModel, upstreamModel, startTime, len(body))
+		nativeResult, handleErr = openai.ReadChatStreaming(resp, output, options, originalModel, upstreamModel, startTime, len(body))
 	} else {
-		nativeResult, handleErr = native.ReadChatBuffered(resp, output, options, originalModel, upstreamModel, startTime)
+		nativeResult, handleErr = openai.ReadChatBuffered(resp, output, options, originalModel, upstreamModel, startTime)
 	}
 	result = FromCompatResult(nativeResult, billingModel)
 	if p.CyberPolicy() {

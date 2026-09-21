@@ -3,26 +3,32 @@
 package app
 
 import (
+	accountauth "github.com/TokenFlux/TokenRouter/internal/account"
+	provider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
 	"context"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 )
 
 type authRuntimeReady struct{}
 
 func provideAuthRuntime(
-	apiKeyService *service.APIKeyService,
-	errorPassthrough *service.ErrorPassthroughService,
-	oauth *service.OAuthService,
-	openaiOAuth *service.OpenAIOAuthService,
-	geminiOAuth *service.GeminiOAuthService,
-	antigravityOAuth *service.AntigravityOAuthService,
-	qoderOAuth *service.QoderOAuthService,
-	qoderTokens *service.QoderTokenProvider,
-	grokOAuth *service.GrokOAuthService,
-	tlsFingerprintProfile *service.TLSFingerprintProfileService,
-	tlsFingerprintRouter *service.TLSFingerprintRouterService,
+	apiKeyService *apikey.APIKeyService,
+	errorPassthrough *errorpolicy.ErrorPassthroughService,
+	oauth *accountauth.ClaudeAuthorization,
+	openaiOAuth *accountauth.OpenAIAuthorization,
+	geminiOAuth *accountauth.GeminiAuthorization,
+	antigravityOAuth *accountauth.AntigravityAuthorization,
+	qoderOAuth *provider.QoderAuthorization,
+	qoderTokens *provider.QoderTokenProvider,
+
+	grokOAuth *accountauth.GrokAuthorization,
+	tlsFingerprintProfile *egress.TLSFingerprintProfileService,
+	tlsFingerprintRouter *egress.TLSFingerprintRouterService,
 	manager *lifecycle.Manager,
 ) *authRuntimeReady {
 	manager.Register(lifecycle.Hook{Name: "APIKeyService", StartOrder: 195, StopOrder: 805, Start: func(ctx context.Context) error {
@@ -85,12 +91,12 @@ func provideAuthRuntime(
 	manager.Register(lifecycle.Hook{Name: "QoderCredentialSessions", StopOrder: 30, Stop: qoderTokens.StopContext})
 	manager.Register(lifecycle.Hook{Name: "QoderOAuthService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
 		if qoderOAuth != nil {
-			qoderOAuth.Start()
+			qoderOAuth.Core.Start()
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if qoderOAuth != nil {
-			return qoderOAuth.StopContext(ctx)
+			return qoderOAuth.Core.StopContext(ctx)
 		}
 		return nil
 	}})

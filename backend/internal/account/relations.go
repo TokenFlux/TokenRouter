@@ -1,8 +1,9 @@
 package account
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 // GroupMembership 只表达账号与分组的原关联，不引入分组业务或调度优先级。

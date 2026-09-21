@@ -3,9 +3,10 @@ package account
 
 import (
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strconv "strconv"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // bulkOpenAISettings 描述批量 OpenAI API Key 配置中需要统一校验的字段。

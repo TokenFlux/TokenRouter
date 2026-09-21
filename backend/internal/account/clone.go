@@ -2,11 +2,12 @@ package account
 
 import (
 	"encoding/json"
-	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	"maps"
 	"reflect"
 	"slices"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 )
 
 // CloneValues 保留 JSON 值的实际数值类型、nil 与空集合，并隔离可变容器。

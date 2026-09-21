@@ -4,27 +4,29 @@ package service
 import (
 	"fmt"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // shouldRepairOpenAIResponsesNullToolSchemaType reports whether the upstream
 // path requires a concrete object type at a function tool's parameter root.
 // This defect is shared by the OpenAI, Anthropic, Grok, and CN-compatible paths.
 func shouldRepairOpenAIResponsesNullToolSchemaType(platform string) bool {
-	return platform == PlatformOpenAI || platform == PlatformAnthropic || platform == PlatformGrok || IsCNProvider(platform)
+	return platform == capability.PlatformOpenAI || platform == capability.PlatformAnthropic || platform == capability.PlatformGrok || account.IsCNProvider(platform)
 }
 
 // shouldSanitizeOpenAIResponsesToolSchemaPatterns is intentionally narrower:
 // regex lookaround rejection is an OpenAI-specific schema constraint.
 func shouldSanitizeOpenAIResponsesToolSchemaPatterns(platform string) bool {
-	return platform == PlatformOpenAI
+	return platform == capability.PlatformOpenAI
 }
 
 func sanitizeOpenAIResponsesToolSchemasForPlatform(body []byte, platform string) ([]byte, bool, error) {
 	normalized := body
 	changed := false
 	if shouldRepairOpenAIResponsesNullToolSchemaType(platform) {
-		next, repaired, err := sanitizeOpenAIResponsesToolParameterTypes(normalized)
+		next, repaired, err := wire.SanitizeToolParameterTypes(normalized)
 		if err != nil {
 			return body, false, fmt.Errorf("sanitize OpenAI Responses tool parameters: %w", err)
 		}
@@ -34,7 +36,7 @@ func sanitizeOpenAIResponsesToolSchemasForPlatform(body []byte, platform string)
 		}
 	}
 	if shouldSanitizeOpenAIResponsesToolSchemaPatterns(platform) {
-		next, sanitized, err := sanitizeOpenAIResponsesToolSchemaPatterns(normalized)
+		next, sanitized, err := wire.SanitizeToolSchemaPatterns(normalized)
 		if err != nil {
 			return body, false, fmt.Errorf("sanitize OpenAI Responses tool schema patterns: %w", err)
 		}
@@ -44,11 +46,4 @@ func sanitizeOpenAIResponsesToolSchemasForPlatform(body []byte, platform string)
 		}
 	}
 	return normalized, changed, nil
-}
-func sanitizeOpenAIResponsesToolSchemaPatterns(body []byte) ([]byte, bool, error) {
-	return wire.SanitizeToolSchemaPatterns(body)
-}
-
-func sanitizeOpenAIResponsesToolParameterTypes(body []byte) ([]byte, bool, error) {
-	return wire.SanitizeToolParameterTypes(body)
 }

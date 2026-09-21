@@ -5,9 +5,10 @@ package account
 
 import (
 	context "context"
-	require "github.com/stretchr/testify/require"
 	testing "testing"
 	time "time"
+
+	require "github.com/stretchr/testify/require"
 )
 
 func TestRefreshIfNeeded_LocalLockWaitHonorsContext(t *testing.T) {

@@ -5,13 +5,14 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	req "github.com/imroc/req/v3"
-	gjson "github.com/tidwall/gjson"
 	url "net/url"
 	strconv "strconv"
 	strings "strings"
 	time "time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	req "github.com/imroc/req/v3"
+	gjson "github.com/tidwall/gjson"
 )
 
 type LinuxDoTokenResponse = identity.LinuxDoTokenResponse

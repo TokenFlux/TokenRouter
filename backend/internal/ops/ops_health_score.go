@@ -154,23 +154,3 @@ func clampFloat64(v float64, min float64, max float64) float64 {
 	}
 	return v
 }
-
-// CompatComputeDashboardHealthScore 为旧入口提供过渡委托。
-func CompatComputeDashboardHealthScore(now time.Time, overview *OpsDashboardOverview) int {
-	return computeDashboardHealthScore(now, overview)
-}
-
-// CompatComputeBusinessHealth 为旧入口提供过渡委托。
-func CompatComputeBusinessHealth(overview *OpsDashboardOverview) float64 {
-	return computeBusinessHealth(overview)
-}
-
-// CompatComputeInfraHealth 为旧入口提供过渡委托。
-func CompatComputeInfraHealth(now time.Time, overview *OpsDashboardOverview) float64 {
-	return computeInfraHealth(now, overview)
-}
-
-// CompatClampFloat64 为旧入口提供过渡委托。
-func CompatClampFloat64(v float64, min float64, max float64) float64 {
-	return clampFloat64(v, min, max)
-}

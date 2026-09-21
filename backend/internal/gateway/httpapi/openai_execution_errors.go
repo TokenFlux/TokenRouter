@@ -3,12 +3,13 @@ package httpapi
 
 import (
 	"encoding/json"
-	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // WriteForwardAnthropicError 保留该转发入口既有的错误信封和提交语义。

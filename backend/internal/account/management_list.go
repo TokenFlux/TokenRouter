@@ -3,9 +3,10 @@ package account
 
 import (
 	context "context"
-	errgroup "golang.org/x/sync/errgroup"
 	sync "sync"
 	time "time"
+
+	errgroup "golang.org/x/sync/errgroup"
 )
 
 // ManagementListReader 保留原分页与服务端排序入口。

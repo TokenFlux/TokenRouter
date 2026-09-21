@@ -8,7 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,42 +29,42 @@ func TestUserRepository_RemoveGroupFromAllowedGroups_RemovesAllOccurrences(t *te
 
 	targetGroup, err := entClient.Group.Create().
 		SetName(uniqueTestValue(t, "target-group")).
-		SetStatus(service.StatusActive).
+		SetStatus(billing.StatusActive).
 		Save(ctx)
 	require.NoError(t, err)
 	otherGroup, err := entClient.Group.Create().
 		SetName(uniqueTestValue(t, "other-group")).
-		SetStatus(service.StatusActive).
+		SetStatus(billing.StatusActive).
 		Save(ctx)
 	require.NoError(t, err)
 
-	repo := newUserRepositoryWithSQL(entClient, tx)
+	repo := postgres.NewUserStoreWithSQL(entClient, tx)
 
-	u1 := &service.User{
+	u1 := &identity.User{
 		Email:         uniqueTestValue(t, "u1") + "@example.com",
 		PasswordHash:  "test-password-hash",
-		Role:          service.RoleUser,
-		Status:        service.StatusActive,
+		Role:          identity.RoleUser,
+		Status:        billing.StatusActive,
 		Concurrency:   5,
 		AllowedGroups: []int64{targetGroup.ID, otherGroup.ID},
 	}
 	require.NoError(t, repo.Create(ctx, u1))
 
-	u2 := &service.User{
+	u2 := &identity.User{
 		Email:         uniqueTestValue(t, "u2") + "@example.com",
 		PasswordHash:  "test-password-hash",
-		Role:          service.RoleUser,
-		Status:        service.StatusActive,
+		Role:          identity.RoleUser,
+		Status:        billing.StatusActive,
 		Concurrency:   5,
 		AllowedGroups: []int64{targetGroup.ID},
 	}
 	require.NoError(t, repo.Create(ctx, u2))
 
-	u3 := &service.User{
+	u3 := &identity.User{
 		Email:         uniqueTestValue(t, "u3") + "@example.com",
 		PasswordHash:  "test-password-hash",
-		Role:          service.RoleUser,
-		Status:        service.StatusActive,
+		Role:          identity.RoleUser,
+		Status:        billing.StatusActive,
 		Concurrency:   5,
 		AllowedGroups: []int64{otherGroup.ID},
 	}
@@ -87,35 +91,35 @@ func TestGroupRepository_DeleteCascade_PreservesApiKeyGroupID(t *testing.T) {
 
 	targetGroup, err := entClient.Group.Create().
 		SetName(uniqueTestValue(t, "delete-cascade-target")).
-		SetStatus(service.StatusActive).
+		SetStatus(billing.StatusActive).
 		Save(ctx)
 	require.NoError(t, err)
 	otherGroup, err := entClient.Group.Create().
 		SetName(uniqueTestValue(t, "delete-cascade-other")).
-		SetStatus(service.StatusActive).
+		SetStatus(billing.StatusActive).
 		Save(ctx)
 	require.NoError(t, err)
 
-	userRepo := newUserRepositoryWithSQL(entClient, tx)
-	groupRepo := newGroupRepositoryWithSQL(entClient, tx)
-	apiKeyRepo := newAPIKeyRepositoryWithSQL(entClient, tx)
+	userRepo := postgres.NewUserStoreWithSQL(entClient, tx)
+	groupRepo := newGroupStoreFixture(entClient, tx)
+	apiKeyRepo := newKeyStoreFixture(entClient, tx)
 
-	u := &service.User{
+	u := &identity.User{
 		Email:         uniqueTestValue(t, "cascade-user") + "@example.com",
 		PasswordHash:  "test-password-hash",
-		Role:          service.RoleUser,
-		Status:        service.StatusActive,
+		Role:          identity.RoleUser,
+		Status:        billing.StatusActive,
 		Concurrency:   5,
 		AllowedGroups: []int64{targetGroup.ID, otherGroup.ID},
 	}
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID:  u.ID,
 		Key:     uniqueTestValue(t, "sk-test-delete-cascade"),
 		Name:    "test key",
 		GroupID: &targetGroup.ID,
-		Status:  service.StatusActive,
+		Status:  billing.StatusActive,
 	}
 	require.NoError(t, apiKeyRepo.Create(ctx, key))
 
@@ -124,7 +128,7 @@ func TestGroupRepository_DeleteCascade_PreservesApiKeyGroupID(t *testing.T) {
 
 	// 默认查询应隐藏已删除分组，保持软删除语义。
 	_, err = groupRepo.GetByID(ctx, targetGroup.ID)
-	require.ErrorIs(t, err, service.ErrGroupNotFound)
+	require.ErrorIs(t, err, routing.ErrGroupNotFound)
 
 	activeGroups, err := groupRepo.ListActive(ctx)
 	require.NoError(t, err)

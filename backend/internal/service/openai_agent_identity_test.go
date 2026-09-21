@@ -16,6 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/nacl/box"
@@ -114,8 +118,8 @@ func TestRegisterAgentIdentityTaskAcceptsPlaintextAndEncryptedResponses(t *testi
 	openAIAgentIdentityAuthAPIBaseURL = server.URL
 	t.Cleanup(func() { openAIAgentIdentityAuthAPIBaseURL = oldBase })
 
-	account := &Account{ID: 1, Type: AccountTypeOAuth, Platform: PlatformOpenAI, Credentials: map[string]any{
-		"auth_mode":         OpenAIAuthModeAgentIdentity,
+	account := &Account{ID: 1, Type: capability.AccountTypeOAuth, Platform: capability.PlatformOpenAI, Credentials: map[string]any{
+		"auth_mode":         accountcore.OpenAIAuthModeAgentIdentity,
 		"agent_runtime_id":  key.runtimeID,
 		"agent_private_key": privateKey,
 	}}
@@ -138,8 +142,8 @@ func TestEnsureAgentIdentityTaskPersistsAndRedactsCredentials(t *testing.T) {
 	t.Cleanup(func() { openAIAgentIdentityAuthAPIBaseURL = oldBase })
 
 	repo := &agentIdentityCredentialsRepo{}
-	account := &Account{ID: 7, Type: AccountTypeOAuth, Platform: PlatformOpenAI, Credentials: map[string]any{
-		"auth_mode":          OpenAIAuthModeAgentIdentity,
+	account := &Account{ID: 7, Type: capability.AccountTypeOAuth, Platform: capability.PlatformOpenAI, Credentials: map[string]any{
+		"auth_mode":          accountcore.OpenAIAuthModeAgentIdentity,
 		"agent_runtime_id":   key.runtimeID,
 		"agent_private_key":  privateKey,
 		"chatgpt_account_id": "account-test",
@@ -148,10 +152,10 @@ func TestEnsureAgentIdentityTaskPersistsAndRedactsCredentials(t *testing.T) {
 	require.NoError(t, service.ensureAgentIdentityTask(context.Background(), account, ""))
 	require.Equal(t, "task-persisted", account.GetCredential("task_id"))
 	require.Equal(t, "task-persisted", repo.credentials["task_id"])
-	require.True(t, IsSensitiveCredentialKey("agent_private_key"))
+	require.True(t, accountcore.IsSensitiveCredentialKey("agent_private_key"))
 	redacted := make(map[string]any)
 	for key, value := range account.Credentials {
-		if !IsSensitiveCredentialKey(key) {
+		if !accountcore.IsSensitiveCredentialKey(key) {
 			redacted[key] = value
 		}
 	}
@@ -160,8 +164,8 @@ func TestEnsureAgentIdentityTaskPersistsAndRedactsCredentials(t *testing.T) {
 
 func TestEnsureAgentIdentityTaskSharesLockAcrossServicesForSameAccount(t *testing.T) {
 	key, privateKey := newTestAgentIdentityKey(t)
-	account := &Account{ID: 9001, Type: AccountTypeOAuth, Platform: PlatformOpenAI, Credentials: map[string]any{
-		"auth_mode":         OpenAIAuthModeAgentIdentity,
+	account := &Account{ID: 9001, Type: capability.AccountTypeOAuth, Platform: capability.PlatformOpenAI, Credentials: map[string]any{
+		"auth_mode":         accountcore.OpenAIAuthModeAgentIdentity,
 		"agent_runtime_id":  key.runtimeID,
 		"agent_private_key": privateKey,
 	}}
@@ -199,7 +203,7 @@ func TestEnsureAgentIdentityTaskSharesLockAcrossServicesForSameAccount(t *testin
 
 func cloneAgentIdentityTestAccount(account *Account) *Account {
 	copy := *account
-	copy.Credentials = shallowCopyMap(account.Credentials)
+	copy.Credentials = querycache.ShallowMap(account.Credentials)
 	return &copy
 }
 

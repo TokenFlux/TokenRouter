@@ -17,6 +17,20 @@ type requestMetadataKey struct{}
 func WithRequestMetadata(ctx context.Context, value RequestMetadata) context.Context {
 	return context.WithValue(ctx, requestMetadataKey{}, value)
 }
+
+// WithForcePlatform 从已有投影派生新值，保留显式空平台与尚未设置的区别。
+func WithForcePlatform(ctx context.Context, platform string) context.Context {
+	value := RequestMetadataFromContext(ctx)
+	value.ForcePlatform, value.ForcePlatformSet = platform, true
+	return WithRequestMetadata(ctx, value)
+}
+
+// WithInboundEndpoint 只记录已规范化入口，不读取请求体或重新执行鉴权。
+func WithInboundEndpoint(ctx context.Context, endpoint string) context.Context {
+	value := RequestMetadataFromContext(ctx)
+	value.InboundEndpoint, value.InboundEndpointSet = endpoint, true
+	return WithRequestMetadata(ctx, value)
+}
 func RequestMetadataFromContext(ctx context.Context) RequestMetadata {
 	if ctx == nil {
 		return RequestMetadata{}

@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -33,28 +36,28 @@ func stripKeepaliveComments(body string) string {
 func TestStartOpenAICompactSSEKeepalive_NoopWhenUnmarkedOrDisabled(t *testing.T) {
 	// 未标记 client stream：不启动。
 	c, rec := newCompactBridgeTestContext(t, false)
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	waitForKeepaliveBeats()
 	stop()
 	require.Zero(t, rec.Body.Len())
-	require.False(t, StopOpenAICompactSSEKeepaliveCommitted(c))
+	require.False(t, httpapi.StopOpenAICompactSSEKeepaliveCommitted(c))
 
 	// interval=0（配置禁用）：不启动。
 	c, rec = newCompactBridgeTestContext(t, true)
-	stop = StartOpenAICompactSSEKeepalive(c, 0)
+	stop = httpapi.StartOpenAICompactSSEKeepalive(c, 0)
 	waitForKeepaliveBeats()
 	stop()
 	require.Zero(t, rec.Body.Len())
-	require.False(t, StopOpenAICompactSSEKeepaliveCommitted(c))
+	require.False(t, httpapi.StopOpenAICompactSSEKeepaliveCommitted(c))
 }
 
 func TestOpenAICompactSSEKeepalive_CommitsHeadersAndComments(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
 	waitForKeepaliveBeats()
 
-	require.True(t, StopOpenAICompactSSEKeepaliveCommitted(c))
+	require.True(t, httpapi.StopOpenAICompactSSEKeepaliveCommitted(c))
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "text/event-stream", rec.Header().Get("Content-Type"))
 	require.Equal(t, "no", rec.Header().Get("X-Accel-Buffering"))
@@ -63,11 +66,11 @@ func TestOpenAICompactSSEKeepalive_CommitsHeadersAndComments(t *testing.T) {
 
 func TestOpenAICompactSSEKeepalive_StopBeforeFirstBeatKeepsWriterUntouched(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, time.Hour)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, time.Hour)
 	stop()
 	waitForKeepaliveBeats()
 	require.Zero(t, rec.Body.Len())
-	require.False(t, StopOpenAICompactSSEKeepaliveCommitted(c))
+	require.False(t, httpapi.StopOpenAICompactSSEKeepaliveCommitted(c))
 }
 
 func TestOpenAIAdjustedWrittenSizeExcludesResponsesStreamKeepalive(t *testing.T) {
@@ -76,23 +79,23 @@ func TestOpenAIAdjustedWrittenSizeExcludesResponsesStreamKeepalive(t *testing.T)
 	require.NoError(t, err)
 	recordOpenAIStreamKeepaliveBytes(c, n)
 
-	require.Equal(t, -1, OpenAICompactKeepaliveAdjustedWrittenSize(c))
+	require.Equal(t, -1, httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c))
 
 	_, err = c.Writer.Write([]byte("data: semantic\n\n"))
 	require.NoError(t, err)
-	require.Equal(t, len("data: semantic\n\n"), OpenAICompactKeepaliveAdjustedWrittenSize(c))
+	require.Equal(t, len("data: semantic\n\n"), httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c))
 	require.Equal(t, ":\n\ndata: semantic\n\n", rec.Body.String())
 }
 
 // 心跳已提交后，2xx 桥接续写事件而不重复提交响应头。
 func TestWriteOpenAICompactSSEBridge_AfterKeepaliveCommitAppendsEvents(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
 	waitForKeepaliveBeats()
 
 	finalResponse := []byte(`{"id":"resp_ka_1","output":[{"id":"cmp_ka","type":"compaction","encrypted_content":"x"}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`)
-	require.True(t, writeOpenAICompactSSEBridge(c, http.StatusOK, finalResponse))
+	require.True(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusOK, finalResponse, httpapi.MarkOpsStreamError))
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	events := parseCompactBridgeSSE(t, stripKeepaliveComments(rec.Body.String()))
@@ -107,11 +110,11 @@ func TestWriteOpenAICompactSSEBridge_AfterKeepaliveCommitAppendsEvents(t *testin
 // 收尾（Codex 将其作为终止事件处理），并标记流内错误供 ops 采集。
 func TestWriteOpenAICompactSSEBridge_AfterKeepaliveCommitFailureEmitsFailedEvent(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
 	waitForKeepaliveBeats()
 
-	require.True(t, writeOpenAICompactSSEBridge(c, http.StatusBadGateway, []byte(`{"error":{"message":"upstream exploded"}}`)))
+	require.True(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusBadGateway, []byte(`{"error":{"message":"upstream exploded"}}`), httpapi.MarkOpsStreamError))
 
 	events := parseCompactBridgeSSE(t, stripKeepaliveComments(rec.Body.String()))
 	require.Len(t, events, 1)
@@ -120,7 +123,7 @@ func TestWriteOpenAICompactSSEBridge_AfterKeepaliveCommitFailureEmitsFailedEvent
 	require.Contains(t, gjson.Get(events[0][1], "response.error.message").String(), "upstream exploded")
 	require.NotEmpty(t, gjson.Get(events[0][1], "response.id").String())
 
-	streamErr, ok := GetOpsStreamError(c)
+	streamErr, ok := httpapi.GetOpsStreamError(c)
 	require.True(t, ok)
 	require.Equal(t, http.StatusBadGateway, streamErr.IntendedStatus)
 }
@@ -128,10 +131,10 @@ func TestWriteOpenAICompactSSEBridge_AfterKeepaliveCommitFailureEmitsFailedEvent
 // 心跳未提交时非 2xx 行为不变：返回 false，调用方按原 JSON+状态码写回。
 func TestWriteOpenAICompactSSEBridge_BeforeKeepaliveCommitFailureKeepsJSONPath(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, time.Hour)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, time.Hour)
 	stop()
 
-	require.False(t, writeOpenAICompactSSEBridge(c, http.StatusBadGateway, []byte(`{"error":{"message":"fast fail"}}`)))
+	require.False(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusBadGateway, []byte(`{"error":{"message":"fast fail"}}`), httpapi.MarkOpsStreamError))
 	require.Zero(t, rec.Body.Len())
 }
 
@@ -140,7 +143,7 @@ func TestWriteOpenAICompactSSEBridge_BeforeKeepaliveCommitFailureKeepsJSONPath(t
 // 字节写出。
 func TestOpenAICompactKeepaliveWriter_RequestSideWriteSuspendsBeats(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
 	waitForKeepaliveBeats()
 
@@ -158,7 +161,7 @@ func TestOpenAICompactKeepaliveWriter_RequestSideWriteSuspendsBeats(t *testing.T
 // TestOpenAICompactKeepaliveWriter_DelegatesWhenReady 验证正常构造下的状态和写入委托。
 func TestOpenAICompactKeepaliveWriter_DelegatesWhenReady(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, time.Hour)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, time.Hour)
 	defer stop()
 
 	w, ok := c.Writer.(*openAICompactKeepaliveWriter)
@@ -180,11 +183,11 @@ func TestOpenAICompactKeepaliveWriter_DelegatesWhenReady(t *testing.T) {
 // fast policy block 在心跳提交后必须降级为 response.failed 终止事件。
 func TestWriteOpenAIFastPolicyBlockedResponse_AfterKeepaliveCommit(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
 	waitForKeepaliveBeats()
 
-	writeOpenAIFastPolicyBlockedResponse(c, &OpenAIFastBlockedError{Message: "tier blocked"})
+	writeOpenAIFastPolicyBlockedResponse(c, &tierpolicy.BlockedError{Message: "tier blocked"})
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	events := parseCompactBridgeSSE(t, stripKeepaliveComments(rec.Body.String()))
@@ -200,24 +203,24 @@ func TestWriteOpenAIFastPolicyBlockedResponse_AfterKeepaliveCommit(t *testing.T)
 func TestOpenAICompactKeepaliveAdjustedWrittenSize_ExcludesHeartbeatBytes(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
 	// 无心跳的请求：等价于 c.Writer.Size()。
-	require.Equal(t, c.Writer.Size(), OpenAICompactKeepaliveAdjustedWrittenSize(c))
+	require.Equal(t, c.Writer.Size(), httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c))
 
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
-	before := OpenAICompactKeepaliveAdjustedWrittenSize(c)
+	before := httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 	waitForKeepaliveBeats()
-	require.Equal(t, before, OpenAICompactKeepaliveAdjustedWrittenSize(c), "仅心跳字节不得改变判定口径")
+	require.Equal(t, before, httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c), "仅心跳字节不得改变判定口径")
 
 	// 真实响应字节写出（经包装器，先停拍再写）后口径必须变化。
 	_, err := c.Writer.Write([]byte("real-bytes"))
 	require.NoError(t, err)
-	require.Equal(t, len("real-bytes"), OpenAICompactKeepaliveAdjustedWrittenSize(c))
+	require.Equal(t, len("real-bytes"), httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c))
 	require.Contains(t, rec.Body.String(), ": keepalive\n\n")
 }
 
 func TestOpenAIStreamClientOutputStarted_IgnoresCompactKeepaliveBytes(t *testing.T) {
 	c, _ := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, keepaliveTestInterval)
 	defer stop()
 	waitForKeepaliveBeats()
 
@@ -232,10 +235,10 @@ func TestOpenAIStreamClientOutputStarted_IgnoresCompactKeepaliveBytes(t *testing
 // fast policy block 在心跳未提交时保持 403 JSON 原语义。
 func TestWriteOpenAIFastPolicyBlockedResponse_BeforeKeepaliveCommit(t *testing.T) {
 	c, rec := newCompactBridgeTestContext(t, true)
-	stop := StartOpenAICompactSSEKeepalive(c, time.Hour)
+	stop := httpapi.StartOpenAICompactSSEKeepalive(c, time.Hour)
 	defer stop()
 
-	writeOpenAIFastPolicyBlockedResponse(c, &OpenAIFastBlockedError{Message: "tier blocked"})
+	writeOpenAIFastPolicyBlockedResponse(c, &tierpolicy.BlockedError{Message: "tier blocked"})
 
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	require.Equal(t, "permission_error", gjson.Get(rec.Body.String(), "error.type").String())

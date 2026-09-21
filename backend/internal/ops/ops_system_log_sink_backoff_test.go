@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	logger "github.com/TokenFlux/TokenRouter/internal/pkg/logevent"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logevent"
 )
 
-func opsSystemLogBackoffEvent() *logger.LogEvent {
-	return &logger.LogEvent{
+func opsSystemLogBackoffEvent() *logevent.LogEvent {
+	return &logevent.LogEvent{
 		Time:      time.Now().UTC(),
 		Level:     "warn",
 		Component: "app",

@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,7 @@ const partialMessageStartSSE = "event: message_start\ndata: {\"type\":\"message_
 //  2. handleFailoverExhausted 以 streamStarted=true 调用后，响应体以 SSE 错误事件结尾
 //  3. 响应体中只出现一个 message_start，不存在第二个（防止流拼接腐化）
 func TestStreamWrittenGuard_MessagesPath_AbortFailoverOnSSEContentWritten(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -42,14 +43,14 @@ func TestStreamWrittenGuard_MessagesPath_AbortFailoverOnSSEContentWritten(t *tes
 		"写入 SSE 内容后 writer size 必须增加，守卫条件应为 true")
 
 	// 步骤 4：模拟 UpstreamFailoverError（上游在流中途返回 403）
-	failoverErr := &service.UpstreamFailoverError{
+	failoverErr := &forwardcore.UpstreamFailoverError{
 		StatusCode:   http.StatusForbidden,
 		ResponseBody: []byte(`{"error":{"type":"permission_error","message":"forbidden"}}`),
 	}
 
 	// 步骤 5：守卫触发 → 调用 handleFailoverExhausted，streamStarted=true
 	h := &GatewayHandler{}
-	h.handleFailoverExhausted(c, failoverErr, service.PlatformAnthropic, true)
+	h.handleFailoverExhausted(c, failoverErr, capability.PlatformAnthropic, true)
 
 	body := w.Body.String()
 
@@ -71,7 +72,7 @@ func TestStreamWrittenGuard_MessagesPath_AbortFailoverOnSSEContentWritten(t *tes
 // TestStreamWrittenGuard_GeminiPath_AbortFailoverOnSSEContentWritten 与上述测试相同，
 // 验证 Gemini 路径使用 service.PlatformGemini（而非 account.Platform）时行为一致。
 func TestStreamWrittenGuard_GeminiPath_AbortFailoverOnSSEContentWritten(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/gemini-2.0-flash:streamGenerateContent", nil)
@@ -83,12 +84,12 @@ func TestStreamWrittenGuard_GeminiPath_AbortFailoverOnSSEContentWritten(t *testi
 
 	require.NotEqual(t, sizeBeforeForward, c.Writer.Size())
 
-	failoverErr := &service.UpstreamFailoverError{
+	failoverErr := &forwardcore.UpstreamFailoverError{
 		StatusCode: http.StatusForbidden,
 	}
 
 	h := &GatewayHandler{}
-	h.handleFailoverExhausted(c, failoverErr, service.PlatformGemini, true)
+	h.handleFailoverExhausted(c, failoverErr, capability.PlatformGemini, true)
 
 	body := w.Body.String()
 
@@ -104,7 +105,7 @@ func TestStreamWrittenGuard_GeminiPath_AbortFailoverOnSSEContentWritten(t *testi
 // 当 Forward 返回 UpstreamFailoverError 时若未向客户端写入任何 SSE 内容，
 // 守卫条件（c.Writer.Size() != sizeBeforeForward）为 false，不应中止 failover。
 func TestStreamWrittenGuard_NoByteWritten_GuardNotTriggered(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)

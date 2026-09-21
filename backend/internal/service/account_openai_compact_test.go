@@ -1,23 +1,28 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+)
 
 // 管理员配置覆盖历史探测结论，两种压缩能力相互独立。
 func TestAccountCompactionControlledByAdministrator(t *testing.T) {
 	for _, mode := range []string{"", "force_on", "force_off"} {
 		for _, probed := range []bool{false, true} {
-			a := &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": mode, "openai_compact_supported": probed, openAINativeCompactionV2ModeExtraKey: mode, "openai_native_compaction_v2_supported": probed}}
+			a := &Account{Platform: capability.PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": mode, "openai_compact_supported": probed, accountcore.OpenAINativeCompactionV2ModeExtraKey: mode, "openai_native_compaction_v2_supported": probed}}
 			want := mode != "force_off"
 			if a.AllowsOpenAICompact() != want || a.AllowsOpenAINativeCompactionV2() != want {
 				t.Fatalf("mode=%s probe=%v ignored administrator", mode, probed)
 			}
-			a.Extra[openAINativeCompactionV2ModeExtraKey] = "force_off"
+			a.Extra[accountcore.OpenAINativeCompactionV2ModeExtraKey] = "force_off"
 			if a.AllowsOpenAINativeCompactionV2() || a.AllowsOpenAICompact() != want {
 				t.Fatal("independent switches required")
 			}
 		}
 	}
-	for _, a := range []*Account{nil, {Platform: PlatformAnthropic}} {
+	for _, a := range []*Account{nil, {Platform: capability.PlatformAnthropic}} {
 		if a.AllowsOpenAICompact() || a.AllowsOpenAINativeCompactionV2() {
 			t.Fatal("non OpenAI must be excluded")
 		}
@@ -37,7 +42,7 @@ func TestAccountGetCompactModelMapping(t *testing.T) {
 		{
 			name: "missing credentials returns nil",
 			account: &Account{
-				Platform: PlatformOpenAI,
+				Platform: capability.PlatformOpenAI,
 			},
 			want: nil,
 		},
@@ -146,7 +151,7 @@ func TestAccountResolveCompactMappedModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			account := &Account{
-				Platform:    PlatformOpenAI,
+				Platform:    capability.PlatformOpenAI,
 				Credentials: tt.credentials,
 			}
 			gotModel, gotMatch := account.ResolveCompactMappedModel(tt.requestedModel)

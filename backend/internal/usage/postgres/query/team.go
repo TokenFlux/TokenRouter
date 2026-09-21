@@ -47,8 +47,8 @@ func ListUsageLogs(ctx context.Context, db TeamExecutor, teamID int64, query tea
 	}
 	return items, total, nil
 }
-func ListMemberUsageSeries(ctx context.Context, db TeamExecutor, teamID int64, query team.TeamUsageQuery) ([]team.TeamMemberUsageSeries, error) {
-	args := []any{teamID, query.From, query.To, timezone.Name()}
+func ListMemberUsageSeries(ctx context.Context, db TeamExecutor, teamID int64, query team.TeamUsageQuery, calendar timezone.Calendar) ([]team.TeamMemberUsageSeries, error) {
+	args := []any{teamID, query.From, query.To, calendar.Location().String()}
 	membershipActorFilter := ""
 	usageActorFilter := ""
 	if query.ActorUserID != nil && *query.ActorUserID > 0 {
@@ -127,7 +127,7 @@ func ListMemberUsageSeries(ctx context.Context, db TeamExecutor, teamID int64, q
 	}
 	return items, rows.Err()
 }
-func GetUsageSummary(ctx context.Context, db TeamExecutor, teamID int64, query team.TeamUsageQuery) (*team.TeamUsageSummary, error) {
+func GetUsageSummary(ctx context.Context, db TeamExecutor, teamID int64, query team.TeamUsageQuery, calendar timezone.Calendar) (*team.TeamUsageSummary, error) {
 	where, args := TeamUsageWhere(teamID, query)
 	summary := &team.TeamUsageSummary{Daily: make([]team.TeamUsageDaily, 0)}
 	err := db.QueryRowContext(ctx, `SELECT COALESCE(SUM(ul.actual_cost), 0), COUNT(*), COALESCE(SUM(ul.input_tokens), 0), COALESCE(SUM(ul.output_tokens), 0) FROM usage_logs ul WHERE `+where, args...).
@@ -135,7 +135,7 @@ func GetUsageSummary(ctx context.Context, db TeamExecutor, teamID int64, query t
 	if err != nil {
 		return nil, err
 	}
-	args = append(args, timezone.Name())
+	args = append(args, calendar.Location().String())
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT TO_CHAR(ul.created_at AT TIME ZONE $%d, 'YYYY-MM-DD'), COALESCE(SUM(ul.actual_cost), 0), COUNT(*)
 		FROM usage_logs ul WHERE %s

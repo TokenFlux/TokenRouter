@@ -14,7 +14,7 @@ import (
 
 const gatewayStreamHeartbeatBytesKey = "gateway_stream_heartbeat_bytes"
 const maxConcurrencyWait = 30 * time.Second
-const defaultPingInterval = 10 * time.Second
+const DefaultPingInterval = 10 * time.Second
 
 func RecordStreamHeartbeat(c *gin.Context, written int) {
 	if c == nil || written <= 0 {
@@ -65,7 +65,7 @@ type ConcurrencyHelper struct {
 // NewConcurrencyHelper creates a new ConcurrencyHelper
 func NewConcurrencyHelper(concurrencyService *scheduler.ConcurrencyService, pingFormat SSEPingFormat, pingInterval time.Duration, keyID ...func(*gin.Context) int64) *ConcurrencyHelper {
 	if pingInterval <= 0 {
-		pingInterval = defaultPingInterval
+		pingInterval = DefaultPingInterval
 	}
 	resolveKey := func(c *gin.Context) int64 {
 		if key, ok := EffectiveAPIKey(c); ok && key != nil {

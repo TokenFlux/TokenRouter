@@ -7,6 +7,6 @@ import (
 	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
-func (s *OpenAIGatewayService) parseSSEUsageBytesWithType(data []byte, eventType string, usage *OpenAIUsage) bool {
+func (s *OpenAIGatewayService) parseSSEUsageBytesWithType(data []byte, eventType string, usage *s09openai.ForwardUsage) bool {
 	return s09openai.ParseSSEUsageBytesWithType(data, eventType, usage)
 }

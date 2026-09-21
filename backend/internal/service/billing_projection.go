@@ -1,12 +1,13 @@
-// 本文件由 billing 拥有资金契约与规则；旧入口仅作过渡适配。
 package service
 
 import (
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-// BillingUserSummary 将旧用户投影为权益只读数据，S05 后由身份接口直接提供。
-func BillingUserSummary(u *User) *billing.UserSummary {
+// BillingUserSummary 将身份记录投影为权益和通知所需的只读数据。
+func BillingUserSummary(u *identity.User) *billing.UserSummary {
 	if u == nil {
 		return nil
 	}
@@ -39,36 +40,10 @@ func BillingUserSummary(u *User) *billing.UserSummary {
 	return out
 }
 
-// UserFromBillingSummary 仅恢复旧展示入口需要的字段，不恢复身份或授权实体。
-func UserFromBillingSummary(u *billing.UserSummary) *User {
-	if u == nil {
+// projectPriceGroup 只向计费传递价卡，不传递路由配置与运行状态。
+func projectPriceGroup(group *routing.Group) *billing.PriceGroup {
+	if group == nil {
 		return nil
 	}
-	out := &User{
-		ID:                         u.ID,
-		Email:                      u.Email,
-		Username:                   u.Username,
-		Role:                       u.Role,
-		Balance:                    u.Balance,
-		FrozenBalance:              u.FrozenBalance,
-		Concurrency:                u.Concurrency,
-		Status:                     u.Status,
-		AllowedGroups:              u.AllowedGroups,
-		DisabledPublicGroups:       u.DisabledPublicGroups,
-		LastActiveAt:               u.LastActiveAt,
-		CreatedAt:                  u.CreatedAt,
-		UpdatedAt:                  u.UpdatedAt,
-		BalanceNotifyEnabled:       u.BalanceNotifyEnabled,
-		BalanceNotifyThresholdType: u.BalanceNotifyThresholdType,
-		BalanceNotifyThreshold:     u.BalanceNotifyThreshold,
-		TotalRecharged:             u.TotalRecharged,
-		RPMLimit:                   u.RPMLimit,
-		APIKeyLimit:                u.APIKeyLimit,
-		DeletedAt:                  u.DeletedAt,
-	}
-	if u.BalanceNotifyExtraEmails != nil {
-		out.BalanceNotifyExtraEmails = make([]NotifyEmailEntry, len(u.BalanceNotifyExtraEmails))
-		copy(out.BalanceNotifyExtraEmails, u.BalanceNotifyExtraEmails)
-	}
-	return out
+	return &billing.PriceGroup{ModelPricing: group.ModelPricing, LongContextPricingEnabled: group.LongContextPricingEnabled}
 }

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ func TestIngressRejectAccessSamplerConcurrentGlobalLimit(t *testing.T) {
 }
 
 func TestLoggerIngressRejectSamplingIsBoundedAndSummarySkipsOpsSink(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	original := globalIngressRejectAccessSampler
 	globalIngressRejectAccessSampler = newIngressRejectAccessSampler(2, time.Hour, time.Hour)
 	t.Cleanup(func() { globalIngressRejectAccessSampler = original })
@@ -53,7 +53,7 @@ func TestLoggerIngressRejectSamplingIsBoundedAndSummarySkipsOpsSink(t *testing.T
 			accessEvents++
 		case "ingress rejection access logs dropped":
 			summaries++
-			if skipped, _ := event.Fields[logger.OpsSystemLogSkipField].(bool); !skipped {
+			if skipped, _ := event.Fields[logging.OpsSystemLogSkipField].(bool); !skipped {
 				t.Fatalf("dropped summary must skip ops system log sink")
 			}
 		}

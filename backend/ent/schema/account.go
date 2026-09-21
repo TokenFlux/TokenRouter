@@ -3,9 +3,6 @@
 package schema
 
 import (
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -13,6 +10,8 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // Account 定义 AI API 账户实体的 schema。
@@ -116,7 +115,7 @@ func (Account) Fields() []ent.Field {
 		// status: 账户状态，如 "active", "error", "disabled"
 		field.String("status").
 			MaxLen(20).
-			Default(domain.StatusActive),
+			Default(account.StatusActive),
 
 		// error_message: 错误信息，记录账户异常时的详细信息
 		field.String("error_message").

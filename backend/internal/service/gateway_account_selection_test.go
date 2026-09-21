@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,9 +24,9 @@ func makeAccWithLoad(id int64, priority int, loadRate int, lastUsed *time.Time, 
 			LastUsedAt:  lastUsed,
 			Type:        accType,
 			Schedulable: true,
-			Status:      StatusActive,
+			Status:      billing.StatusActive,
 		},
-		loadInfo: &AccountLoadInfo{
+		loadInfo: &scheduler.AccountLoadInfo{
 			AccountID:          id,
 			CurrentConcurrency: 0,
 			LoadRate:           loadRate,
@@ -61,8 +64,8 @@ func TestSortAccountsByPriorityAndLastUsed_SamePriorityByLastUsed(t *testing.T) 
 
 func TestSortAccountsByPriorityAndLastUsed_PreferOAuth(t *testing.T) {
 	accounts := []*Account{
-		{ID: 1, Priority: 1, LastUsedAt: nil, Type: AccountTypeAPIKey},
-		{ID: 2, Priority: 1, LastUsedAt: nil, Type: AccountTypeOAuth},
+		{ID: 1, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey},
+		{ID: 2, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeOAuth},
 	}
 	sortAccountsByPriorityAndLastUsed(accounts, true)
 	require.Equal(t, int64(2), accounts[0].ID, "preferOAuth 时 OAuth 账号排前面")
@@ -70,9 +73,9 @@ func TestSortAccountsByPriorityAndLastUsed_PreferOAuth(t *testing.T) {
 
 func TestSortAccountsByPriorityAndLastUsed_StableSort(t *testing.T) {
 	accounts := []*Account{
-		{ID: 1, Priority: 1, LastUsedAt: nil, Type: AccountTypeAPIKey},
-		{ID: 2, Priority: 1, LastUsedAt: nil, Type: AccountTypeAPIKey},
-		{ID: 3, Priority: 1, LastUsedAt: nil, Type: AccountTypeAPIKey},
+		{ID: 1, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey},
+		{ID: 2, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey},
+		{ID: 3, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey},
 	}
 
 	// sortAccountsByPriorityAndLastUsed 内部会在同组(Priority+LastUsedAt)内做随机打散，
@@ -120,10 +123,10 @@ func TestFilterByMinPriority_Empty(t *testing.T) {
 
 func TestFilterByMinPriority_SelectsMinPriority(t *testing.T) {
 	accounts := []accountWithLoad{
-		makeAccWithLoad(1, 5, 10, nil, AccountTypeAPIKey),
-		makeAccWithLoad(2, 1, 10, nil, AccountTypeAPIKey),
-		makeAccWithLoad(3, 1, 20, nil, AccountTypeAPIKey),
-		makeAccWithLoad(4, 2, 10, nil, AccountTypeAPIKey),
+		makeAccWithLoad(1, 5, 10, nil, capability.AccountTypeAPIKey),
+		makeAccWithLoad(2, 1, 10, nil, capability.AccountTypeAPIKey),
+		makeAccWithLoad(3, 1, 20, nil, capability.AccountTypeAPIKey),
+		makeAccWithLoad(4, 2, 10, nil, capability.AccountTypeAPIKey),
 	}
 	result := filterByMinPriority(accounts)
 	require.Len(t, result, 2)
@@ -140,10 +143,10 @@ func TestFilterByMinLoadRate_Empty(t *testing.T) {
 
 func TestFilterByMinLoadRate_SelectsMinLoadRate(t *testing.T) {
 	accounts := []accountWithLoad{
-		makeAccWithLoad(1, 1, 30, nil, AccountTypeAPIKey),
-		makeAccWithLoad(2, 1, 10, nil, AccountTypeAPIKey),
-		makeAccWithLoad(3, 1, 10, nil, AccountTypeAPIKey),
-		makeAccWithLoad(4, 1, 20, nil, AccountTypeAPIKey),
+		makeAccWithLoad(1, 1, 30, nil, capability.AccountTypeAPIKey),
+		makeAccWithLoad(2, 1, 10, nil, capability.AccountTypeAPIKey),
+		makeAccWithLoad(3, 1, 10, nil, capability.AccountTypeAPIKey),
+		makeAccWithLoad(4, 1, 20, nil, capability.AccountTypeAPIKey),
 	}
 	result := filterByMinLoadRate(accounts)
 	require.Len(t, result, 2)
@@ -159,7 +162,7 @@ func TestSelectByLRU_Empty(t *testing.T) {
 }
 
 func TestSelectByLRU_Single(t *testing.T) {
-	accounts := []accountWithLoad{makeAccWithLoad(1, 1, 10, nil, AccountTypeAPIKey)}
+	accounts := []accountWithLoad{makeAccWithLoad(1, 1, 10, nil, capability.AccountTypeAPIKey)}
 	result := selectByLRU(accounts, false)
 	require.NotNil(t, result)
 	require.Equal(t, int64(1), result.account.ID)
@@ -168,9 +171,9 @@ func TestSelectByLRU_Single(t *testing.T) {
 func TestSelectByLRU_NilLastUsedAtWins(t *testing.T) {
 	now := time.Now()
 	accounts := []accountWithLoad{
-		makeAccWithLoad(1, 1, 10, testTimePtr(now), AccountTypeAPIKey),
-		makeAccWithLoad(2, 1, 10, nil, AccountTypeAPIKey),
-		makeAccWithLoad(3, 1, 10, testTimePtr(now.Add(-1*time.Hour)), AccountTypeAPIKey),
+		makeAccWithLoad(1, 1, 10, testTimePtr(now), capability.AccountTypeAPIKey),
+		makeAccWithLoad(2, 1, 10, nil, capability.AccountTypeAPIKey),
+		makeAccWithLoad(3, 1, 10, testTimePtr(now.Add(-1*time.Hour)), capability.AccountTypeAPIKey),
 	}
 	result := selectByLRU(accounts, false)
 	require.NotNil(t, result)
@@ -180,9 +183,9 @@ func TestSelectByLRU_NilLastUsedAtWins(t *testing.T) {
 func TestSelectByLRU_EarliestTimeWins(t *testing.T) {
 	now := time.Now()
 	accounts := []accountWithLoad{
-		makeAccWithLoad(1, 1, 10, testTimePtr(now), AccountTypeAPIKey),
-		makeAccWithLoad(2, 1, 10, testTimePtr(now.Add(-1*time.Hour)), AccountTypeAPIKey),
-		makeAccWithLoad(3, 1, 10, testTimePtr(now.Add(-2*time.Hour)), AccountTypeAPIKey),
+		makeAccWithLoad(1, 1, 10, testTimePtr(now), capability.AccountTypeAPIKey),
+		makeAccWithLoad(2, 1, 10, testTimePtr(now.Add(-1*time.Hour)), capability.AccountTypeAPIKey),
+		makeAccWithLoad(3, 1, 10, testTimePtr(now.Add(-2*time.Hour)), capability.AccountTypeAPIKey),
 	}
 	result := selectByLRU(accounts, false)
 	require.NotNil(t, result)
@@ -193,14 +196,14 @@ func TestSelectByLRU_TiePreferOAuth(t *testing.T) {
 	now := time.Now()
 	// 账号 1/2 LastUsedAt 相同，且同为最小值。
 	accounts := []accountWithLoad{
-		makeAccWithLoad(1, 1, 10, testTimePtr(now), AccountTypeAPIKey),
-		makeAccWithLoad(2, 1, 10, testTimePtr(now), AccountTypeOAuth),
-		makeAccWithLoad(3, 1, 10, testTimePtr(now.Add(1*time.Hour)), AccountTypeAPIKey),
+		makeAccWithLoad(1, 1, 10, testTimePtr(now), capability.AccountTypeAPIKey),
+		makeAccWithLoad(2, 1, 10, testTimePtr(now), capability.AccountTypeOAuth),
+		makeAccWithLoad(3, 1, 10, testTimePtr(now.Add(1*time.Hour)), capability.AccountTypeAPIKey),
 	}
 	for i := 0; i < 50; i++ {
 		result := selectByLRU(accounts, true)
 		require.NotNil(t, result)
-		require.Equal(t, AccountTypeOAuth, result.account.Type)
+		require.Equal(t, capability.AccountTypeOAuth, result.account.Type)
 		require.Equal(t, int64(2), result.account.ID)
 	}
 }

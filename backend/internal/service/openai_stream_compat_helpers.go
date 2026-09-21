@@ -9,18 +9,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
-
-func effectiveOpenAISSEEventType(payload []byte, eventType string) string {
-	return s09openai.EffectiveOpenAISSEEventType(payload, eventType)
-}
 
 const openAIMissingUsageLogInterval = time.Minute
 
@@ -54,7 +51,7 @@ var openAIMissingUsageLogSamplerState openAIMissingUsageLogSampler
 var openAIMissingUsageTotal atomic.Uint64
 
 // logOpenAISuccessMissingUsage 记录成功响应缺失 usage 的低频诊断，避免影响请求路径。
-func logOpenAISuccessMissingUsage(ctx context.Context, c *gin.Context, account *Account, resp *http.Response, usage *OpenAIUsage, terminalEvent string, clientDisconnected bool) {
+func logOpenAISuccessMissingUsage(ctx context.Context, c *gin.Context, account *Account, resp *http.Response, usage *s09openai.ForwardUsage, terminalEvent string, clientDisconnected bool) {
 	if resp == nil || resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices || usage != nil && (usage.InputTokens > 0 || usage.OutputTokens > 0 || usage.ImageOutputTokens > 0) {
 		return
 	}
@@ -71,7 +68,7 @@ func logOpenAISuccessMissingUsage(ctx context.Context, c *gin.Context, account *
 	if account != nil {
 		accountID = account.ID
 	}
-	logger.FromContext(ctx).With(
+	logging.FromContext(ctx).With(
 		zap.Int64("account_id", accountID),
 		zap.String("terminal_event", terminalEvent),
 		zap.Bool("client_disconnected", clientDisconnected),
@@ -87,7 +84,7 @@ func buildOpenAIResponseFailedSSE(responseID, model string, source []byte, fallb
 	if responseID == "" {
 		responseID = "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	}
-	message := strings.TrimSpace(extractOpenAISSEErrorMessage(source))
+	message := strings.TrimSpace(openai.ExtractOpenAISSEErrorMessage(source))
 	if message == "" {
 		message = strings.TrimSpace(fallbackMessage)
 	}
@@ -119,10 +116,6 @@ func buildOpenAIResponseFailedSSE(responseID, model string, source []byte, fallb
 // openAIStreamGenericFailedEventPayload 返回客户端可识别的通用失败事件。
 func openAIStreamGenericFailedEventPayload(_ ...[]byte) []byte {
 	return []byte(`{"type":"response.failed","response":{"error":{"message":"Upstream gateway error"}}}`)
-}
-
-func openAIUsageHasTokens(usage *OpenAIUsage) bool {
-	return s09openai.OpenAIUsageHasTokens(usage)
 }
 
 // openAIRequestPayloadView 解包 Responses WS 事件，返回实际请求对象视图。

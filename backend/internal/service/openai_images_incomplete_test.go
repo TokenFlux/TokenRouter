@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
@@ -17,7 +19,7 @@ import (
 func TestExtractImagesUpstreamError_IncompleteIsRetryable(t *testing.T) {
 	body := "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_1\"}}\n\n" +
 		"data: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_1\",\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_output_tokens\"}}}\n\n"
-	got := extractOpenAIImagesUpstreamError([]byte(body))
+	got := openai.ExtractOpenAIImagesUpstreamError([]byte(body))
 	if got == nil {
 		t.Fatal("incomplete event should produce an upstream error, got nil")
 		return
@@ -25,7 +27,7 @@ func TestExtractImagesUpstreamError_IncompleteIsRetryable(t *testing.T) {
 	if got.StatusCode != http.StatusBadGateway {
 		t.Fatalf("incomplete(max_output_tokens) should be 502 retryable, got %d", got.StatusCode)
 	}
-	if !IsOpenAIImagesRetryableUpstreamError(got) {
+	if !openai.IsOpenAIImagesRetryableUpstreamError(got) {
 		t.Fatal("incomplete(max_output_tokens) should be retryable for failover")
 	}
 	if got.Code != "response_incomplete" {
@@ -39,7 +41,7 @@ func TestExtractImagesUpstreamError_IncompleteIsRetryable(t *testing.T) {
 // incomplete 因 content_filter → 400，重试无意义，不应触发 failover。
 func TestExtractImagesUpstreamError_IncompleteContentFilterNotRetryable(t *testing.T) {
 	body := "data: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"r\",\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"content_filter\"}}}\n\n"
-	got := extractOpenAIImagesUpstreamError([]byte(body))
+	got := openai.ExtractOpenAIImagesUpstreamError([]byte(body))
 	if got == nil {
 		t.Fatal("content_filter incomplete should produce error")
 		return
@@ -47,7 +49,7 @@ func TestExtractImagesUpstreamError_IncompleteContentFilterNotRetryable(t *testi
 	if got.StatusCode != http.StatusBadRequest {
 		t.Fatalf("content_filter should be 400 (non-retryable), got %d", got.StatusCode)
 	}
-	if IsOpenAIImagesRetryableUpstreamError(got) {
+	if openai.IsOpenAIImagesRetryableUpstreamError(got) {
 		t.Fatal("content_filter must NOT be retryable")
 	}
 }
@@ -55,7 +57,7 @@ func TestExtractImagesUpstreamError_IncompleteContentFilterNotRetryable(t *testi
 // 旧行为不变：error / response.failed 仍按原逻辑识别。
 func TestExtractImagesUpstreamError_ErrorAndFailedUnchanged(t *testing.T) {
 	errBody := "data: {\"type\":\"error\",\"error\":{\"type\":\"image_generation_user_error\",\"code\":\"moderation_blocked\",\"message\":\"rejected\"}}\n\n"
-	if got := extractOpenAIImagesUpstreamError([]byte(errBody)); got == nil || got.StatusCode != http.StatusBadRequest {
+	if got := openai.ExtractOpenAIImagesUpstreamError([]byte(errBody)); got == nil || got.StatusCode != http.StatusBadRequest {
 		t.Fatalf("moderation_blocked should still be 400, got %+v", got)
 	}
 }
@@ -64,7 +66,7 @@ func TestExtractImagesUpstreamError_ErrorAndFailedUnchanged(t *testing.T) {
 func TestSummarizeNoOutputBody_ExtractsDiagnostics(t *testing.T) {
 	body := "data: {\"type\":\"response.created\",\"response\":{\"id\":\"r\"}}\n\n" +
 		"data: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"r\",\"status\":\"in_progress\"}}\n\n"
-	summary := summarizeOpenAIImagesNoOutputBody([]byte(body))
+	summary := openai.SummarizeOpenAIImagesNoOutputBody([]byte(body))
 	if !strings.HasPrefix(summary, "no_image_output") {
 		t.Fatalf("summary should start with marker, got %q", summary)
 	}
@@ -80,7 +82,7 @@ func TestSummarizeNoOutputBody_ExtractsDiagnostics(t *testing.T) {
 func TestSummarizeNoOutputBody_IncompleteReasonAndTruncation(t *testing.T) {
 	long := strings.Repeat("x", 2000)
 	body := "data: {\"type\":\"response.incomplete\",\"response\":{\"status\":\"incomplete\",\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"junk\":\"" + long + "\"}}\n\n"
-	summary := summarizeOpenAIImagesNoOutputBody([]byte(body))
+	summary := openai.SummarizeOpenAIImagesNoOutputBody([]byte(body))
 	if !strings.Contains(summary, "incomplete_reason=max_output_tokens") {
 		t.Fatalf("should capture incomplete reason, got %q", summary[:120])
 	}
@@ -129,7 +131,7 @@ func TestImagesOAuthNonStreaming_CompletedNoImageTriggersSameAccountRetry(t *tes
 	if err == nil {
 		t.Fatal("completed-but-no-image should return an error")
 	}
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &failoverErr) {
 		t.Fatalf("expected *UpstreamFailoverError to trigger retry, got %T: %v", err, err)
 	}
@@ -162,11 +164,11 @@ func TestImagesOAuthNonStreaming_ContentRefusalReturns400NoRetry(t *testing.T) {
 	if err == nil {
 		t.Fatal("content refusal should return an error")
 	}
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if errors.As(err, &failoverErr) {
 		t.Fatalf("content refusal must not be a retryable failover error, got %v", failoverErr)
 	}
-	var imgErr *OpenAIImagesUpstreamError
+	var imgErr *openai.OpenAIImagesUpstreamError
 	if !errors.As(err, &imgErr) {
 		t.Fatalf("expected *OpenAIImagesUpstreamError, got %T: %v", err, err)
 	}
@@ -194,7 +196,7 @@ func TestImagesOAuthNonStreaming_TextFallbackReturnsCapabilityError(t *testing.T
 	svc := &OpenAIGatewayService{}
 	_, _, _, err := svc.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, "b64_json", "gpt-image-2")
 
-	var imgErr *OpenAIImagesUpstreamError
+	var imgErr *openai.OpenAIImagesUpstreamError
 	if !errors.As(err, &imgErr) {
 		t.Fatalf("expected *OpenAIImagesUpstreamError, got %T: %v", err, err)
 	}
@@ -220,7 +222,7 @@ func TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 	_, _, _, _, err := svc.handleOpenAIImagesOAuthStreamingResponse(resp, c, time.Now(), "b64_json", "image_generation", "gpt-image-2")
 
-	var imgErr *OpenAIImagesUpstreamError
+	var imgErr *openai.OpenAIImagesUpstreamError
 	if !errors.As(err, &imgErr) {
 		t.Fatalf("expected *OpenAIImagesUpstreamError, got %T: %v", err, err)
 	}
@@ -251,7 +253,7 @@ func TestImagesOAuthStreaming_SplitSafetyRefusalReturns400(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 	_, _, _, _, err := svc.handleOpenAIImagesOAuthStreamingResponse(resp, c, time.Now(), "b64_json", "image_generation", "gpt-image-2")
 
-	var imgErr *OpenAIImagesUpstreamError
+	var imgErr *openai.OpenAIImagesUpstreamError
 	if !errors.As(err, &imgErr) {
 		t.Fatalf("expected *OpenAIImagesUpstreamError, got %T: %v", err, err)
 	}
@@ -266,7 +268,7 @@ func TestImagesOAuthStreaming_SplitSafetyRefusalReturns400(t *testing.T) {
 // extractOpenAIImagesModelRefusal：真空响应（无文字）返回空串。
 func TestExtractModelRefusal_EmptyWhenNoText(t *testing.T) {
 	body := "data: {\"type\":\"response.completed\",\"response\":{\"output\":[],\"tool_usage\":{\"image_gen\":{\"output_tokens\":0}}}}\n\n"
-	if refusal := extractOpenAIImagesModelRefusal([]byte(body)); refusal != "" {
+	if refusal := openai.ExtractOpenAIImagesModelRefusal([]byte(body)); refusal != "" {
 		t.Fatalf("empty response should yield no refusal, got %q", refusal)
 	}
 }

@@ -7,36 +7,45 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
+	payment "github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 type coreRuntimeReady struct{}
 
 func provideCoreRuntime(
-	authCacheInvalidationWorker *service.AuthCacheInvalidationWorker,
+	authCacheInvalidationWorker *apikey.AuthCacheInvalidationWorker,
 	schedulerSnapshot *service.SchedulerSnapshotService,
-	usageCleanup *service.UsageCleanupService,
-	idempotencyCleanup *service.IdempotencyCleanupService,
+	usageCleanup *usage.UsageCleanupService,
+	idempotencyCleanup *idempotency.IdempotencyCleanupService,
 	openAIGateway *service.OpenAIGatewayService,
-	paymentOrderExpiry *service.PaymentOrderExpiryService,
-	tlsFingerprintCollector *service.TLSFingerprintCollectorService,
+	openAIAuthorization *account.OpenAIAuthorization,
+	paymentOrderExpiry *payment.OrderExpiry,
+	tlsFingerprintCollector *provider.TLSFingerprintCollectorService,
 	manager *lifecycle.Manager,
-	timingWheel *service.TimingWheelService,
+	timingWheel *timingwheel.Wheel,
 	gateway *service.GatewayService,
 	geminiGateway *service.GeminiMessagesCompatService,
 	antigravityGateway *service.AntigravityGatewayService,
 	creativeExecutor *service.CreativeExecutor,
-	digestStore *service.DigestSessionStore,
-	usageRepo service.UsageLogRepository,
+	digestStore *session.DigestSessionStore,
+	usageRepo usage.UsageLogRepository,
 	tasks *lifecycle.Tasks,
-	httpUpstream service.HTTPUpstream,
-	requestActivity *gatewayRequestActivity,
+	httpUpstream httpclient.UpstreamTransport, requestActivity *gatewayRequestActivity,
 ) *coreRuntimeReady {
 	// 原生平台仅登记同步尝试，不改变客户端取消或供应商重试预算。
 	nativeAttempts := requestActivity
 	if openAIGateway != nil {
+		openAIGateway.BindOpenAIAuthorization(openAIAuthorization)
 		openAIGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}
 	if antigravityGateway != nil {
@@ -107,7 +116,7 @@ func provideCoreRuntime(
 
 	manager.Register(lifecycle.Hook{Name: "PaymentOrderExpiryService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if paymentOrderExpiry != nil {
-			paymentOrderExpiry.StartContext(ctx)
+			paymentOrderExpiry.Start(ctx)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {

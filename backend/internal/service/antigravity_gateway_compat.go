@@ -10,13 +10,20 @@ import (
 	"strings"
 	"time"
 
+	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +40,7 @@ const (
 	// AntigravityCredentialRejectedClientMessage 是可安全返回给客户端的认证修复提示。
 	AntigravityCredentialRejectedClientMessage = "Antigravity rejected the OAuth credential after refresh; reauthorize the account and verify project_id"
 	// AntigravityCredentialRejectedReason 标识上游拒绝已刷新 OAuth 凭据。
-	AntigravityCredentialRejectedReason GatewayFailureReason = "antigravity_oauth_credential_rejected"
+	AntigravityCredentialRejectedReason protocolforward.GatewayFailureReason = "antigravity_oauth_credential_rejected"
 )
 
 type antigravityCompatRequest struct {
@@ -45,7 +52,7 @@ type antigravityCompatRequest struct {
 	includeUsage      bool
 	startTime         time.Time
 	reasoningEffort   *string
-	clientToolMapping apicompat.ResponsesClientToolMapping
+	clientToolMapping protocolbridge.ResponsesClientToolMapping
 }
 
 type antigravityCompatUpstreamCall struct {
@@ -64,8 +71,8 @@ func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 	c *gin.Context,
 	account *Account,
 	body []byte,
-	_ *ParsedRequest,
-) (*ForwardResult, error) {
+	_ *requeststate.ParsedRequest,
+) (*protocolforward.MessagesResult, error) {
 	if err := s.validateAntigravityCompatAccount(c, account); err != nil {
 		return nil, err
 	}
@@ -78,15 +85,15 @@ func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 	}
 
-	responsesRequest, err := apicompat.ChatCompletionsToResponses(&request)
+	responsesRequest, err := protocolbridge.ChatCompletionsToResponses(&request, protocolforward.ConversionOptionsForModel(request.Model))
 	if err != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
-	claudeRequest, err := apicompat.ResponsesToAnthropicRequest(responsesRequest)
+	claudeRequest, err := protocolbridge.ResponsesToAnthropicRequest(responsesRequest)
 	if err != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
-	preserveChatCompletionTokenLimit(&request, claudeRequest)
+	antigravity.PreserveChatCompletionTokenLimit(&request, claudeRequest)
 	claudeRequest.Stream = request.Stream
 	claudeBody, err := json.Marshal(claudeRequest)
 	if err != nil {
@@ -112,13 +119,13 @@ func (s *AntigravityGatewayService) ForwardAsResponses(
 	c *gin.Context,
 	account *Account,
 	body []byte,
-	_ *ParsedRequest,
-) (*ForwardResult, error) {
+	_ *requeststate.ParsedRequest,
+) (*protocolforward.MessagesResult, error) {
 	if err := s.validateAntigravityCompatAccount(c, account); err != nil {
 		return nil, err
 	}
 
-	adaptedBody, clientToolMapping, err := adaptResponsesClientToolsForAnthropic(body)
+	adaptedBody, clientToolMapping, err := protocolforward.AdaptResponsesClientToolsForAnthropic(body)
 	if err != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
@@ -131,7 +138,7 @@ func (s *AntigravityGatewayService) ForwardAsResponses(
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 	}
 
-	claudeRequest, err := apicompat.ResponsesToAnthropicRequest(&request)
+	claudeRequest, err := protocolbridge.ResponsesToAnthropicRequest(&request)
 	if err != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
@@ -155,7 +162,7 @@ func (s *AntigravityGatewayService) ForwardAsResponses(
 }
 
 func (s *AntigravityGatewayService) validateAntigravityCompatAccount(c *gin.Context, account *Account) error {
-	if account != nil && account.Platform == PlatformAntigravity && account.Type == AccountTypeOAuth {
+	if account != nil && account.Platform == capability.PlatformAntigravity && account.Type == capability.AccountTypeOAuth {
 		return nil
 	}
 	return s.writeAntigravityCompatError(
@@ -168,12 +175,12 @@ func (s *AntigravityGatewayService) validateAntigravityCompatAccount(c *gin.Cont
 
 // prepareAntigravityCompatTools 保留 fork 的工具名混淆与缓存断点语义，并刷新回程映射。
 func prepareAntigravityCompatTools(c *gin.Context, body []byte) []byte {
-	rewrite := buildToolNameRewriteFromBody(body)
+	rewrite := anthropic.BuildToolNameRewriteFromBody(body)
 	if c != nil {
 		// failover 可能复用同一个 gin.Context，因此即使本次不改名也要清除旧映射。
 		c.Set(toolNameRewriteKey, rewrite)
 	}
-	return applyToolNameRewriteToBody(body, rewrite)
+	return anthropic.ApplyToolNameRewriteToBody(body, rewrite)
 }
 
 func (s *AntigravityGatewayService) forwardAntigravityCompat(
@@ -181,7 +188,7 @@ func (s *AntigravityGatewayService) forwardAntigravityCompat(
 	c *gin.Context,
 	account *Account,
 	request antigravityCompatRequest,
-) (*ForwardResult, error) {
+) (*protocolforward.MessagesResult, error) {
 	call, err := s.prepareAntigravityCompatCall(ctx, c, account, request)
 	if err != nil {
 		return nil, err
@@ -230,7 +237,7 @@ func (s *AntigravityGatewayService) forwardAntigravityCompat(
 	if err != nil {
 		return nil, err
 	}
-	return &ForwardResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Usage: result.Usage, Model: request.originalModel, UpstreamModel: call.billingModel, Stream: request.clientStream, Duration: result.Duration, FirstTokenMs: result.FirstTokenMs, ReasoningEffort: request.reasoningEffort, ClientDisconnect: result.ClientDisconnect}, nil
+	return &protocolforward.MessagesResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Usage: result.Usage, Model: request.originalModel, UpstreamModel: call.billingModel, Stream: request.clientStream, Duration: result.Duration, FirstTokenMs: result.FirstTokenMs, ReasoningEffort: request.reasoningEffort, ClientDisconnect: result.ClientDisconnect}, nil
 }
 
 func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
@@ -246,19 +253,19 @@ func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 
 	thinkingEnabled := claudeRequest.Thinking != nil &&
 		(claudeRequest.Thinking.Type == "enabled" || claudeRequest.Thinking.Type == "adaptive")
-	modelCtx := WithThinkingEnabled(ctx, thinkingEnabled, false)
+	modelCtx := requeststate.WithThinkingEnabled(ctx, thinkingEnabled)
 	mappedModel := resolveFinalAntigravityModelKey(modelCtx, account, request.originalModel)
 	if mappedModel == "" {
-		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
+		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 		message := fmt.Sprintf("model %s not in whitelist", request.originalModel)
 		return nil, s.writeAntigravityCompatError(c, http.StatusForbidden, "permission_error", message)
 	}
 	if s.tokenProvider == nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "api_error", "Antigravity token provider not configured")
 	}
-	accessToken, err := s.tokenProvider.GetAccessToken(ctx, account)
+	accessToken, err := accountToken(ctx, s.tokenProvider, account)
 	if err != nil {
-		return nil, &UpstreamFailoverError{
+		return nil, &protocolforward.UpstreamFailoverError{
 			StatusCode:   http.StatusBadGateway,
 			ResponseBody: []byte(`{"error":{"type":"authentication_error","message":"Failed to get upstream access token"},"type":"error"}`),
 		}
@@ -298,19 +305,19 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 		if err != nil {
 			return nil, err
 		}
-		body, err = enableMixedGeminiToolInvocations(body)
+		body, err = antigravity.EnableMixedGeminiToolInvocations(body)
 		if err != nil {
 			return nil, err
 		}
 		body = ensureGeminiFunctionCallThoughtSignatures(body)
-		body, err = injectIdentityPatchToGeminiRequest(body)
+		body, err = antigravity.InjectIdentityPatchToGeminiRequest(body)
 		if err != nil {
 			return nil, err
 		}
-		if cleaned, cleanErr := cleanGeminiRequest(body); cleanErr == nil {
+		if cleaned, cleanErr := antigravity.CleanGeminiRequest(body); cleanErr == nil {
 			body = cleaned
 		}
-		return s.wrapV1InternalRequest(projectID, mappedModel, body)
+		return antigravity.WrapV1InternalRequest(projectID, mappedModel, body)
 	}
 
 	options := s.getClaudeTransformOptions(ctx)
@@ -326,8 +333,8 @@ func antigravityCompatProxyURL(account *Account) string {
 }
 
 func (s *AntigravityGatewayService) handleAntigravityCompatTransportError(c *gin.Context, err error) error {
-	if switchErr, ok := IsAntigravityAccountSwitchError(err); ok {
-		return &UpstreamFailoverError{
+	if switchErr, ok := antigravity.IsAntigravityAccountSwitchError(err); ok {
+		return &protocolforward.UpstreamFailoverError{
 			StatusCode:        http.StatusServiceUnavailable,
 			ForceCacheBilling: switchErr.IsStickySession,
 		}
@@ -359,8 +366,8 @@ func (s *AntigravityGatewayService) handleAntigravityCompatHTTPError(
 		false,
 	)
 	if s.shouldFailoverUpstreamError(resp.StatusCode) {
-		message := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractAntigravityErrorMessage(body)))
-		event := OpsUpstreamErrorEvent{
+		message := logredact.SanitizeUpstreamQueries(strings.TrimSpace(google.ExtractPlatformMessage(body)))
+		event := ops.OpsUpstreamErrorEvent{
 			Platform:           account.Platform,
 			AccountID:          account.ID,
 			AccountName:        account.Name,
@@ -371,14 +378,14 @@ func (s *AntigravityGatewayService) handleAntigravityCompatHTTPError(
 			Detail:             s.getUpstreamErrorDetail(body),
 		}
 		if resp.StatusCode == http.StatusUnauthorized {
-			event.Stage = string(GatewayFailureStageAccountAuth)
-			event.Scope = string(GatewayFailureScopeAccount)
+			event.Stage = string(protocolforward.GatewayFailureStageAccountAuth)
+			event.Scope = string(protocolforward.GatewayFailureScopeAccount)
 			event.Reason = string(AntigravityCredentialRejectedReason)
-			appendOpsUpstreamError(c, event)
+			gatewayhttp.AppendOpsUpstreamError(c, event)
 			return antigravityCredentialRejectedError(resp, body)
 		}
-		appendOpsUpstreamError(c, event)
-		return &UpstreamFailoverError{
+		gatewayhttp.AppendOpsUpstreamError(c, event)
+		return &protocolforward.UpstreamFailoverError{
 			StatusCode:      resp.StatusCode,
 			ResponseBody:    body,
 			ResponseHeaders: resp.Header.Clone(),
@@ -387,17 +394,15 @@ func (s *AntigravityGatewayService) handleAntigravityCompatHTTPError(
 	return s.writeMappedAntigravityCompatError(c, account, resp.StatusCode, resp.Header.Get("x-request-id"), body)
 }
 
-func antigravityCredentialRejectedError(resp *http.Response, body []byte) *UpstreamFailoverError {
-	return &UpstreamFailoverError{
-		StatusCode:        resp.StatusCode,
-		ResponseBody:      body,
-		ResponseHeaders:   resp.Header.Clone(),
-		Stage:             GatewayFailureStageAccountAuth,
-		Scope:             GatewayFailureScopeAccount,
-		Reason:            AntigravityCredentialRejectedReason,
-		NextAccountAction: NextAccountRetry,
-		ClientStatusCode:  http.StatusBadGateway,
-		ClientMessage:     AntigravityCredentialRejectedClientMessage,
+func antigravityCredentialRejectedError(resp *http.Response, body []byte) *protocolforward.UpstreamFailoverError {
+	return &protocolforward.UpstreamFailoverError{
+		StatusCode:      resp.StatusCode,
+		ResponseBody:    body,
+		ResponseHeaders: resp.Header.Clone(),
+		Stage:           protocolforward.GatewayFailureStageAccountAuth,
+		Scope:           protocolforward.GatewayFailureScopeAccount,
+		Reason:          AntigravityCredentialRejectedReason, NextAccountAction: protocolforward.NextAccountRetry, ClientStatusCode: http.StatusBadGateway,
+		ClientMessage: AntigravityCredentialRejectedClientMessage,
 	}
 }
 
@@ -407,7 +412,7 @@ func (s *AntigravityGatewayService) writeAntigravityCompatError(
 	errType string,
 	message string,
 ) error {
-	MarkResponseCommitted(c)
+	gatewayhttp.MarkResponseCommitted(c)
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"message": message,
@@ -426,10 +431,10 @@ func (s *AntigravityGatewayService) writeMappedAntigravityCompatError(
 	upstreamRequestID string,
 	body []byte,
 ) error {
-	MarkResponseCommitted(c)
-	message := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractAntigravityErrorMessage(body)))
-	setOpsUpstreamError(c, upstreamStatus, message, s.getUpstreamErrorDetail(body))
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+	gatewayhttp.MarkResponseCommitted(c)
+	message := logredact.SanitizeUpstreamQueries(strings.TrimSpace(google.ExtractPlatformMessage(body)))
+	gatewayhttp.SetOpsUpstreamError(c, upstreamStatus, message, s.getUpstreamErrorDetail(body))
+	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 		Platform:           account.Platform,
 		AccountID:          account.ID,
 		AccountName:        account.Name,
@@ -438,9 +443,9 @@ func (s *AntigravityGatewayService) writeMappedAntigravityCompatError(
 		Kind:               "http_error",
 		Message:            message,
 	})
-	c.JSON(mapUpstreamStatusCode(upstreamStatus), gin.H{
+	c.JSON(protocolforward.MapStatus(upstreamStatus), gin.H{
 		"error": gin.H{
-			"message": getPassthroughOrDefault(message, "Upstream request failed"),
+			"message": antigravity.GetPassthroughOrDefault(message, "Upstream request failed"),
 			"type":    "upstream_error",
 			"param":   nil,
 			"code":    nil,
@@ -450,7 +455,7 @@ func (s *AntigravityGatewayService) writeMappedAntigravityCompatError(
 }
 
 func (s *AntigravityGatewayService) mapAntigravityCompatCollectionError(c *gin.Context, err error) error {
-	var failoverError *UpstreamFailoverError
+	var failoverError *protocolforward.UpstreamFailoverError
 	if errors.As(err, &failoverError) {
 		return err
 	}

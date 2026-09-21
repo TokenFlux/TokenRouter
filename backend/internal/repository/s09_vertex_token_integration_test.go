@@ -10,6 +10,7 @@ import (
 	"time"
 
 	accountmodule "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account/rediscache"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +31,7 @@ func (c *vertexCancelAfterLockCache) AcquireRefreshLock(ctx context.Context, key
 }
 
 func TestS09VertexLockCancellationWithRedis(t *testing.T) {
-	cache := NewGeminiTokenCache(testRedis(t))
+	cache := rediscache.NewOAuthTokenCache(testRedis(t))
 	key := accountmodule.VertexServiceAccountCacheKey(99, "s09-vertex-fixture", t.Name(), true)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

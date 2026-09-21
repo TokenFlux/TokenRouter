@@ -6,21 +6,24 @@ import (
 	"fmt"
 	"net/http"
 
+	accountmodule "github.com/TokenFlux/TokenRouter/internal/account"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
 )
 
 func (s *GatewayService) anthropicRequestOptions(ctx context.Context, c *gin.Context, account *Account, model, tokenType string, mimic bool) claude.RequestOptions {
-	o := claude.RequestOptions{InjectAPIKeyBeta: s.cfg != nil && s.cfg.Gateway.InjectBetaForAPIKey, AccountID: account.ID, OAuth: account.IsOAuth(), AccountUUID: account.GetExtraString("account_uuid"), MaskSession: account.IsSessionIDMaskingEnabled(), APIKeyBearer: account.GetAnthropicAPIKeyAuthScheme() == AnthropicAPIKeyAuthSchemeAuthorizationBearer, ClientHeaders: http.Header{}, ApplyOverrides: account.ApplyHeaderOverrides}
+	o := claude.RequestOptions{InjectAPIKeyBeta: s.cfg != nil && s.cfg.Gateway.InjectBetaForAPIKey, AccountID: account.ID, OAuth: account.IsOAuth(), AccountUUID: account.GetExtraString("account_uuid"), MaskSession: account.IsSessionIDMaskingEnabled(), APIKeyBearer: account.GetAnthropicAPIKeyAuthScheme() == accountmodule.AnthropicAPIKeyAuthSchemeAuthorizationBearer, ClientHeaders: http.Header{}, ApplyOverrides: account.ApplyHeaderOverrides}
 	if c != nil && c.Request != nil {
 		o.ClientHeaders = c.Request.Header
 	}
 	if s.identityService != nil {
-		o.Fingerprint = s.identityService.RequestFingerprint
+		o.Fingerprint = s.identityService
 	}
 	o.URL = func() (string, error) {
-		url := claudeAPIURL
-		if account.Type == AccountTypeAPIKey {
+		url := claude.ClaudeAPIURL
+		if account.Type == capability.AccountTypeAPIKey {
 			if base := account.GetBaseURL(); base != "" {
 				validated, err := s.validateUpstreamBaseURL(base)
 				if err != nil {
@@ -48,7 +51,7 @@ func (s *GatewayService) anthropicRequestOptions(ctx context.Context, c *gin.Con
 		if s.settingService == nil {
 			return true, false
 		}
-		fp, mpt, _ := s.settingService.GetGatewayForwardingSettings(ctx)
+		fp, mpt, _ := s.settingService.Gateway.GetGatewayForwardingSettings(ctx)
 		return fp, mpt
 	}
 	o.FilterSet = func(ctx context.Context) map[string]struct{} { return s.getBetaPolicyFilterSet(ctx, c, account, model) }
@@ -77,8 +80,8 @@ func (s *GatewayService) anthropicRequestOptions(ctx context.Context, c *gin.Con
 func (s *GatewayService) countTokensRequestOptions(ctx context.Context, c *gin.Context, value *Account, model, tokenType string, mimic, passthrough bool) claude.RequestOptions {
 	options := s.anthropicRequestOptions(ctx, c, value, model, tokenType, mimic)
 	options.URL = func() (string, error) {
-		target := claudeAPICountTokensURL
-		if passthrough || value.Type == AccountTypeAPIKey {
+		target := claude.ClaudeAPICountTokensURL
+		if passthrough || value.Type == capability.AccountTypeAPIKey {
 			if base := value.GetBaseURL(); base != "" {
 				validated, err := s.validateUpstreamBaseURL(base)
 				if err != nil {

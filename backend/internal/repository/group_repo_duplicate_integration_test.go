@@ -9,28 +9,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	repo := newGroupRepositoryWithSQL(client, integrationDB)
+	repo := newGroupStoreFixture(client, integrationDB)
 	suffix := time.Now().UnixNano()
 	operationID := strings.Repeat("b", 64)
 
 	source, err := client.Group.Create().
 		SetName(fmt.Sprintf("duplicate-rollback-source-%d", suffix)).
-		SetPlatform(service.PlatformAnthropic).
+		SetPlatform(capability.PlatformAnthropic).
 		Save(ctx)
 	require.NoError(t, err)
 	account, err := client.Account.Create().
 		SetName(fmt.Sprintf("duplicate-rollback-account-%d", suffix)).
-		SetPlatform(service.PlatformAnthropic).
-		SetType(service.AccountTypeOAuth).
+		SetPlatform(capability.PlatformAnthropic).
+		SetType(capability.AccountTypeOAuth).
 		Save(ctx)
 	require.NoError(t, err)
 	_, err = client.AccountGroup.Create().
@@ -71,15 +70,15 @@ func TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails(t *testing.T) {
 		_, _ = integrationDB.ExecContext(context.Background(), "DELETE FROM groups WHERE name IN ($1, $2)", source.Name, duplicateName)
 	})
 
-	duplicate := &service.Group{
+	duplicate := &routing.Group{
 		Name:                 duplicateName,
 		Platform:             source.Platform,
 		RateMultiplier:       1,
 		Status:               "inactive",
 		DuplicateOperationID: operationID,
 
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(source.Platform),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(source.Platform),
+		AllowedProtocols:     capability.DefaultGroupClientProtocols(source.Platform),
+		ProtocolFallbacks:    capability.DefaultProtocolFallbacks(source.Platform),
 		ResponsesImagePolicy: "inherit",
 	}
 	err = repo.CreateFromSource(ctx, duplicate, source.ID)

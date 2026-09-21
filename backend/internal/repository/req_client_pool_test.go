@@ -6,6 +6,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"github.com/imroc/req/v3"
 	"github.com/stretchr/testify/require"
 )
@@ -20,13 +23,13 @@ func forceHTTPVersion(t *testing.T, client *req.Client) string {
 }
 
 func TestCreateOpenAIReqClient_Timeout120Seconds(t *testing.T) {
-	client, err := createOpenAIReqClient("http://proxy.local:8080")
+	client, err := openai.CreateOAuthReqClient("http://proxy.local:8080")
 	require.NoError(t, err)
 	require.Equal(t, 120*time.Second, client.GetClient().Timeout)
 }
 
 func TestCreateGeminiReqClient_ForceHTTP2Disabled(t *testing.T) {
-	client, err := createGeminiReqClient("http://proxy.local:8080")
+	client, err := codeassist.CreateOAuthReqClient("http://proxy.local:8080")
 	require.NoError(t, err)
 	require.Equal(t, "", forceHTTPVersion(t, client))
 }

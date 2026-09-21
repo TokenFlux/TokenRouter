@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 const (
@@ -210,7 +210,7 @@ var (
 	// DefaultBalanceHoldAmount holds the default value on creation for the "balance_hold_amount" field.
 	DefaultBalanceHoldAmount float64
 	// DefaultSubscriptionHoldAllocations holds the default value on creation for the "subscription_hold_allocations" field.
-	DefaultSubscriptionHoldAllocations func() []domain.BillingAllocation
+	DefaultSubscriptionHoldAllocations func() []billing.BillingAllocation
 	// DefaultBaseUnitPrice holds the default value on creation for the "base_unit_price" field.
 	DefaultBaseUnitPrice float64
 	// DefaultSubscriptionRateMultiplier holds the default value on creation for the "subscription_rate_multiplier" field.

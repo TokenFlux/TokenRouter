@@ -13,6 +13,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 	"github.com/TokenFlux/TokenRouter/internal/upstream" // ExecuteOpenAI 执行 OpenAI 平台任务：generate 走 /v1/images/generations（JSON），
+
 	// edit/inpaint 走 /v1/images/edits（multipart，多源图 + mask）。
 	"github.com/tidwall/gjson"
 )

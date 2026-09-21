@@ -5,12 +5,14 @@ import (
 	context "context"
 	sql "database/sql"
 	json "encoding/json"
+	slog "log/slog"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
 	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
-	slog "log/slog"
 )
 
 func userEntityToKeyView(u *dbent.User) *keycore.User {
@@ -50,7 +52,7 @@ func userEntityToKeyView(u *dbent.User) *keycore.User {
 	}
 	return out
 }
-func groupEntityToKeyView(g *dbent.Group) *keycore.Group {
+func groupEntityToKeyView(g *dbent.Group) *routing.Group {
 	if g == nil {
 		return nil
 	}
@@ -62,7 +64,7 @@ func groupEntityToKeyView(g *dbent.Group) *keycore.Group {
 			modelPricing = nil
 		}
 	}
-	return &keycore.Group{
+	return &routing.Group{
 		ID:                              g.ID,
 		Name:                            g.Name,
 		Description:                     KeyDerefString(g.Description),

@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/TokenFlux/TokenRouter/ent/batchimagejob"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // BatchImageJob is the model entity for the BatchImageJob schema.
@@ -70,7 +70,7 @@ type BatchImageJob struct {
 	// BalanceHoldAmount holds the value of the "balance_hold_amount" field.
 	BalanceHoldAmount float64 `json:"balance_hold_amount,omitempty"`
 	// SubscriptionHoldAllocations holds the value of the "subscription_hold_allocations" field.
-	SubscriptionHoldAllocations []domain.BillingAllocation `json:"subscription_hold_allocations,omitempty"`
+	SubscriptionHoldAllocations []billing.BillingAllocation `json:"subscription_hold_allocations,omitempty"`
 	// SubscriptionRateMultiplier holds the value of the "subscription_rate_multiplier" field.
 	SubscriptionRateMultiplier float64 `json:"subscription_rate_multiplier,omitempty"`
 	// BalanceRateMultiplier holds the value of the "balance_rate_multiplier" field.

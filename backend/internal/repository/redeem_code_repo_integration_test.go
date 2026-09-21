@@ -7,10 +7,13 @@ import (
 	"testing"
 	"time"
 
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/redeemcodeusage"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -18,14 +21,14 @@ type RedeemCodeRepoSuite struct {
 	suite.Suite
 	ctx    context.Context
 	client *dbent.Client
-	repo   *redeemCodeRepository
+	repo   *billingpostgres.RedeemStore
 }
 
 func (s *RedeemCodeRepoSuite) SetupTest() {
 	s.ctx = context.Background()
 	tx := testEntTx(s.T())
 	s.client = tx.Client()
-	s.repo = NewRedeemCodeRepository(s.client).(*redeemCodeRepository)
+	s.repo = billingpostgres.NewRedeemCodeRepository(s.client)
 }
 
 func TestRedeemCodeRepoSuite(t *testing.T) {
@@ -39,14 +42,6 @@ func (s *RedeemCodeRepoSuite) createUser(email string) *dbent.User {
 		Save(s.ctx)
 	s.Require().NoError(err, "create user")
 	return u
-}
-
-func (s *RedeemCodeRepoSuite) createGroup(name string) *dbent.Group {
-	g, err := s.client.Group.Create().
-		SetName(name).
-		Save(s.ctx)
-	s.Require().NoError(err, "create group")
-	return g
 }
 
 func (s *RedeemCodeRepoSuite) createPlan(name string) *dbent.SubscriptionPlan {
@@ -69,7 +64,7 @@ func (s *RedeemCodeRepoSuite) createUsedCode(codeType, code string, userID int64
 	create := s.client.RedeemCode.Create().
 		SetCode(code).
 		SetType(codeType).
-		SetStatus(service.StatusUsed).
+		SetStatus(billing.StatusUsed).
 		SetValue(0).
 		SetNotes("").
 		SetMaxUses(1).
@@ -96,11 +91,11 @@ func (s *RedeemCodeRepoSuite) createUsedCode(codeType, code string, userID int64
 // --- Create / CreateBatch / GetByID / GetByCode ---
 
 func (s *RedeemCodeRepoSuite) TestCreate() {
-	code := &service.RedeemCode{
+	code := &billing.RedeemCode{
 		Code:   "TEST-CREATE",
-		Type:   service.RedeemTypeBalance,
+		Type:   billing.RedeemTypeBalance,
 		Value:  100,
-		Status: service.StatusUnused,
+		Status: billing.StatusUnused,
 	}
 
 	err := s.repo.Create(s.ctx, code)
@@ -113,9 +108,9 @@ func (s *RedeemCodeRepoSuite) TestCreate() {
 }
 
 func (s *RedeemCodeRepoSuite) TestCreateBatch() {
-	codes := []service.RedeemCode{
-		{Code: "BATCH-1", Type: service.RedeemTypeBalance, Value: 10, Status: service.StatusUnused},
-		{Code: "BATCH-2", Type: service.RedeemTypeBalance, Value: 20, Status: service.StatusUnused},
+	codes := []billing.RedeemCode{
+		{Code: "BATCH-1", Type: billing.RedeemTypeBalance, Value: 10, Status: billing.StatusUnused},
+		{Code: "BATCH-2", Type: billing.RedeemTypeBalance, Value: 20, Status: billing.StatusUnused},
 	}
 
 	err := s.repo.CreateBatch(s.ctx, codes)
@@ -133,14 +128,14 @@ func (s *RedeemCodeRepoSuite) TestCreateBatch() {
 func (s *RedeemCodeRepoSuite) TestGetByID_NotFound() {
 	_, err := s.repo.GetByID(s.ctx, 999999)
 	s.Require().Error(err, "expected error for non-existent ID")
-	s.Require().ErrorIs(err, service.ErrRedeemCodeNotFound)
+	s.Require().ErrorIs(err, billing.ErrRedeemCodeNotFound)
 }
 
 func (s *RedeemCodeRepoSuite) TestGetByCode() {
 	_, err := s.client.RedeemCode.Create().
 		SetCode("GET-BY-CODE").
-		SetType(service.RedeemTypeBalance).
-		SetStatus(service.StatusUnused).
+		SetType(billing.RedeemTypeBalance).
+		SetStatus(billing.StatusUnused).
 		SetValue(0).
 		SetNotes("").
 		Save(s.ctx)
@@ -154,7 +149,7 @@ func (s *RedeemCodeRepoSuite) TestGetByCode() {
 func (s *RedeemCodeRepoSuite) TestGetByCode_NotFound() {
 	_, err := s.repo.GetByCode(s.ctx, "NON-EXISTENT")
 	s.Require().Error(err, "expected error for non-existent code")
-	s.Require().ErrorIs(err, service.ErrRedeemCodeNotFound)
+	s.Require().ErrorIs(err, billing.ErrRedeemCodeNotFound)
 }
 
 // --- Delete ---
@@ -162,8 +157,8 @@ func (s *RedeemCodeRepoSuite) TestGetByCode_NotFound() {
 func (s *RedeemCodeRepoSuite) TestDelete() {
 	created, err := s.client.RedeemCode.Create().
 		SetCode("TO-DELETE").
-		SetType(service.RedeemTypeBalance).
-		SetStatus(service.StatusUnused).
+		SetType(billing.RedeemTypeBalance).
+		SetStatus(billing.StatusUnused).
 		SetValue(0).
 		SetNotes("").
 		Save(s.ctx)
@@ -174,14 +169,14 @@ func (s *RedeemCodeRepoSuite) TestDelete() {
 
 	_, err = s.repo.GetByID(s.ctx, created.ID)
 	s.Require().Error(err, "expected error after delete")
-	s.Require().ErrorIs(err, service.ErrRedeemCodeNotFound)
+	s.Require().ErrorIs(err, billing.ErrRedeemCodeNotFound)
 }
 
 // --- List / ListWithFilters ---
 
 func (s *RedeemCodeRepoSuite) TestList() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "LIST-1", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "LIST-2", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "LIST-1", Type: billing.RedeemTypeBalance, Value: 0, Status: billing.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "LIST-2", Type: billing.RedeemTypeBalance, Value: 0, Status: billing.StatusUnused}))
 
 	codes, page, err := s.repo.List(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10})
 	s.Require().NoError(err, "List")
@@ -190,53 +185,53 @@ func (s *RedeemCodeRepoSuite) TestList() {
 }
 
 func (s *RedeemCodeRepoSuite) TestListWithFilters_Type() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "TYPE-BAL", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "TYPE-SUB", Type: service.RedeemTypeSubscription, Value: 0, Status: service.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "TYPE-BAL", Type: billing.RedeemTypeBalance, Value: 0, Status: billing.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "TYPE-SUB", Type: billing.RedeemTypeSubscription, Value: 0, Status: billing.StatusUnused}))
 
-	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, service.RedeemTypeSubscription, "", "")
+	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, billing.RedeemTypeSubscription, "", "")
 	s.Require().NoError(err)
 	s.Require().Len(codes, 1)
-	s.Require().Equal(service.RedeemTypeSubscription, codes[0].Type)
+	s.Require().Equal(billing.RedeemTypeSubscription, codes[0].Type)
 }
 
 func (s *RedeemCodeRepoSuite) TestListWithFilters_Status() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "STAT-UNUSED", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "STAT-UNUSED", Type: billing.RedeemTypeBalance, Value: 0, Status: billing.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{
 		Code:      "STAT-USED",
-		Type:      service.RedeemTypeBalance,
+		Type:      billing.RedeemTypeBalance,
 		Value:     0,
-		Status:    service.StatusUsed,
+		Status:    billing.StatusUsed,
 		MaxUses:   1,
 		UsedCount: 1,
 	}))
 
-	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, "", service.StatusUsed, "")
+	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, "", billing.StatusUsed, "")
 	s.Require().NoError(err)
 	s.Require().Len(codes, 1)
-	s.Require().Equal(service.StatusUsed, codes[0].Status)
+	s.Require().Equal(billing.StatusUsed, codes[0].Status)
 }
 
 func (s *RedeemCodeRepoSuite) TestListWithFilters_StatusExpiredIncludesInvitationExpiry() {
 	past := time.Now().UTC().Add(-time.Hour)
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{
 		Code:      "INVITE-EXP",
-		Type:      service.RedeemTypeInvitation,
-		Status:    service.StatusUnused,
+		Type:      billing.RedeemTypeInvitation,
+		Status:    billing.StatusUnused,
 		MaxUses:   1,
 		ExpiresAt: &past,
 	}))
 
-	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, "", service.StatusExpired, "")
+	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, "", billing.StatusExpired, "")
 
 	s.Require().NoError(err)
 	s.Require().Len(codes, 1)
-	s.Require().Equal(service.RedeemTypeInvitation, codes[0].Type)
-	s.Require().Equal(service.StatusExpired, codes[0].Status)
+	s.Require().Equal(billing.RedeemTypeInvitation, codes[0].Type)
+	s.Require().Equal(billing.StatusExpired, codes[0].Status)
 }
 
 func (s *RedeemCodeRepoSuite) TestListWithFilters_Search() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "ALPHA-CODE", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "BETA-CODE", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "ALPHA-CODE", Type: billing.RedeemTypeBalance, Value: 0, Status: billing.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "BETA-CODE", Type: billing.RedeemTypeBalance, Value: 0, Status: billing.StatusUnused}))
 
 	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, "", "", "alpha")
 	s.Require().NoError(err)
@@ -248,8 +243,8 @@ func (s *RedeemCodeRepoSuite) TestListWithFilters_PlanPreload() {
 	plan := s.createPlan(uniqueTestValue(s.T(), "plan-preload"))
 	_, err := s.client.RedeemCode.Create().
 		SetCode("WITH-GROUP").
-		SetType(service.RedeemTypeSubscription).
-		SetStatus(service.StatusUnused).
+		SetType(billing.RedeemTypeSubscription).
+		SetStatus(billing.StatusUnused).
 		SetValue(0).
 		SetNotes("").
 		SetPlanID(plan.ID).
@@ -266,11 +261,11 @@ func (s *RedeemCodeRepoSuite) TestListWithFilters_PlanPreload() {
 // --- Update ---
 
 func (s *RedeemCodeRepoSuite) TestUpdate() {
-	code := &service.RedeemCode{
+	code := &billing.RedeemCode{
 		Code:   "UPDATE-ME",
-		Type:   service.RedeemTypeBalance,
+		Type:   billing.RedeemTypeBalance,
 		Value:  10,
-		Status: service.StatusUnused,
+		Status: billing.StatusUnused,
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, code))
 
@@ -287,11 +282,11 @@ func (s *RedeemCodeRepoSuite) TestUpdate() {
 
 func (s *RedeemCodeRepoSuite) TestUse() {
 	user := s.createUser(uniqueTestValue(s.T(), "use") + "@example.com")
-	code := &service.RedeemCode{
+	code := &billing.RedeemCode{
 		Code:    "USE-ME",
-		Type:    service.RedeemTypeBalance,
+		Type:    billing.RedeemTypeBalance,
 		Value:   0,
-		Status:  service.StatusUnused,
+		Status:  billing.StatusUnused,
 		MaxUses: 1,
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, code))
@@ -301,7 +296,7 @@ func (s *RedeemCodeRepoSuite) TestUse() {
 
 	got, err := s.repo.GetByID(s.ctx, code.ID)
 	s.Require().NoError(err)
-	s.Require().Equal(service.StatusUsed, got.Status)
+	s.Require().Equal(billing.StatusUsed, got.Status)
 	s.Require().NotNil(got.UsedBy)
 	s.Require().Equal(user.ID, *got.UsedBy)
 	s.Require().NotNil(got.UsedAt)
@@ -309,11 +304,11 @@ func (s *RedeemCodeRepoSuite) TestUse() {
 
 func (s *RedeemCodeRepoSuite) TestUse_Idempotency() {
 	user := s.createUser(uniqueTestValue(s.T(), "idem") + "@example.com")
-	code := &service.RedeemCode{
+	code := &billing.RedeemCode{
 		Code:    "IDEM-CODE",
-		Type:    service.RedeemTypeBalance,
+		Type:    billing.RedeemTypeBalance,
 		Value:   0,
-		Status:  service.StatusUnused,
+		Status:  billing.StatusUnused,
 		MaxUses: 1,
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, code))
@@ -324,16 +319,16 @@ func (s *RedeemCodeRepoSuite) TestUse_Idempotency() {
 	// Second use should fail
 	err = s.repo.Use(s.ctx, code.ID, user.ID)
 	s.Require().Error(err, "Use expected error on second call")
-	s.Require().ErrorIs(err, service.ErrRedeemCodeUsed)
+	s.Require().ErrorIs(err, billing.ErrRedeemCodeUsed)
 }
 
 func (s *RedeemCodeRepoSuite) TestUse_AlreadyUsed() {
 	user := s.createUser(uniqueTestValue(s.T(), "already") + "@example.com")
-	code := &service.RedeemCode{
+	code := &billing.RedeemCode{
 		Code:      "ALREADY-USED",
-		Type:      service.RedeemTypeBalance,
+		Type:      billing.RedeemTypeBalance,
 		Value:     0,
-		Status:    service.StatusUsed,
+		Status:    billing.StatusUsed,
 		MaxUses:   1,
 		UsedCount: 1,
 	}
@@ -341,16 +336,16 @@ func (s *RedeemCodeRepoSuite) TestUse_AlreadyUsed() {
 
 	err := s.repo.Use(s.ctx, code.ID, user.ID)
 	s.Require().Error(err, "expected error for already used code")
-	s.Require().ErrorIs(err, service.ErrRedeemCodeUsed)
+	s.Require().ErrorIs(err, billing.ErrRedeemCodeUsed)
 }
 
 func (s *RedeemCodeRepoSuite) TestUse_ExpiredInvitationRejected() {
 	user := s.createUser(uniqueTestValue(s.T(), "expired-invite") + "@example.com")
 	past := time.Now().UTC().Add(-time.Hour)
-	code := &service.RedeemCode{
+	code := &billing.RedeemCode{
 		Code:      "EXPIRED-INVITE",
-		Type:      service.RedeemTypeInvitation,
-		Status:    service.StatusUnused,
+		Type:      billing.RedeemTypeInvitation,
+		Status:    billing.StatusUnused,
 		MaxUses:   1,
 		ExpiresAt: &past,
 	}
@@ -359,7 +354,7 @@ func (s *RedeemCodeRepoSuite) TestUse_ExpiredInvitationRejected() {
 	err := s.repo.Use(s.ctx, code.ID, user.ID)
 
 	s.Require().Error(err, "expected error for expired invitation code")
-	s.Require().ErrorIs(err, service.ErrRedeemCodeUsed)
+	s.Require().ErrorIs(err, billing.ErrRedeemCodeUsed)
 }
 
 // --- ListByUser ---
@@ -368,8 +363,8 @@ func (s *RedeemCodeRepoSuite) TestListByUser() {
 	user := s.createUser(uniqueTestValue(s.T(), "listby") + "@example.com")
 	base := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	s.createUsedCode(service.RedeemTypeBalance, "USER-1", user.ID, base, nil)
-	s.createUsedCode(service.RedeemTypeBalance, "USER-2", user.ID, base.Add(1*time.Hour), nil)
+	s.createUsedCode(billing.RedeemTypeBalance, "USER-1", user.ID, base, nil)
+	s.createUsedCode(billing.RedeemTypeBalance, "USER-2", user.ID, base.Add(1*time.Hour), nil)
 
 	codes, err := s.repo.ListByUser(s.ctx, user.ID, 10)
 	s.Require().NoError(err, "ListByUser")
@@ -382,7 +377,7 @@ func (s *RedeemCodeRepoSuite) TestListByUser() {
 func (s *RedeemCodeRepoSuite) TestListByUser_WithPlanPreload() {
 	user := s.createUser(uniqueTestValue(s.T(), "grp") + "@example.com")
 	plan := s.createPlan(uniqueTestValue(s.T(), "plan-listby"))
-	s.createUsedCode(service.RedeemTypeSubscription, "WITH-GRP", user.ID, time.Now(), &plan.ID)
+	s.createUsedCode(billing.RedeemTypeSubscription, "WITH-GRP", user.ID, time.Now(), &plan.ID)
 
 	codes, err := s.repo.ListByUser(s.ctx, user.ID, 10)
 	s.Require().NoError(err)
@@ -393,7 +388,7 @@ func (s *RedeemCodeRepoSuite) TestListByUser_WithPlanPreload() {
 
 func (s *RedeemCodeRepoSuite) TestListByUser_DefaultLimit() {
 	user := s.createUser(uniqueTestValue(s.T(), "deflimit") + "@example.com")
-	s.createUsedCode(service.RedeemTypeBalance, "DEF-LIM", user.ID, time.Now(), nil)
+	s.createUsedCode(billing.RedeemTypeBalance, "DEF-LIM", user.ID, time.Now(), nil)
 
 	// limit <= 0 should default to 10
 	codes, err := s.repo.ListByUser(s.ctx, user.ID, 0)
@@ -408,13 +403,13 @@ func (s *RedeemCodeRepoSuite) TestCreateBatch_Filters_Use_Idempotency_ListByUser
 	plan := s.createPlan(uniqueTestValue(s.T(), "plan-rc"))
 	planID := plan.ID
 
-	codes := []service.RedeemCode{
-		{Code: "CODEA", Type: service.RedeemTypeBalance, Value: 1, Status: service.StatusUnused, Notes: ""},
-		{Code: "CODEB", Type: service.RedeemTypeSubscription, Value: 0, Status: service.StatusUnused, Notes: "", PlanID: &planID},
+	codes := []billing.RedeemCode{
+		{Code: "CODEA", Type: billing.RedeemTypeBalance, Value: 1, Status: billing.StatusUnused, Notes: ""},
+		{Code: "CODEB", Type: billing.RedeemTypeSubscription, Value: 0, Status: billing.StatusUnused, Notes: "", PlanID: &planID},
 	}
 	s.Require().NoError(s.repo.CreateBatch(s.ctx, codes), "CreateBatch")
 
-	list, page, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, service.RedeemTypeSubscription, service.StatusUnused, "code")
+	list, page, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, billing.RedeemTypeSubscription, billing.StatusUnused, "code")
 	s.Require().NoError(err, "ListWithFilters")
 	s.Require().Equal(int64(1), page.Total)
 	s.Require().Len(list, 1)
@@ -426,7 +421,7 @@ func (s *RedeemCodeRepoSuite) TestCreateBatch_Filters_Use_Idempotency_ListByUser
 	s.Require().NoError(s.repo.Use(s.ctx, codeB.ID, user.ID), "Use")
 	err = s.repo.Use(s.ctx, codeB.ID, user.ID)
 	s.Require().Error(err, "Use expected error on second call")
-	s.Require().ErrorIs(err, service.ErrRedeemCodeUsed)
+	s.Require().ErrorIs(err, billing.ErrRedeemCodeUsed)
 
 	codeA, err := s.repo.GetByCode(s.ctx, "CODEA")
 	s.Require().NoError(err, "GetByCode")

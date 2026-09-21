@@ -2,21 +2,11 @@ package service
 
 import (
 	context "context"
+	time "time"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	time "time"
 )
-
-var (
-	ErrAccountNotFound      = accountcore.ErrAccountNotFound
-	ErrAccountNilInput      = accountcore.ErrAccountNilInput
-	ErrAccountNotInFallback = accountcore.ErrAccountNotInFallback
-)
-
-const AccountListGroupUngrouped = accountcore.AccountListGroupUngrouped
-const AccountPrivacyModeUnsetFilter = accountcore.AccountPrivacyModeUnsetFilter
-
-type OAuthRefreshPageOptions = accountcore.OAuthRefreshPageOptions
 
 // OAuthRefreshCandidatePage 保留原始 SQL ID 页面的游标元数据。
 // 即使详情加载时记录被并发删除，调用方仍可越过原始页面继续扫描，避免截断或重复。
@@ -29,7 +19,7 @@ type OAuthRefreshCandidatePage struct {
 // OAuthRefreshCandidatePager 是刻意窄于 AccountRepository 的有界分页接口。
 // 生产刷新周期在仓储未实现该契约时会安全失败，不会静默退回无分页扫描。
 type OAuthRefreshCandidatePager interface {
-	ListOAuthRefreshCandidatePage(ctx context.Context, options OAuthRefreshPageOptions) (*OAuthRefreshCandidatePage, error)
+	ListOAuthRefreshCandidatePage(ctx context.Context, options accountcore.OAuthRefreshPageOptions) (*OAuthRefreshCandidatePage, error)
 }
 
 type AccountRepository interface {
@@ -94,7 +84,7 @@ type AccountRepository interface {
 	// 用于 active poll 拿到新 ResetsAt 后回写，避免覆盖请求路径上记录的 status。
 	UpdateSessionWindowEnd(ctx context.Context, id int64, end time.Time) error
 	UpdateExtra(ctx context.Context, id int64, updates map[string]any) error
-	BulkUpdate(ctx context.Context, ids []int64, updates AccountBulkUpdate) (int64, error)
+	BulkUpdate(ctx context.Context, ids []int64, updates accountcore.AccountBulkUpdate) (int64, error)
 	// IncrementQuotaUsed 原子递增 API Key 账号的配额用量（总/日/周）
 	IncrementQuotaUsed(ctx context.Context, id int64, amount float64) error
 	// ResetQuotaUsedAndClearRateLimitCooldown atomically resets API Key quota usage
@@ -115,90 +105,9 @@ type CNUsageMonitorSnapshotRepository interface {
 		ctx context.Context,
 		accountID int64,
 		expectedUpdatedAt time.Time,
-		snapshot *CNUsageMonitorSnapshot,
+		snapshot *accountcore.CNUsageMonitorSnapshot,
 		clearExtraKey string,
 	) (bool, error)
 }
 
-type AccountDuplicateRepository interface {
-	// CreateWithAccountGroups 原子持久化账号、分组绑定与新路由快照的调度 outbox 事件。
-	CreateWithAccountGroups(ctx context.Context, account *Account, groups []AccountGroup) error
-}
-
-// AdminAccountRepository 将账号复制写入能力声明为显式构造依赖，
-// 避免强制只读网关测试替身实现该能力。
-type AdminAccountRepository interface {
-	AccountRepository
-	AccountDuplicateRepository
-}
-
 // AccountBulkUpdate 兼容旧消费者，值类型归账号模块。
-type AccountBulkUpdate = accountcore.AccountBulkUpdate
-
-type CreateAccountRequest = accountcore.CreateAccountRequest
-
-type UpdateAccountRequest = accountcore.UpdateAccountRequest
-
-// AccountService 账号管理服务
-type AccountService struct {
-	accountRepo AccountRepository
-	groupRepo   GroupRepository
-}
-
-// NewAccountService 创建账号服务实例
-func NewAccountService(accountRepo AccountRepository, groupRepo GroupRepository) *AccountService {
-	return &AccountService{
-		accountRepo: accountRepo,
-		groupRepo:   groupRepo,
-	}
-}
-
-func (s *AccountService) Create(ctx context.Context, req CreateAccountRequest) (*Account, error) {
-	v, err := s.basicAccounts().Create(ctx, req)
-	return AccountFromRecord(v), err
-}
-
-func (s *AccountService) GetByID(ctx context.Context, id int64) (*Account, error) {
-	v, err := s.basicAccounts().GetByID(ctx, id)
-	return AccountFromRecord(v), err
-}
-
-func (s *AccountService) List(ctx context.Context, params pagination.PaginationParams) ([]Account, *pagination.PaginationResult, error) {
-	v, page, err := s.basicAccounts().List(ctx, params)
-	return AccountsFromRecords(v), page, err
-}
-
-func (s *AccountService) ListByPlatform(ctx context.Context, platform string) ([]Account, error) {
-	v, err := s.basicAccounts().ListByPlatform(ctx, platform)
-	return AccountsFromRecords(v), err
-}
-
-func (s *AccountService) ListByGroup(ctx context.Context, groupID int64) ([]Account, error) {
-	v, err := s.basicAccounts().ListByGroup(ctx, groupID)
-	return AccountsFromRecords(v), err
-}
-
-func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccountRequest) (*Account, error) {
-	v, err := s.basicAccounts().Update(ctx, id, req)
-	return AccountFromRecord(v), err
-}
-
-func (s *AccountService) Delete(ctx context.Context, id int64) error {
-	return s.basicAccounts().Delete(ctx, id)
-}
-
-func (s *AccountService) UpdateStatus(ctx context.Context, id int64, status string, errorMessage string) error {
-	return s.basicAccounts().UpdateStatus(ctx, id, status, errorMessage)
-}
-
-func (s *AccountService) UpdateLastUsed(ctx context.Context, id int64) error {
-	return s.basicAccounts().UpdateLastUsed(ctx, id)
-}
-
-func (s *AccountService) GetCredential(ctx context.Context, id int64, key string) (string, error) {
-	return s.basicAccounts().GetCredential(ctx, id, key)
-}
-
-func (s *AccountService) TestCredentials(ctx context.Context, id int64) error {
-	return s.basicAccounts().TestCredentials(ctx, id)
-}

@@ -6,10 +6,11 @@ import (
 	sql "database/sql"
 	json "encoding/json"
 	fmt "fmt"
+	strings "strings"
+
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	pq "github.com/lib/pq"
-	strings "strings"
 )
 
 type ChannelStore struct {

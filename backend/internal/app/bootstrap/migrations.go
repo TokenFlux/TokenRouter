@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"database/sql"
+
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	"github.com/TokenFlux/TokenRouter/migrations"
 )

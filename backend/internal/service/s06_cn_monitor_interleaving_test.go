@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/stretchr/testify/require"
 )
 
 // 模拟最新身份读取后、执行健康写入前管理员替换凭据。
@@ -19,7 +22,7 @@ func (r *s06CNDecisionRepo) changeIdentity(id int64) {
 	}
 	r.changed = true
 	r.accounts[id].UpdatedAt = r.accounts[id].UpdatedAt.Add(time.Second)
-	r.accounts[id].Credentials = map[string]any{"api_key": "new-admin-key", "account_mode": AccountModePayG}
+	r.accounts[id].Credentials = map[string]any{"api_key": "new-admin-key", "account_mode": account.AccountModePayG}
 }
 func (r *s06CNDecisionRepo) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
 	r.changeIdentity(id)
@@ -36,8 +39,8 @@ func (r *s06CNDecisionRepo) SetCNUsageDecisionCAS(ctx context.Context, id int64,
 	return true, r.cnUsageMonitorRepo.SetTempUnschedulable(ctx, id, until, reason)
 }
 func TestS06CNMonitorOldIdentityCannotPauseNewCredentials(t *testing.T) {
-	value := newCNUsageMonitorAccount(1, PlatformKimi, AccountModePayG)
-	repo := &s06CNDecisionRepo{cnUsageMonitorRepo: &cnUsageMonitorRepo{accounts: map[int64]*Account{1: value}, byPlatform: map[string][]int64{PlatformKimi: {1}}, casResult: true}}
+	value := newCNUsageMonitorAccount(1, capability.PlatformKimi, account.AccountModePayG)
+	repo := &s06CNDecisionRepo{cnUsageMonitorRepo: &cnUsageMonitorRepo{accounts: map[int64]*Account{1: value}, byPlatform: map[string][]int64{capability.PlatformKimi: {1}}, casResult: true}}
 	upstream := &cnUsageMonitorHTTP{body: `{"code":0,"data":{"available_balance":0.1}}`}
 	cfg := testUpstreamUsageConfig()
 	cfg.Gateway.CNProviders.BalanceThreshold = 0.5

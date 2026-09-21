@@ -13,7 +13,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	_ "github.com/lib/pq"
 	"go.uber.org/zap"
@@ -131,7 +131,7 @@ func skipSetupEnabled() bool {
 // Uses multiple checks to prevent attackers from forcing re-setup by deleting config
 func NeedsSetup() bool {
 	if skipSetupEnabled() {
-		logger.L().Debug("setup.needs_setup_bypassed", zap.String("reason", "skip_setup_enabled"))
+		logging.L().Debug("setup.needs_setup_bypassed", zap.String("reason", "skip_setup_enabled"))
 		return false
 	}
 
@@ -168,7 +168,7 @@ func Install(cfg *SetupConfig) error {
 			return fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
 		cfg.JWT.Secret = secret
-		logger.LegacyPrintf("setup", "%s", "Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
+		logging.LegacyPrintf("setup", "%s", "Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
 	}
 
 	// Test connections
@@ -338,8 +338,8 @@ func getEnvIntOrDefault(key string, defaultValue int) int {
 // AutoSetupFromEnv performs automatic setup using environment variables
 // This is designed for Docker deployment where all config is passed via env vars
 func AutoSetupFromEnv() error {
-	logger.LegacyPrintf("setup", "%s", "Auto setup enabled, configuring from environment variables...")
-	logger.LegacyPrintf("setup", "Data directory: %s", GetDataDir())
+	logging.LegacyPrintf("setup", "%s", "Auto setup enabled, configuring from environment variables...")
+	logging.LegacyPrintf("setup", "Data directory: %s", GetDataDir())
 
 	// Get timezone from TZ or TIMEZONE env var (TZ is standard for Docker)
 	tz := getEnvOrDefault("TZ", "")
@@ -389,62 +389,62 @@ func AutoSetupFromEnv() error {
 			return fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
 		cfg.JWT.Secret = secret
-		logger.LegacyPrintf("setup", "%s", "Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
+		logging.LegacyPrintf("setup", "%s", "Warning: JWT secret auto-generated. Consider setting a fixed secret for production.")
 	}
 
 	// Test database connection
-	logger.LegacyPrintf("setup", "%s", "Testing database connection...")
+	logging.LegacyPrintf("setup", "%s", "Testing database connection...")
 	if err := TestDatabaseConnection(&cfg.Database); err != nil {
 		return fmt.Errorf("database connection failed: %w", err)
 	}
-	logger.LegacyPrintf("setup", "%s", "Database connection successful")
+	logging.LegacyPrintf("setup", "%s", "Database connection successful")
 
 	// Test Redis connection
-	logger.LegacyPrintf("setup", "%s", "Testing Redis connection...")
+	logging.LegacyPrintf("setup", "%s", "Testing Redis connection...")
 	if err := TestRedisConnection(&cfg.Redis); err != nil {
 		return fmt.Errorf("redis connection failed: %w", err)
 	}
-	logger.LegacyPrintf("setup", "%s", "Redis connection successful")
+	logging.LegacyPrintf("setup", "%s", "Redis connection successful")
 
 	// Initialize database
-	logger.LegacyPrintf("setup", "%s", "Initializing database...")
+	logging.LegacyPrintf("setup", "%s", "Initializing database...")
 	if err := initializeDatabase(cfg); err != nil {
 		return fmt.Errorf("database initialization failed: %w", err)
 	}
-	logger.LegacyPrintf("setup", "%s", "Database initialized successfully")
+	logging.LegacyPrintf("setup", "%s", "Database initialized successfully")
 
 	// Create admin user
-	logger.LegacyPrintf("setup", "%s", "Creating admin user...")
+	logging.LegacyPrintf("setup", "%s", "Creating admin user...")
 	created, reason, err := createAdminUser(cfg)
 	if err != nil {
 		return fmt.Errorf("admin user creation failed: %w", err)
 	}
 	if created {
-		logger.LegacyPrintf("setup", "Admin user created: %s", cfg.Admin.Email)
+		logging.LegacyPrintf("setup", "Admin user created: %s", cfg.Admin.Email)
 	} else {
 		switch reason {
 		case adminBootstrapReasonAdminExists:
-			logger.LegacyPrintf("setup", "%s", "Admin user already exists, skipping admin bootstrap")
+			logging.LegacyPrintf("setup", "%s", "Admin user already exists, skipping admin bootstrap")
 		case adminBootstrapReasonUsersExistWithoutAdmin:
-			logger.LegacyPrintf("setup", "%s", "Database already has user data; skipping auto admin bootstrap to avoid password overwrite")
+			logging.LegacyPrintf("setup", "%s", "Database already has user data; skipping auto admin bootstrap to avoid password overwrite")
 		default:
-			logger.LegacyPrintf("setup", "%s", "Admin bootstrap skipped")
+			logging.LegacyPrintf("setup", "%s", "Admin bootstrap skipped")
 		}
 	}
 
 	// Write config file
-	logger.LegacyPrintf("setup", "%s", "Writing configuration file...")
+	logging.LegacyPrintf("setup", "%s", "Writing configuration file...")
 	if err := writeConfigFile(cfg); err != nil {
 		return fmt.Errorf("config file creation failed: %w", err)
 	}
-	logger.LegacyPrintf("setup", "%s", "Configuration file created")
+	logging.LegacyPrintf("setup", "%s", "Configuration file created")
 
 	// Create installation lock file
 	if err := createInstallLock(); err != nil {
 		return fmt.Errorf("failed to create install lock: %w", err)
 	}
-	logger.LegacyPrintf("setup", "%s", "Installation lock created")
+	logging.LegacyPrintf("setup", "%s", "Installation lock created")
 
-	logger.LegacyPrintf("setup", "%s", "Auto setup completed successfully!")
+	logging.LegacyPrintf("setup", "%s", "Auto setup completed successfully!")
 	return nil
 }

@@ -20,7 +20,6 @@ import (
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -48,10 +47,8 @@ var (
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 
-	if err := timezone.Init("UTC"); err != nil {
-		log.Printf("failed to init timezone: %v", err)
-		os.Exit(1)
-	}
+	// 在启动测试资源前固定进程时区，各存储显式捕获对应日历。
+	time.Local = time.UTC
 
 	if !dockerIsAvailable(ctx) {
 		// In CI we expect Docker to be available so integration tests should fail loudly.

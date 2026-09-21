@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -28,7 +28,7 @@ func TestRunHTTPRecoveryBoundaries(t *testing.T) {
 			requests, recoveries, lineages := 0, 0, 0
 			terminal := errors.New("original upstream failure")
 			options := HTTPOptions{
-				Exchange: native.HTTPExchangeOptions{
+				Exchange: openai.HTTPExchangeOptions{
 					RequestContext: func(ctx context.Context) (context.Context, context.CancelFunc) { return ctx, func() {} },
 					Build: func(ctx context.Context, body []byte) (*http.Request, error) {
 						return http.NewRequestWithContext(ctx, http.MethodPost, "http://fixture.invalid/responses", strings.NewReader(string(body)))
@@ -89,7 +89,7 @@ func TestRunHTTPRecoveryBoundaries(t *testing.T) {
 
 func TestRunHTTPTransportFailureDoesNotRecover(t *testing.T) {
 	failure := errors.New("transport canceled")
-	options := HTTPOptions{Exchange: native.HTTPExchangeOptions{
+	options := HTTPOptions{Exchange: openai.HTTPExchangeOptions{
 		RequestContext: func(ctx context.Context) (context.Context, context.CancelFunc) { return ctx, func() {} },
 		Build:          func(context.Context, []byte) (*http.Request, error) { return nil, failure },
 	}}

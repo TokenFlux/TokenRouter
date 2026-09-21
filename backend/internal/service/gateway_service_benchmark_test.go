@@ -5,7 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 var (
@@ -20,7 +23,7 @@ func BenchmarkGenerateSessionHash_Metadata(b *testing.B) {
 
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), "")
+		parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), "")
 		if err != nil {
 			b.Fatalf("解析请求失败: %v", err)
 		}
@@ -37,7 +40,7 @@ func BenchmarkParseGatewayRequest_LargeAnthropicMessages(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), domain.PlatformAnthropic)
+				parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 				if err != nil {
 					b.Fatalf("解析 Anthropic 请求失败: %v", err)
 				}
@@ -56,7 +59,7 @@ func BenchmarkParseGatewayRequest_LargeGeminiContents(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), domain.PlatformGemini)
+				parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformGemini)
 				if err != nil {
 					b.Fatalf("解析 Gemini 请求失败: %v", err)
 				}
@@ -71,7 +74,7 @@ func BenchmarkGenerateSessionHash_LargeAnthropicMessages(b *testing.B) {
 	for _, size := range benchmarkBodySizes() {
 		b.Run(size.name, func(b *testing.B) {
 			body := buildLargeAnthropicMessagesBody(size.bytes, true)
-			parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), domain.PlatformAnthropic)
+			parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 			if err != nil {
 				b.Fatalf("解析请求失败: %v", err)
 			}
@@ -174,7 +177,7 @@ func BenchmarkOpenAIResponses_LargeInputEmptyBase64Guard(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				if openAIRequestBodyMayContainEmptyBase64InputImage(body) {
+				if openai.OpenAIRequestBodyMayContainEmptyBase64InputImage(body) {
 					benchmarkIntSink++
 				}
 			}
@@ -191,7 +194,7 @@ func BenchmarkOpenAIResponses_LargeInputFunctionCallValidation(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				validation := ValidateFunctionCallOutputContextBytes(body)
+				validation := openaicore.ValidateFunctionCallOutputContextBytes(body)
 				if !validation.HasFunctionCallOutput || !validation.HasItemReferenceForAllCallIDs {
 					b.Fatalf("工具续链校验结果异常: %+v", validation)
 				}
@@ -227,7 +230,7 @@ func benchmarkBodySizes() []struct {
 	}
 }
 
-func buildSystemCacheableRequest(parts int) *ParsedRequest {
+func buildSystemCacheableRequest(parts int) *requeststate.ParsedRequest {
 	var builder strings.Builder
 	_, _ = builder.WriteString(`{"system":[`)
 	for i := 0; i < parts; i++ {
@@ -239,7 +242,7 @@ func buildSystemCacheableRequest(parts int) *ParsedRequest {
 		_, _ = builder.WriteString(`","cache_control":{"type":"ephemeral"}}`)
 	}
 	_, _ = builder.WriteString(`]}`)
-	parsed, err := ParseGatewayRequest(NewRequestBodyRef([]byte(builder.String())), "")
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef([]byte(builder.String())), "")
 	if err != nil {
 		panic(err)
 	}

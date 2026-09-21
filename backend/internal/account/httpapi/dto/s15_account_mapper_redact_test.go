@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAccountFromServiceShallow_RedactsSensitiveCredentials(t *testing.T) {
@@ -60,29 +61,29 @@ func TestAccountFromServiceShallow_RedactsSensitiveCredentials(t *testing.T) {
 
 func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) {
 	snapshot := map[string]any{
-		"status":          service.OllamaCloudUsageStatusOK,
+		"status":          account.OllamaCloudUsageStatusOK,
 		"last_attempt_at": "2026-07-22T12:00:00Z",
 		"next_refresh_at": "2026-07-22T13:00:00Z",
 		"data":            map[string]any{"plan": "Pro"},
 	}
 	src := &service.Account{
-		ID: 9, Platform: service.PlatformOpenAI, Type: service.AccountTypeAPIKey,
+		ID: 9, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"base_url": "https://ollama.com", "api_key": "secret-key",
-			service.NewAPIUserAccessTokenCredentialKey: "wallet-token-secret",
+			account.NewAPIUserAccessTokenCredentialKey: "wallet-token-secret",
 		},
 		Extra: map[string]any{
-			service.OllamaCloudUsageSessionExtraKey:     "ciphertext-secret",
-			service.OllamaCloudUsageAutoRefreshExtraKey: true,
-			service.OllamaCloudUsageSnapshotExtraKey:    snapshot,
+			account.OllamaCloudUsageSessionExtraKey:     "ciphertext-secret",
+			account.OllamaCloudUsageAutoRefreshExtraKey: true,
+			account.OllamaCloudUsageSnapshotExtraKey:    snapshot,
 			"ordinary":                                  "kept",
 		},
 	}
 
 	got := AccountFromServiceShallow(src)
-	require.NotContains(t, got.Extra, service.OllamaCloudUsageSessionExtraKey)
-	require.NotContains(t, got.Extra, service.OllamaCloudUsageAutoRefreshExtraKey)
-	require.NotContains(t, got.Extra, service.OllamaCloudUsageSnapshotExtraKey)
+	require.NotContains(t, got.Extra, account.OllamaCloudUsageSessionExtraKey)
+	require.NotContains(t, got.Extra, account.OllamaCloudUsageAutoRefreshExtraKey)
+	require.NotContains(t, got.Extra, account.OllamaCloudUsageSnapshotExtraKey)
 	require.Equal(t, "kept", got.Extra["ordinary"])
 	require.NotNil(t, got.OllamaCloudUsage)
 	require.True(t, got.OllamaCloudUsage.Configured)
@@ -94,14 +95,14 @@ func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) 
 	require.NotContains(t, string(raw), "ciphertext-secret")
 	require.NotContains(t, string(raw), "secret-key")
 	require.NotContains(t, string(raw), "wallet-token-secret")
-	require.Contains(t, src.Extra, service.OllamaCloudUsageSessionExtraKey)
+	require.Contains(t, src.Extra, account.OllamaCloudUsageSessionExtraKey)
 }
 
 func TestAccountFromServiceShallow_RedactsLegacyUpstreamUsageSecrets(t *testing.T) {
 	src := &service.Account{
-		ID: 10, Type: service.AccountTypeAPIKey,
+		ID: 10, Type: capability.AccountTypeAPIKey,
 		Extra: map[string]any{
-			service.UpstreamUsageQueryExtraKey: map[string]any{
+			account.UpstreamUsageQueryExtraKey: map[string]any{
 				"enabled": true, "adapter": "legacy-secret", "base_url": "https://user:legacy-secret@gateway.example?token=legacy-secret",
 				"api_key": "legacy-secret", "headers": map[string]any{"Authorization": "Bearer legacy-secret"},
 			},
@@ -110,27 +111,27 @@ func TestAccountFromServiceShallow_RedactsLegacyUpstreamUsageSecrets(t *testing.
 	got := AccountFromServiceShallow(src)
 	require.Equal(t, map[string]any{
 		"enabled": true,
-	}, got.Extra[service.UpstreamUsageQueryExtraKey])
+	}, got.Extra[account.UpstreamUsageQueryExtraKey])
 	raw, err := json.Marshal(got)
 	require.NoError(t, err)
 	require.NotContains(t, string(raw), "legacy-secret")
 	// 映射层不得修改数据库对象中的历史值。
-	legacyConfig, ok := src.Extra[service.UpstreamUsageQueryExtraKey].(map[string]any)
+	legacyConfig, ok := src.Extra[account.UpstreamUsageQueryExtraKey].(map[string]any)
 	require.True(t, ok)
 	require.Contains(t, legacyConfig, "api_key")
 }
 
 func TestAccountFromServiceShallow_PreservesZivvAdapterSelection(t *testing.T) {
 	src := &service.Account{
-		ID: 11, Type: service.AccountTypeAPIKey,
-		Extra: map[string]any{service.UpstreamUsageQueryExtraKey: map[string]any{
-			"enabled": true, "adapter": service.UpstreamUsageAdapterZivv,
+		ID: 11, Type: capability.AccountTypeAPIKey,
+		Extra: map[string]any{account.UpstreamUsageQueryExtraKey: map[string]any{
+			"enabled": true, "adapter": account.UpstreamUsageAdapterZivv,
 		}},
 	}
 	got := AccountFromServiceShallow(src)
 	require.Equal(t, map[string]any{
-		"enabled": true, "adapter": service.UpstreamUsageAdapterZivv,
-	}, got.Extra[service.UpstreamUsageQueryExtraKey])
+		"enabled": true, "adapter": account.UpstreamUsageAdapterZivv,
+	}, got.Extra[account.UpstreamUsageQueryExtraKey])
 }
 
 func TestAccountFromServiceShallow_NilCredentialsOmitsStatus(t *testing.T) {
@@ -145,8 +146,8 @@ func TestAccountFromServiceShallow_OpenAIOAuthTLSFingerprint(t *testing.T) {
 	src := &service.Account{
 		ID:       3,
 		Name:     "openai-oauth",
-		Platform: service.PlatformOpenAI,
-		Type:     service.AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Extra: map[string]any{
 			"enable_tls_fingerprint":     true,
 			"tls_fingerprint_profile_id": -1,

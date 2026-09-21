@@ -4,11 +4,17 @@ package rediscache
 
 import (
 	"context"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,19 +23,19 @@ func TestSchedulerCacheSnapshotUsesSlimMetadataButKeepsFullAccount(t *testing.T)
 	rdb := testRedis(t)
 	cache := NewSchedulerCache(rdb)
 
-	bucket := service.SchedulerBucket{GroupID: 2, Platform: service.PlatformGemini, Mode: service.SchedulerModeSingle}
+	bucket := scheduler.SchedulerBucket{GroupID: 2, Platform: capability.PlatformGemini, Mode: scheduler.SchedulerModeSingle}
 	now := time.Now().UTC().Truncate(time.Second)
 	limitReset := now.Add(10 * time.Minute)
 	overloadUntil := now.Add(2 * time.Minute)
 	tempUnschedUntil := now.Add(3 * time.Minute)
 	windowEnd := now.Add(5 * time.Hour)
 
-	account := service.Account{
+	account := accountcore.Record{
 		ID:          101,
 		Name:        "gemini-heavy",
-		Platform:    service.PlatformGemini,
-		Type:        service.AccountTypeOAuth,
-		Status:      service.StatusActive,
+		Platform:    capability.PlatformGemini,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 3,
 		Priority:    7,
@@ -58,18 +64,18 @@ func TestSchedulerCacheSnapshotUsesSlimMetadataButKeepsFullAccount(t *testing.T)
 		SessionWindowEnd:       &windowEnd,
 		SessionWindowStatus:    "active",
 		GroupIDs:               []int64{bucket.GroupID},
-		AccountGroups: []service.AccountGroup{
+		AccountGroups: []accountcore.GroupMembership{
 			{
 				AccountID: 101,
 				GroupID:   bucket.GroupID,
-				Group:     &service.Group{ID: bucket.GroupID, Name: "gemini-group"},
+				Group:     &accessview.GroupConfig{ID: bucket.GroupID, Name: "gemini-group"},
 			},
 		},
 	}
 
 	token, err := cache.CaptureBucketWriteToken(ctx, bucket)
 	require.NoError(t, err)
-	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []service.Account{account}))
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []accountcore.Record{account}))
 
 	snapshot, hit, err := cache.GetSnapshot(ctx, bucket)
 	require.NoError(t, err)
@@ -81,15 +87,15 @@ func TestSchedulerCacheSnapshotUsesSlimMetadataButKeepsFullAccount(t *testing.T)
 	require.Equal(t, "gemini-api-key", got.GetCredential("api_key"))
 	require.Equal(t, "proj-1", got.GetCredential("project_id"))
 	require.Equal(t, "ai_studio", got.GetCredential("oauth_type"))
-	require.NotEmpty(t, got.GetModelMapping())
+	require.NotEmpty(t, accountcore.ResolveModelMapping(got, accountprovider.ModelDefaults()))
 	require.Equal(t, []any{"gemini-2.5-pro"}, got.Credentials["model_whitelist"])
 	require.Empty(t, got.GetCredential("access_token"))
 	require.Empty(t, got.GetCredential("huge_blob"))
 	require.Equal(t, true, got.Extra["mixed_scheduling"])
-	require.Equal(t, 12.5, got.GetWindowCostLimit())
-	require.Equal(t, 8.0, got.GetWindowCostStickyReserve())
-	require.Equal(t, 4, got.GetMaxSessions())
-	require.Equal(t, 11, got.GetSessionIdleTimeoutMinutes())
+	require.Equal(t, 12.5, (&accountcore.RuntimeConfig{Extra: got.Extra}).GetWindowCostLimit())
+	require.Equal(t, 8.0, (&accountcore.RuntimeConfig{Extra: got.Extra}).GetWindowCostStickyReserve())
+	require.Equal(t, 4, (&accountcore.RuntimeConfig{Extra: got.Extra}).GetMaxSessions())
+	require.Equal(t, 11, (&accountcore.RuntimeConfig{Extra: got.Extra}).GetSessionIdleTimeoutMinutes())
 	require.Nil(t, got.Extra["unused_large_field"])
 	require.Equal(t, []int64{bucket.GroupID}, got.GroupIDs)
 	require.Len(t, got.AccountGroups, 1)
@@ -110,12 +116,12 @@ func TestSchedulerCacheRetireAndReopenFencesOldEpochIntegration(t *testing.T) {
 	ctx := context.Background()
 	rdb := testRedis(t)
 	cache := NewSchedulerCache(rdb)
-	bucket := service.SchedulerBucket{GroupID: 77, Platform: service.PlatformAntigravity, Mode: service.SchedulerModeForced}
-	account := service.Account{ID: 7701, Platform: service.PlatformAntigravity, Type: service.AccountTypeOAuth}
+	bucket := scheduler.SchedulerBucket{GroupID: 77, Platform: capability.PlatformAntigravity, Mode: scheduler.SchedulerModeForced}
+	account := accountcore.Record{ID: 7701, Platform: capability.PlatformAntigravity, Type: capability.AccountTypeOAuth}
 
 	oldToken, err := cache.CaptureBucketWriteToken(ctx, bucket)
 	require.NoError(t, err)
-	require.NoError(t, cache.SetSnapshot(ctx, bucket, oldToken, []service.Account{account}))
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, oldToken, []accountcore.Record{account}))
 	require.NoError(t, cache.RetireBucket(ctx, bucket))
 	require.NoError(t, cache.RetireBucket(ctx, bucket))
 
@@ -123,14 +129,14 @@ func TestSchedulerCacheRetireAndReopenFencesOldEpochIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, hit)
 	_, err = cache.CaptureBucketWriteToken(ctx, bucket)
-	require.ErrorIs(t, err, service.ErrSchedulerBucketRetired)
-	require.ErrorIs(t, cache.SetSnapshot(ctx, bucket, oldToken, []service.Account{account}), service.ErrSchedulerBucketRetired)
+	require.ErrorIs(t, err, scheduler.ErrSchedulerBucketRetired)
+	require.ErrorIs(t, cache.SetSnapshot(ctx, bucket, oldToken, []accountcore.Record{account}), scheduler.ErrSchedulerBucketRetired)
 
 	newToken, err := cache.ReopenBucket(ctx, bucket)
 	require.NoError(t, err)
 	require.Greater(t, newToken.Epoch, oldToken.Epoch)
-	require.ErrorIs(t, cache.SetSnapshot(ctx, bucket, oldToken, []service.Account{account}), service.ErrSchedulerBucketWriteFenced)
-	require.NoError(t, cache.SetSnapshot(ctx, bucket, newToken, []service.Account{account}))
+	require.ErrorIs(t, cache.SetSnapshot(ctx, bucket, oldToken, []accountcore.Record{account}), scheduler.ErrSchedulerBucketWriteFenced)
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, newToken, []accountcore.Record{account}))
 
 	snapshot, hit, err := cache.GetSnapshot(ctx, bucket)
 	require.NoError(t, err)
@@ -154,7 +160,7 @@ func TestSchedulerCacheGroupLifecycleLeaseOwnerAndTTLIntegration(t *testing.T) {
 	require.Positive(t, pttl)
 	require.LessOrEqual(t, pttl, ttl)
 
-	var second service.SchedulerGroupLifecycleLease
+	var second scheduler.SchedulerGroupLifecycleLease
 	require.Eventually(t, func() bool {
 		var acquireErr error
 		second, acquired, acquireErr = cache.TryAcquireGroupLifecycleLease(ctx, groupID, time.Minute)
@@ -162,13 +168,13 @@ func TestSchedulerCacheGroupLifecycleLeaseOwnerAndTTLIntegration(t *testing.T) {
 	}, 5*time.Second, 20*time.Millisecond)
 	require.NotEqual(t, first.OwnerToken, second.OwnerToken)
 
-	require.ErrorIs(t, cache.ReleaseGroupLifecycleLease(ctx, first), service.ErrSchedulerGroupLifecycleLeaseLost)
+	require.ErrorIs(t, cache.ReleaseGroupLifecycleLease(ctx, first), scheduler.ErrSchedulerGroupLifecycleLeaseLost)
 	_, acquired, err = cache.TryAcquireGroupLifecycleLease(ctx, groupID, time.Minute)
 	require.NoError(t, err)
 	require.False(t, acquired, "a stale release must not delete the successor lease")
 
 	require.NoError(t, cache.ReleaseGroupLifecycleLease(ctx, second))
-	require.ErrorIs(t, cache.ReleaseGroupLifecycleLease(ctx, second), service.ErrSchedulerGroupLifecycleLeaseLost)
+	require.ErrorIs(t, cache.ReleaseGroupLifecycleLease(ctx, second), scheduler.ErrSchedulerGroupLifecycleLeaseLost)
 	third, acquired, err := cache.TryAcquireGroupLifecycleLease(ctx, groupID, time.Minute)
 	require.NoError(t, err)
 	require.True(t, acquired)

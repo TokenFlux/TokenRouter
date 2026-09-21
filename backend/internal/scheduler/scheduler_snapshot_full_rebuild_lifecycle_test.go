@@ -51,7 +51,7 @@ func (c *fullRebuildLifecycleCache) ListBuckets(ctx context.Context) ([]Schedule
 	defer c.retirementRaceCache.mu.Unlock()
 	registered := make([]SchedulerBucket, 0, len(buckets))
 	for _, bucket := range buckets {
-		if !c.retirementRaceCache.retired[bucket.String()] {
+		if !c.retired[bucket.String()] {
 			registered = append(registered, bucket)
 		}
 	}
@@ -101,7 +101,7 @@ func (c *fullRebuildLifecycleCache) totalSetAttempts() int {
 	c.retirementRaceCache.mu.Lock()
 	defer c.retirementRaceCache.mu.Unlock()
 	var total int
-	for _, attempts := range c.retirementRaceCache.setAttempts {
+	for _, attempts := range c.setAttempts {
 		total += attempts
 	}
 	return total

@@ -3,6 +3,8 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,10 +72,10 @@ func TestIsImageGenerationIntentForPlatform_GrokCodexDeclarations(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.want, IsImageGenerationIntentForPlatform(
-				openAIResponsesEndpoint,
+				media.OpenAIResponsesEndpoint,
 				"grok-4.5",
 				[]byte(tt.body),
-				PlatformGrok,
+				capability.PlatformGrok,
 			))
 		})
 	}
@@ -84,25 +86,25 @@ func TestIsImageGenerationIntentForPlatform_GrokPreservesHardSignals(t *testing.
 		"/v1/images/generations",
 		"grok-4.5",
 		[]byte(`{"input":"draw"}`),
-		PlatformGrok,
+		capability.PlatformGrok,
 	))
 	require.True(t, IsImageGenerationIntentForPlatform(
-		openAIResponsesEndpoint,
+		media.OpenAIResponsesEndpoint,
 		"gpt-image-2",
 		[]byte(`{"input":"draw"}`),
-		PlatformGrok,
+		capability.PlatformGrok,
 	))
 	require.True(t, IsImageGenerationIntentForPlatform(
-		openAIResponsesEndpoint,
+		media.OpenAIResponsesEndpoint,
 		"grok-4.5",
 		[]byte(`{"model":"gpt-image-2","input":"draw"}`),
-		PlatformGrok,
+		capability.PlatformGrok,
 	))
 }
 
 func TestIsImageGenerationIntentForPlatform_OtherPlatformsKeepDeclarationSemantics(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.5","tools":[{"type":"namespace","name":"image_gen","tools":[{"type":"function","name":"imagegen"}]}],"input":"write code"}`)
 
-	require.True(t, IsImageGenerationIntentForPlatform(openAIResponsesEndpoint, "gpt-5.5", body, PlatformOpenAI))
-	require.True(t, IsImageGenerationIntentForPlatform(openAIResponsesEndpoint, "gpt-5.5", body, PlatformAnthropic))
+	require.True(t, IsImageGenerationIntentForPlatform(media.OpenAIResponsesEndpoint, "gpt-5.5", body, capability.PlatformOpenAI))
+	require.True(t, IsImageGenerationIntentForPlatform(media.OpenAIResponsesEndpoint, "gpt-5.5", body, capability.PlatformAnthropic))
 }

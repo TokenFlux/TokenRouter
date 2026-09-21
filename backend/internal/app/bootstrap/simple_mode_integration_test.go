@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/ent/group"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,18 +27,18 @@ func TestEnsureSimpleModeDefaultGroups_CreatesMissingDefaults(t *testing.T) {
 	assertGroupExists := func(name, platform string) {
 		created, err := client.Group.Query().Where(group.NameEQ(name), group.DeletedAtIsNil()).Only(seedCtx)
 		require.NoError(t, err)
-		require.Equal(t, domain.DefaultGroupClientProtocols(platform), created.AllowedProtocols)
+		require.Equal(t, capability.DefaultGroupClientProtocols(platform), created.AllowedProtocols)
 	}
 
-	assertGroupExists(service.PlatformAnthropic+"-default", service.PlatformAnthropic)
-	assertGroupExists(service.PlatformOpenAI+"-default", service.PlatformOpenAI)
-	assertGroupExists(service.PlatformGemini+"-default", service.PlatformGemini)
-	assertGroupExists(service.PlatformAntigravity+"-default-1", service.PlatformAntigravity)
-	assertGroupExists(service.PlatformAntigravity+"-default-2", service.PlatformAntigravity)
-	assertGroupExists(service.PlatformGrok+"-default", service.PlatformGrok)
+	assertGroupExists(capability.PlatformAnthropic+"-default", capability.PlatformAnthropic)
+	assertGroupExists(capability.PlatformOpenAI+"-default", capability.PlatformOpenAI)
+	assertGroupExists(capability.PlatformGemini+"-default", capability.PlatformGemini)
+	assertGroupExists(capability.PlatformAntigravity+"-default-1", capability.PlatformAntigravity)
+	assertGroupExists(capability.PlatformAntigravity+"-default-2", capability.PlatformAntigravity)
+	assertGroupExists(capability.PlatformGrok+"-default", capability.PlatformGrok)
 
 	grokDefault, err := client.Group.Query().
-		Where(group.NameEQ(service.PlatformGrok+"-default"), group.DeletedAtIsNil()).
+		Where(group.NameEQ(capability.PlatformGrok+"-default"), group.DeletedAtIsNil()).
 		Only(seedCtx)
 	require.NoError(t, err)
 	require.True(t, grokDefault.AllowImageGeneration)
@@ -52,10 +53,10 @@ func TestEnsureSimpleModeDefaultGroups_BackfillsOnlyAutoCreatedGrokDefault(t *te
 	defer cancel()
 
 	autoDefault, err := client.Group.Create().
-		SetName(service.PlatformGrok + "-default").
+		SetName(capability.PlatformGrok + "-default").
 		SetDescription("Auto-created default group").
-		SetPlatform(service.PlatformGrok).
-		SetStatus(service.StatusActive).
+		SetPlatform(capability.PlatformGrok).
+		SetStatus(billing.StatusActive).
 		SetRateMultiplier(1.0).
 		SetIsExclusive(false).
 		SetAllowImageGeneration(false).
@@ -65,8 +66,8 @@ func TestEnsureSimpleModeDefaultGroups_BackfillsOnlyAutoCreatedGrokDefault(t *te
 	operatorGroup, err := client.Group.Create().
 		SetName("operator-grok-images-disabled-" + time.Now().Format(time.RFC3339Nano)).
 		SetDescription("Operator-managed group").
-		SetPlatform(service.PlatformGrok).
-		SetStatus(service.StatusActive).
+		SetPlatform(capability.PlatformGrok).
+		SetStatus(billing.StatusActive).
 		SetRateMultiplier(1.0).
 		SetIsExclusive(false).
 		SetAllowImageGeneration(false).
@@ -93,12 +94,12 @@ func TestEnsureSimpleModeDefaultGroups_PreservesExplicitFalse(t *testing.T) {
 		{
 			name:        "operator managed default",
 			description: "Operator-managed group",
-			status:      service.StatusActive,
+			status:      billing.StatusActive,
 		},
 		{
 			name:        "disabled auto-created default",
 			description: simpleModeDefaultGroupDescription,
-			status:      service.StatusDisabled,
+			status:      billing.StatusDisabled,
 		},
 	}
 
@@ -109,9 +110,9 @@ func TestEnsureSimpleModeDefaultGroups_PreservesExplicitFalse(t *testing.T) {
 
 			client := testEntTx(t).Client()
 			grokDefault, err := client.Group.Create().
-				SetName(service.PlatformGrok + "-default").
+				SetName(capability.PlatformGrok + "-default").
 				SetDescription(tt.description).
-				SetPlatform(service.PlatformGrok).
+				SetPlatform(capability.PlatformGrok).
 				SetStatus(tt.status).
 				SetRateMultiplier(1.0).
 				SetIsExclusive(false).
@@ -138,9 +139,9 @@ func TestEnsureSimpleModeDefaultGroups_IgnoresSoftDeletedGroups(t *testing.T) {
 
 	// Create and then soft-delete an anthropic default group.
 	g, err := client.Group.Create().
-		SetName(service.PlatformAnthropic + "-default").
-		SetPlatform(service.PlatformAnthropic).
-		SetStatus(service.StatusActive).
+		SetName(capability.PlatformAnthropic + "-default").
+		SetPlatform(capability.PlatformAnthropic).
+		SetStatus(billing.StatusActive).
 		SetRateMultiplier(1.0).
 		SetIsExclusive(false).
 		Save(seedCtx)
@@ -152,7 +153,7 @@ func TestEnsureSimpleModeDefaultGroups_IgnoresSoftDeletedGroups(t *testing.T) {
 	require.NoError(t, EnsureSimpleModeDefaultGroups(seedCtx, client))
 
 	// New active one should exist.
-	count, err := client.Group.Query().Where(group.NameEQ(service.PlatformAnthropic+"-default"), group.DeletedAtIsNil()).Count(seedCtx)
+	count, err := client.Group.Query().Where(group.NameEQ(capability.PlatformAnthropic+"-default"), group.DeletedAtIsNil()).Count(seedCtx)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
@@ -165,14 +166,14 @@ func TestEnsureSimpleModeDefaultGroups_AntigravityNeedsTwoGroupsOnlyByCount(t *t
 	seedCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	_, err := client.Group.Create().SetName("ag-custom-1-" + time.Now().Format(time.RFC3339Nano)).SetPlatform(service.PlatformAntigravity).Save(seedCtx)
+	_, err := client.Group.Create().SetName("ag-custom-1-" + time.Now().Format(time.RFC3339Nano)).SetPlatform(capability.PlatformAntigravity).Save(seedCtx)
 	require.NoError(t, err)
-	_, err = client.Group.Create().SetName("ag-custom-2-" + time.Now().Format(time.RFC3339Nano)).SetPlatform(service.PlatformAntigravity).Save(seedCtx)
+	_, err = client.Group.Create().SetName("ag-custom-2-" + time.Now().Format(time.RFC3339Nano)).SetPlatform(capability.PlatformAntigravity).Save(seedCtx)
 	require.NoError(t, err)
 
 	require.NoError(t, EnsureSimpleModeDefaultGroups(seedCtx, client))
 
-	count, err := client.Group.Query().Where(group.PlatformEQ(service.PlatformAntigravity), group.DeletedAtIsNil()).Count(seedCtx)
+	count, err := client.Group.Query().Where(group.PlatformEQ(capability.PlatformAntigravity), group.DeletedAtIsNil()).Count(seedCtx)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, count, 2)
 }

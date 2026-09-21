@@ -4,10 +4,16 @@ package handler
 import (
 	"context"
 	"errors"
+	"net/http"
 	"slices"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -24,7 +30,7 @@ func (r *fixedMessagesRuntime) Open(ctx context.Context, in execution.Request, s
 	// 兼容桥接仍提供一次执行原语；完整旧 handler 不进入新执行会话。
 	base := messageAttemptBridge{
 		fixed: r.dependencies, c: output.HTTP,
-		apiKey: service.APIKeyFromView(in.Funding.Key), subject: authctx.AuthSubject{UserID: in.UserID, Concurrency: in.Concurrency},
+		apiKey: apikey.CopyAPIKey(in.Funding.Key), subject: authctx.AuthSubject{UserID: in.UserID, Concurrency: in.Concurrency},
 		subscription: in.Funding.Subscription, parsedReq: in.Text.Parsed, body: in.Body, reqModel: in.Model, reqStream: in.Stream,
 		isClaudeCodeClient: in.Metadata.ClaudeCode, platform: in.Text.Platform, hasBoundSession: in.Text.HasBoundSession,
 		sessionKey: in.SessionHash, sessionBoundAccountID: in.Text.BoundAccountID, streamStarted: output.StreamStarted, reqLog: output.Log,
@@ -33,11 +39,11 @@ func (r *fixedMessagesRuntime) Open(ctx context.Context, in execution.Request, s
 	output.HTTP.Request = output.HTTP.Request.WithContext(ctx)
 	switch in.Text.Kind {
 	case execution.TextGeminiMessages:
-		return &geminiMessageAttemptBridge{messageAttemptBridge: base, forwardModel: in.Text.GeminiModel, forwardBody: in.Text.GeminiBody, channelMapping: service.ChannelMappingResult(in.Route.Mapping())}, nil
+		return &geminiMessageAttemptBridge{messageAttemptBridge: base, forwardModel: in.Text.GeminiModel, forwardBody: in.Text.GeminiBody, channelMapping: routing.ChannelMappingResult(in.Route.Mapping())}, nil
 	case execution.TextGenericResponses:
-		return &genericResponsesAttemptBridge{messageAttemptBridge: base, requestCtx: in.Text.SelectionContext, forwardBody: in.AttemptBody, channelMapping: service.ChannelMappingResult(in.Text.Mapping)}, nil
+		return &genericResponsesAttemptBridge{messageAttemptBridge: base, requestCtx: in.Text.SelectionContext, forwardBody: in.AttemptBody, channelMapping: routing.ChannelMappingResult(in.Text.Mapping)}, nil
 	case execution.TextGenericChat:
-		return &genericChatAttemptBridge{messageAttemptBridge: base, requestCtx: in.Text.SelectionContext, groupPlatform: in.Text.Platform, selectionSessionHash: in.Text.SelectionSessionHash, channelMapping: service.ChannelMappingResult(in.Text.Mapping)}, nil
+		return &genericChatAttemptBridge{messageAttemptBridge: base, requestCtx: in.Text.SelectionContext, groupPlatform: in.Text.Platform, selectionSessionHash: in.Text.SelectionSessionHash, channelMapping: routing.ChannelMappingResult(in.Text.Mapping)}, nil
 	case execution.TextNativeGemini:
 		return &nativeGeminiAttemptBridge{
 			messageAttemptBridge: base,
@@ -50,7 +56,7 @@ func (r *fixedMessagesRuntime) Open(ctx context.Context, in execution.Request, s
 			geminiPrefixHash:     in.Text.PrefixHash,
 			geminiSessionUUID:    in.Text.SessionUUID,
 			matchedDigestChain:   in.Text.MatchedDigestChain,
-			channelMapping:       service.ChannelMappingResult(in.Text.Mapping),
+			channelMapping:       routing.ChannelMappingResult(in.Text.Mapping),
 			signatureState:       in.Text.SignatureState,
 		}, nil
 	}
@@ -58,14 +64,14 @@ func (r *fixedMessagesRuntime) Open(ctx context.Context, in execution.Request, s
 }
 
 // messageObservedAttempt 只投影已观测结果；失败结果与错误可以同时返回，不创建额外完成任务。
-func messageObservedAttempt(result *service.ForwardResult, err error) upstream.AttemptResult {
+func messageObservedAttempt(result *forwardcore.MessagesResult, err error) upstream.AttemptResult {
 	if result == nil {
 		return upstream.AttemptResult{Cancelled: errors.Is(err, context.Canceled)}
 	}
 	out := upstream.AttemptResult{
 		RequestID: result.RequestID, Model: result.Model, UpstreamModel: result.UpstreamModel, Usage: result.Usage,
 		Stream: result.Stream, Duration: result.Duration, ClientDisconnect: result.ClientDisconnect,
-		UpstreamHeaders: result.UpstreamHeaders.Clone(), ImageOutputSizes: slices.Clone(result.ImageOutputSizes),
+		UpstreamHeaders: http.Header(result.UpstreamHeaders).Clone(), ImageOutputSizes: slices.Clone(result.ImageOutputSizes),
 		ObservedImages: result.ImageCount, SearchCount: result.SearchCount, Cancelled: errors.Is(err, context.Canceled),
 	}
 	// 复用协议计量判断，只投影已观测产物，不改变 RunMessages 的完成资格。

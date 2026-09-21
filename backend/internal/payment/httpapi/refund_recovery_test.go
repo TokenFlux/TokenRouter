@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +24,7 @@ func (missingRefundRecovery) RefundRecovery(context.Context, *payment.Order) (*p
 }
 func TestRefundRecoveryErrorIsVisibleToAdministrator(t *testing.T) {
 	runtime := &payment.Runtime{RefundWorkflow: payment.NewRefundWorkflow(missingRefundRecovery{}, payment.RefundRuntime{})}
-	handler := NewAdminHandler(runtime, nil, nil)
+	handler := NewAdminHandler(runtime, nil, nil, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.POST("/orders/:id/refund/query", handler.QueryAndFinalizeRefund)
 	recorder := httptest.NewRecorder()

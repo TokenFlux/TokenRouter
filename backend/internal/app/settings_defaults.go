@@ -2,7 +2,8 @@ package app
 
 import (
 	"context"
-	"slices"
+
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
@@ -72,16 +73,7 @@ func provideGatewayAdminRules() *gateway.AdminSettingsRules {
 // provideGatewaySettings 直接构造唯一运行实例，平台默认值只做结构投影。
 func provideGatewaySettings(store *settings.Store) *gateway.RuntimeSettings {
 	return gateway.NewRuntimeSettings(store, settings.ErrSettingNotFound, func() *gateway.BetaPolicySettings {
-		source := anthropic.DefaultBetaPolicySettings()
-		value := &gateway.BetaPolicySettings{}
-		if source.Rules != nil {
-			value.Rules = make([]gateway.BetaPolicyRule, len(source.Rules))
-			for i, rule := range source.Rules {
-				value.Rules[i] = gateway.BetaPolicyRule(rule)
-				value.Rules[i].ModelWhitelist = slices.Clone(rule.ModelWhitelist)
-			}
-		}
-		return value
+		return gatewayprovider.GatewayBetaPolicy(anthropic.DefaultBetaPolicySettings())
 	}, gateway.ClientSettingsOptions{NormalizeUserAgentVersion: antigravity.NormalizeUserAgentVersion, DefaultUserAgentVersion: antigravity.GetDefaultUserAgentVersion})
 }
 

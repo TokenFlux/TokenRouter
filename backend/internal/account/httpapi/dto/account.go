@@ -2,10 +2,11 @@
 package dto
 
 import (
+	time "time"
+
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	proxydto "github.com/TokenFlux/TokenRouter/internal/egress/httpapi/dto"
 	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
-	time "time"
 )
 
 type Account struct {

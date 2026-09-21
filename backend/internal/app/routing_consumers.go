@@ -3,6 +3,7 @@ package app
 
 import (
 	context "context"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
@@ -12,26 +13,26 @@ import (
 // keyGroups 投影旧路由能力，直接读取新 routing；不持有分组或认证缓存。
 type keyGroups struct{ Repository routing.GroupRepository }
 
-func (p keyGroups) GetByID(ctx context.Context, id int64) (*apikey.Group, error) {
+func (p keyGroups) GetByID(ctx context.Context, id int64) (*routing.Group, error) {
 	v, e := p.Repository.GetByID(ctx, id)
 	return apikey.GroupFromRouting(v), e
 }
-func (p keyGroups) GetByIDLite(ctx context.Context, id int64) (*apikey.Group, error) {
+func (p keyGroups) GetByIDLite(ctx context.Context, id int64) (*routing.Group, error) {
 	v, e := p.Repository.GetByIDLite(ctx, id)
 	return apikey.GroupFromRouting(v), e
 }
-func (p keyGroups) ListActive(ctx context.Context) ([]apikey.Group, error) {
+func (p keyGroups) ListActive(ctx context.Context) ([]routing.Group, error) {
 	v, e := p.Repository.ListActive(ctx)
 	if v == nil {
 		return nil, e
 	}
-	out := make([]apikey.Group, len(v))
+	out := make([]routing.Group, len(v))
 	for i := range v {
 		out[i] = *apikey.GroupFromRouting(&v[i])
 	}
 	return out, e
 }
-func (p keyGroups) FindDefault(ctx context.Context, platform string) (*apikey.Group, error) {
+func (p keyGroups) FindDefault(ctx context.Context, platform string) (*routing.Group, error) {
 	v, e := routing.FindPlatformDefaultGroup(ctx, p.Repository, platform)
 	return apikey.GroupFromRouting(v), e
 }

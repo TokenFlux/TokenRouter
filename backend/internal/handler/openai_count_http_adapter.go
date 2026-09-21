@@ -4,7 +4,12 @@ package handler
 import (
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -15,21 +20,21 @@ type openAICountAttempt struct {
 	h       *OpenAIGatewayHandler
 	c       *gin.Context
 	call    gatewayhttp.OpenAICountCall
-	key     *service.APIKey
+	key     *apikey.APIKey
 	account *service.Account
 }
 
 func (p openAITextHTTPBackend) CountExecution(c *gin.Context, call gatewayhttp.OpenAICountCall) textflow.SingleCountPorts {
-	return &openAICountAttempt{h: p.h, c: c, call: call, key: service.APIKeyFromView(call.Key)}
+	return &openAICountAttempt{h: p.h, c: c, call: call, key: apikey.CopyAPIKey(call.Key)}
 }
 func (p *openAICountAttempt) Select() (bool, error) {
 	// 专用入口显式豁免利润门，不能替换为普通带槽选择。
-	account, err := p.h.gatewayService.SelectAccountForTokenCount(p.c.Request.Context(), p.key.GroupID, p.call.SessionHash, p.call.AccountLayerModel, service.OpenAIEndpointCapabilityTextGeneration, p.call.Platform)
+	account, err := p.h.gatewayService.SelectAccountForTokenCount(p.c.Request.Context(), p.key.GroupID, p.call.SessionHash, p.call.AccountLayerModel, accountcore.OpenAIEndpointCapabilityTextGeneration, p.call.Platform)
 	p.account = account
 	return account != nil, err
 }
 func (p *openAICountAttempt) Selected() {
-	service.SetOpsLatencyMs(p.c, service.OpsAuthLatencyMsKey, time.Since(p.call.StartedAt).Milliseconds())
+	gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsAuthLatencyMsKey, time.Since(p.call.StartedAt).Milliseconds())
 }
 func (p *openAICountAttempt) SelectionFailed(err error) {
 	if err != nil {
@@ -38,15 +43,15 @@ func (p *openAICountAttempt) SelectionFailed(err error) {
 	cls := classifyOpenAICompatibleNoAccountErrorFromGin(p.c, p.h.gatewayService, p.key, p.call.AccountLayerModel, p.call.Model)
 	if !cls.ModelNotFound {
 		if err != nil {
-			markOpsRoutingCapacityLimitedIfNoAvailable(p.c, err)
+			gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, err)
 		} else {
-			markOpsRoutingCapacityLimited(p.c)
+			gatewayhttp.MarkOpsRoutingCapacityLimited(p.c)
 		}
 	}
 	gatewayhttp.WriteAnthropicError(p.c, cls.Status, cls.ErrType, "", cls.Message)
 }
 func (p *openAICountAttempt) Forward() error {
-	setOpsSelectedAccount(p.c, p.account.ID, p.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(p.c, p.account.ID, p.account.Platform)
 	body := p.call.MappedBody(p.call.Mapping.Mapped, p.call.Mapping.MappedModel)
 	return p.h.gatewayService.ForwardCountTokensAsAnthropic(p.c.Request.Context(), p.c, p.account, body, p.call.AccountLayerModel)
 }

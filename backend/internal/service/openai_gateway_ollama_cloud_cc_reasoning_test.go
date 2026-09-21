@@ -11,7 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/ollama"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -21,14 +23,14 @@ func ollamaCloudRawChatCompletionsTestAccount() *Account {
 	return &Account{
 		ID:       143,
 		Name:     "DeepSeek Ollama",
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://ollama.com",
 		},
 		Extra: map[string]any{
-			openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
+			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 		},
 	}
 }
@@ -45,7 +47,7 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 		t.Parallel()
 		account := ollamaCloudRawChatCompletionsTestAccount()
 		account.Extra = map[string]any{
-			openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModePreserveClientProtocol),
+			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModePreserveClientProtocol),
 		}
 		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
 	})
@@ -55,8 +57,8 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 		account := rawChatCompletionsTestAccount()
 		account.Credentials["base_url"] = "https://example.invalid/v1"
 		account.Extra = map[string]any{
-			openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
-			OllamaCloudUsageSnapshotExtraKey:    map[string]any{"status": "ok"},
+			accountcore.ExtraKeyTextRouteMode:            string(accountcore.TextRouteModeForceChatCompletions),
+			accountcore.OllamaCloudUsageSnapshotExtraKey: map[string]any{"status": "ok"},
 		}
 		require.True(t, isOllamaCloudRawChatCompletionsAccount(account))
 	})
@@ -67,7 +69,7 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 		account.Name = "DeepSeek"
 		account.Credentials["base_url"] = "https://api.deepseek.com"
 		account.Extra = map[string]any{
-			openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
+			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 		}
 		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
 	})
@@ -77,8 +79,8 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 		account := rawChatCompletionsTestAccount()
 		account.Credentials["base_url"] = "https://opencode.ai/zen/go/v1"
 		account.Extra = map[string]any{
-			openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
-			"opencode_go_usage_auto_refresh":    true,
+			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
+			"opencode_go_usage_auto_refresh":  true,
 		}
 		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
 	})
@@ -93,7 +95,7 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 	t.Run("anthropic ollama.com", func(t *testing.T) {
 		t.Parallel()
 		account := ollamaCloudRawChatCompletionsTestAccount()
-		account.Platform = PlatformAnthropic
+		account.Platform = capability.PlatformAnthropic
 		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
 	})
 }
@@ -104,7 +106,7 @@ func TestNormalizeOllamaCloudChatCompletionsResponseJSON(t *testing.T) {
 	t.Run("copies delta.reasoning to reasoning_content", func(t *testing.T) {
 		t.Parallel()
 		in := []byte(`{"choices":[{"delta":{"reasoning":"abc"}}]}`)
-		out := normalizeOllamaCloudChatCompletionsResponseJSON(in)
+		out := ollama.NormalizeOllamaCloudChatCompletionsResponseJSON(in)
 		require.Equal(t, "abc", gjson.GetBytes(out, "choices.0.delta.reasoning").String())
 		require.Equal(t, "abc", gjson.GetBytes(out, "choices.0.delta.reasoning_content").String())
 	})
@@ -112,7 +114,7 @@ func TestNormalizeOllamaCloudChatCompletionsResponseJSON(t *testing.T) {
 	t.Run("copies message.thinking to reasoning_content", func(t *testing.T) {
 		t.Parallel()
 		in := []byte(`{"choices":[{"message":{"thinking":"abc"}}]}`)
-		out := normalizeOllamaCloudChatCompletionsResponseJSON(in)
+		out := ollama.NormalizeOllamaCloudChatCompletionsResponseJSON(in)
 		require.Equal(t, "abc", gjson.GetBytes(out, "choices.0.message.thinking").String())
 		require.Equal(t, "abc", gjson.GetBytes(out, "choices.0.message.reasoning_content").String())
 	})
@@ -120,7 +122,7 @@ func TestNormalizeOllamaCloudChatCompletionsResponseJSON(t *testing.T) {
 	t.Run("does not overwrite existing reasoning_content", func(t *testing.T) {
 		t.Parallel()
 		in := []byte(`{"choices":[{"delta":{"reasoning":"new","reasoning_content":"old"}}]}`)
-		out := normalizeOllamaCloudChatCompletionsResponseJSON(in)
+		out := ollama.NormalizeOllamaCloudChatCompletionsResponseJSON(in)
 		require.Equal(t, string(in), string(out))
 		require.Equal(t, "old", gjson.GetBytes(out, "choices.0.delta.reasoning_content").String())
 	})
@@ -128,7 +130,7 @@ func TestNormalizeOllamaCloudChatCompletionsResponseJSON(t *testing.T) {
 	t.Run("empty reasoning does not open reasoning_content", func(t *testing.T) {
 		t.Parallel()
 		in := []byte(`{"choices":[{"delta":{"reasoning":""}}]}`)
-		out := normalizeOllamaCloudChatCompletionsResponseJSON(in)
+		out := ollama.NormalizeOllamaCloudChatCompletionsResponseJSON(in)
 		require.Equal(t, string(in), string(out))
 		require.False(t, gjson.GetBytes(out, "choices.0.delta.reasoning_content").Exists())
 	})
@@ -136,7 +138,7 @@ func TestNormalizeOllamaCloudChatCompletionsResponseJSON(t *testing.T) {
 	t.Run("empty thinking does not open reasoning_content", func(t *testing.T) {
 		t.Parallel()
 		in := []byte(`{"choices":[{"message":{"thinking":""}}]}`)
-		out := normalizeOllamaCloudChatCompletionsResponseJSON(in)
+		out := ollama.NormalizeOllamaCloudChatCompletionsResponseJSON(in)
 		require.Equal(t, string(in), string(out))
 		require.False(t, gjson.GetBytes(out, "choices.0.message.reasoning_content").Exists())
 	})
@@ -144,7 +146,7 @@ func TestNormalizeOllamaCloudChatCompletionsResponseJSON(t *testing.T) {
 	t.Run("tool call chunk is unchanged", func(t *testing.T) {
 		t.Parallel()
 		in := []byte(`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{}"}}]}}]}`)
-		out := normalizeOllamaCloudChatCompletionsResponseJSON(in)
+		out := ollama.NormalizeOllamaCloudChatCompletionsResponseJSON(in)
 		require.Equal(t, string(in), string(out))
 	})
 }
@@ -153,7 +155,7 @@ func TestNormalizeOllamaCloudChatCompletionsRequest(t *testing.T) {
 	t.Parallel()
 
 	in := []byte(`{"messages":[{"role":"user","content":"weather"},{"role":"assistant","reasoning_content":"prev","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"get_weather","arguments":"{}"}}]}]}`)
-	out := normalizeOllamaCloudChatCompletionsRequest(in)
+	out := ollama.NormalizeOllamaCloudChatCompletionsRequest(in)
 	require.Equal(t, "prev", gjson.GetBytes(out, "messages.1.reasoning").String())
 	require.Equal(t, "prev", gjson.GetBytes(out, "messages.1.reasoning_content").String())
 	require.Equal(t, "", gjson.GetBytes(out, "messages.1.content").String())
@@ -172,14 +174,14 @@ func TestApplyOllamaCloudRawChatCompletionsLeavesForeignAccountsUnchanged(t *tes
 	official.Name = "DeepSeek"
 	official.Credentials["base_url"] = "https://api.deepseek.com"
 	official.Extra = map[string]any{
-		openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
+		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 	}
 
 	opencode := rawChatCompletionsTestAccount()
 	opencode.Credentials["base_url"] = "https://opencode.ai/zen/go/v1"
 	opencode.Extra = map[string]any{
-		openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
-		"opencode_go_usage_auto_refresh":    true,
+		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
+		"opencode_go_usage_auto_refresh":  true,
 	}
 
 	for _, account := range []*Account{official, opencode} {
@@ -193,16 +195,15 @@ func TestNormalizeOllamaCloudChatCompletionsSSELine(t *testing.T) {
 	t.Parallel()
 
 	before := `data: {"choices":[{"delta":{"reasoning":"abc"}}]}`
-	after := normalizeOllamaCloudChatCompletionsSSELine(before)
+	after := ollama.NormalizeOllamaCloudChatCompletionsSSELine(before)
 	require.True(t, strings.HasPrefix(after, "data: "))
 	payload := strings.TrimPrefix(after, "data: ")
 	require.Equal(t, "abc", gjson.Get(payload, "choices.0.delta.reasoning").String())
 	require.Equal(t, "abc", gjson.Get(payload, "choices.0.delta.reasoning_content").String())
-	require.Equal(t, "data: [DONE]", normalizeOllamaCloudChatCompletionsSSELine("data: [DONE]"))
+	require.Equal(t, "data: [DONE]", ollama.NormalizeOllamaCloudChatCompletionsSSELine("data: [DONE]"))
 }
 
 func TestForwardAsRawChatCompletions_OllamaCloudReasoningAliasStreaming(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hello"}],"stream":true}`)
 	rec := httptest.NewRecorder()
@@ -246,7 +247,6 @@ func TestForwardAsRawChatCompletions_OllamaCloudReasoningAliasStreaming(t *testi
 }
 
 func TestForwardAsRawChatCompletions_OllamaCloudThinkingAliasNonStreaming(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hello"},{"role":"assistant","reasoning_content":"prev","content":""}],"stream":false}`)
 	rec := httptest.NewRecorder()

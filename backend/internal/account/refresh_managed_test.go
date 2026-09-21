@@ -3,10 +3,11 @@ package account
 import (
 	"context"
 	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 手动与后台入口真实使用同一个协调器，停止取消已接纳工作与锁等待。

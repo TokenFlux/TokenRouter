@@ -1,13 +1,22 @@
 package handler
 
 import (
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	"context"
 	"errors"
 	"net/http"
 
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
@@ -17,7 +26,7 @@ type genericResponsesAttemptBridge struct {
 	messageAttemptBridge
 	requestCtx     context.Context
 	forwardBody    []byte
-	channelMapping service.ChannelMappingResult
+	channelMapping routing.ChannelMappingResult
 }
 
 // Select 保留通用 Responses 适配；循环复用 gateway/text。
@@ -28,7 +37,7 @@ func (b *genericResponsesAttemptBridge) Select(excluded map[int64]struct{}) (tex
 		return textflow.Selection{}, err
 	}
 	b.account = b.selection.Account
-	setOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
 	return capturedTextSelection(b.account), nil
 
 }
@@ -39,7 +48,7 @@ func (b *genericResponsesAttemptBridge) FirstSelectionFailure(err error, _ bool)
 	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, effectiveAPIKeyPlatform(b.c, b.apiKey))
 	cls = classifySelectionFailureError(err, cls)
 	if !cls.ModelNotFound {
-		markOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
+		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 	}
 	message := cls.Message
 	if !cls.ModelNotFound {
@@ -55,7 +64,7 @@ func (b *genericResponsesAttemptBridge) Acquire() bool {
 	b.accountReleaseFunc = b.selection.ReleaseFunc
 	if !b.selection.Acquired {
 		if b.selection.WaitPlan == nil {
-			markOpsRoutingCapacityLimited(b.c)
+			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 			b.binding().responsesErrorResponse(b.c, http.StatusServiceUnavailable, "api_error", "No available accounts")
 			return false
 		}
@@ -73,7 +82,7 @@ func (b *genericResponsesAttemptBridge) Acquire() bool {
 			return false
 		}
 	}
-	b.accountReleaseFunc = wrapReleaseOnDone(b.c.Request.Context(), b.accountReleaseFunc)
+	b.accountReleaseFunc = scheduler.WrapRelease(b.c.Request.Context(), scheduler.ReleaseOnCancel, b.accountReleaseFunc)
 
 	return true
 }
@@ -83,9 +92,8 @@ func (b *genericResponsesAttemptBridge) Forward(_ textflow.AttemptState) textflo
 	var err error
 	// 5. Forward request
 	b.writerSizeBeforeForward = b.c.Writer.Size()
-
-	setActualUpstreamEndpoint(b.c, "")
-	if b.account.Platform == service.PlatformGemini {
+	gatewayhttp.SetActualUpstreamEndpoint(b.c, "")
+	if b.account.Platform == capability.PlatformGemini {
 		if !b.binding().geminiAvailable {
 			b.binding().responsesErrorResponse(b.c, http.StatusBadGateway, "upstream_error", "Gemini compatibility service is not configured")
 			if b.accountReleaseFunc != nil {
@@ -93,7 +101,7 @@ func (b *genericResponsesAttemptBridge) Forward(_ textflow.AttemptState) textflo
 			}
 			return textflow.Outcome{Stop: true}
 		}
-		setActualUpstreamEndpoint(b.c, EndpointGeminiModels)
+		gatewayhttp.SetActualUpstreamEndpoint(b.c, gatewayhttp.EndpointGeminiModels)
 		b.result, err = b.binding().forwardGeminiResponses(b.requestCtx, b.c, b.account, b.forwardBody, b.parsedReq)
 	} else if shouldUseAntigravityCompat(b.account) {
 		if !b.binding().antigravityAvailable {
@@ -103,7 +111,7 @@ func (b *genericResponsesAttemptBridge) Forward(_ textflow.AttemptState) textflo
 			}
 			return textflow.Outcome{Stop: true}
 		}
-		setActualUpstreamEndpoint(b.c, EndpointAntigravityGenerateContent)
+		gatewayhttp.SetActualUpstreamEndpoint(b.c, gatewayhttp.EndpointAntigravityGenerateContent)
 		b.result, err = b.binding().forwardAntigravityResponses(b.requestCtx, b.c, b.account, b.forwardBody, b.parsedReq)
 	} else {
 		b.result, err = b.binding().forwardResponses(b.requestCtx, b.c, b.account, b.forwardBody, b.parsedReq)
@@ -117,8 +125,8 @@ func (b *genericResponsesAttemptBridge) Forward(_ textflow.AttemptState) textflo
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil, OutputChanged: b.c.Writer.Size() != b.writerSizeBeforeForward}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
 	out.Attempt.RetryCommitted = out.OutputChanged
-	var policy *service.BetaBlockedError
-	var retry *service.UpstreamFailoverError
+	var policy *anthropic.BetaBlockedError
+	var retry *forwardcore.UpstreamFailoverError
 	switch {
 	case errors.As(err, &policy):
 		out.Kind = textflow.FailurePolicy
@@ -148,16 +156,16 @@ func (b *genericResponsesAttemptBridge) OtherFailure(err error) {
 func (b *genericResponsesAttemptBridge) Complete(_ textflow.AttemptState) {
 	// 6. Record usage
 	userAgent := b.c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(b.c)
-	requestPayloadHash := service.HashUsageRequestPayload(b.body)
-	inboundEndpoint := GetInboundEndpoint(b.c)
-	upstreamEndpoint := GetUpstreamEndpoint(b.c, b.account.Platform)
+	clientIP := clientip.GetClientIP(b.c)
+	requestPayloadHash := billing.HashUsageRequestPayload(b.body)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Platform)
 
 	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.apiKey)
 	clientSessionID := service.ExtractClientSessionID(b.c)
 	stampForwardRequestedReasoningEffort(b.result, b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionForwardInput(usageRecordContextFromGin(b.c), &service.RecordUsageInput{
+	completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(b.c), &service.RecordUsageInput{
 		Result:             b.result,
 		QuotaPlatform:      quotaPlatform,
 		APIKey:             b.apiKey,
@@ -194,7 +202,7 @@ func (b *genericResponsesAttemptBridge) SingleAccountRetry()      {}
 func (b *genericResponsesAttemptBridge) Abandon(int64)            {}
 func (b *genericResponsesAttemptBridge) Success()                 {}
 func (b *genericResponsesAttemptBridge) Exhausted(err *textflow.AttemptFailure, _ string, stream bool) {
-	var original *service.UpstreamFailoverError
+	var original *forwardcore.UpstreamFailoverError
 	if err != nil && errors.As(err.Cause, &original) {
 		b.binding().handleResponsesFailoverExhausted(b.c, original, stream || *b.streamStarted)
 	} else {
@@ -202,9 +210,9 @@ func (b *genericResponsesAttemptBridge) Exhausted(err *textflow.AttemptFailure, 
 	}
 }
 func (b *genericResponsesAttemptBridge) PolicyFailure(err error) {
-	var original *service.BetaBlockedError
+	var original *anthropic.BetaBlockedError
 	if errors.As(err, &original) {
-		service.MarkOpsClientBusinessLimited(b.c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+		gatewayhttp.MarkOpsClientBusinessLimited(b.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		b.binding().responsesErrorResponse(b.c, http.StatusBadRequest, "invalid_request_error", original.Message)
 	}
 }

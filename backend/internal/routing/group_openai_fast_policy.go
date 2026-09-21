@@ -2,8 +2,9 @@
 package routing
 
 import (
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // 分组使用互斥策略，避免 Fast、Ultra Fast 和关闭开关冲突。

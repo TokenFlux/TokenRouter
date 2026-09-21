@@ -48,6 +48,8 @@ Group 的 fallback 包括普通 fallback、invalid-request fallback 和 unavaila
 
 `require_oauth_only` 排除 API Key 等非 OAuth 账号；`require_privacy_set` 要求上游隐私状态已经确认。OpenAI/Antigravity 的 privacy 检查和设置可在创建、刷新或维护流程触发，但请求热路径只能使用当前已验证状态，不能假定刷新成功。
 
+OpenAI 客户端访问裁决直接使用 account 的原生检测端口，按需读取 Header 字符串，TLS 路由只传入匹配结果；HTTP、Live 和自动探针复用同一规则。WS 传输选择直接调用 gateway/provider 对账号与配置的投影和 egress 的唯一决策，旧检测器及 resolver 已删除，配置与动态客户端放行设置仍在原时点读取。
+
 会话隔离与粘性约束防止不同账号、团队或用户上下文互相复用。OAuth passthrough、Claude Code-only 和允许客户端策略必须与账号类型共同校验；客户端伪造 User-Agent 不能自动获得额外权限。
 
 ## 推理与 Header

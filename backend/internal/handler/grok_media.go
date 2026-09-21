@@ -6,10 +6,22 @@ import (
 	"strings"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -36,16 +48,16 @@ func (h *OpenAIGatewayHandler) GrokVideoContent(c *gin.Context) {
 	h.MediaHTTPHandler().GrokVideoContent(c)
 }
 
-func applyGrokMediaChannelMapping(body []byte, contentType string, mapping service.ChannelMappingResult) ([]byte, string, error) {
+func applyGrokMediaChannelMapping(body []byte, contentType string, mapping routing.ChannelMappingResult) ([]byte, string, error) {
 	return gatewaymedia.RewriteMappedMediaBody(body, contentType, mapping.Mapped, mapping.MappedModel, service.RewriteGrokMediaRequestModel)
 }
 
 func (h *OpenAIGatewayHandler) resolveCompositeGrokVideoAPIKey(
 	ctx context.Context,
-	apiKey *service.APIKey,
+	apiKey *apikey.APIKey,
 	requestID string,
 	userID int64,
-) (*service.APIKey, int64, error) {
+) (*apikey.APIKey, int64, error) {
 	if h == nil || h.gatewayService == nil || apiKey == nil {
 		return nil, 0, errors.New("grok video request binding is unavailable")
 	}
@@ -65,7 +77,7 @@ func (h *OpenAIGatewayHandler) resolveCompositeGrokVideoAPIKey(
 	if owner.BindingIndex >= 0 {
 		selected.Group = apiKey.CompositeGroups[owner.BindingIndex].Group
 	} else {
-		selected.Group = &service.Group{ID: owner.GroupID, Platform: service.PlatformGrok, Status: service.StatusActive, Hydrated: true}
+		selected.Group = &routing.Group{ID: owner.GroupID, Platform: capability.PlatformGrok, Status: billing.StatusActive, Hydrated: true}
 	}
 	return &selected, owner.AccountID, nil
 }
@@ -86,14 +98,14 @@ func (h *OpenAIGatewayHandler) ensureGrokMediaAccountEligibility(ctx context.Con
 }
 
 // grokMediaRequiredCapability 仅限制新的媒体生成请求，状态查询必须保持可路由。
-func grokMediaRequiredCapability(endpoint service.GrokMediaEndpoint) service.OpenAIEndpointCapability {
+func grokMediaRequiredCapability(endpoint grok.GrokMediaEndpoint) accountcore.OpenAIEndpointCapability {
 	if endpoint.IsGenerationRequest() {
-		return service.OpenAIEndpointCapabilityGrokMediaGeneration
+		return accountcore.OpenAIEndpointCapabilityGrokMediaGeneration
 	}
 	return ""
 }
 
-func grokMediaScheduleModel(account *service.Account, routingModel string, result *service.OpenAIForwardResult) string {
+func grokMediaScheduleModel(account *service.Account, routingModel string, result *forwardcore.OpenAIResult) string {
 	if result != nil && strings.TrimSpace(result.UpstreamModel) != "" {
 		return result.UpstreamModel
 	}
@@ -103,11 +115,11 @@ func grokMediaScheduleModel(account *service.Account, routingModel string, resul
 	return account.GetMappedModel(routingModel)
 }
 
-func isGrokVideoCreateEndpoint(endpoint service.GrokMediaEndpoint) bool {
+func isGrokVideoCreateEndpoint(endpoint grok.GrokMediaEndpoint) bool {
 	return gatewaymedia.IsVideoCreate(string(endpoint))
 }
 
-func shouldRecordGrokMediaUsage(endpoint service.GrokMediaEndpoint, requestModel string, result *service.OpenAIForwardResult) bool {
+func shouldRecordGrokMediaUsage(endpoint grok.GrokMediaEndpoint, requestModel string, result *forwardcore.OpenAIResult) bool {
 	return result != nil && gatewaymedia.RecordImmediateImages(string(endpoint), requestModel, result.ImageCount)
 }
 
@@ -115,11 +127,11 @@ func prepareGrokVideoCompletionBilling(
 	ctx context.Context,
 	h *OpenAIGatewayHandler,
 	reqLog *zap.Logger,
-	apiKey *service.APIKey,
+	apiKey *apikey.APIKey,
 	subject middleware2.AuthSubject,
 	taskRequestID string,
-	statusResult *service.OpenAIForwardResult,
-) *service.OpenAIForwardResult {
+	statusResult *forwardcore.OpenAIResult,
+) *forwardcore.OpenAIResult {
 	if h == nil || h.gatewayService == nil || apiKey == nil || statusResult == nil {
 		return nil
 	}
@@ -155,13 +167,13 @@ func recordGrokMediaUsage(
 	c *gin.Context,
 	h *OpenAIGatewayHandler,
 	reqLog *zap.Logger,
-	apiKey *service.APIKey,
+	apiKey *apikey.APIKey,
 	subject middleware2.AuthSubject,
-	subscription *service.UserSubscription,
+	subscription *billing.UserSubscription,
 	account *service.Account,
-	result *service.OpenAIForwardResult,
+	result *forwardcore.OpenAIResult,
 	requestModel string,
-	channelMapping service.ChannelMappingResult,
+	channelMapping routing.ChannelMappingResult,
 	body []byte,
 	requestID string,
 ) {
@@ -170,27 +182,27 @@ func recordGrokMediaUsage(
 		return
 	}
 	userAgent := c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(c)
+	clientIP := clientip.GetClientIP(c)
 	sessionID := service.ExtractClientSessionID(c)
 	payloadForHash := body
 	if len(payloadForHash) == 0 && strings.TrimSpace(requestID) != "" {
 		payloadForHash = []byte(requestID)
 	}
-	inboundEndpoint := GetInboundEndpoint(c)
-	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
 	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-	channelUsageFields := clientRequestedUsageFields(c, channelMapping, requestModel, result.UpstreamModel)
+	channelUsageFields := gatewayhttp.ClientRequestedUsageFields(c, channelMapping, requestModel, result.UpstreamModel)
 	videoTaskID := ""
 	if result.VideoCount > 0 {
 		videoTaskID = strings.TrimSpace(firstNonEmptyString(requestID, result.ResponseID))
-		if stable := service.StableGrokVideoBillingRequestID(firstNonEmptyString(result.ResponseID, requestID)); stable != "" {
+		if stable := gatewaymedia.StableGrokVideoBillingRequestID(firstNonEmptyString(result.ResponseID, requestID)); stable != "" {
 			result.RequestID = stable
 		}
 		if len(body) == 0 && videoTaskID != "" {
 			payloadForHash = []byte(videoTaskID)
 		}
 	}
-	requestPayloadHash := service.HashUsageRequestPayload(payloadForHash)
+	requestPayloadHash := billing.HashUsageRequestPayload(payloadForHash)
 	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{
 		Result:             result,
 		APIKey:             apiKey,
@@ -208,7 +220,7 @@ func recordGrokMediaUsage(
 		ChannelUsageFields: channelUsageFields,
 	})
 	completionRecorder := h.completionRuntime()
-	completionLog := logger.L().With(
+	completionLog := logging.L().With(
 		zap.String("component", "handler.openai_gateway.grok_media"),
 		zap.Int64("user_id", subject.UserID),
 		zap.Int64("api_key_id", apiKey.ID),

@@ -2,15 +2,22 @@
 package handler
 
 import (
+	gemini "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
+)
+
+import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
+
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -36,13 +43,13 @@ func (p geminiNativeHTTPBackend) HasForcedPlatform(c *gin.Context) bool {
 	return middleware.HasForcePlatform(c)
 }
 func (p geminiNativeHTTPBackend) SafeModelSegment(model string) bool {
-	return service.IsSafeGeminiModelPathSegment(model)
+	return gemini.IsSafeGeminiModelPathSegment(model)
 }
 func (p geminiNativeHTTPBackend) Moderate(c *gin.Context, log *zap.Logger, key *apikey.APIKey, subject authctx.AuthSubject, model string, body []byte) *moderation.Decision {
-	return p.h.checkContentModeration(c, log, service.APIKeyFromView(key), subject, moderation.ContentModerationProtocolGemini, model, body)
+	return p.h.checkContentModeration(c, log, apikey.CopyAPIKey(key), subject, moderation.ContentModerationProtocolGemini, model, body)
 }
 func (p geminiNativeHTTPBackend) Isolate(ctx context.Context, key *apikey.APIKey, userID int64, hash string) error {
-	return p.h.ensureGatewaySessionIsolation(ctx, service.APIKeyFromView(key), userID, service.SessionIsolationSourceGemini, hash)
+	return p.h.ensureGatewaySessionIsolation(ctx, apikey.CopyAPIKey(key), userID, session.SessionIsolationSourceGemini, hash)
 }
 func (p geminiNativeHTTPBackend) DigestChain(request *protocolgemini.GeminiRequest) string {
 	return service.BuildGeminiDigestChain(request)

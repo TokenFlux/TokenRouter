@@ -27,13 +27,10 @@ import (
 )
 
 const (
-	QoderDefaultMaxTokens          = 32768
-	QoderStreamTimeout             = 15 * time.Minute
-	QoderKeepaliveEvery            = 10 * time.Second
-	QoderConversationTTL           = 2 * time.Hour
-	QoderRefreshLockPoll           = 100 * time.Millisecond
-	QoderRefreshLockWait           = 3 * time.Second
-	QoderAccountStateUpdateTimeout = 5 * time.Second
+	QoderDefaultMaxTokens = 32768
+	QoderStreamTimeout    = 15 * time.Minute
+	QoderKeepaliveEvery   = 10 * time.Second
+	QoderConversationTTL  = 2 * time.Hour
 
 	QoderTextToolCallStart = "<tool_call>"
 	QoderTextToolCallEnd   = "</tool_call>"

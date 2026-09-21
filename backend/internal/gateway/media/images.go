@@ -7,7 +7,7 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
-	nativeupstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 type ImageCapability = accountcore.OpenAIImagesCapability
@@ -15,11 +15,11 @@ type ImageCapability = accountcore.OpenAIImagesCapability
 const ImageCapabilityBasic ImageCapability = "images-basic"
 const ImageCapabilityNative ImageCapability = "images-native"
 
-type ImageUpload = nativeupstream.ImageUpload
+type ImageUpload = upstreamcore.ImageUpload
 
 // ParseImageRequest 保留结构解析与渠道映射后模型校验的不同阶段。
 func ParseImageRequest(endpoint, contentType string, body []byte, validateModel bool) (*ImageRequest, error) {
-	value, err := nativeupstream.ParseImageRequest(endpoint, contentType, body)
+	value, err := upstreamcore.ParseImageRequest(endpoint, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (r *ImageRequest) ValidateRoutingModel(routingModel string) error {
 
 func ApplyImageDefaults(req *ImageRequest) {
 	value := NativeImageRequest(req)
-	nativeupstream.ApplyOpenAIImagesDefaults(value)
+	upstreamcore.ApplyOpenAIImagesDefaults(value)
 	ApplyNativeImageRequest(req, value)
 
 }
@@ -115,11 +115,11 @@ func IsImageGenerationModel(model string) bool {
 }
 
 func IsGPTImageGenerationModel(model string) bool {
-	return nativeupstream.IsGPTImageGenerationModel(model)
+	return upstreamcore.IsGPTImageGenerationModel(model)
 }
 
 func IsGrokImageGenerationModel(model string) bool {
-	return nativeupstream.IsGrokImageGenerationModel(model)
+	return upstreamcore.IsGrokImageGenerationModel(model)
 }
 
 func ValidateImageModel(model string) error {
@@ -160,11 +160,11 @@ func NormalizeImageSizeTier(size string) string {
 	return pricing.NormalizeImageBillingTierOrDefault(size)
 }
 
-func NativeImageRequest(value *ImageRequest) *nativeupstream.ImageRequest {
+func NativeImageRequest(value *ImageRequest) *upstreamcore.ImageRequest {
 	if value == nil {
 		return nil
 	}
-	return &nativeupstream.ImageRequest{
+	return &upstreamcore.ImageRequest{
 		Endpoint:          value.Endpoint,
 		ContentType:       value.ContentType,
 		Multipart:         value.Multipart,
@@ -196,7 +196,7 @@ func NativeImageRequest(value *ImageRequest) *nativeupstream.ImageRequest {
 	}
 }
 
-func ApplyNativeImageRequest(target *ImageRequest, value *nativeupstream.ImageRequest) {
+func ApplyNativeImageRequest(target *ImageRequest, value *upstreamcore.ImageRequest) {
 	if target == nil || value == nil {
 		return
 	}

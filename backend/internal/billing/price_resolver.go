@@ -3,9 +3,10 @@ package billing
 
 import (
 	context "context"
-	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	slices "slices"
 	strings "strings"
+
+	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 const PricingSourceGroup = purepricing.PricingSourceGroup

@@ -1,7 +1,6 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,10 +8,23 @@ import (
 	"strings"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 func (s *OpenAIGatewayService) isOpenAIWSGeneratePrewarmEnabled() bool {
@@ -23,55 +35,53 @@ func (s *OpenAIGatewayService) isOpenAIWSGeneratePrewarmEnabled() bool {
 // 预热默认关闭，仅在配置开启后生效；失败时按可恢复错误回退到 HTTP。
 func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 	ctx context.Context,
-	lease *openAIWSConnLease,
-	decision OpenAIWSProtocolDecision,
+	lease *upstreamopenai.WSConnLease,
+	decision egress.OpenAIWSProtocolDecision,
 	payload map[string]any,
 	previousResponseID string,
 	reqBody map[string]any,
 	canonicalModel string,
 	account *Account,
-	stateStore OpenAIWSStateStore,
+	stateStore session.OpenAIWSStateStore,
 	groupID int64,
 ) error {
 	if s == nil {
 		return nil
 	}
 	if lease == nil || account == nil {
-		logOpenAIWSModeInfo("prewarm_skip reason=invalid_state has_lease=%v has_account=%v", lease != nil, account != nil)
+		gatewayprovider.LogOpenAIWSModeInfo("prewarm_skip reason=invalid_state has_lease=%v has_account=%v", lease != nil, account != nil)
 		return nil
 	}
 	connID := strings.TrimSpace(lease.ConnID())
 	if !s.isOpenAIWSGeneratePrewarmEnabled() {
 		return nil
 	}
-	if decision.Transport != OpenAIUpstreamTransportResponsesWebsocketV2 {
-		logOpenAIWSModeInfo(
+	if decision.Transport != egress.OpenAIUpstreamTransportResponsesWebsocketV2 {
+		gatewayprovider.LogOpenAIWSModeInfo(
 			"prewarm_skip account_id=%d conn_id=%s reason=transport_not_v2 transport=%s",
 			account.ID,
-			connID,
-			normalizeOpenAIWSLogValue(string(decision.Transport)),
+			connID, gatewayprovider.NormalizeOpenAIWSLogValue(string(decision.Transport)),
 		)
 		return nil
 	}
 	if strings.TrimSpace(previousResponseID) != "" {
-		logOpenAIWSModeInfo(
+		gatewayprovider.LogOpenAIWSModeInfo(
 			"prewarm_skip account_id=%d conn_id=%s reason=has_previous_response_id previous_response_id=%s",
 			account.ID,
-			connID,
-			truncateOpenAIWSLogValue(previousResponseID, openAIWSIDValueMaxLen),
+			connID, gatewayprovider.TruncateOpenAIWSLogValue(previousResponseID, gatewayprovider.OpenAIWSIDValueMaxLen),
 		)
 		return nil
 	}
 	if lease.IsPrewarmed() {
-		logOpenAIWSModeInfo("prewarm_skip account_id=%d conn_id=%s reason=already_prewarmed", account.ID, connID)
+		gatewayprovider.LogOpenAIWSModeInfo("prewarm_skip account_id=%d conn_id=%s reason=already_prewarmed", account.ID, connID)
 		return nil
 	}
-	if NeedsToolContinuation(reqBody) {
-		logOpenAIWSModeInfo("prewarm_skip account_id=%d conn_id=%s reason=tool_continuation", account.ID, connID)
+	if openai.NeedsToolContinuation(reqBody) {
+		gatewayprovider.LogOpenAIWSModeInfo("prewarm_skip account_id=%d conn_id=%s reason=tool_continuation", account.ID, connID)
 		return nil
 	}
 	prewarmStart := time.Now()
-	logOpenAIWSModeInfo("prewarm_start account_id=%d conn_id=%s", account.ID, connID)
+	gatewayprovider.LogOpenAIWSModeInfo("prewarm_start account_id=%d conn_id=%s", account.ID, connID)
 
 	prewarmPayload := make(map[string]any, len(payload)+1)
 	for k, v := range payload {
@@ -82,15 +92,14 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 
 	if err := lease.WriteJSONWithContextTimeout(ctx, prewarmPayload, s.openAIWSWriteTimeout()); err != nil {
 		lease.MarkBroken()
-		logOpenAIWSModeInfo(
+		gatewayprovider.LogOpenAIWSModeInfo(
 			"prewarm_write_fail account_id=%d conn_id=%s cause=%s",
 			account.ID,
-			connID,
-			truncateOpenAIWSLogValue(err.Error(), openAIWSLogValueMaxLen),
+			connID, gatewayprovider.TruncateOpenAIWSLogValue(err.Error(), gatewayprovider.OpenAIWSLogValueMaxLen),
 		)
-		return wrapOpenAIWSFallback("prewarm_write", err)
+		return ws.WrapFallback("prewarm_write", err)
 	}
-	logOpenAIWSModeInfo("prewarm_write_sent account_id=%d conn_id=%s payload_bytes=%d", account.ID, connID, len(prewarmPayloadJSON))
+	gatewayprovider.LogOpenAIWSModeInfo("prewarm_write_sent account_id=%d conn_id=%s payload_bytes=%d", account.ID, connID, len(prewarmPayloadJSON))
 
 	prewarmResponseID := ""
 	prewarmEventCount := 0
@@ -99,20 +108,18 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 		message, readErr := lease.ReadMessageWithContextTimeout(ctx, s.openAIWSReadTimeout())
 		if readErr != nil {
 			lease.MarkBroken()
-			closeStatus, closeReason := summarizeOpenAIWSReadCloseError(readErr)
-			logOpenAIWSModeInfo(
+			closeStatus, closeReason := gatewayprovider.SummarizeOpenAIWSReadCloseError(readErr)
+			gatewayprovider.LogOpenAIWSModeInfo(
 				"prewarm_read_fail account_id=%d conn_id=%s close_status=%s close_reason=%s cause=%s events=%d",
 				account.ID,
 				connID,
 				closeStatus,
-				closeReason,
-				truncateOpenAIWSLogValue(readErr.Error(), openAIWSLogValueMaxLen),
-				prewarmEventCount,
+				closeReason, gatewayprovider.TruncateOpenAIWSLogValue(readErr.Error(), gatewayprovider.OpenAIWSLogValueMaxLen), prewarmEventCount,
 			)
-			return wrapOpenAIWSFallback("prewarm_"+classifyOpenAIWSReadFallbackReason(readErr), readErr)
+			return ws.WrapFallback("prewarm_"+gatewayprovider.ClassifyOpenAIWSReadFallbackReason(readErr), readErr)
 		}
 
-		eventType, eventResponseID, _ := parseOpenAIWSEventEnvelope(message)
+		eventType, eventResponseID, _ := openai.ParseWSEventEnvelope(message)
 		if eventType == "" {
 			continue
 		}
@@ -120,32 +127,28 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 		if prewarmResponseID == "" && eventResponseID != "" {
 			prewarmResponseID = eventResponseID
 		}
-		if prewarmEventCount <= openAIWSPrewarmEventLogHead || eventType == "error" || isOpenAIWSTerminalEvent(eventType) {
-			logOpenAIWSModeInfo(
+		if prewarmEventCount <= openAIWSPrewarmEventLogHead || eventType == "error" || openai.IsWSTerminalEvent(eventType) {
+			gatewayprovider.LogOpenAIWSModeInfo(
 				"prewarm_event account_id=%d conn_id=%s idx=%d type=%s bytes=%d",
 				account.ID,
 				connID,
-				prewarmEventCount,
-				truncateOpenAIWSLogValue(eventType, openAIWSLogValueMaxLen),
-				len(message),
+				prewarmEventCount, gatewayprovider.TruncateOpenAIWSLogValue(eventType, gatewayprovider.OpenAIWSLogValueMaxLen), len(message),
 			)
 		}
 
 		if eventType == "error" {
-			errCodeRaw, errTypeRaw, errMsgRaw := parseOpenAIWSErrorEventFields(message)
+			errCodeRaw, errTypeRaw, errMsgRaw := openai.ParseWSErrorEventFields(message)
 			errMsg := strings.TrimSpace(errMsgRaw)
 			if errMsg == "" {
 				errMsg = "OpenAI websocket prewarm error"
 			}
-			fallbackReason, canFallback := classifyOpenAIWSErrorEventFromRaw(errCodeRaw, errTypeRaw, errMsgRaw)
-			errCode, errType, errMessage := summarizeOpenAIWSErrorEventFieldsFromRaw(errCodeRaw, errTypeRaw, errMsgRaw)
-			logOpenAIWSModeInfo(
+			fallbackReason, canFallback := upstreamopenai.ClassifyWSErrorEventFromRaw(errCodeRaw, errTypeRaw, errMsgRaw)
+			errCode, errType, errMessage := gatewayprovider.SummarizeOpenAIWSErrorEventFieldsFromRaw(errCodeRaw, errTypeRaw, errMsgRaw)
+			gatewayprovider.LogOpenAIWSModeInfo(
 				"prewarm_error_event account_id=%d conn_id=%s idx=%d fallback_reason=%s can_fallback=%v err_code=%s err_type=%s err_message=%s",
 				account.ID,
 				connID,
-				prewarmEventCount,
-				truncateOpenAIWSLogValue(fallbackReason, openAIWSLogValueMaxLen),
-				canFallback,
+				prewarmEventCount, gatewayprovider.TruncateOpenAIWSLogValue(fallbackReason, gatewayprovider.OpenAIWSLogValueMaxLen), canFallback,
 				errCode,
 				errType,
 				errMessage,
@@ -156,7 +159,7 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 				ctx, account, canonicalModel, lease.HandshakeHeaders(), message,
 			)
 			if errorDecision.ShouldReturnGenericError() {
-				return &openAIWSGenericPolicyError{upstreamStatus: statusCode}
+				return ws.NewGenericPolicyError(statusCode)
 			}
 			if errorDecision.ShouldFailoverWithDefaults(account, statusCode, false, s.shouldFailoverOpenAIWSError(account, statusCode, message)) {
 				return newOpenAIUpstreamFailoverError(
@@ -168,12 +171,12 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 				)
 			}
 			if canFallback {
-				return wrapOpenAIWSFallback("prewarm_"+fallbackReason, errors.New(errMsg))
+				return ws.WrapFallback("prewarm_"+fallbackReason, errors.New(errMsg))
 			}
-			return wrapOpenAIWSFallback("prewarm_error_event", errors.New(errMsg))
+			return ws.WrapFallback("prewarm_error_event", errors.New(errMsg))
 		}
 
-		if isOpenAIWSTerminalEvent(eventType) {
+		if openai.IsWSTerminalEvent(eventType) {
 			prewarmTerminalCount++
 			break
 		}
@@ -182,15 +185,13 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 	lease.MarkPrewarmed()
 	if prewarmResponseID != "" && stateStore != nil {
 		ttl := s.openAIWSResponseStickyTTL()
-		logOpenAIWSBindResponseAccountWarn(groupID, account.ID, prewarmResponseID, stateStore.BindResponseAccount(ctx, groupID, prewarmResponseID, account.ID, ttl))
+		gatewayprovider.LogOpenAIWSBindResponseAccountWarn(groupID, account.ID, prewarmResponseID, stateStore.BindResponseAccount(ctx, groupID, prewarmResponseID, account.ID, ttl))
 		stateStore.BindResponseConn(prewarmResponseID, lease.ConnID(), ttl)
 	}
-	logOpenAIWSModeInfo(
+	gatewayprovider.LogOpenAIWSModeInfo(
 		"prewarm_done account_id=%d conn_id=%s response_id=%s events=%d terminal_events=%d duration_ms=%d",
 		account.ID,
-		connID,
-		truncateOpenAIWSLogValue(prewarmResponseID, openAIWSIDValueMaxLen),
-		prewarmEventCount,
+		connID, gatewayprovider.TruncateOpenAIWSLogValue(prewarmResponseID, gatewayprovider.OpenAIWSIDValueMaxLen), prewarmEventCount,
 		prewarmTerminalCount,
 		time.Since(prewarmStart).Milliseconds(),
 	)
@@ -210,15 +211,6 @@ func payloadAsJSONBytes(payload map[string]any) []byte {
 		return []byte("{}")
 	}
 	return body
-}
-
-func isOpenAIWSTerminalEvent(eventType string) bool {
-	switch strings.TrimSpace(eventType) {
-	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
-		return true
-	default:
-		return false
-	}
 }
 
 func normalizeOpenAIWSTerminalEvent(eventType string) string {
@@ -298,14 +290,14 @@ func openAIWSErrorPolicyStatus(payload []byte) int {
 			return status
 		}
 	}
-	codeRaw, errTypeRaw, _ := parseOpenAIWSErrorEventFields(payload)
+	codeRaw, errTypeRaw, _ := openai.ParseWSErrorEventFields(payload)
 	if codeRaw == "" {
 		codeRaw = strings.TrimSpace(gjson.GetBytes(payload, "response.error.code").String())
 	}
 	if errTypeRaw == "" {
 		errTypeRaw = strings.TrimSpace(gjson.GetBytes(payload, "response.error.type").String())
 	}
-	return openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw)
+	return upstreamopenai.WSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw)
 }
 
 // openAIWSTerminalPolicyDecision 保留终止事件类型及其账号策略结果，
@@ -336,10 +328,10 @@ func markOpenAIWSFailureSideEffectsApplied(c *gin.Context, statusCode int, shoul
 }
 
 func (s *OpenAIGatewayService) handleOpenAIWSTerminalTransientFailure(ctx context.Context, account *Account, canonicalModel string, headers http.Header, payload []byte) openAIWSTerminalPolicyDecision {
-	eventType, _, _ := parseOpenAIWSEventEnvelope(payload)
+	eventType, _, _ := openai.ParseWSEventEnvelope(payload)
 	result := openAIWSTerminalPolicyDecision{
 		TerminalEvent: normalizeOpenAIWSTerminalEvent(eventType),
-		Decision:      UpstreamErrorDecision{Policy: ErrorPolicyNone},
+		Decision:      UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone},
 	}
 	if result.TerminalEvent != "response.failed" {
 		return result
@@ -355,9 +347,9 @@ func (s *OpenAIGatewayService) handleOpenAIWSTerminalTransientFailure(ctx contex
 }
 
 func (s *OpenAIGatewayService) handleOpenAIWSErrorEventTransientFailure(ctx context.Context, account *Account, canonicalModel string, headers http.Header, payload []byte) UpstreamErrorDecision {
-	eventType, _, _ := parseOpenAIWSEventEnvelope(payload)
+	eventType, _, _ := openai.ParseWSEventEnvelope(payload)
 	if eventType != "error" {
-		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	status := openAIWSErrorPolicyStatus(payload)
 	if status == http.StatusTooManyRequests {
@@ -394,7 +386,7 @@ func markOpenAIWSClientVisibleFailure(c *gin.Context, eventType string, payload 
 		status = int(gjson.GetBytes(payload, "status").Int())
 	}
 	if status == 0 {
-		status = openAIWSErrorHTTPStatusFromRaw(code, errType)
+		status = upstreamopenai.WSErrorHTTPStatusFromRaw(code, errType)
 	}
 	if errType == "" {
 		errType = "upstream_error"
@@ -405,20 +397,20 @@ func markOpenAIWSClientVisibleFailure(c *gin.Context, eventType string, payload 
 	if message == "" {
 		message = "upstream websocket request failed"
 	}
-	MarkOpsStreamFailure(c, errType, code, message, status)
+	gatewayhttp.MarkOpsStreamFailure(c, errType, code, message, status)
 }
 
 // handleOpenAIWSFailureAccountSideEffects 将 WS 错误事件映射到账号健康策略，
 // 返回值用于成对的 error/response.failed 事件去重。
 func (s *OpenAIGatewayService) handleOpenAIWSFailureAccountSideEffects(ctx context.Context, account *Account, canonicalModel string, headers http.Header, payload []byte) bool {
-	message := extractOpenAISSEErrorMessage(payload)
-	status := openAIStreamFailureStatus(payload, message)
+	message := upstreamopenai.ExtractOpenAISSEErrorMessage(payload)
+	status := upstreamopenai.OpenAIStreamFailureStatus(payload, message)
 	switch status {
 	case http.StatusUnauthorized, http.StatusTooManyRequests, 529:
 		s.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, message, headers, canonicalModel)
 		return true
 	case http.StatusForbidden:
-		if !openAIStream403AccountFailure(payload, message) {
+		if !upstreamopenai.OpenAIStream403AccountFailure(payload, message) {
 			return false
 		}
 		s.handleOpenAIStreamTerminalAccountSideEffects(nil, account, payload, message, headers, canonicalModel)
@@ -433,9 +425,9 @@ func (s *OpenAIGatewayService) handleOpenAIWSFailureAccountSideEffects(ctx conte
 }
 
 func (s *OpenAIGatewayService) handleOpenAIWSDialTransientFailure(ctx context.Context, account *Account, canonicalModel string, err error) UpstreamErrorDecision {
-	var dialErr *openAIWSDialError
+	var dialErr *upstreamopenai.WSDialError
 	if !errors.As(err, &dialErr) || dialErr == nil {
-		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	return s.applyOpenAIWSEventErrorPolicy(ctx, account, canonicalModel, dialErr.StatusCode, dialErr.ResponseHeaders, dialErr.ResponseBody)
 }
@@ -450,10 +442,10 @@ func (s *OpenAIGatewayService) applyOpenAIWSEventErrorPolicy(
 	headers http.Header,
 	payload []byte,
 ) UpstreamErrorDecision {
-	if statusCode == 0 || detectOpenAIWSHTTPBridgeRequestScopedError(account, statusCode, extractUpstreamErrorMessage(payload), payload) {
-		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+	if statusCode == 0 || detectOpenAIWSHTTPBridgeRequestScopedError(account, statusCode, upstream.ExtractErrorMessage(payload), payload) {
+		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
-	if account != nil && account.Platform == PlatformGrok {
+	if account != nil && account.Platform == capability.PlatformGrok {
 		return s.applyGrokAccountUpstreamError(ctx, account, statusCode, headers, payload, canonicalModel)
 	}
 	return s.applyOpenAIAccountUpstreamError(ctx, account, statusCode, headers, payload, canonicalModel)
@@ -473,83 +465,19 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIWSError(account *Account, sta
 	if statusCode == 0 {
 		return false
 	}
-	if account != nil && account.Platform == PlatformGrok {
+	if account != nil && account.Platform == capability.PlatformGrok {
 		return s.shouldFailoverGrokUpstreamError(statusCode, payload)
 	}
-	upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(payload)))
+	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(payload)))
 	return s.shouldFailoverOpenAIUpstreamResponse(statusCode, upstreamMsg, payload)
 }
 
 // openAIWSGenericPolicyCloseError 在 WS 入站尚未输出时用统一文案终止连接。
 func openAIWSGenericPolicyCloseError(statusCode int) error {
-	return NewOpenAIWSClientCloseError(
+	return gatewayhttp.NewOpenAIWSClientCloseError(
 		coderws.StatusInternalError,
-		"Upstream gateway error",
-		&openAIWSGenericPolicyError{upstreamStatus: statusCode},
+		"Upstream gateway error", ws.NewGenericPolicyError(statusCode),
 	)
-}
-
-func isOpenAIWSTokenEvent(eventType string) bool {
-	eventType = strings.TrimSpace(eventType)
-	if eventType == "" {
-		return false
-	}
-	switch eventType {
-	case "response.created", "response.in_progress", "response.output_item.added", "response.output_item.done":
-		return false
-	}
-	if strings.Contains(eventType, ".delta") {
-		return true
-	}
-	if strings.HasPrefix(eventType, "response.output_text") {
-		return true
-	}
-	if strings.HasPrefix(eventType, "response.output") {
-		return true
-	}
-	// 终止事件（response.completed/done/failed/...）由 isOpenAIWSTerminalEvent 单独处理。
-	// 不能把它们当作 token event，否则当上游没有可识别的 delta 时，
-	// firstTokenMs 会被填到终止时刻，等于把"总耗时"误报为"首 token 延迟"。
-	return false
-}
-
-func replaceOpenAIWSMessageModel(message []byte, fromModel, toModel string) []byte {
-	if len(message) == 0 {
-		return message
-	}
-	if strings.TrimSpace(fromModel) == "" || strings.TrimSpace(toModel) == "" || fromModel == toModel {
-		return message
-	}
-	if !bytes.Contains(message, []byte(`"model"`)) || !bytes.Contains(message, []byte(fromModel)) {
-		return message
-	}
-	modelValues := gjson.GetManyBytes(message, "model", "response.model")
-	replaceModel := modelValues[0].Exists() && modelValues[0].Str == fromModel
-	replaceResponseModel := modelValues[1].Exists() && modelValues[1].Str == fromModel
-	if !replaceModel && !replaceResponseModel {
-		return message
-	}
-	updated := message
-	if replaceModel {
-		if next, err := sjson.SetBytes(updated, "model", toModel); err == nil {
-			updated = next
-		}
-	}
-	if replaceResponseModel {
-		if next, err := sjson.SetBytes(updated, "response.model", toModel); err == nil {
-			updated = next
-		}
-	}
-	return updated
-}
-
-func populateOpenAIUsageFromResponseJSON(body []byte, usage *OpenAIUsage) {
-	if usage == nil || len(body) == 0 {
-		return
-	}
-	if parsedUsage, ok := extractOpenAIUsageFromJSONBytes(body); ok {
-		*usage = parsedUsage
-	}
 }
 
 func getOpenAIGroupIDFromContext(c *gin.Context) int64 {
@@ -560,7 +488,7 @@ func getOpenAIGroupIDFromContext(c *gin.Context) int64 {
 	if !exists {
 		return 0
 	}
-	apiKey, ok := value.(*APIKey)
+	apiKey, ok := value.(*apikey.APIKey)
 	if !ok || apiKey == nil || apiKey.GroupID == nil {
 		return 0
 	}
@@ -589,7 +517,7 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 	previousResponseID string,
 	routingModel string,
 	excludedIDs map[int64]struct{},
-	requiredCapability OpenAIEndpointCapability,
+	requiredCapability accountcore.OpenAIEndpointCapability,
 	requireCompact bool,
 ) (*AccountSelectionResult, error) {
 	if s == nil {
@@ -610,7 +538,7 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 
 	result, acquireErr := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
 	if acquireErr == nil && result.Acquired {
-		logOpenAIWSBindResponseAccountWarn(
+		gatewayprovider.LogOpenAIWSBindResponseAccountWarn(
 			derefGroupID(groupID),
 			accountID,
 			responseID,
@@ -627,7 +555,7 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 	if s.concurrencyService != nil {
 		return &AccountSelectionResult{
 			Account: account,
-			WaitPlan: &AccountWaitPlan{
+			WaitPlan: &scheduler.AccountWaitPlan{
 				AccountID:      accountID,
 				MaxConcurrency: account.Concurrency,
 				Timeout:        cfg.StickySessionWaitTimeout,
@@ -645,7 +573,7 @@ func (s *OpenAIGatewayService) ResolveAccountIDByPreviousResponseIDForScheduler(
 	previousResponseID string,
 	routingModel string,
 	excludedIDs map[int64]struct{},
-	requiredCapability OpenAIEndpointCapability,
+	requiredCapability accountcore.OpenAIEndpointCapability,
 	requireCompact bool,
 ) int64 {
 	ctx = s.withOpenAIGroupPrivacyRequirement(ctx, groupID)
@@ -668,9 +596,9 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 	previousResponseID string,
 	routingModel string,
 	excludedIDs map[int64]struct{},
-	requiredCapability OpenAIEndpointCapability,
+	requiredCapability accountcore.OpenAIEndpointCapability,
 	requireCompact bool,
-) (int64, *Account, string, OpenAIWSStateStore) {
+) (int64, *Account, string, session.OpenAIWSStateStore) {
 	if s == nil {
 		return 0, nil, "", nil
 	}
@@ -701,7 +629,7 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 	}
 	// 非 WSv2 场景（如 force_http/全局关闭）不应使用 previous_response_id 粘连，
 	// 以保持“回滚到 HTTP”后的历史行为一致性。
-	if s.getOpenAIWSProtocolResolver().Resolve(account).Transport != OpenAIUpstreamTransportResponsesWebsocketV2 && !account.IsOpenAIApiKey() {
+	if s.resolveOpenAIWSTransport(account).Transport != egress.OpenAIUpstreamTransportResponsesWebsocketV2 && !account.IsOpenAIApiKey() {
 		return 0, nil, "", nil
 	}
 	if shouldClearStickySession(account, routingModel) || !account.IsOpenAI() || !account.IsSchedulable() {
@@ -711,7 +639,9 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 	if (hasOpenAIAccountGroupMetadata(account) && !s.openAIAccountMatchesSchedulingGroup(account, groupID)) || !s.openAIAccountPassesPrivacyRequirement(ctx, groupID, account) {
 		return 0, nil, "", nil
 	}
-	if !s.shadowProtocolsAllowed(ctx, account) || !parentHealthyForShadow(account, s.parentAccountLookup(ctx)) {
+	if !s.shadowProtocolsAllowed(ctx, account) || !accountcore.ParentHealthyForShadow(AccountRecordView(account), func(id int64) *accountcore.Record {
+		return AccountRecordView(s.parentAccountLookup(ctx)(id))
+	}) {
 		_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
 		return 0, nil, "", nil
 	}
@@ -739,7 +669,9 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 		if (hasOpenAIAccountGroupMetadata(latest) && !s.openAIAccountMatchesSchedulingGroup(latest, groupID)) || !s.openAIAccountPassesPrivacyRequirement(ctx, groupID, latest) {
 			return 0, nil, "", nil
 		}
-		if !s.shadowProtocolsAllowed(ctx, latest) || !parentHealthyForShadow(latest, s.parentAccountLookup(ctx)) {
+		if !s.shadowProtocolsAllowed(ctx, latest) || !accountcore.ParentHealthyForShadow(AccountRecordView(latest), func(id int64) *accountcore.Record {
+			return AccountRecordView(s.parentAccountLookup(ctx)(id))
+		}) {
 			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
 			return 0, nil, "", nil
 		}
@@ -769,59 +701,8 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 	return accountID, account, responseID, store
 }
 
-func classifyOpenAIWSAcquireError(err error) string {
-	if err == nil {
-		return "acquire_conn"
-	}
-	var dialErr *openAIWSDialError
-	if errors.As(err, &dialErr) {
-		switch dialErr.StatusCode {
-		case 426:
-			return "upgrade_required"
-		case 401, 403:
-			return "auth_failed"
-		case 429:
-			return "upstream_rate_limited"
-		}
-		if dialErr.StatusCode >= 500 {
-			return "upstream_5xx"
-		}
-		return "dial_failed"
-	}
-	if errors.Is(err, errOpenAIWSConnQueueFull) {
-		return "conn_queue_full"
-	}
-	if errors.Is(err, errOpenAIWSPreferredConnUnavailable) {
-		return "preferred_conn_unavailable"
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "acquire_timeout"
-	}
-	return "acquire_conn"
-}
-
-func isOpenAIWSRateLimitError(codeRaw, errTypeRaw, msgRaw string) bool {
-	code := strings.ToLower(strings.TrimSpace(codeRaw))
-	errType := strings.ToLower(strings.TrimSpace(errTypeRaw))
-	msg := strings.ToLower(strings.TrimSpace(msgRaw))
-
-	if strings.Contains(errType, "rate_limit") || strings.Contains(errType, "usage_limit") {
-		return true
-	}
-	if strings.Contains(code, "rate_limit") || strings.Contains(code, "usage_limit") || strings.Contains(code, "insufficient_quota") {
-		return true
-	}
-	if strings.Contains(msg, "usage limit") && strings.Contains(msg, "reached") {
-		return true
-	}
-	if strings.Contains(msg, "rate limit") && (strings.Contains(msg, "reached") || strings.Contains(msg, "exceeded")) {
-		return true
-	}
-	return false
-}
-
 // newOpenAIWSRateLimitFailoverError 保留 WS 限流响应头并允许 OAuth 账号短暂原地重试。
-func (s *OpenAIGatewayService) newOpenAIWSRateLimitFailoverError(account *Account, headers http.Header, responseBody []byte, message string) *UpstreamFailoverError {
+func (s *OpenAIGatewayService) newOpenAIWSRateLimitFailoverError(account *Account, headers http.Header, responseBody []byte, message string) *forwardcore.UpstreamFailoverError {
 	return s.newOpenAIAccountFailoverError(
 		account,
 		http.StatusTooManyRequests,
@@ -831,91 +712,6 @@ func (s *OpenAIGatewayService) newOpenAIWSRateLimitFailoverError(account *Accoun
 		false,
 		false,
 	)
-}
-
-func classifyOpenAIWSErrorEventFromRaw(codeRaw, errTypeRaw, msgRaw string) (string, bool) {
-	code := strings.ToLower(strings.TrimSpace(codeRaw))
-	errType := strings.ToLower(strings.TrimSpace(errTypeRaw))
-	msg := strings.ToLower(strings.TrimSpace(msgRaw))
-
-	switch code {
-	case "upgrade_required":
-		return "upgrade_required", true
-	case "websocket_not_supported", "websocket_unsupported":
-		return "ws_unsupported", true
-	case "websocket_connection_limit_reached":
-		return "ws_connection_limit_reached", true
-	case "invalid_encrypted_content":
-		return "invalid_encrypted_content", true
-	case "previous_response_not_found":
-		return "previous_response_not_found", true
-	}
-	if isOpenAIWSRateLimitError(codeRaw, errTypeRaw, msgRaw) {
-		return "upstream_rate_limited", false
-	}
-	if strings.Contains(msg, "upgrade required") || strings.Contains(msg, "status 426") {
-		return "upgrade_required", true
-	}
-	if strings.Contains(errType, "upgrade") {
-		return "upgrade_required", true
-	}
-	if strings.Contains(msg, "websocket") && strings.Contains(msg, "unsupported") {
-		return "ws_unsupported", true
-	}
-	if strings.Contains(msg, "connection limit") && strings.Contains(msg, "websocket") {
-		return "ws_connection_limit_reached", true
-	}
-	if strings.Contains(msg, "invalid_encrypted_content") ||
-		(strings.Contains(msg, "encrypted content") && strings.Contains(msg, "could not be verified")) {
-		return "invalid_encrypted_content", true
-	}
-	if strings.Contains(msg, "previous_response_not_found") ||
-		(strings.Contains(msg, "previous response") && strings.Contains(msg, "not found")) {
-		return "previous_response_not_found", true
-	}
-	if strings.Contains(errType, "server_error") || strings.Contains(code, "server_error") {
-		return "upstream_error_event", true
-	}
-	return "event_error", false
-}
-
-func classifyOpenAIWSErrorEvent(message []byte) (string, bool) {
-	if len(message) == 0 {
-		return "event_error", false
-	}
-	return classifyOpenAIWSErrorEventFromRaw(parseOpenAIWSErrorEventFields(message))
-}
-
-func openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw string) int {
-	code := strings.ToLower(strings.TrimSpace(codeRaw))
-	errType := strings.ToLower(strings.TrimSpace(errTypeRaw))
-	switch {
-	case strings.Contains(errType, "invalid_request"),
-		strings.Contains(code, "invalid_request"),
-		strings.Contains(code, "bad_request"),
-		code == "invalid_encrypted_content",
-		code == "previous_response_not_found":
-		return http.StatusBadRequest
-	case strings.Contains(errType, "authentication"),
-		strings.Contains(code, "invalid_api_key"),
-		strings.Contains(code, "unauthorized"):
-		return http.StatusUnauthorized
-	case strings.Contains(errType, "permission"),
-		strings.Contains(code, "forbidden"):
-		return http.StatusForbidden
-	case isOpenAIWSRateLimitError(codeRaw, errTypeRaw, ""):
-		return http.StatusTooManyRequests
-	default:
-		return http.StatusBadGateway
-	}
-}
-
-func openAIWSErrorHTTPStatus(message []byte) int {
-	if len(message) == 0 {
-		return http.StatusBadGateway
-	}
-	codeRaw, errTypeRaw, _ := parseOpenAIWSErrorEventFields(message)
-	return openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw)
 }
 
 func (s *OpenAIGatewayService) openAIWSFallbackCooldown() time.Duration {

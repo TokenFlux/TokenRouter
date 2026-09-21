@@ -4,11 +4,13 @@ package service
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +34,7 @@ func (r *teamLinkedAccountRepoStub) ListByPlatform(ctx context.Context, platform
 	}
 	out := make([]Account, 0, len(r.teamAccounts))
 	for _, acc := range r.teamAccounts {
-		if acc.Platform == platform && acc.Status == StatusActive {
+		if acc.Platform == platform && acc.Status == billing.StatusActive {
 			out = append(out, acc)
 		}
 	}
@@ -54,9 +56,9 @@ func (r *teamLinkedAccountRepoStub) SetError(ctx context.Context, id int64, erro
 func newTeamLinkedAccount(id int64, teamID string) Account {
 	return Account{
 		ID:          id,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Credentials: map[string]any{"chatgpt_account_id": teamID},
 	}
 }
@@ -66,15 +68,15 @@ func newTeamLinkedFixture() []Account {
 	parentID := int64(1)
 	shadow := Account{
 		ID:              5,
-		Platform:        PlatformOpenAI,
-		Type:            AccountTypeOAuth,
-		Status:          StatusActive,
+		Platform:        capability.PlatformOpenAI,
+		Type:            capability.AccountTypeOAuth,
+		Status:          billing.StatusActive,
 		ParentAccountID: &parentID,
 	}
 	apikey := newTeamLinkedAccount(4, "team-A")
-	apikey.Type = AccountTypeAPIKey
+	apikey.Type = capability.AccountTypeAPIKey
 	erroredSibling := newTeamLinkedAccount(7, "team-A")
-	erroredSibling.Status = StatusError
+	erroredSibling.Status = account.StatusError
 	return []Account{
 		newTeamLinkedAccount(1, "team-A"),
 		newTeamLinkedAccount(2, "team-A"),
@@ -108,7 +110,7 @@ func TestTeamLinkedError_FanoutMarksSameTeamAccounts(t *testing.T) {
 	require.Contains(t, repo.setErrorMsgs[1], "Workspace deactivated (402)")
 	require.NotContains(t, repo.setErrorMsgs[1], "team-linked")
 	// 熔断顺序：兄弟账户先于落库全部进程内熔断，触发账户走 auth_error
-	require.Equal(t, []string{openAITeamLinkedErrorBlockReason, openAITeamLinkedErrorBlockReason, "auth_error"}, blocker.reasons)
+	require.Equal(t, []string{account.OpenAITeamLinkedErrorBlockReason, account.OpenAITeamLinkedErrorBlockReason, "auth_error"}, blocker.reasons)
 	require.Equal(t, int64(2), blocker.accounts[0].ID)
 	require.Equal(t, int64(6), blocker.accounts[1].ID)
 	require.Equal(t, int64(1), blocker.accounts[2].ID)
@@ -144,49 +146,10 @@ func TestTeamLinkedError_APIKeyTriggerDoesNotFanout(t *testing.T) {
 	repo := &teamLinkedAccountRepoStub{teamAccounts: newTeamLinkedFixture()}
 	rl, _ := newTeamLinkedTestService(repo)
 	trigger := newTeamLinkedAccount(4, "team-A")
-	trigger.Type = AccountTypeAPIKey
+	trigger.Type = capability.AccountTypeAPIKey
 
 	rl.HandleUpstreamError(context.Background(), &trigger, http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody))
 
 	require.Equal(t, []int64{4}, repo.setErrorIDs)
 	require.Zero(t, repo.listCalls)
-}
-
-func TestTeamLinkedError_DirectCallSkipsTriggerAccount(t *testing.T) {
-	// 直调对应 fastpath 调用点：账户级临时不可调度规则短路时联动仍然生效
-	repo := &teamLinkedAccountRepoStub{teamAccounts: newTeamLinkedFixture()}
-	rl, blocker := newTeamLinkedTestService(repo)
-	trigger := newTeamLinkedAccount(1, "team-A")
-
-	rl.maybeHandleOpenAITeamLinkedError(context.Background(), &trigger, http.StatusPaymentRequired, []byte(teamLinkedDeactivatedBody))
-
-	require.Equal(t, []int64{2, 6}, repo.setErrorIDs)
-	require.Equal(t, []string{openAITeamLinkedErrorBlockReason, openAITeamLinkedErrorBlockReason}, blocker.reasons)
-}
-
-func TestTeamLinkedError_MissingTeamIDDoesNothing(t *testing.T) {
-	repo := &teamLinkedAccountRepoStub{teamAccounts: newTeamLinkedFixture()}
-	rl, blocker := newTeamLinkedTestService(repo)
-	trigger := Account{ID: 9, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive}
-
-	rl.maybeHandleOpenAITeamLinkedError(context.Background(), &trigger, http.StatusPaymentRequired, []byte(teamLinkedDeactivatedBody))
-
-	require.Empty(t, repo.setErrorIDs)
-	require.Empty(t, blocker.reasons)
-	require.Zero(t, repo.listCalls)
-}
-
-func TestTeamLinkedError_SetErrorFailureDoesNotAbortRemaining(t *testing.T) {
-	repo := &teamLinkedAccountRepoStub{
-		teamAccounts: newTeamLinkedFixture(),
-		failSetError: map[int64]error{2: errors.New("db down")},
-	}
-	rl, blocker := newTeamLinkedTestService(repo)
-	trigger := newTeamLinkedAccount(1, "team-A")
-
-	rl.maybeHandleOpenAITeamLinkedError(context.Background(), &trigger, http.StatusPaymentRequired, []byte(teamLinkedDeactivatedBody))
-
-	require.Equal(t, []int64{6}, repo.setErrorIDs)
-	// 进程内熔断先于落库执行，两个账户都已被熔断
-	require.Len(t, blocker.reasons, 2)
 }

@@ -10,6 +10,7 @@ func (s *Recorder) WriteUsage(ctx context.Context, usageLog *UsageLog, logKey st
 	if s.logs == nil || usageLog == nil {
 		return
 	}
+	applyClientModel(ctx, usageLog)
 	usageCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 

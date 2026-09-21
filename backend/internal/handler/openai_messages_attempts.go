@@ -6,12 +6,19 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-
 	"go.uber.org/zap"
 )
 
@@ -19,14 +26,14 @@ import (
 type openAIMessageAttemptBridge struct {
 	responsesAttemptBridge
 	accountLayerModel, currentRoutingModel, promptCacheKey string
-	channelMappingMsg                                      service.ChannelMappingResult
+	channelMappingMsg                                      routing.ChannelMappingResult
 	mappedBodyForMessages                                  func(bool, string) []byte
 }
 
 // Select 保留 OpenAI Messages 适配差异；账号重试复用同一核心。
 func (b *openAIMessageAttemptBridge) Select(excluded map[int64]struct{}) (textflow.ResponseSelection, error) {
 	b.reqLog.Debug("openai_messages.account_selecting", zap.Int("excluded_account_count", len(excluded)))
-	var scheduleDecision service.OpenAIAccountScheduleDecision
+	var scheduleDecision scheduler.PlatformDecision
 	var err error
 	b.selection, scheduleDecision, err = b.binding().selectAccountWithSchedulerForCapabilityAndRoutingModel(
 		b.c.Request.Context(),
@@ -35,9 +42,7 @@ func (b *openAIMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 		b.sessionHash,
 		b.reqModel,
 		b.accountLayerModel,
-		excluded,
-		service.OpenAIUpstreamTransportAny,
-		service.OpenAIEndpointCapabilityTextGeneration,
+		excluded, egress.OpenAIUpstreamTransportAny, account.OpenAIEndpointCapabilityTextGeneration,
 		false,
 		false,
 		b.requestPlatform,
@@ -48,7 +53,7 @@ func (b *openAIMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 	if b.selection == nil || b.selection.Account == nil {
 		cls := classifyOpenAICompatibleNoAccountErrorFromGin(b.c, b.binding().resolvedDiagnoser, b.apiKey, b.accountLayerModel, b.reqModel)
 		if !cls.ModelNotFound {
-			markOpsRoutingCapacityLimited(b.c)
+			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 		}
 		b.binding().anthropicStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, (*b.streamStarted))
 		return textflow.ResponseSelection{}, nil
@@ -57,19 +62,19 @@ func (b *openAIMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 	b.sessionHash = ensureOpenAIPoolModeSessionHash(b.sessionHash, b.account)
 	b.reqLog.Debug("openai_messages.account_selected", zap.Int64("account_id", b.account.ID), zap.String("account_name", b.account.Name))
 	_ = scheduleDecision
-	setOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
 
 	return b.selectedView(), nil
 }
 
 // SelectionFailure 保留 OpenAI Messages 适配差异；账号重试复用同一核心。
 func (b *openAIMessageAttemptBridge) SelectionFailure(err error, excludedCount int, last *textflow.AttemptFailure) {
-	var lastFailoverErr *service.UpstreamFailoverError
+	var lastFailoverErr *forwardcore.UpstreamFailoverError
 	if last != nil {
 		errors.As(last.Cause, &lastFailoverErr)
 	}
 
-	if failoverClientGone(b.c) {
+	if gatewayhttp.FailoverClientGone(b.c) {
 		b.reqLog.Info("openai_messages.account_select_aborted_client_disconnected", zap.Error(err))
 		return
 	}
@@ -84,7 +89,7 @@ func (b *openAIMessageAttemptBridge) SelectionFailure(err error, excludedCount i
 			}
 			cls := classifyOpenAICompatibleNoAccountErrorFromGin(b.c, b.binding().resolvedDiagnoser, b.apiKey, b.accountLayerModel, b.reqModel)
 			if !cls.ModelNotFound {
-				markOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
+				gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 			}
 			b.binding().anthropicStreamingAwareError(b.c, cls.Status, cls.ErrType, cls.Message, (*b.streamStarted))
 			return
@@ -102,13 +107,13 @@ func (b *openAIMessageAttemptBridge) SelectionFailure(err error, excludedCount i
 // Forward 保留 OpenAI Messages 适配差异；账号重试复用同一核心。
 func (b *openAIMessageAttemptBridge) Forward() textflow.ResponseOutcome {
 	var err error
-	service.SetOpsLatencyMs(b.c, service.OpsRoutingLatencyMsKey, time.Since(b.routingStart).Milliseconds())
+	gatewayhttp.SetOpsLatencyMs(b.c, gatewayhttp.OpsRoutingLatencyMsKey, time.Since(b.routingStart).Milliseconds())
 	forwardStart := time.Now()
 
 	// 应用渠道模型映射到请求体
 	attemptBody := b.mappedBodyForMessages(b.channelMappingMsg.Mapped, b.channelMappingMsg.MappedModel)
 	b.writerSizeBeforeForward = b.c.Writer.Size()
-	b.result, err = func() (*service.OpenAIForwardResult, error) {
+	b.result, err = func() (*forwardcore.OpenAIResult, error) {
 		defer func() {
 			if b.accountReleaseFunc != nil {
 				b.accountReleaseFunc()
@@ -124,28 +129,28 @@ func (b *openAIMessageAttemptBridge) Forward() textflow.ResponseOutcome {
 	if service.GetOpsCyberPolicy(b.c) != nil {
 		cyberBlockBodyMsg = b.body
 	}
-	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyMsg, clientRequestedUsageFields(b.c, b.channelMappingMsg, b.reqModel, ""), service.HashUsageRequestPayload(b.body))
+	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyMsg, gatewayhttp.ClientRequestedUsageFields(b.c, b.channelMappingMsg, b.reqModel, ""), billing.HashUsageRequestPayload(b.body))
 	forwardDurationMs := time.Since(forwardStart).Milliseconds()
-	upstreamLatencyMs, _ := getContextInt64(b.c, service.OpsUpstreamLatencyMsKey)
+	upstreamLatencyMs, _ := getContextInt64(b.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 	responseLatencyMs := forwardDurationMs
 	if upstreamLatencyMs > 0 && forwardDurationMs > upstreamLatencyMs {
 		responseLatencyMs = forwardDurationMs - upstreamLatencyMs
 	}
-	service.SetOpsLatencyMs(b.c, service.OpsResponseLatencyMsKey, responseLatencyMs)
+	gatewayhttp.SetOpsLatencyMs(b.c, gatewayhttp.OpsResponseLatencyMsKey, responseLatencyMs)
 	if err == nil && b.result != nil && b.result.FirstTokenMs != nil {
-		service.SetOpsLatencyMs(b.c, service.OpsTimeToFirstTokenMsKey, int64(*b.result.FirstTokenMs))
+		gatewayhttp.SetOpsLatencyMs(b.c, gatewayhttp.OpsTimeToFirstTokenMsKey, int64(*b.result.FirstTokenMs))
 	}
 	out := textflow.ResponseOutcome{Outcome: textflow.Outcome{Attempt: openAIObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil}, Images: b.result != nil && b.result.ImageCount > 0}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
 	if err != nil && !out.Images {
-		var overLimit *service.ReasoningEffortOverLimitError
+		var overLimit *routing.ReasoningEffortOverLimitError
 		if errors.As(err, &overLimit) {
 			b.reqLog.Info("openai_messages.reasoning_effort_policy_denied", zap.String("reason", overLimit.Error()))
 			out.Stop = true
 			return out
 		}
 	}
-	var retry *service.UpstreamFailoverError
+	var retry *forwardcore.UpstreamFailoverError
 	if errors.As(err, &retry) {
 		out.Failure = &textflow.AttemptFailure{Cause: err, Policy: retry.RetryFailure()}
 	}
@@ -162,14 +167,14 @@ func (b *openAIMessageAttemptBridge) Complete() {
 	}
 	stampOpenAIRequestedReasoningEffort(res, b.c)
 	userAgent := b.c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(b.c)
-	requestPayloadHash := service.HashUsageRequestPayload(b.body)
-	inboundEndpoint := GetInboundEndpoint(b.c)
+	clientIP := clientip.GetClientIP(b.c)
+	requestPayloadHash := billing.HashUsageRequestPayload(b.body)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
 	upstreamEndpoint := resolveOpenAIUpstreamEndpoint(b.c, b.account, res)
 	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.apiKey)
 	clientSessionID := service.ExtractClientSessionID(b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionOpenAIInput(usageRecordContextFromGin(b.c), &service.OpenAIRecordUsageInput{
+	completionInput := service.CompletionOpenAIInput(gatewayhttp.CompletionContext(b.c), &service.OpenAIRecordUsageInput{
 		Result:             res,
 		APIKey:             b.apiKey,
 		User:               b.apiKey.User,
@@ -192,7 +197,7 @@ func (b *openAIMessageAttemptBridge) Complete() {
 	completionRuntime := b.binding().recorder
 	b.binding().submitOpenAIUsageRecordTask(b.c, res, func(ctx context.Context) {
 		if err := completionRuntime.Record(ctx, completionInput, true); err != nil {
-			logger.L().With(
+			logging.L().With(
 				zap.String("component", "handler.openai_gateway.messages"),
 				zap.Int64("user_id", completionUserID),
 				zap.Int64("api_key_id", completionInput.APIKey.ID),
@@ -216,11 +221,11 @@ func (b *openAIMessageAttemptBridge) PartialImages(err error) {
 // RetryReady 保留 OpenAI Messages 适配差异；账号重试复用同一核心。
 func (b *openAIMessageAttemptBridge) RetryReady(failure *textflow.AttemptFailure) bool {
 	err := failure.Cause
-	var failoverErr *service.UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &failoverErr) {
 		return false
 	}
-	if failoverClientGone(b.c) {
+	if gatewayhttp.FailoverClientGone(b.c) {
 		b.reqLog.Info("openai_messages.failover_aborted_client_disconnected",
 			zap.Int64("account_id", b.account.ID),
 			zap.Int("upstream_status", failoverErr.StatusCode),
@@ -241,7 +246,7 @@ func (b *openAIMessageAttemptBridge) RetryReady(failure *textflow.AttemptFailure
 
 // RetryWait 保留 OpenAI Messages 适配差异；账号重试复用同一核心。
 func (b *openAIMessageAttemptBridge) RetryWait(failure *textflow.AttemptFailure, retryLimit, retryCount int, retryDelay time.Duration) {
-	var failoverErr *service.UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	errors.As(failure.Cause, &failoverErr)
 	b.reqLog.Warn("openai_messages.pool_mode_same_account_retry",
 		zap.Int64("account_id", b.account.ID),
@@ -254,7 +259,7 @@ func (b *openAIMessageAttemptBridge) RetryWait(failure *textflow.AttemptFailure,
 
 // Switching 保留 OpenAI Messages 适配差异；账号重试复用同一核心。
 func (b *openAIMessageAttemptBridge) Switching(failure *textflow.AttemptFailure, switchCount, maxAccountSwitches int) {
-	var failoverErr *service.UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	errors.As(failure.Cause, &failoverErr)
 	b.reqLog.Warn("openai_messages.upstream_failover_switching",
 		zap.Int64("account_id", b.account.ID),
@@ -274,7 +279,7 @@ func (b *openAIMessageAttemptBridge) OtherFailure(err error) {
 		return
 	}
 	statusCode := 0
-	if v, ok := getContextInt64(b.c, service.OpsUpstreamStatusCodeKey); ok {
+	if v, ok := getContextInt64(b.c, gatewayhttp.OpsUpstreamStatusCodeKey); ok {
 		statusCode = int(v)
 	}
 	recordedWarning := b.binding().recordOpenAIForwardErrorCyberWarning(b.c, b.reqLog, b.apiKey, b.account, b.reqModel, statusCode, err)
@@ -313,10 +318,10 @@ func (b *openAIMessageAttemptBridge) Completed(switchCount int) {
 	)
 }
 
-func (b *openAIMessageAttemptBridge) CanAttempt() bool { return !failoverClientGone(b.c) }
+func (b *openAIMessageAttemptBridge) CanAttempt() bool { return !gatewayhttp.FailoverClientGone(b.c) }
 func (b *openAIMessageAttemptBridge) Failed()          {}
 func (b *openAIMessageAttemptBridge) Exhausted(failure *textflow.AttemptFailure) {
-	var original *service.UpstreamFailoverError
+	var original *forwardcore.UpstreamFailoverError
 	if failure != nil && errors.As(failure.Cause, &original) {
 		b.binding().handleAnthropicFailoverExhausted(b.c, original, *b.streamStarted)
 	} else {

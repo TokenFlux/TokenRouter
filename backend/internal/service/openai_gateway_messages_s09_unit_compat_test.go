@@ -4,15 +4,15 @@
 package service
 
 import (
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 func openAICompatTerminalResponse(event *protocolopenai.ResponsesStreamEvent, payload []byte) *protocolopenai.ResponsesResponse {
-	return nativeopenai.CompatTerminalResponse(event, payload)
+	return openai.CompatTerminalResponse(event, payload)
 }
 
-func copyOpenAIUsageFromResponsesUsage(usage *protocolopenai.ResponsesUsage) OpenAIUsage {
+func copyOpenAIUsageFromResponsesUsage(usage *protocolopenai.ResponsesUsage) protocolopenai.ForwardUsage {
 	return protocolopenai.CopyForwardUsage(usage)
 }

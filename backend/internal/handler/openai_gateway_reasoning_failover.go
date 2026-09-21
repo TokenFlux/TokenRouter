@@ -1,6 +1,10 @@
 package handler
 
 import (
+	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+)
+
+import (
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
@@ -29,7 +33,7 @@ func (h *OpenAIGatewayHandler) deriveOpenAIForwardAttemptBody(
 		return canonicalBody
 	}
 
-	sanitized, changed, err := service.SanitizeOpenAICrossModeFailoverReasoning(canonicalBody)
+	sanitized, changed, err := openai.SanitizeOpenAICrossModeFailoverReasoning(canonicalBody)
 	if err != nil {
 		if reqLog != nil {
 			reqLog.Warn("openai.failover_cross_mode_reasoning_sanitize_failed",

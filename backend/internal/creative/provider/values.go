@@ -7,7 +7,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 func ReadCreativeUpstreamBody(body io.Reader, limit int64) ([]byte, error) {
@@ -55,7 +55,7 @@ func CreativeGrokImageResolution(imageSize string) string {
 	return "2k"
 }
 func CreativeGrokAspectRatio(aspectRatio string) string {
-	return nativegrok.NormalizeImagineAspectRatio(aspectRatio)
+	return grok.NormalizeImagineAspectRatio(aspectRatio)
 }
 func DecodeBase64Image(raw string) (upstream.DecodedImage, error) {
 	return upstream.DecodeBase64Image(raw)

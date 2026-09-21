@@ -19,14 +19,16 @@ type AdminHandler struct {
 	paymentService *payment.Runtime
 	configService  *payment.ConfigService
 	plans          *billing.Plans
+	calendar       timezone.Calendar
 }
 
 // NewAdminHandler creates a new admin AdminHandler.
-func NewAdminHandler(paymentService *payment.Runtime, configService *payment.ConfigService, plans *billing.Plans) *AdminHandler {
+func NewAdminHandler(paymentService *payment.Runtime, configService *payment.ConfigService, plans *billing.Plans, calendar timezone.Calendar) *AdminHandler {
 	return &AdminHandler{
 		paymentService: paymentService,
 		configService:  configService,
 		plans:          plans,
+		calendar:       calendar,
 	}
 }
 
@@ -36,7 +38,7 @@ func NewAdminHandler(paymentService *payment.Runtime, configService *payment.Con
 // GET /api/v1/admin/payment/dashboard
 func (h *AdminHandler) GetDashboard(c *gin.Context) {
 	if c.Query("start_date") != "" || c.Query("end_date") != "" {
-		startTime, endTime, ok := AdminParsePaymentDashboardRange(c)
+		startTime, endTime, ok := parsePaymentDashboardRange(c, h.calendar)
 		if !ok {
 			return
 		}
@@ -63,7 +65,7 @@ func (h *AdminHandler) GetDashboard(c *gin.Context) {
 	response.Success(c, stats)
 }
 
-func AdminParsePaymentDashboardRange(c *gin.Context) (time.Time, time.Time, bool) {
+func parsePaymentDashboardRange(c *gin.Context, calendar timezone.Calendar) (time.Time, time.Time, bool) {
 	userTZ := c.Query("timezone")
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
@@ -71,12 +73,12 @@ func AdminParsePaymentDashboardRange(c *gin.Context) (time.Time, time.Time, bool
 		response.BadRequest(c, "start_date and end_date are required")
 		return time.Time{}, time.Time{}, false
 	}
-	startTime, _, err := timezone.ParseDateTimeInUserLocation(startDate, userTZ)
+	startTime, _, err := calendar.ParseDateTimeInUserLocation(startDate, userTZ)
 	if err != nil {
 		response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 		return time.Time{}, time.Time{}, false
 	}
-	endTime, dateOnly, err := timezone.ParseDateTimeInUserLocation(endDate, userTZ)
+	endTime, dateOnly, err := calendar.ParseDateTimeInUserLocation(endDate, userTZ)
 	if err != nil {
 		response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 		return time.Time{}, time.Time{}, false

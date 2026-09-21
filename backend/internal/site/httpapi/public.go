@@ -2,7 +2,6 @@
 package httpapi
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/TokenFlux/TokenRouter/internal/site"
 	"github.com/TokenFlux/TokenRouter/internal/site/httpapi/dto"
@@ -38,6 +37,7 @@ func (h *PublicHandler) GetPublicSettings(c *gin.Context) {
 		return
 	}
 
+	zone, offset := h.settingService.ServerTimezone()
 	response.Success(c, dto.PublicSettings{
 		RegistrationEnabled:                 settings.RegistrationEnabled,
 		EmailVerifyEnabled:                  settings.EmailVerifyEnabled,
@@ -111,8 +111,8 @@ func (h *PublicHandler) GetPublicSettings(c *gin.Context) {
 		TeamSelfServiceEnabled:              settings.TeamSelfServiceEnabled,
 		CreativeEnabled:                     settings.CreativeEnabled,
 		Version:                             h.version,
-		ServerTimezone:                      timezone.Name(),
-		ServerUTCOffset:                     timezone.UTCOffset(),
+		ServerTimezone:                      zone,
+		ServerUTCOffset:                     offset,
 		BalanceUnitName:                     settings.BalanceUnitName,
 		BalanceUnitSymbol:                   settings.BalanceUnitSymbol,
 		BalanceIconSVG:                      settings.BalanceIconSVG,

@@ -3,6 +3,10 @@
 package postgres
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
@@ -33,13 +39,13 @@ func TestS08QueryShapeMatchesPlanning(t *testing.T) {
 	ctx := context.Background()
 	tx := testEntTx(t)
 	client := tx.Client()
-	writer := NewUsageLogRepositoryWithSQL(client, tx)
+	writer := NewUsageLogRepositoryWithSQL(client, tx, timezone.NewCalendar(time.Local))
 	account := mustCreateAccount(t, client, &service.Account{Name: "s08-query-shape"})
 	ids := []int64{}
 	keys := []int64{}
 	for i := 0; i < 8; i++ {
-		u := mustCreateUser(t, client, &service.User{Email: fmt.Sprintf("s08-query-%d@test.local", i)})
-		key := mustCreateApiKey(t, client, &service.APIKey{UserID: u.ID, Key: fmt.Sprintf("sk-s08-query-%d", i), Name: "k"})
+		u := mustCreateUser(t, client, &identity.User{Email: fmt.Sprintf("s08-query-%d@test.local", i)})
+		key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: u.ID, Key: fmt.Sprintf("sk-s08-query-%d", i), Name: "k"})
 		ids = append(ids, u.ID)
 		keys = append(keys, key.ID)
 		for j := 0; j < 4; j++ {
@@ -48,7 +54,7 @@ func TestS08QueryShapeMatchesPlanning(t *testing.T) {
 		}
 	}
 	counter := &s08CountingSQL{sqlExecutor: tx}
-	repo := NewUsageLogRepositoryWithSQL(client, counter)
+	repo := NewUsageLogRepositoryWithSQL(client, counter, timezone.NewCalendar(time.Local))
 	start, end := time.Now().Add(-2*time.Hour), time.Now()
 	results := map[string]any{}
 	for _, n := range []int{4, 8} {

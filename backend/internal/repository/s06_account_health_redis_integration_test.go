@@ -5,21 +5,44 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/account/rediscache"
-	"github.com/stretchr/testify/require"
 	"sort"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account/rediscache"
+	"github.com/stretchr/testify/require"
 )
 
-// 新旧构造共享真实 Redis 命名空间和 Lua 语义，迁包不创建第二套计数或限流状态。
+// 独立缓存实例共享原 Redis 命名空间和 Lua 语义，不创建第二套计数或限流状态。
 func TestS06AccountHealthRedisCompatibility(t *testing.T) {
 	client := testRedis(t)
 	ctx := context.Background()
+	t.Run("internal500_count_and_fixed_ttl", func(t *testing.T) {
+		first := rediscache.NewInternal500CounterCache(client)
+		second := rediscache.NewInternal500CounterCache(client)
+		key := "internal500_count:account:905"
+		count, err := first.IncrementInternal500Count(ctx, 905)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+		ttl, err := client.TTL(ctx, key).Result()
+		require.NoError(t, err)
+		require.Greater(t, ttl, 23*time.Hour)
+		require.LessOrEqual(t, ttl, 24*time.Hour)
+		require.NoError(t, client.PExpire(ctx, key, 20*time.Second).Err())
+		count, err = second.IncrementInternal500Count(ctx, 905)
+		require.NoError(t, err)
+		require.EqualValues(t, 2, count)
+		ttl, err = client.PTTL(ctx, key).Result()
+		require.NoError(t, err)
+		require.Greater(t, ttl, 15*time.Second)
+		require.LessOrEqual(t, ttl, 20*time.Second)
+		require.NoError(t, first.ResetInternal500Count(ctx, 905))
+		require.Zero(t, client.Exists(ctx, key).Val())
+	})
 	t.Run("403_count_and_fixed_ttl", func(t *testing.T) {
-		old := NewOpenAI403CounterCache(client)
+		old := rediscache.NewOpenAI403CounterCache(client)
 		current := rediscache.NewOpenAI403CounterCache(client)
 		key := "openai_403_count:account:901"
 		n, err := old.IncrementOpenAI403Count(ctx, 901, 0)
@@ -41,7 +64,7 @@ func TestS06AccountHealthRedisCompatibility(t *testing.T) {
 		require.Zero(t, client.Exists(ctx, key).Val())
 	})
 	t.Run("timeout_concurrent_shared_counter", func(t *testing.T) {
-		stores := []account.TimeoutCounterCache{NewTimeoutCounterCache(client), rediscache.NewTimeoutCounterCache(client)}
+		stores := []account.TimeoutCounterCache{rediscache.NewTimeoutCounterCache(client), rediscache.NewTimeoutCounterCache(client)}
 		type result struct {
 			count int64
 			err   error
@@ -75,7 +98,7 @@ func TestS06AccountHealthRedisCompatibility(t *testing.T) {
 		require.Zero(t, n)
 	})
 	t.Run("temporary_state_extends_only", func(t *testing.T) {
-		old := NewTempUnschedCache(client)
+		old := rediscache.NewTempUnschedCache(client)
 		current := rediscache.NewTempUnschedCache(client)
 		now := time.Now().Unix()
 		longer := &account.TempUnschedState{UntilUnix: now + 300, StatusCode: 429, ErrorMessage: "long"}
@@ -93,7 +116,7 @@ func TestS06AccountHealthRedisCompatibility(t *testing.T) {
 		require.Error(t, err)
 	})
 	t.Run("rolling_threshold_keeps_legacy_keys", func(t *testing.T) {
-		old, ok := NewTempUnschedCache(client).(account.OpenAIAPIKeyHealthCache)
+		old, ok := rediscache.NewTempUnschedCache(client).(account.OpenAIAPIKeyHealthCache)
 		require.True(t, ok)
 		current, ok := rediscache.NewTempUnschedCache(client).(account.OpenAIAPIKeyHealthCache)
 		require.True(t, ok)

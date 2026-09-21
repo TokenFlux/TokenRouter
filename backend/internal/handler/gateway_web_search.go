@@ -6,13 +6,23 @@ import (
 	"errors"
 	"strings"
 
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/moderation"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/search/contract"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -45,8 +55,8 @@ func (p gatewaySearchHTTPPorts) Access(c *gin.Context) (gatewayhttp.SearchAccess
 func (p gatewaySearchHTTPPorts) Billing(c *gin.Context) *gatewayhttp.SearchHTTPFailure {
 	key, _ := middleware2.GetAPIKeyFromContext(c)
 	sub, _ := middleware2.GetSubscriptionFromContext(c)
-	if err := p.h.billingCacheService.CheckBillingEligibility(c.Request.Context(), key.User, key, key.Group, sub, service.QuotaPlatform(c.Request.Context(), key)); err != nil {
-		status, code, message, retry := billingErrorDetails(err)
+	if err := p.h.billingCacheService.CheckKey(c.Request.Context(), key, sub, service.QuotaPlatform(c.Request.Context(), key), false); err != nil {
+		status, code, message, retry := gatewayhttp.BillingErrorDetails(err)
 		return &gatewayhttp.SearchHTTPFailure{Status: status, Code: code, Message: message, RetryAfter: retry}
 	}
 	return nil
@@ -54,9 +64,9 @@ func (p gatewaySearchHTTPPorts) Billing(c *gin.Context) *gatewayhttp.SearchHTTPF
 func (p gatewaySearchHTTPPorts) Moderate(c *gin.Context, model string, body []byte) *gatewayhttp.SearchHTTPFailure {
 	key, _ := middleware2.GetAPIKeyFromContext(c)
 	subject, _ := middleware2.GetAuthSubjectFromContext(c)
-	decision := p.h.checkContentModeration(c, requestLogger(c, "handler.gateway.web_search"), key, subject, service.ContentModerationProtocolOpenAIChat, model, body)
+	decision := p.h.checkContentModeration(c, gatewayhttp.RequestLogger(c, "handler.gateway.web_search"), key, subject, moderation.ContentModerationProtocolOpenAIChat, model, body)
 	if decision != nil && decision.Blocked {
-		return &gatewayhttp.SearchHTTPFailure{Status: contentModerationStatus(decision), Code: contentModerationErrorCode(decision), Message: decision.Message}
+		return &gatewayhttp.SearchHTTPFailure{Status: gatewayhttp.ContentModerationStatus(decision), Code: gatewayhttp.ContentModerationErrorCode(decision), Message: decision.Message}
 	}
 	return nil
 }
@@ -77,7 +87,7 @@ type gatewayStandaloneSearchRun struct {
 }
 
 func (r *gatewayStandaloneSearchRun) Select(ctx context.Context, model string, excluded map[int64]struct{}) (searchtools.Selection, bool, error) {
-	selected, _, err := r.h.openAIGatewayService.SelectAccountWithSchedulerForCapability(ctx, &r.groupID, "", "", model, excluded, service.OpenAIUpstreamTransportHTTPSSE, service.OpenAIEndpointCapabilityTextGeneration, false, false, service.PlatformGrok)
+	selected, _, err := r.h.openAIGatewayService.SelectAccountWithSchedulerForCapability(ctx, &r.groupID, "", "", model, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityTextGeneration, false, false, capability.PlatformGrok)
 	if err != nil {
 		return searchtools.Selection{}, false, err
 	}
@@ -88,7 +98,7 @@ func (r *gatewayStandaloneSearchRun) Select(ctx context.Context, model string, e
 	return searchtools.Selection{AccountID: selected.Account.ID, Acquired: selected.Acquired, Release: selected.ReleaseFunc, WaitPlan: selected.WaitPlan}, true, nil
 }
 func (r *gatewayStandaloneSearchRun) CanSwitch(err error) bool {
-	var failure *service.UpstreamFailoverError
+	var failure *forwardcore.UpstreamFailoverError
 	return errors.As(err, &failure) && failure.ShouldRetryNextAccount()
 }
 func (r *gatewayStandaloneSearchRun) Execute(ctx context.Context, _ int64, request searchtools.StandaloneRequest, model string, maxResults int) (*contract.SearchResponse, string, error) {
@@ -118,7 +128,7 @@ func (r *gatewayStandaloneSearchRun) Acquire(ctx context.Context, selected searc
 	counted := false
 	wait, err := r.h.concurrencyHelper.EnterAccountWait(ctx, selected.AccountID, selected.WaitPlan.MaxWaiting)
 	if err != nil {
-		logger.L().Warn("gateway.web_search.account_wait_counter_increment_failed", zap.Int64("account_id", selected.AccountID), zap.Error(err))
+		logging.L().Warn("gateway.web_search.account_wait_counter_increment_failed", zap.Int64("account_id", selected.AccountID), zap.Error(err))
 	} else if !wait.Allowed {
 		return nil, false, nil
 	} else {
@@ -144,24 +154,24 @@ func (r *gatewayStandaloneSearchRun) Complete(c *gin.Context, req searchtools.St
 		searchLabel = "x_search"
 	}
 	userAgent := c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(c)
-	inboundEndpoint := GetInboundEndpoint(c)
-	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-	requestPayloadHash := service.HashUsageRequestPayload([]byte(req.Query))
+	clientIP := clientip.GetClientIP(c)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
+	requestPayloadHash := billing.HashUsageRequestPayload([]byte(req.Query))
 	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 	// request ID 是结算幂等键，必须按调用唯一；查询、IP 或 UA 哈希会错误合并重复搜索。
 	searchRequestID := searchLabel + ":" + uuid.NewString()
 	if apiKey.Group != nil {
 		if p := apiKey.Group.GetSearchPricePer1k(); p != nil && *p == 0 {
-			logger.L().With(
+			logging.L().With(
 				zap.String("component", "handler.gateway.web_search"),
 				zap.Int64("group_id", apiKey.Group.ID),
 			).Info("gateway.web_search.search_price_per_1k_explicit_free")
 		}
 	}
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionForwardInput(usageRecordContextFromGin(c), &service.RecordUsageInput{
-		Result: &service.ForwardResult{
+	completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(c), &service.RecordUsageInput{
+		Result: &forwardcore.MessagesResult{
 			RequestID:   searchRequestID,
 			Model:       "grok-" + strings.ReplaceAll(searchLabel, "_", "-"),
 			SearchCount: 1,
@@ -182,7 +192,7 @@ func (r *gatewayStandaloneSearchRun) Complete(c *gin.Context, req searchtools.St
 	completionRuntime := h.completionRuntime()
 	h.submitMandatoryUsageRecordTask(c, func(ctx context.Context) {
 		if err := completionRuntime.Record(ctx, completionInput, false); err != nil {
-			logger.L().With(
+			logging.L().With(
 				zap.String("component", "handler.gateway.web_search"),
 				zap.Int64("user_id", completionInput.User.ID),
 				zap.Int64("api_key_id", completionInput.APIKey.ID),

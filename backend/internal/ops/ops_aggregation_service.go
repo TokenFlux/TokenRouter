@@ -534,12 +534,3 @@ func minTime(a, b time.Time) time.Time {
 	}
 	return b
 }
-
-// CompatUtcFloorToHour 保留旧入口兼容。
-func CompatUtcFloorToHour(t time.Time) time.Time { return utcFloorToHour(t) }
-
-// CompatUtcFloorToDay 保留旧入口兼容。
-func CompatUtcFloorToDay(t time.Time) time.Time { return utcFloorToDay(t) }
-
-// CompatMinTime 保留旧入口兼容。
-func CompatMinTime(a, b time.Time) time.Time { return minTime(a, b) }

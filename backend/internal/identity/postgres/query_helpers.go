@@ -3,8 +3,9 @@ package postgres
 
 import (
 	context "context"
-	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	"strings"
+
+	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 )
 
 func scanSingleRow(ctx context.Context, q sqlQueryer, query string, args []any, dest ...any) error {

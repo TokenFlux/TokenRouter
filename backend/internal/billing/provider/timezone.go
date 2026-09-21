@@ -2,9 +2,10 @@ package provider
 
 import (
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"sync"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 var channelTimePricingLocations sync.Map

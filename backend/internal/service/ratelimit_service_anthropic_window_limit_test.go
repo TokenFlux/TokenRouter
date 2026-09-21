@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,8 +70,8 @@ func TestHandleUpstreamError_AnthropicWindowLimitPreemptsTempUnschedRule(t *test
 	svc := NewRateLimitService(repo, nil, nil, nil, nil)
 	account := &Account{
 		ID:       42,
-		Type:     AccountTypeOAuth,
-		Platform: PlatformAnthropic,
+		Type:     capability.AccountTypeOAuth,
+		Platform: capability.PlatformAnthropic,
 		Credentials: map[string]any{
 			"temp_unschedulable_enabled": true,
 			"temp_unschedulable_rules": []any{
@@ -134,8 +136,8 @@ func TestHandleUpstreamError_Anthropic7dOiOnlyMarksModelRateLimit(t *testing.T) 
 	svc := NewRateLimitService(repo, nil, nil, nil, nil)
 	account := &Account{
 		ID:       42,
-		Type:     AccountTypeOAuth,
-		Platform: PlatformAnthropic,
+		Type:     capability.AccountTypeOAuth,
+		Platform: capability.PlatformAnthropic,
 		Credentials: map[string]any{
 			"temp_unschedulable_enabled": true,
 			"temp_unschedulable_rules": []any{
@@ -162,7 +164,7 @@ func TestHandleUpstreamError_Anthropic7dOiOnlyMarksModelRateLimit(t *testing.T) 
 	require.Zero(t, repo.tempUnschedCalls, "7d_oi window must not trigger local temp-unsched rules")
 	require.Zero(t, repo.sessionWindowCalls, "7d_oi window must not rewrite the 5h session window as rejected")
 	require.Equal(t, 1, repo.modelRateLimitCalls)
-	require.Equal(t, anthropicFableRateLimitKey, repo.lastModelRateLimitScope)
+	require.Equal(t, accountcore.AnthropicFableRateLimitKey, repo.lastModelRateLimitScope)
 	require.Equal(t, resetOI, repo.lastModelRateLimitReset)
 
 	// 429 响应头也要被动采样，避免 7d F 进度条在限流期内冻结在旧值
@@ -183,14 +185,14 @@ func TestHandleUpstreamError_Anthropic5hWindowStillWinsOver7dOi(t *testing.T) {
 
 	repo := &anthropicWindowLimitRepo{}
 	svc := NewRateLimitService(repo, nil, nil, nil, nil)
-	account := &Account{ID: 42, Type: AccountTypeOAuth, Platform: PlatformAnthropic}
+	account := &Account{ID: 42, Type: capability.AccountTypeOAuth, Platform: capability.PlatformAnthropic}
 
 	svc.HandleUpstreamError(context.Background(), account, http.StatusTooManyRequests, headers, nil, "claude-fable-5")
 
 	require.Equal(t, 1, repo.rateLimitCalls, "exhausted 5h window must still rate limit the account")
 	require.Equal(t, reset5h, repo.lastRateLimitReset)
 	require.Equal(t, 1, repo.modelRateLimitCalls)
-	require.Equal(t, anthropicFableRateLimitKey, repo.lastModelRateLimitScope)
+	require.Equal(t, accountcore.AnthropicFableRateLimitKey, repo.lastModelRateLimitScope)
 }
 
 func TestHandleUpstreamError_AnthropicAccountWindowStillWinsOver7dOi(t *testing.T) {
@@ -204,14 +206,14 @@ func TestHandleUpstreamError_AnthropicAccountWindowStillWinsOver7dOi(t *testing.
 
 	repo := &anthropicWindowLimitRepo{}
 	svc := NewRateLimitService(repo, nil, nil, nil, nil)
-	account := &Account{ID: 42, Type: AccountTypeOAuth, Platform: PlatformAnthropic}
+	account := &Account{ID: 42, Type: capability.AccountTypeOAuth, Platform: capability.PlatformAnthropic}
 
 	svc.HandleUpstreamError(context.Background(), account, http.StatusTooManyRequests, headers, nil, "claude-fable-5")
 
 	require.Equal(t, 1, repo.rateLimitCalls, "exhausted 7d window must still rate limit the account")
 	require.Equal(t, resetOI, repo.lastRateLimitReset)
 	require.Equal(t, 1, repo.modelRateLimitCalls, "Fable model rate limit should also be recorded")
-	require.Equal(t, anthropicFableRateLimitKey, repo.lastModelRateLimitScope)
+	require.Equal(t, accountcore.AnthropicFableRateLimitKey, repo.lastModelRateLimitScope)
 }
 
 func TestHandleUpstreamError_Anthropic429Without7dOiKeepsLegacyBehavior(t *testing.T) {
@@ -230,7 +232,7 @@ func TestHandleUpstreamError_Anthropic429Without7dOiKeepsLegacyBehavior(t *testi
 
 	repo := &anthropicWindowLimitRepo{}
 	svc := NewRateLimitService(repo, nil, nil, nil, nil)
-	account := &Account{ID: 42, Type: AccountTypeOAuth, Platform: PlatformAnthropic}
+	account := &Account{ID: 42, Type: capability.AccountTypeOAuth, Platform: capability.PlatformAnthropic}
 
 	svc.HandleUpstreamError(context.Background(), account, http.StatusTooManyRequests, headers, nil, "claude-fable-5")
 

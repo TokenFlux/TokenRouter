@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type RealtimeOptions struct {
@@ -19,12 +19,12 @@ type RealtimeOptions struct {
 
 func (o RealtimeOptions) String() string   { return "media RealtimeOptions" }
 func (o RealtimeOptions) GoString() string { return o.String() }
-func (o RealtimeOptions) native() native.RealtimeDialOptions {
-	return native.RealtimeDialOptions{BaseURL: o.BaseURL, Model: o.Model, Token: o.Token, CLIHeaders: o.CLIHeaders, ApplyHeaders: o.ApplyHeaders, Dial: o.Dial, Enter: o.Enter}
+func (o RealtimeOptions) native() grok.RealtimeDialOptions {
+	return grok.RealtimeDialOptions{BaseURL: o.BaseURL, Model: o.Model, Token: o.Token, CLIHeaders: o.CLIHeaders, ApplyHeaders: o.ApplyHeaders, Dial: o.Dial, Enter: o.Enter}
 }
-func DialRealtime(ctx context.Context, options RealtimeOptions) (*native.RealtimeSession, error) {
-	return native.DialRealtime(ctx, options.native())
+func DialRealtime(ctx context.Context, options RealtimeOptions) (*grok.RealtimeSession, error) {
+	return grok.DialRealtime(ctx, options.native())
 }
 func ProbeRealtime(ctx context.Context, options RealtimeOptions) error {
-	return native.ProbeRealtime(ctx, options.native())
+	return grok.ProbeRealtime(ctx, options.native())
 }

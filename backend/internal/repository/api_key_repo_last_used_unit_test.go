@@ -7,18 +7,27 @@ import (
 	"testing"
 	"time"
 
+	apikeypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"entgo.io/ent/dialect"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/enttest"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/stretchr/testify/require"
 
-	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
+
 	_ "modernc.org/sqlite"
 )
 
-func newAPIKeyRepoSQLite(t *testing.T) (*apiKeyRepository, *dbent.Client) {
+func newAPIKeyRepoSQLite(t *testing.T) (*apikeypostgres.KeyStore, *dbent.Client) {
 	t.Helper()
 
 	db, err := sql.Open("sqlite", "file:api_key_repo_last_used?mode=memory&cache=shared")
@@ -32,28 +41,28 @@ func newAPIKeyRepoSQLite(t *testing.T) (*apiKeyRepository, *dbent.Client) {
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 	t.Cleanup(func() { _ = client.Close() })
 
-	return newAPIKeyRepositoryWithSQL(client, db), client
+	return newKeyStoreFixture(client, db), client
 }
 
-func mustCreateAPIKeyRepoUser(t *testing.T, ctx context.Context, client *dbent.Client, email string) *service.User {
+func mustCreateAPIKeyRepoUser(t *testing.T, ctx context.Context, client *dbent.Client, email string) *identity.User {
 	t.Helper()
 	u, err := client.User.Create().
 		SetEmail(email).
 		SetPasswordHash("test-password-hash").
-		SetRole(service.RoleUser).
-		SetStatus(service.StatusActive).
+		SetRole(identity.RoleUser).
+		SetStatus(billing.StatusActive).
 		Save(ctx)
 	require.NoError(t, err)
-	return userEntityToService(u)
+	return identitypostgres.UserFromEntity(u)
 }
 
 func mustCreateAPIKeyRepoAccount(t *testing.T, ctx context.Context, client *dbent.Client, name string) int64 {
 	t.Helper()
 	account, err := client.Account.Create().
 		SetName(name).
-		SetPlatform(service.PlatformOpenAI).
-		SetType(service.AccountTypeAPIKey).
-		SetStatus(service.StatusActive).
+		SetPlatform(capability.PlatformOpenAI).
+		SetType(capability.AccountTypeAPIKey).
+		SetStatus(billing.StatusActive).
 		SetCredentials(map[string]any{"api_key": "sk-test"}).
 		Save(ctx)
 	require.NoError(t, err)
@@ -82,23 +91,23 @@ func TestAPIKeyRepositoryListByUserIDAttachesLastUsedIP(t *testing.T) {
 	user := mustCreateAPIKeyRepoUser(t, ctx, client, "list-last-used-ip@test.com")
 	accountID := mustCreateAPIKeyRepoAccount(t, ctx, client, "acc-list-last-used-ip")
 
-	withLogs := &service.APIKey{
+	withLogs := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-list-last-used-ip-logs",
 		Name:   "With Logs",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
-	emptyOnly := &service.APIKey{
+	emptyOnly := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-list-last-used-ip-empty",
 		Name:   "Empty Only",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
-	noLogs := &service.APIKey{
+	noLogs := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-list-last-used-ip-none",
 		Name:   "No Logs",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, withLogs))
 	require.NoError(t, repo.Create(ctx, emptyOnly))
@@ -113,10 +122,10 @@ func TestAPIKeyRepositoryListByUserIDAttachesLastUsedIP(t *testing.T) {
 	mustCreateAPIKeyRepoUsageLog(t, ctx, client, user.ID, withLogs.ID, accountID, "req-last-ip-newest", base.Add(2*time.Hour), &newestIP)
 	mustCreateAPIKeyRepoUsageLog(t, ctx, client, user.ID, emptyOnly.ID, accountID, "req-empty-ip", base.Add(3*time.Hour), &newerEmptyIP)
 
-	keys, _, err := repo.ListByUserID(ctx, user.ID, pagination.PaginationParams{Page: 1, PageSize: 10}, service.APIKeyListFilters{})
+	keys, _, err := repo.ListByUserID(ctx, user.ID, pagination.PaginationParams{Page: 1, PageSize: 10}, apikey.APIKeyListFilters{})
 	require.NoError(t, err)
 
-	byID := make(map[int64]service.APIKey, len(keys))
+	byID := make(map[int64]apikey.APIKey, len(keys))
 	for _, key := range keys {
 		byID[key.ID] = key
 	}
@@ -125,10 +134,10 @@ func TestAPIKeyRepositoryListByUserIDAttachesLastUsedIP(t *testing.T) {
 	require.Nil(t, byID[emptyOnly.ID].LastUsedIP)
 	require.Nil(t, byID[noLogs.ID].LastUsedIP)
 
-	allKeys, err := repo.ListAllByUserID(ctx, user.ID, service.APIKeyListFilters{})
+	allKeys, err := repo.ListAllByUserID(ctx, user.ID, apikey.APIKeyListFilters{})
 	require.NoError(t, err)
 
-	allByID := make(map[int64]service.APIKey, len(allKeys))
+	allByID := make(map[int64]apikey.APIKey, len(allKeys))
 	for _, key := range allKeys {
 		allByID[key.ID] = key
 	}
@@ -139,7 +148,7 @@ func TestAPIKeyRepositoryListByUserIDAttachesLastUsedIP(t *testing.T) {
 }
 
 func TestLatestUsageLogIPsQueryPostgresUsesPerKeyLateralLookup(t *testing.T) {
-	query, args := latestUsageLogIPsQuery([]int64{11, 22}, dialect.Postgres)
+	query, args := apikeypostgres.KeyLatestUsageLogIPsQuery([]int64{11, 22}, dialect.Postgres)
 	normalizedQuery := strings.Join(strings.Fields(query), " ")
 
 	require.Contains(t, normalizedQuery, "FROM unnest($1::bigint[]) AS requested(api_key_id)")
@@ -158,11 +167,11 @@ func TestAPIKeyRepository_CreateWithLastUsedAt(t *testing.T) {
 	user := mustCreateAPIKeyRepoUser(t, ctx, client, "create-last-used@test.com")
 
 	lastUsed := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID:     user.ID,
 		Key:        "sk-create-last-used",
 		Name:       "CreateWithLastUsed",
-		Status:     service.StatusActive,
+		Status:     billing.StatusActive,
 		LastUsedAt: &lastUsed,
 	}
 
@@ -181,11 +190,11 @@ func TestAPIKeyRepository_UpdateLastUsed(t *testing.T) {
 	ctx := context.Background()
 	user := mustCreateAPIKeyRepoUser(t, ctx, client, "update-last-used@test.com")
 
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-update-last-used",
 		Name:   "UpdateLastUsed",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key))
 
@@ -208,17 +217,17 @@ func TestAPIKeyRepository_UpdateLastUsedDeletedKey(t *testing.T) {
 	ctx := context.Background()
 	user := mustCreateAPIKeyRepoUser(t, ctx, client, "deleted-last-used@test.com")
 
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-update-last-used-deleted",
 		Name:   "UpdateLastUsedDeleted",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key))
 	require.NoError(t, repo.Delete(ctx, key.ID))
 
 	err := repo.UpdateLastUsed(ctx, key.ID, time.Now().UTC())
-	require.ErrorIs(t, err, service.ErrAPIKeyNotFound)
+	require.ErrorIs(t, err, apikey.ErrAPIKeyNotFound)
 }
 
 func TestAPIKeyRepository_UpdateLastUsedDBError(t *testing.T) {
@@ -226,11 +235,11 @@ func TestAPIKeyRepository_UpdateLastUsedDBError(t *testing.T) {
 	ctx := context.Background()
 	user := mustCreateAPIKeyRepoUser(t, ctx, client, "db-error-last-used@test.com")
 
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-update-last-used-db-error",
 		Name:   "UpdateLastUsedDBError",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, key))
 
@@ -244,20 +253,20 @@ func TestAPIKeyRepository_CreateDuplicateKey(t *testing.T) {
 	ctx := context.Background()
 	user := mustCreateAPIKeyRepoUser(t, ctx, client, "duplicate-key@test.com")
 
-	first := &service.APIKey{
+	first := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-duplicate",
 		Name:   "first",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
-	second := &service.APIKey{
+	second := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-duplicate",
 		Name:   "second",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 	}
 
 	require.NoError(t, repo.Create(ctx, first))
 	err := repo.Create(ctx, second)
-	require.ErrorIs(t, err, service.ErrAPIKeyExists)
+	require.ErrorIs(t, err, apikey.ErrAPIKeyExists)
 }

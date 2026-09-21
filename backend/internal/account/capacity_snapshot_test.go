@@ -1,9 +1,10 @@
 package account
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 容量投影只保存纯值，保留每行所观察时刻的窗口边界和运行参数。

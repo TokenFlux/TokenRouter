@@ -803,7 +803,7 @@ func sanitizeAndTrimJSONPayload(raw []byte, maxBytes int) (jsonString string, tr
 	// Last resort: keep JSON shape but drop big fields.
 	// This avoids downstream code that expects certain top-level keys from crashing.
 	if root, ok := decoded.(map[string]any); ok {
-		placeholder := shallowCopyMap(root)
+		placeholder := querycache.ShallowMap(root)
 		placeholder["payload_truncated"] = true
 
 		// Replace potentially huge arrays/strings, but keep the keys present.
@@ -991,7 +991,7 @@ func trimArrayField(root map[string]any, field string, maxBytes int) (map[string
 			continue
 		}
 
-		next := shallowCopyMap(root)
+		next := querycache.ShallowMap(root)
 		next[field] = candidateArr
 		encoded, err := json.Marshal(next)
 		if err != nil {
@@ -1018,7 +1018,7 @@ func trimArrayField(root map[string]any, field string, maxBytes int) (map[string
 
 	// Nothing fit (even with only one element); return the smallest slice and let the
 	// caller fall back to shrinkToEssentials().
-	next := shallowCopyMap(root)
+	next := querycache.ShallowMap(root)
 	next[field] = arr[len(arr)-1:]
 	return next, true
 }
@@ -1056,14 +1056,6 @@ func shrinkToEssentials(root map[string]any) map[string]any {
 	return out
 }
 
-func shallowCopyMap(m map[string]any) map[string]any {
-	out := make(map[string]any, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
-}
-
 func sanitizeErrorBodyForStorage(raw string, maxBytes int) (sanitized string, truncated bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -1080,54 +1072,4 @@ func sanitizeErrorBodyForStorage(raw string, maxBytes int) (sanitized string, tr
 		return truncateString(raw, maxBytes), true
 	}
 	return raw, false
-}
-
-// CompatParseOpsMonitoringEnabled 为旧入口提供过渡委托。
-func CompatParseOpsMonitoringEnabled(value string) bool { return parseOpsMonitoringEnabled(value) }
-
-// CompatJitterDuration 为旧入口提供过渡委托。
-func CompatJitterDuration(base time.Duration, percent int) time.Duration {
-	return jitterDuration(base, percent)
-}
-
-// CompatLogOpsErrorBatchWriteFailure 为旧入口提供过渡委托。
-func CompatLogOpsErrorBatchWriteFailure(ctx context.Context, format string, err error) {
-	logOpsErrorBatchWriteFailure(ctx, format, err)
-}
-
-// CompatSanitizeOpsUpstreamErrors 为旧入口提供过渡委托。
-func CompatSanitizeOpsUpstreamErrors(entry *OpsInsertErrorLogInput) error {
-	return sanitizeOpsUpstreamErrors(entry)
-}
-
-// CompatSanitizeAndTrimJSONPayload 为旧入口提供过渡委托。
-func CompatSanitizeAndTrimJSONPayload(raw []byte, maxBytes int) (jsonString string, truncated bool, bytesLen int) {
-	return sanitizeAndTrimJSONPayload(raw, maxBytes)
-}
-
-// CompatRedactSensitiveJSON 为旧入口提供过渡委托。
-func CompatRedactSensitiveJSON(v any) any { return redactSensitiveJSON(v) }
-
-// CompatIsSensitiveKey 为旧入口提供过渡委托。
-func CompatIsSensitiveKey(key string) bool { return isSensitiveKey(key) }
-
-// CompatTrimConversationArrays 为旧入口提供过渡委托。
-func CompatTrimConversationArrays(root map[string]any, maxBytes int) (map[string]any, bool) {
-	return trimConversationArrays(root, maxBytes)
-}
-
-// CompatTrimArrayField 为旧入口提供过渡委托。
-func CompatTrimArrayField(root map[string]any, field string, maxBytes int) (map[string]any, bool) {
-	return trimArrayField(root, field, maxBytes)
-}
-
-// CompatShrinkToEssentials 为旧入口提供过渡委托。
-func CompatShrinkToEssentials(root map[string]any) map[string]any { return shrinkToEssentials(root) }
-
-// CompatShallowCopyMap 为旧入口提供过渡委托。
-func CompatShallowCopyMap(m map[string]any) map[string]any { return shallowCopyMap(m) }
-
-// CompatSanitizeErrorBodyForStorage 为旧入口提供过渡委托。
-func CompatSanitizeErrorBodyForStorage(raw string, maxBytes int) (sanitized string, truncated bool) {
-	return sanitizeErrorBodyForStorage(raw, maxBytes)
 }

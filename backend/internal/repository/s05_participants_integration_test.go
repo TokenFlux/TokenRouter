@@ -9,12 +9,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/redeemcodeusage"
+
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
+
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	teampostgres "github.com/TokenFlux/TokenRouter/internal/team/postgres"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -35,9 +41,9 @@ func (p s05FailingMemberKeys) DisableMemberInTx(ctx context.Context, tx *sql.Tx,
 
 func TestS05MemberRemovalRollsBackKeyParticipant(t *testing.T) {
 	ctx := context.Background()
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("s05-owner")})
-	member := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("s05-member")})
-	repo := NewTeamRepository(integrationDB)
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("s05-owner")})
+	member := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("s05-member")})
+	repo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
 	current, err := repo.Create(ctx, "事务参与验证", owner.ID, 10)
 	require.NoError(t, err)
 	token := uuid.NewString()
@@ -95,9 +101,9 @@ func TestS05RedeemConcurrencyUsesOuterEntTransaction(t *testing.T) {
 func TestS05InitialFundsDoNotCountAsRecharge(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	user := &service.User{Email: "s05-initial-" + uuid.NewString() + "@example.com", PasswordHash: "hash",
-		Role: service.RoleUser, Status: service.StatusActive, Balance: 12.5, Concurrency: 2}
-	require.NoError(t, NewUserRepository(client, integrationDB).Create(ctx, user))
+	user := &identity.User{Email: "s05-initial-" + uuid.NewString() + "@example.com", PasswordHash: "hash",
+		Role: identity.RoleUser, Status: billing.StatusActive, Balance: 12.5, Concurrency: 2}
+	require.NoError(t, identitypostgres.NewUserStore(client, integrationDB).Create(ctx, user))
 	stored, err := client.User.Get(ctx, user.ID)
 	require.NoError(t, err)
 	require.Equal(t, 12.5, stored.Balance)
@@ -125,7 +131,7 @@ func TestS05RegistrationInvitationUsesOuterTransaction(t *testing.T) {
 	require.Equal(t, "used", stored.Status)
 	require.Equal(t, 1, stored.UsedCount)
 	require.Equal(t, user.ID, *stored.UsedBy)
-	require.ErrorIs(t, participant.Consume(ctx, invitation.ID, user.ID), service.ErrRedeemCodeUsed)
+	require.ErrorIs(t, participant.Consume(ctx, invitation.ID, user.ID), billing.ErrRedeemCodeUsed)
 	_, err = client.RedeemCode.Get(ctx, invitation.ID)
 	require.True(t, dbent.IsNotFound(err), "参与方法不得提前提交调用方的创建")
 	stored.Status = "unused"

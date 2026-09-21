@@ -6,12 +6,19 @@ import (
 	"net/http"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	grokforward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
+	uuid "github.com/google/uuid"
 )
 
 // grokForwardAdapter 只持有本次受控凭据与旧能力引用，不保存新的会话/健康状态。
@@ -27,7 +34,8 @@ func (a *grokForwardAdapter) options() grokforward.Options {
 	if a.s.cfg != nil && a.s.cfg.Gateway.MaxLineSize > 0 {
 		maxLine = a.s.cfg.Gateway.MaxLineSize
 	}
-	return grokforward.Options{Codec: grokBodyCodec(), MaxLineSize: maxLine, Enter: a.s.nativeAttemptActivity}
+	return grokforward.Options{Codec: (grok.BodyCodec{
+		NewID: uuid.NewString}), MaxLineSize: maxLine, Enter: a.s.nativeAttemptActivity}
 }
 func (a *grokForwardAdapter) input(body []byte, model string, stream bool, start time.Time) grokforward.Input {
 	return grokforward.Input{
@@ -50,12 +58,14 @@ func (a *grokForwardAdapter) BillingModel(model string) string {
 func (a *grokForwardAdapter) UpstreamModel(model string) string {
 	return normalizeOpenAIModelForUpstream(a.account, model)
 }
-func (a *grokForwardAdapter) ImageModel(model string) bool { return isGrokImageGenerationModel(model) }
+func (a *grokForwardAdapter) ImageModel(model string) bool {
+	return media.IsGrokImageGenerationModel(model)
+}
 func (a *grokForwardAdapter) InvalidRequest(message, param string) {
 	gatewayhttp.WriteGrokForwardInvalidRequest(a.c, message, param)
 }
 func (a *grokForwardAdapter) SetError(status int, message, detail string) {
-	setOpsUpstreamError(a.c, status, message, detail)
+	gatewayhttp.SetOpsUpstreamError(a.c, status, message, detail)
 }
 func (a *grokForwardAdapter) ClientTools(mapping bridge.ResponsesClientToolMapping) {
 	setGrokResponsesClientToolMapping(a.c, mapping)
@@ -92,7 +102,7 @@ func (a *grokForwardAdapter) ReadError(resp *http.Response) []byte {
 	return a.s.readUpstreamErrorBody(resp)
 }
 func (a *grokForwardAdapter) Latency(value int64) {
-	SetOpsLatencyMs(a.c, OpsUpstreamLatencyMsKey, value)
+	gatewayhttp.SetOpsLatencyMs(a.c, gatewayhttp.OpsUpstreamLatencyMsKey, value)
 }
 func (a *grokForwardAdapter) TransportError(ctx context.Context, err error) error {
 	return a.s.handleOpenAIUpstreamTransportError(ctx, a.c, a.account, err, false)
@@ -101,7 +111,7 @@ func (a *grokForwardAdapter) ReplayNotice(identity bool) {
 	slog.Info("grok_replay_decode_retry", "account_id", a.account.ID, "cache_identity_present", identity)
 }
 func (a *grokForwardAdapter) ErrorMessage(body []byte) string {
-	return sanitizeUpstreamErrorMessage(extractUpstreamErrorMessage(body))
+	return logredact.SanitizeUpstreamQueries(upstream.ExtractErrorMessage(body))
 }
 func (a *grokForwardAdapter) Health(ctx context.Context, status int, headers http.Header, body []byte, model string, teamContext bool) grokforward.Decision {
 	if teamContext {
@@ -115,7 +125,7 @@ func (a *grokForwardAdapter) Health(ctx context.Context, status int, headers htt
 	}
 }
 func (a *grokForwardAdapter) Observe(n grokforward.Notice) {
-	appendOpsUpstreamError(a.c, OpsUpstreamErrorEvent{
+	gatewayhttp.AppendOpsUpstreamError(a.c, ops.OpsUpstreamErrorEvent{
 		Platform:           n.Platform,
 		AccountID:          n.AccountID,
 		AccountName:        n.AccountName,
@@ -130,17 +140,17 @@ func (a *grokForwardAdapter) HandleError(ctx context.Context, resp *http.Respons
 	return nativeGrokForwardResult(v), err
 }
 func (a *grokForwardAdapter) ShouldMarkTeam(status int, body []byte) bool {
-	return shouldMarkGrokTeamModelRateLimit(status, body)
+	return grok.ShouldMarkGrokTeamModelRateLimit(status, body)
 }
 func (a *grokForwardAdapter) MarkTeam(model string) {
-	markGrokTeamModelRateLimit(a.account, model, resolveGrokTeamRateLimitUntil(time.Now().Add(grokTeamRateLimitDefaultTTL), time.Now()))
+	markGrokTeamModelRateLimit(a.account, model, accountcore.ResolveGrokTeamRateLimitUntil(time.Now().Add(grokTeamRateLimitDefaultTTL), time.Now()))
 }
 func (a *grokForwardAdapter) RetryMetadata(status int, body []byte) grokforward.Retry {
 	retry, delay, deadline, max := grokSameAccountRetryMetadata(a.account, status, body)
 	return grokforward.Retry{Retryable: retry, Delay: delay, Deadline: deadline, Max: max}
 }
 func (a *grokForwardAdapter) Failure(f grokforward.Failure) error {
-	return &UpstreamFailoverError{
+	return &forwardcore.UpstreamFailoverError{
 		StatusCode:               f.StatusCode,
 		ResponseBody:             f.ResponseBody,
 		ResponseHeaders:          f.ResponseHeaders,
@@ -184,7 +194,7 @@ func (a *grokForwardAdapter) ReadNonStream(ctx context.Context, resp *http.Respo
 		HasUsage:         v.usage != nil,
 		Served:           v.served,
 		HTTPCommitted:    a.c.Writer.Written(),
-		RetryCommitted:   IsResponseCommitted(a.c),
+		RetryCommitted:   gatewayhttp.IsResponseCommitted(a.c),
 		ResponseID:       v.responseID,
 		SearchCount:      v.searchCount,
 		ImageCount:       v.imageCount,
@@ -204,5 +214,5 @@ func (a *grokForwardAdapter) ReadBody(resp *http.Response) ([]byte, error) {
 	return ReadUpstreamResponseBody(resp.Body, a.s.cfg, a.c, nil)
 }
 func (a *grokForwardAdapter) HasTokens(usage *protocolopenai.ForwardUsage) bool {
-	return openAIUsageHasTokens(usage)
+	return protocolopenai.OpenAIUsageHasTokens(usage)
 }

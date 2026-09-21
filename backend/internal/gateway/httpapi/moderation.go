@@ -10,7 +10,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
-	ctxkey "github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/gin-gonic/gin"
@@ -53,7 +53,7 @@ func ClientRequestedModel(c *gin.Context, fallback string) string {
 			return model
 		}
 	}
-	if model, ok := c.Request.Context().Value(ctxkey.ClientModel).(string); ok {
+	if model, ok := c.Request.Context().Value(telemetry.ClientModel).(string); ok {
 		if model = strings.TrimSpace(model); model != "" {
 			return model
 		}
@@ -283,7 +283,7 @@ func ContentModerationRequestID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if requestID, ok := ctx.Value(ctxkey.RequestID).(string); ok {
+	if requestID, ok := ctx.Value(telemetry.RequestID).(string); ok {
 		return strings.TrimSpace(requestID)
 	}
 	return ""

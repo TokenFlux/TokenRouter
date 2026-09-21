@@ -2,32 +2,17 @@
 package service
 
 import (
-	"context"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
-func withAdvancedSchedulerNoSlotSelection(ctx context.Context) context.Context {
-	return scheduler.WithSelectOnly(ctx)
-}
-func isAdvancedSchedulerNoSlotSelection(ctx context.Context) bool { return scheduler.IsSelectOnly(ctx) }
-
 type advancedAccountRuntimeStats struct{ core *scheduler.RuntimeStats }
 type advancedSchedulerFeedbackConfig struct {
 	errorRateAlpha float64
 	ttftAlpha      float64
 }
-type advancedAccountRuntimeFeedbackSnapshot = scheduler.FeedbackSnapshot
-type advancedSchedulerCandidateFactors = scheduler.CandidateFactors
-type advancedSchedulerScoreRanges = scheduler.ScoreRanges
-type AdvancedAccountSchedulerScoreSnapshot = scheduler.ScoreSnapshot
-
-const (
-	defaultAdvancedSchedulerErrorRateAlpha = scheduler.DefaultErrorRateAlpha
-	defaultAdvancedSchedulerTTFTAlpha      = scheduler.DefaultTTFTAlpha
-)
 
 func newAdvancedAccountRuntimeStats() *advancedAccountRuntimeStats {
 	return &advancedAccountRuntimeStats{core: scheduler.NewRuntimeStats(time.Now)}
@@ -49,14 +34,14 @@ func (s *advancedAccountRuntimeStats) report(id int64, success bool, ttft *int, 
 func (s *advancedAccountRuntimeStats) snapshot(id int64) (float64, float64, bool) {
 	return schedulerStats(s).Snapshot(id)
 }
-func (s *advancedAccountRuntimeStats) feedbackSnapshot(id int64) advancedAccountRuntimeFeedbackSnapshot {
+func (s *advancedAccountRuntimeStats) feedbackSnapshot(id int64) scheduler.FeedbackSnapshot {
 	return schedulerStats(s).FeedbackSnapshot(id)
 }
 func (s *advancedAccountRuntimeStats) size() int { return schedulerStats(s).Size() }
 
 type advancedSchedulerCandidateScore struct {
 	account            *Account
-	loadInfo           *AccountLoadInfo
+	loadInfo           *scheduler.AccountLoadInfo
 	loadKnown          bool
 	score              float64
 	baseScore          float64
@@ -68,8 +53,8 @@ type advancedSchedulerCandidateScore struct {
 	ttft               float64
 	hasTTFT            bool
 	hasFeedback        bool
-	feedback           advancedAccountRuntimeFeedbackSnapshot
-	factors            advancedSchedulerCandidateFactors
+	feedback           scheduler.FeedbackSnapshot
+	factors            scheduler.CandidateFactors
 }
 type advancedSchedulerSelectionInput struct {
 	GroupID                 *int64
@@ -132,11 +117,11 @@ func scoresToCore(values []advancedSchedulerCandidateScore) ([]scheduler.Candida
 	}
 	return out, source
 }
-func scoreAdvancedSchedulerCandidates(accounts []*Account, loads map[int64]*AccountLoadInfo, stats *advancedAccountRuntimeStats, weights GatewayAdvancedSchedulerScoreWeightsView, input advancedSchedulerSelectionInput, now time.Time) ([]advancedSchedulerCandidateScore, float64) {
+func scoreAdvancedSchedulerCandidates(accounts []*Account, loads map[int64]*scheduler.AccountLoadInfo, stats *advancedAccountRuntimeStats, weights GatewayAdvancedSchedulerScoreWeightsView, input advancedSchedulerSelectionInput, now time.Time) ([]advancedSchedulerCandidateScore, float64) {
 	out, skew, _ := scoreAdvancedSchedulerCandidatesWithRanges(accounts, loads, stats, weights, input, now)
 	return out, skew
 }
-func scoreAdvancedSchedulerCandidatesWithRanges(accounts []*Account, loads map[int64]*AccountLoadInfo, stats *advancedAccountRuntimeStats, weights GatewayAdvancedSchedulerScoreWeightsView, input advancedSchedulerSelectionInput, now time.Time) ([]advancedSchedulerCandidateScore, float64, advancedSchedulerScoreRanges) {
+func scoreAdvancedSchedulerCandidatesWithRanges(accounts []*Account, loads map[int64]*scheduler.AccountLoadInfo, stats *advancedAccountRuntimeStats, weights GatewayAdvancedSchedulerScoreWeightsView, input advancedSchedulerSelectionInput, now time.Time) ([]advancedSchedulerCandidateScore, float64, scheduler.ScoreRanges) {
 	projected, source := scoreAccounts(accounts)
 	out, skew, ranges := scheduler.ScoreCandidatesWithRanges(projected, loads, schedulerStats(stats), policy.ScoreWeights(weights), scoreInput(input, source), now)
 	return scoresFromCore(out, source), skew, ranges
@@ -179,13 +164,4 @@ func (r *advancedSchedulerRNG) nextUint64() uint64   { return r.core.NextUint64(
 func (r *advancedSchedulerRNG) nextFloat64() float64 { return r.core.NextFloat64() }
 func deriveAdvancedSchedulerSelectionSeed(input advancedSchedulerSelectionInput) uint64 {
 	return scheduler.SelectionSeed(scoreInput(input, nil))
-}
-func buildAdvancedAccountSchedulerScoreSnapshot(accounts []*Account, loads map[int64]*AccountLoadInfo, stats *advancedAccountRuntimeStats, group *Group, weights GatewayAdvancedSchedulerScoreWeightsView, sticky bool, quota func(*Account, time.Time) float64) map[int64]AdvancedAccountSchedulerScoreSnapshot {
-	projected, source := scoreAccounts(accounts)
-	var g *scheduler.ScoreGroup
-	if group != nil {
-		g = &scheduler.ScoreGroup{Platform: group.Platform}
-	}
-	input := scoreInput(advancedSchedulerSelectionInput{QuotaHeadroomFactor: quota}, source)
-	return scheduler.BuildScoreSnapshot(projected, loads, schedulerStats(stats), g, policy.ScoreWeights(weights), sticky, input.QuotaHeadroomFactor, time.Now())
 }

@@ -1,16 +1,18 @@
 package service
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRefreshRuntimePublicationHonorsClearAndOtherVersions(t *testing.T) {
 	gateway := &OpenAIGatewayService{}
 	value := func(token string) *Account {
-		return &Account{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth, Credentials: map[string]any{"access_token": token}}
+		return &Account{ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"access_token": token}}
 	}
 	a, b, c := value("a"), value("b"), value("c")
 	notice := func(v *Account) account.RefreshFailureNotice {
@@ -36,15 +38,10 @@ func TestRefreshRuntimePublicationHonorsClearAndOtherVersions(t *testing.T) {
 	require.True(t, gateway.isOpenAIAccountRuntimeBlocked(c))
 	// 原 Grok 临时阻断的回滚不得抹掉独立的刷新身份阻断。
 	publishAfterProbe := gateway.PrepareRefreshFailure(1)
-	release := gateway.blockGrokCredentialRuntime(&Account{ID: 1, Platform: PlatformGrok, Type: AccountTypeOAuth}, time.Now().Add(time.Minute), "credential_probe")
+	release := gateway.blockGrokCredentialRuntime(&Account{ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}, time.Now().Add(time.Minute), "credential_probe")
 	release()
 	publishAfterProbe(notice(value("d")))
 	require.True(t, gateway.isOpenAIAccountRuntimeBlocked(value("d")))
 	require.True(t, gateway.isOpenAIAccountRuntimeBlocked(c))
 	require.False(t, gateway.isOpenAIAccountRuntimeBlocked(a))
-}
-
-// 仅为原 HEAD 对照测试保留旧调用形状，生产用例显式在写入前准备发布。
-func (s *TokenRefreshService) notifyAccountSchedulingBlocked(value *Account, until time.Time, reason string) {
-	s.prepareRefreshFailure(value)(until, reason)
 }

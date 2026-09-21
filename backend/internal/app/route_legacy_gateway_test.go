@@ -2,21 +2,25 @@ package app
 
 import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	opscore "github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+
 	batchhttp "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // 历史夹具只在构造边界转换 Key 服务，生产签名使用原生实例。
-func legacyRouteMiddleware(auth middleware.APIKeyAuthMiddleware, keys *service.APIKeyService, subscriptions *service.SubscriptionService, ops *service.OpsService, settings *service.SettingService, cfg *config.Config) gatewayhttp.RouteMiddleware {
+func legacyRouteMiddleware(auth middleware.APIKeyAuthMiddleware, keys *apikey.APIKeyService, subscriptions *billing.SubscriptionService, ops *opscore.OpsService, settings *routing.RuntimeSettings, cfg *config.Config) gatewayhttp.RouteMiddleware {
 	var native *apikey.APIKeyService
 	if keys != nil {
-		native = keys.APIKeyService
+		native = keys
 	}
-	value := provideGatewayRouteMiddleware(auth, native, subscriptions, ops, settings, cfg)
+	value := provideGatewayRouteMiddleware(auth, native, subscriptions, ops, settings, cfg, nil)
 	options := gatewayhttp.GroupAssignmentOptions{Access: func(c *gin.Context) gatewayhttp.GroupAssignmentAccess {
 		key, ok := middleware.GetAPIKeyFromContext(c)
 		if !ok || key == nil {
@@ -25,7 +29,7 @@ func legacyRouteMiddleware(auth middleware.APIKeyAuthMiddleware, keys *service.A
 		_, noGroup := c.Get(gatewayhttp.CompositeKeyNoGroupContextKey)
 		return gatewayhttp.GroupAssignmentAccess{Loaded: true, Assigned: key.GroupID != nil, CompositeNoGroup: key.IsComposite && noGroup}
 	}, Rejected: func(c *gin.Context) {
-		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnassigned)
+		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonAPIKeyGroupUnassigned)
 		middleware.MarkIngressRejected(c, middleware.IngressRejectGroupUnassigned)
 	}}
 	options.WriteError = middleware.AnthropicErrorWriter
@@ -39,10 +43,10 @@ func RegisterGatewayRoutes(
 	r *gin.Engine,
 	h *routeTestHandlers,
 	apiKeyAuth middleware.APIKeyAuthMiddleware,
-	apiKeyService *service.APIKeyService,
-	subscriptionService *service.SubscriptionService,
-	opsService *service.OpsService,
-	settingService *service.SettingService,
+	apiKeyService *apikey.APIKeyService,
+	subscriptionService *billing.SubscriptionService,
+	opsService *opscore.OpsService,
+	settingService *routing.RuntimeSettings,
 	cfg *config.Config,
 ) {
 	// 生产使用 app 已绑定的目标 handler；手工装配的兼容测试仍复用同一实现。

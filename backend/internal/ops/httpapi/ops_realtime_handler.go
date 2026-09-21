@@ -277,13 +277,3 @@ func (h *OpsHandler) GetRealtimeTrafficSummary(c *gin.Context) {
 		"timestamp": endTime,
 	})
 }
-
-// CompatIsOpsRealtimeRequestCanceled 为旧测试及兼容入口提供精确委托。
-func CompatIsOpsRealtimeRequestCanceled(c *gin.Context, err error) bool {
-	return isOpsRealtimeRequestCanceled(c, err)
-}
-
-// CompatParseOpsRealtimeWindow 为旧测试及兼容入口提供精确委托。
-func CompatParseOpsRealtimeWindow(v string) (time.Duration, string, bool) {
-	return parseOpsRealtimeWindow(v)
-}

@@ -5,10 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	"log"
 	"strings"
 	"time"
+
+	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 
 	"github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/securitysecret"

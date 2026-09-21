@@ -8,7 +8,9 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 const (
@@ -342,7 +344,7 @@ var (
 	// SchedulerTypeValidator is a validator for the "scheduler_type" field. It is called by the builders before save.
 	SchedulerTypeValidator func(string) error
 	// DefaultAdvancedSchedulerOverrides holds the default value on creation for the "advanced_scheduler_overrides" field.
-	DefaultAdvancedSchedulerOverrides domain.GroupAdvancedSchedulerOverrides
+	DefaultAdvancedSchedulerOverrides policy.GroupAdvancedSchedulerOverrides
 	// DefaultDisplayBrand holds the default value on creation for the "display_brand" field.
 	DefaultDisplayBrand string
 	// DisplayBrandValidator is a validator for the "display_brand" field. It is called by the builders before save.
@@ -378,9 +380,9 @@ var (
 	// DefaultAllowMessagesDispatch holds the default value on creation for the "allow_messages_dispatch" field.
 	DefaultAllowMessagesDispatch bool
 	// DefaultAllowedProtocols holds the default value on creation for the "allowed_protocols" field.
-	DefaultAllowedProtocols []domain.ProtocolID
+	DefaultAllowedProtocols []protocol.ProtocolID
 	// DefaultProtocolFallbacks holds the default value on creation for the "protocol_fallbacks" field.
-	DefaultProtocolFallbacks map[domain.ProtocolID]domain.ProtocolID
+	DefaultProtocolFallbacks map[protocol.ProtocolID]protocol.ProtocolID
 	// DefaultResponsesImagePolicy holds the default value on creation for the "responses_image_policy" field.
 	DefaultResponsesImagePolicy string
 	// DefaultAllowLive holds the default value on creation for the "allow_live" field.
@@ -400,11 +402,11 @@ var (
 	// DefaultMappedModelValidator is a validator for the "default_mapped_model" field. It is called by the builders before save.
 	DefaultMappedModelValidator func(string) error
 	// DefaultMessagesDispatchModelConfig holds the default value on creation for the "messages_dispatch_model_config" field.
-	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
+	DefaultMessagesDispatchModelConfig accessview.OpenAIMessagesDispatchModelConfig
 	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
-	DefaultModelsListConfig domain.GroupModelsListConfig
+	DefaultModelsListConfig accessview.GroupModelsListConfig
 	// DefaultAvailabilityProbeConfig holds the default value on creation for the "availability_probe_config" field.
-	DefaultAvailabilityProbeConfig domain.GroupAvailabilityProbeConfig
+	DefaultAvailabilityProbeConfig accessview.GroupAvailabilityProbeConfig
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultMaxReasoningEffort holds the default value on creation for the "max_reasoning_effort" field.
@@ -416,7 +418,7 @@ var (
 	// MaxReasoningEffortOverLimitValidator is a validator for the "max_reasoning_effort_over_limit" field. It is called by the builders before save.
 	MaxReasoningEffortOverLimitValidator func(string) error
 	// DefaultReasoningEffortMappings holds the default value on creation for the "reasoning_effort_mappings" field.
-	DefaultReasoningEffortMappings []domain.ReasoningEffortMapping
+	DefaultReasoningEffortMappings []accessview.ReasoningEffortMapping
 	// DefaultSessionIsolationEnabled holds the default value on creation for the "session_isolation_enabled" field.
 	DefaultSessionIsolationEnabled bool
 )

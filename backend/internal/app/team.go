@@ -14,14 +14,13 @@ import (
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 	team "github.com/TokenFlux/TokenRouter/internal/team"
 	teampostgres "github.com/TokenFlux/TokenRouter/internal/team/postgres"
 )
 
 // provideTeamRepository 把成员状态、Key 生命周期与资金窗口参与能力装在同一 SQL 连接来源上。
-func provideTeamRepository(db *sql.DB) team.TeamRepository {
-	calendar := timezone.NewCalendar(timezone.Location())
+func provideTeamRepository(db *sql.DB, calendar timezone.Calendar) team.TeamRepository {
 	return teampostgres.NewTeamRepository(db, keypostgres.NewTeamKeys(db), billingpostgres.NewMemberUsageStore(db, &calendar), &calendar)
 }
 
@@ -41,7 +40,7 @@ func (p teamIdentityUsers) GetByEmail(ctx context.Context, email string) (*team.
 	}
 	return &team.UserSnapshot{ID: u.ID, Email: u.Email, Username: u.Username}, e
 }
-func provideTeam(repo team.TeamRepository, users *identitypostgres.UserStore, email *notification.Mailer, cache apikey.APIKeyCache, limiter team.TeamInvitationLimiter, settings *service.SettingService, cfg *config.Config) *team.TeamService {
+func provideTeam(repo team.TeamRepository, users *identitypostgres.UserStore, email *notification.Mailer, cache apikey.APIKeyCache, limiter team.TeamInvitationLimiter, settings *site.DisplaySettings, cfg *config.Config) *team.TeamService {
 	var options *team.Options
 	if cfg != nil {
 		options = &team.Options{Enabled: cfg.Team.Enabled, SelfServiceEnabled: cfg.Team.SelfServiceEnabled, DefaultMemberLimit: cfg.Team.DefaultMemberLimit, FrontendURL: cfg.Server.FrontendURL, Now: time.Now}

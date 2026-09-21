@@ -42,11 +42,15 @@
 3. 暂时满槽或负载率为 100% 的硬资格合格账号仍进入高级核心；选择前逐账号复核真实并发槽，全部满槽时可产生等待计划，无槽探测则忽略占用。没有结果反馈时错误率按 0% 计算；负载快照、TTFT、窗口或平台专属额度缺失时仍使用中性信号，不能据此排除账号。
 4. 实际由高级调度器选出的转发结果、失败、TTFT 和切换会回写运行时统计；流已开始后的不可切换边界不变。
 
-OpenAI/Grok 是通用核心的能力适配者：在高级分组中，OpenAI 额外处理 previous response、订阅优先、Responses transport、旧版 Compact 和额度余量，Grok 继续执行自身配额及媒体能力约束。Anthropic/Gemini 的 mixed bucket 仍只纳入显式开启 mixed scheduling 的 Antigravity 账号。关闭粘性加权时，各平台保留硬会话粘性；OpenAI previous response 不可跨账号移动时无论开关状态都保持硬绑定，可移动时才作为加权信号。共享错误率或 TTFT 超过通用逃逸阈值时只对当前请求逃逸，并保留原绑定。开启粘性加权时，上一响应和会话账号只获得评分加成，并与其它 Top-K 候选一起按权重抽样，不能被强制置首，也不能在 Top-K 尝试失败后获得额外硬兜底；window-cost/RPM 的 sticky-only 区间仍允许当前绑定账号进入评分。非 OpenAI 平台没有 previous-response 绑定语义，诊断输入中的该信号标记为 `ignored`。管理端“高级调度评分”只对高级分组显示，并复用同一评分函数和候选池；其展示不把账号变成可用候选，也不取代请求级硬过滤。
+OpenAI/Grok 是通用核心的能力适配者：在高级分组中，OpenAI 额外处理 previous response、订阅优先、Responses transport、旧版 Compact 和额度余量，Grok 继续执行自身配额及媒体能力约束。Anthropic/Gemini 的 mixed bucket 仍只纳入显式开启 mixed scheduling 的 Antigravity 账号。关闭粘性加权时，各平台保留硬会话粘性；OpenAI previous response 不可跨账号移动时无论开关状态都保持硬绑定，可移动时才作为加权信号。共享错误率或 TTFT 超过通用逃逸阈值时只对当前请求逃逸，并保留原绑定。开启粘性加权时，上一响应和会话账号只获得评分加成，并与其它 Top-K 候选一起按权重抽样，不能被强制置首，也不能在 Top-K 尝试失败后获得额外硬兜底；window-cost/RPM 的 sticky-only 区间仍允许当前绑定账号进入评分。非 OpenAI 平台没有 previous-response 绑定语义，诊断输入中的该信号标记为 `ignored`。管理列表直接通过 `account/provider.SchedulerScoreOptions` 投影无凭据评分输入，app 注入生产选择共享的 `schedulerSharedState` 与原生设置 Store，不再往返转换旧账号实体。Codex 额度余量的八小时有效期与次窗口折扣由 account 唯一计算。管理端“高级调度评分”只对高级分组显示，并复用同一评分函数和候选池；其展示不把账号变成可用候选，也不取代请求级硬过滤。
+
+账号与模型的短暂失败状态由 `account.ModelTransientState` 持有，网关调用点沿用同一实例；模型先完成平台规范化，再记录和查询。首次失败只计数，第二次冷却 10 秒，连续三次及以上冷却 45 秒，成功清零；30 分钟状态保留窗口与容量上限保持，进程重启不恢复这些内存状态。
 
 ## 评分诊断
 
 管理员可通过 `scheduler/httpapi` 的账号高级调度评分诊断查看当前候选池的实时解释。`scheduler.DiagnosticService` 拥有候选、参数和解释计算，旧资格端口只在单次调用中关联执行投影，不把凭据带入核心。基准诊断不指定模型、会话粘性或上一响应粘性；模拟诊断只接受模型和两个账号 ID，不能接收 session hash、previous response 内容、凭据或代理认证信息。诊断使用无分页分组全集统计排除原因，并复用生产服务可安全执行的模型运行时封禁、额度、窗口费用、RPM、代理流隔离、OpenAI/Grok 配额自动暂停、影子母账号健康和渠道限制；它不会获取并发槽、注册会话、写入粘性或修改运行时统计。endpoint、transport、Compact、媒体等缺少请求输入的门禁以 `not_evaluated` 策略信号返回，真实请求仍会在完整上下文中追加检查。
+
+Spark 影子的母账号资格由 `account.ParentHealthyForShadow` 统一判断，调度、诊断和 WS 复核投影到同一规则：母账号须存在、仍为 OpenAI OAuth，且凭据未因状态、到期或临时停调失效；母账号自身的全局限流、过载和手动调度开关不连带禁用影子。`account/provider.DefaultSparkShadowModels` 在调用时从 OpenAI 的唯一 Codex 别名表构造独立的恒等映射，app 直接将它注入账号管理，不保存第二份模型表。
 
 评分核心在单次候选池中固定输出 `base_score = Σ(weight_i × normalized_i)`、`final_score = base_score + sticky_bonus`、`selection_weight = final_score - top_k_min_score + 1`、`selection_probability = selection_weight / top_k_weight_sum`。开启粘性加权时，诊断概率就是包含粘性加成后的 Top-K 抽样概率，不再附加置首规则。开启订阅优先且存在可用 ChatGPT 订阅账号时，排名、Top-K 和概率只基于订阅池，普通账号标记为 deferred；订阅池不可用时才使用普通池。关闭粘性加权且硬粘性账号可用时，诊断保留其原始排名和 `in_top_k` 状态，但把实际选择模式标记为 `sticky_forced_first`，被强制账号概率为 1，其它候选概率为 0。发生粘性逃逸时，原绑定账号按普通候选执行 window-cost/RPM 门禁；逃逸和缺少上下文的能力门禁继续作为独立策略信号展示。
 
@@ -57,7 +61,7 @@ OpenAI/Grok 是通用核心的能力适配者：在高级分组中，OpenAI 额�
 
 协议统一后调度 Redis 命名空间升级为 `sched:v2:`，完整与轻量账号投影均携带 `upstream_protocols` 和认证方式，分组认证快照 v40 携带准入集合、转换映射和 Responses 图片策略。协议候选过滤在评分前执行，每次切号和 fresh/DB 复核重新检查；转发目标只保存在当次账号副本，不污染共享缓存。
 
-调度事件契约及去重编码、SQL 读写位于 `scheduler` 与 `scheduler/postgres`；旧仓储入口仅委托，同事务写入和提交后尽力发布的界限保持。`scheduler.SnapshotService` 拥有重建、事件消费与受限回退，`scheduler/rediscache` 拥有原 `sched:v2` 编码发布、epoch/tombstone 和锁协议。app 构造唯一实例，查询直接绑定 account/routing 存储；旧 `SchedulerSnapshotService` 仅投影和委托。旧完整账号 JSON 的兼容 codec 保持原字段，核心只读取无凭据的候选元数据。
+调度事件契约及去重编码、SQL 读写位于 `scheduler` 与 `scheduler/postgres`；旧仓储入口仅委托，同事务写入和提交后尽力发布的界限保持。`scheduler.SnapshotService` 拥有重建、事件消费与受限回退，`scheduler/rediscache` 拥有原 `sched:v2` 发布、epoch/tombstone 和锁协议。其 `codec.AccountCodec` 唯一负责完整/轻量账号的存储形状及字段过滤，保持历史 JSON 字段与 nil/空集合。app 直接把 account/routing 存储和凭据刷新后的原生记录绑定到同一缓存；编码器内部持有受控完整记录，核心只读取无凭据的候选元数据。尚未清理的旧请求入口仍通过 `SchedulerSnapshotService` 投影和委托。
 
 `SchedulerSnapshotService` 在进程内保存 bucket 快照和账号投影。启动时异步执行初始重建，outbox 立即执行首轮；运行中消费调度 outbox，并周期性做全量重建以修复漏通知或外部写入。账号状态热更新可以先写入本地投影，再通过 outbox/失效广播传播到其它实例。
 
@@ -100,6 +104,8 @@ Bedrock 账号的模型筛选包含型号、来源区域及全局推理开关的
 ## 粘性与等待
 
 显式 session、previous response、WebSocket 或平台内部上下文可以建立粘性。命中账号仍需重新通过当前快照的状态、分组、模型和策略校验；账号被禁用、移组、限流、混合调度关闭或能力不再满足时，旧绑定必须失效。
+
+app 分别构造唯一的 `scheduler.SessionLimitCache` 与 `billing.WindowCostCache`，网关按两个原生端口使用它们。会话注销只操作调度会话，窗口费用沿用 `window_cost:account:` 与 30 秒缓存 TTL；两个数据面共享 Redis 客户端，不再通过旧组合接口互相暴露操作。
 
 Anthropic OAuth/Setup Token 账号的 `max_sessions` 限制空闲窗口内的活跃会话数。Messages 正常成功（包括流式和切号后成功）或返回可结算的部分结果后，成功账号的会话注册必须保留，由最后活动时间和空闲超时决定过期；请求结束只释放请求并发槽。未成功服务的失败请求以及已放弃的账号 attempt 立即注销对应会话，避免失败请求占满空闲窗口。
 

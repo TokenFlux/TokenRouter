@@ -7,10 +7,12 @@ import (
 	"log"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	p "github.com/TokenFlux/TokenRouter/internal/settings/preaggregation"
 )
 
 type Options struct {
+	Calendar      timezone.Calendar
 	RunBackground func(string, func()) bool
 	DashboardAgg  DashboardAggregationConfig
 	UsageCleanup  UsageCleanupConfig

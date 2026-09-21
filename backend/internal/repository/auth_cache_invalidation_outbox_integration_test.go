@@ -10,23 +10,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAuthCacheInvalidationTriggers_CoverSecurityMutationsOnly(t *testing.T) {
 	ctx := context.Background()
 	suffix := time.Now().UnixNano()
-	group := mustCreateGroup(t, integrationEntClient, &service.Group{
+	group := mustCreateGroup(t, integrationEntClient, &routing.Group{
 		Name: fmt.Sprintf("auth-outbox-group-%d", suffix), RateMultiplier: 1, IsExclusive: true,
 	})
-	user := mustCreateUser(t, integrationEntClient, &service.User{
+	user := mustCreateUser(t, integrationEntClient, &identity.User{
 		Email: fmt.Sprintf("auth-outbox-%d@example.com", suffix), Concurrency: 5,
 	})
 	groupID := group.ID
 	keyValue := fmt.Sprintf("sk-auth-outbox-%d", suffix)
-	apiKeyRepo := NewAPIKeyRepository(integrationEntClient, integrationDB)
-	key := &service.APIKey{UserID: user.ID, GroupID: &groupID, Key: keyValue, Name: "outbox", Status: service.StatusActive}
+	apiKeyRepo := newKeyStoreFixture(integrationEntClient, integrationDB)
+	key := &apikey.APIKey{UserID: user.ID, GroupID: &groupID, Key: keyValue, Name: "outbox", Status: billing.StatusActive}
 	require.NoError(t, apiKeyRepo.Create(ctx, key))
 
 	sum := sha256.Sum256([]byte(keyValue))
@@ -73,7 +79,7 @@ func TestAuthCacheInvalidationTriggers_CoverSecurityMutationsOnly(t *testing.T) 
 	require.NoError(t, err)
 	clear()
 
-	userRepo := NewUserRepository(integrationEntClient, integrationDB)
+	userRepo := postgres.NewUserStore(integrationEntClient, integrationDB)
 	loadedUser, err := userRepo.GetByID(ctx, user.ID)
 	require.NoError(t, err)
 	_, err = userRepo.AdjustBalance(ctx, loadedUser.ID, 10)

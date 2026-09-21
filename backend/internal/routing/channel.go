@@ -2,11 +2,12 @@
 package routing
 
 import (
-	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"maps"
 	"slices"
 	strings "strings"
 	time "time"
+
+	pricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 // BillingMode 保留价卡类型的旧入口。

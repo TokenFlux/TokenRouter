@@ -2,8 +2,9 @@ package provider
 
 import (
 	"context"
-	"github.com/robfig/cron/v3"
 	"time"
+
+	"github.com/robfig/cron/v3"
 )
 
 // GroupProbeSchedule 保持五字段 cron、指定时区和每分钟边界；构造不启动任务。

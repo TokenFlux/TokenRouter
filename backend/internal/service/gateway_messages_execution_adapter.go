@@ -10,12 +10,22 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
 )
@@ -27,7 +37,7 @@ type messageExecutionAdapter struct {
 	account                    *Account
 	token, tokenType, proxyURL string
 	profile                    *tlsfingerprint.Profile
-	toolRewrite                *ToolNameRewrite
+	toolRewrite                *claude.ToolNameRewrite
 	response                   *http.Response
 }
 
@@ -55,7 +65,7 @@ func (a *messageExecutionAdapter) input() forwardcore.MessageInput {
 func (a *messageExecutionAdapter) ShouldEmulate(ctx context.Context, group *int64, body []byte) bool {
 	return a.s.shouldEmulateWebSearch(ctx, a.account, group, body)
 }
-func (a *messageExecutionAdapter) Emulate(ctx context.Context, p *ParsedRequest) (*forwardcore.Result, error) {
+func (a *messageExecutionAdapter) Emulate(ctx context.Context, p *requeststate.ParsedRequest) (*forwardcore.Result, error) {
 	v, e := a.s.handleWebSearchEmulation(ctx, a.c, a.account, p)
 	return nativeForwardExecutionResult(v), e
 }
@@ -66,10 +76,10 @@ func (a *messageExecutionAdapter) ReplaceModel(body []byte, model string) []byte
 	return a.s.replaceModelInBody(body, model)
 }
 func (a *messageExecutionAdapter) Passthrough(ctx context.Context, in forwardcore.PassthroughInput) (*forwardcore.Result, error) {
-	v, e := a.s.forwardAnthropicAPIKeyPassthroughWithInput(ctx, a.c, a.account, anthropicPassthroughForwardInput{Body: in.Body, Parsed: in.Parsed, RequestModel: in.RequestModel, OriginalModel: in.OriginalModel, RequestStream: in.Stream, StartTime: in.StartedAt})
+	v, e := a.s.forwardAnthropicAPIKeyPassthroughWithInput(ctx, a.c, a.account, forwardcore.APIKeyInput{Body: in.Body, Parsed: in.Parsed, RequestModel: in.RequestModel, OriginalModel: in.OriginalModel, RequestStream: in.Stream, StartTime: in.StartedAt})
 	return nativeForwardExecutionResult(v), e
 }
-func (a *messageExecutionAdapter) Bedrock(ctx context.Context, p *ParsedRequest, start time.Time) (*forwardcore.Result, error) {
+func (a *messageExecutionAdapter) Bedrock(ctx context.Context, p *requeststate.ParsedRequest, start time.Time) (*forwardcore.Result, error) {
 	v, e := a.s.forwardBedrock(ctx, a.c, a.account, p, start)
 	return nativeForwardExecutionResult(v), e
 }
@@ -102,16 +112,16 @@ func (a *messageExecutionAdapter) IsClaudeCode(ctx context.Context, body []byte,
 	if a.c != nil {
 		ua = a.c.GetHeader("User-Agent")
 	}
-	return IsClaudeCodeClient(ctx) || isClaudeCodeClient(ua, metadata) || isProxiedClaudeCodeRequest(body, metadata)
+	return requeststate.IsClaudeCodeClient(ctx) || isClaudeCodeClient(ua, metadata) || claude.IsProxiedClaudeCodeRequest(body, metadata)
 }
 func (a *messageExecutionAdapter) SystemSettings(ctx context.Context) (bool, string, string) {
 	return a.s.claudeOAuthSystemPromptInjectionSettings(ctx)
 }
-func (a *messageExecutionAdapter) RewriteSystem(body []byte, p *ParsedRequest, prompt, blocks string) []byte {
+func (a *messageExecutionAdapter) RewriteSystem(body []byte, p *requeststate.ParsedRequest, prompt, blocks string) []byte {
 	system, _ := p.SystemValue()
-	return rewriteSystemForNonClaudeCodeWithPromptBlocks(body, system, prompt, blocks)
+	return claude.RewriteSystemForNonClaudeCodeWithPromptBlocks(body, system, prompt, blocks)
 }
-func (a *messageExecutionAdapter) Metadata(ctx context.Context, p *ParsedRequest) string {
+func (a *messageExecutionAdapter) Metadata(ctx context.Context, p *requeststate.ParsedRequest) string {
 	if a.s.identityService == nil || a.c == nil {
 		return ""
 	}
@@ -119,24 +129,24 @@ func (a *messageExecutionAdapter) Metadata(ctx context.Context, p *ParsedRequest
 	if err != nil || fp == nil {
 		return ""
 	}
-	_, mimic, _ := a.s.settingService.GetGatewayForwardingSettings(ctx)
+	_, mimic, _ := a.s.settingService.Gateway.GetGatewayForwardingSettings(ctx)
 	if mimic {
 		return ""
 	}
 	return a.s.buildOAuthMetadataUserID(p, a.account, fp)
 }
 func (a *messageExecutionAdapter) NormalizeOAuth(body []byte, model string, o forwardcore.NormalizeOptions) ([]byte, string) {
-	return normalizeClaudeOAuthRequestBody(body, model, claudeOAuthNormalizeOptions{StripSystemCacheControl: o.StripSystemCacheControl, InjectMetadata: o.InjectMetadata, MetadataUserID: o.MetadataUserID})
+	return claude.NormalizeClaudeOAuthRequestBody(body, model, claude.ClaudeOAuthNormalizeOptions{StripSystemCacheControl: o.StripSystemCacheControl, InjectMetadata: o.InjectMetadata, MetadataUserID: o.MetadataUserID})
 }
 func (a *messageExecutionAdapter) RewriteCache(ctx context.Context, body []byte) []byte {
 	return a.s.rewriteMessageCacheControlIfEnabled(ctx, body)
 }
 func (a *messageExecutionAdapter) RewriteTools(body []byte) ([]byte, bool) {
-	a.toolRewrite = buildToolNameRewriteFromBody(body)
+	a.toolRewrite = claude.BuildToolNameRewriteFromBody(body)
 	if a.toolRewrite == nil {
 		return body, false
 	}
-	return applyToolNameRewriteToBody(body, a.toolRewrite), true
+	return claude.ApplyToolNameRewriteToBody(body, a.toolRewrite), true
 }
 func (a *messageExecutionAdapter) BindTools() {
 	if a.c != nil {
@@ -144,13 +154,13 @@ func (a *messageExecutionAdapter) BindTools() {
 	}
 }
 func (a *messageExecutionAdapter) ToolsLast(body []byte) []byte {
-	return applyToolsLastCacheBreakpoint(body)
+	return claude.ApplyToolsLastCacheBreakpoint(body)
 }
 func (a *messageExecutionAdapter) NormalizeDateline(ctx context.Context, body []byte) ([]byte, bool) {
 	return a.s.normalizeClientDatelineIfEnabled(ctx, a.account, body)
 }
 func (a *messageExecutionAdapter) CacheLimit(body []byte) []byte {
-	return enforceCacheControlLimit(body)
+	return claude.EnforceCacheControlLimit(body)
 }
 func (a *messageExecutionAdapter) PlatformModel(model string) string {
 	return resolveAnthropicAccountUpstreamModel(a.account, model)
@@ -159,7 +169,7 @@ func (a *messageExecutionAdapter) InjectTTL(ctx context.Context) bool {
 	return a.s.shouldInjectAnthropicCacheTTL1h(ctx, a.account)
 }
 func (a *messageExecutionAdapter) CacheTTL(body []byte) []byte {
-	return injectAnthropicCacheControlTTL1h(body)
+	return claude.InjectAnthropicCacheControlTTL1h(body)
 }
 func (a *messageExecutionAdapter) Credential(ctx context.Context) error {
 	token, kind, e := a.s.GetAccessToken(ctx, a.account)
@@ -170,17 +180,17 @@ func (a *messageExecutionAdapter) Transport() {
 	if a.account.ProxyID != nil && a.account.Proxy != nil && (!a.account.IsCustomBaseURLEnabled() || a.account.GetCustomBaseURL() == "") {
 		a.proxyURL = a.account.Proxy.URL()
 	}
-	a.profile = a.s.tlsFPProfileService.ResolveTLSProfile(a.account)
-	logger.LegacyPrintf("service.gateway", "[Forward] Using account: ID=%d Name=%s Platform=%s Type=%s TLSFingerprint=%v Proxy=%s", a.account.ID, a.account.Name, a.account.Platform, a.account.Type, a.profile, a.proxyURL)
+	a.profile = a.s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(a.account, nil))
+	logging.LegacyPrintf("service.gateway", "[Forward] Using account: ID=%d Name=%s Platform=%s Type=%s TLSFingerprint=%v Proxy=%s", a.account.ID, a.account.Name, a.account.Platform, a.account.Type, a.profile, a.proxyURL)
 }
 func (a *messageExecutionAdapter) FilterSearchHistory(body []byte, model string) []byte {
-	return FilterWebSearchHistoryBlocks(body, model)
+	return searchtools.FilterWebSearchHistoryBlocks(body, modelidentity.ResolveThinkingProtocol(model) == modelidentity.ThinkingProtocolPassbackRequired)
 }
 func (a *messageExecutionAdapter) FilterThinking(body []byte, model string) []byte {
 	return FilterThinkingBlocks(body, model)
 }
 func (a *messageExecutionAdapter) PassbackThinking(model string) bool {
-	return ResolveThinkingProtocol(model) == ThinkingProtocolPassbackRequired
+	return modelidentity.ResolveThinkingProtocol(model) == modelidentity.ThinkingProtocolPassbackRequired
 }
 func (a *messageExecutionAdapter) NormalizeThinking(body []byte, model string) ([]byte, bool) {
 	return NormalizeChineseLLMThinking(body, model)
@@ -216,7 +226,7 @@ func (a *messageExecutionAdapter) Health(ctx context.Context, mode string, statu
 	}
 }
 func (a *messageExecutionAdapter) HandleError(ctx context.Context, model string, retry bool) (*forwardcore.Result, error) {
-	var v *ForwardResult
+	var v *forwardcore.MessagesResult
 	var e error
 	if retry {
 		v, e = a.s.handleRetryExhaustedError(ctx, a.response, a.c, a.account, model)
@@ -226,27 +236,27 @@ func (a *messageExecutionAdapter) HandleError(ctx context.Context, model string,
 	return nativeForwardExecutionResult(v), e
 }
 func (a *messageExecutionAdapter) Observe(n forwardcore.Notice) {
-	appendOpsUpstreamError(a.c, OpsUpstreamErrorEvent{UpstreamURL: n.UpstreamURL, Passthrough: n.Passthrough, Platform: n.Platform, AccountID: n.AccountID, AccountName: n.AccountName, UpstreamStatusCode: n.UpstreamStatusCode, UpstreamRequestID: n.UpstreamRequestID, Kind: n.Kind, Message: n.Message, Detail: n.Detail})
+	gatewayhttp.AppendOpsUpstreamError(a.c, ops.OpsUpstreamErrorEvent{UpstreamURL: n.UpstreamURL, Passthrough: n.Passthrough, Platform: n.Platform, AccountID: n.AccountID, AccountName: n.AccountName, UpstreamStatusCode: n.UpstreamStatusCode, UpstreamRequestID: n.UpstreamRequestID, Kind: n.Kind, Message: n.Message, Detail: n.Detail})
 }
 func (a *messageExecutionAdapter) Failover400(body []byte) bool { return a.s.shouldFailoverOn400(body) }
 func (a *messageExecutionAdapter) FailoverError(status int, body []byte, retry bool) error {
-	return &UpstreamFailoverError{StatusCode: status, ResponseBody: body, RetryableOnSameAccount: retry}
+	return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseBody: body, RetryableOnSameAccount: retry}
 }
 func (a *messageExecutionAdapter) IsFailover(err error) bool {
-	var v *UpstreamFailoverError
+	var v *forwardcore.UpstreamFailoverError
 	return errors.As(err, &v)
 }
 func (a *messageExecutionAdapter) Truncate(value string, n int) string {
-	return truncateString(value, n)
+	return logredact.TruncateUTF8(value, n)
 }
 func (a *messageExecutionAdapter) TruncateBytes(body []byte, n int) string {
 	return truncateForLog(body, n)
 }
 func (a *messageExecutionAdapter) Sanitize(value string) string {
-	return sanitizeUpstreamErrorMessage(value)
+	return logredact.SanitizeUpstreamQueries(value)
 }
 func (a *messageExecutionAdapter) Log(value string) {
-	logger.LegacyPrintf("service.gateway", "%s", value)
+	logging.LegacyPrintf("service.gateway", "%s", value)
 }
 func (a *messageExecutionAdapter) Execute(ctx context.Context, in forwardcore.MessageExecution) (upstream.AttemptResult, error) {
 	exchange := a.s.anthropicExchangeOptions(ctx, a.c, a.account, a.token, a.tokenType, in.Model, in.Stream, in.Mimic, a.proxyURL, a.profile, in.ReplaceBody)
@@ -266,7 +276,7 @@ func (a *messageExecutionAdapter) Execute(ctx context.Context, in forwardcore.Me
 	return (claude.Executor{}).Execute(ctx, upstream.AttemptInput{Protocol: protocolcore.ProtocolAnthropicMessages, Body: in.Body, ResponseModel: in.OriginalModel, Stream: in.Stream, Target: target}, gatewayhttp.ResponseSink{Writer: a.c.Writer})
 }
 func (a *messageExecutionAdapter) StreamError(err error) (string, bool) {
-	var e *sseStreamErrorEventError
+	var e *claude.StreamErrorEventError
 	if errors.As(err, &e) {
 		return e.RawData, true
 	}
@@ -275,8 +285,8 @@ func (a *messageExecutionAdapter) StreamError(err error) (string, bool) {
 func (a *messageExecutionAdapter) Size() int     { return a.c.Writer.Size() }
 func (a *messageExecutionAdapter) Written() bool { return a.c.Writer.Written() }
 func (a *messageExecutionAdapter) GenericError() {
-	gatewayhttp.WriteForwardMessageGenericError(a.c, func() { MarkResponseCommitted(a.c) })
+	gatewayhttp.WriteForwardMessageGenericError(a.c, func() { gatewayhttp.MarkResponseCommitted(a.c) })
 }
 func (a *messageExecutionAdapter) ServiceTier() string {
-	return observedUpstreamResponseServiceTier(a.c)
+	return gatewayhttp.ObservedUpstreamResponseServiceTier(a.c)
 }

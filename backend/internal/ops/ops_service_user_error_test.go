@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 type stubOpsRepoForUserErr struct {
@@ -109,7 +109,7 @@ func TestGetUserErrorRequestDetail_OwnershipEnforced(t *testing.T) {
 		t.Fatalf("expected nil detail for unauthorized access, got %+v", got)
 	}
 	// 验证错误为 NotFound(不暴露存在性)
-	if !infraerrors.IsNotFound(err) {
+	if !apperror.IsNotFound(err) {
 		t.Fatalf("expected NotFound error, got: %v", err)
 	}
 

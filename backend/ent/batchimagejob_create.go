@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/batchimagejob"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // BatchImageJobCreate is the builder for creating a BatchImageJob entity.
@@ -334,7 +334,7 @@ func (_c *BatchImageJobCreate) SetNillableBalanceHoldAmount(v *float64) *BatchIm
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (_c *BatchImageJobCreate) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *BatchImageJobCreate {
+func (_c *BatchImageJobCreate) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *BatchImageJobCreate {
 	_c.mutation.SetSubscriptionHoldAllocations(v)
 	return _c
 }
@@ -1664,7 +1664,7 @@ func (u *BatchImageJobUpsert) AddBalanceHoldAmount(v float64) *BatchImageJobUpse
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (u *BatchImageJobUpsert) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *BatchImageJobUpsert {
+func (u *BatchImageJobUpsert) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *BatchImageJobUpsert {
 	u.Set(batchimagejob.FieldSubscriptionHoldAllocations, v)
 	return u
 }
@@ -2632,7 +2632,7 @@ func (u *BatchImageJobUpsertOne) UpdateBalanceHoldAmount() *BatchImageJobUpsertO
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (u *BatchImageJobUpsertOne) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *BatchImageJobUpsertOne {
+func (u *BatchImageJobUpsertOne) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *BatchImageJobUpsertOne {
 	return u.Update(func(s *BatchImageJobUpsert) {
 		s.SetSubscriptionHoldAllocations(v)
 	})
@@ -3833,7 +3833,7 @@ func (u *BatchImageJobUpsertBulk) UpdateBalanceHoldAmount() *BatchImageJobUpsert
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (u *BatchImageJobUpsertBulk) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *BatchImageJobUpsertBulk {
+func (u *BatchImageJobUpsertBulk) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *BatchImageJobUpsertBulk {
 	return u.Update(func(s *BatchImageJobUpsert) {
 		s.SetSubscriptionHoldAllocations(v)
 	})

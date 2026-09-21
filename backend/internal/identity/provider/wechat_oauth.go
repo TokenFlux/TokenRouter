@@ -5,12 +5,13 @@ import (
 	context "context"
 	json "encoding/json"
 	fmt "fmt"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	io "io"
 	http "net/http"
 	url "net/url"
 	strings "strings"
 	time "time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // WeChatOptions 只包含客户端所需凭据与请求目标。

@@ -2,8 +2,9 @@
 package billing
 
 import (
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	time "time"
+
+	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 // QuotaWindowView 是只读窗口展示，过期归零不写数据库。
@@ -36,19 +37,18 @@ func quotaWindowView(usage float64, limit *float64, start *time.Time, expired bo
 	return out
 }
 
-// NeedsDailyReset 判断日窗口是否已过期：start 早于「全局时区当天 0 点」即过期。
-// 时区跟随 timezone.Location()（全局服务器时区），与 billing / repo 写入的 window_start 同口径。
-func NeedsDailyReset(start *time.Time, now time.Time) bool {
+// NeedsDailyReset 按注入日历判断窗口，保持与存储写入的窗口起点一致。
+func NeedsDailyReset(start *time.Time, now time.Time, calendar timezone.Calendar) bool {
 	if start == nil {
 		return false
 	}
-	return start.Before(timezone.StartOfDay(now))
+	return start.Before(calendar.StartOfDay(now))
 }
-func NeedsWeeklyReset(start *time.Time, now time.Time) bool {
+func NeedsWeeklyReset(start *time.Time, now time.Time, calendar timezone.Calendar) bool {
 	if start == nil {
 		return false
 	}
-	return start.Before(timezone.StartOfWeek(now))
+	return start.Before(calendar.StartOfWeek(now))
 }
 
 // NeedsMonthlyReset 30 天滚动窗口语义（与订阅模式 NeedsMonthlyReset 一致）。
@@ -58,11 +58,11 @@ func NeedsMonthlyReset(start *time.Time, now time.Time) bool {
 	}
 	return now.Sub(*start) >= 30*24*time.Hour
 }
-func NextQuotaDisplayDailyReset(now time.Time) time.Time {
-	return timezone.StartOfDay(now).AddDate(0, 0, 1)
+func NextQuotaDisplayDailyReset(now time.Time, calendar timezone.Calendar) time.Time {
+	return calendar.StartOfDay(now).AddDate(0, 0, 1)
 }
-func NextQuotaDisplayWeeklyReset(now time.Time) time.Time {
-	return timezone.StartOfWeek(now).AddDate(0, 0, 7)
+func NextQuotaDisplayWeeklyReset(now time.Time, calendar timezone.Calendar) time.Time {
+	return calendar.StartOfWeek(now).AddDate(0, 0, 7)
 }
 
 // NextMonthlyResetTimeFrom 计算 30 天滚动月度窗口的下次重置时间。

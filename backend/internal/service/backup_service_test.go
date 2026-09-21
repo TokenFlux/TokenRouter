@@ -5,6 +5,8 @@ package service
 import (
 	"context"
 	"sync"
+
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 )
 
 // ─── Mocks ───
@@ -20,14 +22,14 @@ func newMockSettingRepo() *mockSettingRepo {
 	return &mockSettingRepo{data: make(map[string]string)}
 }
 
-func (m *mockSettingRepo) Get(_ context.Context, key string) (*Setting, error) {
+func (m *mockSettingRepo) Get(_ context.Context, key string) (*settingscore.Setting, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	v, ok := m.data[key]
 	if !ok {
-		return nil, ErrSettingNotFound
+		return nil, settingscore.ErrSettingNotFound
 	}
-	return &Setting{Key: key, Value: v}, nil
+	return &settingscore.Setting{Key: key, Value: v}, nil
 }
 
 func (m *mockSettingRepo) GetValue(_ context.Context, key string) (string, error) {

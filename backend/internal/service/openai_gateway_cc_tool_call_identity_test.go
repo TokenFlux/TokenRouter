@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -138,7 +139,7 @@ func TestStripEmptyChatToolCallIdentityFromSSELine_KeepsDataPrefix(t *testing.T)
 	line := `data: {"id":"chatcmpl_tool","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"","type":"function","function":{"name":"","arguments":"{}"}}]}}]}`
 	got := stripEmptyChatToolCallIdentityFromSSELine(line)
 	require.True(t, strings.HasPrefix(got, "data: "))
-	payload, ok := extractOpenAISSEDataLine(got)
+	payload, ok := openai.ExtractSSEDataLine(got)
 	require.True(t, ok)
 	require.False(t, gjson.Get(payload, "choices.0.delta.tool_calls.0.id").Exists())
 	require.False(t, gjson.Get(payload, "choices.0.delta.tool_calls.0.function.name").Exists())
@@ -158,7 +159,7 @@ func TestStripEmptyChatToolCallIdentity_DshClientMerge(t *testing.T) {
 	var mergedID, mergedName, mergedArgs string
 	for _, line := range lines {
 		sanitized := stripEmptyChatToolCallIdentityFromSSELine(line)
-		payload, ok := extractOpenAISSEDataLine(sanitized)
+		payload, ok := openai.ExtractSSEDataLine(sanitized)
 		require.True(t, ok)
 		for _, tc := range gjson.Get(payload, "choices.0.delta.tool_calls").Array() {
 			if v := tc.Get("id"); v.Exists() {

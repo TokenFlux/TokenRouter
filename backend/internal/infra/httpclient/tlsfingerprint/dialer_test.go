@@ -13,6 +13,7 @@ package tlsfingerprint
 import (
 	"context"
 	stdtls "crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"io"
 	"net"
@@ -233,7 +234,10 @@ func TestHTTPProxyDialerSupportsHTTPSProxyCONNECT(t *testing.T) {
 
 	proxyURL := mustParseURL(proxyServer.URL)
 	dialer := NewHTTPProxyDialer(&Profile{Name: "Test Profile"}, proxyURL)
-	dialer.proxyTLSConfig = &stdtls.Config{InsecureSkipVerify: true}
+	// 只信任本地代理夹具的证书，仍验证 HTTPS 代理身份。
+	roots := x509.NewCertPool()
+	roots.AddCert(proxyServer.Certificate())
+	dialer.proxyTLSConfig = &stdtls.Config{RootCAs: roots}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()

@@ -9,14 +9,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRecovery_PanicLogContainsInfo(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	// 临时替换 DefaultErrorWriter 以捕获日志输出
 	var buf bytes.Buffer
@@ -44,7 +44,6 @@ func TestRecovery_PanicLogContainsInfo(t *testing.T) {
 }
 
 func TestRecovery(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string
@@ -60,7 +59,7 @@ func TestRecovery(t *testing.T) {
 			wantHTTPCode: http.StatusInternalServerError,
 			wantBody: response.Response{
 				Code:    http.StatusInternalServerError,
-				Message: infraerrors.UnknownMessage,
+				Message: apperror.UnknownMessage,
 			},
 		},
 		{

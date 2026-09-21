@@ -8,8 +8,15 @@ import (
 	"sync"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/tidwall/gjson"
 )
@@ -25,50 +32,13 @@ const (
 )
 
 // 旧状态类型引用网关唯一的请求级预算。
-type OpenAIOAuth429FailoverState = failover.OAuth429State
-
-type openAIOAuth429Disposition uint8
 
 const (
-	openAIOAuth429Transient openAIOAuth429Disposition = iota
-	openAIOAuth429Quota5h
-	openAIOAuth429Quota7d
-	openAIOAuth429QuotaReset
+	openAIOAuth429Transient  = accountcore.OpenAI429Transient
+	openAIOAuth429Quota5h    = accountcore.OpenAI429Quota5h
+	openAIOAuth429Quota7d    = accountcore.OpenAI429Quota7d
+	openAIOAuth429QuotaReset = accountcore.OpenAI429QuotaReset
 )
-
-// classifyOpenAIOAuth429 区分账号配额耗尽信号与普通瞬时 429。明确窗口达到
-// 100% 时以该窗口为准；没有 100% 标记但包含重置头时，沿用 v179 的兼容语义，
-// 仍视为配额限流信号。
-func classifyOpenAIOAuth429(headers http.Header, responseBody []byte) (openAIOAuth429Disposition, *time.Time) {
-	if snapshot := ParseCodexRateLimitHeaders(headers); snapshot != nil {
-		if normalized := snapshot.Normalize(); normalized != nil {
-			if normalized.Used7dPercent != nil && *normalized.Used7dPercent >= 100 {
-				if normalized.Reset7dSeconds != nil {
-					now := time.Now()
-					resetAt := now.Add(time.Duration(*normalized.Reset7dSeconds) * time.Second)
-					return openAIOAuth429Quota7d, &resetAt
-				}
-				return openAIOAuth429Quota7d, nil
-			}
-			if normalized.Used5hPercent != nil && *normalized.Used5hPercent >= 100 {
-				if normalized.Reset5hSeconds != nil {
-					now := time.Now()
-					resetAt := now.Add(time.Duration(*normalized.Reset5hSeconds) * time.Second)
-					return openAIOAuth429Quota5h, &resetAt
-				}
-				return openAIOAuth429Quota5h, nil
-			}
-		}
-	}
-	if resetAt := calculateOpenAI429ResetTime(headers); resetAt != nil {
-		return openAIOAuth429QuotaReset, resetAt
-	}
-	if resetUnix := parseOpenAIRateLimitResetTime(responseBody); resetUnix != nil {
-		resetAt := time.Unix(*resetUnix, 0)
-		return openAIOAuth429QuotaReset, &resetAt
-	}
-	return openAIOAuth429Transient, nil
-}
 
 func openAIAccountStateContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	base := context.Background()
@@ -83,11 +53,11 @@ func isOpenAIOAuthAccount(account *Account) bool {
 }
 
 func isGrokOAuthAccount(account *Account) bool {
-	return account != nil && account.Platform == PlatformGrok && account.Type == AccountTypeOAuth
+	return account != nil && account.Platform == capability.PlatformGrok && account.Type == capability.AccountTypeOAuth
 }
 
 func isOpenAIAccount(account *Account) bool {
-	return account != nil && (account.Platform == PlatformOpenAI || account.Platform == PlatformGrok)
+	return account != nil && (account.Platform == capability.PlatformOpenAI || account.Platform == capability.PlatformGrok)
 }
 
 // isOpenAIContentPolicyRejection 识别只由当前请求内容触发的 OpenAI 安全拒绝。
@@ -125,17 +95,17 @@ func isOpenAIContentPolicyRejection(responseBody []byte) bool {
 // isOpenAIAccountPolicyRequestScopedError 识别只与当前请求有关、不能修改账号健康状态的错误。
 // 413 请求体限制可能是账号上游代理的独有限制，仍允许切换账号，因此不在这里统一排除。
 func isOpenAIAccountPolicyRequestScopedError(account *Account, statusCode int, responseBody []byte) bool {
-	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(responseBody))
-	if hit, _, _ := detectOpenAICyberPolicy(responseBody); hit {
+	upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(responseBody))
+	if hit, _, _ := openai.DetectOpenAICyberPolicy(responseBody); hit {
 		return true
 	}
-	if IsOpenAICyberWarningPayload(responseBody, upstreamMsg) ||
+	if gatewayprovider.IsOpenAICyberWarningPayload(responseBody, upstreamMsg) ||
 		isOpenAIContentPolicyRejection(responseBody) ||
-		isOpenAIClientInvalidRequestError(statusCode, upstreamMsg, responseBody) ||
-		isOpenAIContextWindowError(upstreamMsg, responseBody) {
+		openai.IsOpenAIClientInvalidRequestError(statusCode, upstreamMsg, responseBody) ||
+		openai.IsOpenAIContextWindowError(upstreamMsg, responseBody) {
 		return true
 	}
-	return account != nil && account.Platform == PlatformGrok && isGrokContentPolicyRejection(statusCode, responseBody)
+	return account != nil && account.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(statusCode, responseBody)
 }
 
 // handleOpenAIAccountUpstreamError 的 canonicalModel 必须是账号映射恰好应用一次后，
@@ -166,11 +136,11 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	canonicalModel ...string,
 ) UpstreamErrorDecision {
 	customStatusMatched := account != nil && account.IsCustomErrorCodesEnabled() && account.ShouldHandleErrorCode(statusCode)
-	if isOpenAIContentPolicyRejection(responseBody) || IsOpenAICyberWarningPayload(responseBody, extractUpstreamErrorMessage(responseBody)) {
-		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+	if isOpenAIContentPolicyRejection(responseBody) || gatewayprovider.IsOpenAICyberWarningPayload(responseBody, upstream.ExtractErrorMessage(responseBody)) {
+		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	if isOpenAIAccountPolicyRequestScopedError(account, statusCode, responseBody) && !customStatusMatched {
-		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	// 任意非 2xx 上游响应都表示模型请求已实际发送。
 	if s != nil {
@@ -178,14 +148,14 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	}
 	// 容量降载只描述当前请求，不代表账号健康异常；交给请求级重试预算恢复，
 	// 保持账号可调度，避免误写账号冷却状态。
-	if account != nil && account.Platform == PlatformOpenAI && isOpenAIRequestScopedCapacityShed("", responseBody) {
-		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+	if account != nil && account.Platform == capability.PlatformOpenAI && openai.IsOpenAIRequestScopedCapacityShed("", responseBody) {
+		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	stateCtx, cancel := openAIAccountStateContext(ctx)
 	defer cancel()
-	if account != nil && account.Platform == PlatformOpenAI && isOpenAIHTTPUpstreamAccessStateError(statusCode, "", responseBody) {
+	if account != nil && account.Platform == capability.PlatformOpenAI && isOpenAIHTTPUpstreamAccessStateError(statusCode, "", responseBody) {
 		message := "OpenAI upstream account or workspace is unavailable"
-		if upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(responseBody)); upstreamMsg != "" {
+		if upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(responseBody)); upstreamMsg != "" {
 			message = upstreamMsg
 		}
 		if s != nil && s.rateLimitService != nil {
@@ -200,15 +170,15 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	// 自构造图片请求始终携带匹配的 image_generation 工具，因此 400 "tool choice not found in 'tools'"
 	// 表示上游撤销了该账号的图片能力。此处必须受自构造标记保护：透传客户端自行控制
 	// tools/tool_choice，否则可能误伤健康账号。
-	if isOpenAIImagesSelfBuiltRequest(ctx) && isOpenAIImageCapabilityLossError(statusCode, responseBody) {
+	if openai.IsOpenAIImagesSelfBuiltRequest(ctx) && openai.IsImageCapabilityLossError(statusCode, responseBody) {
 		if s != nil && s.rateLimitService != nil {
 			_ = s.rateLimitService.HandleOpenAIImageCapabilityLoss(stateCtx, account, statusCode, responseBody)
 		}
-		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 
 	if s == nil || account == nil {
-		return UpstreamErrorDecision{Policy: ErrorPolicyNone}
+		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	// Team 联动熔断必须先于 model-not-found 与账户级临时不可调度规则的早退。
 	if s.rateLimitService != nil {
@@ -219,24 +189,24 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	if s.rateLimitService != nil {
 		if account.IsPoolMode() || account.IsCustomErrorCodesEnabled() {
 			decision.Policy = s.rateLimitService.ApplyExplicitErrorPolicy(stateCtx, account, statusCode, responseBody, canonicalModel...)
-			decision.StopScheduling = decision.Policy == ErrorPolicyCustomMatched || decision.Policy == ErrorPolicyTempUnscheduled
+			decision.StopScheduling = decision.Policy == accountcore.ErrorPolicyCustomMatched || decision.Policy == accountcore.ErrorPolicyTempUnscheduled
 		} else {
-			decision = UpstreamErrorDecision{Policy: ErrorPolicyNone}
+			decision = UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 		}
 	}
 	switch decision.Policy {
-	case ErrorPolicyCustomMatched:
+	case accountcore.ErrorPolicyCustomMatched:
 		decision.StopScheduling = true
 		s.BlockAccountScheduling(account, time.Time{}, "upstream_disable")
 		return decision
-	case ErrorPolicyTempUnscheduled:
+	case accountcore.ErrorPolicyTempUnscheduled:
 		decision.StopScheduling = true
 		return decision
-	case ErrorPolicyCustomSkipped, ErrorPolicyPoolBypassed:
+	case accountcore.ErrorPolicyCustomSkipped, accountcore.ErrorPolicyPoolBypassed:
 		return decision
 	}
 
-	if !suppressDefaultRateLimitState && isOpenAIImageRateLimitError(statusCode, responseBody) {
+	if !suppressDefaultRateLimitState && openai.IsImageRateLimitError(statusCode, responseBody) {
 		if s.rateLimitService != nil {
 			_ = s.rateLimitService.HandleOpenAIImageRateLimit(stateCtx, account, statusCode, headers, responseBody)
 		}
@@ -251,7 +221,7 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	if s.rateLimitService != nil && statusCode != http.StatusUnauthorized &&
 		!account.IsPoolMode() && !account.IsCustomErrorCodesEnabled() &&
 		s.rateLimitService.HandleTempUnschedulable(stateCtx, account, statusCode, responseBody, canonicalModel...) {
-		decision.Policy = ErrorPolicyTempUnscheduled
+		decision.Policy = accountcore.ErrorPolicyTempUnscheduled
 		decision.StopScheduling = true
 		if len(canonicalModel) == 0 || strings.TrimSpace(canonicalModel[0]) == "" {
 			s.BlockAccountScheduling(account, time.Time{}, "upstream_disable")
@@ -280,7 +250,7 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	// pool 模式可重试的上游错误已受请求级同账号重试预算约束；若在此记录通用的
 	// 账号+模型瞬态冷却，会在预算用完前阻止下一次已获准的重试。
 	poolModeRetryable := account.IsPoolMode() && account.IsPoolModeRetryableStatus(statusCode)
-	if !decision.StopScheduling && account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey &&
+	if !decision.StopScheduling && account.Platform == capability.PlatformOpenAI && account.Type == capability.AccountTypeAPIKey &&
 		shouldCooldownOpenAITransientUpstreamError(statusCode, responseBody) && !poolModeRetryable {
 		model := ""
 		if len(canonicalModel) > 0 {
@@ -296,7 +266,7 @@ func shouldCooldownOpenAITransientUpstreamError(statusCode int, responseBody []b
 	case http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, 520, 521, 522, 523, 524:
 		return true
 	case http.StatusBadRequest:
-		return isOpenAITransientProcessingError(statusCode, "", responseBody)
+		return openai.IsOpenAITransientProcessingError(statusCode, "", responseBody)
 	default:
 		return false
 	}
@@ -394,7 +364,7 @@ func (s *OpenAIGatewayService) openAIOAuth429RetryDeadline(account *Account) tim
 func openAIOAuth429SameAccountRetryDelay(headers http.Header, deadline time.Time) time.Duration {
 	delay := openAIOAuth429RetryDelay
 	now := time.Now()
-	if resetAt := parseRetryAfterResetTime(headers, now); resetAt != nil && resetAt.After(now) {
+	if resetAt := openai.ParseRetryAfterResetTime(headers, now); resetAt != nil && resetAt.After(now) {
 		delay = resetAt.Sub(now)
 	}
 	if delay > openAIOAuth429MaxRetryDelay {
@@ -540,48 +510,35 @@ func (s *OpenAIGatewayService) isOpenAIAccountRuntimeBlocked(account *Account) b
 	return false
 }
 
-func (s *OpenAIGatewayService) getOpenAIAccountModelTransientState() *openAIAccountModelTransientState {
+func (s *OpenAIGatewayService) getOpenAIAccountModelTransientState() *accountcore.ModelTransientState {
 	if s == nil {
 		return nil
 	}
 	s.openaiModelTransientOnce.Do(func() {
 		if s.openaiModelTransient == nil {
-			s.openaiModelTransient = newOpenAIAccountModelTransientState(openAIModelTransientDefaultMax)
+			s.openaiModelTransient = accountcore.NewModelTransientState(0)
 		}
 	})
 	return s.openaiModelTransient
 }
 
 func canonicalOpenAIAccountSchedulingModel(account *Account, requestedModel string) string {
-	model := strings.TrimSpace(requestedModel)
-	if account == nil || model == "" {
-		return model
-	}
-	if account.IsOpenAI() {
-		return resolveOpenAIAccountUpstreamModelForRequest(account, model, false, false)
-	}
-	if mapped := strings.TrimSpace(account.GetMappedModel(model)); mapped != "" {
-		model = mapped
-	}
-	if account.IsOpenAICompatible() {
-		return normalizeOpenAIModelForUpstream(account, model)
-	}
-	return model
+	return accountModelPolicy(account).CanonicalSchedulingModel(requestedModel)
 }
 
 func openAIAccountModelTransientModel(canonicalModel string) string {
-	return normalizeOpenAIAccountModelTransientModel(canonicalModel)
+	return accountcore.NormalizeTransientModel(canonicalModel)
 }
 
-func (s *OpenAIGatewayService) recordOpenAIAccountModelTransientFailure(account *Account, canonicalModel string, now time.Time) openAIAccountModelTransientDecision {
+func (s *OpenAIGatewayService) recordOpenAIAccountModelTransientFailure(account *Account, canonicalModel string, now time.Time) accountcore.ModelTransientDecision {
 	if s == nil || account == nil {
-		return openAIAccountModelTransientDecision{}
+		return accountcore.ModelTransientDecision{}
 	}
 	state := s.getOpenAIAccountModelTransientState()
 	if state == nil {
-		return openAIAccountModelTransientDecision{}
+		return accountcore.ModelTransientDecision{}
 	}
-	return state.recordFailure(account.ID, openAIAccountModelTransientModel(canonicalModel), now)
+	return state.RecordFailure(account.ID, openAIAccountModelTransientModel(canonicalModel), now)
 }
 
 // recordOpenAICompatibleModelTransientFailure 统一记录 OpenAI 兼容平台的账号与模型瞬态失败，
@@ -606,7 +563,7 @@ func (s *OpenAIGatewayService) clearOpenAIAccountModelTransientState(accountID i
 	if state == nil {
 		return
 	}
-	state.recordSuccess(accountID, model)
+	state.RecordSuccess(accountID, model)
 }
 
 func (s *OpenAIGatewayService) isOpenAIAccountModelRuntimeBlocked(account *Account, requestedModel string) bool {
@@ -618,7 +575,7 @@ func (s *OpenAIGatewayService) isOpenAIAccountModelRuntimeBlocked(account *Accou
 		return false
 	}
 	canonicalModel := canonicalOpenAIAccountSchedulingModel(account, requestedModel)
-	return state.isBlocked(account.ID, openAIAccountModelTransientModel(canonicalModel), time.Now())
+	return state.IsBlocked(account.ID, openAIAccountModelTransientModel(canonicalModel), time.Now())
 }
 
 func (s *OpenAIGatewayService) isOpenAIAccountRequestRuntimeBlocked(account *Account, requestedModel string) bool {
@@ -640,6 +597,11 @@ func (s *OpenAIGatewayService) recordOpenAIOAuth429() {
 	s.openaiOAuth429WindowCount.Add(1)
 }
 
-func (s *OpenAIGatewayService) ShouldStopOpenAIOAuth429Failover(account *Account, statusCode int, failedSwitches int, state *OpenAIOAuth429FailoverState) bool {
+func (s *OpenAIGatewayService) ShouldStopOpenAIOAuth429Failover(account *Account, statusCode int, failedSwitches int, state *failover.OAuth429State) bool {
 	return failover.StopOAuth429(failover.OAuth429Account{OpenAI: isOpenAIOAuthAccount(account), Grok: isGrokOAuthAccount(account)}, statusCode, failedSwitches, state)
+}
+
+// 旧重试策略只读取统一窗口观测，仍由调用方决定是否继续。
+func classifyOpenAIOAuth429(headers http.Header, body []byte) (accountcore.OpenAI429Disposition, *time.Time) {
+	return accountprovider.ClassifyOpenAI429(headers, body)
 }

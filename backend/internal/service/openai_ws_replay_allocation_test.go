@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,12 +51,12 @@ func TestOpenAIWSReplayStateBuildAllocationBounded(t *testing.T) {
 	runtime.ReadMemStats(&before)
 
 	for turn := 1; turn <= turns; turn++ {
-		items, exists, err := buildOpenAIWSReplayInputSequence(history, historyExists, payloads[turn-1], turn > 1)
+		items, exists, err := openai.BuildOpenAIWSReplayInputSequence(history, historyExists, payloads[turn-1], turn > 1)
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, turn)
 		// 保存历史 + collector 增量合并（与 ingress/bridge 保存点同构）。
-		history = combineOpenAIWSReplayItems(items, delta)
+		history = openai.CombineOpenAIWSReplayItems(items, delta)
 		historyExists = true
 		// 下一轮 payload 含全部用户项但不含 collector 项，触发 sanitize+merge 路径中
 		// 最常见的 prefix 分支比较。

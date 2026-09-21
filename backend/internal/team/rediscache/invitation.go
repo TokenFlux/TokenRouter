@@ -6,10 +6,11 @@ import (
 	sha256 "crypto/sha256"
 	hex "encoding/hex"
 	fmt "fmt"
-	team "github.com/TokenFlux/TokenRouter/internal/team"
-	redis "github.com/redis/go-redis/v9"
 	strings "strings"
 	time "time"
+
+	team "github.com/TokenFlux/TokenRouter/internal/team"
+	redis "github.com/redis/go-redis/v9"
 )
 
 const (

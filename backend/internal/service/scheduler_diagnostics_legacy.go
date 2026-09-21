@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
@@ -15,11 +17,11 @@ type diagnosticProjectionScope struct {
 	source        AdvancedSchedulerScoreDiagnosticSource
 	next          uint64
 	accountValues map[uint64]*Account
-	groupValues   map[uint64]*Group
+	groupValues   map[uint64]*routing.Group
 }
 
 func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticCore() (*scheduler.DiagnosticService, *diagnosticProjectionScope) {
-	scope := &diagnosticProjectionScope{source: s.source, accountValues: map[uint64]*Account{}, groupValues: map[uint64]*Group{}}
+	scope := &diagnosticProjectionScope{source: s.source, accountValues: map[uint64]*Account{}, groupValues: map[uint64]*routing.Group{}}
 	var source scheduler.DiagnosticSource
 	if s.source != nil {
 		source = scope
@@ -53,20 +55,20 @@ func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticCore() (*scheduler.D
 	})
 	return core, scope
 }
-func (s *diagnosticProjectionScope) originalGroup(g *scheduler.DiagnosticGroup) *Group {
+func (s *diagnosticProjectionScope) originalGroup(g *scheduler.DiagnosticGroup) *routing.Group {
 	if g == nil {
 		return nil
 	}
 	return s.groupValues[g.ProjectionID]
 }
-func (s *diagnosticProjectionScope) group(v *Group) *scheduler.DiagnosticGroup {
+func (s *diagnosticProjectionScope) group(v *routing.Group) *scheduler.DiagnosticGroup {
 	if v == nil {
 		return nil
 	}
 	s.next++
 	id := s.next
 	s.groupValues[id] = v
-	return &scheduler.DiagnosticGroup{ProjectionID: id, ID: v.ID, Name: v.Name, Platform: v.Platform, SortOrder: v.SortOrder, Advanced: v.UsesAdvancedScheduler(), RequirePrivacySet: v.RequirePrivacySet, AdvancedSchedulerOverrides: CloneGroupAdvancedSchedulerOverrides(v.AdvancedSchedulerOverrides)}
+	return &scheduler.DiagnosticGroup{ProjectionID: id, ID: v.ID, Name: v.Name, Platform: v.Platform, SortOrder: v.SortOrder, Advanced: v.UsesAdvancedScheduler(), RequirePrivacySet: v.RequirePrivacySet, AdvancedSchedulerOverrides: accessview.CloneGroupAdvancedSchedulerOverrides(v.AdvancedSchedulerOverrides)}
 }
 func (s *diagnosticProjectionScope) account(v *Account) *scheduler.DiagnosticAccount {
 	if v == nil {

@@ -13,8 +13,17 @@ import (
 	"time"
 	"unicode/utf8"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -67,7 +76,7 @@ func (c *stagedPassthroughConn) ReadFrame(ctx context.Context) (coderws.MessageT
 	case <-ctx.Done():
 		return coderws.MessageText, nil, ctx.Err()
 	case <-c.closed:
-		return coderws.MessageText, nil, errOpenAIWSConnClosed
+		return coderws.MessageText, nil, openai.ErrWSConnClosed
 	case frame := <-c.frames:
 		return frame.messageType, append([]byte(nil), frame.payload...), frame.err
 	}
@@ -81,7 +90,7 @@ func (c *stagedPassthroughConn) WriteFrame(ctx context.Context, _ coderws.Messag
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-c.closed:
-		return errOpenAIWSConnClosed
+		return openai.ErrWSConnClosed
 	default:
 	}
 	var parsed any
@@ -93,7 +102,7 @@ func (c *stagedPassthroughConn) WriteFrame(ctx context.Context, _ coderws.Messag
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-c.closed:
-		return errOpenAIWSConnClosed
+		return openai.ErrWSConnClosed
 	}
 	return nil
 }
@@ -104,20 +113,20 @@ func (c *stagedPassthroughConn) Close() error {
 }
 
 type stagedPassthroughDialer struct {
-	conn openAIWSClientConn
+	conn openai.WSClientConn
 }
 
-func (d *stagedPassthroughDialer) Dial(context.Context, string, http.Header, string, *tlsfingerprint.Profile) (openAIWSClientConn, int, http.Header, error) {
+func (d *stagedPassthroughDialer) Dial(context.Context, string, http.Header, string, *tlsfingerprint.Profile) (openai.WSClientConn, int, http.Header, error) {
 	return d.conn, http.StatusSwitchingProtocols, http.Header{}, nil
 }
 
 func newPassthroughLifecycleService(cfg *config.Config, upstream *stagedPassthroughConn) *OpenAIGatewayService {
 	return &OpenAIGatewayService{
-		cfg:                       cfg,
-		httpUpstream:              &httpUpstreamRecorder{},
-		cache:                     &stubGatewayCache{},
-		openaiWSResolver:          NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:             NewCodexToolCorrector(),
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector:             openai.NewCodexToolCorrector(),
 		openaiWSPassthroughDialer: &stagedPassthroughDialer{conn: upstream},
 	}
 }
@@ -131,7 +140,7 @@ func passthroughLifecycleConfig() *config.Config {
 	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-	cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 	cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = 1
 	cfg.Gateway.OpenAIWS.DialTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 1
@@ -143,14 +152,14 @@ func passthroughLifecycleAccount() *Account {
 	return &Account{
 		ID:          901,
 		Name:        "passthrough-lifecycle",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
 		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough,
+			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
 		},
 	}
 }
@@ -169,7 +178,7 @@ func startPassthroughLifecycleServerWithHooks(
 	controlCtx context.Context,
 	svc *OpenAIGatewayService,
 	account *Account,
-	hooksFactory func(*gin.Context) *OpenAIWSIngressHooks,
+	hooksFactory func(*gin.Context) *gatewayws.OpenAIIngressHooks,
 ) (*httptest.Server, <-chan error) {
 	t.Helper()
 	serverErr := make(chan error, 1)
@@ -181,7 +190,7 @@ func startPassthroughLifecycleServerWithHooks(
 		}
 		defer func() { _ = conn.CloseNow() }()
 
-		msgType, firstMessage, err := ReadOpenAIWSClientMessage(
+		msgType, firstMessage, err := gatewayhttp.ReadOpenAIWSClientMessage(
 			controlCtx,
 			conn,
 			3*time.Second,
@@ -202,7 +211,7 @@ func startPassthroughLifecycleServerWithHooks(
 		req := r.Clone(controlCtx)
 		req.Header = req.Header.Clone()
 		ginCtx.Request = req
-		var hooks *OpenAIWSIngressHooks
+		var hooks *gatewayws.OpenAIIngressHooks
 		if hooksFactory != nil {
 			hooks = hooksFactory(ginCtx)
 		}
@@ -212,7 +221,6 @@ func startPassthroughLifecycleServerWithHooks(
 }
 
 func TestPassthroughLifecycle_CyberTerminalEventsMarkBeforeAfterTurn(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name        string
@@ -261,8 +269,8 @@ func TestPassthroughLifecycle_CyberTerminalEventsMarkBeforeAfterTurn(t *testing.
 				controlCtx,
 				newPassthroughLifecycleService(passthroughLifecycleConfig(), upstream),
 				passthroughLifecycleAccount(),
-				func(c *gin.Context) *OpenAIWSIngressHooks {
-					return &OpenAIWSIngressHooks{AfterTurn: func(_ OpenAIWSTurnCapture) {
+				func(c *gin.Context) *gatewayws.OpenAIIngressHooks {
+					return &gatewayws.OpenAIIngressHooks{AfterTurn: func(_ gatewayws.OpenAITurnCapture) {
 						afterTurnCalls.Add(1)
 						if mark := GetOpsCyberPolicy(c); mark != nil {
 							select {
@@ -305,7 +313,7 @@ func TestPassthroughLifecycle_CyberTerminalEventsMarkBeforeAfterTurn(t *testing.
 }
 
 func TestPassthroughLifecycle_NonCyberFailureKeepsAccountSideEffects(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
@@ -321,8 +329,8 @@ func TestPassthroughLifecycle_NonCyberFailureKeepsAccountSideEffects(t *testing.
 		controlCtx,
 		svc,
 		account,
-		func(c *gin.Context) *OpenAIWSIngressHooks {
-			return &OpenAIWSIngressHooks{AfterTurn: func(_ OpenAIWSTurnCapture) {
+		func(c *gin.Context) *gatewayws.OpenAIIngressHooks {
+			return &gatewayws.OpenAIIngressHooks{AfterTurn: func(_ gatewayws.OpenAITurnCapture) {
 				markSeen <- GetOpsCyberPolicy(c)
 			}}
 		},
@@ -351,7 +359,7 @@ func TestPassthroughLifecycle_NonCyberFailureKeepsAccountSideEffects(t *testing.
 }
 
 func TestPassthroughLifecycle_CyberSkipsFailureAccountSideEffects(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
@@ -381,12 +389,12 @@ func TestPassthroughLifecycle_CyberSkipsFailureAccountSideEffects(t *testing.T) 
 }
 
 func TestPassthroughLifecycle_CloseReasonTruncationPreservesUTF8(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
 	originalReason := strings.Repeat("a", 119) + "界"
-	upstream.Fail(NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, originalReason, errors.New("policy rejected")))
+	upstream.Fail(gatewayhttp.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, originalReason, errors.New("policy rejected")))
 
 	server, serverErr := startPassthroughLifecycleServer(
 		t,
@@ -483,7 +491,7 @@ func TestOpenAIWSPassthroughTurnLifecycle_SerializesTerminalCommitAndNextTurn(t 
 }
 
 func TestPassthroughLifecycle_LeaseLossSendsRetryClose(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	upstream := newStagedPassthroughConn()
 	upstream.Send(`{"type":"response.created","response":{"id":"resp_lease","model":"gpt-5.1"}}`)
@@ -495,7 +503,7 @@ func TestPassthroughLifecycle_LeaseLossSendsRetryClose(t *testing.T) {
 	event, err := readPassthroughLifecycleFrame(t, clientConn, 3*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, "response.created", gjson.GetBytes(event, "type").String())
-	cancelControl(ErrOpenAIWSIngressLeaseLost)
+	cancelControl(scheduler.ErrOpenAIWSIngressLeaseLost)
 
 	_, err = readPassthroughLifecycleFrame(t, clientConn, 3*time.Second)
 	var closeErr coderws.CloseError
@@ -510,7 +518,7 @@ func TestPassthroughLifecycle_LeaseLossSendsRetryClose(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_CompletedTurnStartsInterTurnIdle(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
@@ -536,7 +544,7 @@ func TestPassthroughLifecycle_CompletedTurnStartsInterTurnIdle(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_ActiveTurnInactivityUsesReadTimeout(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
@@ -556,7 +564,7 @@ func TestPassthroughLifecycle_ActiveTurnInactivityUsesReadTimeout(t *testing.T) 
 	require.Equal(t, "upstream websocket read timeout; please reconnect", websocketCloseErr.Reason)
 	select {
 	case err := <-serverErr:
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, err, &closeErr)
 		require.Equal(t, coderws.StatusGoingAway, closeErr.StatusCode())
 		require.Equal(t, "upstream websocket read timeout; please reconnect", closeErr.Reason())
@@ -566,7 +574,7 @@ func TestPassthroughLifecycle_ActiveTurnInactivityUsesReadTimeout(t *testing.T) 
 }
 
 func TestPassthroughLifecycle_PreambleAllowsPromptClientCancel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	cfg := passthroughLifecycleConfig()
@@ -598,7 +606,7 @@ func TestPassthroughLifecycle_PreambleAllowsPromptClientCancel(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_RejectsOverlappingResponseCreate(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	cfg := passthroughLifecycleConfig()
@@ -626,7 +634,7 @@ func TestPassthroughLifecycle_RejectsOverlappingResponseCreate(t *testing.T) {
 	require.Equal(t, "overlapping response.create is not supported", websocketCloseErr.Reason)
 	select {
 	case err := <-serverErr:
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, err, &closeErr)
 		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
 		require.Equal(t, "overlapping response.create is not supported", closeErr.Reason())
@@ -636,7 +644,7 @@ func TestPassthroughLifecycle_RejectsOverlappingResponseCreate(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_ActiveTurnActivityRefreshesReadTimeout(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
@@ -677,7 +685,7 @@ func TestPassthroughLifecycle_ActiveTurnActivityRefreshesReadTimeout(t *testing.
 }
 
 func TestPassthroughLifecycle_TerminalSwitchesToInterTurnIdleTimeout(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	cfg := passthroughLifecycleConfig()
@@ -712,7 +720,7 @@ func TestPassthroughLifecycle_TerminalSwitchesToInterTurnIdleTimeout(t *testing.
 
 	select {
 	case err := <-serverErr:
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, err, &closeErr)
 		require.Equal(t, coderws.StatusNormalClosure, closeErr.StatusCode())
 		require.Equal(t, "websocket idle timeout", closeErr.Reason())
@@ -722,7 +730,7 @@ func TestPassthroughLifecycle_TerminalSwitchesToInterTurnIdleTimeout(t *testing.
 }
 
 func TestPassthroughLifecycle_FirstOutputTimeoutRemainsBounded(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
@@ -733,7 +741,7 @@ func TestPassthroughLifecycle_FirstOutputTimeoutRemainsBounded(t *testing.T) {
 
 	select {
 	case err := <-serverErr:
-		var failoverErr *UpstreamFailoverError
+		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.Equal(t, http.StatusGatewayTimeout, failoverErr.StatusCode)
 		require.Contains(t, string(failoverErr.ResponseBody), "first_output_timeout")
@@ -743,7 +751,7 @@ func TestPassthroughLifecycle_FirstOutputTimeoutRemainsBounded(t *testing.T) {
 }
 
 func TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
@@ -763,9 +771,9 @@ func TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover(t *tes
 	require.Equal(t, "upstream produced no semantic output; please reconnect", websocketCloseErr.Reason)
 	select {
 	case err := <-serverErr:
-		var failoverErr *UpstreamFailoverError
+		var failoverErr *forwardcore.UpstreamFailoverError
 		require.NotErrorAs(t, err, &failoverErr)
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, err, &closeErr)
 		require.Equal(t, coderws.StatusGoingAway, closeErr.StatusCode())
 		require.Equal(t, "upstream produced no semantic output; please reconnect", closeErr.Reason())
@@ -775,7 +783,7 @@ func TestPassthroughLifecycle_ResponseCreatedTimeoutClosesWithoutFailover(t *tes
 }
 
 func TestPassthroughLifecycle_SecondTurnTimeoutIsNotFailoverSafe(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	controlCtx, cancelControl := context.WithCancelCause(context.Background())
 	defer cancelControl(context.Canceled)
 	upstream := newStagedPassthroughConn()
@@ -804,9 +812,9 @@ func TestPassthroughLifecycle_SecondTurnTimeoutIsNotFailoverSafe(t *testing.T) {
 	require.Equal(t, "upstream produced no semantic output; please reconnect", websocketCloseErr.Reason)
 	select {
 	case err := <-serverErr:
-		var failoverErr *UpstreamFailoverError
+		var failoverErr *forwardcore.UpstreamFailoverError
 		require.NotErrorAs(t, err, &failoverErr, "handler must not replay the initial request on another account for a later-turn timeout")
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, err, &closeErr)
 		require.Equal(t, coderws.StatusGoingAway, closeErr.StatusCode())
 	case <-time.After(2500 * time.Millisecond):

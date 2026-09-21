@@ -3,32 +3,33 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCountGrokNativeSearchCallsFromJSONBytes(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, 0, countGrokNativeSearchCallsFromJSONBytes(nil))
-	require.Equal(t, 0, countGrokNativeSearchCallsFromJSONBytes([]byte(`{"output":[]}`)))
+	require.Equal(t, 0, grok.CountGrokNativeSearchCallsFromJSONBytes(nil))
+	require.Equal(t, 0, grok.CountGrokNativeSearchCallsFromJSONBytes([]byte(`{"output":[]}`)))
 	body := []byte(`{"output":[
 		{"type":"web_search_call","id":"ws1","status":"completed"},
 		{"type":"x_search_call","id":"xs1"},
 		{"type":"function_call","name":"tool_search","call_id":"ts1"},
 		{"type":"function_call","name":"lookup","call_id":"other"}
 	]}`)
-	require.Equal(t, 3, countGrokNativeSearchCallsFromJSONBytes(body))
+	require.Equal(t, 3, grok.CountGrokNativeSearchCallsFromJSONBytes(body))
 }
 
 func TestCountGrokNativeSearchCallsFromJSONBytes_PrefersNestedResponse(t *testing.T) {
 	t.Parallel()
 	body := []byte(`{"output":[{"type":"web_search_call","id":"duplicate"}],"response":{"output":[{"type":"web_search_call","id":"duplicate"},{"type":"x_search_call","id":"xs1"}]}}`)
-	require.Equal(t, 2, countGrokNativeSearchCallsFromJSONBytes(body))
+	require.Equal(t, 2, grok.CountGrokNativeSearchCallsFromJSONBytes(body))
 }
 
 func TestCountGrokNativeSearchCallsFromJSONBytes_FallsBackWhenNestedOutputNull(t *testing.T) {
 	t.Parallel()
 	body := []byte(`{"output":[{"type":"web_search_call","id":"ws1"}],"response":{"output":null}}`)
-	require.Equal(t, 1, countGrokNativeSearchCallsFromJSONBytes(body))
+	require.Equal(t, 1, grok.CountGrokNativeSearchCallsFromJSONBytes(body))
 }
 
 func TestCountGrokNativeSearchCallsFromSSEBodyDedups(t *testing.T) {
@@ -38,7 +39,7 @@ func TestCountGrokNativeSearchCallsFromSSEBodyDedups(t *testing.T) {
 		`data: {"type":"response.output_item.done","item":{"type":"web_search_call","id":"ws1","call_id":"c1"}}`,
 		`data: {"type":"response.completed","response":{"output":[{"type":"web_search_call","id":"ws1","call_id":"c1"},{"type":"x_search_call","id":"xs1","call_id":"c2"}]}}`,
 	)
-	require.Equal(t, 2, countGrokNativeSearchCallsFromSSEBody(sse))
+	require.Equal(t, 2, grok.CountGrokNativeSearchCallsFromSSEBody(sse))
 }
 
 func TestCountGrokNativeSearchCallsInSSEDataDedup_LiveStreamPath(t *testing.T) {
@@ -48,11 +49,11 @@ func TestCountGrokNativeSearchCallsInSSEDataDedup_LiveStreamPath(t *testing.T) {
 	seen := make(map[string]struct{})
 	done := []byte(`{"type":"response.output_item.done","item":{"type":"web_search_call","id":"ws1","call_id":"c1"}}`)
 	completed := []byte(`{"type":"response.completed","response":{"output":[{"type":"web_search_call","id":"ws1","call_id":"c1"},{"type":"x_search_call","id":"xs1","call_id":"c2"}]}}`)
-	require.Equal(t, 1, countGrokNativeSearchCallsInSSEDataDedup(done, seen))
-	require.Equal(t, 1, countGrokNativeSearchCallsInSSEDataDedup(completed, seen))
+	require.Equal(t, 1, grok.CountGrokNativeSearchCallsInSSEDataDedup(done, seen))
+	require.Equal(t, 1, grok.CountGrokNativeSearchCallsInSSEDataDedup(completed, seen))
 	// 未去重的原始路径仍会重复统计同一对事件包。
-	require.Equal(t, 1, countGrokNativeSearchCallsInSSEData(done))
-	require.Equal(t, 2, countGrokNativeSearchCallsInSSEData(completed))
+	require.Equal(t, 1, grok.CountGrokNativeSearchCallsInSSEData(done))
+	require.Equal(t, 2, grok.CountGrokNativeSearchCallsInSSEData(completed))
 }
 
 func TestCountGrokNativeSearchCallsInSSEDataDedup_NoIDStillDedups(t *testing.T) {
@@ -61,8 +62,8 @@ func TestCountGrokNativeSearchCallsInSSEDataDedup_NoIDStillDedups(t *testing.T) 
 	seen := make(map[string]struct{})
 	done := []byte(`{"type":"response.output_item.done","item":{"type":"web_search_call"}}`)
 	completed := []byte(`{"type":"response.completed","response":{"output":[{"type":"web_search_call"}]}}`)
-	require.Equal(t, 1, countGrokNativeSearchCallsInSSEDataDedup(done, seen))
-	require.Equal(t, 0, countGrokNativeSearchCallsInSSEDataDedup(completed, seen))
+	require.Equal(t, 1, grok.CountGrokNativeSearchCallsInSSEDataDedup(done, seen))
+	require.Equal(t, 0, grok.CountGrokNativeSearchCallsInSSEDataDedup(completed, seen))
 }
 
 func TestCountGrokNativeSearchCallsInSSEDataDedup_MultipleNoIDCalls(t *testing.T) {
@@ -71,9 +72,9 @@ func TestCountGrokNativeSearchCallsInSSEDataDedup_MultipleNoIDCalls(t *testing.T
 	firstDone := []byte(`{"type":"response.output_item.done","item":{"type":"web_search_call"}}`)
 	secondDone := []byte(`{"type":"response.output_item.done","item":{"type":"web_search_call"}}`)
 	completed := []byte(`{"type":"response.completed","response":{"output":[{"type":"web_search_call"},{"type":"web_search_call"}]}}`)
-	require.Equal(t, 1, countGrokNativeSearchCallsInSSEDataDedup(firstDone, seen))
-	require.Equal(t, 1, countGrokNativeSearchCallsInSSEDataDedup(secondDone, seen))
-	require.Equal(t, 0, countGrokNativeSearchCallsInSSEDataDedup(completed, seen))
+	require.Equal(t, 1, grok.CountGrokNativeSearchCallsInSSEDataDedup(firstDone, seen))
+	require.Equal(t, 1, grok.CountGrokNativeSearchCallsInSSEDataDedup(secondDone, seen))
+	require.Equal(t, 0, grok.CountGrokNativeSearchCallsInSSEDataDedup(completed, seen))
 }
 
 func stringsJoin(lines ...string) string {

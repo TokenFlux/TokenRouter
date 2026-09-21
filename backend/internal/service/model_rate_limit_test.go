@@ -5,7 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,7 +113,7 @@ func TestIsModelRateLimited(t *testing.T) {
 		{
 			name: "antigravity platform - gemini-3-pro-preview mapped to gemini-3-pro-high",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						"gemini-3-pro-high": map[string]any{
@@ -125,7 +128,7 @@ func TestIsModelRateLimited(t *testing.T) {
 		{
 			name: "antigravity platform - gemini family rate limit blocks mapped preview",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						antigravityGeminiModelRateLimitKey: map[string]any{
@@ -140,7 +143,7 @@ func TestIsModelRateLimited(t *testing.T) {
 		{
 			name: "antigravity platform - gemini family rate limit does not block claude",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						antigravityGeminiModelRateLimitKey: map[string]any{
@@ -155,7 +158,7 @@ func TestIsModelRateLimited(t *testing.T) {
 		{
 			name: "non-antigravity platform - gemini-3-pro-preview NOT mapped",
 			account: &Account{
-				Platform: PlatformGemini,
+				Platform: capability.PlatformGemini,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						"gemini-3-pro-high": map[string]any{
@@ -170,7 +173,7 @@ func TestIsModelRateLimited(t *testing.T) {
 		{
 			name: "antigravity platform - claude-opus-4-5-thinking mapped to opus-4-6-thinking",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						"claude-opus-4-6-thinking": map[string]any{
@@ -199,7 +202,7 @@ func TestIsModelRateLimited(t *testing.T) {
 		{
 			name: "openai image generation family key blocks image model",
 			account: &Account{
-				Platform: PlatformOpenAI,
+				Platform: capability.PlatformOpenAI,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						openAIImageGenerationRateLimitKey: map[string]any{
@@ -214,7 +217,7 @@ func TestIsModelRateLimited(t *testing.T) {
 		{
 			name: "openai image generation family key does not block text model",
 			account: &Account{
-				Platform: PlatformOpenAI,
+				Platform: capability.PlatformOpenAI,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						openAIImageGenerationRateLimitKey: map[string]any{
@@ -241,7 +244,7 @@ func TestIsModelRateLimited(t *testing.T) {
 func TestIsModelRateLimited_OpenAIImageGenerationIntentBlocksTextModelImageTool(t *testing.T) {
 	future := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
 	account := &Account{
-		Platform: PlatformOpenAI,
+		Platform: capability.PlatformOpenAI,
 		Extra: map[string]any{
 			modelRateLimitsKey: map[string]any{
 				openAIImageGenerationRateLimitKey: map[string]any{
@@ -252,7 +255,7 @@ func TestIsModelRateLimited_OpenAIImageGenerationIntentBlocksTextModelImageTool(
 	}
 
 	require.False(t, account.isModelRateLimitedWithContext(context.Background(), "gpt-5.4"))
-	require.True(t, account.isModelRateLimitedWithContext(WithOpenAIImageGenerationIntent(context.Background()), "gpt-5.4"))
+	require.True(t, account.isModelRateLimitedWithContext(requeststate.WithOpenAIImageGenerationIntent(context.Background()), "gpt-5.4"))
 }
 
 func TestIsModelRateLimited_Antigravity_ThinkingAffectsModelKey(t *testing.T) {
@@ -260,7 +263,7 @@ func TestIsModelRateLimited_Antigravity_ThinkingAffectsModelKey(t *testing.T) {
 	future := now.Add(10 * time.Minute).Format(time.RFC3339)
 
 	account := &Account{
-		Platform: PlatformAntigravity,
+		Platform: capability.PlatformAntigravity,
 		Extra: map[string]any{
 			modelRateLimitsKey: map[string]any{
 				"claude-sonnet-4-5-thinking": map[string]any{
@@ -270,7 +273,7 @@ func TestIsModelRateLimited_Antigravity_ThinkingAffectsModelKey(t *testing.T) {
 		},
 	}
 
-	ctx := context.WithValue(context.Background(), ctxkey.ThinkingEnabled, true)
+	ctx := requeststate.WithThinkingEnabled(context.Background(), true)
 	if !account.isModelRateLimitedWithContext(ctx, "claude-sonnet-4-5") {
 		t.Errorf("expected model to be rate limited")
 	}
@@ -371,7 +374,7 @@ func TestGetModelRateLimitRemainingTime(t *testing.T) {
 		{
 			name: "antigravity platform - claude-opus-4-5-thinking mapped to opus-4-6-thinking",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						"claude-opus-4-6-thinking": map[string]any{
@@ -387,7 +390,7 @@ func TestGetModelRateLimitRemainingTime(t *testing.T) {
 		{
 			name: "antigravity platform - gemini family rate limit remaining",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						antigravityGeminiModelRateLimitKey: map[string]any{
@@ -403,7 +406,7 @@ func TestGetModelRateLimitRemainingTime(t *testing.T) {
 		{
 			name: "antigravity platform - gemini family remaining ignored for claude",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						antigravityGeminiModelRateLimitKey: map[string]any{
@@ -450,7 +453,7 @@ func TestGetRateLimitRemainingTime(t *testing.T) {
 		{
 			name: "model rate limited - 15 minutes",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						"claude-sonnet-4-5": map[string]any{
@@ -466,7 +469,7 @@ func TestGetRateLimitRemainingTime(t *testing.T) {
 		{
 			name: "only model rate limited",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Extra: map[string]any{
 					modelRateLimitsKey: map[string]any{
 						"claude-sonnet-4-5": map[string]any{
@@ -482,7 +485,7 @@ func TestGetRateLimitRemainingTime(t *testing.T) {
 		{
 			name: "neither rate limited",
 			account: &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 			},
 			requestedModel: "claude-sonnet-4-5",
 			minExpected:    0,
@@ -505,10 +508,10 @@ func TestIsModelRateLimited_AnthropicFableFamilyKey(t *testing.T) {
 	future := now.Add(48 * time.Hour).Format(time.RFC3339)
 
 	account := &Account{
-		Platform: PlatformAnthropic,
+		Platform: capability.PlatformAnthropic,
 		Extra: map[string]any{
 			modelRateLimitsKey: map[string]any{
-				anthropicFableRateLimitKey: map[string]any{
+				accountcore.AnthropicFableRateLimitKey: map[string]any{
 					"rate_limit_reset_at": future,
 				},
 			},
@@ -537,9 +540,9 @@ func TestIsModelRateLimited_AnthropicFableFamilyKey(t *testing.T) {
 }
 
 func TestIsAnthropicFableModel(t *testing.T) {
-	require.True(t, isAnthropicFableModel("claude-fable-5"))
-	require.True(t, isAnthropicFableModel("claude-fable-5[1m]"))
-	require.True(t, isAnthropicFableModel("Claude-Fable-5"))
-	require.False(t, isAnthropicFableModel("claude-sonnet-4-6"))
-	require.False(t, isAnthropicFableModel(""))
+	require.True(t, anthropic.IsAnthropicFableModel("claude-fable-5"))
+	require.True(t, anthropic.IsAnthropicFableModel("claude-fable-5[1m]"))
+	require.True(t, anthropic.IsAnthropicFableModel("Claude-Fable-5"))
+	require.False(t, anthropic.IsAnthropicFableModel("claude-sonnet-4-6"))
+	require.False(t, anthropic.IsAnthropicFableModel(""))
 }

@@ -5,15 +5,29 @@ import (
 	"errors"
 	"strings"
 
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -45,7 +59,7 @@ func (p openAIWSHTTPBackend) Access(c *gin.Context) (*gatewayws.EntryKey, bool) 
 		ID:                key.ID,
 		UserID:            key.UserID,
 		GroupID:           key.GroupID,
-		ModelMapping:      service.CloneModelMapping(key.ModelMapping),
+		ModelMapping:      apikey.CloneModelMapping(key.ModelMapping),
 		FastModePolicy:    key.FastModePolicy,
 		RefreshFastPolicy: p.h.apiKeyService != nil && strings.TrimSpace(key.Key) != "",
 	}
@@ -70,9 +84,9 @@ func (p openAIWSHTTPBackend) Dependencies(c *gin.Context, log *zap.Logger) bool 
 func (p openAIWSHTTPBackend) SummarizeRead(err error) (string, string) {
 	var closed *gatewayws.ClientCloseError
 	if errors.As(err, &closed) {
-		err = service.NewOpenAIWSClientCloseError(coderws.StatusCode(closed.Status), closed.Reason, closed.Cause)
+		err = gatewayhttp.NewOpenAIWSClientCloseError(coderws.StatusCode(closed.Status), closed.Reason, closed.Cause)
 	}
-	return summarizeWSCloseErrorForLog(err)
+	return gatewayhttp.SummarizeWSCloseErrorForLog(err)
 }
 func (p openAIWSHTTPBackend) Entry(c *gin.Context, call gatewayhttp.ResponsesWSCall) gatewayws.EntryPorts {
 	key, _ := middleware.GetAPIKeyFromContext(c)
@@ -85,9 +99,9 @@ type openAIWSEntryAdapter struct {
 	h            *OpenAIGatewayHandler
 	c            *gin.Context
 	call         gatewayhttp.ResponsesWSCall
-	key          *service.APIKey
+	key          *apikey.APIKey
 	subject      middleware.AuthSubject
-	subscription *service.UserSubscription
+	subscription *billing.UserSubscription
 	log          *zap.Logger
 }
 
@@ -114,15 +128,15 @@ func (p *openAIWSEntryAdapter) BindContext(ctx context.Context) {
 	p.c.Request = p.c.Request.WithContext(ctx)
 }
 func (p *openAIWSEntryAdapter) ObserveFirst(model string) {
-	setOpsRequestContext(p.c, model, true)
-	setOpsEndpointContext(p.c, "", int16(service.RequestTypeWSV2))
+	gatewayhttp.SetOpsRequestContext(p.c, model, true)
+	gatewayhttp.SetOpsEndpointContext(p.c, "", int16(usage.RequestTypeWSV2))
 }
 func (p *openAIWSEntryAdapter) CaptureCyber(body []byte) gatewayws.EntryCyberSnapshot {
-	setOpenAICyberWarningRequestSnapshot(p.c, service.ContentModerationProtocolOpenAIResponses, body)
-	return gatewayws.EntryCyberSnapshot{Excerpt: currentOpenAICyberWarningPromptExcerpt(p.c), Input: currentOpenAICyberWarningSnapshot(p.c)}
+	gatewayhttp.SetOpenAICyberWarningRequestSnapshot(p.c, moderation.ContentModerationProtocolOpenAIResponses, body)
+	return gatewayws.EntryCyberSnapshot{Excerpt: gatewayhttp.CurrentOpenAICyberWarningPromptExcerpt(p.c), Input: gatewayhttp.CurrentOpenAICyberWarningSnapshot(p.c)}
 }
 func (p *openAIWSEntryAdapter) Moderate(_ context.Context, model string, body []byte) *moderation.Decision {
-	return p.h.checkContentModeration(p.c, p.log, p.key, p.subject, service.ContentModerationProtocolOpenAIResponses, model, body)
+	return p.h.checkContentModeration(p.c, p.log, p.key, p.subject, moderation.ContentModerationProtocolOpenAIResponses, model, body)
 }
 func (p *openAIWSEntryAdapter) ModerationError(ctx context.Context, d *moderation.Decision) {
 	gatewayhttp.WriteResponsesWSModeration(ctx, p.call.Conn, d)
@@ -139,16 +153,16 @@ func (p *openAIWSEntryAdapter) BlockedOps(model, key string) {
 }
 func (p *openAIWSEntryAdapter) Plan(ctx context.Context, model string) (context.Context, routing.ChannelMappingResult) {
 	plan := p.h.gatewayService.PlanRoute(ctx, service.APIKeyRouteGroup(p.key), p.key.GroupID, model)
-	return service.WithRoutePlan(ctx, plan), routing.ChannelMappingResult(service.ChannelMappingFromRoutePlan(plan))
+	return requeststate.WithRoutePlan(ctx, plan), routing.ChannelMappingResult(service.ChannelMappingFromRoutePlan(plan))
 }
 func (p *openAIWSEntryAdapter) ImageIntent(model string, body []byte, mapping routing.ChannelMappingResult) ([]byte, string, bool) {
-	return resolveOpenAIChannelMappedImageIntent("/v1/responses", model, body, service.ChannelMappingResult(mapping), p.Platform(), p.h.gatewayService.ReplaceModelInBody)
+	return resolveOpenAIChannelMappedImageIntent("/v1/responses", model, body, routing.ChannelMappingResult(mapping), p.Platform(), p.h.gatewayService.ReplaceModelInBody)
 }
 func (p *openAIWSEntryAdapter) ExplicitImage(model string, body []byte) bool {
 	return service.IsExplicitImageGenerationIntent("/v1/responses", model, body)
 }
 func (p *openAIWSEntryAdapter) ImageContext(ctx context.Context) context.Context {
-	return service.WithOpenAIImageGenerationIntent(ctx)
+	return requeststate.WithOpenAIImageGenerationIntent(ctx)
 }
 func (p *openAIWSEntryAdapter) ImagesAllowed() bool {
 	return service.GroupAllowsResponsesImages(p.key.Group)
@@ -157,10 +171,10 @@ func (p *openAIWSEntryAdapter) ImageDeniedMessage() string {
 	return service.ImageGenerationPermissionMessage()
 }
 func (p *openAIWSEntryAdapter) PolicyDenied() {
-	service.MarkOpsClientBusinessLimited(p.c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 }
 func (p *openAIWSEntryAdapter) FeatureDenied() {
-	service.MarkOpsClientBusinessLimited(p.c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
 func (p *openAIWSEntryAdapter) AcquireUser(ctx context.Context) (func(), bool, error) {
 	return p.h.concurrencyHelper.TryAcquireUserSlotForAPIKey(ctx, p.subject.UserID, p.subject.Concurrency, p.key.ID)
@@ -169,13 +183,13 @@ func (p *openAIWSEntryAdapter) AcquireAccount(ctx context.Context, id int64, lim
 	return p.h.concurrencyHelper.TryAcquireAccountSlot(ctx, id, limit)
 }
 func (p *openAIWSEntryAdapter) WrapRelease(ctx context.Context, release func()) func() {
-	return wrapReleaseOnDone(ctx, release)
+	return scheduler.WrapRelease(ctx, scheduler.ReleaseOnCancel, release)
 }
 func (p *openAIWSEntryAdapter) LoadSubscription() {
 	p.subscription, _ = middleware.GetSubscriptionFromContext(p.c)
 }
 func (p *openAIWSEntryAdapter) Eligibility(ctx context.Context) error {
-	return p.h.billingCacheService.CheckBillingEligibility(ctx, p.key.User, p.key, p.key.Group, p.subscription, service.QuotaPlatform(p.c.Request.Context(), p.key))
+	return p.h.billingCacheService.CheckKey(ctx, p.key, p.subscription, service.QuotaPlatform(p.c.Request.Context(), p.key), false)
 }
 func (p *openAIWSEntryAdapter) SessionHash(body []byte, seed string) string {
 	return p.h.gatewayService.GenerateSessionHashWithFallback(p.c, body, seed)
@@ -196,11 +210,11 @@ func (p *openAIWSEntryAdapter) Guardian(ctx context.Context, body []byte, model 
 	return service.WithOpenAIGuardianParentAffinity(ctx, p.c, body, model)
 }
 func (p *openAIWSEntryAdapter) Select(ctx context.Context, previous, hash, model string, excluded map[int64]struct{}, responses, move bool, platform string) (*gatewayws.EntrySelection, gatewayws.EntryDecision, error) {
-	capability := service.OpenAIEndpointCapabilityTextGeneration
+	capability := account.OpenAIEndpointCapabilityTextGeneration
 	if responses {
-		capability = service.OpenAIEndpointCapabilityResponses
+		capability = account.OpenAIEndpointCapabilityResponses
 	}
-	selection, decision, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.key.GroupID, previous, hash, model, excluded, service.OpenAIUpstreamTransportResponsesWebsocketV2Ingress, capability, false, move, platform)
+	selection, decision, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.key.GroupID, previous, hash, model, excluded, egress.OpenAIUpstreamTransportResponsesWebsocketV2Ingress, capability, false, move, platform)
 	d := gatewayws.EntryDecision{Layer: decision.Layer, CandidateCount: decision.CandidateCount, StickyPreviousHit: decision.StickyPreviousHit}
 	if selection == nil {
 		return nil, d, err
@@ -227,47 +241,41 @@ func (p *openAIWSEntryAdapter) RefreshFast(ctx context.Context) (string, bool) {
 	if err != nil || key == nil {
 		return "", false
 	}
-	return service.NormalizeAPIKeyFastModePolicy(key.FastModePolicy)
+	return apikey.NormalizeAPIKeyFastModePolicy(key.FastModePolicy)
 }
 func (p *openAIWSEntryAdapter) Failover(err error) (*gatewayws.EntryFailure, bool) {
-	var failure *service.UpstreamFailoverError
+	var failure *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &failure) || failure == nil {
 		return nil, false
 	}
 	return &gatewayws.EntryFailure{Err: failure, StatusCode: failure.StatusCode, ReportScheduleFailure: failure.ShouldReportAccountScheduleFailure(), RetryNext: failure.ShouldRetryNextAccount()}, true
 }
 func (p *openAIWSEntryAdapter) CloseFailover(failure *gatewayws.EntryFailure) {
-	var old *service.UpstreamFailoverError
+	var old *forwardcore.UpstreamFailoverError
 	if failure != nil {
 		_ = errors.As(failure.Err, &old)
 	}
-	gatewayhttp.CloseResponsesWSFailure(p.c, p.call.Conn, wsFailoverPresentation(old), service.MarkOpsStreamFailure)
+	gatewayhttp.CloseResponsesWSFailure(p.c, p.call.Conn, wsFailoverPresentation(old), gatewayhttp.MarkOpsStreamFailure)
 }
 func (p *openAIWSEntryAdapter) Close(status int, reason string) {
 	gatewayhttp.CloseResponsesWS(p.call.Conn, coderws.StatusCode(status), reason)
 }
 func (p *openAIWSEntryAdapter) CloseError(status int, reason string, err error) error {
-	return service.NewOpenAIWSClientCloseError(coderws.StatusCode(status), reason, err)
+	return gatewayhttp.NewOpenAIWSClientCloseError(coderws.StatusCode(status), reason, err)
 }
 func (p *openAIWSEntryAdapter) CloseInfo(err error) gatewayws.EntryClose {
-	return wsEntryCloseInfo(err)
+	return gatewayhttp.ResponsesWSCloseInfo(err)
 }
-func wsEntryCloseInfo(err error) gatewayws.EntryClose {
-	var closed *service.OpenAIWSClientCloseError
-	if errors.As(err, &closed) {
-		return gatewayws.EntryClose{Status: int(closed.StatusCode()), Reason: closed.Reason(), Present: true}
-	}
-	return gatewayws.EntryClose{}
-}
+
 func (p *openAIWSEntryAdapter) SessionPreempted(err error) bool {
-	return service.IsOpenAIWSSessionPreemptedError(err)
+	return gatewayws.IsSessionPreemptedError(err)
 }
 func (p *openAIWSEntryAdapter) RemovePrevious(body []byte) []byte {
-	return service.RemovePreviousResponseIDFromBody(body)
+	return openai.RemovePreviousResponseIDFromBody(body)
 }
 
 func (p *openAIWSEntryAdapter) LocalPolicyError(err error) bool {
-	var policy *service.ReasoningEffortOverLimitError
+	var policy *routing.ReasoningEffortOverLimitError
 	return errors.As(err, &policy)
 }
 func (p *openAIWSEntryAdapter) ReportFailure(err error) bool {
@@ -322,9 +330,9 @@ func (t *openAIWSEntryTarget) EnforceClient(ctx context.Context, first []byte) e
 	return t.root.h.gatewayService.EnforceOpenAIClientPolicyForRequest(ctx, t.root.c, t.account, first, router)
 }
 func (t *openAIWSEntryTarget) ResolveRouting(ctx context.Context, model string, responses bool) (string, error) {
-	capability := service.OpenAIEndpointCapabilityTextGeneration
+	capability := account.OpenAIEndpointCapabilityTextGeneration
 	if responses {
-		capability = service.OpenAIEndpointCapabilityResponses
+		capability = account.OpenAIEndpointCapabilityResponses
 	}
 	return t.root.h.gatewayService.ResolveOpenAIWSRoutingModelForAccount(ctx, t.root.key.GroupID, t.account, model, capability)
 }
@@ -343,10 +351,10 @@ func (t *openAIWSEntryTarget) PrepareCompletion(ctx context.Context, result *gat
 	p := t.root
 	legacy := service.LegacyWSForwardResult(result)
 	// 这里只转换已有资金/用量字段；复制发生在提交前，回调不捕获 Gin。
-	return service.CompletionOpenAIInput(service.PropagateAPIKeyModelRedirectTrace(usageRecordContextFromGin(p.c), ctx), &service.OpenAIRecordUsageInput{
+	return service.CompletionOpenAIInput(gatewayhttp.PropagateAPIKeyModelRedirectTrace(gatewayhttp.CompletionContext(p.c), ctx), &service.OpenAIRecordUsageInput{
 		Result: legacy, APIKey: p.key, User: p.key.User, Account: t.account, Subscription: p.subscription,
-		InboundEndpoint: GetInboundEndpoint(p.c), UpstreamEndpoint: resolveOpenAIUpstreamEndpoint(p.c, t.account, legacy), UserAgent: p.call.UserAgent, IPAddress: p.call.ClientIP,
-		RequestPayloadHash: service.HashUsageRequestPayload(body), RequestBody: append([]byte(nil), body...), PricingAt: capture.StartedAt, APIKeyService: p.h.apiKeyService,
+		InboundEndpoint: gatewayhttp.GetInboundEndpoint(p.c), UpstreamEndpoint: resolveOpenAIUpstreamEndpoint(p.c, t.account, legacy), UserAgent: p.call.UserAgent, IPAddress: p.call.ClientIP,
+		RequestPayloadHash: billing.HashUsageRequestPayload(body), RequestBody: append([]byte(nil), body...), PricingAt: capture.StartedAt, APIKeyService: p.h.apiKeyService,
 		QuotaPlatform: service.QuotaPlatform(p.c.Request.Context(), p.key), ClientSessionID: service.ExtractClientSessionID(p.c), ChannelUsageFields: mapping.ToUsageFields(model, result.UpstreamModel), CyberBlocked: cyber,
 	})
 }
@@ -358,7 +366,7 @@ func (t *openAIWSEntryTarget) Run(ctx context.Context, client gatewayws.ClientSo
 	if !ok {
 		return errors.New("unsupported websocket HTTP frame adapter")
 	}
-	old := &service.OpenAIWSIngressHooks{
+	old := &gatewayws.OpenAIIngressHooks{
 		ClientLifecycleContext:      hooks.ClientLifecycleContext,
 		InitialRequestModel:         hooks.InitialRequestModel,
 		InitialTurnStartedAt:        hooks.InitialTurnStartedAt,
@@ -373,14 +381,14 @@ func (t *openAIWSEntryTarget) Run(ctx context.Context, client gatewayws.ClientSo
 		OnUpstreamError:             hooks.OnUpstreamError,
 	}
 	if hooks.AfterTurn != nil {
-		old.AfterTurn = func(c service.OpenAIWSTurnCapture) {
+		old.AfterTurn = func(c gatewayws.OpenAITurnCapture) {
 			hooks.AfterTurn(gatewayws.TurnCapture{Turn: c.Turn, StartedAt: c.StartedAt, RequestBody: c.RequestBody, OriginalModel: c.OriginalModel, PreviousResponseID: c.PreviousResponseID, Result: service.ProjectWSForwardResult(c.Result), Err: c.Err, PayloadSource: c.PayloadSource})
 		}
 	}
 	return t.root.h.gatewayService.ProxyResponsesWebSocketFromClient(ctx, t.root.c, frames.Conn, t.account, t.token, first, old)
 }
 func (t *openAIWSEntryTarget) LogFailure(err error) {
-	status, reason := summarizeWSCloseErrorForLog(err)
+	status, reason := gatewayhttp.SummarizeWSCloseErrorForLog(err)
 	fields := []zap.Field{zap.Int64("account_id", t.account.ID), zap.Error(err), zap.String("close_status", status), zap.String("close_reason", reason)}
 	fields = appendOpenAIAccountProxyLogFields(fields, t.account)
 	t.root.log.Warn("openai.websocket_proxy_failed", fields...)
@@ -422,14 +430,14 @@ func (l wsEntryLogger) Debug(message string, fields ...gatewayws.EntryField) {
 }
 
 // wsFailoverPresentation 只转换错误展示字段，HTTP 映射由原生 Adapter 唯一持有。
-func wsFailoverPresentation(err *service.UpstreamFailoverError) *gatewayhttp.ResponsesWSFailure {
+func wsFailoverPresentation(err *forwardcore.UpstreamFailoverError) *gatewayhttp.ResponsesWSFailure {
 	if err == nil {
 		return nil
 	}
 	return &gatewayhttp.ResponsesWSFailure{
 		Reason:            string(err.Reason),
 		StatusCode:        err.StatusCode,
-		AccountAuth:       err.Stage == service.GatewayFailureStageAccountAuth,
-		CredentialMessage: service.GrokCredentialUnavailableClientMessage,
+		AccountAuth:       err.Stage == forwardcore.GatewayFailureStageAccountAuth,
+		CredentialMessage: forwardcore.GrokCredentialUnavailableClientMessage,
 	}
 }

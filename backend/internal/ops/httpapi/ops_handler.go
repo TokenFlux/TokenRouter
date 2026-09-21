@@ -776,19 +776,3 @@ func parseOpsDuration(v string) (time.Duration, bool) {
 		return 0, false
 	}
 }
-
-// CompatParseOpsViewParam 为旧测试及兼容入口提供精确委托。
-func CompatParseOpsViewParam(c *gin.Context) string { return parseOpsViewParam(c) }
-
-// CompatApplyOpsErrorSortParams 为旧测试及兼容入口提供精确委托。
-func CompatApplyOpsErrorSortParams(c *gin.Context, filter *ops.OpsErrorLogFilter) {
-	applyOpsErrorSortParams(c, filter)
-}
-
-// CompatParseOpsTimeRange 为旧测试及兼容入口提供精确委托。
-func CompatParseOpsTimeRange(c *gin.Context, defaultRange string) (time.Time, time.Time, error) {
-	return parseOpsTimeRange(c, defaultRange)
-}
-
-// CompatParseOpsDuration 为旧测试及兼容入口提供精确委托。
-func CompatParseOpsDuration(v string) (time.Duration, bool) { return parseOpsDuration(v) }

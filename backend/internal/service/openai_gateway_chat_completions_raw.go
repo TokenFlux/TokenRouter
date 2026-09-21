@@ -5,7 +5,11 @@ import (
 
 	"fmt"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/gin-gonic/gin"
 )
@@ -53,15 +57,15 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
-) (*OpenAIForwardResult, error) {
+	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
+) (*forwardcore.OpenAIResult, error) {
 	adapter := &openAIRawChatAdapter{openAIRawFallbackAdapter: &openAIRawFallbackAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch}, kind: forward.NativeChat}}
 	result, err := forward.RunRawChat(ctx, body, defaultMappedModel, adapter)
 	return openAIForwardResultFromHTTP(result), err
 }
 
 func (s *OpenAIGatewayService) rawChatCompletionsURL(account *Account) (string, error) {
-	if account.Platform == PlatformGrok {
+	if account.Platform == capability.PlatformGrok {
 		targetURL, err := buildGrokChatCompletionsURL(account, s.cfg, s.settingService)
 		if err != nil {
 			return "", fmt.Errorf("invalid grok base_url: %w", err)
@@ -81,5 +85,5 @@ func (s *OpenAIGatewayService) rawChatCompletionsURL(account *Account) (string, 
 //
 // 与 buildOpenAIResponsesURL 是姐妹函数。
 func buildOpenAIChatCompletionsURL(base string) string {
-	return buildOpenAIEndpointURL(base, "/v1/chat/completions")
+	return httpclient.BuildOpenAIEndpointURL(base, "/v1/chat/completions")
 }

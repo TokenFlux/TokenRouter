@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"log"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/settings"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"

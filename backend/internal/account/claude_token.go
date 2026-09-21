@@ -31,6 +31,15 @@ type ClaudeTokenOptions struct {
 	Vertex      func(context.Context, *Record) (string, error)
 }
 
+// ClaudeTokenSource 固定请求侧依赖，复用原有读取规则与唯一刷新协调器。
+type ClaudeTokenSource struct {
+	Options ClaudeTokenOptions
+}
+
+func (s *ClaudeTokenSource) GetAccessToken(ctx context.Context, value *Record) (string, error) {
+	return GetClaudeAccessToken(ctx, value, s.Options)
+}
+
 func ClaudeTokenCacheKey(value *Record) string {
 	return "claude:account:" + strconv.FormatInt(value.ID, 10)
 }

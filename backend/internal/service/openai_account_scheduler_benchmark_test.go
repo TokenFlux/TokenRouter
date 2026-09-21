@@ -3,6 +3,8 @@ package service
 import (
 	"sort"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
 func buildOpenAISchedulerBenchmarkCandidates(size int) []openAIAccountCandidateScore {
@@ -17,7 +19,7 @@ func buildOpenAISchedulerBenchmarkCandidates(size int) []openAIAccountCandidateS
 				ID:       accountID,
 				Priority: i % 7,
 			},
-			loadInfo: &AccountLoadInfo{
+			loadInfo: &scheduler.AccountLoadInfo{
 				AccountID:    accountID,
 				LoadRate:     (i * 17) % 100,
 				WaitingCount: (i * 11) % 13,

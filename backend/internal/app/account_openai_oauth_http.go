@@ -9,12 +9,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
-func provideOpenAIAccountOAuth(auth *service.OpenAIOAuthService, admin *account.Admin, quota *service.OpenAIQuotaService, recovery *account.RecoveryService, proxies *egress.ProxyAdmin, manager *lifecycle.Manager) *accounthttp.OpenAIOAuthHandler {
-	handler := accounthttp.NewOpenAIOAuthHandler(auth.Core(), admin, quota.Core(), recovery, accounthttp.OpenAIHTTPOptions{
+func provideOpenAIAccountOAuth(auth *account.OpenAIAuthorization, admin *account.Admin, quota *account.OpenAIQuotaService, recovery *account.RecoveryService, proxies *egress.ProxyAdmin, manager *lifecycle.Manager) *accounthttp.OpenAIOAuthHandler {
+	handler := accounthttp.NewOpenAIOAuthHandler(auth, admin, quota, recovery, accounthttp.OpenAIHTTPOptions{
 		ClientID: openai.OAuthClientConfigByPlatform,
 		ProxyURL: func(ctx context.Context, id int64) (string, bool, error) {
 			proxy, err := proxies.GetProxy(ctx, id)

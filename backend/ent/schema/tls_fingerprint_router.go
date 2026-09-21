@@ -2,15 +2,14 @@
 package schema
 
 import (
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/internal/model"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 // TLSFingerprintRouter 定义 TLS 指纹路由器 schema。
@@ -76,7 +75,7 @@ func (TLSFingerprintRouter) Fields() []ent.Field {
 			Nillable(),
 
 		// rules: 按顺序匹配的 UA 规则列表，命中第一条后返回对应 TLS 模板。
-		field.JSON("rules", []model.TLSFingerprintRouterRule{}).
+		field.JSON("rules", []egress.TLSFingerprintRouterRule{}).
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 	}

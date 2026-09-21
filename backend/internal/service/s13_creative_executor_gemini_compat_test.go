@@ -6,14 +6,15 @@ package service
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/creative"
 	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
 )
 
 type creativeGeminiGenerateRequest = creativeprovider.CreativeGeminiGenerateRequest
 
-func (e *CreativeExecutor) executeGemini(ctx context.Context, run CreativeRun, payload CreativeRunPayload, account *Account, upstreamModel string) ([]CreativeOutput, error) {
+func (e *CreativeExecutor) executeGemini(ctx context.Context, run creative.CreativeRun, payload creative.CreativeRunPayload, account *Account, upstreamModel string) ([]creative.CreativeOutput, error) {
 	return e.nativeTarget(account).ExecuteGemini(ctx, run, payload, upstreamModel)
 }
-func buildCreativeGeminiRequest(run CreativeRun, payload CreativeRunPayload, upstreamModel string) creativeGeminiGenerateRequest {
+func buildCreativeGeminiRequest(run creative.CreativeRun, payload creative.CreativeRunPayload, upstreamModel string) creativeGeminiGenerateRequest {
 	return creativeprovider.BuildCreativeGeminiRequest(run, payload, upstreamModel)
 }

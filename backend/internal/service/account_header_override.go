@@ -2,10 +2,12 @@
 package service
 
 import (
+	http "net/http"
+
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
-	http "net/http"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
 
 // 请求头覆写（header override）：对 Anthropic / OpenAI / 国产供应商平台的
@@ -52,9 +54,5 @@ func (a *Account) ApplyHeaderOverrides(h http.Header) {
 		return
 	}
 	policy := egress.RequestPolicy(egress.RequestPolicyInput{Headers: a.GetHeaderOverrides()})
-	egressprovider.ApplyRequestHeaders(h, policy, resolveWireCasing)
-}
-
-func NormalizeHeaderOverrideCredentials(credentials map[string]any) error {
-	return egress.NormalizeHeaderOverrideCredentials(credentials)
+	egressprovider.ApplyRequestHeaders(h, policy, anthropic.ResolveWireCasing)
 }

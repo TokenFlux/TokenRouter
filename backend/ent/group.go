@@ -12,7 +12,9 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/TokenFlux/TokenRouter/ent/group"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 // Group is the model entity for the Group schema.
@@ -53,7 +55,7 @@ type Group struct {
 	// 分组调度器类型：basic 或 advanced
 	SchedulerType string `json:"scheduler_type,omitempty"`
 	// 分组高级调度器稀疏覆盖；未设置字段继承网关通用设置
-	AdvancedSchedulerOverrides domain.GroupAdvancedSchedulerOverrides `json:"advanced_scheduler_overrides,omitempty"`
+	AdvancedSchedulerOverrides policy.GroupAdvancedSchedulerOverrides `json:"advanced_scheduler_overrides,omitempty"`
 	// 模型广场展示品牌
 	DisplayBrand string `json:"display_brand,omitempty"`
 	// 是否允许该分组使用图片生成能力
@@ -99,9 +101,9 @@ type Group struct {
 	// 是否允许 /v1/messages 调度到此 OpenAI 分组
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch,omitempty"`
 	// 允许客户端调用分组的协议与业务入口完整集合
-	AllowedProtocols []domain.ProtocolID `json:"allowed_protocols,omitempty"`
+	AllowedProtocols []protocol.ProtocolID `json:"allowed_protocols,omitempty"`
 	// ProtocolFallbacks holds the value of the "protocol_fallbacks" field.
-	ProtocolFallbacks map[domain.ProtocolID]domain.ProtocolID `json:"protocol_fallbacks,omitempty"`
+	ProtocolFallbacks map[protocol.ProtocolID]protocol.ProtocolID `json:"protocol_fallbacks,omitempty"`
 	// ResponsesImagePolicy holds the value of the "responses_image_policy" field.
 	ResponsesImagePolicy string `json:"responses_image_policy,omitempty"`
 	// 是否允许此 OpenAI 分组访问 Live 接口
@@ -119,11 +121,11 @@ type Group struct {
 	// 默认映射模型 ID，当账号级映射找不到时使用此值
 	DefaultMappedModel string `json:"default_mapped_model,omitempty"`
 	// OpenAI Messages 调度模型配置：按 Claude 系列/精确模型映射到目标 GPT 模型
-	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
+	MessagesDispatchModelConfig accessview.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config,omitempty"`
 	// 自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度
-	ModelsListConfig domain.GroupModelsListConfig `json:"models_list_config,omitempty"`
+	ModelsListConfig accessview.GroupModelsListConfig `json:"models_list_config,omitempty"`
 	// 分组主动可用性探测配置
-	AvailabilityProbeConfig domain.GroupAvailabilityProbeConfig `json:"availability_probe_config,omitempty"`
+	AvailabilityProbeConfig accessview.GroupAvailabilityProbeConfig `json:"availability_probe_config,omitempty"`
 	// 分组 RPM 上限，0 表示不限制；设置后接管该分组用户的限流
 	RpmLimit int `json:"rpm_limit,omitempty"`
 	// OpenAI reasoning effort 上限；可选 minimal/low/medium/high/xhigh/max
@@ -131,7 +133,7 @@ type Group struct {
 	// 超过推理强度上限时的访问控制：downgrade 自动降档，deny 拒绝访问
 	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit,omitempty"`
 	// OpenAI reasoning effort 自定义映射；可按模型精确名、前缀或后缀限定，先映射再应用上限
-	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings,omitempty"`
+	ReasoningEffortMappings []accessview.ReasoningEffortMapping `json:"reasoning_effort_mappings,omitempty"`
 	// 是否开启会话隔离
 	SessionIsolationEnabled bool `json:"session_isolation_enabled,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.

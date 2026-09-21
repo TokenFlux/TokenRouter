@@ -3,8 +3,6 @@ package schema
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -12,6 +10,7 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
 )
 
 // PromoCode holds the schema definition for the PromoCode entity.
@@ -49,7 +48,7 @@ func (PromoCode) Fields() []ent.Field {
 			Comment("已使用次数"),
 		field.String("status").
 			MaxLen(20).
-			Default(domain.PromoCodeStatusActive).
+			Default(promotion.PromoCodeStatusActive).
 			Comment("状态: active, disabled"),
 		field.Time("expires_at").
 			Optional().

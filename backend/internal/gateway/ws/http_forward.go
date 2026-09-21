@@ -4,9 +4,10 @@ package ws
 import (
 	"context"
 	"fmt"
-	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"strings"
 	"time"
+
+	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // HTTPForwardInput 固化当前请求的模型、图片计费投影与恢复上限。

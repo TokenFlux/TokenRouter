@@ -9,6 +9,10 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -16,12 +20,12 @@ import (
 
 func newCompactBridgeTestContext(t *testing.T, markClientStream bool) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
 	if markClientStream {
-		MarkOpenAICompactClientStream(c)
+		httpapi.MarkOpenAICompactClientStream(c)
 	}
 	return c, rec
 }
@@ -30,7 +34,7 @@ func newCompactBridgeTestService() *OpenAIGatewayService {
 	cfg := &config.Config{}
 	return &OpenAIGatewayService{
 		cfg:           cfg,
-		toolCorrector: NewCodexToolCorrector(),
+		toolCorrector: openai.NewCodexToolCorrector(),
 	}
 }
 
@@ -64,7 +68,7 @@ func TestBuildOpenAICompactSSEPayload_EmitsItemsAndCompleted(t *testing.T) {
 		"usage":{"input_tokens":9,"output_tokens":4,"total_tokens":13}
 	}`)
 
-	payload, ok := buildOpenAICompactSSEPayload(finalResponse)
+	payload, ok := httpapi.BuildOpenAICompactSSEPayload(finalResponse)
 	require.True(t, ok)
 
 	events := parseCompactBridgeSSE(t, string(payload))
@@ -93,7 +97,7 @@ func TestBuildOpenAICompactSSEPayload_EmitsItemsAndCompleted(t *testing.T) {
 }
 
 func TestBuildOpenAICompactSSEPayload_InjectsMissingResponseID(t *testing.T) {
-	payload, ok := buildOpenAICompactSSEPayload([]byte(`{"output":[{"type":"compaction","encrypted_content":"x"}]}`))
+	payload, ok := httpapi.BuildOpenAICompactSSEPayload([]byte(`{"output":[{"type":"compaction","encrypted_content":"x"}]}`))
 	require.True(t, ok)
 
 	events := parseCompactBridgeSSE(t, string(payload))
@@ -106,7 +110,7 @@ func TestBuildOpenAICompactSSEPayload_InjectsMissingResponseID(t *testing.T) {
 }
 
 func TestBuildOpenAICompactSSEPayload_ReplacesNonStringResponseID(t *testing.T) {
-	payload, ok := buildOpenAICompactSSEPayload([]byte(`{"id":123,"output":[{"type":"compaction","encrypted_content":"x"}]}`))
+	payload, ok := httpapi.BuildOpenAICompactSSEPayload([]byte(`{"id":123,"output":[{"type":"compaction","encrypted_content":"x"}]}`))
 	require.True(t, ok)
 
 	events := parseCompactBridgeSSE(t, string(payload))
@@ -125,7 +129,7 @@ func TestBuildOpenAICompactSSEPayload_DropsMalformedUsage(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			body := []byte(`{"id":"resp_1","output":[{"type":"compaction","encrypted_content":"x"}],"usage":` + usage + `}`)
-			payload, ok := buildOpenAICompactSSEPayload(body)
+			payload, ok := httpapi.BuildOpenAICompactSSEPayload(body)
 			require.True(t, ok)
 
 			events := parseCompactBridgeSSE(t, string(payload))
@@ -137,7 +141,7 @@ func TestBuildOpenAICompactSSEPayload_DropsMalformedUsage(t *testing.T) {
 }
 
 func TestBuildOpenAICompactSSEPayload_KeepsWellFormedUsage(t *testing.T) {
-	payload, ok := buildOpenAICompactSSEPayload([]byte(`{
+	payload, ok := httpapi.BuildOpenAICompactSSEPayload([]byte(`{
 		"id":"resp_1",
 		"output":[{"type":"compaction","encrypted_content":"x"}],
 		"usage":{"input_tokens":9,"output_tokens":4,"total_tokens":13,"input_tokens_details":{"cached_tokens":2}}
@@ -158,7 +162,7 @@ func TestBuildOpenAICompactSSEPayload_RejectsNonJSONObject(t *testing.T) {
 		"non_json":  []byte("upstream said no"),
 		"bare_true": []byte("true"),
 	} {
-		_, ok := buildOpenAICompactSSEPayload(body)
+		_, ok := httpapi.BuildOpenAICompactSSEPayload(body)
 		require.False(t, ok, "case %s 不应被合成为 SSE", name)
 	}
 }
@@ -168,17 +172,17 @@ func TestWriteOpenAICompactSSEBridge_RequiresMarkAndSuccessStatus(t *testing.T) 
 
 	// 未标记 client stream：不写出，走原 JSON 路径。
 	c, rec := newCompactBridgeTestContext(t, false)
-	require.False(t, writeOpenAICompactSSEBridge(c, http.StatusOK, finalResponse))
+	require.False(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusOK, finalResponse, httpapi.MarkOpsStreamError))
 	require.Zero(t, rec.Body.Len())
 
 	// 标记但上游非 2xx：错误响应保持 JSON 原样（Codex 依赖 HTTP 状态码走重试）。
 	c, rec = newCompactBridgeTestContext(t, true)
-	require.False(t, writeOpenAICompactSSEBridge(c, http.StatusBadGateway, finalResponse))
+	require.False(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusBadGateway, finalResponse, httpapi.MarkOpsStreamError))
 	require.Zero(t, rec.Body.Len())
 
 	// 标记且 2xx：合成 SSE。
 	c, rec = newCompactBridgeTestContext(t, true)
-	require.True(t, writeOpenAICompactSSEBridge(c, http.StatusOK, finalResponse))
+	require.True(t, httpapi.WriteOpenAICompactSSEBridge(c, http.StatusOK, finalResponse, httpapi.MarkOpsStreamError))
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "text/event-stream", rec.Header().Get("Content-Type"))
 	require.Contains(t, rec.Body.String(), "event: response.completed")
@@ -203,7 +207,7 @@ func TestHandleNonStreamingResponse_CompactClientStreamBridgesToSSE(t *testing.T
 		}`)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -237,7 +241,7 @@ func TestHandleNonStreamingResponse_PathBasedCompactStaysJSON(t *testing.T) {
 		}`)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -262,7 +266,7 @@ func TestHandleSSEToJSON_CompactClientStreamBridgesToSSE(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -295,7 +299,7 @@ func TestHandleSSEToJSON_CompactRawOutputItemDoneRepairsEmptyTerminalOutput(t *t
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -364,7 +368,7 @@ func TestHandleSSEToJSON_PathBasedCompactRawOutputItemDoneRepairsJSON(t *testing
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -386,7 +390,7 @@ func TestReconstructResponseOutputFromSSE_PrefersRawDoneItems(t *testing.T) {
 		`data: {"type":"response.completed","response":{"id":"resp_1","output":[]}}`,
 	}, "\n")
 
-	outputJSON, ok := reconstructResponseOutputFromSSE(bodyText)
+	outputJSON, ok := bridge.ReconstructResponseOutputFromSSE(bodyText)
 	require.True(t, ok)
 	items := gjson.ParseBytes(outputJSON).Array()
 	require.Len(t, items, 1, "raw done item 与 delta 重建不得重复")
@@ -401,7 +405,7 @@ func TestReconstructResponseOutputFromSSE_CompactionAddedFallback(t *testing.T) 
 		`data: {"type":"response.completed","response":{"id":"resp_1","output":[]}}`,
 	}, "\n")
 
-	outputJSON, ok := reconstructResponseOutputFromSSE(bodyText)
+	outputJSON, ok := bridge.ReconstructResponseOutputFromSSE(bodyText)
 	require.True(t, ok)
 	items := gjson.ParseBytes(outputJSON).Array()
 	require.Len(t, items, 1)
@@ -418,7 +422,7 @@ func TestReconstructResponseOutputFromSSE_MixedDoneAndCompactionAdded(t *testing
 		`data: {"type":"response.completed","response":{"id":"resp_1","output":[]}}`,
 	}, "\n")
 
-	outputJSON, ok := reconstructResponseOutputFromSSE(bodyText)
+	outputJSON, ok := bridge.ReconstructResponseOutputFromSSE(bodyText)
 	require.True(t, ok)
 	items := gjson.ParseBytes(outputJSON).Array()
 	require.Len(t, items, 2)
@@ -432,7 +436,7 @@ func TestReconstructResponseOutputFromSSE_MixedDoneAndCompactionAdded(t *testing
 		`data: {"type":"response.output_item.done","output_index":0,"item":{"type":"compaction","status":"completed","encrypted_content":"final"}}`,
 		`data: {"type":"response.completed","response":{"id":"resp_1","output":[]}}`,
 	}, "\n")
-	outputJSON, ok = reconstructResponseOutputFromSSE(bodyText)
+	outputJSON, ok = bridge.ReconstructResponseOutputFromSSE(bodyText)
 	require.True(t, ok)
 	items = gjson.ParseBytes(outputJSON).Array()
 	require.Len(t, items, 1)
@@ -457,7 +461,7 @@ func TestHandleSSEToJSON_CompactSupplementsMissingCompactionIntoNonEmptyOutput(t
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -478,7 +482,7 @@ func TestSupplementCompactionItemFromSSE_Gating(t *testing.T) {
 	bodyText := `data: {"type":"response.output_item.done","item":{"id":"cmp_g","type":"compaction","encrypted_content":"g"}}` + "\n"
 
 	// 非 compact 路径：不补入。
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -508,7 +512,7 @@ func TestReconstructResponseOutputFromSSE_NonCompactionAddedStillUsesDeltas(t *t
 		`data: {"type":"response.completed","response":{"id":"resp_1","output":[]}}`,
 	}, "\n")
 
-	outputJSON, ok := reconstructResponseOutputFromSSE(bodyText)
+	outputJSON, ok := bridge.ReconstructResponseOutputFromSSE(bodyText)
 	require.True(t, ok)
 	items := gjson.ParseBytes(outputJSON).Array()
 	require.Len(t, items, 1)

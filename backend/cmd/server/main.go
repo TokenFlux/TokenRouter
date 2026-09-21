@@ -4,6 +4,9 @@ package main
 
 import (
 	"context"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
 	_ "embed"
 	"errors"
 	"flag"
@@ -21,11 +24,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/app"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/setup"
 	"github.com/TokenFlux/TokenRouter/internal/web"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -56,7 +57,7 @@ func init() {
 // initLogger configures the default slog handler based on gin.Mode().
 // In non-release mode, Debug level logs are enabled.
 func main() {
-	logger.InitBootstrap()
+	logging.InitBootstrap()
 	err := run()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Server failed: %v\n", err)
@@ -104,7 +105,7 @@ func run() (err error) {
 
 func runSetupServer(ctx context.Context, restarter *lifecycle.Restarter) (err error) {
 	manager := lifecycle.New()
-	manager.Register(lifecycle.Hook{Name: "SetupLogs", StopOrder: 1000, Stop: func(context.Context) error { logger.Sync(); return nil }})
+	manager.Register(lifecycle.Hook{Name: "SetupLogs", StopOrder: 1000, Stop: func(context.Context) error { logging.Sync(); return nil }})
 	defer func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -158,7 +159,7 @@ func runMainServer(ctx context.Context, restarter *lifecycle.Restarter) (err err
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	if err := logger.Init(app.OptionsFromConfig(cfg.Log)); err != nil {
+	if err := logging.Init(app.OptionsFromConfig(cfg.Log)); err != nil {
 		return fmt.Errorf("initialize logger: %w", err)
 	}
 	if cfg.RunMode == config.RunModeSimple {
@@ -175,7 +176,7 @@ func runMainServer(ctx context.Context, restarter *lifecycle.Restarter) (err err
 // syncBootstrapLogs 用于没有完整应用图的入口，日志同步也必须有界。
 func syncBootstrapLogs() error {
 	manager := lifecycle.New()
-	manager.Register(lifecycle.Hook{Name: "BootstrapLogs", Stop: func(context.Context) error { logger.Sync(); return nil }})
+	manager.Register(lifecycle.Hook{Name: "BootstrapLogs", Stop: func(context.Context) error { logging.Sync(); return nil }})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	return manager.Stop(ctx)

@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -18,10 +19,10 @@ var handlerStructuredLogCaptureMu sync.Mutex
 
 type handlerInMemoryLogSink struct {
 	mu     sync.Mutex
-	events []*logger.LogEvent
+	events []*logging.LogEvent
 }
 
-func (s *handlerInMemoryLogSink) WriteLogEvent(event *logger.LogEvent) {
+func (s *handlerInMemoryLogSink) WriteLogEvent(event *logging.LogEvent) {
 	if event == nil {
 		return
 	}
@@ -84,23 +85,23 @@ func captureHandlerStructuredLog(t *testing.T) (*handlerInMemoryLogSink, func())
 	t.Helper()
 	handlerStructuredLogCaptureMu.Lock()
 
-	err := logger.Init(logger.InitOptions{
+	err := logging.Init(logging.InitOptions{
 		Level:       "debug",
 		Format:      "json",
 		ServiceName: "sub2api",
 		Environment: "test",
-		Output: logger.OutputOptions{
+		Output: logging.OutputOptions{
 			ToStdout: true,
 			ToFile:   false,
 		},
-		Sampling: logger.SamplingOptions{Enabled: false},
+		Sampling: logging.SamplingOptions{Enabled: false},
 	})
 	require.NoError(t, err)
 
 	sink := &handlerInMemoryLogSink{}
-	logger.SetSink(sink)
+	logging.SetSink(sink)
 	return sink, func() {
-		logger.SetSink(nil)
+		logging.SetSink(nil)
 		handlerStructuredLogCaptureMu.Unlock()
 	}
 }
@@ -108,7 +109,6 @@ func captureHandlerStructuredLog(t *testing.T) (*handlerInMemoryLogSink, func())
 func TestIsOpenAILegacyCompactPath(t *testing.T) {
 	require.False(t, isOpenAILegacyCompactPath(nil))
 
-	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
@@ -126,7 +126,7 @@ func TestIsOpenAILegacyCompactPath(t *testing.T) {
 }
 
 func TestLogOpenAIRemoteCompactOutcome_Succeeded(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureHandlerStructuredLog(t)
 	defer restore()
 
@@ -134,8 +134,8 @@ func TestLogOpenAIRemoteCompactOutcome_Succeeded(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
 	c.Request.Header.Set("User-Agent", "codex_cli_rs/0.125.0")
-	c.Set(opsModelKey, "gpt-5.3-codex")
-	c.Set(opsAccountIDKey, int64(123))
+	c.Set(gatewayhttp.OpsModelKey, "gpt-5.3-codex")
+	c.Set(gatewayhttp.OpsAccountIDKey, int64(123))
 	c.Header("x-request-id", "rid-compact-ok")
 	c.Status(http.StatusOK)
 
@@ -152,7 +152,7 @@ func TestLogOpenAIRemoteCompactOutcome_Succeeded(t *testing.T) {
 }
 
 func TestLogOpenAIRemoteCompactOutcome_Failed(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureHandlerStructuredLog(t)
 	defer restore()
 
@@ -172,7 +172,7 @@ func TestLogOpenAIRemoteCompactOutcome_Failed(t *testing.T) {
 }
 
 func TestLogOpenAIRemoteCompactOutcome_NonCompactSkips(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureHandlerStructuredLog(t)
 	defer restore()
 
@@ -189,7 +189,7 @@ func TestLogOpenAIRemoteCompactOutcome_NonCompactSkips(t *testing.T) {
 }
 
 func TestOpenAIResponses_CompactUnauthorizedLogsFailed(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureHandlerStructuredLog(t)
 	defer restore()
 

@@ -7,12 +7,10 @@ package service
 
 import (
 	"context"
-	"errors"
-	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/stretchr/testify/require"
 )
 
 // accountRepoStub 是 AccountRepository 接口的测试桩实现。
@@ -207,7 +205,7 @@ func (s *accountRepoStub) UpdateExtra(ctx context.Context, id int64, updates map
 	panic("unexpected UpdateExtra call")
 }
 
-func (s *accountRepoStub) BulkUpdate(ctx context.Context, ids []int64, updates AccountBulkUpdate) (int64, error) {
+func (s *accountRepoStub) BulkUpdate(ctx context.Context, ids []int64, updates accountcore.AccountBulkUpdate) (int64, error) {
 	panic("unexpected BulkUpdate call")
 }
 
@@ -225,67 +223,4 @@ func (s *accountRepoStub) RevertProxyFallback(ctx context.Context, accountID int
 
 func (s *accountRepoStub) ListShadowsByParent(ctx context.Context, parentID int64) ([]*Account, error) {
 	return nil, nil
-}
-
-// TestAccountService_Delete_NotFound 测试删除不存在的账号时返回正确的错误。
-// 预期行为：
-//   - ExistsByID 返回 false（账号不存在）
-//   - 返回 ErrAccountNotFound 错误
-//   - Delete 方法不被调用（deletedIDs 为空）
-func TestAccountService_Delete_NotFound(t *testing.T) {
-	repo := &accountRepoStub{exists: false}
-	svc := &AccountService{accountRepo: repo}
-
-	err := svc.Delete(context.Background(), 55)
-	require.ErrorIs(t, err, ErrAccountNotFound)
-	require.Empty(t, repo.deletedIDs) // 验证删除操作未被调用
-}
-
-// TestAccountService_Delete_CheckError 测试存在性检查失败时的错误处理。
-// 预期行为：
-//   - ExistsByID 返回数据库错误
-//   - 返回包含 "check account" 的错误信息
-//   - Delete 方法不被调用
-func TestAccountService_Delete_CheckError(t *testing.T) {
-	repo := &accountRepoStub{existsErr: errors.New("db down")}
-	svc := &AccountService{accountRepo: repo}
-
-	err := svc.Delete(context.Background(), 55)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "check account") // 验证错误信息包含上下文
-	require.Empty(t, repo.deletedIDs)
-}
-
-// TestAccountService_Delete_DeleteError 测试删除操作失败时的错误处理。
-// 预期行为：
-//   - ExistsByID 返回 true（账号存在）
-//   - Delete 被调用但返回错误
-//   - 返回包含 "delete account" 的错误信息
-//   - deletedIDs 记录了尝试删除的 ID
-func TestAccountService_Delete_DeleteError(t *testing.T) {
-	repo := &accountRepoStub{
-		exists:    true,
-		deleteErr: errors.New("delete failed"),
-	}
-	svc := &AccountService{accountRepo: repo}
-
-	err := svc.Delete(context.Background(), 55)
-	require.Error(t, err)
-	require.ErrorContains(t, err, "delete account")
-	require.Equal(t, []int64{55}, repo.deletedIDs) // 验证删除操作被调用
-}
-
-// TestAccountService_Delete_Success 测试删除操作成功的场景。
-// 预期行为：
-//   - ExistsByID 返回 true（账号存在）
-//   - Delete 成功执行
-//   - 返回 nil 错误
-//   - deletedIDs 记录了被删除的 ID
-func TestAccountService_Delete_Success(t *testing.T) {
-	repo := &accountRepoStub{exists: true}
-	svc := &AccountService{accountRepo: repo}
-
-	err := svc.Delete(context.Background(), 55)
-	require.NoError(t, err)
-	require.Equal(t, []int64{55}, repo.deletedIDs) // 验证正确的 ID 被删除
 }

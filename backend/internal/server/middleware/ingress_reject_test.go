@@ -30,7 +30,7 @@ func TestNormalizeIngressRejectIP(t *testing.T) {
 }
 
 func TestLoggerRecordsIngressRejectOnce(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := &ingressRejectRecorderStub{}
 	SetIngressRejectRecorder(recorder)
 	t.Cleanup(func() { SetIngressRejectRecorder(nil) })

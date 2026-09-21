@@ -14,7 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/announcement"
 	"github.com/TokenFlux/TokenRouter/ent/announcementread"
 	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 )
 
 // AnnouncementUpdate is the builder for updating Announcement entities.
@@ -87,13 +87,13 @@ func (_u *AnnouncementUpdate) SetNillableNotifyMode(v *string) *AnnouncementUpda
 }
 
 // SetTargeting sets the "targeting" field.
-func (_u *AnnouncementUpdate) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementUpdate {
+func (_u *AnnouncementUpdate) SetTargeting(v site.AnnouncementTargeting) *AnnouncementUpdate {
 	_u.mutation.SetTargeting(v)
 	return _u
 }
 
 // SetNillableTargeting sets the "targeting" field if the given value is not nil.
-func (_u *AnnouncementUpdate) SetNillableTargeting(v *domain.AnnouncementTargeting) *AnnouncementUpdate {
+func (_u *AnnouncementUpdate) SetNillableTargeting(v *site.AnnouncementTargeting) *AnnouncementUpdate {
 	if v != nil {
 		_u.SetTargeting(*v)
 	}
@@ -493,13 +493,13 @@ func (_u *AnnouncementUpdateOne) SetNillableNotifyMode(v *string) *AnnouncementU
 }
 
 // SetTargeting sets the "targeting" field.
-func (_u *AnnouncementUpdateOne) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementUpdateOne {
+func (_u *AnnouncementUpdateOne) SetTargeting(v site.AnnouncementTargeting) *AnnouncementUpdateOne {
 	_u.mutation.SetTargeting(v)
 	return _u
 }
 
 // SetNillableTargeting sets the "targeting" field if the given value is not nil.
-func (_u *AnnouncementUpdateOne) SetNillableTargeting(v *domain.AnnouncementTargeting) *AnnouncementUpdateOne {
+func (_u *AnnouncementUpdateOne) SetNillableTargeting(v *site.AnnouncementTargeting) *AnnouncementUpdateOne {
 	if v != nil {
 		_u.SetTargeting(*v)
 	}

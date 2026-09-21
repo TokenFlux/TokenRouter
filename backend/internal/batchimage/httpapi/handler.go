@@ -7,17 +7,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	service "github.com/TokenFlux/TokenRouter/internal/batchimage"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
+	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -292,7 +294,7 @@ func (h *BatchImageHandler) ItemContent(c *gin.Context) {
 // 此时无法再向客户端返回错误，失败只能记日志（不能静默丢弃）。
 func (h *BatchImageHandler) markDownloadedBestEffort(c *gin.Context, owner service.BatchImageOwner) {
 	if err := h.service.MarkDownloaded(c.Request.Context(), owner, c.Param("id")); err != nil {
-		logger.L().Warn("batch_image.mark_downloaded_failed",
+		logging.L().Warn("batch_image.mark_downloaded_failed",
 			zap.String("batch_id", c.Param("id")),
 			zap.Error(err),
 		)

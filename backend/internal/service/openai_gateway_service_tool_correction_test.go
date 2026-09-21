@@ -3,13 +3,15 @@ package service
 import (
 	"strings"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // TestOpenAIGatewayService_ToolCorrection 测试 OpenAIGatewayService 中的工具修正集成
 func TestOpenAIGatewayService_ToolCorrection(t *testing.T) {
 	// 创建一个简单的 service 实例来测试工具修正
 	service := &OpenAIGatewayService{
-		toolCorrector: NewCodexToolCorrector(),
+		toolCorrector: openai.NewCodexToolCorrector(),
 	}
 
 	tests := []struct {
@@ -80,7 +82,7 @@ func TestOpenAIGatewayService_ToolCorrection(t *testing.T) {
 // TestOpenAIGatewayService_ToolCorrectorInitialization 测试工具修正器是否正确初始化
 func TestOpenAIGatewayService_ToolCorrectorInitialization(t *testing.T) {
 	service := &OpenAIGatewayService{
-		toolCorrector: NewCodexToolCorrector(),
+		toolCorrector: openai.NewCodexToolCorrector(),
 	}
 
 	if service.toolCorrector == nil {
@@ -103,7 +105,7 @@ func TestOpenAIGatewayService_ToolCorrectorInitialization(t *testing.T) {
 // TestToolCorrectionStats 测试工具修正统计功能
 func TestToolCorrectionStats(t *testing.T) {
 	service := &OpenAIGatewayService{
-		toolCorrector: NewCodexToolCorrector(),
+		toolCorrector: openai.NewCodexToolCorrector(),
 	}
 
 	// 执行几次修正

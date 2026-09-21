@@ -4,13 +4,14 @@ package postgres
 import (
 	context "context"
 	sql "database/sql"
+	time "time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	time "time"
 )
 
 func (r *MemberUsageStore) ResetMemberUsage(ctx context.Context, teamID, userID int64, resetDaily, resetWeekly, resetMonthly bool, now time.Time) error {
-	calendar := timezone.NewCalendar(timezone.Location())
+	calendar := timezone.NewCalendar(time.Local)
 	if r.calendar != nil {
 		calendar = *r.calendar
 	}

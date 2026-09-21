@@ -207,7 +207,7 @@ func (r *Store) getUsageTrendFromAnalytics(ctx context.Context, start, end time.
 	if err != nil || !ok {
 		return nil, false, err
 	}
-	query.args = append(query.args, resolveUsageStatsTimezone())
+	query.args = append(query.args, r.resolveUsageStatsTimezone())
 	timezonePosition := len(query.args)
 	dateFormat := safeDateFormat(granularity)
 	rows, err := r.sql.QueryContext(ctx, query.cte+fmt.Sprintf(`
@@ -324,7 +324,7 @@ func (r *Store) getAPIKeyUsageTrendFromAnalytics(ctx context.Context, start, end
 	if limit <= 0 {
 		limit = 12
 	}
-	query.args = append(query.args, resolveUsageStatsTimezone(), limit)
+	query.args = append(query.args, r.resolveUsageStatsTimezone(), limit)
 	timezonePosition := len(query.args) - 1
 	limitPosition := len(query.args)
 	rows, err := r.sql.QueryContext(ctx, query.cte+fmt.Sprintf(`,
@@ -373,7 +373,7 @@ func (r *Store) getUserUsageTrendFromAnalytics(ctx context.Context, start, end t
 	if limit <= 0 {
 		limit = 12
 	}
-	query.args = append(query.args, resolveUsageStatsTimezone(), limit)
+	query.args = append(query.args, r.resolveUsageStatsTimezone(), limit)
 	timezonePosition := len(query.args) - 1
 	limitPosition := len(query.args)
 	rows, err := r.sql.QueryContext(ctx, query.cte+fmt.Sprintf(`,

@@ -48,3 +48,20 @@ func TestSettingsRuntimePreservesFallbackAndIsolatesValues(t *testing.T) {
 	require.Equal(t, float64(2), third.WeightOverrides["priority"])
 	require.Equal(t, 3, third.LbTopKOverride)
 }
+
+// 管理写入校验不能复用热路径缓存，也不能在批量读取失败后掩盖错误。
+func TestValidationWeightsReadFreshAndPropagateFailure(t *testing.T) {
+	source := &runtimeSettingFixture{}
+	defaults := DefaultAdminSettingsDefaults()
+	first, err := LoadValidationWeights(context.Background(), source, defaults)
+	require.NoError(t, err)
+	require.Zero(t, first.Load, "显式零权重必须覆盖启动值")
+	require.Equal(t, defaults.Weights.Priority, first.Priority)
+	_, err = LoadValidationWeights(context.Background(), source, defaults)
+	require.NoError(t, err)
+	require.Equal(t, 2, source.batch, "每次管理校验都读取最新值")
+	source.fail = true
+	_, err = LoadValidationWeights(context.Background(), source, defaults)
+	require.ErrorContains(t, err, "load advanced scheduler settings: 批量读取失败")
+	require.Empty(t, source.keys, "管理校验不使用热路径的逐键降级")
+}

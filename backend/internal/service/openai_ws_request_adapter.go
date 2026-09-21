@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	coderws "github.com/coder/websocket"
 	"github.com/tidwall/sjson"
 )
@@ -32,8 +36,8 @@ func (p *wsRequestAdapter) Mutate(current []byte, path, value string) ([]byte, e
 	switch path {
 	case "type", "model":
 		payload[path] = value
-	case "client_metadata." + openAIWSTurnMetadataHeader:
-		setOpenAIWSTurnMetadata(payload, fmt.Sprintf("%v", value))
+	case "client_metadata." + openai.WSTurnMetadataHeader:
+		openai.SetOpenAIWSTurnMetadata(payload, fmt.Sprintf("%v", value))
 	default:
 		return nil, err
 	}
@@ -50,7 +54,7 @@ func (p *wsRequestAdapter) ClassifyPrevious(id string) string {
 	return ClassifyOpenAIPreviousResponseIDKind(id)
 }
 func (p *wsRequestAdapter) TurnMetadata() string {
-	return strings.TrimSpace(p.request.GetHeader(openAIWSTurnMetadataHeader))
+	return strings.TrimSpace(p.request.GetHeader(openai.WSTurnMetadataHeader))
 }
 func (p *wsRequestAdapter) ImagePolicy(ctx context.Context, body []byte) gatewayws.ImagePolicy {
 	apiKey := getAPIKeyFromContext(p.request)
@@ -65,24 +69,24 @@ func (p *wsRequestAdapter) ImagePolicy(ctx context.Context, body []byte) gateway
 }
 func (p *wsRequestAdapter) BridgeImages(normalized []byte) ([]byte, error) {
 	payloadMap := make(map[string]any)
-	if err := decodeOpenAIJSONUseNumber(normalized, &payloadMap); err != nil {
+	if err := wirejson.DecodeUseNumber(normalized, &payloadMap); err != nil {
 		return nil, err
 	}
 	bridgeModified := false
 	if ensureOpenAIResponsesImageGenerationTool(payloadMap) {
 		bridgeModified = true
-		logOpenAIWSModeInfo("ingress_ws_codex_image_tool_injected account_id=%d", p.account.ID)
+		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_tool_injected account_id=%d", p.account.ID)
 	}
 	if ensureOpenAIResponsesImageGenerationToolChoiceAuto(payloadMap) {
 		bridgeModified = true
-		logOpenAIWSModeInfo("ingress_ws_codex_image_tool_choice_auto account_id=%d", p.account.ID)
+		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_tool_choice_auto account_id=%d", p.account.ID)
 	}
-	if normalizeOpenAIResponsesImageGenerationTools(payloadMap) {
+	if openai.NormalizeOpenAIResponsesImageGenerationTools(payloadMap) {
 		bridgeModified = true
 	}
 	if applyCodexImageGenerationBridgeInstructions(payloadMap) {
 		bridgeModified = true
-		logOpenAIWSModeInfo("ingress_ws_codex_image_bridge_instructions_added account_id=%d", p.account.ID)
+		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_bridge_instructions_added account_id=%d", p.account.ID)
 	}
 	if bridgeModified {
 		rebuilt, marshalErr := json.Marshal(payloadMap)
@@ -105,7 +109,7 @@ func (p *wsRequestAdapter) ImageIntent(routing, upstream string, body []byte) ([
 	return openAIWSImageIntentForRoutingModel(routing, upstream, body, p.account.Platform)
 }
 func (p *wsRequestAdapter) FeatureDenied() {
-	MarkOpsClientBusinessLimited(p.request, OpsClientBusinessLimitedReasonLocalFeatureGate)
+	gatewayhttp.MarkOpsClientBusinessLimited(p.request, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
 func (p *wsRequestAdapter) ImageDeniedMessage() string { return ImageGenerationPermissionMessage() }
 func (p *wsRequestAdapter) ImageBilling(body []byte, model string) (gatewayws.ImageBilling, error) {
@@ -120,4 +124,4 @@ func (p *wsRequestAdapter) WriteBlocked(ctx context.Context, body []byte) {
 	defer cancel()
 	_ = p.client.Write(writeCtx, coderws.MessageText, body)
 }
-func (p *wsRequestAdapter) Log(message string) { logOpenAIWSModeInfo("%s", message) }
+func (p *wsRequestAdapter) Log(message string) { gatewayprovider.LogOpenAIWSModeInfo("%s", message) }

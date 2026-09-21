@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,32 +34,32 @@ func TestNeedsToolContinuationSignals(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, NeedsToolContinuation(tt.body))
+			require.Equal(t, tt.want, openai.NeedsToolContinuation(tt.body))
 		})
 	}
 }
 
 func TestHasFunctionCallOutput(t *testing.T) {
 	// 所有 Codex 工具输出都应视为续链输出，避免 WS 续链时丢失 previous_response_id。
-	require.False(t, HasFunctionCallOutput(nil))
+	require.False(t, openai.HasFunctionCallOutput(nil))
 	for _, typ := range []string{
 		"function_call_output",
 		"tool_search_output",
 		"custom_tool_call_output",
 		"mcp_tool_call_output",
 	} {
-		require.True(t, HasFunctionCallOutput(map[string]any{
+		require.True(t, openai.HasFunctionCallOutput(map[string]any{
 			"input": []any{map[string]any{"type": typ}},
 		}), typ)
 	}
-	require.False(t, HasFunctionCallOutput(map[string]any{
+	require.False(t, openai.HasFunctionCallOutput(map[string]any{
 		"input": "text",
 	}))
 }
 
 func TestHasToolCallContext(t *testing.T) {
 	// 工具调用上下文必须包含 call_id，才能作为可关联上下文。
-	require.False(t, HasToolCallContext(nil))
+	require.False(t, openai.HasToolCallContext(nil))
 	for _, typ := range []string{
 		"tool_call",
 		"function_call",
@@ -67,19 +68,19 @@ func TestHasToolCallContext(t *testing.T) {
 		"custom_tool_call",
 		"mcp_tool_call",
 	} {
-		require.True(t, HasToolCallContext(map[string]any{
+		require.True(t, openai.HasToolCallContext(map[string]any{
 			"input": []any{map[string]any{"type": typ, "call_id": "call_1"}},
 		}), typ)
 	}
-	require.False(t, HasToolCallContext(map[string]any{
+	require.False(t, openai.HasToolCallContext(map[string]any{
 		"input": []any{map[string]any{"type": "tool_call"}},
 	}))
 }
 
 func TestFunctionCallOutputCallIDs(t *testing.T) {
 	// 仅提取工具输出的非空 call_id，去重后返回。
-	require.Empty(t, FunctionCallOutputCallIDs(nil))
-	callIDs := FunctionCallOutputCallIDs(map[string]any{
+	require.Empty(t, openai.FunctionCallOutputCallIDs(nil))
+	callIDs := openai.FunctionCallOutputCallIDs(map[string]any{
 		"input": []any{
 			map[string]any{"type": "function_call_output", "call_id": "call_1"},
 			map[string]any{"type": "tool_search_output", "call_id": "call_search"},
@@ -93,31 +94,31 @@ func TestFunctionCallOutputCallIDs(t *testing.T) {
 }
 
 func TestHasFunctionCallOutputMissingCallID(t *testing.T) {
-	require.False(t, HasFunctionCallOutputMissingCallID(nil))
-	require.True(t, HasFunctionCallOutputMissingCallID(map[string]any{
+	require.False(t, openai.HasFunctionCallOutputMissingCallID(nil))
+	require.True(t, openai.HasFunctionCallOutputMissingCallID(map[string]any{
 		"input": []any{map[string]any{"type": "function_call_output"}},
 	}))
-	require.True(t, HasFunctionCallOutputMissingCallID(map[string]any{
+	require.True(t, openai.HasFunctionCallOutputMissingCallID(map[string]any{
 		"input": []any{map[string]any{"type": "tool_search_output"}},
 	}))
-	require.False(t, HasFunctionCallOutputMissingCallID(map[string]any{
+	require.False(t, openai.HasFunctionCallOutputMissingCallID(map[string]any{
 		"input": []any{map[string]any{"type": "tool_search_output", "call_id": "call_1"}},
 	}))
 }
 
 func TestHasItemReferenceForCallIDs(t *testing.T) {
 	// item_reference 需要覆盖所有 call_id 才视为可关联上下文。
-	require.False(t, HasItemReferenceForCallIDs(nil, []string{"call_1"}))
-	require.False(t, HasItemReferenceForCallIDs(map[string]any{}, []string{"call_1"}))
+	require.False(t, openai.HasItemReferenceForCallIDs(nil, []string{"call_1"}))
+	require.False(t, openai.HasItemReferenceForCallIDs(map[string]any{}, []string{"call_1"}))
 	req := map[string]any{
 		"input": []any{
 			map[string]any{"type": "item_reference", "id": "call_1"},
 			map[string]any{"type": "item_reference", "id": "call_2"},
 		},
 	}
-	require.True(t, HasItemReferenceForCallIDs(req, []string{"call_1"}))
-	require.True(t, HasItemReferenceForCallIDs(req, []string{"call_1", "call_2"}))
-	require.False(t, HasItemReferenceForCallIDs(req, []string{"call_1", "call_3"}))
+	require.True(t, openai.HasItemReferenceForCallIDs(req, []string{"call_1"}))
+	require.True(t, openai.HasItemReferenceForCallIDs(req, []string{"call_1", "call_2"}))
+	require.False(t, openai.HasItemReferenceForCallIDs(req, []string{"call_1", "call_3"}))
 }
 
 func TestValidateFunctionCallOutputContextBytesMatchesMapValidation(t *testing.T) {
@@ -180,7 +181,7 @@ func TestValidateFunctionCallOutputContextBytesMatchesMapValidation(t *testing.T
 			bodyBytes, err := json.Marshal(tt.body)
 			require.NoError(t, err)
 
-			require.Equal(t, ValidateFunctionCallOutputContext(tt.body), ValidateFunctionCallOutputContextBytes(bodyBytes))
+			require.Equal(t, openai.ValidateFunctionCallOutputContext(tt.body), openai.ValidateFunctionCallOutputContextBytes(bodyBytes))
 		})
 	}
 }
@@ -292,7 +293,7 @@ func TestAnalyzeToolCallOutputContextCoverageBytes(t *testing.T) {
 			bodyBytes, err := json.Marshal(tt.body)
 			require.NoError(t, err)
 
-			coverage := AnalyzeToolCallOutputContextCoverageBytes(bodyBytes)
+			coverage := openai.AnalyzeToolCallOutputContextCoverageBytes(bodyBytes)
 			require.Equal(t, tt.hasOutput, coverage.HasFunctionCallOutput, "HasFunctionCallOutput")
 			require.Equal(t, tt.coversAllIDs, coverage.ContextCoversAllCallIDs, "ContextCoversAllCallIDs")
 		})

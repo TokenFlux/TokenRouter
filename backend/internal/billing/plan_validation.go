@@ -2,8 +2,9 @@
 package billing
 
 import (
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
+
+	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // NormalizePlanCurrency 只校验展示币种拼写，空值保留为空，不应用支付默认币种。

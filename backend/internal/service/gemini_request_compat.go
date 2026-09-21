@@ -7,17 +7,18 @@ import (
 
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
 )
 
 func (s *GeminiMessagesCompatService) geminiRequestPlan(value *Account, model, action string, native, clientStream, upstreamStream, forceAIStudio bool) gemininative.RequestPlan {
 	plan := gemininative.RequestPlan{Mode: gemininative.CredentialMode(value.Type), Model: model, Action: action, Native: native, ClientStream: clientStream, UpstreamStream: upstreamStream, ForceAIStudio: forceAIStudio, APIKey: func() string { return value.GetCredential("api_key") }, BaseURL: func() string { return value.GetGeminiBaseURL(geminicli.AIStudioBaseURL) }, ValidateURL: s.validateUpstreamBaseURL, VertexURL: func(action string, stream bool) (string, error) {
-		return buildVertexGeminiURL(value.VertexProjectID(), value.VertexLocation(model), model, action, stream)
+		return vertex.BuildVertexGeminiURL(value.VertexProjectID(), value.VertexLocation(model), model, action, stream)
 	}}
 	plan.Token = func(ctx context.Context) (gemininative.TokenSnapshot, error) {
 		if s.tokenProvider == nil {
 			return gemininative.TokenSnapshot{}, errors.New("gemini token provider not configured")
 		}
-		token, err := s.tokenProvider.GetAccessToken(ctx, value)
+		token, err := accountToken(ctx, s.tokenProvider, value)
 		if err != nil {
 			return gemininative.TokenSnapshot{}, err
 		}

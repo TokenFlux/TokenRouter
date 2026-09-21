@@ -18,7 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // UsageLogCreate is the builder for creating a UsageLog entity.
@@ -396,7 +396,7 @@ func (_c *UsageLogCreate) SetNillableBalanceAmountUsd(v *float64) *UsageLogCreat
 }
 
 // SetBillingAllocations sets the "billing_allocations" field.
-func (_c *UsageLogCreate) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogCreate {
+func (_c *UsageLogCreate) SetBillingAllocations(v []billing.BillingAllocation) *UsageLogCreate {
 	_c.mutation.SetBillingAllocations(v)
 	return _c
 }
@@ -1852,7 +1852,7 @@ func (u *UsageLogUpsert) AddBalanceAmountUsd(v float64) *UsageLogUpsert {
 }
 
 // SetBillingAllocations sets the "billing_allocations" field.
-func (u *UsageLogUpsert) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpsert {
+func (u *UsageLogUpsert) SetBillingAllocations(v []billing.BillingAllocation) *UsageLogUpsert {
 	u.Set(usagelog.FieldBillingAllocations, v)
 	return u
 }
@@ -2851,7 +2851,7 @@ func (u *UsageLogUpsertOne) UpdateBalanceAmountUsd() *UsageLogUpsertOne {
 }
 
 // SetBillingAllocations sets the "billing_allocations" field.
-func (u *UsageLogUpsertOne) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpsertOne {
+func (u *UsageLogUpsertOne) SetBillingAllocations(v []billing.BillingAllocation) *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.SetBillingAllocations(v)
 	})
@@ -4077,7 +4077,7 @@ func (u *UsageLogUpsertBulk) UpdateBalanceAmountUsd() *UsageLogUpsertBulk {
 }
 
 // SetBillingAllocations sets the "billing_allocations" field.
-func (u *UsageLogUpsertBulk) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpsertBulk {
+func (u *UsageLogUpsertBulk) SetBillingAllocations(v []billing.BillingAllocation) *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.SetBillingAllocations(v)
 	})

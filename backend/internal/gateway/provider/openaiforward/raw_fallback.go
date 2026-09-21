@@ -5,16 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
-	"net/http"
-	"strings"
-	"time"
 )
 
 func MessagesViaRawChat(ctx context.Context, body []byte, defaultMappedModel string, p RawFallbackPorts) (*Result, error) {
@@ -122,11 +123,11 @@ func MessagesViaRawChat(ctx context.Context, body []byte, defaultMappedModel str
 	// 5. 转换上游响应。
 	output := upstream.NewDeferredOutputContext(p.Sink())
 	options := p.RawOptions(resp, billingModel, upstreamModel, serviceTier)
-	var result *native.CompatResponseResult
+	var result *openai.CompatResponseResult
 	if clientStream {
-		result, err = native.ReadCCAsMessagesStreaming(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime)
+		result, err = openai.ReadCCAsMessagesStreaming(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime)
 	} else {
-		result, err = native.ReadCCAsMessagesBuffered(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime)
+		result, err = openai.ReadCCAsMessagesBuffered(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime)
 	}
 	return FromCompatResult(result, billingModel), err
 }
@@ -225,11 +226,11 @@ func ResponsesViaRawChat(ctx context.Context, body []byte, p RawFallbackPorts) (
 
 	output := upstream.NewDeferredOutputContext(p.Sink())
 	options := p.RawOptions(resp, billingModel, upstreamModel, serviceTier)
-	var result *native.CompatResponseResult
+	var result *openai.CompatResponseResult
 	if clientStream {
-		result, err = native.ReadCCAsResponsesStreaming(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime, customTools, functionTools, toolSearch, namespaceTools)
+		result, err = openai.ReadCCAsResponsesStreaming(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime, customTools, functionTools, toolSearch, namespaceTools)
 	} else {
-		result, err = native.ReadCCAsResponsesBuffered(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime, customTools, functionTools, toolSearch, namespaceTools)
+		result, err = openai.ReadCCAsResponsesBuffered(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime, customTools, functionTools, toolSearch, namespaceTools)
 	}
 	return FromCompatResult(result, billingModel), err
 }

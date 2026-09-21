@@ -90,7 +90,7 @@ creative、batchimage 的核心、HTTP、PostgreSQL、Redis 与平台 Adapter �
 - API 类型和调用放在 `src/api/`，跨页面状态进入 store/composable，避免在 view 复制协议。
 - 修改依赖必须同步 `frontend/pnpm-lock.yaml`，CI 使用 frozen lockfile。
 
-app 的旧图绑定和 legacybridge 许可精确到源文件与 import。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
+app 的旧图绑定许可精确到源文件与 import；legacybridge 已删除，其 import 由全局规则拒绝，原有文件许可与目录排除同步移除。repository 的 Wire 聚合已删除，原生存储、任务队列和上游客户端分别在 app 的 wireinject 集合中绑定；service/handler 的剩余聚合仍待清理。传输测试随 `gateway/provider/transport` 运行，旧 repository 测试许可不随路径迁移继承。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
 
 协议哈希和 Gemini 迭代器的 `crypto/sha256`、`iter` 许可只匹配实际文件；clientmeta 的版本库、app 定价装配及目录 HTTP 契约测试也按文件许可。pricing、capability、clientmeta 使用明确标准库集合，不能增加文件/网络读取。纯规则的测试应直接传入值；平台选择、HTTP 失败/取消和目录热更新还要验证旧消费者。管理员目录的完整 JSON、24 项顺序及 TypeScript 类型由 app 组合测试对照前端 fixture，不能通过修改夹具掩盖输出差异。
 
@@ -123,6 +123,14 @@ make -C backend test-integration
 # 普通测试加 lint
 make -C backend test
 ```
+
+外部 E2E 测试位于 `backend/tests/integration`；`make -C backend test-e2e` 与 `test-e2e-local` 使用同一 Go 测试入口，继续读取原服务地址和测试凭据环境变量。未配置服务和供应商凭据时，只能报告测试入选或编译结果，不能据此声称行为通过。
+
+该目录也承接跨模块装配契约，具体执行集合由文件的构建标签决定。身份注册/邮箱绑定使用原生 identity 与 PostgreSQL Adapter 在 SQLite 夹具下验证既有规则，批量任务运行时使用原生 batchimage 与 miniredis；这些 `unit` 测试不能代替真实 PostgreSQL/Redis 的事务和竞争证据。
+
+用量 HTTP、仪表盘和 DTO 契约测试直接构造 usage 与消费者侧查询投影，不通过旧 service 或完整设置服务装配。日期测试显式指定 Calendar，分别覆盖用户时区回退、DST 与各入口的结束边界；清理任务的存储缺失错误由 PostgreSQL Adapter 测试核对后，再以相同错误链输入 HTTP 夹具。
+
+团队所有权的两次有序 SQL 更新由 team/postgres 的同包测试直接验证；不为旧测试包装保留导出函数。sqlmock 夹具检查关闭错误时须同时登记关闭预期，不能把测试资源清理误判为业务 SQL 失败。
 
 重构阶段分别串行运行普通、unit 和 integration 全量测试，避免多个 Ent schema loader 会话争用临时目录；用 go list 与 JSON 事件核对实际标签、OS 文件和测试执行。依赖门禁仍统一使用 `.golangci.yml` 的 depguard，旧耦合只按实际文件/import 登记；新文件不能继承历史许可。验证结果中的跳过与仅编译不算行为通过。
 

@@ -3,18 +3,24 @@ package app
 
 import (
 	"context"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
-	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	"time"
 )
 
 // provideGroupCapacity 直接读取唯一账号存储，复用原并发/会话/RPM 实例和动态设置读取时机。
-func provideGroupCapacity(accounts *accountpostgres.AccountStore, groups *routingpostgres.GroupStore, concurrency *service.ConcurrencyService, sessions service.SessionLimitCache, rpm service.RPMCache, settings service.OpenAIQuotaAutoPauseSettingsReader) *routing.CapacityService {
-	return routing.NewCapacityService(capacityAccounts{Store: accounts, Settings: legacybridge.CapacitySettings(settings)}, groups, concurrency, sessions, rpm)
+func provideGroupCapacity(accounts *accountpostgres.AccountStore, groups *routingpostgres.GroupStore, concurrency *scheduler.ConcurrencyService, sessions scheduler.SessionLimitCache, rpm scheduler.RPMCache, settings *account.QuotaSettingsCache) *routing.CapacityService {
+	return routing.NewCapacityService(capacityAccounts{Store: accounts, Settings: func(ctx context.Context) account.QuotaAutoPauseSettings {
+		return settings.GetOpenAIQuotaAutoPauseSettings(ctx)
+	}}, groups, concurrency, sessions, rpm)
 }
 
 // capacityAccounts 只把已有存储行投影给路由；不持有账号缓存或执行供应商规则。

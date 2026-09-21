@@ -5,13 +5,14 @@ import (
 	context "context"
 	json "encoding/json"
 	fmt "fmt"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	io "io"
 	log "log"
 	http "net/http"
 	strings "strings"
 	time "time"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 type ProxyProbeTarget struct {

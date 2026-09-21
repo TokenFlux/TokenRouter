@@ -5,15 +5,16 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/gin-gonic/gin"
 )
 
 // fakeQuotaRepoForUserHandler 实现 billing.UserPlatformQuotaRepository 最小子集
@@ -29,7 +30,7 @@ func (f *fakeQuotaRepoForUserHandler) ListByUser(_ context.Context, _ int64) ([]
 func TestGetMyPlatformQuotas_EmptyReturns200WithEmptyArray(t *testing.T) {
 	repo := &fakeQuotaRepoForUserHandler{records: nil}
 	h := newTestQuotaHandler(repo, nil, nil)
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/user/platform-quotas", nil)
@@ -50,10 +51,7 @@ func TestGetMyPlatformQuotas_EmptyReturns200WithEmptyArray(t *testing.T) {
 	if body.Code != 0 {
 		t.Errorf("expected code=0, got %d", body.Code)
 	}
-	if body.Data.PlatformQuotas == nil {
-		// nil 和 empty slice 均视为可接受（JSON 可能序列化为 null 或 []）
-		// 此断言只验证 HTTP 200 + code=0 即可
-	}
+	// nil 和空列表均符合此入口的契约，上述断言验证 HTTP 状态和业务码。
 }
 
 func TestGetMyPlatformQuotas_D14_LazyZeroForExpiredWindow(t *testing.T) {
@@ -67,7 +65,7 @@ func TestGetMyPlatformQuotas_D14_LazyZeroForExpiredWindow(t *testing.T) {
 		DailyWindowStart: &pastStart,
 	}}}
 	h := newTestQuotaHandler(repo, nil, nil)
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/user/platform-quotas", nil)
@@ -90,7 +88,7 @@ func TestGetMyPlatformQuotas_D14_LazyZeroForExpiredWindow(t *testing.T) {
 
 func TestGetMyPlatformQuotas_NilRepo_Returns200Empty(t *testing.T) {
 	h := newTestQuotaHandler(nil, nil, nil)
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/user/platform-quotas", nil)
@@ -103,7 +101,7 @@ func TestGetMyPlatformQuotas_NilRepo_Returns200Empty(t *testing.T) {
 
 func TestGetMyPlatformQuotas_NoAuth_Returns401(t *testing.T) {
 	h := newTestQuotaHandler(nil, nil, nil)
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/user/platform-quotas", nil)
@@ -121,7 +119,7 @@ func TestLazyZeroQuotaForResponse_UserViewStripsWindowStart(t *testing.T) {
 		DailyUsageUSD:    1.0,
 		DailyWindowStart: &start,
 	}
-	out := LazyZeroQuotaForResponse(r, time.Now().UTC(), false)
+	out := LazyZeroQuotaForResponse(r, time.Now().UTC(), false, timezone.NewCalendar(time.Local))
 	if _, ok := out["daily_window_start"]; ok {
 		t.Error("user view should not include daily_window_start")
 	}
@@ -133,7 +131,7 @@ func TestLazyZeroQuotaForResponse_AdminViewIncludesWindowStart(t *testing.T) {
 		Platform:         "anthropic",
 		DailyWindowStart: &start,
 	}
-	out := LazyZeroQuotaForResponse(r, time.Now().UTC(), true)
+	out := LazyZeroQuotaForResponse(r, time.Now().UTC(), true, timezone.NewCalendar(time.Local))
 	if _, ok := out["daily_window_start"]; !ok {
 		t.Error("admin view should include daily_window_start")
 	}
@@ -142,14 +140,15 @@ func TestLazyZeroQuotaForResponse_AdminViewIncludesWindowStart(t *testing.T) {
 func TestLazyZeroQuotaForResponse_ActiveWindowPreservesUsage(t *testing.T) {
 	// 今天的窗口起始时间（不过期）：按全局时区取当天 0 点，与 view 层同口径
 	now := time.Now()
-	today := timezone.StartOfDay(now)
+	today := timezone.NewCalendar(time.Local).
+		StartOfDay(now)
 	usage := 2.5
 	r := billing.UserPlatformQuotaRecord{
 		Platform:         "openai",
 		DailyUsageUSD:    usage,
 		DailyWindowStart: &today,
 	}
-	out := LazyZeroQuotaForResponse(r, now, false)
+	out := LazyZeroQuotaForResponse(r, now, false, timezone.NewCalendar(time.Local))
 	if out["daily_usage_usd"] != usage {
 		t.Errorf("expected daily_usage_usd=%v, got %v", usage, out["daily_usage_usd"])
 	}
@@ -160,20 +159,20 @@ func TestLazyZeroQuotaForResponse_ActiveWindowPreservesUsage(t *testing.T) {
 }
 
 func TestNeedsDailyReset_NilStart_ReturnsFalse(t *testing.T) {
-	if billing.NeedsDailyReset(nil, time.Now().UTC()) {
+	if billing.NeedsDailyReset(nil, time.Now().UTC(), timezone.NewCalendar(time.Local)) {
 		t.Error("nil start should not need reset")
 	}
 }
 
 func TestNeedsDailyReset_OldStart_ReturnsTrue(t *testing.T) {
 	old := time.Now().UTC().AddDate(0, 0, -1)
-	if !billing.NeedsDailyReset(&old, time.Now().UTC()) {
+	if !billing.NeedsDailyReset(&old, time.Now().UTC(), timezone.NewCalendar(time.Local)) {
 		t.Error("yesterday start should need daily reset")
 	}
 }
 
 func TestNeedsWeeklyReset_NilStart_ReturnsFalse(t *testing.T) {
-	if billing.NeedsWeeklyReset(nil, time.Now().UTC()) {
+	if billing.NeedsWeeklyReset(nil, time.Now().UTC(), timezone.NewCalendar(time.Local)) {
 		t.Error("nil start should not need weekly reset")
 	}
 }

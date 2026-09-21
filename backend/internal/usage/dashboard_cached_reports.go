@@ -4,8 +4,6 @@ package usage
 import (
 	"context"
 	"time"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 type RankingReport struct {
@@ -36,7 +34,7 @@ func (s *DashboardService) GetBatchUsersUsageCached(ctx context.Context, ids []i
 		V       int     `json:"v"`
 		Day     string  `json:"day"`
 		UserIDs []int64 `json:"user_ids"`
-	}{2, timezone.Today().Format("2006-01-02"), ids})
+	}{2, s.calendar.Today().Format("2006-01-02"), ids})
 	if e, ok := s.queryCaches.batchUsers.Get(key); ok {
 		v, err := snapshotPayloadAs[map[int64]*BatchUserUsageStats](e.Payload)
 		return v, true, err

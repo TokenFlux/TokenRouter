@@ -5,12 +5,13 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	errgroup "golang.org/x/sync/errgroup"
-	singleflight "golang.org/x/sync/singleflight"
 	strings "strings"
 	sync "sync"
 	time "time"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	errgroup "golang.org/x/sync/errgroup"
+	singleflight "golang.org/x/sync/singleflight"
 )
 
 // UpstreamUsageReader 只读当前身份，不提供配置、健康或消费写入。

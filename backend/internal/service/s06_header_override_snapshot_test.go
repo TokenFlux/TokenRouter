@@ -6,11 +6,12 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func s06HeaderOverrideAccount() *Account {
-	return &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{
+	return &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{
 		"header_override_enabled": true, "header_overrides": map[string]any{"x-test-marker": "configured"}}}
 }
 

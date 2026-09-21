@@ -3,13 +3,13 @@
 package repository
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 func (s *RedeemCodeRepoSuite) TestListWithFilters_SortByValueAsc() {
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "VALUE-20", Type: service.RedeemTypeBalance, Value: 20, Status: service.StatusUnused}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "VALUE-10", Type: service.RedeemTypeBalance, Value: 10, Status: service.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "VALUE-20", Type: billing.RedeemTypeBalance, Value: 20, Status: billing.StatusUnused}))
+	s.Require().NoError(s.repo.Create(s.ctx, &billing.RedeemCode{Code: "VALUE-10", Type: billing.RedeemTypeBalance, Value: 10, Status: billing.StatusUnused}))
 
 	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{
 		Page:      1,

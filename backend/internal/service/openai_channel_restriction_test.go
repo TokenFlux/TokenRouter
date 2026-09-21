@@ -6,59 +6,63 @@ import (
 	"context"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenAISelectAccountForModelWithExclusions_ChannelMappedRestrictionRejectsEarly(t *testing.T) {
 	t.Parallel()
 
-	channelSvc := newTestChannelService(makeStandardRepo(Channel{
+	channelSvc := newTestChannelService(makeStandardRepo(routing.Channel{
 		ID:                 1,
-		Status:             StatusActive,
+		Status:             billing.StatusActive,
 		GroupIDs:           []int64{10},
 		RestrictModels:     true,
-		BillingModelSource: BillingModelSourceChannelMapped,
-		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{"gpt-4o"}},
+		BillingModelSource: routing.BillingModelSourceChannelMapped,
+		ModelPricing: []routing.ChannelModelPricing{
+			{Platform: capability.PlatformOpenAI, Models: []string{"gpt-4o"}},
 		},
 		ModelMapping: map[string]map[string]string{
-			PlatformOpenAI: {"gpt-4.1": "o3-mini"},
+			capability.PlatformOpenAI: {"gpt-4.1": "o3-mini"},
 		},
-	}, map[int64]string{10: PlatformOpenAI}))
+	}, map[int64]string{10: capability.PlatformOpenAI}))
 
 	svc := &OpenAIGatewayService{
 		accountRepo: stubOpenAIAccountRepo{accounts: []Account{
-			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true},
+			{ID: 1, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, Schedulable: true},
 		}},
 		channelService: channelSvc,
 	}
 
 	groupID := int64(10)
 	_, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "", "gpt-4.1", nil)
-	require.ErrorIs(t, err, ErrNoAvailableAccounts)
+	require.ErrorIs(t, err, scheduler.ErrNoAvailableAccounts)
 	require.Contains(t, err.Error(), "channel pricing restriction")
 }
 
 func TestOpenAISelectAccountForModelWithExclusions_UpstreamRestrictionSkipsDisallowedAccount(t *testing.T) {
 	t.Parallel()
 
-	channelSvc := newTestChannelService(makeStandardRepo(Channel{
+	channelSvc := newTestChannelService(makeStandardRepo(routing.Channel{
 		ID:                 1,
-		Status:             StatusActive,
+		Status:             billing.StatusActive,
 		GroupIDs:           []int64{10},
 		RestrictModels:     true,
-		BillingModelSource: BillingModelSourceUpstream,
-		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{"o3-mini"}},
+		BillingModelSource: routing.BillingModelSourceUpstream,
+		ModelPricing: []routing.ChannelModelPricing{
+			{Platform: capability.PlatformOpenAI, Models: []string{"o3-mini"}},
 		},
-	}, map[int64]string{10: PlatformOpenAI}))
+	}, map[int64]string{10: capability.PlatformOpenAI}))
 
 	svc := &OpenAIGatewayService{
 		accountRepo: stubOpenAIAccountRepo{accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Priority:    10,
 				Credentials: map[string]any{
@@ -67,8 +71,8 @@ func TestOpenAISelectAccountForModelWithExclusions_UpstreamRestrictionSkipsDisal
 			},
 			{
 				ID:          2,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Priority:    20,
 				Credentials: map[string]any{
@@ -89,16 +93,16 @@ func TestOpenAISelectAccountForModelWithExclusions_UpstreamRestrictionSkipsDisal
 func TestOpenAISelectAccountForModelWithExclusions_StickyRestrictedUpstreamFallsBack(t *testing.T) {
 	t.Parallel()
 
-	channelSvc := newTestChannelService(makeStandardRepo(Channel{
+	channelSvc := newTestChannelService(makeStandardRepo(routing.Channel{
 		ID:                 1,
-		Status:             StatusActive,
+		Status:             billing.StatusActive,
 		GroupIDs:           []int64{10},
 		RestrictModels:     true,
-		BillingModelSource: BillingModelSourceUpstream,
-		ModelPricing: []ChannelModelPricing{
-			{Platform: PlatformOpenAI, Models: []string{"o3-mini"}},
+		BillingModelSource: routing.BillingModelSourceUpstream,
+		ModelPricing: []routing.ChannelModelPricing{
+			{Platform: capability.PlatformOpenAI, Models: []string{"o3-mini"}},
 		},
-	}, map[int64]string{10: PlatformOpenAI}))
+	}, map[int64]string{10: capability.PlatformOpenAI}))
 
 	cache := &stubGatewayCache{
 		sessionBindings: map[string]int64{"openai:sticky-session": 1},
@@ -107,8 +111,8 @@ func TestOpenAISelectAccountForModelWithExclusions_StickyRestrictedUpstreamFalls
 		accountRepo: stubOpenAIAccountRepo{accounts: []Account{
 			{
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Priority:    10,
 				Credentials: map[string]any{
@@ -117,8 +121,8 @@ func TestOpenAISelectAccountForModelWithExclusions_StickyRestrictedUpstreamFalls
 			},
 			{
 				ID:          2,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Priority:    20,
 				Credentials: map[string]any{

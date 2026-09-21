@@ -10,14 +10,17 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 )
 
 // mustCreateUserForQuota 在指定 client 上创建测试用户（满足 FK 约束）。
 func mustCreateUserForQuota(t *testing.T, client *dbent.Client) int64 {
 	t.Helper()
-	u := mustCreateUser(t, client, &service.User{
+	u := mustCreateUser(t, client, &identity.User{
 		Email: fmt.Sprintf("quota-test-%d@example.com", time.Now().UnixNano()),
 	})
 	return u.ID
@@ -31,10 +34,10 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_Idempotent(t *testing.T) 
 
 	userID := mustCreateUserForQuota(t, client)
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	daily := 5.0
-	records := []UserPlatformQuotaRecord{
+	records := []billing.UserPlatformQuotaRecord{
 		{UserID: userID, Platform: "anthropic", DailyLimitUSD: &daily},
 		{UserID: userID, Platform: "openai"},
 	}
@@ -49,7 +52,7 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_Idempotent(t *testing.T) 
 	require.Len(t, list, 2, "expected 2 records after idempotent insert")
 
 	// 校验 daily_limit_usd 保留
-	var anthropicRec *UserPlatformQuotaRecord
+	var anthropicRec *billing.UserPlatformQuotaRecord
 	for i := range list {
 		if list[i].Platform == "anthropic" {
 			anthropicRec = &list[i]
@@ -66,10 +69,10 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_Empty(t *testing.T) {
 	txCtx := dbent.NewTxContext(ctx, tx)
 	client := tx.Client()
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 	// 空切片不应报错
 	require.NoError(t, repo.BulkInsertInitial(txCtx, nil))
-	require.NoError(t, repo.BulkInsertInitial(txCtx, []UserPlatformQuotaRecord{}))
+	require.NoError(t, repo.BulkInsertInitial(txCtx, []billing.UserPlatformQuotaRecord{}))
 }
 
 // TestUserPlatformQuotaRepository_BulkInsertInitial_QoderAndGrokAllowed 回归迁移 171/177：
@@ -81,11 +84,11 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_QoderAndGrokAllowed(t *te
 	client := tx.Client()
 
 	userID := mustCreateUserForQuota(t, client)
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	qoderDaily := 8.0
 	grokDaily := 9.0
-	records := []UserPlatformQuotaRecord{
+	records := []billing.UserPlatformQuotaRecord{
 		{UserID: userID, Platform: "qoder", DailyLimitUSD: &qoderDaily},
 		{UserID: userID, Platform: "grok", DailyLimitUSD: &grokDaily},
 	}
@@ -115,10 +118,10 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_CNProvidersAllowed(t *tes
 	client := tx.Client()
 
 	userID := mustCreateUserForQuota(t, client)
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	daily := 12.0
-	records := []UserPlatformQuotaRecord{
+	records := []billing.UserPlatformQuotaRecord{
 		{UserID: userID, Platform: "kimi", DailyLimitUSD: &daily},
 		{UserID: userID, Platform: "zhipu"},
 		{UserID: userID, Platform: "deepseek"},
@@ -141,7 +144,7 @@ func TestUserPlatformQuotaRepository_GetByUserPlatform(t *testing.T) {
 
 	userID := mustCreateUserForQuota(t, client)
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	// 未插入时应返回 nil
 	rec, err := repo.GetByUserPlatform(txCtx, userID, "anthropic")
@@ -150,7 +153,7 @@ func TestUserPlatformQuotaRepository_GetByUserPlatform(t *testing.T) {
 
 	// 插入后查询
 	daily := 10.0
-	require.NoError(t, repo.BulkInsertInitial(txCtx, []UserPlatformQuotaRecord{
+	require.NoError(t, repo.BulkInsertInitial(txCtx, []billing.UserPlatformQuotaRecord{
 		{UserID: userID, Platform: "anthropic", DailyLimitUSD: &daily},
 	}))
 
@@ -171,7 +174,7 @@ func TestUserPlatformQuotaRepository_IncrementUsageWithReset_SameWindow(t *testi
 
 	userID := mustCreateUserForQuota(t, client)
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 	now := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC) // 周五
 
 	// 首次调用：应新建记录
@@ -199,7 +202,7 @@ func TestUserPlatformQuotaRepository_IncrementUsageWithReset_DailyReset(t *testi
 	client := testEntClient(t)
 	userID := mustCreateUserForQuota(t, client)
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	day1 := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC) // 周五（同一周、同一月）
 	day2 := time.Date(2026, 5, 23, 10, 0, 0, 0, time.UTC) // 周六（同一周、同一月）
@@ -219,7 +222,7 @@ func TestUserPlatformQuotaRepository_IncrementUsageWithReset_WeeklyReset(t *test
 	client := testEntClient(t)
 	userID := mustCreateUserForQuota(t, client)
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	// 5月22日（周五）和 5月25日（下周一），不同周
 	fri := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
@@ -243,7 +246,7 @@ func TestUserPlatformQuotaRepository_ResetExpiredWindow(t *testing.T) {
 
 	userID := mustCreateUserForQuota(t, client)
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	// 先通过 ent 直接建一条记录
 	_, err := client.UserPlatformQuota.Create().
@@ -275,7 +278,7 @@ func TestUserPlatformQuotaRepository_ResetExpiredWindow_UnknownWindow(t *testing
 	ctx := context.Background()
 	client := testEntClient(t)
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 	err := repo.ResetExpiredWindow(ctx, 999, "anthropic", "yearly", time.Now())
 	require.Error(t, err, "unknown window should return error")
 }
@@ -287,10 +290,10 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_MultiRow(t *testing.T) {
 	client := tx.Client()
 
 	userID := mustCreateUserForQuota(t, client)
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	d1, d2, d3 := 5.0, 10.0, 15.0
-	records := []UserPlatformQuotaRecord{
+	records := []billing.UserPlatformQuotaRecord{
 		{UserID: userID, Platform: "anthropic", DailyLimitUSD: &d1},
 		{UserID: userID, Platform: "openai", DailyLimitUSD: &d2},
 		{UserID: userID, Platform: "gemini", DailyLimitUSD: &d3},
@@ -302,7 +305,7 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_MultiRow(t *testing.T) {
 	require.Len(t, list, 3, "expected 3 rows, got %d", len(list))
 
 	// 验证 limit 值与传入一致（防占位符串位）
-	byPlatform := map[string]*UserPlatformQuotaRecord{}
+	byPlatform := map[string]*billing.UserPlatformQuotaRecord{}
 	for i := range list {
 		byPlatform[list[i].Platform] = &list[i]
 	}
@@ -322,10 +325,10 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_MultiRow(t *testing.T) {
 func TestUserPlatformQuotaRepository_ResetExpiredWindow_NotFoundReturnsSentinel(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	err := repo.ResetExpiredWindow(ctx, 99999, "anthropic", "daily", time.Now())
-	require.True(t, errors.Is(err, ErrUserPlatformQuotaNotFound),
+	require.True(t, errors.Is(err, billing.ErrUserPlatformQuotaNotFound),
 		"expected ErrUserPlatformQuotaNotFound, got %v", err)
 }
 
@@ -340,7 +343,7 @@ func TestBatchSnapshotUsage_InsertOverwriteMultiKey(t *testing.T) {
 	userID1 := mustCreateUserForQuota(t, client)
 	userID2 := mustCreateUserForQuota(t, client)
 
-	repo := NewUserPlatformQuotaRepository(client)
+	repo := billingpostgres.NewUserPlatformQuotaRepository(client, timezone.NewCalendar(time.Local))
 
 	now := time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC)
 	dailyStart := time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
@@ -348,7 +351,7 @@ func TestBatchSnapshotUsage_InsertOverwriteMultiKey(t *testing.T) {
 	monthlyStart := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
 
 	// ── 第一批：插入 2 行 ──────────────────────────────────────────────────────
-	firstBatch := []UserPlatformQuotaSnapshot{
+	firstBatch := []billing.UserPlatformQuotaSnapshot{
 		{
 			UserID:             userID1,
 			Platform:           "anthropic",
@@ -387,7 +390,7 @@ func TestBatchSnapshotUsage_InsertOverwriteMultiKey(t *testing.T) {
 
 	// ── 第二批：对同一 key 传不同值，验证绝对覆盖（非累加）──────────────────
 	now2 := now.Add(5 * time.Minute)
-	secondBatch := []UserPlatformQuotaSnapshot{
+	secondBatch := []billing.UserPlatformQuotaSnapshot{
 		{
 			UserID:             userID1,
 			Platform:           "anthropic",

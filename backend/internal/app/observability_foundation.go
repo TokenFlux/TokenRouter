@@ -10,12 +10,13 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/audit"
 	auditHTTP "github.com/TokenFlux/TokenRouter/internal/audit/httpapi"
 	auditpostgres "github.com/TokenFlux/TokenRouter/internal/audit/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	p "github.com/TokenFlux/TokenRouter/internal/settings/preaggregation"
 )
@@ -40,9 +41,13 @@ func provideSystemLogSink(repo ops.OpsRepository) *ops.OpsSystemLogSink {
 	}})
 }
 
-// provideAuditRedactor 构造唯一脱敏策略，先绑定旧捕获入口再构造审计消费者。
+// provideAuditRedactor 从实际所有者投影敏感字段，审计消费者直接共享此实例。
 func provideAuditRedactor() *audit.Redactor {
-	redactor := audit.NewRedactor(service.LegacyAuditSensitiveKeys())
-	service.BindAuditRedactor(redactor)
-	return redactor
+	keys := append([]string(nil), account.SensitiveCredentialKeys...)
+	for _, fields := range payment.ConfigProviderSensitiveConfigFields {
+		for key := range fields {
+			keys = append(keys, key)
+		}
+	}
+	return audit.NewRedactor(keys)
 }

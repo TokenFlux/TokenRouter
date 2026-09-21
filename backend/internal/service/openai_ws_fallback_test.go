@@ -1,137 +1,33 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 )
 
-func TestClassifyOpenAIWSAcquireError(t *testing.T) {
-	t.Run("dial_426_upgrade_required", func(t *testing.T) {
-		err := &openAIWSDialError{StatusCode: 426, Err: errors.New("upgrade required")}
-		require.Equal(t, "upgrade_required", classifyOpenAIWSAcquireError(err))
-	})
-
-	t.Run("queue_full", func(t *testing.T) {
-		require.Equal(t, "conn_queue_full", classifyOpenAIWSAcquireError(errOpenAIWSConnQueueFull))
-	})
-
-	t.Run("preferred_conn_unavailable", func(t *testing.T) {
-		require.Equal(t, "preferred_conn_unavailable", classifyOpenAIWSAcquireError(errOpenAIWSPreferredConnUnavailable))
-	})
-
-	t.Run("acquire_timeout", func(t *testing.T) {
-		require.Equal(t, "acquire_timeout", classifyOpenAIWSAcquireError(context.DeadlineExceeded))
-	})
-
-	t.Run("auth_failed_401", func(t *testing.T) {
-		err := &openAIWSDialError{StatusCode: 401, Err: errors.New("unauthorized")}
-		require.Equal(t, "auth_failed", classifyOpenAIWSAcquireError(err))
-	})
-
-	t.Run("upstream_rate_limited", func(t *testing.T) {
-		err := &openAIWSDialError{StatusCode: 429, Err: errors.New("rate limited")}
-		require.Equal(t, "upstream_rate_limited", classifyOpenAIWSAcquireError(err))
-	})
-
-	t.Run("upstream_5xx", func(t *testing.T) {
-		err := &openAIWSDialError{StatusCode: 502, Err: errors.New("bad gateway")}
-		require.Equal(t, "upstream_5xx", classifyOpenAIWSAcquireError(err))
-	})
-
-	t.Run("dial_failed_other_status", func(t *testing.T) {
-		err := &openAIWSDialError{StatusCode: 418, Err: errors.New("teapot")}
-		require.Equal(t, "dial_failed", classifyOpenAIWSAcquireError(err))
-	})
-
-	t.Run("other", func(t *testing.T) {
-		require.Equal(t, "acquire_conn", classifyOpenAIWSAcquireError(errors.New("x")))
-	})
-
-	t.Run("nil", func(t *testing.T) {
-		require.Equal(t, "acquire_conn", classifyOpenAIWSAcquireError(nil))
-	})
-}
-
-func TestClassifyOpenAIWSDialError(t *testing.T) {
-	t.Run("handshake_not_finished", func(t *testing.T) {
-		err := &openAIWSDialError{
-			StatusCode: http.StatusBadGateway,
-			Err:        errors.New("WebSocket protocol error: Handshake not finished"),
-		}
-		require.Equal(t, "handshake_not_finished", classifyOpenAIWSDialError(err))
-	})
-
-	t.Run("context_deadline", func(t *testing.T) {
-		err := &openAIWSDialError{
-			StatusCode: 0,
-			Err:        context.DeadlineExceeded,
-		}
-		require.Equal(t, "ctx_deadline_exceeded", classifyOpenAIWSDialError(err))
-	})
-}
-
-func TestSummarizeOpenAIWSDialError(t *testing.T) {
-	err := &openAIWSDialError{
-		StatusCode: http.StatusBadGateway,
-		ResponseHeaders: http.Header{
-			"Server":       []string{"cloudflare"},
-			"Via":          []string{"1.1 example"},
-			"Cf-Ray":       []string{"abcd1234"},
-			"X-Request-Id": []string{"req_123"},
-		},
-		Err: errors.New("WebSocket protocol error: Handshake not finished"),
-	}
-
-	status, class, closeStatus, closeReason, server, via, cfRay, reqID := summarizeOpenAIWSDialError(err)
-	require.Equal(t, http.StatusBadGateway, status)
-	require.Equal(t, "handshake_not_finished", class)
-	require.Equal(t, "-", closeStatus)
-	require.Equal(t, "-", closeReason)
-	require.Equal(t, "cloudflare", server)
-	require.Equal(t, "1.1 example", via)
-	require.Equal(t, "abcd1234", cfRay)
-	require.Equal(t, "req_123", reqID)
-}
-
-func TestClassifyOpenAIWSErrorEvent(t *testing.T) {
-	reason, recoverable := classifyOpenAIWSErrorEvent([]byte(`{"type":"error","error":{"code":"upgrade_required","message":"Upgrade required"}}`))
-	require.Equal(t, "upgrade_required", reason)
-	require.True(t, recoverable)
-
-	reason, recoverable = classifyOpenAIWSErrorEvent([]byte(`{"type":"error","error":{"code":"previous_response_not_found","message":"not found"}}`))
-	require.Equal(t, "previous_response_not_found", reason)
-	require.True(t, recoverable)
-}
-
 func TestClassifyOpenAIWSReconnectReason(t *testing.T) {
-	reason, retryable := classifyOpenAIWSReconnectReason(wrapOpenAIWSFallback("policy_violation", errors.New("policy")))
+	reason, retryable := classifyOpenAIWSReconnectReason(ws.WrapFallback("policy_violation", errors.New("policy")))
 	require.Equal(t, "policy_violation", reason)
 	require.False(t, retryable)
 
-	reason, retryable = classifyOpenAIWSReconnectReason(wrapOpenAIWSFallback("read_event", errors.New("io")))
+	reason, retryable = classifyOpenAIWSReconnectReason(ws.WrapFallback("read_event", errors.New("io")))
 	require.Equal(t, "read_event", reason)
 	require.True(t, retryable)
-}
-
-func TestOpenAIWSErrorHTTPStatus(t *testing.T) {
-	require.Equal(t, http.StatusBadRequest, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"invalid_request_error","code":"invalid_request","message":"invalid input"}}`)))
-	require.Equal(t, http.StatusUnauthorized, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"authentication_error","code":"invalid_api_key","message":"auth failed"}}`)))
-	require.Equal(t, http.StatusForbidden, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"permission_error","code":"forbidden","message":"forbidden"}}`)))
-	require.Equal(t, http.StatusTooManyRequests, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"rate limited"}}`)))
-	require.Equal(t, http.StatusBadGateway, openAIWSErrorHTTPStatus([]byte(`{"type":"error","error":{"type":"server_error","code":"server_error","message":"server"}}`)))
 }
 
 func TestResolveOpenAIWSFallbackErrorResponse(t *testing.T) {
 	t.Run("previous_response_not_found", func(t *testing.T) {
 		statusCode, errType, clientMessage, upstreamMessage, ok := resolveOpenAIWSFallbackErrorResponse(
-			wrapOpenAIWSFallback("previous_response_not_found", errors.New("previous response not found")),
+			ws.WrapFallback("previous_response_not_found", errors.New("previous response not found")),
 		)
 		require.True(t, ok)
 		require.Equal(t, http.StatusBadRequest, statusCode)
@@ -142,7 +38,7 @@ func TestResolveOpenAIWSFallbackErrorResponse(t *testing.T) {
 
 	t.Run("auth_failed_uses_dial_status", func(t *testing.T) {
 		statusCode, errType, clientMessage, upstreamMessage, ok := resolveOpenAIWSFallbackErrorResponse(
-			wrapOpenAIWSFallback("auth_failed", &openAIWSDialError{
+			ws.WrapFallback("auth_failed", &openai.WSDialError{
 				StatusCode: http.StatusForbidden,
 				Err:        errors.New("forbidden"),
 			}),
@@ -198,9 +94,9 @@ func TestOpenAIWSRetryTotalBudget(t *testing.T) {
 }
 
 func TestClassifyOpenAIWSReadFallbackReason(t *testing.T) {
-	require.Equal(t, "policy_violation", classifyOpenAIWSReadFallbackReason(coderws.CloseError{Code: coderws.StatusPolicyViolation}))
-	require.Equal(t, "message_too_big", classifyOpenAIWSReadFallbackReason(coderws.CloseError{Code: coderws.StatusMessageTooBig}))
-	require.Equal(t, "read_event", classifyOpenAIWSReadFallbackReason(errors.New("io")))
+	require.Equal(t, "policy_violation", gatewayprovider.ClassifyOpenAIWSReadFallbackReason(coderws.CloseError{Code: coderws.StatusPolicyViolation}))
+	require.Equal(t, "message_too_big", gatewayprovider.ClassifyOpenAIWSReadFallbackReason(coderws.CloseError{Code: coderws.StatusMessageTooBig}))
+	require.Equal(t, "read_event", gatewayprovider.ClassifyOpenAIWSReadFallbackReason(errors.New("io")))
 }
 
 func TestOpenAIWSStoreDisabledConnMode(t *testing.T) {
@@ -217,12 +113,12 @@ func TestOpenAIWSStoreDisabledConnMode(t *testing.T) {
 }
 
 func TestShouldForceNewConnOnStoreDisabled(t *testing.T) {
-	require.True(t, shouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeStrict, ""))
-	require.False(t, shouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeOff, "policy_violation"))
+	require.True(t, openai.ShouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeStrict, ""))
+	require.False(t, openai.ShouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeOff, "policy_violation"))
 
-	require.True(t, shouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeAdaptive, "policy_violation"))
-	require.True(t, shouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeAdaptive, "prewarm_message_too_big"))
-	require.False(t, shouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeAdaptive, "read_event"))
+	require.True(t, openai.ShouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeAdaptive, "policy_violation"))
+	require.True(t, openai.ShouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeAdaptive, "prewarm_message_too_big"))
+	require.False(t, openai.ShouldForceNewConnOnStoreDisabled(openAIWSStoreDisabledConnModeAdaptive, "read_event"))
 }
 
 func TestOpenAIWSRetryMetricsSnapshot(t *testing.T) {

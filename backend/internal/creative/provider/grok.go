@@ -12,7 +12,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok" // ExecuteGrok 执行 Grok 平台任务：generate 与 edit 分别使用 xAI 图片端点。
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok" // ExecuteGrok 执行 Grok 平台任务：generate 与 edit 分别使用 xAI 图片端点。
 )
 
 func (e *Target) ExecuteGrok(ctx context.Context, run creative.CreativeRun, payload creative.CreativeRunPayload, upstreamModel string) ([]creative.CreativeOutput, error) {
@@ -30,9 +30,9 @@ func (e *Target) ExecuteGrok(ctx context.Context, run creative.CreativeRun, payl
 	if e.Grok == nil {
 		return nil, errors.New("creative grok gateway is not configured")
 	}
-	endpoint := nativegrok.GrokMediaEndpointImagesGenerations
+	endpoint := grok.GrokMediaEndpointImagesGenerations
 	if run.Operation == creative.CreativeOperationEdit {
-		endpoint = nativegrok.GrokMediaEndpointImagesEdits
+		endpoint = grok.GrokMediaEndpointImagesEdits
 	}
 	targetURL, err := e.Grok.URL(endpoint)
 	if err != nil {
@@ -58,8 +58,8 @@ func (e *Target) ExecuteGrok(ctx context.Context, run creative.CreativeRun, payl
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	if e.Grok.OAuth && (nativegrok.MediaCodec{}).IsGrokCLIProxyTarget(targetURL) {
-		nativegrok.ApplyCLIHeaders(req.Header)
+	if e.Grok.OAuth && (grok.MediaCodec{}).IsGrokCLIProxyTarget(targetURL) {
+		grok.ApplyCLIHeaders(req.Header)
 	}
 	// 账号级请求头覆写最后应用，配置值优先于内置默认头。
 	e.Grok.ApplyHeaders(req.Header)

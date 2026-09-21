@@ -12,12 +12,13 @@ import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/promocodeusage"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	dto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/promotion"
 	promotionhttp "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
 	promotionpostgres "github.com/TokenFlux/TokenRouter/internal/promotion/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -89,7 +90,7 @@ func TestPromotionApplyCodeFundsAndUsageAtomicity(t *testing.T) {
 			require.Len(t, usages, 1)
 			actual, err := json.Marshal(promotionhttp.PromoCodeUsageFromService(&usages[0]).User)
 			require.NoError(t, err)
-			expected, err := json.Marshal(dto.UserFromIdentityShallow[json.RawMessage](service.IdentityUser(userEntityToService(current))))
+			expected, err := json.Marshal(dto.UserFromIdentityShallow[json.RawMessage](identity.CopyUser(identitypostgres.UserFromEntity(current))))
 			require.NoError(t, err)
 			require.JSONEq(t, string(expected), string(actual))
 			require.NotContains(t, string(actual), "must-not-export")

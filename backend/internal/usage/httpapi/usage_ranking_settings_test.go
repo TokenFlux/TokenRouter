@@ -8,15 +8,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/settings"
+
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 type usageRankingSettingRepoStub struct {
-	service.SettingRepository
+	settings.Repository
 	values map[string]string
 }
 
@@ -31,16 +34,16 @@ func (s *usageRankingSettingRepoStub) GetMultiple(_ context.Context, keys []stri
 }
 
 type usageRankingRepoCapture struct {
-	service.UsageLogRepository
+	usage.UsageLogRepository
 	called bool
-	sortBy service.UsageRankingSortBy
+	sortBy usage.UsageRankingSortBy
 }
 
-func (r *usageRankingRepoCapture) GetUsageRanking(_ context.Context, _, _ time.Time, _ int, sortBy service.UsageRankingSortBy) (*usagestats.UsageRankingResponse, error) {
+func (r *usageRankingRepoCapture) GetUsageRanking(_ context.Context, _, _ time.Time, _ int, sortBy usage.UsageRankingSortBy) (*usage.UsageRankingResponse, error) {
 	r.called = true
 	r.sortBy = sortBy
-	return &usagestats.UsageRankingResponse{
-		Ranking: []usagestats.UsageRankingItem{{
+	return &usage.UsageRankingResponse{
+		Ranking: []usage.UsageRankingItem{{
 			Rank:                1,
 			UserID:              7,
 			DisplayName:         "ranked-user",
@@ -59,9 +62,9 @@ func (r *usageRankingRepoCapture) GetUsageRanking(_ context.Context, _, _ time.T
 }
 
 func newUsageRankingSettingsRouter(repo *usageRankingRepoCapture, values map[string]string) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	settingSvc := service.NewSettingService(&usageRankingSettingRepoStub{values: values}, nil)
-	h := newLegacyUsageHandlerFixture(service.NewUsageService(repo), nil, nil, settingSvc)
+
+	settingSvc := usage.NewRuntimeSettings(&usageRankingSettingRepoStub{values: values})
+	h := NewUsageHandler(usage.NewUsageService(repo), nil, nil, settingSvc, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
@@ -74,7 +77,7 @@ func newUsageRankingSettingsRouter(repo *usageRankingRepoCapture, values map[str
 func TestUsageRankingDisabledRejectsBeforeQuery(t *testing.T) {
 	repo := &usageRankingRepoCapture{}
 	router := newUsageRankingSettingsRouter(repo, map[string]string{
-		service.SettingKeyUsageRankingEnabled: "false",
+		usage.SettingKeyUsageRankingEnabled: "false",
 	})
 
 	recorder := httptest.NewRecorder()
@@ -87,12 +90,12 @@ func TestUsageRankingDisabledRejectsBeforeQuery(t *testing.T) {
 func TestUsageRankingProjectsHiddenFieldsAndUsesConfiguredSort(t *testing.T) {
 	repo := &usageRankingRepoCapture{}
 	router := newUsageRankingSettingsRouter(repo, map[string]string{
-		service.SettingKeyUsageRankingEnabled:         "true",
-		service.SettingKeyUsageRankingSortBy:          string(service.UsageRankingSortByRequests),
-		service.SettingKeyUsageRankingShowTotalTokens: "false",
-		service.SettingKeyUsageRankingShowRequests:    "false",
-		service.SettingKeyUsageRankingShowActualCost:  "false",
-		service.SettingKeyUsageRankingLimit:           "12",
+		usage.SettingKeyUsageRankingEnabled:         "true",
+		usage.SettingKeyUsageRankingSortBy:          string(usage.UsageRankingSortByRequests),
+		usage.SettingKeyUsageRankingShowTotalTokens: "false",
+		usage.SettingKeyUsageRankingShowRequests:    "false",
+		usage.SettingKeyUsageRankingShowActualCost:  "false",
+		usage.SettingKeyUsageRankingLimit:           "12",
 	})
 
 	recorder := httptest.NewRecorder()
@@ -100,7 +103,7 @@ func TestUsageRankingProjectsHiddenFieldsAndUsesConfiguredSort(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.True(t, repo.called)
-	require.Equal(t, service.UsageRankingSortByRequests, repo.sortBy)
+	require.Equal(t, usage.UsageRankingSortByRequests, repo.sortBy)
 
 	var envelope struct {
 		Data json.RawMessage `json:"data"`

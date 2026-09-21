@@ -14,7 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
 	"github.com/TokenFlux/TokenRouter/ent/predicate"
 	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // PaymentOrderUpdate is the builder for updating PaymentOrder entities.
@@ -488,13 +488,13 @@ func (_u *PaymentOrderUpdate) ClearPlanID() *PaymentOrderUpdate {
 }
 
 // SetPlanSnapshot sets the "plan_snapshot" field.
-func (_u *PaymentOrderUpdate) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderUpdate {
+func (_u *PaymentOrderUpdate) SetPlanSnapshot(v billing.SubscriptionPlanSnapshot) *PaymentOrderUpdate {
 	_u.mutation.SetPlanSnapshot(v)
 	return _u
 }
 
 // SetNillablePlanSnapshot sets the "plan_snapshot" field if the given value is not nil.
-func (_u *PaymentOrderUpdate) SetNillablePlanSnapshot(v *domain.SubscriptionPlanSnapshot) *PaymentOrderUpdate {
+func (_u *PaymentOrderUpdate) SetNillablePlanSnapshot(v *billing.SubscriptionPlanSnapshot) *PaymentOrderUpdate {
 	if v != nil {
 		_u.SetPlanSnapshot(*v)
 	}
@@ -1749,13 +1749,13 @@ func (_u *PaymentOrderUpdateOne) ClearPlanID() *PaymentOrderUpdateOne {
 }
 
 // SetPlanSnapshot sets the "plan_snapshot" field.
-func (_u *PaymentOrderUpdateOne) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderUpdateOne {
+func (_u *PaymentOrderUpdateOne) SetPlanSnapshot(v billing.SubscriptionPlanSnapshot) *PaymentOrderUpdateOne {
 	_u.mutation.SetPlanSnapshot(v)
 	return _u
 }
 
 // SetNillablePlanSnapshot sets the "plan_snapshot" field if the given value is not nil.
-func (_u *PaymentOrderUpdateOne) SetNillablePlanSnapshot(v *domain.SubscriptionPlanSnapshot) *PaymentOrderUpdateOne {
+func (_u *PaymentOrderUpdateOne) SetNillablePlanSnapshot(v *billing.SubscriptionPlanSnapshot) *PaymentOrderUpdateOne {
 	if v != nil {
 		_u.SetPlanSnapshot(*v)
 	}

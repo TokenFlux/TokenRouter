@@ -40,7 +40,7 @@ billing 拥有余额原子调整、订阅/套餐及兑换规则；SQL/Ent 实现
 - `provider_instance_id`、`provider_key` 和 `provider_snapshot`，使回调、查单与退款仍使用原订单对应实例。
 - 客户端来源、过期时间、外部 trade number、invoice/receipt 信息及完整状态时间点。
 
-`payment.ConfigService`、`ProviderBindings` 和选择器由 app 唯一装配，具体渠道构造与密钥/环境投影不进入核心。首次实例读取失败不标记已加载；刷新先构造完整候选表再原子发布，整体读取失败保留旧表并允许重试，单个坏配置仍按原规则跳过。
+`payment.Runtime`、`ConfigService`、`ProviderBindings` 和选择器由 app 直接装配，HTTP 与后台使用同一组下单、查询、履约和退款实例，不经旧 PaymentService 构造。具体渠道构造与密钥/环境投影不进入核心。首次实例读取失败不标记已加载；刷新先构造完整候选表再原子发布，整体读取失败保留旧表并允许重试，单个坏配置仍按原规则跳过。
 
 提供商实例决定支持的支付类型、模式、限额、排序和退款能力。删除或修改当前实例不能把历史订单重新解释为另一个实例；解析旧订单时才允许按保存的 provider key 或兼容注册表回退。
 

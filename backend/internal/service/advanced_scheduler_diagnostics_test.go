@@ -7,27 +7,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 	"github.com/stretchr/testify/require"
 )
 
 type advancedSchedulerDiagnosticSourceStub struct {
 	account  *Account
-	group    *Group
+	group    *routing.Group
 	accounts []Account
 	pool     []Account
 }
 
 type advancedSchedulerDiagnosticConcurrencyCache struct {
-	ConcurrencyCache
-	requests [][]AccountWithConcurrency
+	scheduler.ConcurrencyCache
+	requests [][]scheduler.AccountWithConcurrency
 }
 
-func (c *advancedSchedulerDiagnosticConcurrencyCache) GetAccountsLoadBatch(_ context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {
-	c.requests = append(c.requests, append([]AccountWithConcurrency(nil), accounts...))
-	result := make(map[int64]*AccountLoadInfo, len(accounts))
+func (c *advancedSchedulerDiagnosticConcurrencyCache) GetAccountsLoadBatch(_ context.Context, accounts []scheduler.AccountWithConcurrency) (map[int64]*scheduler.AccountLoadInfo, error) {
+	c.requests = append(c.requests, append([]scheduler.AccountWithConcurrency(nil), accounts...))
+	result := make(map[int64]*scheduler.AccountLoadInfo, len(accounts))
 	for _, account := range accounts {
-		result[account.ID] = &AccountLoadInfo{AccountID: account.ID}
+		result[account.ID] = &scheduler.AccountLoadInfo{AccountID: account.ID}
 	}
 	return result, nil
 }
@@ -36,7 +42,7 @@ func (s *advancedSchedulerDiagnosticSourceStub) GetAccount(_ context.Context, _ 
 	return s.account, nil
 }
 
-func (s *advancedSchedulerDiagnosticSourceStub) GetGroup(_ context.Context, _ int64) (*Group, error) {
+func (s *advancedSchedulerDiagnosticSourceStub) GetGroup(_ context.Context, _ int64) (*routing.Group, error) {
 	return s.group, nil
 }
 
@@ -60,7 +66,7 @@ func advancedSchedulerDiagnosticFloat(value float64) *float64 {
 	return &value
 }
 
-func findAdvancedSchedulerDiagnosticMetric(metrics []AdvancedSchedulerScoreDiagnosticMetric, key string) *AdvancedSchedulerScoreDiagnosticMetric {
+func findAdvancedSchedulerDiagnosticMetric(metrics []policy.AdvancedSchedulerScoreDiagnosticMetric, key string) *policy.AdvancedSchedulerScoreDiagnosticMetric {
 	for index := range metrics {
 		if metrics[index].Key == key {
 			return &metrics[index]
@@ -69,7 +75,7 @@ func findAdvancedSchedulerDiagnosticMetric(metrics []AdvancedSchedulerScoreDiagn
 	return nil
 }
 
-func findAdvancedSchedulerDiagnosticSetting(settings []AdvancedSchedulerScoreDiagnosticSetting, key string) *AdvancedSchedulerScoreDiagnosticSetting {
+func findAdvancedSchedulerDiagnosticSetting(settings []policy.AdvancedSchedulerScoreDiagnosticSetting, key string) *policy.AdvancedSchedulerScoreDiagnosticSetting {
 	for index := range settings {
 		if settings[index].Key == key {
 			return &settings[index]
@@ -78,7 +84,7 @@ func findAdvancedSchedulerDiagnosticSetting(settings []AdvancedSchedulerScoreDia
 	return nil
 }
 
-func findAdvancedSchedulerDiagnosticPolicy(signals []AdvancedSchedulerScoreDiagnosticPolicySignal, key string) *AdvancedSchedulerScoreDiagnosticPolicySignal {
+func findAdvancedSchedulerDiagnosticPolicy(signals []policy.AdvancedSchedulerScoreDiagnosticPolicySignal, key string) *policy.AdvancedSchedulerScoreDiagnosticPolicySignal {
 	for index := range signals {
 		if signals[index].Key == key {
 			return &signals[index]
@@ -88,12 +94,12 @@ func findAdvancedSchedulerDiagnosticPolicy(signals []AdvancedSchedulerScoreDiagn
 }
 
 func TestAdvancedSchedulerScoreDiagnosticService_UsesActualFormulaAndSafeDTO(t *testing.T) {
-	group := &Group{
+	group := &routing.Group{
 		ID:            301,
 		Name:          "advanced",
-		Platform:      PlatformGemini,
-		SchedulerType: GroupSchedulerTypeAdvanced,
-		AdvancedSchedulerOverrides: GroupAdvancedSchedulerOverrides{
+		Platform:      capability.PlatformGemini,
+		SchedulerType: routing.GroupSchedulerTypeAdvanced,
+		AdvancedSchedulerOverrides: routing.GroupAdvancedSchedulerOverrides{
 			StickyWeightedEnabled:  advancedSchedulerDiagnosticBool(true),
 			LBTopK:                 advancedSchedulerDiagnosticInt(2),
 			WeightPriority:         advancedSchedulerDiagnosticFloat(2),
@@ -110,9 +116,9 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesActualFormulaAndSafeDTO(t *
 	target := &Account{
 		ID:            101,
 		Name:          "target",
-		Platform:      PlatformGemini,
-		Type:          AccountTypeOAuth,
-		Status:        StatusActive,
+		Platform:      capability.PlatformGemini,
+		Type:          capability.AccountTypeOAuth,
+		Status:        billing.StatusActive,
 		Schedulable:   true,
 		Priority:      1,
 		Credentials:   map[string]any{"access_token": "secret-token"},
@@ -121,9 +127,9 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesActualFormulaAndSafeDTO(t *
 	other := Account{
 		ID:          102,
 		Name:        "other",
-		Platform:    PlatformGemini,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformGemini,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Priority:    2,
 	}
@@ -136,7 +142,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesActualFormulaAndSafeDTO(t *
 	rateLimitService := NewRateLimitService(nil, nil, nil, nil, nil)
 	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(source, nil, rateLimitService)
 
-	result, err := diagnostics.GetDetail(context.Background(), target.ID, AdvancedSchedulerScoreDiagnosticRequest{
+	result, err := diagnostics.GetDetail(context.Background(), target.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{
 		GroupID:         group.ID,
 		StickyAccountID: target.ID,
 	})
@@ -197,17 +203,17 @@ func TestAdvancedSchedulerRuntimeFeedbackSnapshot_RecordsSamplesAndObservedTime(
 }
 
 func TestAdvancedSchedulerScoreDiagnosticService_UsesProcessConfigBeforeFallback(t *testing.T) {
-	group := &Group{ID: 501, Name: "advanced", Platform: PlatformGemini, SchedulerType: GroupSchedulerTypeAdvanced}
+	group := &routing.Group{ID: 501, Name: "advanced", Platform: capability.PlatformGemini, SchedulerType: routing.GroupSchedulerTypeAdvanced}
 	target := &Account{
 		ID:            5011,
 		Name:          "target",
-		Platform:      PlatformGemini,
-		Status:        StatusActive,
+		Platform:      capability.PlatformGemini,
+		Status:        billing.StatusActive,
 		Schedulable:   true,
 		Priority:      1,
 		AccountGroups: []AccountGroup{{GroupID: group.ID, Group: group}},
 	}
-	other := Account{ID: 5012, Name: "other", Platform: PlatformGemini, Status: StatusActive, Schedulable: true, Priority: 2}
+	other := Account{ID: 5012, Name: "other", Platform: capability.PlatformGemini, Status: billing.StatusActive, Schedulable: true, Priority: 2}
 	source := &advancedSchedulerDiagnosticSourceStub{
 		account:  target,
 		group:    group,
@@ -224,7 +230,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesProcessConfigBeforeFallback
 	}, nil, nil)
 	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(source, nil, rateLimitService)
 
-	result, err := diagnostics.GetDetail(context.Background(), target.ID, AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
+	result, err := diagnostics.GetDetail(context.Background(), target.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
 	require.NoError(t, err)
 	require.NotNil(t, result.Detail)
 	require.NotNil(t, result.Detail.Score)
@@ -236,12 +242,12 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesProcessConfigBeforeFallback
 }
 
 func TestAdvancedSchedulerScoreDiagnosticService_HardStickyForcesAccountOutsideTopK(t *testing.T) {
-	group := &Group{
+	group := &routing.Group{
 		ID:            701,
 		Name:          "advanced",
-		Platform:      PlatformGemini,
-		SchedulerType: GroupSchedulerTypeAdvanced,
-		AdvancedSchedulerOverrides: GroupAdvancedSchedulerOverrides{
+		Platform:      capability.PlatformGemini,
+		SchedulerType: routing.GroupSchedulerTypeAdvanced,
+		AdvancedSchedulerOverrides: routing.GroupAdvancedSchedulerOverrides{
 			StickyWeightedEnabled: advancedSchedulerDiagnosticBool(false),
 			LBTopK:                advancedSchedulerDiagnosticInt(1),
 			WeightPriority:        advancedSchedulerDiagnosticFloat(1),
@@ -254,16 +260,16 @@ func TestAdvancedSchedulerScoreDiagnosticService_HardStickyForcesAccountOutsideT
 		},
 	}
 	target := &Account{
-		ID: 7011, Name: "sticky", Platform: PlatformGemini, Status: StatusActive,
+		ID: 7011, Name: "sticky", Platform: capability.PlatformGemini, Status: billing.StatusActive,
 		Schedulable: true, Priority: 100, AccountGroups: []AccountGroup{{GroupID: group.ID, Group: group}},
 	}
-	best := Account{ID: 7012, Name: "best", Platform: PlatformGemini, Status: StatusActive, Schedulable: true, Priority: 1}
+	best := Account{ID: 7012, Name: "best", Platform: capability.PlatformGemini, Status: billing.StatusActive, Schedulable: true, Priority: 1}
 	source := &advancedSchedulerDiagnosticSourceStub{
 		account: target, group: group, accounts: []Account{*target, best}, pool: []Account{best, *target},
 	}
 	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(source, nil, NewRateLimitService(nil, nil, &config.Config{}, nil, nil))
 
-	result, err := diagnostics.GetDetail(context.Background(), target.ID, AdvancedSchedulerScoreDiagnosticRequest{
+	result, err := diagnostics.GetDetail(context.Background(), target.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{
 		GroupID: group.ID, StickyAccountID: target.ID,
 	})
 
@@ -280,29 +286,29 @@ func TestAdvancedSchedulerScoreDiagnosticService_HardStickyForcesAccountOutsideT
 }
 
 func TestAdvancedSchedulerScoreDiagnosticService_SubscriptionPriorityUsesSubscriptionPool(t *testing.T) {
-	group := &Group{
+	group := &routing.Group{
 		ID:            801,
 		Name:          "advanced",
-		Platform:      PlatformOpenAI,
-		SchedulerType: GroupSchedulerTypeAdvanced,
-		AdvancedSchedulerOverrides: GroupAdvancedSchedulerOverrides{
+		Platform:      capability.PlatformOpenAI,
+		SchedulerType: routing.GroupSchedulerTypeAdvanced,
+		AdvancedSchedulerOverrides: routing.GroupAdvancedSchedulerOverrides{
 			SubscriptionPriorityEnabled: advancedSchedulerDiagnosticBool(true),
 		},
 	}
 	target := &Account{
-		ID: 8011, Name: "regular", Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
-		Status: StatusActive, Schedulable: true, AccountGroups: []AccountGroup{{GroupID: group.ID, Group: group}},
+		ID: 8011, Name: "regular", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+		Status: billing.StatusActive, Schedulable: true, AccountGroups: []AccountGroup{{GroupID: group.ID, Group: group}},
 	}
 	subscription := Account{
-		ID: 8012, Name: "subscription", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
-		Status: StatusActive, Schedulable: true, Credentials: map[string]any{"plan_type": "plus"},
+		ID: 8012, Name: "subscription", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
+		Status: billing.StatusActive, Schedulable: true, Credentials: map[string]any{"plan_type": "plus"},
 	}
 	source := &advancedSchedulerDiagnosticSourceStub{
 		account: target, group: group, accounts: []Account{*target, subscription}, pool: []Account{*target, subscription},
 	}
 	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(source, nil, NewRateLimitService(nil, nil, &config.Config{}, nil, nil))
 
-	result, err := diagnostics.GetDetail(context.Background(), target.ID, AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
+	result, err := diagnostics.GetDetail(context.Background(), target.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
 
 	require.NoError(t, err)
 	require.False(t, result.Detail.Eligible)
@@ -317,20 +323,20 @@ func TestAdvancedSchedulerScoreDiagnosticService_SubscriptionPriorityUsesSubscri
 }
 
 func TestAdvancedSchedulerScoreDiagnosticService_CountsMoreThanOneThousandExcludedAccounts(t *testing.T) {
-	group := &Group{ID: 901, Name: "advanced", Platform: PlatformGemini, SchedulerType: GroupSchedulerTypeAdvanced}
+	group := &routing.Group{ID: 901, Name: "advanced", Platform: capability.PlatformGemini, SchedulerType: routing.GroupSchedulerTypeAdvanced}
 	target := &Account{
-		ID: 9011, Name: "target", Platform: PlatformGemini, Status: StatusActive, Schedulable: true,
+		ID: 9011, Name: "target", Platform: capability.PlatformGemini, Status: billing.StatusActive, Schedulable: true,
 		AccountGroups: []AccountGroup{{GroupID: group.ID, Group: group}},
 	}
 	allAccounts := make([]Account, 0, 1002)
 	allAccounts = append(allAccounts, *target)
 	for index := 0; index < 1001; index++ {
-		allAccounts = append(allAccounts, Account{ID: int64(9100 + index), Platform: PlatformGemini, Status: StatusDisabled})
+		allAccounts = append(allAccounts, Account{ID: int64(9100 + index), Platform: capability.PlatformGemini, Status: billing.StatusDisabled})
 	}
 	source := &advancedSchedulerDiagnosticSourceStub{account: target, group: group, accounts: allAccounts, pool: []Account{*target}}
 	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(source, nil, NewRateLimitService(nil, nil, &config.Config{}, nil, nil))
 
-	result, err := diagnostics.GetDetail(context.Background(), target.ID, AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
+	result, err := diagnostics.GetDetail(context.Background(), target.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
 
 	require.NoError(t, err)
 	require.Equal(t, 1002, result.Detail.CandidatePool.TotalCandidates)
@@ -339,9 +345,9 @@ func TestAdvancedSchedulerScoreDiagnosticService_CountsMoreThanOneThousandExclud
 }
 
 func TestAdvancedSchedulerScoreDiagnosticService_StableSortsLargeCandidatePool(t *testing.T) {
-	group := &Group{
-		ID: 1001, Name: "advanced", Platform: PlatformGemini, SchedulerType: GroupSchedulerTypeAdvanced,
-		AdvancedSchedulerOverrides: GroupAdvancedSchedulerOverrides{
+	group := &routing.Group{
+		ID: 1001, Name: "advanced", Platform: capability.PlatformGemini, SchedulerType: routing.GroupSchedulerTypeAdvanced,
+		AdvancedSchedulerOverrides: routing.GroupAdvancedSchedulerOverrides{
 			WeightPriority:      advancedSchedulerDiagnosticFloat(1),
 			WeightLoad:          advancedSchedulerDiagnosticFloat(0),
 			WeightQueue:         advancedSchedulerDiagnosticFloat(0),
@@ -354,7 +360,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_StableSortsLargeCandidatePool(t
 	accounts := make([]Account, 0, 1101)
 	for index := 1100; index >= 0; index-- {
 		accounts = append(accounts, Account{
-			ID: int64(10000 + index), Platform: PlatformGemini, Status: StatusActive,
+			ID: int64(10000 + index), Platform: capability.PlatformGemini, Status: billing.StatusActive,
 			Schedulable: true, Priority: index % 7,
 		})
 	}
@@ -363,7 +369,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_StableSortsLargeCandidatePool(t
 	source := &advancedSchedulerDiagnosticSourceStub{account: target, group: group, accounts: accounts, pool: accounts}
 	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(source, nil, NewRateLimitService(nil, nil, &config.Config{}, nil, nil))
 
-	result, err := diagnostics.GetDetail(context.Background(), target.ID, AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
+	result, err := diagnostics.GetDetail(context.Background(), target.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
 
 	require.NoError(t, err)
 	require.Len(t, result.Detail.CandidatePool.Candidates, 1101)
@@ -378,19 +384,22 @@ func TestAdvancedSchedulerScoreDiagnosticService_StableSortsLargeCandidatePool(t
 
 func TestAdvancedSchedulerScoreDiagnosticService_LoadUsesEffectiveLoadFactor(t *testing.T) {
 	cache := &advancedSchedulerDiagnosticConcurrencyCache{}
-	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(nil, NewConcurrencyService(cache), nil)
+	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(nil, scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	},
+	), nil)
 	account := &Account{ID: 1101, Concurrency: 2, LoadFactor: advancedSchedulerDiagnosticInt(7)}
 
 	diagnostics.loadMap(context.Background(), []*Account{account})
 
 	require.Len(t, cache.requests, 1)
-	require.Equal(t, []AccountWithConcurrency{{ID: account.ID, MaxConcurrency: 7}}, cache.requests[0])
+	require.Equal(t, []scheduler.AccountWithConcurrency{{ID: account.ID, MaxConcurrency: 7}}, cache.requests[0])
 }
 
 func TestAdvancedSchedulerScoreDiagnosticService_FiltersModelRuntimeBlock(t *testing.T) {
-	group := &Group{ID: 1201, Platform: PlatformGemini, SchedulerType: GroupSchedulerTypeAdvanced}
+	group := &routing.Group{ID: 1201, Platform: capability.PlatformGemini, SchedulerType: routing.GroupSchedulerTypeAdvanced}
 	account := &Account{
-		ID: 12011, Platform: PlatformGemini, Status: StatusActive, Schedulable: true,
+		ID: 12011, Platform: capability.PlatformGemini, Status: billing.StatusActive, Schedulable: true,
 		Extra: map[string]any{modelRateLimitsKey: map[string]any{
 			"gemini-3-pro": map[string]any{"rate_limit_reset_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)},
 		}},
@@ -399,25 +408,25 @@ func TestAdvancedSchedulerScoreDiagnosticService_FiltersModelRuntimeBlock(t *tes
 
 	reason := diagnostics.diagnosticHardFilterReason(
 		context.Background(), account, group,
-		AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID, RequestedModel: "gemini-3-pro"}, time.Now(),
+		policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID, RequestedModel: "gemini-3-pro"}, time.Now(),
 	)
 
 	require.Equal(t, "model_runtime_blocked", reason)
 }
 
 func TestAdvancedSchedulerScoreDiagnosticService_EscapedStickyUsesRegularWindowCostGate(t *testing.T) {
-	group := &Group{
-		ID: 1301, Platform: PlatformAnthropic, SchedulerType: GroupSchedulerTypeAdvanced,
-		AdvancedSchedulerOverrides: GroupAdvancedSchedulerOverrides{
+	group := &routing.Group{
+		ID: 1301, Platform: capability.PlatformAnthropic, SchedulerType: routing.GroupSchedulerTypeAdvanced,
+		AdvancedSchedulerOverrides: routing.GroupAdvancedSchedulerOverrides{
 			StickyWeightedEnabled: advancedSchedulerDiagnosticBool(false),
 		},
 	}
 	target := &Account{
-		ID: 13011, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true,
+		ID: 13011, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true,
 		Extra:         map[string]any{"window_cost_limit": 10.0, "window_cost_sticky_reserve": 5.0},
 		AccountGroups: []AccountGroup{{GroupID: group.ID, Group: group}},
 	}
-	other := Account{ID: 13012, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true}
+	other := Account{ID: 13012, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true}
 	source := &advancedSchedulerDiagnosticSourceStub{
 		account: target, group: group, accounts: []Account{*target, other}, pool: []Account{*target, other},
 	}
@@ -430,11 +439,11 @@ func TestAdvancedSchedulerScoreDiagnosticService_EscapedStickyUsesRegularWindowC
 	}
 	diagnostics := NewAdvancedSchedulerScoreDiagnosticService(source, nil, rateLimitService)
 	diagnostics.SetSchedulingServices(&GatewayService{
-		cfg: cfg, sessionLimitCache: &sessionLimitCacheHotpathStub{batchData: map[int64]float64{target.ID: 11}},
+		cfg: cfg, windowCostCache: &sessionLimitCacheHotpathStub{batchData: map[int64]float64{target.ID: 11}},
 		usageLogRepo: &usageLogWindowBatchRepoStub{},
 	}, nil)
 
-	result, err := diagnostics.GetDetail(context.Background(), target.ID, AdvancedSchedulerScoreDiagnosticRequest{
+	result, err := diagnostics.GetDetail(context.Background(), target.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{
 		GroupID: group.ID, StickyAccountID: target.ID,
 	})
 

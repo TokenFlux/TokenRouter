@@ -1,12 +1,17 @@
 package service
 
 import (
-	"net/http"
 	"strings"
 
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,15 +32,11 @@ func extractClaudeCodeSessionID(c *gin.Context, body []byte) string {
 			return seed
 		}
 	}
-	return extractClaudeCodeSessionIDFromPayload(body)
-}
-
-func extractClaudeCodeSessionIDFromPayload(body []byte) string {
-	return nativegrok.ExtractClaudeCodeSessionIDFromPayload(body)
+	return grok.ExtractClaudeCodeSessionIDFromPayload(body)
 }
 
 func resolveGrokCacheIdentity(c *gin.Context, body []byte, explicitKey, upstreamModel string) string {
-	return nativegrok.ResolveCacheIdentity(grokCacheInput(c, explicitKey, upstreamModel), body)
+	return grok.ResolveCacheIdentity(grokCacheInput(c, explicitKey, upstreamModel), body)
 }
 
 func isGrokRequestContext(c *gin.Context) bool {
@@ -43,23 +44,17 @@ func isGrokRequestContext(c *gin.Context) bool {
 		return false
 	}
 	if c.Request != nil {
-		if platform, ok := c.Request.Context().Value(ctxkey.ForcePlatform).(string); ok && strings.TrimSpace(platform) != "" {
-			return platform == PlatformGrok
+		if platform, ok := apikey.ForcePlatformFromContext(c.Request.Context()); ok && strings.TrimSpace(platform) != "" {
+			return platform == capability.PlatformGrok
 		}
 	}
 	v, exists := c.Get("api_key")
 	if !exists {
 		return false
 	}
-	apiKey, ok := v.(*APIKey)
-	return ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == PlatformGrok
+	apiKey, ok := v.(*apikey.APIKey)
+	return ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == capability.PlatformGrok
 }
-
-func applyGrokResponsesCacheIdentity(body, intentSourceBody []byte, identity string, injectFreeTierTools bool) ([]byte, error) {
-	return nativegrok.ApplyGrokResponsesCacheIdentity(body, intentSourceBody, identity, injectFreeTierTools)
-}
-
-func hasGrokResponsesToolIntent(body []byte) bool { return nativegrok.HasGrokResponsesToolIntent(body) }
 
 // applyGrokFreeMessagesFunctionToolCacheRoute 只为已知 Free 账号启用 xAI 可缓存的
 // 混合工具路由。纯客户端工具默认启用，运维人员可在原生搜索工具会改变预期行为时
@@ -124,7 +119,7 @@ func isGrokClaudeDesktopResponsesCacheRequest(c *gin.Context) bool {
 		return false
 	}
 
-	if !NewClaudeCodeValidator().ValidateUserAgent(strings.TrimSpace(c.GetHeader("User-Agent"))) {
+	if !clientmeta.NewClaudeCodeValidator().ValidateUserAgent(strings.TrimSpace(c.GetHeader("User-Agent"))) {
 		return false
 	}
 	switch strings.ToLower(strings.TrimSpace(c.GetHeader("X-App"))) {
@@ -142,103 +137,18 @@ func applyGrokFreeToolCacheRoute(body, intentSourceBody []byte, account *Account
 	if strings.TrimSpace(cacheIdentity) == "" {
 		return body, nil
 	}
-	return nativegrok.ApplyGrokFreeToolCacheRoute(body, intentSourceBody, isKnownGrokFreeAccount(account), cacheIdentity, allowPureClientTools, allowFunctionSearch)
+	return grok.ApplyGrokFreeToolCacheRoute(body, intentSourceBody, isKnownGrokFreeAccount(account), cacheIdentity, allowPureClientTools, allowFunctionSearch)
 }
 
 // isKnownGrokFreeAccount 识别免费层 Grok 账号，用于免费缓存路由与媒体 free_tier 阻断，
 // 其覆盖范围比软性门禁更广；软性门禁使用 isExplicitGrokFreeOAuthAccount，且只匹配明确的 free。
 func isKnownGrokFreeAccount(account *Account) bool {
-	if account == nil || !account.IsGrokOAuth() {
-		return false
-	}
-	// 实时访问令牌 JWT 优先于陈旧的账单或凭据快照，令牌刷新后可立即反映降级到免费档位。
-	if jwtTier := nativegrok.SubscriptionTierFromJWT(account.GetCredential("access_token")); jwtTier != "" {
-		return isGrokFreeSubscriptionTier(jwtTier)
-	}
-	freeSignal := false
-	paidSignal := false
-	inferredFreeSignal := false
-	if billing, err := grokBillingSnapshotFromExtra(account.Extra); err == nil && billing != nil {
-		if tier := strings.TrimSpace(billing.Plan); tier != "" {
-			if isGrokFreeSubscriptionTier(tier) {
-				freeSignal = true
-			} else if !isGrokUnknownSubscriptionTier(tier) {
-				paidSignal = true
-			}
-		}
-		// 用量百分比或月度美元上限可以证明账号属于付费计划。
-		if billing.UsagePercent != nil || billing.UsedPercent != nil ||
-			(billing.MonthlyLimitCents != nil && *billing.MonthlyLimitCents > 0) {
-			paidSignal = true
-		}
-		// xAI 会故意为 Free 账号返回空 plan，只有付费订阅才带 SuperGrok plan/月度限额。
-		// 因此，成功且没有付费信号的月度计费观测是 Free 的正向证据，而不是未知层级；
-		// 部分探测仍按关闭策略处理。
-		if strings.TrimSpace(billing.MonthlyUpdatedAt) != "" ||
-			(billing.StatusCode >= http.StatusOK && billing.StatusCode < http.StatusMultipleChoices &&
-				!billing.Partial && len(billing.FailedWindows) == 0) {
-			inferredFreeSignal = true
-		}
-	}
-	if snapshot, err := grokQuotaSnapshotFromExtra(account.Extra); err == nil && snapshot != nil {
-		if tier := strings.TrimSpace(snapshot.SubscriptionTier); tier != "" {
-			if isGrokFreeSubscriptionTier(tier) {
-				freeSignal = true
-			} else if !isGrokUnknownSubscriptionTier(tier) {
-				paidSignal = true
-			}
-		}
-		if snapshot.Tokens != nil && snapshot.Tokens.Limit != nil &&
-			nativegrok.IsGrokFreeRolling24hTokenLimit(*snapshot.Tokens.Limit) {
-			inferredFreeSignal = true
-		}
-	}
-	// 此处仅凭证中的 subscription_tier 具有权威性，不采用 plan_type 或扩展字段。
-	if tier := strings.TrimSpace(account.GetCredential("subscription_tier")); tier != "" {
-		if isGrokFreeSubscriptionTier(tier) {
-			freeSignal = true
-		} else if !isGrokUnknownSubscriptionTier(tier) {
-			paidSignal = true
-		}
-	}
-	// 明确的付费证据始终覆盖推断的 Free 信号，避免已升级但快照陈旧的账号仍携带历史
-	// 200 万 Free token 限额而被误判。
-	return !paidSignal && (freeSignal || inferredFreeSignal)
-}
-
-func isGrokFreeSubscriptionTier(tier string) bool {
-	switch nativegrok.NormalizeSubscriptionTier(tier) {
-	case "free", "x_basic":
-		return true
-	default:
-		return false
-	}
-}
-
-func isGrokUnknownSubscriptionTier(tier string) bool {
-	switch strings.ToLower(strings.TrimSpace(tier)) {
-	case "", "unknown", "n/a", "none":
-		return true
-	default:
-		return false
-	}
-}
-
-func appendMissingGrokFreeCacheNativeTools(body []byte) ([]byte, error) {
-	return nativegrok.AppendMissingGrokFreeCacheNativeTools(body)
-}
-
-func applyGrokCacheHeaders(headers http.Header, identity string) {
-	nativegrok.ApplyGrokCacheHeaders(headers, identity)
-}
-
-func stripGrokChatPromptCacheKey(body []byte) ([]byte, error) {
-	return nativegrok.StripGrokChatPromptCacheKey(body)
+	return accountcore.KnownGrokFreeAccount(AccountRecordView(account), accountprovider.GrokTierRules())
 }
 
 // 请求读取留在适配器；原种子 helper 只在平台实际选择该分支时调用。
-func grokCacheInput(c *gin.Context, explicitKey, model string) nativegrok.CacheIdentityInput {
-	input := nativegrok.CacheIdentityInput{APIKeyID: getAPIKeyIDFromContext(c), Compact: isOpenAIResponsesCompactPath(c), Model: model, ExplicitKey: explicitKey, StablePrefixSeed: deriveOpenAIStablePrefixSessionSeed, AnchoredSeed: deriveOpenAIAnchoredContentSessionSeed, PreviousResponseSeed: grokPreviousResponseSessionSeed}
+func grokCacheInput(c *gin.Context, explicitKey, model string) grok.CacheIdentityInput {
+	input := grok.CacheIdentityInput{APIKeyID: gatewayhttp.APIKeyIDFromContext(c), Compact: isOpenAIResponsesCompactPath(c), Model: model, ExplicitKey: explicitKey, StablePrefixSeed: deriveOpenAIStablePrefixSessionSeed, AnchoredSeed: deriveOpenAIAnchoredContentSessionSeed, PreviousResponseSeed: grokPreviousResponseSessionSeed}
 	if c != nil {
 		input.ClaudeSession = c.GetHeader(claudeCodeSessionHeader)
 		input.HeaderSession = explicitOpenAIHeaderSessionID(c)

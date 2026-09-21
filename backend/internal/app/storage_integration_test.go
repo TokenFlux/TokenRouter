@@ -11,15 +11,16 @@ import (
 	"testing"
 	"time"
 
+	idempotencypostgres "github.com/TokenFlux/TokenRouter/internal/idempotency/postgres"
+	settingspostgres "github.com/TokenFlux/TokenRouter/internal/settings/postgres"
+
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
 	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/idempotency"
-	idempotencypostgres "github.com/TokenFlux/TokenRouter/internal/idempotency/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
-	settingspostgres "github.com/TokenFlux/TokenRouter/internal/settings/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/site"
 	sitepostgres "github.com/TokenFlux/TokenRouter/internal/site/postgres"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,7 @@ func TestS02StorageContracts(t *testing.T) {
 	ctx := context.Background()
 	t.Run("settings-batch-atomicity", func(t *testing.T) {
 		store := settings.New(settingspostgres.NewSettingRepository(fixture.client))
+		require.Same(t, store, settings.New(store), "接口投影必须保留同一设置状态")
 		require.NoError(t, store.Set(ctx, "s02_existing", "before"))
 		// 用临时触发器制造真实 SQL 失败，不改发布迁移或运行代码。
 		_, err := fixture.db.ExecContext(ctx, `CREATE FUNCTION s02_reject_setting() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.key = 's02_reject' THEN RAISE EXCEPTION 's02 injected failure'; END IF; RETURN NEW; END $$;

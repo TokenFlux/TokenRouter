@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -21,8 +24,8 @@ func classifySelectionFailureError(err error, fallback noAccountErrorClassificat
 // 旧 Key 只投影最终分组，诊断与 HTTP 映射由所属模块完成。
 func classifyNoAccountError(
 	ctx context.Context,
-	diag service.ModelAvailabilityDiagnoser,
-	apiKey *service.APIKey,
+	diag routing.ModelAvailabilityDiagnoser,
+	apiKey *apikey.APIKey,
 	routingModel string,
 	displayModel string,
 	platform string,
@@ -37,8 +40,8 @@ func classifyNoAccountError(
 // classifyNoAccountErrorFromGin 复用 gin.Context 上的 request context，简化 handler 调用点。
 func classifyNoAccountErrorFromGin(
 	c *gin.Context,
-	diag service.ModelAvailabilityDiagnoser,
-	apiKey *service.APIKey,
+	diag routing.ModelAvailabilityDiagnoser,
+	apiKey *apikey.APIKey,
 	routingModel string,
 	displayModel string,
 	platform string,
@@ -49,7 +52,7 @@ func classifyNoAccountErrorFromGin(
 	}
 	classification := classifyNoAccountError(ctx, diag, apiKey, routingModel, displayModel, platform)
 	if classification.ModelNotFound {
-		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalModelConfiguration)
+		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalModelConfiguration)
 	}
 	return classification
 }
@@ -57,8 +60,8 @@ func classifyNoAccountErrorFromGin(
 // classifyOpenAICompatibleNoAccountErrorFromGin 按 API Key 分组平台诊断 OpenAI 兼容请求。
 func classifyOpenAICompatibleNoAccountErrorFromGin(
 	c *gin.Context,
-	diag service.ModelAvailabilityDiagnoser,
-	apiKey *service.APIKey,
+	diag routing.ModelAvailabilityDiagnoser,
+	apiKey *apikey.APIKey,
 	routingModel string,
 	displayModel string,
 ) noAccountErrorClassification {
@@ -82,9 +85,9 @@ func (d openAIResolvedRoutingModelDiagnoser) DiagnoseModelAvailabilityForPlatfor
 	groupID *int64,
 	routingModel string,
 	platform string,
-) service.ModelAvailabilityDiagnosis {
+) routing.ModelAvailabilityDiagnosis {
 	if d.service == nil {
-		return service.ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true}
+		return routing.ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true}
 	}
 	return d.service.DiagnoseRoutingModelAvailabilityForPlatform(ctx, groupID, routingModel, platform)
 }
@@ -93,7 +96,7 @@ func (d openAIResolvedRoutingModelDiagnoser) DiagnoseModelAvailabilityForPlatfor
 func classifyOpenAICompatibleResolvedRoutingNoAccountErrorFromGin(
 	c *gin.Context,
 	gatewayService *service.OpenAIGatewayService,
-	apiKey *service.APIKey,
+	apiKey *apikey.APIKey,
 	routingModel string,
 	displayModel string,
 ) noAccountErrorClassification {
@@ -108,7 +111,7 @@ func classifyOpenAICompatibleResolvedRoutingNoAccountErrorFromGin(
 
 // openAICompatibleSelectionErrorForLog 将 Grok 选择失败日志中的平台名称改为实际平台。
 func openAICompatibleSelectionErrorForLog(err error, platform string) error {
-	if err == nil || platform != service.PlatformGrok {
+	if err == nil || platform != capability.PlatformGrok {
 		return err
 	}
 	message := strings.ReplaceAll(err.Error(), "OpenAI accounts", "Grok accounts")

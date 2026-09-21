@@ -82,6 +82,8 @@ func TestBatchClientLocalTLSAndStreamCancellation(t *testing.T) {
 			_, _ = fmt.Fprintf(w, `{"downloadUri":"https://%s/bytes","mimeType":"application/jsonl"}`, r.Host)
 		case r.URL.Path == "/bytes":
 			w.Header().Set("Content-Type", "application/jsonl")
+			// 明确仍有未发送内容，避免取消与正常 chunked EOF 竞争而误判为下载完成。
+			w.Header().Set("Content-Length", fmt.Sprint(len("first-line\n")+1))
 			_, _ = io.WriteString(w, "first-line\n")
 			_ = http.NewResponseController(w).Flush()
 			close(streamStarted)

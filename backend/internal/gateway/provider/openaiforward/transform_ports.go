@@ -3,7 +3,8 @@ package openaiforward
 
 import (
 	"context"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 type TransformPorts interface {
@@ -32,13 +33,13 @@ type TransformPorts interface {
 	ValidateOpenAIResponsesImageModel(body map[string]any, model string) error
 	ValidateCodexSparkInput(body map[string]any, model string) error
 	ApplyCodexImageGenerationBridgeInstructions(body map[string]any) bool
-	CodexTransform(body map[string]any, options native.CodexOAuthTransformOptions) native.CodexTransformResult
+	CodexTransform(body map[string]any, options openai.CodexOAuthTransformOptions) openai.CodexTransformResult
 	EnsureCodexOAuthInstructionsField(body map[string]any)
 	ToolNameReverse(mapping map[string]string)
 	ClientMetadata(body map[string]any) bool
 	AccountIdentity(body map[string]any) bool
 	ClearFingerprint()
-	Fingerprint(ctx context.Context, body map[string]any) (*native.FingerprintIDs, bool, error)
+	Fingerprint(ctx context.Context, body map[string]any) (*openai.FingerprintIDs, bool, error)
 	FastDecision(ctx context.Context, model, tier string, hasTier bool) FastDecision
 	FastBlocked(err error)
 	SanitizeOpenAIResponsesOrphanToolOutputs(body map[string]any, input []any, hasPrevious bool) bool

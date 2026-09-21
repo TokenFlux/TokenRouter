@@ -9,34 +9,39 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func TestResolveMessagesDispatchModelCNProvidersSkipOpenAIMapping(t *testing.T) {
-	for _, platform := range []string{PlatformKimi, PlatformZhipu, PlatformDeepseek} {
-		group := &Group{
+	for _, platform := range []string{capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
+		group := &routing.Group{
 			Platform: platform,
-			MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
+			MessagesDispatchModelConfig: routing.OpenAIMessagesDispatchModelConfig{
 				SonnetMappedModel: "gpt-5.4",
 			},
 		}
-		require.Empty(t, group.ResolveMessagesDispatchModel("claude-sonnet-4-5"), platform)
+		require.Empty(t, ResolveMessagesDispatchModel(group, "claude-sonnet-4-5"), platform)
 	}
 
-	openAIGroup := &Group{
-		Platform: PlatformOpenAI,
-		MessagesDispatchModelConfig: OpenAIMessagesDispatchModelConfig{
+	openAIGroup := &routing.Group{
+		Platform: capability.PlatformOpenAI,
+		MessagesDispatchModelConfig: routing.OpenAIMessagesDispatchModelConfig{
 			SonnetMappedModel: "gpt-5.4",
 		},
 	}
-	require.Equal(t, "gpt-5.4", openAIGroup.ResolveMessagesDispatchModel("claude-sonnet-4-5"))
+	require.Equal(t, "gpt-5.4", ResolveMessagesDispatchModel(openAIGroup, "claude-sonnet-4-5"))
 }
 
 func TestFilterCNProviderBillingModelCandidates(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	apiKey := &APIKey{Group: &Group{ID: 1, Platform: PlatformKimi}}
-	cnAccount := &Account{ID: 1, Platform: PlatformKimi}
+	apiKey := &apikey.APIKey{Group: &routing.Group{ID: 1, Platform: capability.PlatformKimi}}
+	cnAccount := &Account{ID: 1, Platform: capability.PlatformKimi}
 
 	filtered := svc.filterCNProviderBillingModelCandidates(
 		context.Background(),
@@ -50,7 +55,7 @@ func TestFilterCNProviderBillingModelCandidates(t *testing.T) {
 		context.Background(), cnAccount, apiKey, []string{"claude-sonnet-4-5"},
 	))
 
-	openAIAccount := &Account{ID: 2, Platform: PlatformOpenAI}
+	openAIAccount := &Account{ID: 2, Platform: capability.PlatformOpenAI}
 	require.Equal(t, []string{"claude-sonnet-4-5"}, svc.filterCNProviderBillingModelCandidates(
 		context.Background(), openAIAccount, apiKey, []string{"claude-sonnet-4-5"},
 	))
@@ -64,18 +69,18 @@ func TestFilterCNProviderBillingModelCandidatesKeepsExplicitGroupPricing(t *test
 		billingService: billing,
 		resolver:       NewModelPricingResolver(nil, billing),
 	}
-	group := &Group{
+	group := &routing.Group{
 		ID:       1,
-		Platform: PlatformKimi,
-		ModelPricing: []ChannelModelPricing{{
+		Platform: capability.PlatformKimi,
+		ModelPricing: []routing.ChannelModelPricing{{
 			Models:      []string{"claude-sonnet-4-5"},
-			BillingMode: BillingModeToken,
+			BillingMode: routing.BillingModeToken,
 			InputPrice:  &inputPrice,
 			OutputPrice: &outputPrice,
 		}},
 	}
-	apiKey := &APIKey{Group: group}
-	account := &Account{Platform: PlatformKimi}
+	apiKey := &apikey.APIKey{Group: group}
+	account := &Account{Platform: capability.PlatformKimi}
 
 	require.Equal(t, []string{"claude-sonnet-4-5"}, svc.filterCNProviderBillingModelCandidates(
 		context.Background(), account, apiKey, []string{"claude-sonnet-4-5"},
@@ -84,47 +89,24 @@ func TestFilterCNProviderBillingModelCandidatesKeepsExplicitGroupPricing(t *test
 
 func TestCalculateOpenAIRecordUsageCostEmptyCandidatesIsPricingUnavailable(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	apiKey := &APIKey{Group: &Group{ID: 1, Platform: PlatformKimi}}
+	apiKey := &apikey.APIKey{Group: &routing.Group{ID: 1, Platform: capability.PlatformKimi}}
 
 	_, err := svc.calculateOpenAIRecordUsageCost(
 		context.Background(), nil, apiKey, nil,
-		1, 1, 1, 1, UsageTokens{InputTokens: 100}, "",
+		1, 1, 1, 1, pricing.UsageTokens{InputTokens: 100}, "",
 	)
 	require.Error(t, err)
 	require.True(t, isUsagePricingUnavailableError(err), err)
 }
 
-func TestIsCNProviderConcurrencyLimit403_ExactClassification(t *testing.T) {
-	kimi := &Account{Platform: PlatformKimi}
-
-	require.True(t, isCNProviderConcurrencyLimit403(kimi, kimiConcurrentRequestLimitMessage))
-	require.True(t, isCNProviderConcurrencyLimit403(kimi, "  "+kimiConcurrentRequestLimitMessage+"\n"))
-
-	for name, tc := range map[string]struct {
-		account *Account
-		message string
-	}{
-		"permission denied":              {kimi, "You do not have permission to access this resource."},
-		"generic concurrency wording":    {kimi, "concurrent request limit reached"},
-		"near match missing punctuation": {kimi, "You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again"},
-		"other CN provider":              {&Account{Platform: PlatformZhipu}, kimiConcurrentRequestLimitMessage},
-		"non CN provider":                {&Account{Platform: PlatformOpenAI}, kimiConcurrentRequestLimitMessage},
-		"nil account":                    {nil, kimiConcurrentRequestLimitMessage},
-	} {
-		t.Run(name, func(t *testing.T) {
-			require.False(t, isCNProviderConcurrencyLimit403(tc.account, tc.message))
-		})
-	}
-}
-
 func TestHandle403_OtherCNProviderWithKimiConcurrencyMessageUsesNormalPolicy(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{}
-	counter := &openAI403CounterCacheStub{counts: []int64{openAI403DisableThresholdDefault}}
+	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
 	blocker := &runtimeBlockRecorder{}
 	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	service.SetOpenAI403CounterCache(counter)
 	service.SetAccountRuntimeBlocker(blocker)
-	account := &Account{ID: 405, Platform: PlatformZhipu, Type: AccountTypeAPIKey}
+	account := &Account{ID: 405, Platform: capability.PlatformZhipu, Type: capability.AccountTypeAPIKey}
 
 	shouldDisable := service.HandleUpstreamError(
 		context.Background(), account, http.StatusForbidden, http.Header{},
@@ -140,12 +122,12 @@ func TestHandle403_OtherCNProviderWithKimiConcurrencyMessageUsesNormalPolicy(t *
 
 func TestHandle403_CNProviderConcurrencyLimitAlwaysUsesTemporaryCooldown(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{}
-	counter := &openAI403CounterCacheStub{counts: []int64{openAI403DisableThresholdDefault}}
+	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
 	blocker := &runtimeBlockRecorder{}
 	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	service.SetOpenAI403CounterCache(counter)
 	service.SetAccountRuntimeBlocker(blocker)
-	account := &Account{ID: 403, Platform: PlatformKimi, Type: AccountTypeAPIKey}
+	account := &Account{ID: 403, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}
 
 	shouldDisable := service.HandleUpstreamError(
 		context.Background(), account, http.StatusForbidden, http.Header{},
@@ -155,21 +137,21 @@ func TestHandle403_CNProviderConcurrencyLimitAlwaysUsesTemporaryCooldown(t *test
 	require.True(t, shouldDisable, "the request must still fail over to another account")
 	require.Equal(t, 0, repo.setErrorCalls)
 	require.Equal(t, 1, repo.tempCalls)
-	require.Contains(t, repo.lastTempReason, cnConcurrencyLimitReasonPrefix)
-	require.Equal(t, []int64{openAI403DisableThresholdDefault}, counter.counts, "transient concurrency 403 must bypass the permanent-error counter")
+	require.Contains(t, repo.lastTempReason, accountcore.CNConcurrencyLimitReason)
+	require.Equal(t, []int64{accountcore.OpenAI403DisableThresholdDefault}, counter.counts, "transient concurrency 403 must bypass the permanent-error counter")
 	require.Len(t, blocker.accounts, 1)
-	require.Equal(t, cnConcurrencyLimitReasonPrefix, blocker.reasons[0])
+	require.Equal(t, accountcore.CNConcurrencyLimitReason, blocker.reasons[0])
 	require.True(t, blocker.until[0].After(time.Now()))
 }
 
 func TestHandle403_KimiConcurrencyLimitRepositoryFailureKeepsRuntimeBlock(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{tempErr: errors.New("repository unavailable")}
-	counter := &openAI403CounterCacheStub{counts: []int64{openAI403DisableThresholdDefault}}
+	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
 	blocker := &runtimeBlockRecorder{}
 	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	service.SetOpenAI403CounterCache(counter)
 	service.SetAccountRuntimeBlocker(blocker)
-	account := &Account{ID: 406, Platform: PlatformKimi, Type: AccountTypeAPIKey}
+	account := &Account{ID: 406, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}
 
 	shouldDisable := service.HandleUpstreamError(
 		context.Background(), account, http.StatusForbidden, http.Header{},
@@ -179,20 +161,20 @@ func TestHandle403_KimiConcurrencyLimitRepositoryFailureKeepsRuntimeBlock(t *tes
 	require.True(t, shouldDisable, "the current request must fail over even when persistence fails")
 	require.Equal(t, 1, repo.tempCalls, "the temporary cooldown should still be persisted when possible")
 	require.Equal(t, 0, repo.setErrorCalls, "persistence failure must not fall back to permanent account error")
-	require.Equal(t, []int64{openAI403DisableThresholdDefault}, counter.counts, "persistence failure must not enter the permanent-error counter path")
+	require.Equal(t, []int64{accountcore.OpenAI403DisableThresholdDefault}, counter.counts, "persistence failure must not enter the permanent-error counter path")
 	require.Len(t, blocker.accounts, 1, "the in-memory runtime block must survive repository failure")
 	// 跨新旧类型边界比较完整投影，原同一输入断言在账号核心测试继续验证。
 	require.Equal(t, account, blocker.accounts[0])
-	require.Equal(t, cnConcurrencyLimitReasonPrefix, blocker.reasons[0])
+	require.Equal(t, accountcore.CNConcurrencyLimitReason, blocker.reasons[0])
 	require.True(t, blocker.until[0].After(time.Now()))
 }
 
 func TestHandle403_CNProviderNearMatchRetainsNormalPermanentErrorPolicy(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{}
-	counter := &openAI403CounterCacheStub{counts: []int64{openAI403DisableThresholdDefault}}
+	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
 	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	service.SetOpenAI403CounterCache(counter)
-	account := &Account{ID: 404, Platform: PlatformKimi, Type: AccountTypeAPIKey}
+	account := &Account{ID: 404, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}
 
 	shouldDisable := service.HandleUpstreamError(
 		context.Background(), account, http.StatusForbidden, http.Header{},

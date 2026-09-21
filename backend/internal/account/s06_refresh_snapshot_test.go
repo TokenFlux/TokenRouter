@@ -3,8 +3,9 @@
 package account
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 凭据交换失败后用于条件写入的快照必须保持交换前的嵌套值，不能被执行器改写。

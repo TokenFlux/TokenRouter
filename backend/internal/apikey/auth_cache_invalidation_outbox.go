@@ -4,12 +4,13 @@ package apikey
 import (
 	context "context"
 	fmt "fmt"
-	uuid "github.com/google/uuid"
 	slog "log/slog"
 	rand "math/rand/v2"
 	sync "sync"
 	atomic "sync/atomic"
 	time "time"
+
+	uuid "github.com/google/uuid"
 )
 
 const (

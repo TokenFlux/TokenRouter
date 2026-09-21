@@ -8,15 +8,15 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSessionBindingContextFollowsForwardedIPSwitch(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	for _, tc := range []struct {
 		name           string
@@ -36,7 +36,7 @@ func TestSessionBindingContextFollowsForwardedIPSwitch(t *testing.T) {
 			require.NoError(t, r.SetTrustedProxies(tc.trustedProxies))
 			r.Use(SessionBindingContext(cfg))
 			r.GET("/t", func(c *gin.Context) {
-				binding := service.SessionBindingFromContext(c.Request.Context())
+				binding := identity.SessionBindingFromContext(c.Request.Context())
 				require.NotNil(t, binding)
 				require.Equal(t, tc.wantIP, binding.IP)
 				require.Equal(t, "test-agent", binding.UserAgent)
@@ -57,7 +57,6 @@ func TestSessionBindingContextFollowsForwardedIPSwitch(t *testing.T) {
 }
 
 func TestSessionBindingContextSnapshotsForwardedModeAndHeaders(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.SetForwardedClientIPSettings(true, []string{"X-Initial-IP"})
@@ -66,12 +65,12 @@ func TestSessionBindingContextSnapshotsForwardedModeAndHeaders(t *testing.T) {
 	require.NoError(t, r.SetTrustedProxies(nil))
 	r.Use(SessionBindingContext(cfg))
 	r.GET("/t", func(c *gin.Context) {
-		binding := service.SessionBindingFromContext(c.Request.Context())
+		binding := identity.SessionBindingFromContext(c.Request.Context())
 		require.NotNil(t, binding)
 		require.Equal(t, "1.2.3.4", binding.IP)
 
 		cfg.SetForwardedClientIPSettings(false, []string{"X-Changed-IP"})
-		require.Equal(t, "1.2.3.4", ip.GetSecurityClientIP(c, false))
+		require.Equal(t, "1.2.3.4", clientip.GetSecurityClientIP(c, false))
 		c.Status(200)
 	})
 
@@ -94,7 +93,7 @@ func TestSessionBindingContextBoundsPersistedUserAgent(t *testing.T) {
 	r := gin.New()
 	r.Use(SessionBindingContext(cfg))
 	r.GET("/t", func(c *gin.Context) {
-		binding := service.SessionBindingFromContext(c.Request.Context())
+		binding := identity.SessionBindingFromContext(c.Request.Context())
 		require.Len(t, binding.UserAgent, maxPersistentUserAgentBytes)
 		require.Equal(t, binding.UserAgent, c.Request.UserAgent())
 		c.Status(200)
@@ -109,7 +108,6 @@ func TestSessionBindingContextBoundsPersistedUserAgent(t *testing.T) {
 // 未经过 SessionBindingContext 注入时（异常挂载顺序/单测直调），回退 trusted_proxies 链，
 // 等价于开关关闭时的历史行为。
 func TestSecurityClientIPFallsBackWithoutInjectedBinding(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies(nil))
@@ -128,7 +126,6 @@ func TestSecurityClientIPFallsBackWithoutInjectedBinding(t *testing.T) {
 }
 
 func TestRequestSessionBindingPrefersInjectedBinding(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.SetTrustForwardedIPForAPIKeyACL(true)
@@ -137,7 +134,7 @@ func TestRequestSessionBindingPrefersInjectedBinding(t *testing.T) {
 	require.NoError(t, r.SetTrustedProxies([]string{"127.0.0.1"}))
 	r.Use(SessionBindingContext(cfg))
 	r.GET("/t", func(c *gin.Context) {
-		issued := &service.SessionBinding{IP: "1.2.3.4", UserAgent: "test-agent"}
+		issued := &identity.SessionBinding{IP: "1.2.3.4", UserAgent: "test-agent"}
 		require.Equal(t, issued.Hash(), requestSessionBinding(c).Hash())
 		c.Status(200)
 	})

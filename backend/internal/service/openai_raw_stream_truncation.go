@@ -6,6 +6,11 @@ import (
 	"net/http"
 	"strings"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,14 +24,14 @@ func newOpenAIRawStreamTruncatedFailoverError(
 	account *Account,
 	upstreamRequestID string,
 	cause error,
-) *UpstreamFailoverError {
+) *forwardcore.UpstreamFailoverError {
 	recordOpenAIRawStreamTruncation(c, account, upstreamRequestID, cause, "failover")
 
 	headers := http.Header{}
 	if id := strings.TrimSpace(upstreamRequestID); id != "" {
 		headers.Set("x-request-id", id)
 	}
-	return &UpstreamFailoverError{
+	return &forwardcore.UpstreamFailoverError{
 		StatusCode:      http.StatusBadGateway,
 		ResponseBody:    openAIRawStreamTruncatedErrorBody(cause),
 		ResponseHeaders: headers,
@@ -46,7 +51,7 @@ func recordOpenAIRawStreamTruncation(
 		return
 	}
 	message := openAIRawStreamTruncatedMessage(cause)
-	platform := PlatformOpenAI
+	platform := capability.PlatformOpenAI
 	accountID := int64(0)
 	accountName := ""
 	if account != nil {
@@ -54,9 +59,8 @@ func recordOpenAIRawStreamTruncation(
 		accountID = account.ID
 		accountName = account.Name
 	}
-
-	setOpsUpstreamError(c, http.StatusBadGateway, message, "")
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+	gatewayhttp.SetOpsUpstreamError(c, http.StatusBadGateway, message, "")
+	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 		Platform:           platform,
 		AccountID:          accountID,
 		AccountName:        accountName,
@@ -70,7 +74,7 @@ func recordOpenAIRawStreamTruncation(
 // openAIRawStreamTruncatedMessage 拼出 Ops 消息：干净 EOF 没有底层错误可带，
 // 传输层错误（connection reset / http2 stream error）则保留原因以便定位。
 func openAIRawStreamTruncatedMessage(cause error) string {
-	if cause == nil || errors.Is(cause, ErrOpenAIUpstreamStreamTruncated) {
+	if cause == nil || errors.Is(cause, openai.ErrOpenAIUpstreamStreamTruncated) {
 		return openAIRawStreamTruncatedUpstreamMessage
 	}
 	return openAIRawStreamTruncatedUpstreamMessage + ": " + cause.Error()
@@ -79,7 +83,7 @@ func openAIRawStreamTruncatedMessage(cause error) string {
 // openAIRawStreamTruncatedErrorBody 构造 failover 错误体，code/message 与
 // 写出后走 openAIUpstreamStreamReadError 的客户端分类保持一致。
 func openAIRawStreamTruncatedErrorBody(cause error) []byte {
-	code, message := classifyOpenAIUpstreamStreamReadError(cause)
+	code, message := openai.ClassifyUpstreamStreamReadError(cause)
 	body, err := json.Marshal(map[string]any{
 		"error": map[string]any{
 			"type":    "upstream_error",
@@ -88,7 +92,7 @@ func openAIRawStreamTruncatedErrorBody(cause error) []byte {
 		},
 	})
 	if err != nil {
-		return []byte(`{"error":{"type":"upstream_error","code":"` + OpenAIUpstreamStreamTruncatedCode +
+		return []byte(`{"error":{"type":"upstream_error","code":"` + openai.OpenAIUpstreamStreamTruncatedCode +
 			`","message":"Upstream response stream ended before completion"}}`)
 	}
 	return body

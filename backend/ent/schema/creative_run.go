@@ -1,15 +1,14 @@
 package schema
 
 import (
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/schema"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // CreativeRun 定义创作台异步任务的数据结构。
@@ -63,8 +62,8 @@ func (CreativeRun) Fields() []ent.Field {
 		field.Float("actual_cost").Optional().Nillable().SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}),
 		// 计费预占快照，仿 batch_image_jobs：先占订阅、再冻结余额。
 		field.Float("balance_hold_amount").SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).Default(0),
-		field.JSON("subscription_hold_allocations", []domain.BillingAllocation{}).
-			Default(func() []domain.BillingAllocation { return []domain.BillingAllocation{} }).
+		field.JSON("subscription_hold_allocations", []billing.BillingAllocation{}).
+			Default(func() []billing.BillingAllocation { return []billing.BillingAllocation{} }).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 		// 定价快照：基础单价与订阅/余额来源倍率。
 		field.Float("base_unit_price").SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).Default(0),

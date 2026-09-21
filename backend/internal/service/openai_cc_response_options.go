@@ -4,28 +4,30 @@ package service
 import (
 	"io"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeCCResponseOptions(c *gin.Context, writeError compatErrorWriter) native.CCResponseOptions {
-	tierObserver := &upstreamResponseModelObserver{}
+func (s *OpenAIGatewayService) nativeCCResponseOptions(c *gin.Context, writeError compatErrorWriter) openai.CCResponseOptions {
+	tierObserver := &forwardcore.ResponseObserver{}
 	maxLineSize := defaultMaxLineSize
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 		maxLineSize = s.cfg.Gateway.MaxLineSize
 	}
-	return native.CCResponseOptions{
+	return openai.CCResponseOptions{
 		MaxLineSize: maxLineSize,
 		ObserveChunk: func(body []byte) {
 			tierObserver.ObserveOpenAI(body, wire.OpenAIChatCompletionServiceTierEventType(body))
-			if observer := upstreamResponseModelObserverFromContext(c); observer != nil {
+			if observer := gatewayhttp.UpstreamResponseModelObserverFromContext(c); observer != nil {
 				observer.ObserveOpenAI(body, "")
 			}
 		},
 		ObserveJSON: func(body []byte) {
-			observeOpenAIServiceTierInContext(c, body, "response.completed")
-			if observer := upstreamResponseModelObserverFromContext(c); observer != nil {
+			gatewayhttp.ObserveOpenAIServiceTierInContext(c, body, "response.completed")
+			if observer := gatewayhttp.UpstreamResponseModelObserverFromContext(c); observer != nil {
 				observer.ObserveOpenAI(body, "")
 			}
 		},

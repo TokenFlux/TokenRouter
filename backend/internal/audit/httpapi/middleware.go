@@ -8,7 +8,7 @@ import (
 
 	service "github.com/TokenFlux/TokenRouter/internal/audit"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 
 	"github.com/gin-gonic/gin"
 )
@@ -172,7 +172,7 @@ func NewAuditLogMiddleware(auditService *service.AuditLogService, redactor *serv
 				entry.Action = s
 			}
 		}
-		if requestID, ok := c.Request.Context().Value(ctxkey.RequestID).(string); ok {
+		if requestID, ok := c.Request.Context().Value(telemetry.RequestID).(string); ok {
 			entry.RequestID = requestID
 		}
 

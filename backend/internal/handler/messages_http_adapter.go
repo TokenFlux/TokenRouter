@@ -6,13 +6,18 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -42,84 +47,84 @@ func (p messagesHTTPBackend) Access(c *gin.Context) (*apikey.APIKey, bool) {
 		return key, true
 	}
 	key, ok := middleware.GetAPIKeyFromContext(c)
-	return service.APIKeyView(key), ok
+	return apikey.CopyAPIKey(key), ok
 }
 func (p messagesHTTPBackend) CompatibilityMetrics(log *zap.Logger) {
 	p.h.maybeLogCompatibilityFallbackMetrics(log)
 }
 func (p messagesHTTPBackend) ObserveRequest(c *gin.Context, model string, stream bool) {
-	setOpsRequestContext(c, model, stream)
+	gatewayhttp.SetOpsRequestContext(c, model, stream)
 }
 func (p messagesHTTPBackend) ObserveEndpoint(c *gin.Context, stream bool) {
-	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(stream, false)))
+	gatewayhttp.SetOpsEndpointContext(c, "", int16(usage.RequestTypeFromLegacy(stream, false)))
 }
 func (p messagesHTTPBackend) Reasoning(c *gin.Context, key *apikey.APIKey, body []byte) ([]byte, bool, error) {
-	return applyAnthropicReasoningEffortPolicyForRequest(c, service.APIKeyFromView(key), body)
+	return applyAnthropicReasoningEffortPolicyForRequest(c, apikey.CopyAPIKey(key), body)
 }
 func (p messagesHTTPBackend) PolicyDenied(c *gin.Context) {
-	service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+	gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 }
 func (p messagesHTTPBackend) Plan(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-	old := service.APIKeyFromView(key)
+	old := apikey.CopyAPIKey(key)
 	return p.h.gatewayService.PlanRoute(ctx, service.APIKeyRouteGroup(old), old.GroupID, model)
 }
 func (p messagesHTTPBackend) BindPlan(c *gin.Context, plan routing.RoutePlan) {
-	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), plan))
+	c.Request = c.Request.WithContext(requeststate.WithRoutePlan(c.Request.Context(), plan))
 }
 func (p messagesHTTPBackend) BindProbe(c *gin.Context) {
-	c.Request = c.Request.WithContext(service.WithIsMaxTokensOneHaikuRequest(c.Request.Context(), true, p.h.metadataBridgeEnabled()))
+	c.Request = c.Request.WithContext(requeststate.WithIsMaxTokensOneHaikuRequest(c.Request.Context(), true))
 }
 func (p messagesHTTPBackend) Probe(c *gin.Context) bool {
-	probe, _ := service.IsMaxTokensOneHaikuRequestFromContext(c.Request.Context())
+	probe, _ := requeststate.IsMaxTokensOneHaikuRequestFromContext(c.Request.Context())
 	return probe
 }
 func (p messagesHTTPBackend) BindClient(c *gin.Context, d gatewayhttp.ClientDetection) {
-	ctx := service.SetClaudeCodeClient(c.Request.Context(), d.ClaudeCode)
+	ctx := requeststate.SetClaudeCodeClient(c.Request.Context(), d.ClaudeCode)
 	if d.ClaudeCode && d.Version != "" {
-		ctx = service.SetClaudeCodeVersion(ctx, d.Version)
+		ctx = requeststate.SetClaudeCodeVersion(ctx, d.Version)
 	}
 	c.Request = c.Request.WithContext(ctx)
 }
 func (p messagesHTTPBackend) BindThinking(c *gin.Context, thinking bool) {
-	c.Request = c.Request.WithContext(service.WithThinkingEnabled(c.Request.Context(), thinking, p.h.metadataBridgeEnabled()))
+	c.Request = c.Request.WithContext(requeststate.WithThinkingEnabled(c.Request.Context(), thinking))
 }
 func (p messagesHTTPBackend) ClientVersion(c *gin.Context) string {
-	return service.GetClaudeCodeVersion(c.Request.Context())
+	return requeststate.GetClaudeCodeVersion(c.Request.Context())
 }
 func (p messagesHTTPBackend) ClientVersionBounds(ctx context.Context) (string, string) {
-	return p.h.settingService.GetClaudeCodeVersionBounds(ctx)
+	return p.h.runtimeSettings.GetClaudeCodeVersionBounds(ctx)
 }
 func (p messagesHTTPBackend) Moderate(c *gin.Context, log *zap.Logger, key *apikey.APIKey, subject authctx.AuthSubject, model string, body []byte) *moderation.Decision {
-	return p.h.checkContentModeration(c, log, service.APIKeyFromView(key), subject, moderation.ContentModerationProtocolAnthropicMessages, model, body)
+	return p.h.checkContentModeration(c, log, apikey.CopyAPIKey(key), subject, moderation.ContentModerationProtocolAnthropicMessages, model, body)
 }
 func (p messagesHTTPBackend) BindErrors(c *gin.Context) {
 	if p.h.errorPassthroughService != nil {
-		service.BindErrorPassthroughService(c, p.h.errorPassthroughService)
+		gatewayhttp.BindErrorPassthroughService(c, p.h.errorPassthroughService)
 	}
 }
 func (p messagesHTTPBackend) Eligibility(ctx context.Context, key *apikey.APIKey, sub *billing.UserSubscription) error {
-	old := service.APIKeyFromView(key)
-	return p.h.billingCacheService.CheckBillingEligibility(ctx, old.User, old, old.Group, sub, service.QuotaPlatform(ctx, old))
+	old := apikey.CopyAPIKey(key)
+	return p.h.billingCacheService.CheckKey(ctx, old, sub, service.QuotaPlatform(ctx, old), false)
 }
 func (p messagesHTTPBackend) ForcedPlatform(c *gin.Context) (string, bool) {
 	return middleware.GetForcePlatformFromContext(c)
 }
 func (p messagesHTTPBackend) Isolate(ctx context.Context, key *apikey.APIKey, userID int64, hash string) error {
-	return p.h.ensureGatewaySessionIsolation(ctx, service.APIKeyFromView(key), userID, service.SessionIsolationSourceGateway, hash)
+	return p.h.ensureGatewaySessionIsolation(ctx, apikey.CopyAPIKey(key), userID, session.SessionIsolationSourceGateway, hash)
 }
 func (p messagesHTTPBackend) CachedSession(ctx context.Context, groupID *int64, hash string) (int64, error) {
 	return p.h.gatewayService.GetCachedSessionAccountID(ctx, groupID, hash)
 }
 func (p messagesHTTPBackend) Prefetch(c *gin.Context, accountID, groupID int64) {
-	c.Request = c.Request.WithContext(service.WithPrefetchedStickySession(c.Request.Context(), accountID, groupID, p.h.metadataBridgeEnabled()))
+	c.Request = c.Request.WithContext(requeststate.WithPrefetchedStickySession(c.Request.Context(), accountID, groupID))
 }
 func (p messagesHTTPBackend) PrepareGemini(ctx context.Context, call gatewayhttp.MessagesCall) (*requeststate.ParsedRequest, error) {
-	parsed, _, err := p.h.prepareGatewayAttemptRequest(ctx, call.Parsed, call.Body, service.APIKeyFromView(call.Key), call.Model)
+	parsed, _, err := p.h.prepareGatewayAttemptRequest(ctx, call.Parsed, call.Body, apikey.CopyAPIKey(call.Key), call.Model)
 	return parsed, err
 }
 
 func (p messagesHTTPBackend) MarkStream(c *gin.Context, kind, message string, status int) {
-	service.MarkOpsStreamError(c, kind, message, status)
+	gatewayhttp.MarkOpsStreamError(c, kind, message, status)
 }
 func (p messagesHTTPBackend) FailoverObservation(ctx context.Context, event string, values map[string]any) {
 	telemetry.Failover(ctx, event, values)

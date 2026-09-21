@@ -3,8 +3,9 @@ package account
 import (
 	"context"
 	"errors"
-	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 type PrivacyStore interface {

@@ -12,7 +12,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/lib/pq"
@@ -189,7 +188,7 @@ func (r *Store) GetModelStatsAggregated(ctx context.Context, modelName string, s
 // GetDailyStatsAggregated 使用 SQL 聚合统计用户的每日使用数据
 // 性能优化：使用 GROUP BY 在数据库层按日期分组聚合，避免应用层循环分组统计
 func (r *Store) GetDailyStatsAggregated(ctx context.Context, userID int64, startTime, endTime time.Time) (result []map[string]any, err error) {
-	tzName := resolveUsageStatsTimezone()
+	tzName := r.resolveUsageStatsTimezone()
 	query := `
 		SELECT
 			-- 使用应用时区分组，避免数据库会话时区导致日边界偏移。
@@ -263,9 +262,9 @@ func (r *Store) GetDailyStatsAggregated(ctx context.Context, userID int64, start
 }
 
 // resolveUsageStatsTimezone 获取用于 SQL 分组的时区名称。
-// 优先使用应用初始化的时区，其次尝试读取 TZ 环境变量，最后回落为 UTC。
-func resolveUsageStatsTimezone() string {
-	tzName := timezone.Name()
+// 优先使用装配传入的时区，其次尝试读取 TZ 环境变量，最后回落为 UTC。
+func (r *Store) resolveUsageStatsTimezone() string {
+	tzName := r.calendar.Location().String()
 	if tzName != "" && tzName != "Local" {
 		return tzName
 	}
@@ -277,7 +276,7 @@ func resolveUsageStatsTimezone() string {
 
 // GetAccountTodayStats 获取账号今日统计
 func (r *Store) GetAccountTodayStats(ctx context.Context, accountID int64) (*usage.AccountStats, error) {
-	today := timezone.Today()
+	today := r.calendar.Today()
 
 	query := `
 		SELECT
@@ -515,7 +514,7 @@ func (r *Store) GetBatchUserUsageStats(ctx context.Context, userIDs []int64, sta
 		  AND ` + usageLogSuccessFilterUL + `
 		GROUP BY ul.user_id, ` + usageLogEffectivePlatformExpr + `
 	`
-	today := timezone.Today()
+	today := r.calendar.Today()
 	rows, err := r.sql.QueryContext(ctx, query, pq.Array(normalizedUserIDs), startTime, endTime, today)
 	if err != nil {
 		return nil, err
@@ -592,7 +591,7 @@ func (r *Store) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64,
 		  AND created_at >= LEAST($2, $4)
 		GROUP BY api_key_id
 	`
-	today := timezone.Today()
+	today := r.calendar.Today()
 	rows, err := r.sql.QueryContext(ctx, query, pq.Array(normalizedAPIKeyIDs), startTime, endTime, today)
 	if err != nil {
 		return nil, err
@@ -1147,7 +1146,7 @@ func (r *Store) GetAccountUsageStats(ctx context.Context, accountID int64, start
 		AvgDurationMs:     avgDuration,
 	}
 
-	todayStr := timezone.Now().Format("2006-01-02")
+	todayStr := r.calendar.Now().Format("2006-01-02")
 	for i := range history {
 		if history[i].Date == todayStr {
 			summary.Today = &struct {

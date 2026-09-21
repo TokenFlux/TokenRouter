@@ -2,7 +2,6 @@ package middleware
 
 import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +15,7 @@ func RequireGroupAssignment(settings gatewayhttp.UngroupedKeySettings, writeErro
 		_, noGroup := c.Get(compositeKeyNoGroupContextKey)
 		return gatewayhttp.GroupAssignmentAccess{Loaded: true, Assigned: key.GroupID != nil, CompositeNoGroup: key.IsComposite && noGroup}
 	}, WriteError: writeError, Rejected: func(c *gin.Context) {
-		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnassigned)
+		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonAPIKeyGroupUnassigned)
 		MarkIngressRejected(c, IngressRejectGroupUnassigned)
 	}})
 }

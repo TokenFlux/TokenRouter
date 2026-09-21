@@ -8,30 +8,31 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/usage/httpapi/ports"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
-// 捕获 ListUsers 入参、返回一个已删用户的 admin service 桩。
+// 捕获查询投影入参，并返回包含已删除用户的结果。
 type searchUsersAdminStub struct {
-	service.AdminService
-	gotFilters service.UserListFilters
+	gotFilters ports.UserListFilters
 }
 
-func (s *searchUsersAdminStub) ListUsers(ctx context.Context, page, pageSize int, filters service.UserListFilters, sortBy, sortOrder string) ([]service.User, int64, error) {
+func (s *searchUsersAdminStub) ListUsers(ctx context.Context, page, pageSize int, filters ports.UserListFilters, sortBy, sortOrder string) ([]ports.UserReference, int64, error) {
 	s.gotFilters = filters
 	ts := time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC)
-	return []service.User{
+	return []ports.UserReference{
 		{ID: 1, Email: "active@test.com"},
 		{ID: 2, Email: "deleted@test.com", DeletedAt: &ts},
 	}, 2, nil
 }
 
 func TestAdminUsageSearchUsers_IncludesDeletedAndFlags(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	stub := &searchUsersAdminStub{}
-	handler := newLegacyUsageHandlerFixture(nil, nil, stub, nil, nil)
+	handler := NewUsageHandler(nil, nil, stub, nil, nil, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.GET("/admin/usage/search-users", handler.SearchUsers)
 

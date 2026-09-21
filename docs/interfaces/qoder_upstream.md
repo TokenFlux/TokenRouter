@@ -22,6 +22,7 @@ TokenRouter 通过 Qoder COSY 网关路径支持 Qoder 原生上游账号。面�
 
 - `cosy` 账号可以在国际站（`global`）或中国站（`cn`）使用 PAT 引导或设备 OAuth 凭据。
 - Qoder 创建和导入校验要求 `platform=qoder` 与 `type=cosy` 双向同时成立；OAuth、API Key、Upstream、Bedrock 和 Service Account 不能作为 Qoder 账号保存。
+- 创建及编辑的凭据校验由 account 规则和 `account/provider.CreateCredentialHooks` 组合；站点 PAT 交换、机器身份准备使用原生账号记录，保留 CN/Global 差异与原调用时点。
 - `credentials.site` 选择站点。缺失时为兼容已有账号而解析为 `global`。
 - `credentials.refresh_mode` 记录令牌来源。缺失时解析为 `cosy`；中国站标准 OAuth 使用 `qodercn20`。
 - 手工导入可以只提供 `pat`，也可以提供一组现有 COSY 令牌。
@@ -137,16 +138,16 @@ TokenRouter 不读取客户端声明的上下文上限。Chat Completions、Resp
 <a id="qoder_execution_boundary"></a>
 ## 平台执行与输出边界
 
-Qoder 原生客户端、站点/模型能力、签名、报文转换和会话增量状态由 `upstream/qoder` 唯一拥有。`Executor.Execute` 接收本次协议、已投影目标和同步输出端口；平台不读取 Gin、旧账号实体或配置对象。旧 `QoderGatewayService` 只投影账号/传输及结果，并转交账号错误副作用。只供显式导入和 opt-in 测试使用的本地凭据读取隔离在 `upstream/qoder/localauth`，正常服务不自动读取本机 Qoder 登录资料。
+Qoder 原生客户端、站点/模型能力、签名、报文转换和会话增量状态由 `upstream/qoder` 唯一拥有。`Executor.Execute` 接收本次协议、已投影目标和同步输出端口；平台不读取 Gin、旧账号实体或配置对象。`gateway/provider.QoderRuntime` 唯一持有平台执行器与会话存储，app 为 Chat 和其余入口绑定同一实例；目标使用原生账号记录，令牌与客户端仍按原时点取得。旧 `QoderGatewayService` 已删除；主 Chat 链直接使用原生 gateway 执行器，Messages/Responses 及兼容 Chat 尝试通过 `gateway/httpapi.ForwardQoderAttempt` 同步输出，继续共享同一运行时，不另建尝试循环。只供显式导入和 opt-in 测试使用的本地凭据读取隔离在 `upstream/qoder/localauth`，正常服务不自动读取本机 Qoder 登录资料。
 
-HTTP 适配器拥有实际写入和 Flush，转换器逐段输出，不聚合整条 SSE。流中已发生服务并已收到 usage 后，上游继续报错时会同时返回部分结果与错误；完成入口使用这些已观测计量结算一次，保持失败响应、失败反馈及原会话回滚，不把失败绑定为成功会话，也不重新推理或估算缺失用量。尚未发生服务或未观测用量的失败不生成这类部分结算。
+HTTP 适配器拥有实际写入和 Flush，转换器逐段输出，不聚合整条 SSE。`gateway/httpapi.QoderRequestMetadata` 复制本次请求头并投影原 Key ID 与客户端标记，平台会话键计算仍由 upstream 唯一执行。旧流输出包装已删除，HTTP 边界测试直接连接相同输出 Writer 与原生流实现。流中已发生服务并已收到 usage 后，上游继续报错时会同时返回部分结果与错误；完成入口使用这些已观测计量结算一次，保持失败响应、失败反馈及原会话回滚，不把失败绑定为成功会话，也不重新推理或估算缺失用量。尚未发生服务或未观测用量的失败不生成这类部分结算。
 
 在准备和取得凭据之后、发起推理之前检查原请求取消，取消后不启动新的推理。已经进入上游的流式请求仍脱离客户端取消，在原十五分钟执行预算内收集尾部 usage；非流保持取消传播。响应体由平台执行关闭，账号与用户 Lease 由请求编排完成释放。
 
 
-账号授权的十分钟会话、完成认领、pending 和成功重放由 `account.QoderAuthorization` 持有，`account/provider` 只投影原生交换结果。刷新资格及新旧凭据合并属于 account，实际站点交换属于 upstream；持久化继续经过既有刷新协调和身份 CAS。
+账号授权的十分钟会话、完成认领、pending 和成功重放由 `account.QoderAuthorization` 持有，`account/provider` 只投影原生交换结果。刷新资格及新旧凭据合并属于 account，实际站点交换属于 upstream；持久化继续经过既有刷新协调和身份 CAS。请求失败后的凭据身份判断和刷新锁等待也由 account 拥有，保留立即回读、100ms 轮询和3秒预算；仅凭据轮换后才重试，不返回旧凭据充当刷新成功。供应商错误到限流/过载的账号写入由 account/provider 执行，沿用脱离请求取消的5秒预算与尽力失败语义。
 
-运行时凭据缓存由 `account.QoderSessions` 唯一持有，保留身份世代和 90 秒共享构建预算。单个等待者取消不影响其他等待者；应用停止会取消共享构建、等待已进入操作并拒绝迟到回填。旧授权和 token provider 入口只做委托。授权 HTTP 实现位于 `account/httpapi`，URL、管理员中间件、state 和冻结代理语义保持。
+运行时凭据缓存由 `account.QoderSessions` 唯一持有，保留身份世代和 90 秒共享构建预算。`account/provider.QoderTokenProvider` 负责凭据投影及供应商构建，`QoderTokenRefresher` 组合站点交换与账号凭据合并，传输复用原 HTTP 池和 TLS 策略。单个等待者取消不影响其他等待者；应用停止会取消共享构建、等待已进入操作并拒绝迟到回填。各平台令牌及 Qoder 会话失效由 `account.CompositeTokenCacheInvalidator` 统一调用原缓存端口，不改变备用键清理或尽力删除语义。授权 HTTP 实现位于 `account/httpapi`，URL、管理员中间件、state 和冻结代理语义保持。
 
 ## 计费范围
 

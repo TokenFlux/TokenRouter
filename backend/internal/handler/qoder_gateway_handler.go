@@ -1,20 +1,29 @@
 package handler
 
 import (
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	upstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	"context"
 	"errors"
 	"net/http"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	failover "github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 
 	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/gin-gonic/gin"
@@ -27,32 +36,35 @@ type QoderGatewayHandler struct {
 	enter                   func() (func(), error)
 	chat                    *gatewayhttp.QoderChatHandler
 	gatewayService          *service.GatewayService
-	qoderGatewayService     *service.QoderGatewayService
-	billingCacheService     *service.BillingCacheService
-	usageRecordWorkerPool   *service.UsageRecordWorkerPool
-	apiKeyService           *service.APIKeyService
-	errorPassthroughService *service.ErrorPassthroughService
-	concurrencyHelper       *ConcurrencyHelper
+	qoderGatewayService     *gatewayprovider.QoderRuntime
+	qoderRequestRefresh     *accountprovider.QoderRequestRefresh
+	billingCacheService     *admission.FundingAdmission
+	usageRecordWorkerPool   *completion.UsageRecordWorkerPool
+	apiKeyService           *apikey.APIKeyService
+	errorPassthroughService *errorpolicy.ErrorPassthroughService
+	concurrencyHelper       *gatewayhttp.ConcurrencyHelper
 	maxAccountSwitches      int
 }
 
 func NewQoderGatewayHandler(
 	gatewayService *service.GatewayService,
-	qoderGatewayService *service.QoderGatewayService,
-	concurrencyService *service.ConcurrencyService,
-	billingCacheService *service.BillingCacheService,
-	usageRecordWorkerPool *service.UsageRecordWorkerPool,
-	apiKeyService *service.APIKeyService,
-	errorPassthroughService *service.ErrorPassthroughService,
+	qoderGatewayService *gatewayprovider.QoderRuntime,
+	qoderRequestRefresh *accountprovider.QoderRequestRefresh,
+	concurrencyService *scheduler.ConcurrencyService,
+	billingCacheService *admission.FundingAdmission,
+	usageRecordWorkerPool *completion.UsageRecordWorkerPool,
+	apiKeyService *apikey.APIKeyService,
+	errorPassthroughService *errorpolicy.ErrorPassthroughService,
 ) *QoderGatewayHandler {
 	return &QoderGatewayHandler{
 		gatewayService:          gatewayService,
 		qoderGatewayService:     qoderGatewayService,
+		qoderRequestRefresh:     qoderRequestRefresh,
 		billingCacheService:     billingCacheService,
 		usageRecordWorkerPool:   usageRecordWorkerPool,
 		apiKeyService:           apiKeyService,
 		errorPassthroughService: errorPassthroughService,
-		concurrencyHelper:       NewConcurrencyHelper(concurrencyService, SSEPingFormatComment, 0),
+		concurrencyHelper:       gatewayhttp.NewConcurrencyHelper(concurrencyService, gatewayhttp.SSEPingFormatComment, 0),
 		maxAccountSwitches:      3,
 	}
 }
@@ -116,17 +128,17 @@ func (h *QoderGatewayHandler) qoderSessionHash(c *gin.Context, endpoint qoderEnd
 	if h == nil || h.gatewayService == nil {
 		return ""
 	}
-	protocol := service.PlatformAnthropic
+	protocol := capability.PlatformAnthropic
 	if endpoint == qoderEndpointResponses {
 		protocol = "responses"
 	}
-	parsed, err := service.ParseGatewayRequest(service.NewRequestBodyRef(body), protocol)
+	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), protocol)
 	if err != nil {
 		return ""
 	}
 	if c != nil {
-		parsed.SessionContext = &service.SessionContext{
-			ClientIP:  ip.GetClientIP(c),
+		parsed.SessionContext = &requeststate.SessionContext{
+			ClientIP:  clientip.GetClientIP(c),
 			UserAgent: c.GetHeader("User-Agent"),
 			APIKeyID:  apiKeyID,
 		}
@@ -150,7 +162,7 @@ func qoderStickySessionHashFromSeed(seed string) string {
 	return gatewaysession.QoderHashFromSeed(seed)
 }
 
-func (h *QoderGatewayHandler) bindQoderStickySessions(ctx context.Context, groupID *int64, sessionHash string, accountID int64, endpoint qoderEndpoint, result *service.ForwardResult, reqLog *zap.Logger) {
+func (h *QoderGatewayHandler) bindQoderStickySessions(ctx context.Context, groupID *int64, sessionHash string, accountID int64, endpoint qoderEndpoint, result *forwardcore.MessagesResult, reqLog *zap.Logger) {
 	if h == nil || h.gatewayService == nil || accountID <= 0 {
 		return
 	}
@@ -183,7 +195,7 @@ func qoderDetachedTimeoutContext(ctx context.Context, timeout time.Duration) (co
 
 func prepareQoderRequestContext(c *gin.Context, body []byte, endpoint qoderEndpoint) {
 	if endpoint == qoderEndpointMessages {
-		SetClaudeCodeClientContext(c, body, nil)
+		gatewayhttp.SetClaudeCodeClientContext(c, body, nil)
 	}
 }
 
@@ -200,10 +212,11 @@ func (h *QoderGatewayHandler) refreshQoderAccount(ctx context.Context, account *
 	}
 	refreshCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	return h.qoderGatewayService.RefreshAccountSession(refreshCtx, account)
+	result, err := h.qoderRequestRefresh.RefreshAccountSession(refreshCtx, service.AccountRecordView(account))
+	return service.AccountFromRecord(result), err
 }
 
-func (h *QoderGatewayHandler) acquireQoderAccountSlotWithWait(c *gin.Context, account *service.Account, waitPlan *service.AccountWaitPlan, reqStream bool, streamStarted *bool, reqLog *zap.Logger) (func(), error) {
+func (h *QoderGatewayHandler) acquireQoderAccountSlotWithWait(c *gin.Context, account *service.Account, waitPlan *scheduler.AccountWaitPlan, reqStream bool, streamStarted *bool, reqLog *zap.Logger) (func(), error) {
 	if account == nil {
 		return nil, errors.New("account is nil")
 	}
@@ -229,7 +242,7 @@ func (h *QoderGatewayHandler) acquireQoderAccountSlotWithWait(c *gin.Context, ac
 				zap.Int("max_waiting", waitPlan.MaxWaiting),
 			)
 		}
-		return nil, &WaitQueueFullError{SlotType: "account"}
+		return nil, &gatewayhttp.WaitQueueFullError{SlotType: "account"}
 	}
 	if err == nil && canWait {
 		accountWaitCounted = true
@@ -265,7 +278,7 @@ func (h *QoderGatewayHandler) acquireQoderRetryAccountSlot(c *gin.Context, accou
 }
 
 func (h *QoderGatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool, endpoint qoderEndpoint) {
-	status, errType, _, message := concurrencyErrorResponse(err, slotType)
+	status, errType, _, message := gatewayhttp.ConcurrencyErrorResponse(err, slotType)
 	h.streamingAwareError(c, status, errType, message, streamStarted, endpoint)
 }
 
@@ -317,7 +330,9 @@ func qoderShouldFailover(err error) bool {
 	return apiErr.StatusCode >= http.StatusInternalServerError
 }
 
-func qoderMarkRefreshInProgressAccountFailed(fs *FailoverState, accountID int64, maxSwitches int) bool {
+func qoderMarkRefreshInProgressAccountFailed(fs *failover.FailoverState[*forwardcore.UpstreamFailoverError],
+
+	accountID int64, maxSwitches int) bool {
 	if fs == nil {
 		return false
 	}
@@ -330,7 +345,7 @@ func (h *QoderGatewayHandler) writeQoderFailoverExhaustedError(c *gin.Context, e
 		return false
 	}
 	if status, errType, message, ok := h.qoderGatewayErrorDetails(c, err); ok {
-		service.SetOpsUpstreamError(c, upstreamStatusFromError(err), message, "")
+		gatewayhttp.SetOpsUpstreamError(c, upstreamStatusFromError(err), message, "")
 		h.streamingAwareError(c, status, errType, message, streamStarted, endpoint)
 		return true
 	}
@@ -347,7 +362,7 @@ func (h *QoderGatewayHandler) qoderGatewayErrorDetails(c *gin.Context, err error
 	if !errors.As(err, &apiErr) || apiErr.StatusCode <= 0 {
 		return status, errType, message, ok
 	}
-	rule := h.errorPassthroughService.MatchRule(service.PlatformQoder, apiErr.StatusCode, []byte(apiErr.Body))
+	rule := h.errorPassthroughService.MatchRule(capability.PlatformQoder, apiErr.StatusCode, []byte(apiErr.Body))
 	if rule == nil {
 		return status, errType, message, ok
 	}
@@ -359,11 +374,11 @@ func (h *QoderGatewayHandler) qoderGatewayErrorDetails(c *gin.Context, err error
 	errType = "upstream_error"
 	if !rule.PassthroughBody && rule.CustomMessage != nil {
 		message = *rule.CustomMessage
-	} else if extracted := service.ExtractUpstreamErrorMessage([]byte(apiErr.Body)); extracted != "" {
+	} else if extracted := upstream.ExtractErrorMessage([]byte(apiErr.Body)); extracted != "" {
 		message = extracted
 	}
 	if rule.SkipMonitoring && c != nil {
-		c.Set(service.OpsSkipPassthroughKey, true)
+		c.Set(gatewayhttp.OpsSkipPassthroughKey, true)
 	}
 	return status, errType, message, true
 }
@@ -382,20 +397,6 @@ func (h *QoderGatewayHandler) streamingAwareError(c *gin.Context, status int, er
 
 func (h *QoderGatewayHandler) errorResponse(c *gin.Context, status int, errType, message string, endpoint qoderEndpoint) {
 	gatewayhttp.WriteQoderError(c, status, errType, message, gatewayhttp.QoderEndpoint(endpoint))
-}
-
-func (h *QoderGatewayHandler) submitUsageRecordTask(c *gin.Context, task service.UsageRecordTask) {
-	if task == nil {
-		return
-	}
-	task = wrapUsageRecordTaskContext(c, task)
-	if h.usageRecordWorkerPool != nil {
-		h.usageRecordWorkerPool.Submit(task)
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 10*time.Second)
-	defer cancel()
-	task(ctx)
 }
 
 // BindChatHandler 仅由 app 装配，新旧路由引用同一 Chat 实例。

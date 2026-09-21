@@ -9,7 +9,6 @@ import (
 )
 
 func TestPaymentRoutesDoNotExposeAIChannels(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	passThrough := func(c *gin.Context) { c.Next() }
 

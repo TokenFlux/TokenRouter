@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -115,7 +115,7 @@ func TestOpsServiceGetTokenStats_Validation(t *testing.T) {
 			_, err := svc.GetTokenStats(context.Background(), tt.filter)
 			require.Error(t, err)
 			require.Equal(t, tt.wantCode, s15httpx.ErrorCode(err))
-			require.Equal(t, tt.wantReason, infraerrors.Reason(err))
+			require.Equal(t, tt.wantReason, apperror.Reason(err))
 		})
 	}
 }
@@ -158,7 +158,7 @@ func TestOpsServiceGetTokenStats_RepoUnavailable(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Equal(t, 503, s15httpx.ErrorCode(err))
-	require.Equal(t, "OPS_REPO_UNAVAILABLE", infraerrors.Reason(err))
+	require.Equal(t, "OPS_REPO_UNAVAILABLE", apperror.Reason(err))
 }
 
 func int64Ptr(v int64) *int64 { return &v }

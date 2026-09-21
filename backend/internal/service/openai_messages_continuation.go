@@ -8,9 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -23,13 +26,13 @@ type openAICompatSessionResponseBinding struct {
 }
 
 func openAICompatContinuationEnabled(account *Account, model string) bool {
-	if account == nil || account.Type != AccountTypeAPIKey {
+	if account == nil || account.Type != capability.AccountTypeAPIKey {
 		return false
 	}
-	if !openai_compat.ResolveResponsesContinuationSupported(account.Extra) {
+	if !accountcore.ResolveResponsesContinuationSupported(account.Extra) {
 		return false
 	}
-	return shouldAutoInjectPromptCacheKeyForCompat(model)
+	return gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(model)
 }
 
 func trimAnthropicCompatResponsesInputToLatestTurn(req *protocolopenai.ResponsesRequest) {
@@ -158,7 +161,7 @@ func openAICompatSessionResponseKey(c *gin.Context, account *Account, promptCach
 	}
 	apiKeyID := int64(0)
 	if c != nil {
-		apiKeyID = getAPIKeyIDFromContext(c)
+		apiKeyID = gatewayhttp.APIKeyIDFromContext(c)
 	}
 	return strings.Join([]string{
 		strconv.FormatInt(account.ID, 10),

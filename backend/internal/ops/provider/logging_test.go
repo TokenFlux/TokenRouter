@@ -6,8 +6,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 )
 
@@ -118,12 +118,12 @@ func TestUpdateRuntimeLogConfig_InvalidConfigShouldNotApply(t *testing.T) {
 		},
 	})
 
-	if err := logger.Init(logger.InitOptions{
+	if err := logging.Init(logging.InitOptions{
 		Level:       "info",
 		Format:      "json",
 		ServiceName: "sub2api",
 		Environment: "test",
-		Output: logger.OutputOptions{
+		Output: logging.OutputOptions{
 			ToStdout: true,
 			ToFile:   false,
 		},
@@ -143,8 +143,8 @@ func TestUpdateRuntimeLogConfig_InvalidConfigShouldNotApply(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected validation error")
 	}
-	if logger.CurrentLevel() != "info" {
-		t.Fatalf("logger level changed unexpectedly: %s", logger.CurrentLevel())
+	if logging.CurrentLevel() != "info" {
+		t.Fatalf("logger level changed unexpectedly: %s", logging.CurrentLevel())
 	}
 	if repo.setCalls != 1 {
 		// GetRuntimeLogConfig() 会在 key 缺失时写入默认值，此处应只有这一次持久化。
@@ -189,12 +189,12 @@ func TestResetRuntimeLogConfig_ShouldFallbackToBaseline(t *testing.T) {
 		},
 	})
 
-	if err := logger.Init(logger.InitOptions{
+	if err := logging.Init(logging.InitOptions{
 		Level:       "debug",
 		Format:      "json",
 		ServiceName: "sub2api",
 		Environment: "test",
-		Output: logger.OutputOptions{
+		Output: logging.OutputOptions{
 			ToStdout: true,
 			ToFile:   false,
 		},
@@ -215,8 +215,8 @@ func TestResetRuntimeLogConfig_ShouldFallbackToBaseline(t *testing.T) {
 	if resetCfg.RetentionDays != 45 {
 		t.Fatalf("retention_days = %d, want 45", resetCfg.RetentionDays)
 	}
-	if logger.CurrentLevel() != "warn" {
-		t.Fatalf("logger level = %q, want warn", logger.CurrentLevel())
+	if logging.CurrentLevel() != "warn" {
+		t.Fatalf("logger level = %q, want warn", logging.CurrentLevel())
 	}
 	if !repo.deleted[SettingKeyOpsRuntimeLogConfig] {
 		t.Fatalf("runtime setting key should be deleted")
@@ -299,12 +299,12 @@ func TestUpdateRuntimeLogConfig_PersistFailureRollback(t *testing.T) {
 		},
 	})
 
-	if err := logger.Init(logger.InitOptions{
+	if err := logging.Init(logging.InitOptions{
 		Level:       "info",
 		Format:      "json",
 		ServiceName: "sub2api",
 		Environment: "test",
-		Output: logger.OutputOptions{
+		Output: logging.OutputOptions{
 			ToStdout: true,
 			ToFile:   false,
 		},
@@ -325,8 +325,8 @@ func TestUpdateRuntimeLogConfig_PersistFailureRollback(t *testing.T) {
 		t.Fatalf("expected persist error")
 	}
 	// Persist failure should rollback runtime level back to old effective level.
-	if logger.CurrentLevel() != "info" {
-		t.Fatalf("logger level should rollback to info, got %s", logger.CurrentLevel())
+	if logging.CurrentLevel() != "info" {
+		t.Fatalf("logger level should rollback to info, got %s", logging.CurrentLevel())
 	}
 }
 
@@ -351,12 +351,12 @@ func TestApplyRuntimeLogConfigOnStartup(t *testing.T) {
 		},
 	})
 
-	if err := logger.Init(logger.InitOptions{
+	if err := logging.Init(logging.InitOptions{
 		Level:       "info",
 		Format:      "json",
 		ServiceName: "sub2api",
 		Environment: "test",
-		Output: logger.OutputOptions{
+		Output: logging.OutputOptions{
 			ToStdout: true,
 			ToFile:   false,
 		},
@@ -365,73 +365,8 @@ func TestApplyRuntimeLogConfigOnStartup(t *testing.T) {
 	}
 
 	svc.ApplyRuntimeLogConfigOnStartup(context.Background())
-	if logger.CurrentLevel() != "debug" {
-		t.Fatalf("expected startup apply debug, got %s", logger.CurrentLevel())
-	}
-}
-
-func TestDefaultNormalizeAndValidateRuntimeLogConfig(t *testing.T) {
-	defaults := ops.CompatDefaultOpsRuntimeLogConfig(&ops.Options{
-		Log: ops.LogOptions{
-			Level:           "DEBUG",
-			Caller:          false,
-			StacktraceLevel: "FATAL",
-			Sampling: ops.SamplingOptions{
-				Enabled:    true,
-				Initial:    50,
-				Thereafter: 20,
-			},
-		},
-		Ops: ops.RuntimeOptions{
-			Cleanup: ops.CleanupOptions{
-				ErrorLogRetentionDays:  7,
-				SystemLogRetentionDays: 11,
-			},
-		},
-	})
-	if defaults.Level != "debug" || defaults.StacktraceLevel != "fatal" || defaults.RetentionDays != 11 {
-		t.Fatalf("unexpected defaults: %+v", defaults)
-	}
-
-	cfg := &OpsRuntimeLogConfig{
-		Level:           " ",
-		EnableSampling:  true,
-		SamplingInitial: 0,
-		SamplingNext:    -1,
-		Caller:          true,
-		StacktraceLevel: "",
-		RetentionDays:   0,
-	}
-	ops.CompatNormalizeOpsRuntimeLogConfig(cfg, defaults)
-	if cfg.Level != "debug" || cfg.StacktraceLevel != "fatal" {
-		t.Fatalf("normalize level/stacktrace failed: %+v", cfg)
-	}
-	if cfg.SamplingInitial != 50 || cfg.SamplingNext != 20 || cfg.RetentionDays != 11 {
-		t.Fatalf("normalize numeric defaults failed: %+v", cfg)
-	}
-	if err := ops.CompatValidateOpsRuntimeLogConfig(cfg); err != nil {
-		t.Fatalf("validate normalized config should pass: %v", err)
-	}
-}
-
-func TestValidateRuntimeLogConfigErrors(t *testing.T) {
-	cases := []struct {
-		name string
-		cfg  *OpsRuntimeLogConfig
-	}{
-		{name: "nil", cfg: nil},
-		{name: "bad level", cfg: &OpsRuntimeLogConfig{Level: "trace", StacktraceLevel: "error", SamplingInitial: 1, SamplingNext: 1, RetentionDays: 1}},
-		{name: "bad stack", cfg: &OpsRuntimeLogConfig{Level: "info", StacktraceLevel: "warn", SamplingInitial: 1, SamplingNext: 1, RetentionDays: 1}},
-		{name: "bad initial", cfg: &OpsRuntimeLogConfig{Level: "info", StacktraceLevel: "error", SamplingInitial: 0, SamplingNext: 1, RetentionDays: 1}},
-		{name: "bad next", cfg: &OpsRuntimeLogConfig{Level: "info", StacktraceLevel: "error", SamplingInitial: 1, SamplingNext: 0, RetentionDays: 1}},
-		{name: "bad retention", cfg: &OpsRuntimeLogConfig{Level: "info", StacktraceLevel: "error", SamplingInitial: 1, SamplingNext: 1, RetentionDays: 0}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := ops.CompatValidateOpsRuntimeLogConfig(tc.cfg); err == nil {
-				t.Fatalf("expected validation error")
-			}
-		})
+	if logging.CurrentLevel() != "debug" {
+		t.Fatalf("expected startup apply debug, got %s", logging.CurrentLevel())
 	}
 }
 
@@ -508,12 +443,12 @@ func TestUpdateRuntimeLogConfig_Success(t *testing.T) {
 		},
 	})
 
-	if err := logger.Init(logger.InitOptions{
+	if err := logging.Init(logging.InitOptions{
 		Level:       "info",
 		Format:      "json",
 		ServiceName: "sub2api",
 		Environment: "test",
-		Output: logger.OutputOptions{
+		Output: logging.OutputOptions{
 			ToStdout: true,
 			ToFile:   false,
 		},
@@ -536,8 +471,8 @@ func TestUpdateRuntimeLogConfig_Success(t *testing.T) {
 	if next.Source != "runtime_setting" || next.UpdatedByUserID != 2 || next.UpdatedAt == "" {
 		t.Fatalf("unexpected metadata: %+v", next)
 	}
-	if logger.CurrentLevel() != "debug" {
-		t.Fatalf("expected applied level debug, got %s", logger.CurrentLevel())
+	if logging.CurrentLevel() != "debug" {
+		t.Fatalf("expected applied level debug, got %s", logging.CurrentLevel())
 	}
 }
 
@@ -568,9 +503,6 @@ func TestApplyRuntimeLogConfigHelpers(t *testing.T) {
 	if err := (LogControl{}).Apply(nil); err == nil {
 		t.Fatalf("expected nil config error")
 	}
-
-	ops.CompatNormalizeOpsRuntimeLogConfig(nil, &OpsRuntimeLogConfig{Level: "info"})
-	ops.CompatNormalizeOpsRuntimeLogConfig(&OpsRuntimeLogConfig{Level: "debug"}, nil)
 
 	var nilSvc *OpsService
 	nilSvc.ApplyRuntimeLogConfigOnStartup(context.Background())

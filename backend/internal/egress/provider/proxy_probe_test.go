@@ -3,13 +3,14 @@ package provider
 
 import (
 	context "context"
-	require "github.com/stretchr/testify/require"
-	suite "github.com/stretchr/testify/suite"
 	io "io"
 	http "net/http"
 	httptest "net/http/httptest"
 	strings "strings"
 	testing "testing"
+
+	require "github.com/stretchr/testify/require"
+	suite "github.com/stretchr/testify/suite"
 )
 
 type ProxyProbeServiceSuite struct {

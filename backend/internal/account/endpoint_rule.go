@@ -2,8 +2,9 @@
 package account
 
 import (
-	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	slices "slices"
+
+	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 func (a *Record) SupportsOpenAIEndpointCapability(requested OpenAIEndpointCapability, grokMedia func() (bool, string)) bool {
@@ -37,7 +38,7 @@ func (a *Record) SupportsOpenAIEndpointCapability(requested OpenAIEndpointCapabi
 				return false
 			}
 		case OpenAIEndpointCapabilityAlphaSearch:
-			if !has(capability.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(capability.ProtocolOpenAIResponses)) {
+			if !has(capability.ProtocolAlphaSearch) && (!a.IsOpenAIPersonalAccessToken() || !has(capability.ProtocolOpenAIResponses)) {
 				return false
 			}
 		}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -27,11 +27,11 @@ func RequestLogger() gin.HandlerFunc {
 		}
 		c.Header(requestIDHeader, requestID)
 
-		ctx := context.WithValue(c.Request.Context(), ctxkey.RequestID, requestID)
-		clientRequestID, _ := ctx.Value(ctxkey.ClientRequestID).(string)
+		ctx := context.WithValue(c.Request.Context(), telemetry.RequestID, requestID)
+		clientRequestID, _ := ctx.Value(telemetry.ClientRequestID).(string)
 		clientRequestID, _ = normalizeCorrelationID(clientRequestID)
 
-		requestLogger := logger.With(
+		requestLogger := logging.With(
 			zap.String("component", "http"),
 			zap.String("request_id", requestID),
 			zap.String("client_request_id", strings.TrimSpace(clientRequestID)),
@@ -39,7 +39,7 @@ func RequestLogger() gin.HandlerFunc {
 			zap.String("method", c.Request.Method),
 		)
 
-		ctx = logger.IntoContext(ctx, requestLogger)
+		ctx = logging.IntoContext(ctx, requestLogger)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}

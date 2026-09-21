@@ -6,15 +6,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/tidwall/gjson"
-	"go.uber.org/zap"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/tidwall/gjson"
+	"go.uber.org/zap"
 )
 
 func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMappedModel string, p MessagesPorts) (*Result, error) {
@@ -164,7 +165,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		if err := json.Unmarshal(responsesBody, &reqBody); err != nil {
 			return nil, fmt.Errorf("unmarshal for codex transform: %w", err)
 		}
-		codexResult := p.CodexTransform(reqBody, native.CodexOAuthTransformOptions{
+		codexResult := p.CodexTransform(reqBody, openai.CodexOAuthTransformOptions{
 			SkipDefaultInstructions: true,
 			PreserveToolCallIDs:     true,
 		})
@@ -180,7 +181,7 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 		}
 		existingInstructions, _ := reqBody["instructions"].(string)
 		if strings.TrimSpace(existingInstructions) == "" {
-			existingInstructions = native.ExtractPromptLikeInstructionsFromInput(reqBody)
+			existingInstructions = openai.ExtractPromptLikeInstructionsFromInput(reqBody)
 		}
 		if _, err := p.ForcedInstructions(reqBody, forcedTemplateText, TemplateData{
 			ExistingInstructions: strings.TrimSpace(existingInstructions),
@@ -437,13 +438,13 @@ func RunMessages(ctx context.Context, body []byte, promptCacheKey, defaultMapped
 	// 上游始终流式，回程按客户端偏好选择格式。
 	var result *Result
 	var handleErr error
-	var nativeResult *native.CompatResponseResult
+	var nativeResult *openai.CompatResponseResult
 	output := upstream.NewDeferredOutputContext(p.Sink())
 	responseOptions := p.ResponseOptions(resp, originalModel, billingModel, upstreamModel)
 	if clientStream {
-		nativeResult, handleErr = native.ReadMessagesStreaming(resp, output, responseOptions, originalModel, upstreamModel, startTime)
+		nativeResult, handleErr = openai.ReadMessagesStreaming(resp, output, responseOptions, originalModel, upstreamModel, startTime)
 	} else {
-		nativeResult, handleErr = native.ReadMessagesBuffered(resp, output, responseOptions, originalModel, upstreamModel, startTime)
+		nativeResult, handleErr = openai.ReadMessagesBuffered(resp, output, responseOptions, originalModel, upstreamModel, startTime)
 	}
 	result = FromCompatResult(nativeResult, billingModel)
 	if p.CyberPolicy() {

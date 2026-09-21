@@ -3,14 +3,20 @@
 package postgres
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"context"
 	"testing"
 	"time"
 
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -19,13 +25,13 @@ func TestUsageLog_ListWithFilters_ResolvesSoftDeletedUser(t *testing.T) {
 	ctx := context.Background()
 	tx := testEntTx(t)
 	client := tx.Client()
-	repo := NewUsageLogRepositoryWithSQL(client, tx)
+	repo := NewUsageLogRepositoryWithSQL(client, tx, timezone.NewCalendar(time.Local))
 
 	// 一个活跃用户、一个将被软删的用户，各一条日志。
-	active := mustCreateUser(t, client, &service.User{Email: "active-listfilter@test.com"})
-	deleted := mustCreateUser(t, client, &service.User{Email: "deleted-listfilter@test.com"})
-	apiKey := mustCreateApiKey(t, client, &service.APIKey{UserID: deleted.ID, Key: "sk-del-1", Name: "k"})
-	apiKey2 := mustCreateApiKey(t, client, &service.APIKey{UserID: active.ID, Key: "sk-act-1", Name: "k"})
+	active := mustCreateUser(t, client, &identity.User{Email: "active-listfilter@test.com"})
+	deleted := mustCreateUser(t, client, &identity.User{Email: "deleted-listfilter@test.com"})
+	apiKey := mustCreateApiKey(t, client, &apikey.APIKey{UserID: deleted.ID, Key: "sk-del-1", Name: "k"})
+	apiKey2 := mustCreateApiKey(t, client, &apikey.APIKey{UserID: active.ID, Key: "sk-act-1", Name: "k"})
 	account := mustCreateAccount(t, client, &service.Account{Name: "acc-listfilter"})
 
 	now := time.Now().UTC()
@@ -45,7 +51,7 @@ func TestUsageLog_ListWithFilters_ResolvesSoftDeletedUser(t *testing.T) {
 	require.NoError(t, client.User.DeleteOneID(deleted.ID).Exec(ctx))
 
 	logs, _, err := repo.ListWithFilters(ctx, pagination.PaginationParams{Page: 1, PageSize: 50},
-		usagestats.UsageLogFilters{ExactTotal: true})
+		usage.UsageLogFilters{ExactTotal: true})
 	require.NoError(t, err)
 
 	byUser := map[int64]usage.UsageLog{}

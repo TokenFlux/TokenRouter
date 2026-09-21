@@ -7,15 +7,21 @@ import (
 	"net/url"
 	"strings"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	s09wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -33,34 +39,16 @@ func (s *OpenAIGatewayService) validateUpstreamBaseURL(raw string) (string, erro
 // validateOutboundURL 按安全配置校验网关主动连接的 URL。
 func (s *OpenAIGatewayService) validateOutboundURL(raw string) (string, error) {
 	if s == nil || s.cfg == nil {
-		return urlvalidator.ValidateURLFormat(raw, false)
+		return egress.ValidateURLFormat(raw, false)
 	}
 	if !s.cfg.Security.URLAllowlist.Enabled {
-		return urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP)
+		return egress.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP)
 	}
-	return urlvalidator.ValidateHTTPSURL(raw, urlvalidator.ValidationOptions{
+	return egress.ValidateHTTPSURL(raw, egress.ValidationOptions{
 		AllowedHosts:     s.cfg.Security.URLAllowlist.UpstreamHosts,
 		RequireAllowlist: true,
 		AllowPrivate:     s.cfg.Security.URLAllowlist.AllowPrivateHosts,
 	})
-}
-
-// buildOpenAIResponsesURL 组装 OpenAI Responses 端点。
-// - base 以 /v1 结尾：追加 /responses
-// - base 以其他版本段结尾（如 /v4）：追加 /responses
-// - base 已是 /responses：原样返回
-// - 其他情况：追加 /v1/responses
-func buildOpenAIResponsesURL(base string) string {
-	return buildOpenAIEndpointURL(base, "/v1/responses")
-}
-
-// buildOpenAIResponsesURLForPlatform 组装平台对应的 Responses 端点。
-// DeepSeek 原生 Responses 使用 /responses，其它 OpenAI 兼容平台沿用 /v1/responses。
-func buildOpenAIResponsesURLForPlatform(platform, base string) string {
-	if platform == PlatformDeepseek {
-		return buildOpenAIEndpointURL(base, "/responses")
-	}
-	return buildOpenAIResponsesURL(base)
 }
 
 // isOfficialOpenAIModelsBaseURL 只识别官方 OpenAI 主机，避免兼容中继误用官方字段语义。
@@ -136,21 +124,6 @@ func deleteOpenAIResponsesNoneReasoningEffortFromObject(account *Account, body m
 	}
 }
 
-func normalizeDeepSeekResponsesRequestBody(account *Account, body []byte) []byte {
-	if account == nil || !account.UsesNativeCNResponses() {
-		return body
-	}
-	return s09wire.StatelessResponsesRequest(body)
-}
-
-func trimOpenAIEncryptedReasoningItems(reqBody map[string]any) bool {
-	return s09wire.TrimEncryptedReasoningItems(reqBody)
-}
-
-func SanitizeOpenAICrossModeFailoverReasoning(body []byte) (sanitized []byte, changed bool, err error) {
-	return nativeopenai.SanitizeOpenAICrossModeFailoverReasoning(body)
-}
-
 // IsOpenAIResponsesCompactPath 判断请求是否指向旧版 /responses/compact 端点或其可转发子路径。
 func IsOpenAIResponsesCompactPath(c *gin.Context) bool {
 	return isOpenAIResponsesCompactPath(c)
@@ -164,29 +137,9 @@ func OpenAICompactSessionSeedKeyForTest() string {
 	return openAICompactSessionSeedKey
 }
 
-func NormalizeOpenAICompactRequestBodyForTest(body []byte) ([]byte, bool, error) {
-	return normalizeOpenAICompactRequestBody(body)
-}
-
 func isOpenAIResponsesCompactPath(c *gin.Context) bool {
-	suffix := strings.TrimSpace(openAIResponsesRequestPathSuffix(c))
+	suffix := strings.TrimSpace(gatewayhttp.OpenAIResponsesRequestPathSuffix(c))
 	return suffix == "/compact" || strings.HasPrefix(suffix, "/compact/")
-}
-
-func normalizeOpenAICompactRequestBody(body []byte) ([]byte, bool, error) {
-	return nativeopenai.NormalizeOpenAICompactRequestBody(body)
-}
-
-func normalizeOpenAIParallelToolCallsWithoutTools(body []byte, responsesLite bool) ([]byte, bool, error) {
-	return nativeopenai.NormalizeOpenAIParallelToolCallsWithoutTools(body, responsesLite)
-}
-
-func normalizeOpenAIResponsesReasoningContentReplay(body []byte) ([]byte, bool, error) {
-	return nativeopenai.NormalizeOpenAIResponsesReasoningContentReplay(body)
-}
-
-func normalizeOpenAIAPIKeyStoreFalseReasoningReplay(body []byte, knownStoreFalse bool) ([]byte, bool, error) {
-	return nativeopenai.NormalizeOpenAIAPIKeyStoreFalseReasoningReplay(body, knownStoreFalse)
 }
 
 func normalizeOpenAICodexCompactReasoningEffortForAccount(c *gin.Context, account *Account, body []byte) ([]byte, bool, error) {
@@ -202,7 +155,7 @@ func normalizeOpenAICodexCompactReasoningEffortForAccount(c *gin.Context, accoun
 // normalizeOpenAICodexCompactReasoningEffort 将 GPT-5.6 compact 暂不接受的
 // max 档位降级为 xhigh，并保留 reasoning 下的其他字段。
 func normalizeOpenAICodexCompactReasoningEffort(body []byte, effectiveModel string) ([]byte, bool, error) {
-	if !isOpenAIGPT56Model(effectiveModel) ||
+	if !modelidentity.IsGPT56(effectiveModel) ||
 		!strings.EqualFold(strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String()), "max") {
 		return body, false, nil
 	}
@@ -234,36 +187,8 @@ func resolveOpenAICompactSessionID(c *gin.Context) string {
 	return uuid.NewString()
 }
 
-// openAIResponsesRequestPathSuffix 返回可拼接到上游 /responses URL 后面的子路径。
-// 不可转发的子路径返回空串（退化为裸 /responses）；真正的拒绝由入口守卫
-// IsForwardableOpenAIResponsesRequestPath 负责。这样即便将来新增路由漏挂守卫，
-// 拼进上游 URL 的也只会是合规片段。
-func openAIResponsesRequestPathSuffix(c *gin.Context) string {
-	return gatewayhttp.OpenAIResponsesRequestPathSuffix(c)
-}
-func IsForwardableOpenAIResponsesRequestPath(c *gin.Context) bool {
-	return gatewayhttp.IsForwardableOpenAIResponsesRequestPath(c)
-}
-func IsOpenAIResponsesInputTokensRequestPath(c *gin.Context) bool {
-	return gatewayhttp.IsOpenAIResponsesInputTokensRequestPath(c)
-}
-
-func appendOpenAIResponsesRequestPathSuffix(baseURL, suffix string) string {
-	trimmedBase := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	// 兜底：调用方漏了校验时，这里也不会把不合规的片段拼进上游 URL。
-	trimmedSuffix, ok := sanitizedUpstreamPathSuffix(suffix)
-	if !ok || trimmedBase == "" || trimmedSuffix == "" {
-		return trimmedBase
-	}
-	return trimmedBase + trimmedSuffix
-}
-
 func (s *OpenAIGatewayService) replaceModelInResponseBody(body []byte, fromModel, toModel string) []byte {
 	return s09wire.ReplaceModelInResponseBody(body, fromModel, toModel)
-}
-
-func getOpenAIReasoningEffortFromReqBody(reqBody map[string]any) (value string, present bool) {
-	return nativeopenai.GetOpenAIReasoningEffortFromReqBody(reqBody)
 }
 
 func deriveOpenAIReasoningEffortFromModel(model string) string {
@@ -290,10 +215,10 @@ func deriveOpenAIReasoningEffortFromModel(model string) string {
 	}
 
 	// 国产模型的 max 是显式请求档位，不把同名模型后缀推导成 usage 档位。
-	if parts[len(parts)-1] == "max" && !isOpenAIModelAtLeastVersion(modelID, 5, 6) {
+	if parts[len(parts)-1] == "max" && !capability.IsOpenAIModelAtLeastVersion(modelID, 5, 6) {
 		return ""
 	}
-	return normalizeOpenAIReasoningEffortForModel(parts[len(parts)-1], modelID)
+	return capability.NormalizeRecordedOpenAIEffortForModel(parts[len(parts)-1], modelID)
 }
 
 // deriveOpenAIReasoningEffortFromModelCandidates 依次对每个候选模型做后缀推导，
@@ -322,18 +247,6 @@ func extractOpenAIRequestMetaFromBody(body []byte) (model string, stream bool, p
 	return view.Model, view.Stream, view.PromptCacheKey
 }
 
-func normalizeOpenAIOAuthResponsesCompatibilityBody(body []byte) ([]byte, bool, error) {
-	return s09wire.NormalizeOpenAIOAuthResponsesCompatibilityBody(body)
-}
-
-func normalizeOpenAIResponsesReasoningMode(body []byte) ([]byte, bool, error) {
-	return nativeopenai.NormalizeOpenAIResponsesReasoningMode(body)
-}
-
-func normalizeOpenAIResponseFormatSchemasBody(body []byte) ([]byte, bool, error) {
-	return nativeopenai.NormalizeOpenAIResponseFormatSchemasBody(body)
-}
-
 func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Account, responsesLite bool) ([]byte, bool, error) {
 	if account == nil || !account.IsOpenAI() {
 		return body, false, nil
@@ -347,20 +260,20 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 			return body, false, err
 		}
 	}
-	if next, normalizedReasoningContent, err := normalizeOpenAIResponsesReasoningContentReplay(normalized); err != nil {
+	if next, normalizedReasoningContent, err := openai.NormalizeOpenAIResponsesReasoningContentReplay(normalized); err != nil {
 		return body, false, err
 	} else if normalizedReasoningContent {
 		normalized = next
 		changed = true
 	}
 	if account.IsOpenAIApiKey() {
-		if next, normalizedParallel, err := normalizeOpenAIParallelToolCallsWithoutTools(normalized, responsesLite); err != nil {
+		if next, normalizedParallel, err := openai.NormalizeOpenAIParallelToolCallsWithoutTools(normalized, responsesLite); err != nil {
 			return body, false, err
 		} else if normalizedParallel {
 			normalized = next
 			changed = true
 		}
-		if next, normalizedReasoning, err := normalizeOpenAIAPIKeyStoreFalseReasoningReplay(normalized, false); err != nil {
+		if next, normalizedReasoning, err := openai.NormalizeOpenAIAPIKeyStoreFalseReasoningReplay(normalized, false); err != nil {
 			return body, false, err
 		} else if normalizedReasoning {
 			normalized = next
@@ -374,7 +287,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 		changed = true
 	}
 	if account != nil && account.IsOpenAI() && account.IsOAuth() {
-		if reasoningBody, reasoningChanged, err := normalizeOpenAIResponsesReasoningMode(normalized); err != nil {
+		if reasoningBody, reasoningChanged, err := openai.NormalizeOpenAIResponsesReasoningMode(normalized); err != nil {
 			return body, false, err
 		} else if reasoningChanged {
 			normalized = reasoningBody
@@ -382,7 +295,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 		}
 	}
 	if account != nil && account.IsOpenAIOAuthLike() {
-		oauthBody, oauthChanged, err := normalizeOpenAIOAuthResponsesCompatibilityBody(normalized)
+		oauthBody, oauthChanged, err := s09wire.NormalizeOpenAIOAuthResponsesCompatibilityBody(normalized)
 		if err != nil {
 			return body, false, err
 		}
@@ -404,7 +317,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 		gjson.GetBytes(normalized, "input").IsArray()
 	if needsOrphanCleanup || openAIResponsesInputMayNeedTruncation(normalized) {
 		var reqBody map[string]any
-		if err := decodeOpenAIJSONUseNumber(normalized, &reqBody); err != nil {
+		if err := wirejson.DecodeUseNumber(normalized, &reqBody); err != nil {
 			return body, false, fmt.Errorf("normalize websocket Responses body: %w", err)
 		}
 		mapChanged := false
@@ -412,7 +325,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 			if input, ok := reqBody["input"].([]any); ok && sanitizeOpenAIResponsesOrphanToolOutputs(
 				reqBody,
 				input,
-				strings.TrimSpace(firstNonEmptyString(reqBody["previous_response_id"])) != "",
+				strings.TrimSpace(openai.FirstNonEmptyString(reqBody["previous_response_id"])) != "",
 			) {
 				mapChanged = true
 			}
@@ -421,7 +334,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 			mapChanged = true
 		}
 		if mapChanged {
-			next, err := marshalOpenAIUpstreamJSON(reqBody)
+			next, err := wirejson.Marshal(reqBody)
 			if err != nil {
 				return body, false, fmt.Errorf("serialize normalized websocket Responses body: %w", err)
 			}
@@ -429,7 +342,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 			changed = true
 		}
 	}
-	if schemaBody, schemaChanged, err := normalizeOpenAIResponseFormatSchemasBody(normalized); err != nil {
+	if schemaBody, schemaChanged, err := openai.NormalizeOpenAIResponseFormatSchemasBody(normalized); err != nil {
 		return body, false, err
 	} else if schemaChanged {
 		normalized = schemaBody
@@ -440,7 +353,7 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 		if err := json.Unmarshal(normalized, &reqBody); err != nil {
 			return body, false, fmt.Errorf("normalize websocket image tool body: %w", err)
 		}
-		if normalizeOpenAIResponsesImageGenerationTools(reqBody) {
+		if openai.NormalizeOpenAIResponsesImageGenerationTools(reqBody) {
 			next, err := json.Marshal(reqBody)
 			if err != nil {
 				return body, false, fmt.Errorf("serialize normalized websocket image tool body: %w", err)
@@ -468,16 +381,6 @@ func normalizeOpenAIResponsesWebSocketCompatibilityBody(body []byte, account *Ac
 	return normalized, changed, nil
 }
 
-func normalizeOpenAIPassthroughOAuthBody(body []byte, compact bool) ([]byte, bool, error) {
-	return nativeopenai.NormalizeOpenAIPassthroughOAuthBody(body, compact)
-}
-
-func detectOpenAIPassthroughInstructionsRejectReason(reqModel string, body []byte) string {
-	return nativeopenai.DetectOpenAIPassthroughInstructionsRejectReason(reqModel, body)
-}
-
-func isOpenAICodexModel(model string) bool { return nativeopenai.IsOpenAICodexModel(model) }
-
 // extractOpenAIReasoningEffortFromBody 按优先级传入模型候选（如 upstreamModel,
 // billingModel, originalModel）。显式 effort 只做格式归一化并如实记录；body 未携带
 // effort 时才从模型后缀推导并执行模型能力判断。OAuth 的 normalizeCodexModel 会
@@ -488,7 +391,7 @@ func extractOpenAIReasoningEffortFromBody(body []byte, modelCandidates ...string
 		reasoningEffort = strings.TrimSpace(gjson.GetBytes(body, "reasoning_effort").String())
 	}
 	if reasoningEffort != "" {
-		normalized := normalizeOpenAIReasoningEffort(reasoningEffort)
+		normalized := s09wire.NormalizeRecordedReasoningEffort(reasoningEffort)
 		if normalized == "" {
 			return nil
 		}
@@ -513,7 +416,7 @@ func CanonicalRequestedReasoningEffort(body []byte, modelCandidates ...string) *
 		raw = strings.TrimSpace(gjson.GetBytes(body, "output_config.effort").String())
 	}
 	if raw != "" {
-		canonical := normalizeRequestedOpenAIReasoningEffort(raw)
+		canonical := routing.NormalizeRequestedOpenAIReasoningEffort(raw)
 		if canonical == "" {
 			return nil
 		}
@@ -546,7 +449,7 @@ func canonicalReasoningEffortFromModelSuffix(model string) string {
 	if len(parts) == 0 {
 		return ""
 	}
-	return NormalizeMaxReasoningEffort(parts[len(parts)-1])
+	return routing.NormalizeMaxReasoningEffort(parts[len(parts)-1])
 }
 
 // extractEffectiveOpenAIReasoningEffortFromBody 从最终上游请求体读取实际转发档位。
@@ -568,85 +471,15 @@ func extractOpenAIServiceTier(reqBody map[string]any) *string {
 	if !ok {
 		return nil
 	}
-	return normalizeOpenAIServiceTier(raw)
+	return s09wire.NormalizeServiceTier(raw)
 }
 
 func extractOpenAIServiceTierFromBody(body []byte) *string {
 	if len(body) == 0 {
 		return nil
 	}
-	return normalizeOpenAIServiceTier(gjson.GetBytes(body, "service_tier").String())
+	return s09wire.NormalizeServiceTier(gjson.GetBytes(body, "service_tier").String())
 }
-
-func normalizeOpenAIServiceTier(raw string) *string {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	if value == "" {
-		return nil
-	}
-	if value == "fast" {
-		value = "priority"
-	}
-	// 放过 OpenAI 官方文档定义的合法 tier 值，以及 Codex/API 新增的 ultrafast。
-	// Codex 客户端会发 priority、flex 或 ultrafast；直连 OpenAI SDK 的用户还会
-	// 透传 auto/default/scale。真未知值仍返回 nil，由
-	// normalizeResponsesBodyServiceTier 从 body 中删除。
-	switch value {
-	case "priority", "flex", "auto", "default", "scale", OpenAIFastTierUltrafast:
-		return &value
-	default:
-		return nil
-	}
-}
-
-// OpenAIFastBlockedError 表示请求被 OpenAI Fast 策略的 block 动作拒绝。
-// ErrInvalidOpenAIServiceTier 表示请求携带了未知的 service_tier。handler 会将其
-// 转换为 400 invalid_request_error，避免静默剥离字段而掩盖客户端意图。
-type ErrInvalidOpenAIServiceTier struct {
-	Value string
-}
-
-func (e *ErrInvalidOpenAIServiceTier) Error() string {
-	return fmt.Sprintf("invalid service_tier %q: must be one of auto, default, fast, flex, priority, scale, ultrafast", e.Value)
-}
-
-const invalidOpenAIServiceTierValueMaxLen = 64
-
-func boundInvalidOpenAIServiceTierValue(raw string) string {
-	if len(raw) <= invalidOpenAIServiceTierValueMaxLen {
-		return raw
-	}
-	return raw[:invalidOpenAIServiceTierValueMaxLen] + "..."
-}
-
-// ValidateOpenAIServiceTierField 校验 OpenAI 兼容请求体中的 service_tier 字段。
-//
-// 空值或 null 保持兼容；fast 归一化为 priority；priority、flex、auto、default、
-// scale、ultrafast 原样通过。显式的非字符串、空字符串或未知值返回校验错误。
-func ValidateOpenAIServiceTierField(body []byte) (string, error) {
-	tierResult := gjson.GetBytes(body, "service_tier")
-	if !tierResult.Exists() || tierResult.Type == gjson.Null {
-		return "", nil
-	}
-	if tierResult.Type != gjson.String {
-		return "", &ErrInvalidOpenAIServiceTier{Value: "<non-string>"}
-	}
-	raw := strings.TrimSpace(tierResult.String())
-	if raw == "" {
-		return "", &ErrInvalidOpenAIServiceTier{Value: raw}
-	}
-	norm := normalizedOpenAIServiceTierValue(raw)
-	if norm == "" {
-		return "", &ErrInvalidOpenAIServiceTier{Value: boundInvalidOpenAIServiceTierValue(raw)}
-	}
-	return norm, nil
-}
-
-// OpenAIFastBlockedError 表示请求被 OpenAI Fast 策略的 block 动作拒绝。
-type OpenAIFastBlockedError struct {
-	Message string
-}
-
-func (e *OpenAIFastBlockedError) Error() string { return e.Message }
 
 // evaluateOpenAIFastPolicy 返回指定账号、模型和 service_tier 应执行的动作及错误消息。
 // 策略服务不可用或没有规则命中时返回 pass，调用方可安全地直接放行。
@@ -668,57 +501,21 @@ func (e *OpenAIFastBlockedError) Error() string { return e.Message }
 //     非 BetaPolicy 那样的"block 覆盖 filter 覆盖 pass"语义。
 func (s *OpenAIGatewayService) evaluateOpenAIFastPolicy(ctx context.Context, account *Account, model, serviceTier string) (action, errMsg string) {
 	if s == nil || s.settingService == nil {
-		return BetaPolicyActionPass, ""
+		return anthropic.BetaPolicyActionPass, ""
 	}
 	tier := strings.ToLower(strings.TrimSpace(serviceTier))
 	if tier == "" {
-		return BetaPolicyActionPass, ""
+		return anthropic.BetaPolicyActionPass, ""
 	}
 	settings := openAIFastPolicySettingsFromContext(ctx)
 	if settings == nil {
-		fetched, err := s.settingService.GetOpenAIFastPolicySettings(ctx)
+		fetched, err := s.settingService.Gateway.GetOpenAIFastPolicySettings(ctx)
 		if err != nil || fetched == nil {
-			return BetaPolicyActionPass, ""
+			return anthropic.BetaPolicyActionPass, ""
 		}
 		settings = fetched
 	}
-	return evaluateOpenAIFastPolicyWithSettings(settings, openAIFastPolicyUserID(ctx), account, model, tier)
-}
-
-// evaluateOpenAIFastPolicyWithSettings 是策略求值的纯函数核心，让 WS 等长会话
-// 只预取一次配置，避免每一帧都访问 settingService。
-func evaluateOpenAIFastPolicyWithSettings(settings *OpenAIFastPolicySettings, userID int64, account *Account, model, tier string) (action, errMsg string) {
-	if settings == nil {
-		return BetaPolicyActionPass, ""
-	}
-	isOAuth := account != nil && account.IsOAuth()
-	isBedrock := account != nil && account.IsBedrock()
-
-	// 用户专属规则先于全局规则。规则组内仍按配置顺序首条命中，允许
-	// 管理员为某位用户配置例外，而不被先出现的全局规则覆盖。
-	for _, userScoped := range []bool{true, false} {
-		for _, rule := range settings.Rules {
-			if (len(rule.UserIDs) > 0) != userScoped || !openAIFastPolicyUserMatches(rule.UserIDs, userID) {
-				continue
-			}
-			if !betaPolicyScopeMatches(rule.Scope, isOAuth, isBedrock) {
-				continue
-			}
-			ruleTier := strings.ToLower(strings.TrimSpace(rule.ServiceTier))
-			if ruleTier != "" && ruleTier != OpenAIFastTierAny && ruleTier != tier {
-				continue
-			}
-			eff := BetaPolicyRule{
-				Action:               rule.Action,
-				ErrorMessage:         rule.ErrorMessage,
-				ModelWhitelist:       rule.ModelWhitelist,
-				FallbackAction:       rule.FallbackAction,
-				FallbackErrorMessage: rule.FallbackErrorMessage,
-			}
-			return resolveRuleAction(eff, model)
-		}
-	}
-	return BetaPolicyActionPass, ""
+	return tierpolicy.Evaluate(settings, openAIFastPolicyUserID(ctx), account != nil && account.IsOAuth(), account != nil && account.IsBedrock(), model, tier)
 }
 
 // openAIFastPolicyUserID 从可信请求上下文读取 API Key 所属用户 ID。
@@ -726,24 +523,12 @@ func openAIFastPolicyUserID(ctx context.Context) int64 {
 	if ctx == nil {
 		return 0
 	}
-	userID, _ := ctx.Value(ctxkey.UserID).(int64)
+	access, _ := apikey.AccessSnapshotFromContext(ctx)
+	userID := access.PayerUserID
 	if userID <= 0 {
 		return 0
 	}
 	return userID
-}
-
-// openAIFastPolicyUserMatches 判断全局规则或指定用户规则是否匹配当前用户。
-func openAIFastPolicyUserMatches(ruleUserIDs []int64, userID int64) bool {
-	if len(ruleUserIDs) == 0 {
-		return true
-	}
-	for _, ruleUserID := range ruleUserIDs {
-		if ruleUserID == userID {
-			return true
-		}
-	}
-	return false
 }
 
 // openAIFastPolicyCtxKey 是 context 中预取的 OpenAIFastPolicySettings 缓存
@@ -759,18 +544,18 @@ var openAIFastPolicyCtxKey = openAIFastPolicyCtxKeyType{}
 
 // withOpenAIFastPolicyContext 将一份 settings 快照绑定到 context，供该 ctx
 // 衍生 goroutine 中的 evaluateOpenAIFastPolicy 复用。
-func withOpenAIFastPolicyContext(ctx context.Context, settings *OpenAIFastPolicySettings) context.Context {
+func withOpenAIFastPolicyContext(ctx context.Context, settings *tierpolicy.OpenAIFastPolicySettings) context.Context {
 	if ctx == nil || settings == nil {
 		return ctx
 	}
 	return context.WithValue(ctx, openAIFastPolicyCtxKey, settings)
 }
 
-func openAIFastPolicySettingsFromContext(ctx context.Context) *OpenAIFastPolicySettings {
+func openAIFastPolicySettingsFromContext(ctx context.Context) *tierpolicy.OpenAIFastPolicySettings {
 	if ctx == nil {
 		return nil
 	}
-	if v, ok := ctx.Value(openAIFastPolicyCtxKey).(*OpenAIFastPolicySettings); ok {
+	if v, ok := ctx.Value(openAIFastPolicyCtxKey).(*tierpolicy.OpenAIFastPolicySettings); ok {
 		return v
 	}
 	return nil
@@ -780,24 +565,24 @@ func openAIFastPolicySettingsFromContext(ctx context.Context) *OpenAIFastPolicyS
 type openAIFastModeDecision struct {
 	Tier        string
 	DeleteField bool
-	Blocked     *OpenAIFastBlockedError
+	Blocked     *tierpolicy.BlockedError
 }
 
 // openAIGroupFastPolicy 只信任认证链路完整加载的分组，并限于 OpenAI 账号。
 func openAIGroupFastPolicy(ctx context.Context, account *Account) string {
 	if ctx == nil || account == nil || !account.IsOpenAI() {
-		return GroupOpenAIFastPolicyFollowRequest
+		return routing.GroupOpenAIFastPolicyFollowRequest
 	}
-	group, _ := ctx.Value(ctxkey.Group).(*Group)
-	if !IsGroupContextValid(group) || !groupSupportsOpenAIFast(group.Platform) {
-		return GroupOpenAIFastPolicyFollowRequest
+	group, _ := requeststate.GroupFromContext(ctx)
+	if !routing.IsGroupContextValid(group) || !routing.GroupSupportsOpenAIFast(group.Platform) {
+		return routing.GroupOpenAIFastPolicyFollowRequest
 	}
 	return group.EffectiveOpenAIFastPolicy()
 }
 
 // isOpenAIAcceleratedTier 同时覆盖 Fast 和 Ultra Fast。
 func isOpenAIAcceleratedTier(tier string) bool {
-	return tier == OpenAIFastTierPriority || tier == OpenAIFastTierUltrafast
+	return tier == tierpolicy.OpenAIFastTierPriority || tier == tierpolicy.OpenAIFastTierUltrafast
 }
 
 // resolveOpenAIFastModeDecision 统一解析系统策略与单 Key 策略。
@@ -809,28 +594,28 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 	rawTier string,
 	hasField bool,
 ) openAIFastModeDecision {
-	normTier := normalizedOpenAIServiceTierValue(rawTier)
+	normTier := s09wire.ServiceTierValue(rawTier)
 	groupPolicy := openAIGroupFastPolicy(ctx, account)
 	switch groupPolicy {
-	case GroupOpenAIFastPolicyForcePriority:
-		normTier, hasField = OpenAIFastTierPriority, true
-	case GroupOpenAIFastPolicyForceUltrafast:
-		normTier, hasField = OpenAIFastTierUltrafast, true
+	case routing.GroupOpenAIFastPolicyForcePriority:
+		normTier, hasField = tierpolicy.OpenAIFastTierPriority, true
+	case routing.GroupOpenAIFastPolicyForceUltrafast:
+		normTier, hasField = tierpolicy.OpenAIFastTierUltrafast, true
 	}
 	applySystemAction := func(tier string) (openAIFastModeDecision, bool) {
 		action, errMsg := s.evaluateOpenAIFastPolicy(ctx, account, model, tier)
 		switch action {
-		case BetaPolicyActionBlock:
+		case anthropic.BetaPolicyActionBlock:
 			if errMsg == "" {
 				errMsg = fmt.Sprintf("openai service_tier=%s is not allowed for model %s", tier, model)
 			}
-			return openAIFastModeDecision{Blocked: &OpenAIFastBlockedError{Message: errMsg}}, true
-		case BetaPolicyActionFilter:
+			return openAIFastModeDecision{Blocked: &tierpolicy.BlockedError{Message: errMsg}}, true
+		case anthropic.BetaPolicyActionFilter:
 			return openAIFastModeDecision{DeleteField: true}, true
-		case OpenAIFastPolicyActionForcePriority:
-			return openAIFastModeDecision{Tier: OpenAIFastTierPriority}, true
-		case OpenAIFastPolicyActionForceUltrafast:
-			return openAIFastModeDecision{Tier: OpenAIFastTierUltrafast}, true
+		case tierpolicy.OpenAIFastPolicyActionForcePriority:
+			return openAIFastModeDecision{Tier: tierpolicy.OpenAIFastTierPriority}, true
+		case tierpolicy.OpenAIFastPolicyActionForceUltrafast:
+			return openAIFastModeDecision{Tier: tierpolicy.OpenAIFastTierUltrafast}, true
 		default:
 			return openAIFastModeDecision{}, false
 		}
@@ -844,7 +629,7 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 	}
 
 	// 全局先裁决；分组关闭后，单 Key 不得重新开启。
-	if groupPolicy == GroupOpenAIFastPolicyForceOff {
+	if groupPolicy == routing.GroupOpenAIFastPolicyForceOff {
 		if isOpenAIAcceleratedTier(normTier) {
 			return openAIFastModeDecision{DeleteField: hasField}
 		}
@@ -854,21 +639,21 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 	policy := apiKeyFastModePolicyFromContext(ctx)
 	keyPolicyApplicable := false
 	switch policy {
-	case APIKeyFastModePolicyForceOn:
+	case apikey.APIKeyFastModePolicyForceOn:
 		keyPolicyApplicable = s.openAIAPIKeyFastModeForceOnSupported(ctx, account, model)
-	case APIKeyFastModePolicyForceOff:
+	case apikey.APIKeyFastModePolicyForceOff:
 		// 强制关闭只净化真正代表 Fast 的 priority，不依赖定价文件中的能力标记。
 		keyPolicyApplicable = account != nil && account.IsOpenAI()
 	}
 	candidateChanged := false
 	if keyPolicyApplicable {
 		switch policy {
-		case APIKeyFastModePolicyForceOn:
+		case apikey.APIKeyFastModePolicyForceOn:
 			// 单 Key 开启 Fast 不降低分组强制的 Ultra Fast。
-			if groupPolicy != GroupOpenAIFastPolicyForceUltrafast {
-				candidateTier = OpenAIFastTierPriority
+			if groupPolicy != routing.GroupOpenAIFastPolicyForceUltrafast {
+				candidateTier = tierpolicy.OpenAIFastTierPriority
 			}
-		case APIKeyFastModePolicyForceOff:
+		case apikey.APIKeyFastModePolicyForceOff:
 			// flex 是低优先级模式，auto/default/scale 也是官方合法 tier，均需保留。
 			if isOpenAIAcceleratedTier(normTier) {
 				candidateTier = ""
@@ -886,7 +671,7 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 		}
 		return openAIFastModeDecision{Tier: candidateTier}
 	}
-	if policy == APIKeyFastModePolicyForceOff && keyPolicyApplicable && isOpenAIAcceleratedTier(normTier) {
+	if policy == apikey.APIKeyFastModePolicyForceOff && keyPolicyApplicable && isOpenAIAcceleratedTier(normTier) {
 		return openAIFastModeDecision{DeleteField: hasField}
 	}
 	return openAIFastModeDecision{}
@@ -926,12 +711,14 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToBody(ctx context.Context, 
 }
 
 // writeOpenAIFastPolicyBlockedResponse 保留策略观察，具体 HTTP/SSE 输出委托 Adapter。
-func writeOpenAIFastPolicyBlockedResponse(c *gin.Context, err *OpenAIFastBlockedError) {
+func writeOpenAIFastPolicyBlockedResponse(c *gin.Context, err *tierpolicy.BlockedError) {
 	if c == nil || err == nil {
 		return
 	}
-	MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
-	gatewayhttp.WriteForwardFastPolicyBlocked(c, err.Message, StopOpenAICompactSSEKeepaliveCommitted, writeOpenAICompactSSEFailureMessage)
+	gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+	gatewayhttp.WriteForwardFastPolicyBlocked(c, err.Message, gatewayhttp.StopOpenAICompactSSEKeepaliveCommitted, func(c *gin.Context, status int, kind, message string) {
+		gatewayhttp.WriteOpenAICompactSSEFailureMessage(c, status, kind, message, gatewayhttp.MarkOpsStreamError)
+	})
 }
 
 // applyOpenAIFastPolicyToWSResponseCreate 针对单个 client -> upstream WebSocket
@@ -960,7 +747,7 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToWSResponseCreate(
 	account *Account,
 	model string,
 	frame []byte,
-) ([]byte, *OpenAIFastBlockedError, error) {
+) ([]byte, *tierpolicy.BlockedError, error) {
 	if len(frame) == 0 {
 		return frame, nil, nil
 	}
@@ -1038,7 +825,7 @@ func newOpenAIFastPolicyWSEventID() string {
 // event_id lets clients correlate the rejection in their logs; "code" gives
 // programmatic clients a stable identifier (HTTP-side equivalent is the
 // 403 permission_error JSON body).
-func buildOpenAIFastPolicyBlockedWSEvent(err *OpenAIFastBlockedError) []byte {
+func buildOpenAIFastPolicyBlockedWSEvent(err *tierpolicy.BlockedError) []byte {
 	if err == nil {
 		return nil
 	}
@@ -1060,25 +847,9 @@ func buildOpenAIFastPolicyBlockedWSEvent(err *OpenAIFastBlockedError) []byte {
 	return payload
 }
 
-func openAIJSONValueMayContainImageInput(value gjson.Result) bool {
-	return s09wire.JSONValueMayContainImageInput(value)
-}
-
-func openAIRequestBodyMayContainEmptyBase64InputImage(body []byte) bool {
-	return nativeopenai.OpenAIRequestBodyMayContainEmptyBase64InputImage(body)
-}
-
-func sanitizeEmptyBase64InputImagesInOpenAIBody(body []byte) ([]byte, bool, error) {
-	return nativeopenai.SanitizeEmptyBase64InputImagesInOpenAIBody(body)
-}
-
-func sanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(reqBody map[string]any) bool {
-	return nativeopenai.SanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(reqBody)
-}
-
 func getOpenAIRequestBodyMap(_ *gin.Context, body []byte) (map[string]any, error) {
 	var reqBody map[string]any
-	if err := decodeOpenAIJSONUseNumber(body, &reqBody); err != nil {
+	if err := wirejson.DecodeUseNumber(body, &reqBody); err != nil {
 		return nil, fmt.Errorf("parse request: %w", err)
 	}
 	return reqBody, nil
@@ -1086,7 +857,7 @@ func getOpenAIRequestBodyMap(_ *gin.Context, body []byte) (map[string]any, error
 
 // extractOpenAIReasoningEffort 的模型候选语义同 extractOpenAIReasoningEffortFromBody。
 func extractOpenAIReasoningEffort(reqBody map[string]any, modelCandidates ...string) *string {
-	if value, present := getOpenAIReasoningEffortFromReqBody(reqBody); present {
+	if value, present := openai.GetOpenAIReasoningEffortFromReqBody(reqBody); present {
 		if value == "" {
 			return nil
 		}
@@ -1124,7 +895,7 @@ func CanonicalRequestedReasoningEffortFromReqBody(reqBody map[string]any, modelC
 		}
 	}
 	if raw != "" {
-		canonical := normalizeRequestedOpenAIReasoningEffort(raw)
+		canonical := routing.NormalizeRequestedOpenAIReasoningEffort(raw)
 		if canonical == "" {
 			return nil
 		}
@@ -1133,6 +904,6 @@ func CanonicalRequestedReasoningEffortFromReqBody(reqBody map[string]any, modelC
 	return CanonicalRequestedReasoningEffort(nil, modelCandidates...)
 }
 
-func normalizeOpenAIReasoningEffort(raw string) string {
-	return s09wire.NormalizeRecordedReasoningEffort(raw)
+func appendOpenAIResponsesRequestPathSuffix(base, suffix string) string {
+	return openai.AppendResponsesPathSuffix(base, suffix)
 }

@@ -1,8 +1,10 @@
 package service
 
 import (
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	strings "strings"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 const featureKeyCodexImageGenerationBridge = "codex_image_generation_bridge"
@@ -14,15 +16,13 @@ const (
 	codexImageGenerationExplicitToolPolicyStrip = "strip"
 )
 
-func boolOverridePtr(v bool) *bool { return routing.BoolOverridePtr(v) }
-
 func boolOverrideFromMap(values map[string]any, keys ...string) *bool {
 	if values == nil {
 		return nil
 	}
 	for _, key := range keys {
 		if v, ok := values[key].(bool); ok {
-			return boolOverridePtr(v)
+			return routing.BoolOverridePtr(v)
 		}
 	}
 	return nil
@@ -54,26 +54,26 @@ func normalizeCodexImageGenerationExplicitToolPolicy(value string) string {
 // CodexImageGenerationBridgeOverride 返回账号级 Codex 图片桥接覆盖配置。
 // nil 表示继续跟随渠道级或全局配置。
 func (a *Account) CodexImageGenerationBridgeOverride() *bool {
-	if a == nil || a.Platform != PlatformOpenAI || a.Extra == nil {
+	if a == nil || a.Platform != capability.PlatformOpenAI || a.Extra == nil {
 		return nil
 	}
 	if override := boolOverrideFromMap(a.Extra, featureKeyCodexImageGenerationBridge, "codex_image_generation_bridge_enabled"); override != nil {
 		return override
 	}
-	openaiConfig, _ := a.Extra[PlatformOpenAI].(map[string]any)
+	openaiConfig, _ := a.Extra[capability.PlatformOpenAI].(map[string]any)
 	return boolOverrideFromMap(openaiConfig, featureKeyCodexImageGenerationBridge, "codex_image_generation_bridge_enabled")
 }
 
 // CodexImageGenerationExplicitToolPolicy 返回账号级 Codex /responses 图片工具策略。
 // 未设置或未知值默认放行，以保持已有行为。
 func (a *Account) CodexImageGenerationExplicitToolPolicy() string {
-	if a == nil || a.Platform != PlatformOpenAI || a.Extra == nil {
+	if a == nil || a.Platform != capability.PlatformOpenAI || a.Extra == nil {
 		return codexImageGenerationExplicitToolPolicyAllow
 	}
 	if policy, ok := stringOverrideFromMap(a.Extra, featureKeyCodexImageGenerationExplicitToolPolicy); ok {
 		return normalizeCodexImageGenerationExplicitToolPolicy(policy)
 	}
-	openaiConfig, _ := a.Extra[PlatformOpenAI].(map[string]any)
+	openaiConfig, _ := a.Extra[capability.PlatformOpenAI].(map[string]any)
 	if policy, ok := stringOverrideFromMap(openaiConfig, featureKeyCodexImageGenerationExplicitToolPolicy); ok {
 		return normalizeCodexImageGenerationExplicitToolPolicy(policy)
 	}

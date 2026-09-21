@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 type usageLogWindowStatsBatchProvider interface {
-	GetAccountWindowStatsBatch(context.Context, []int64, time.Time) (map[int64]*usagestats.AccountStats, error)
+	GetAccountWindowStatsBatch(context.Context, []int64, time.Time) (map[int64]*usage.AccountStats, error)
 }
-type legacyWindowCostSource struct{ UsageLogRepository }
+type legacyWindowCostSource struct{ usage.UsageLogRepository }
 
 func (s legacyWindowCostSource) GetWindow(ctx context.Context, id int64, start time.Time) (*billing.WindowCostStats, error) {
 	v, err := s.GetAccountWindowStats(ctx, id, start)
@@ -55,7 +55,7 @@ func (s *GatewayService) windowCostGuard() *billing.WindowCostGuard {
 			source = legacyWindowCostBatchSource{base, batch}
 		}
 	}
-	return billing.NewWindowCostGuard(s.sessionLimitCache, source, billing.WindowCostGuardOptions{Now: time.Now, Stats: billing.SharedWindowCostMetrics(), Log: func(format string, args ...any) { logger.LegacyPrintf("service.gateway", format, args...) }, Debug: slog.Debug})
+	return billing.NewWindowCostGuard(s.windowCostCache, source, billing.WindowCostGuardOptions{Now: time.Now, Stats: billing.SharedWindowCostMetrics(), Log: func(format string, args ...any) { logging.LegacyPrintf("service.gateway", format, args...) }, Debug: slog.Debug})
 }
 func costWindowInput(a *Account) billing.CostWindowInput {
 	if a == nil {

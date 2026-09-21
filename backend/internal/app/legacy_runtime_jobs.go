@@ -6,17 +6,17 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
-
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
+	"github.com/TokenFlux/TokenRouter/internal/creative"
 )
 
 type jobsRuntimeReady struct{}
 
 func provideJobsRuntime(
-	batchImageCleanup *service.BatchImageCleanupService,
-	batchImageWorker *service.BatchImageWorkerRuntime,
-	creativeWorker *service.CreativeWorkerRuntime,
+	batchImageCleanup *batchCleanupRuntime,
+	batchImageWorker *batchimage.Runtime,
+	creativeWorker *creative.CreativeWorkerRuntime,
 	cnUsageMonitor *account.CNUsageMonitor,
 	manager *lifecycle.Manager,
 ) *jobsRuntimeReady {

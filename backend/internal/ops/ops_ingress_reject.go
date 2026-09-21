@@ -449,22 +449,3 @@ func (s *OpsService) ListIngressRejects(ctx context.Context, filter *OpsIngressR
 	}
 	return repo.ListIngressRejects(ctx, filter)
 }
-
-// CompatBatchRequestCount 为旧入口提供过渡委托。
-func CompatBatchRequestCount(items []*OpsIngressRejectAggregate) uint64 {
-	return batchRequestCount(items)
-}
-
-// CompatBoundedDimension 为旧入口提供过渡委托。
-func CompatBoundedDimension(value, fallback string) string { return boundedDimension(value, fallback) }
-
-// CompatIngressRejectHash 为旧入口提供过渡委托。
-func CompatIngressRejectHash(k ingressRejectKey) int { return ingressRejectHash(k) }
-
-// CompatAggregateFromKey 为旧入口提供过渡委托。
-func CompatAggregateFromKey(k ingressRejectKey, bucket, now time.Time) *OpsIngressRejectAggregate {
-	return aggregateFromKey(k, bucket, now)
-}
-
-// CompatIngressRejectKey 仅用于旧测试与兼容函数。
-type CompatIngressRejectKey = ingressRejectKey

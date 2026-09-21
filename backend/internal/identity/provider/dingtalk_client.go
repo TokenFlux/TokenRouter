@@ -6,7 +6,6 @@ import (
 	context "context"
 	json "encoding/json"
 	fmt "fmt"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	io "io"
 	slog "log/slog"
 	http "net/http"
@@ -14,6 +13,8 @@ import (
 	strings "strings"
 	sync "sync"
 	time "time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // DingTalkClientConfig 是 DingTalkClient 需要的最小配置子集

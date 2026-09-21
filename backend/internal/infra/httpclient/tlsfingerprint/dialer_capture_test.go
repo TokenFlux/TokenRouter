@@ -314,7 +314,11 @@ func fetchCapturedFingerprint(t *testing.T, captureURL string, profile *Profile)
 		skipIfExternalServiceUnavailable(t, err)
 		return nil
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("close capture response: %v", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,10 +44,10 @@ func TestOpenAI429FastPath_KeepsOAuthAccountSchedulableDuringRetryWindow(t *test
 	rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	svc := &OpenAIGatewayService{rateLimitService: rateLimits}
 	rateLimits.SetAccountRuntimeBlocker(svc)
-	account := &Account{ID: 42, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
-	apiKeyAccount := &Account{ID: 43, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
-	setupTokenAccount := &Account{ID: 44, Platform: PlatformOpenAI, Type: AccountTypeSetupToken}
-	grokOAuthAccount := &Account{ID: 45, Platform: PlatformGrok, Type: AccountTypeOAuth}
+	account := &Account{ID: 42, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	apiKeyAccount := &Account{ID: 43, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	setupTokenAccount := &Account{ID: 44, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken}
+	grokOAuthAccount := &Account{ID: 45, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
 
 	shouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, http.Header{}, nil)
 	apiKeyShouldDisable := svc.handleOpenAIAccountUpstreamError(context.Background(), apiKeyAccount, http.StatusTooManyRequests, http.Header{}, nil)
@@ -63,7 +67,7 @@ func TestOpenAI429FastPath_KeepsOAuthAccountSchedulableDuringRetryWindow(t *test
 
 func TestOpenAI429FastPath_BlocksOAuthOnlyAfterRetryWindow(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 420, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 420, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	svc.openaiOAuth429RetryStartedAt.Store(account.ID, time.Now().Add(-openAIOAuth429RetryWindow-time.Second))
 
 	svc.markOpenAIOAuth429RateLimited(context.Background(), account, http.Header{}, nil)
@@ -77,7 +81,7 @@ func TestOpenAI429FastPath_BlocksOAuthImmediatelyWhenSevenDayQuotaIsExhausted(t 
 	rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	svc := &OpenAIGatewayService{rateLimitService: rateLimits}
 	rateLimits.SetAccountRuntimeBlocker(svc)
-	account := &Account{ID: 423, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 423, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	headers := http.Header{}
 	headers.Set("x-codex-primary-used-percent", "100")
 	headers.Set("x-codex-primary-reset-after-seconds", "604800")
@@ -97,7 +101,7 @@ func TestOpenAI429FastPath_BlocksOAuthImmediatelyWhenSevenDayQuotaIsExhausted(t 
 
 func TestOpenAI429FastPath_RetriesOAuthWhenNoQuotaSignalExists(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 424, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 424, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	headers := http.Header{"Retry-After": []string{"1"}}
 
 	require.True(t, svc.ShouldRetryOpenAIOAuth429(account, headers, []byte(`{"error":{"type":"rate_limit_error","message":"try again"}}`)))
@@ -109,7 +113,7 @@ func TestOpenAIStream429IgnoresSuccessfulQuotaSnapshotHeaders(t *testing.T) {
 	rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	svc := &OpenAIGatewayService{rateLimitService: rateLimits}
 	rateLimits.SetAccountRuntimeBlocker(svc)
-	account := &Account{ID: 421, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 421, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	svc.openaiOAuth429RetryStartedAt.Store(account.ID, time.Now().Add(-openAIOAuth429RetryWindow-time.Second))
 	headers := http.Header{}
 	headers.Set("x-codex-primary-used-percent", "37")
@@ -134,7 +138,7 @@ func TestOpenAIStream429IgnoresSuccessfulQuotaSnapshotHeaders(t *testing.T) {
 
 func TestOpenAIHTTP429StillUsesQuotaResetHeaders(t *testing.T) {
 	svc := &OpenAIGatewayService{rateLimitService: &RateLimitService{}}
-	account := &Account{ID: 422, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 422, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	svc.openaiOAuth429RetryStartedAt.Store(account.ID, time.Now().Add(-openAIOAuth429RetryWindow-time.Second))
 	headers := http.Header{}
 	headers.Set("x-codex-primary-used-percent", "37")
@@ -155,7 +159,7 @@ func TestOpenAI429FastPath_SparkQuotaOnlyBlocksSparkModel(t *testing.T) {
 	rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	svc := &OpenAIGatewayService{rateLimitService: rateLimits}
 	rateLimits.SetAccountRuntimeBlocker(svc)
-	account := &Account{ID: 425, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 425, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	headers := http.Header{}
 	headers.Set("x-codex-primary-used-percent", "100")
 	headers.Set("x-codex-primary-reset-after-seconds", "604800")
@@ -183,7 +187,7 @@ func TestOpenAIStreamFailover_Spark429KeepsModelScope(t *testing.T) {
 	rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	svc := &OpenAIGatewayService{rateLimitService: rateLimits}
 	rateLimits.SetAccountRuntimeBlocker(svc)
-	account := &Account{ID: 432, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 432, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	headers := http.Header{}
 	headers.Set("x-codex-primary-used-percent", "100")
 	headers.Set("x-codex-primary-reset-after-seconds", "604800")
@@ -215,7 +219,7 @@ func TestOpenAI429FastPath_OpenCodeGoUsageLimitUsesMessageResetDuration(t *testi
 	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	svc := &OpenAIGatewayService{rateLimitService: rateLimitService}
 	rateLimitService.SetAccountRuntimeBlocker(svc)
-	account := &Account{ID: 44, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 44, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 	body := []byte(`{"type":"error","error":{"type":"GoUsageLimitError","message":"5-hour usage limit reached. Resets in 4hr 59min. To continue using this model now, enable usage from your available balance: https://opencode.ai/workspace/wrk_test/go"},"metadata":{"workspace":"wrk_test","limitName":"5 hour"}}`)
 
 	before := time.Now()
@@ -244,12 +248,12 @@ func TestOpenAI429FastPath_SkipsSparkShadow(t *testing.T) {
 	parentID := int64(800)
 	shadow := &Account{
 		ID:              801,
-		Platform:        PlatformOpenAI,
-		Type:            AccountTypeOAuth,
+		Platform:        capability.PlatformOpenAI,
+		Type:            capability.AccountTypeOAuth,
 		ParentAccountID: &parentID,
-		QuotaDimension:  QuotaDimensionSpark,
+		QuotaDimension:  accountcore.QuotaDimensionSpark,
 	}
-	normal := &Account{ID: 802, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	normal := &Account{ID: 802, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 
 	headers := http.Header{}
 	headers.Set("x-codex-primary-used-percent", "100")
@@ -265,7 +269,7 @@ func TestOpenAI429FastPath_SkipsSparkShadow(t *testing.T) {
 
 func TestOpenAIRuntimeBlock_AppliesToOpenAIAPIKeyWhenRateLimitServiceStopsScheduling(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 44, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{ID: 44, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	svc.BlockAccountScheduling(account, time.Time{}, "custom_error_code")
 
@@ -274,7 +278,7 @@ func TestOpenAIRuntimeBlock_AppliesToOpenAIAPIKeyWhenRateLimitServiceStopsSchedu
 
 func TestOpenAIRuntimeBlock_DoesNotApplyToOtherPlatforms(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 45, Platform: PlatformGemini, Type: AccountTypeOAuth}
+	account := &Account{ID: 45, Platform: capability.PlatformGemini, Type: capability.AccountTypeOAuth}
 
 	svc.BlockAccountScheduling(account, time.Time{}, "custom_error_code")
 
@@ -286,7 +290,7 @@ func TestOpenAIRuntimeBlocker_IgnoresNonOpenAIFromRateLimitService(t *testing.T)
 	repo := &rateLimitAccountRepoStub{}
 	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	rateLimitService.SetAccountRuntimeBlocker(gateway)
-	account := &Account{ID: 45, Platform: PlatformGemini, Type: AccountTypeOAuth}
+	account := &Account{ID: 45, Platform: capability.PlatformGemini, Type: capability.AccountTypeOAuth}
 
 	shouldDisable := rateLimitService.HandleUpstreamError(context.Background(), account, http.StatusForbidden, http.Header{}, []byte("forbidden"))
 
@@ -308,9 +312,9 @@ func TestOpenAIPoolModeTempRule_StopsSameAccountRetryAndIsolatesBlockToModel(t *
 	rateLimitService.SetAccountRuntimeBlocker(gateway)
 	account := &Account{
 		ID:          46,
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Credentials: map[string]any{
 			"pool_mode":                    true,
@@ -345,7 +349,7 @@ func TestOpenAIPoolModeTempRule_StopsSameAccountRetryAndIsolatesBlockToModel(t *
 	require.False(t, failoverErr.RetryableOnSameAccount)
 	require.Zero(t, repo.tempCalls)
 	require.Equal(t, 0, repo.setErrCalls)
-	require.Equal(t, StatusActive, account.Status)
+	require.Equal(t, billing.StatusActive, account.Status)
 	require.Len(t, repo.modelRateLimitCalls, 1)
 	require.Equal(t, "gpt-5.4", repo.modelRateLimitCalls[0].scope)
 	require.False(t, gateway.isOpenAIAccountRuntimeBlocked(account))
@@ -358,8 +362,8 @@ func TestOpenAIPoolModeRetryable5xx_DoesNotCreateModelTransientBlock(t *testing.
 	gateway := &OpenAIGatewayService{rateLimitService: rateLimitService}
 	account := &Account{
 		ID:       47,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"pool_mode":                    true,
 			"pool_mode_retry_status_codes": []any{float64(524)},
@@ -387,8 +391,8 @@ func TestOpenAIPoolModeNonRetryable5xx_DoesNotCreateModelTransientBlock(t *testi
 	gateway := &OpenAIGatewayService{rateLimitService: rateLimitService}
 	account := &Account{
 		ID:       48,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"pool_mode":                    true,
 			"pool_mode_retry_status_codes": []any{float64(http.StatusGatewayTimeout)},
@@ -416,8 +420,8 @@ func TestOpenAINonPoolAPIKey5xx_StillCreatesModelTransientBlock(t *testing.T) {
 	gateway := &OpenAIGatewayService{rateLimitService: rateLimitService}
 	account := &Account{
 		ID:       49,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 	}
 
 	for i := 0; i < 2; i++ {
@@ -508,7 +512,7 @@ func TestOpenAIOAuth429_MatchingModelTempRuleAvoidsAccountRuntimeBlock(t *testin
 		rateLimitService: &RateLimitService{accountRepo: repo},
 	}
 	account := openAIModelNotFoundTempAccount()
-	account.Type = AccountTypeOAuth
+	account.Type = capability.AccountTypeOAuth
 	account.Credentials["temp_unschedulable_rules"] = []any{
 		map[string]any{
 			"error_code":       float64(http.StatusTooManyRequests),
@@ -538,7 +542,7 @@ func TestOpenAIOAuth429_NonmatchingModelTempRuleKeepsAccountRuntimeBlock(t *test
 		rateLimitService: &RateLimitService{accountRepo: repo},
 	}
 	account := openAIModelNotFoundTempAccount()
-	account.Type = AccountTypeOAuth
+	account.Type = capability.AccountTypeOAuth
 	account.Credentials["temp_unschedulable_rules"] = []any{
 		map[string]any{
 			"error_code":       float64(http.StatusTooManyRequests),
@@ -585,7 +589,7 @@ func TestOpenAITempUnschedulable_UnknownModelKeepsAccountRuntimeBlock(t *testing
 
 func TestOpenAIRuntimeBlock_DoesNotShortenExistingBlock(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 46, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 46, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	longUntil := time.Now().Add(10 * time.Minute)
 
 	svc.BlockAccountScheduling(account, longUntil, "oauth_401")
@@ -600,7 +604,7 @@ func TestOpenAIRuntimeBlock_DoesNotShortenExistingBlock(t *testing.T) {
 
 func TestOpenAIRuntimeBlock_ClearAccountSchedulingBlock(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 47, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 47, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 
 	svc.BlockAccountScheduling(account, time.Now().Add(time.Minute), "429")
 	require.True(t, svc.isOpenAIAccountRuntimeBlocked(account))
@@ -611,9 +615,9 @@ func TestOpenAIRuntimeBlock_ClearAccountSchedulingBlock(t *testing.T) {
 
 func TestShouldStopOpenAIOAuth429Failover_AfterBoundedFullWindows(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 42, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
-	apiKeyAccount := &Account{ID: 43, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
-	var state OpenAIOAuth429FailoverState
+	account := &Account{ID: 42, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	apiKeyAccount := &Account{ID: 43, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	var state failover.OAuth429State
 
 	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 1, &state))
 
@@ -627,29 +631,29 @@ func TestShouldStopOpenAIOAuth429Failover_AfterBoundedFullWindows(t *testing.T) 
 
 func TestShouldStopOpenAIOAuth429Failover_TracksOneGrokFollowupAttempt(t *testing.T) {
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 44, Platform: PlatformGrok, Type: AccountTypeOAuth}
-	apiKeyAccount := &Account{ID: 45, Platform: PlatformGrok, Type: AccountTypeAPIKey}
+	account := &Account{ID: 44, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	apiKeyAccount := &Account{ID: 45, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}
 
 	t.Run("429 then 500 stops after one followup", func(t *testing.T) {
-		var state OpenAIOAuth429FailoverState
+		var state failover.OAuth429State
 		require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 1, &state))
 		require.True(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusInternalServerError, 2, &state))
 	})
 
 	t.Run("500 then 429 still allows one followup", func(t *testing.T) {
-		var state OpenAIOAuth429FailoverState
+		var state failover.OAuth429State
 		require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusInternalServerError, 1, &state))
 		require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 2, &state))
 		require.True(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusBadGateway, 3, &state))
 	})
 
 	t.Run("OAuth 429 then API-key failure consumes the same followup", func(t *testing.T) {
-		var state OpenAIOAuth429FailoverState
+		var state failover.OAuth429State
 		require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 1, &state))
 		require.True(t, svc.ShouldStopOpenAIOAuth429Failover(apiKeyAccount, http.StatusInternalServerError, 2, &state))
 	})
 
-	var state OpenAIOAuth429FailoverState
+	var state failover.OAuth429State
 	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(account, http.StatusTooManyRequests, 0, &state))
 	require.False(t, svc.ShouldStopOpenAIOAuth429Failover(apiKeyAccount, http.StatusTooManyRequests, 2, &state))
 }

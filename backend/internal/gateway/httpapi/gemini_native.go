@@ -348,6 +348,8 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 		},
 	}
 	request := execution.Request{
+		Hints:       requeststate.ExecutionHintsFromContext(c.Request.Context()),
+		Routing:     requeststate.RoutingStateFromContext(c.Request.Context()),
 		Route:       call.Route,
 		UserID:      call.Subject.UserID,
 		Concurrency: call.Subject.Concurrency,

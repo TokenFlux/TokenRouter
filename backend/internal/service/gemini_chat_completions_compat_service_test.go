@@ -12,13 +12,17 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstreamBody := `{
 		"candidates":[{"content":{"parts":[
 			{"text":"inspect inputs","thought":true},
@@ -35,8 +39,8 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
 	account := &Account{
 		ID:          201,
-		Platform:    PlatformGemini,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformGemini,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key": "gemini-key",
@@ -69,7 +73,7 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 }
 
 func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstreamBody := strings.Join([]string{
 		`data: {"response":{"candidates":[{"content":{"parts":[{"text":"plan ","thought":true}]}}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":1,"thoughtsTokenCount":1}}}`,
 		`data: {"response":{"candidates":[{"content":{"parts":[{"text":"carefully","thought":true}]}}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":1,"thoughtsTokenCount":2}}}`,
@@ -84,14 +88,14 @@ func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := &GeminiMessagesCompatService{
-		tokenProvider: &GeminiTokenProvider{},
+		tokenProvider: newGeminiTokenSourceForTest(),
 		httpUpstream:  httpStub,
 		cfg:           &config.Config{},
 	}
 	account := &Account{
 		ID:          204,
-		Platform:    PlatformGemini,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformGemini,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "ya29.test-token",
@@ -117,7 +121,7 @@ func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T
 }
 
 func TestGeminiForwardAsResponsesStreamsReasoningTextToolAndUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstreamBody := strings.Join([]string{
 		`data: {"candidates":[{"content":{"parts":[{"text":"plan","thought":true}]}}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":1,"thoughtsTokenCount":1}}`,
 		`data: {"candidates":[{"content":{"parts":[{"text":"hello"}]}}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":2,"thoughtsTokenCount":1}}`,
@@ -131,7 +135,7 @@ func TestGeminiForwardAsResponsesStreamsReasoningTextToolAndUsage(t *testing.T) 
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{ID: 202, Platform: PlatformGemini, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
+	account := &Account{ID: 202, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
 	body := []byte(`{"model":"gemini-2.5-flash","input":"hello","stream":true,"tools":[{"type":"function","name":"lookup","parameters":{"type":"object"}}]}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -172,14 +176,14 @@ func (r *geminiResponsesFailingStream) Read(p []byte) (int, error) {
 func (r *geminiResponsesFailingStream) Close() error { return nil }
 
 func TestGeminiForwardAsResponsesCommitsStreamBeforeReadFailure(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       &geminiResponsesFailingStream{},
 	}}
 	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{ID: 203, Platform: PlatformGemini, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
+	account := &Account{ID: 203, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
 	body := []byte(`{"model":"gemini-2.5-flash","input":"hello","stream":true}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -192,7 +196,7 @@ func TestGeminiForwardAsResponsesCommitsStreamBeforeReadFailure(t *testing.T) {
 }
 
 func TestGeminiForwardAsResponsesMapsUpstreamError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Header:     http.Header{"X-Goog-Request-Id": []string{"gemini-error-1"}},
@@ -201,7 +205,7 @@ func TestGeminiForwardAsResponsesMapsUpstreamError(t *testing.T) {
 		)),
 	}}
 	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{ID: 205, Platform: PlatformGemini, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
+	account := &Account{ID: 205, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
 	body := []byte(`{"model":"gemini-2.5-flash","input":"hello"}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -217,7 +221,7 @@ func TestGeminiForwardAsResponsesMapsUpstreamError(t *testing.T) {
 }
 
 func TestGeminiForwardAsResponsesReturnsFailoverBeforeResponseStarts(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	httpStub := &geminiCompatHTTPUpstreamStub{response: &http.Response{
 		StatusCode: http.StatusForbidden,
 		Header: http.Header{
@@ -229,7 +233,7 @@ func TestGeminiForwardAsResponsesReturnsFailoverBeforeResponseStarts(t *testing.
 		)),
 	}}
 	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{ID: 206, Platform: PlatformGemini, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
+	account := &Account{ID: 206, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
 	body := []byte(`{"model":"gemini-2.5-flash","input":"hello"}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -238,7 +242,7 @@ func TestGeminiForwardAsResponsesReturnsFailoverBeforeResponseStarts(t *testing.
 	result, err := svc.ForwardAsResponses(context.Background(), c, account, body, nil)
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusForbidden, failoverErr.StatusCode)
 	require.Zero(t, recorder.Body.Len())
@@ -278,7 +282,7 @@ func TestGeminiResponseToChatCompletionsPreservesInlineData(t *testing.T) {
 			rawData, err := json.Marshal(geminiResp)
 			require.NoError(t, err)
 
-			got, _, err := geminiResponseToChatCompletions(geminiResp, "gemini-test", rawData, nil)
+			got, _, err := gemini.GeminiResponseToChatCompletions(geminiResp, "gemini-test", rawData, nil)
 			require.NoError(t, err)
 			require.Len(t, got.Choices, 1)
 
@@ -320,7 +324,7 @@ func TestGeminiResponseToChatCompletionsOmitsInvalidInlineData(t *testing.T) {
 			rawData, err := json.Marshal(geminiResp)
 			require.NoError(t, err)
 
-			got, _, err := geminiResponseToChatCompletions(geminiResp, "gemini-test", rawData, nil)
+			got, _, err := gemini.GeminiResponseToChatCompletions(geminiResp, "gemini-test", rawData, nil)
 			require.NoError(t, err)
 
 			var content string
@@ -345,7 +349,7 @@ func TestConvertGeminiToClaudeMessageOmitsInlineDataForAnthropicMessages(t *test
 	rawData, err := json.Marshal(geminiResp)
 	require.NoError(t, err)
 
-	withInlineData, _ := convertGeminiToClaudeMessage(geminiResp, "gemini-test", rawData, true)
+	withInlineData, _ := gemini.ConvertGeminiToClaudeMessage(geminiResp, "gemini-test", rawData, true)
 	require.Regexp(t, `^msg_01[0-9A-Za-z]{22}$`, withInlineData["id"])
 	contentWithInlineData, ok := withInlineData["content"].([]any)
 	require.True(t, ok)
@@ -358,7 +362,7 @@ func TestConvertGeminiToClaudeMessageOmitsInlineDataForAnthropicMessages(t *test
 	require.Equal(t, "get_weather", toolUse["name"])
 	require.Equal(t, map[string]any{"type": "text", "text": "after"}, contentWithInlineData[3])
 
-	withoutInlineData, _ := convertGeminiToClaudeMessage(geminiResp, "gemini-test", rawData, false)
+	withoutInlineData, _ := gemini.ConvertGeminiToClaudeMessage(geminiResp, "gemini-test", rawData, false)
 	contentWithoutInlineData, ok := withoutInlineData["content"].([]any)
 	require.True(t, ok)
 	require.Len(t, contentWithoutInlineData, 3)
@@ -373,7 +377,7 @@ func TestConvertGeminiToClaudeMessageOmitsInlineDataForAnthropicMessages(t *test
 func TestGenerateAnthropicMsgID_FormatAndUniqueness(t *testing.T) {
 	seen := make(map[string]struct{}, 100)
 	for i := 0; i < 100; i++ {
-		id := generateAnthropicMsgID()
+		id := upstream.GenerateAnthropicMsgID()
 		require.Regexp(t, `^msg_01[0-9A-Za-z]{22}$`, id)
 		_, duplicate := seen[id]
 		require.False(t, duplicate, "第 %d 次调用生成了重复 ID: %s", i, id)
@@ -397,7 +401,7 @@ func TestGeminiResponseToChatCompletionsRetainsTextAndToolBehavior(t *testing.T)
 	rawData, err := json.Marshal(geminiResp)
 	require.NoError(t, err)
 
-	got, _, err := geminiResponseToChatCompletions(geminiResp, "gemini-test", rawData, nil)
+	got, _, err := gemini.GeminiResponseToChatCompletions(geminiResp, "gemini-test", rawData, nil)
 	require.NoError(t, err)
 	require.Len(t, got.Choices, 1)
 

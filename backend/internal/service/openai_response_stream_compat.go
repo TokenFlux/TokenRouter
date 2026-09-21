@@ -7,27 +7,36 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, c *gin.Context, account *Account, reasoningEffort string) native.StreamOptions {
-	observer := upstreamResponseModelObserverFromContext(c)
+func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, c *gin.Context, account *Account, reasoningEffort string) openai.StreamOptions {
+	observer := gatewayhttp.UpstreamResponseModelObserverFromContext(c)
 	if observer == nil {
-		observer = beginUpstreamResponseModelObservation(c)
+		observer = gatewayhttp.BeginUpstreamResponseModelObservation(c)
 	}
-	options := native.StreamOptions{
+	options := openai.StreamOptions{
 
-		NativeOpenAI: account != nil && account.Platform == PlatformOpenAI,
+		NativeOpenAI: account != nil && account.Platform == capability.PlatformOpenAI,
 
-		StageFirstOutput: account != nil && account.Platform == PlatformOpenAI,
+		StageFirstOutput: account != nil && account.Platform == capability.PlatformOpenAI,
 
 		CodexFailureTerminal: account != nil && account.IsOpenAIOAuthLike(),
 
-		GrokIdlePolicy: account != nil && account.Platform == PlatformGrok,
+		GrokIdlePolicy: account != nil && account.Platform == capability.PlatformGrok,
 
 		MaxLineSize: defaultMaxLineSize,
 
@@ -35,11 +44,13 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 
 		Observe: observer.ObserveOpenAI,
 
-		Logf: func(format string, values ...any) { logger.LegacyPrintf("service.openai_gateway", format, values...) },
+		Logf: func(format string, values ...any) {
+			logging.LegacyPrintf("service.openai_gateway", format, values...)
+		},
 
-		IsCommitted: func() bool { return IsResponseCommitted(c) },
+		IsCommitted: func() bool { return gatewayhttp.IsResponseCommitted(c) },
 
-		MarkCommitted: func() { MarkResponseCommitted(c) },
+		MarkCommitted: func() { gatewayhttp.MarkResponseCommitted(c) },
 
 		ClientOutputStarted: func(started bool) bool { return openAIStreamClientOutputStarted(c, started) },
 
@@ -62,7 +73,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 		},
 
 		MarkSafeFailover: func(err error) {
-			if failure, ok := err.(*UpstreamFailoverError); ok {
+			if failure, ok := err.(*forwardcore.UpstreamFailoverError); ok {
 				failure.SafeToFailoverAfterWrite = true
 			}
 		},
@@ -81,7 +92,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 			logOpenAICapacityFailoverSuppressed(ctx, account, "native_sse", requestID, eventType)
 		},
 
-		MarkCyber: func(value native.CyberObservation) {
+		MarkCyber: func(value openai.CyberObservation) {
 			MarkOpsCyberPolicy(c, CyberPolicyMark{
 				Code:           value.Code,
 				Message:        value.Message,
@@ -106,7 +117,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 			return newOpenAIResponsesEmptyCompletedFailoverError(c, account, requestID)
 		},
 
-		CountSearch: countGrokNativeSearchCallsInSSEDataDedup,
+		CountSearch: grok.CountGrokNativeSearchCallsInSSEDataDedup,
 
 		StreamTimeout: func(model string) {
 			if s.rateLimitService != nil {
@@ -126,9 +137,9 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 
 		BuildOpenAIResponseFailedSSE: buildOpenAIResponseFailedSSE,
 
-		WrapOpenAIUpstreamWarningIfCyber: wrapOpenAIUpstreamWarningIfCyber,
+		WrapOpenAIUpstreamWarningIfCyber: gatewayprovider.WrapOpenAIUpstreamWarningIfCyber,
 
-		TruncateString: truncateString,
+		TruncateString: logredact.TruncateUTF8,
 
 		OpenAIStreamDataStartsTTFT: openAIStreamDataStartsTTFT,
 
@@ -156,18 +167,18 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 		if s.cfg != nil {
 			seconds = s.cfg.Gateway.StreamDataIntervalTimeout
 		}
-		options.StreamInterval = resolveGrokStreamIdleTimeout(seconds)
+		options.StreamInterval = grok.ResolveStreamIdleTimeout(seconds)
 	}
 	options.PrepareHeaders = func(headers http.Header, staged bool, output http.Header) http.Header {
 		var pending http.Header
 		if staged {
 			if s.responseHeaderFilter != nil {
-				pending = responseheaders.FilterHeaders(headers, s.responseHeaderFilter)
+				pending = provider.FilterHeaders(headers, s.responseHeaderFilter)
 			} else if requestID := strings.TrimSpace(headers.Get("x-request-id")); requestID != "" {
 				pending = http.Header{"X-Request-Id": {requestID}}
 			}
 		} else if s.responseHeaderFilter != nil {
-			responseheaders.WriteFilteredHeaders(output, headers, s.responseHeaderFilter)
+			provider.WriteFilteredHeaders(output, headers, s.responseHeaderFilter)
 		}
 		if staged {
 			stageOpenAICodexTurnState(&pending, headers)
@@ -176,14 +187,14 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 		}
 		return pending
 	}
-	options.MarkTime = func(moment native.StreamTime) {
+	options.MarkTime = func(moment openai.StreamTime) {
 		switch moment {
-		case native.StreamTimeFlush:
-			MarkOpsTimestamp(c, ctxkey.FirstDownstreamFlushAt)
-		case native.StreamTimeData:
-			MarkOpsTimestamp(c, ctxkey.FirstSSEDataAt)
-		case native.StreamTimeVisible:
-			MarkOpsTimestamp(c, ctxkey.FirstVisibleOutputAt)
+		case openai.StreamTimeFlush:
+			gatewayhttp.MarkOpsTimestamp(c, telemetry.FirstDownstreamFlushAt)
+		case openai.StreamTimeData:
+			gatewayhttp.MarkOpsTimestamp(c, telemetry.FirstSSEDataAt)
+		case openai.StreamTimeVisible:
+			gatewayhttp.MarkOpsTimestamp(c, telemetry.FirstVisibleOutputAt)
 		}
 	}
 	return options

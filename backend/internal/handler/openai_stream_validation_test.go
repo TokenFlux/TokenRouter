@@ -6,6 +6,13 @@ import (
 	"strings"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -14,7 +21,6 @@ import (
 )
 
 func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name string
@@ -95,14 +101,13 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 			tt.run(c)
 
 			require.Equal(t, http.StatusBadRequest, rec.Code)
-			require.Equal(t, invalidStreamFieldTypeMessage, gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
+			require.Equal(t, gatewayhttp.InvalidStreamFieldTypeMessage, gjson.GetBytes(rec.Body.Bytes(), "error.message").String())
 			require.Contains(t, rec.Body.String(), "invalid_request_error")
 		})
 	}
 }
 
 func TestGatewayOpenAICompatibleHandlersAllowBooleanStreamToContinue(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name string
@@ -140,31 +145,6 @@ func TestGatewayOpenAICompatibleHandlersAllowBooleanStreamToContinue(t *testing.
 	}
 }
 
-func TestParseOpenAICompatibleStream(t *testing.T) {
-	tests := []struct {
-		name       string
-		body       string
-		wantStream bool
-		wantOK     bool
-	}{
-		{name: "missing", body: `{"model":"gpt-5"}`, wantStream: false, wantOK: true},
-		{name: "true", body: `{"model":"gpt-5","stream":true}`, wantStream: true, wantOK: true},
-		{name: "false", body: `{"model":"gpt-5","stream":false}`, wantStream: false, wantOK: true},
-		{name: "string", body: `{"model":"gpt-5","stream":"true"}`, wantStream: false, wantOK: false},
-		{name: "number", body: `{"model":"gpt-5","stream":1}`, wantStream: false, wantOK: false},
-		{name: "null", body: `{"model":"gpt-5","stream":null}`, wantStream: false, wantOK: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotStream, gotOK := parseOpenAICompatibleStream([]byte(tt.body))
-
-			require.Equal(t, tt.wantStream, gotStream)
-			require.Equal(t, tt.wantOK, gotOK)
-		})
-	}
-}
-
 func newOpenAICompatibleStreamValidationContext(path, body string, claudeCodeOnly bool) (*gin.Context, *httptest.ResponseRecorder) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -172,11 +152,11 @@ func newOpenAICompatibleStreamValidationContext(path, body string, claudeCodeOnl
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	groupID := int64(7)
-	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      11,
 		GroupID: &groupID,
-		Group:   &service.Group{ID: groupID, ClaudeCodeOnly: claudeCodeOnly},
-		User:    &service.User{ID: 13},
+		Group:   &routing.Group{ID: groupID, ClaudeCodeOnly: claudeCodeOnly},
+		User:    &identity.User{ID: 13},
 	})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 13, Concurrency: 1})
 

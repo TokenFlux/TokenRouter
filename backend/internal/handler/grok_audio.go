@@ -1,19 +1,31 @@
 package handler
 
 import (
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -22,12 +34,12 @@ import (
 
 func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) { h.AuxiliaryHTTPHandler().GrokRealtime(c) }
 
-func grokRealtimeBillingResult(model string, elapsed time.Duration, audioObserved bool) *service.OpenAIForwardResult {
+func grokRealtimeBillingResult(model string, elapsed time.Duration, audioObserved bool) *forwardcore.OpenAIResult {
 	usage := gatewaymedia.RealtimeAudioUsage(elapsed, audioObserved)
 	if usage == nil {
 		return nil
 	}
-	return &service.OpenAIForwardResult{RequestID: service.StableGrokRealtimeBillingRequestID(""), Model: model, Duration: elapsed, AudioUsage: usage}
+	return &forwardcore.OpenAIResult{RequestID: service.StableGrokRealtimeBillingRequestID(""), Model: model, Duration: elapsed, AudioUsage: usage}
 }
 
 func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
@@ -37,12 +49,12 @@ func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
 // recordGrokVoiceUsage 在存在 AudioUsage 时按分组音频价格结算 TTS、STT 或 Realtime。
 func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 	c *gin.Context,
-	apiKey *service.APIKey,
+	apiKey *apikey.APIKey,
 	account *service.Account,
-	subscription *service.UserSubscription,
+	subscription *billing.UserSubscription,
 	endpoint string,
 	body []byte,
-	result *service.OpenAIForwardResult,
+	result *forwardcore.OpenAIResult,
 ) {
 	if h == nil || c == nil || apiKey == nil || account == nil || result == nil {
 		return
@@ -57,21 +69,21 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 		result.RequestID = service.StableGrokAudioBillingRequestID(result.RequestID)
 	}
 	userAgent := c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(c)
+	clientIP := clientip.GetClientIP(c)
 	sessionID := service.ExtractClientSessionID(c)
-	requestPayloadHash := service.HashUsageRequestPayload(body)
+	requestPayloadHash := billing.HashUsageRequestPayload(body)
 	if requestPayloadHash == "" {
-		requestPayloadHash = service.HashUsageRequestPayload([]byte(endpoint))
+		requestPayloadHash = billing.HashUsageRequestPayload([]byte(endpoint))
 	}
-	inboundEndpoint := GetInboundEndpoint(c)
-	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
 	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 	model := strings.TrimSpace(result.Model)
 	if model == "" {
 		model = endpoint
 	}
 
-	channelFields := clientRequestedUsageFields(c, service.ChannelMappingResult{}, model, result.UpstreamModel)
+	channelFields := gatewayhttp.ClientRequestedUsageFields(c, routing.ChannelMappingResult{}, model, result.UpstreamModel)
 	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{
 		Result:             result,
 		APIKey:             apiKey,
@@ -89,7 +101,7 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 		ChannelUsageFields: channelFields,
 	})
 	completionRecorder := h.completionRuntime()
-	completionLog := logger.L().With(
+	completionLog := logging.L().With(
 		zap.String("component", "handler.openai_gateway.grok_voice"),
 		zap.Int64("user_id", apiKey.User.ID),
 		zap.Int64("api_key_id", apiKey.ID),
@@ -108,13 +120,13 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 type grokRealtimeAdapter struct {
 	h         *OpenAIGatewayHandler
 	c         *gin.Context
-	apiKey    *service.APIKey
+	apiKey    *apikey.APIKey
 	reqLog    *zap.Logger
 	selection *service.AccountSelectionResult
 }
 
 func (p *grokRealtimeAdapter) SelectRealtime(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
-	selected, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", "", excluded, service.OpenAIUpstreamTransportHTTPSSE, service.OpenAIEndpointCapabilityTextGeneration, false, false, service.PlatformGrok)
+	selected, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", "", excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityTextGeneration, false, false, capability.PlatformGrok)
 	p.selection = selected
 	if selected == nil || selected.Account == nil {
 		return accountcore.AccountSnapshot{}, false, err
@@ -139,7 +151,7 @@ func (p *grokRealtimeAdapter) OpenRealtime(ctx context.Context, _ accountcore.Ac
 func (p *grokRealtimeAdapter) RealtimeOpenFailed(ctx context.Context, selected accountcore.AccountSnapshot, err error) {
 	p.reqLog.Warn("grok_realtime.pre_accept_failed", zap.Int64("account_id", selected.ID), zap.Error(err))
 	status := http.StatusBadGateway
-	var dialErr *service.GrokRealtimeDialError
+	var dialErr *grok.RealtimeDialError
 	if errors.As(err, &dialErr) && dialErr.StatusCode > 0 {
 		status = dialErr.StatusCode
 	}
@@ -150,14 +162,14 @@ func (p *grokRealtimeAdapter) RealtimeOpenFailed(ctx context.Context, selected a
 type grokVoiceAdapter struct {
 	h            *OpenAIGatewayHandler
 	c            *gin.Context
-	apiKey       *service.APIKey
-	subscription *service.UserSubscription
+	apiKey       *apikey.APIKey
+	subscription *billing.UserSubscription
 	reqLog       *zap.Logger
 	selection    *service.AccountSelectionResult
 }
 
 func (p *grokVoiceAdapter) SelectVoice(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
-	selected, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", "grok-4.5", excluded, service.OpenAIUpstreamTransportHTTPSSE, service.OpenAIEndpointCapabilityTextGeneration, false, false, service.PlatformGrok)
+	selected, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", "grok-4.5", excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityTextGeneration, false, false, capability.PlatformGrok)
 	p.selection = selected
 	if selected == nil || selected.Account == nil {
 		return accountcore.AccountSnapshot{}, false, err
@@ -172,9 +184,9 @@ func (p *grokVoiceAdapter) ForwardVoice(ctx context.Context, _ accountcore.Accou
 	result, err := p.h.gatewayService.ForwardGrokVoice(ctx, p.c, p.selection.Account, request.Endpoint, request.Body, request.ContentType)
 	outcome := gatewaymedia.VoiceOutcome{Err: err}
 	if result != nil {
-		outcome.Result = &gatewaymedia.VoiceResult{RequestID: result.RequestID, Headers: result.UpstreamHeaders.Clone(), Model: result.Model, UpstreamModel: result.UpstreamModel, Duration: result.Duration, AudioUsage: cloneGrokAudioUsage(result.AudioUsage)}
+		outcome.Result = &gatewaymedia.VoiceResult{RequestID: result.RequestID, Headers: http.Header(result.UpstreamHeaders).Clone(), Model: result.Model, UpstreamModel: result.UpstreamModel, Duration: result.Duration, AudioUsage: cloneGrokAudioUsage(result.AudioUsage)}
 	}
-	var failure *service.UpstreamFailoverError
+	var failure *forwardcore.UpstreamFailoverError
 	if errors.As(err, &failure) {
 		outcome.RetryNext = failure.ShouldRetryNextAccount()
 	}
@@ -184,12 +196,12 @@ func (p *grokVoiceAdapter) CompleteVoice(_ context.Context, _ accountcore.Accoun
 	if result == nil {
 		return
 	}
-	value := &service.OpenAIForwardResult{RequestID: result.RequestID, UpstreamHeaders: http.Header(result.Headers).Clone(), Model: result.Model, UpstreamModel: result.UpstreamModel, Duration: result.Duration, AudioUsage: cloneGrokAudioUsage(result.AudioUsage)}
+	value := &forwardcore.OpenAIResult{RequestID: result.RequestID, UpstreamHeaders: http.Header(result.Headers).Clone(), Model: result.Model, UpstreamModel: result.UpstreamModel, Duration: result.Duration, AudioUsage: cloneGrokAudioUsage(result.AudioUsage)}
 	p.h.recordGrokVoiceUsage(p.c, p.apiKey, p.selection.Account, p.subscription, request.Endpoint, request.Body, value)
 }
 
 // cloneGrokAudioUsage 在同步执行与完成输入之间保留独立计量快照。
-func cloneGrokAudioUsage(value *service.AudioUsage) *service.AudioUsage {
+func cloneGrokAudioUsage(value *protocol.AudioUsage) *protocol.AudioUsage {
 	if value == nil {
 		return nil
 	}

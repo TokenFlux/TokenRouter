@@ -4,6 +4,7 @@ package identity
 import (
 	context "context"
 	fmt "fmt"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 

@@ -9,12 +9,13 @@ import (
 // AccessSnapshot 明确区分凭据所有者、付款用户与行为成员；资金来源由 billing 另行解析。
 // key 仅属于这次认证，不能反向写入 L1/L2 快照。
 type AccessSnapshot struct {
-	KeyID       int64
-	OwnerUserID int64
-	PayerUserID int64
-	ActorUserID int64
-	TeamID      *int64
-	key         *APIKey
+	KeyID          int64
+	OwnerUserID    int64
+	PayerUserID    int64
+	ActorUserID    int64
+	TeamID         *int64
+	key            *APIKey
+	fastModePolicy string
 }
 
 // KeyView 为同一次请求的网关提供访问策略投影，不包含旧 service 实体。
@@ -65,7 +66,7 @@ func (s *APIKeyService) Authenticate(ctx context.Context, credential string, inp
 	if err != nil {
 		return nil, &AuthenticationFailure{Kind: AuthenticationLookup, Cause: err}
 	}
-	access := &AccessSnapshot{KeyID: key.ID, OwnerUserID: key.UserID, ActorUserID: key.UserID, TeamID: clonePointer(key.TeamID), key: key}
+	access := &AccessSnapshot{KeyID: key.ID, OwnerUserID: key.UserID, ActorUserID: key.UserID, TeamID: clonePointer(key.TeamID), key: key, fastModePolicy: key.FastModePolicy}
 	if key.User != nil {
 		access.PayerUserID = key.User.ID
 	}

@@ -4,7 +4,7 @@ package app
 import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/site"
 	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
@@ -12,7 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-func provideSitePublic(legacy *service.SettingService, store *settings.Store, oauth *identity.OAuthSettings, cfg *config.Config) *site.PublicService {
+func provideSitePublic(store *settings.Store, oauth *identity.OAuthSettings, cfg *config.Config, calendar timezone.Calendar) *site.PublicService {
 	p := site.NewPublicService(site.NewInputSource(store, site.PublicInputOptions{Auth: func(raw map[string]string) site.PublicAuth {
 		value := oauth.PublicSettingsFromValues(raw)
 		enabled, selfService := team.PublicSettings(raw, cfg.Team.Enabled, cfg.Team.SelfServiceEnabled)
@@ -20,9 +20,13 @@ func provideSitePublic(legacy *service.SettingService, store *settings.Store, oa
 	}, Usage: func(raw map[string]string) site.PublicUsage {
 		value := usage.ParseRankingSettings(raw)
 		return site.PublicUsage{Limit: value.Limit, Enabled: value.Enabled, SortBy: string(value.SortBy), ShowTotalTokens: value.ShowTotalTokens, ShowRequests: value.ShowRequests, ShowActualCost: value.ShowActualCost}
-	}, Version: store.Version}))
-	legacy.SetSitePublic(p)
+	}, Version: store.Version}), calendar, cfg.Timezone)
 	return p
+}
+
+// provideSiteDisplay 保留前端地址回退的按需读取，名称只查询原单键。
+func provideSiteDisplay(store *settings.Store, cfg *config.Config) *site.DisplaySettings {
+	return site.NewDisplaySettings(store, func() string { return cfg.Server.FrontendURL })
 }
 
 func provideSitePublicHTTP(s *site.PublicService, info BuildInfo) *sitehttp.PublicHandler {

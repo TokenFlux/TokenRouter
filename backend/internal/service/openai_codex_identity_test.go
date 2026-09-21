@@ -12,12 +12,12 @@ func TestEnsureCodexIdentityHeaders(t *testing.T) {
 	t.Run("补齐缺失身份头", func(t *testing.T) {
 		h := make(http.Header)
 
-		ensureCodexIdentityHeaders(h)
-		enforceCodexIdentityHeaders(h)
+		openai.EnsureCodexIdentityHeaders(h)
+		openai.EnforceCodexIdentityHeaders(h)
 
 		require.Equal(t, openai.CodexDefaultOriginator, h.Get("originator"))
-		require.Equal(t, codexCLIUserAgent, h.Get("user-agent"))
-		require.Equal(t, codexCLIVersion, h.Get("version"))
+		require.Equal(t, openai.CodexCLIUserAgent, h.Get("user-agent"))
+		require.Equal(t, openai.CodexCLIVersion, h.Get("version"))
 		require.Equal(t, "responses=experimental", h.Get("OpenAI-Beta"))
 	})
 
@@ -28,8 +28,8 @@ func TestEnsureCodexIdentityHeaders(t *testing.T) {
 		h.Set("version", "9.9.9")
 		h.Set("OpenAI-Beta", "assistants=v2")
 
-		ensureCodexIdentityHeaders(h)
-		enforceCodexIdentityHeaders(h)
+		openai.EnsureCodexIdentityHeaders(h)
+		openai.EnforceCodexIdentityHeaders(h)
 
 		require.Equal(t, "codex-tui", h.Get("originator"))
 		require.Equal(t, tuiUA, h.Get("user-agent"))
@@ -69,13 +69,13 @@ func TestEnforceCodexIdentityHeaders(t *testing.T) {
 			originator:     "opencode",
 			userAgent:      "luna/1.0.0",
 			wantOriginator: openai.CodexDefaultOriginator,
-			wantUA:         codexCLIUserAgent,
+			wantUA:         openai.CodexCLIUserAgent,
 		},
 		{
 			name:           "UA 缺失回退默认身份",
 			originator:     "codex_vscode",
 			wantOriginator: openai.CodexDefaultOriginator,
-			wantUA:         codexCLIUserAgent,
+			wantUA:         openai.CodexCLIUserAgent,
 		},
 		{
 			name:           "originator override UA 首段被尾部真实身份重写",
@@ -91,7 +91,7 @@ func TestEnforceCodexIdentityHeaders(t *testing.T) {
 			version:        "0.125.0",
 			wantOriginator: "codex_cli_rs",
 			wantUA:         "codex_cli_rs/0.125.0",
-			wantVersion:    codexCLIVersion,
+			wantVersion:    openai.CodexCLIVersion,
 		},
 		{
 			name:           "达标 version 原样保留",
@@ -124,7 +124,7 @@ func TestEnforceCodexIdentityHeaders(t *testing.T) {
 				h.Set("version", tt.version)
 			}
 
-			enforceCodexIdentityHeaders(h)
+			openai.EnforceCodexIdentityHeaders(h)
 
 			require.Equal(t, tt.wantOriginator, h.Get("originator"))
 			require.Equal(t, tt.wantUA, h.Get("user-agent"))
@@ -139,34 +139,34 @@ func TestEnforceCodexIdentityHeaders_NoOriginatorIsNoop(t *testing.T) {
 	h := make(http.Header)
 	h.Set("user-agent", "third-party-client/1.0.0")
 
-	enforceCodexIdentityHeaders(h)
+	openai.EnforceCodexIdentityHeaders(h)
 
 	require.Empty(t, h.Get("originator"))
 	require.Equal(t, "third-party-client/1.0.0", h.Get("user-agent"))
 }
 
 func TestCodexCanonicalAuthIdentityFollowsResolver(t *testing.T) {
-	SetCodexCanonicalUserAgentResolver(func() string {
+	openai.SetCodexCanonicalUserAgentResolver(func() string {
 		return "codex_cli_rs/0.200.1 (Linux; x86_64) terminal"
 	})
-	t.Cleanup(func() { SetCodexCanonicalUserAgentResolver(nil) })
+	t.Cleanup(func() { openai.SetCodexCanonicalUserAgentResolver(nil) })
 
-	userAgent, originator := CodexCanonicalAuthIdentity()
+	userAgent, originator := openai.CodexCanonicalAuthIdentity()
 	require.Equal(t, "codex_cli_rs", originator)
 	require.Equal(t, "codex_cli_rs/0.200.1 (Linux; x86_64) terminal", userAgent)
-	require.Equal(t, "0.200.1", CodexCanonicalClientVersion())
+	require.Equal(t, "0.200.1", openai.CodexCanonicalClientVersion())
 
 	h := make(http.Header)
-	ApplyCodexCanonicalAuthIdentity(h)
+	openai.ApplyCodexCanonicalAuthIdentity(h)
 	require.Equal(t, userAgent, h.Get("user-agent"))
 	require.Equal(t, originator, h.Get("originator"))
 	require.Empty(t, h.Get("version"))
 }
 
 func TestCodexCanonicalIdentityFallsBackForInvalidResolverValue(t *testing.T) {
-	SetCodexCanonicalUserAgentResolver(func() string { return "not-a-codex-client" })
-	t.Cleanup(func() { SetCodexCanonicalUserAgentResolver(nil) })
+	openai.SetCodexCanonicalUserAgentResolver(func() string { return "not-a-codex-client" })
+	t.Cleanup(func() { openai.SetCodexCanonicalUserAgentResolver(nil) })
 
-	require.Equal(t, codexCLIUserAgent, CodexCanonicalUserAgent())
-	require.Equal(t, codexCLIVersion, CodexCanonicalClientVersion())
+	require.Equal(t, openai.CodexCLIUserAgent, openai.CodexCanonicalUserAgent())
+	require.Equal(t, openai.CodexCLIVersion, openai.CodexCanonicalClientVersion())
 }

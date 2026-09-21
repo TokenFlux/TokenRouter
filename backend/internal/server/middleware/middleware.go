@@ -1,12 +1,10 @@
 package middleware
 
 import (
-	"context"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/googleapi"
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,8 +35,8 @@ const (
 // 同时设置 request.Context（供 Service 使用）和 gin.Context（供 Handler 快速检查）
 func ForcePlatform(platform string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 设置到 request.Context，使用 ctxkey.ForcePlatform 供 Service 层读取
-		ctx := context.WithValue(c.Request.Context(), ctxkey.ForcePlatform, platform)
+		// 设置到 request.Context，使用 requeststate.ForcePlatform 供 Service 层读取
+		ctx := apikey.WithForcePlatform(c.Request.Context(), platform)
 		c.Request = c.Request.WithContext(ctx)
 		// 同时设置到 gin.Context，供 Handler 快速检查
 		c.Set(string(ContextKeyForcePlatform), platform)
@@ -93,7 +91,7 @@ func GoogleErrorWriter(c *gin.Context, status int, message string) {
 		"error": gin.H{
 			"code":    status,
 			"message": message,
-			"status":  googleapi.HTTPStatusToGoogleStatus(status),
+			"status":  httpapi.HTTPStatusToGoogleStatus(status),
 		},
 	})
 }

@@ -4,14 +4,15 @@ package openaiforward
 import (
 	"context"
 	"fmt"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/tidwall/gjson"
-	"go.uber.org/zap"
 	"net/http"
 	"strings"
 	"time"
+
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/tidwall/gjson"
+	"go.uber.org/zap"
 )
 
 // RawChatEndpoint 保持三个兼容入口一致的上游端点记录。
@@ -163,12 +164,12 @@ func RunRawChat(ctx context.Context, body []byte, defaultMappedModel string, p R
 
 	output := upstream.NewDeferredOutputContext(p.Sink())
 	options := p.RawOptions(resp, billingModel, upstreamModel, serviceTier)
-	var observed *native.CompatResponseResult
+	var observed *openai.CompatResponseResult
 	var forwardErr error
 	if clientStream {
-		observed, forwardErr = native.ReadRawChatStreaming(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime, len(body))
+		observed, forwardErr = openai.ReadRawChatStreaming(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime, len(body))
 	} else {
-		observed, forwardErr = native.ReadRawChatBuffered(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime)
+		observed, forwardErr = openai.ReadRawChatBuffered(output, resp, options, originalModel, upstreamModel, reasoningEffort, startTime)
 	}
 	result := FromCompatResult(observed, billingModel)
 	if result != nil {

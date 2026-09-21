@@ -5,9 +5,12 @@ import (
 	context "context"
 	sql "database/sql"
 	json "encoding/json"
-	entsql "entgo.io/ent/dialect/sql"
 	errors "errors"
 	fmt "fmt"
+	sort "sort"
+	strings "strings"
+
+	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	group "github.com/TokenFlux/TokenRouter/ent/group"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
@@ -15,8 +18,6 @@ import (
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	pq "github.com/lib/pq"
-	sort "sort"
-	strings "strings"
 )
 
 type GroupLinkParticipant interface {

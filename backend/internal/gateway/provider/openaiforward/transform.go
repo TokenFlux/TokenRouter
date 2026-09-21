@@ -5,10 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/tidwall/gjson"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/tidwall/gjson"
 )
 
 type TransformResult struct {
@@ -17,7 +18,7 @@ type TransformResult struct {
 	Decoded                                                                                  map[string]any
 	Model, RequestedModel, BillingModel, UpstreamModel, PromptCacheKey, ClientPromptCacheKey string
 	ImageIntent                                                                              bool
-	Fingerprint                                                                              *native.FingerprintIDs
+	Fingerprint                                                                              *openai.FingerprintIDs
 }
 type FastDecision struct {
 	DeleteField bool
@@ -61,7 +62,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		bodyModified = true
 		if requestView.PatchesDisabled() {
 			if reqBody != nil {
-				native.SetOpenAIRequestMapPath(reqBody, path, value)
+				openai.SetOpenAIRequestMapPath(reqBody, path, value)
 			}
 			return
 		}
@@ -71,7 +72,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		bodyModified = true
 		if requestView.PatchesDisabled() {
 			if reqBody != nil {
-				native.DeleteOpenAIRequestMapPath(reqBody, path)
+				openai.DeleteOpenAIRequestMapPath(reqBody, path)
 			}
 			return
 		}
@@ -101,7 +102,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if native.StripOpenAIImageGenerationTools(decoded) {
+		if openai.StripOpenAIImageGenerationTools(decoded) {
 			markDecodedModified()
 			p.Log("[OpenAI] Stripped /responses image_generation tool for Codex client by account policy")
 		}
@@ -118,7 +119,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	instructions := gjson.GetBytes(body, "instructions")
 	instructionsEmpty := !instructions.Exists() || instructions.Type != gjson.String || strings.TrimSpace(instructions.String()) == ""
 	if instructionsEmpty && profile.UsesCodex && !compatMessagesBridge && !nativeCNResponses {
-		markPatchSet("instructions", native.DefaultCodexSynthInstructions(reqModel))
+		markPatchSet("instructions", openai.DefaultCodexSynthInstructions(reqModel))
 	}
 
 	isCompactRequest := compactPath
@@ -149,7 +150,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if native.NormalizeOpenAIResponseFormatSchemas(decoded) {
+		if openai.NormalizeOpenAIResponseFormatSchemas(decoded) {
 			markDecodedModified()
 			p.Log("[OpenAI] Normalized Responses JSON schema compatibility")
 		}
@@ -175,7 +176,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			markDecodedModified()
 			p.Log("[OpenAI] Set /responses image_generation tool_choice=auto for Codex client")
 		}
-		if native.NormalizeOpenAIResponsesImageGenerationTools(decoded) {
+		if openai.NormalizeOpenAIResponsesImageGenerationTools(decoded) {
 			markDecodedModified()
 			p.Log("[OpenAI] Normalized /responses image_generation tool payload")
 		}
@@ -190,7 +191,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			p.Reject(Rejection{Status: 400, Type: "invalid_request_error", Message: err.Error(), Param: "model", ObserveUpstream: true})
 			return nil, err
 		}
-		if native.HasOpenAIImageGenerationTool(decoded) {
+		if openai.HasOpenAIImageGenerationTool(decoded) {
 			imageIntent = true
 			p.Log("[OpenAI] /responses image_generation request inbound_model=%s mapped_model=%s account_type=%s", requestView.Model, upstreamModel, profile.Type)
 		}
@@ -203,7 +204,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		p.Log("[OpenAI] /responses image_generation request inbound_model=%s mapped_model=%s account_type=%s", requestView.Model, upstreamModel, profile.Type)
 	}
 
-	if p.IsCodexSparkModel(upstreamModel) && native.OpenAIRequestBodyMayContainImageInput(body) {
+	if p.IsCodexSparkModel(upstreamModel) && openai.OpenAIRequestBodyMayContainImageInput(body) {
 		decoded, decodeErr := ensureReqBody()
 		if decodeErr != nil {
 			return nil, decodeErr
@@ -221,12 +222,12 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if native.StripCodexSparkImageGenerationTools(decoded) {
+		if openai.StripCodexSparkImageGenerationTools(decoded) {
 			markDecodedModified()
 		}
 	}
 
-	var fingerprintIDs *native.FingerprintIDs
+	var fingerprintIDs *openai.FingerprintIDs
 	if profile.OAuth {
 		decoded, decodeErr := ensureReqBody()
 		if decodeErr != nil {
@@ -238,9 +239,9 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			strings.TrimSpace(gjson.GetBytes(body, "text.format.type").String()),
 			"json_object",
 		)
-		codexResult := native.CodexTransformResult{}
+		codexResult := openai.CodexTransformResult{}
 		if compatMessagesBridge {
-			codexResult = p.CodexTransform(decoded, native.CodexOAuthTransformOptions{
+			codexResult = p.CodexTransform(decoded, openai.CodexOAuthTransformOptions{
 				IsCodexCLI:                          isCodexCLI,
 				IsCompact:                           isCompactRequest,
 				SkipDefaultInstructions:             true,
@@ -250,7 +251,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			p.EnsureCodexOAuthInstructionsField(decoded)
 			markDecodedModified()
 		} else {
-			codexResult = p.CodexTransform(decoded, native.CodexOAuthTransformOptions{
+			codexResult = p.CodexTransform(decoded, openai.CodexOAuthTransformOptions{
 				IsCodexCLI:                          isCodexCLI,
 				IsCompact:                           isCompactRequest,
 				OmitPromotedSystemMessagesFromInput: omitPromotedSystemMessages,
@@ -302,7 +303,7 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 		}
 	}
 
-	if !native.SupportsVerbosity(upstreamModel) && gjson.GetBytes(body, "text.verbosity").Exists() {
+	if !openai.SupportsVerbosity(upstreamModel) && gjson.GetBytes(body, "text.verbosity").Exists() {
 		markPatchDelete("text.verbosity")
 	}
 
@@ -352,12 +353,12 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 	if wsDecision.Transport != "responses_websockets_v2" && (!profile.OpenAI || !profile.APIKey) && gjson.GetBytes(body, "previous_response_id").Exists() {
 		markPatchDelete("previous_response_id")
 	}
-	if native.OpenAIRequestBodyMayContainEmptyBase64InputImage(body) {
+	if openai.OpenAIRequestBodyMayContainEmptyBase64InputImage(body) {
 		decoded, decodeErr := ensureReqBody()
 		if decodeErr != nil {
 			return nil, decodeErr
 		}
-		if native.SanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(decoded) {
+		if openai.SanitizeEmptyBase64InputImagesInOpenAIRequestBodyMap(decoded) {
 			markDecodedModified()
 		}
 	}

@@ -3,20 +3,17 @@ package app
 
 import (
 	context "context"
-	sql "database/sql"
-	dbent "github.com/TokenFlux/TokenRouter/ent"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	repository "github.com/TokenFlux/TokenRouter/internal/repository"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
 	site "github.com/TokenFlux/TokenRouter/internal/site"
 )
 
-// provideLegacyUserRepository 只为尚未迁出的消费者恢复旧模型形状。
-func provideLegacyUserRepository(client *dbent.Client, db *sql.DB, users *identitypostgres.UserStore) service.UserRepository {
-	return repository.WrapUserStore(client, db, users)
+// provideUserRepository 让全部用户消费者共享同一原生存储与事务参与能力。
+func provideUserRepository(users *identitypostgres.UserStore) identity.UserRepository {
+	return users
 }
 
 // announcementUsers 直接投影 identity，替换 S02 的旧身份桥接。

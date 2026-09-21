@@ -3,8 +3,9 @@ package billing
 
 import (
 	context "context"
-	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	strings "strings"
+
+	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 // AccountStatsChannel 不携带账号或渠道实体，只包含统计价卡。

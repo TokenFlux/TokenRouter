@@ -92,13 +92,13 @@ API Key/Bedrock 可配置本地账号配额和亲和策略。可用的上游用�
 
 `upstream/anthropic.Executor` 拥有单次账号内交换、签名/预算恢复及标准或 API Key 直通响应处理。两条恢复策略分别保留：API Key 直通不新增 400 请求体降级，也不补入旧路径没有的上游接受回调。`upstream/bedrock.Executor` 独立处理签名请求、来源区域和 AWS EventStream；具体平台之间不互相引用。
 
-请求指纹由原生 `RequestFingerprint` 与其 Redis Adapter 持有；旧 `RequestFingerprintService` 只投影账号 ID 和 masking 开关，`IdentityService` 名称仅为兼容别名，不表示用户登录身份。原 `fingerprint:`、`masked_session:` 键、TTL、UA 升级和遮罩语义保持。Claude 授权会话及完成编排由 account 持有，OAuth HTTP handler 位于 account/httpapi；实际交换及 usage HTTP 客户端位于原生平台包。
+请求指纹由原生 `RequestFingerprint` 与其 Redis Adapter 持有；旧 `RequestFingerprintService` 只投影账号 ID 和 masking 开关，`IdentityService` 名称仅为兼容别名，不表示用户登录身份。原 `fingerprint:`、`masked_session:` 键、TTL、UA 升级和遮罩语义保持。Claude 授权会话及完成编排由 `account.ClaudeAuthorization` 持有，app 直接构造并绑定其生命周期；provider 组合协议参数，OAuth HTTP handler 位于 account/httpapi。管理、CRS 和刷新使用同一原生授权实例；实际交换及 usage HTTP 客户端位于原生平台包。
 
 gateway/forward 组织请求准备、转换与错误策略次序；gateway/httpapi 拥有同步输出和协议错误，gateway/completion 拥有完成处理。动态设置、凭据和账号观测通过固定的单步 Adapter 投影。流处理在原来的事件位置读取缓存分类投影，64 KiB Scanner 缓冲由唯一技术池复用。输出适配器带入已有 Header 和提交状态，保留等待心跳之后的重试边界。应用登记同步原生尝试，等待其释放响应体；超时不报告已排空。
 
 
 ### 请求规则与执行观测的现有边界
 
-Beta 配置值和模型白名单、消息缓存断点、messages/count_tokens 请求构造由 `upstream/anthropic` 唯一实现；动态设置读取仍通过旧入站适配传入。纯 thinking/tool 字节修复在 `protocol/anthropic`，调用方决定适用模型及占位签名处理，平台之间不反向引用实现。
+Beta 配置值和模型白名单、消息缓存断点、messages/count_tokens 请求构造由 `upstream/anthropic` 唯一实现；动态设置读取仍通过旧入站适配传入。纯 thinking/tool 字节修复在 `protocol/anthropic`，`gateway/provider/modelidentity` 解释模型的 thinking 协议族，调用方再传入过滤与签名选项；官方严格校验、第三方原样回传和未知模型保守处理保持独立，平台之间不反向引用实现。
 
 Claude token 读取和回填、版本比较、刷新资格及凭据合并归 `account`，继续复用原缓存与刷新协调器。Vertex 交换已绑定 `upstream/vertex` 和 `upstream/internal/googleauth`；账号缓存协调由 account 拥有，详见 [Vertex 服务账号与对象流](gemini_upstream.md#vertex_service_account_execution)。新执行接口单独报告已观测用量（包括显式零）、语义输出、终态与旧 TTFT；网关的 text/forward、HTTP 与 completion 分别拥有尝试、展示和完成次序，不据新增观测改变既有结算规则。

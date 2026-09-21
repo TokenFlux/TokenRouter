@@ -3,8 +3,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	"time"
+
+	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/lib/pq"

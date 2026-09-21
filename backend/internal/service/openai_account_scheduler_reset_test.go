@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -50,7 +51,7 @@ func TestBuildOpenAIAccountLoadPlan_ResetWeightPrefersSoonestReset(t *testing.T)
 	}
 	sched := openAIResetTestScheduler(5.0)
 
-	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*AccountLoadInfo{})
+	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*scheduler.AccountLoadInfo{})
 	scores := openAIPlanScores(plan)
 	require.Greater(t, scores[2], scores[1], "重置时间最早的账号（ID=2）得分更高")
 }
@@ -66,7 +67,7 @@ func TestBuildOpenAIAccountLoadPlan_ResetWeightZeroNoEffect(t *testing.T) {
 	}
 	sched := openAIResetTestScheduler(0.0)
 
-	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*AccountLoadInfo{})
+	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*scheduler.AccountLoadInfo{})
 	scores := openAIPlanScores(plan)
 	require.Equal(t, scores[1], scores[2], "Reset 权重为 0 时两账号得分相同")
 }
@@ -97,7 +98,7 @@ func TestBuildOpenAIAccountLoadPlan_BillingRatesDoNotAffectScoreOrOrder(t *testi
 	}
 	sched := openAIResetTestScheduler(0)
 
-	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*AccountLoadInfo{})
+	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*scheduler.AccountLoadInfo{})
 	scores := openAIPlanScores(plan)
 	require.Equal(t, scores[1], scores[2])
 
@@ -115,61 +116,9 @@ func TestBuildOpenAIAccountLoadPlan_ResetWeightIgnoresNilWindow(t *testing.T) {
 	}
 	sched := openAIResetTestScheduler(5.0)
 
-	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*AccountLoadInfo{})
+	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*scheduler.AccountLoadInfo{})
 	scores := openAIPlanScores(plan)
 	require.Greater(t, scores[2], scores[1], "拥有活跃窗口的账号得分高于无窗口账号")
-}
-
-func TestOpenAIQuotaHeadroomFactor_PrimaryUsedPercent(t *testing.T) {
-	now := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
-	account := &Account{
-		Extra: map[string]any{
-			"codex_primary_used_percent": 20.0,
-			"codex_primary_reset_at":     now.Add(24 * time.Hour).Format(time.RFC3339),
-			"codex_usage_updated_at":     now.Add(-time.Minute).Format(time.RFC3339),
-		},
-	}
-
-	require.InDelta(t, 0.8, openAIQuotaHeadroomFactor(account, now), 0.0001)
-}
-
-func TestOpenAIQuotaHeadroomFactor_PrimaryMissingIsNeutral(t *testing.T) {
-	now := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
-	account := &Account{
-		Extra: map[string]any{
-			"codex_usage_updated_at": now.Add(-time.Minute).Format(time.RFC3339),
-		},
-	}
-
-	require.Equal(t, openAIQuotaHeadroomNeutralFactor, openAIQuotaHeadroomFactor(account, now))
-}
-
-func TestOpenAIQuotaHeadroomFactor_PrimaryResetExpiredIsNeutral(t *testing.T) {
-	now := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
-	account := &Account{
-		Extra: map[string]any{
-			"codex_primary_used_percent": 20.0,
-			"codex_primary_reset_at":     now.Add(-time.Minute).Format(time.RFC3339),
-			"codex_usage_updated_at":     now.Add(-time.Minute).Format(time.RFC3339),
-		},
-	}
-
-	require.Equal(t, openAIQuotaHeadroomNeutralFactor, openAIQuotaHeadroomFactor(account, now))
-}
-
-func TestOpenAIQuotaHeadroomFactor_SecondaryLowHeadroomDiscountsPrimary(t *testing.T) {
-	now := time.Date(2026, 3, 11, 10, 0, 0, 0, time.UTC)
-	account := &Account{
-		Extra: map[string]any{
-			"codex_primary_used_percent":   20.0,
-			"codex_primary_reset_at":       now.Add(24 * time.Hour).Format(time.RFC3339),
-			"codex_secondary_used_percent": 95.0,
-			"codex_secondary_reset_at":     now.Add(time.Hour).Format(time.RFC3339),
-			"codex_usage_updated_at":       now.Add(-time.Minute).Format(time.RFC3339),
-		},
-	}
-
-	require.InDelta(t, 0.4, openAIQuotaHeadroomFactor(account, now), 0.0001)
 }
 
 func TestBuildOpenAIAccountLoadPlan_QuotaHeadroomPrefersHigher7dRemaining(t *testing.T) {
@@ -196,7 +145,7 @@ func TestBuildOpenAIAccountLoadPlan_QuotaHeadroomPrefersHigher7dRemaining(t *tes
 	}
 	sched := openAIQuotaHeadroomTestScheduler(1.0)
 
-	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*AccountLoadInfo{})
+	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*scheduler.AccountLoadInfo{})
 	scores := openAIPlanScores(plan)
 	require.Greater(t, scores[2], scores[1], "7d 剩余额度更高的账号得分应更高")
 }
@@ -225,7 +174,7 @@ func TestBuildOpenAIAccountLoadPlan_QuotaHeadroomZeroNoEffect(t *testing.T) {
 	}
 	sched := openAIResetTestScheduler(0)
 
-	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*AccountLoadInfo{})
+	plan := sched.buildOpenAIAccountLoadPlan(context.Background(), OpenAIAccountScheduleRequest{}, filtered, map[int64]*scheduler.AccountLoadInfo{})
 	scores := openAIPlanScores(plan)
 	require.Equal(t, scores[1], scores[2], "quota_headroom 权重为 0 时不应影响打分")
 }

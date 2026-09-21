@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
+	paymenthttp "github.com/TokenFlux/TokenRouter/internal/payment/httpapi"
+
 	redisinfra "github.com/TokenFlux/TokenRouter/internal/infra/redis"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler"
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -17,16 +19,15 @@ import (
 )
 
 func newAuthRoutesTestRouter(redisClient *redis.Client) *gin.Engine {
-	gin.SetMode(gin.TestMode)
+
 	router := gin.New()
 	v1 := router.Group("/api/v1")
 
 	RegisterAuthRoutes(
 		v1,
 		&routeTestHandlers{
-			Auth:    &handler.AuthHandler{},
-			Passkey: &handler.PasskeyHandler{},
-			Setting: &handler.SettingHandler{},
+			Auth:    &identityHTTP{AuthenticationHandler: &identityhttp.AuthenticationHandler{}, WeChatPaymentHandler: &paymenthttp.WeChatPaymentHandler{}},
+			Passkey: &identityhttp.PasskeyHandler{},
 		},
 		servermiddleware.JWTAuthMiddleware(func(c *gin.Context) {
 			c.Next()

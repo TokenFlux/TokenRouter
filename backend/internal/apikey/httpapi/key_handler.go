@@ -3,36 +3,38 @@ package httpapi
 
 import (
 	context "context"
+	strconv "strconv"
+	strings "strings"
+	time "time"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	dto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
 	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
-	strings "strings"
-	time "time"
 )
 
 // APIKeyHandler 只持有 Key 用例与路由展示端口；分组算法和容量查询仍由其原所有者提供。
 type APIKeyHandler[G any] struct {
 	apiKeyService        *apikey.APIKeyService
 	groupCapacityService GroupCapacityReader
-	presentGroup         func(*apikey.Group, *accessview.GroupCapacitySummary) *G
+	presentGroup         func(*routing.Group, *accessview.GroupCapacitySummary) *G
 }
 type GroupCapacityReader interface {
 	GetGroupCapacityByIDs(context.Context, []int64) (map[int64]accessview.GroupCapacitySummary, error)
 }
 
-func NewAPIKeyHandler[G any](keys *apikey.APIKeyService, present func(*apikey.Group, *accessview.GroupCapacitySummary) *G) *APIKeyHandler[G] {
+func NewAPIKeyHandler[G any](keys *apikey.APIKeyService, present func(*routing.Group, *accessview.GroupCapacitySummary) *G) *APIKeyHandler[G] {
 	return &APIKeyHandler[G]{apiKeyService: keys, presentGroup: present}
 }
 func (h *APIKeyHandler[G]) SetGroupCapacityService(c GroupCapacityReader) { h.groupCapacityService = c }
 func (h *APIKeyHandler[G]) keyResponse(k *apikey.APIKey) *dto.APIKey[G] {
-	return dto.APIKeyFromKey(k, func(g *apikey.Group) *G { return h.presentGroup(g, nil) })
+	return dto.APIKeyFromKey(k, func(g *routing.Group) *G { return h.presentGroup(g, nil) })
 }
 
 // CreateAPIKeyRequest represents the create API key request payload
@@ -449,7 +451,7 @@ func (h *APIKeyHandler[G]) GetBillingOptions(c *gin.Context) {
 	response.Success(c, out)
 }
 
-func (h *APIKeyHandler[G]) getAvailableGroupCapacityMap(ctx context.Context, groups []apikey.Group) map[int64]accessview.GroupCapacitySummary {
+func (h *APIKeyHandler[G]) getAvailableGroupCapacityMap(ctx context.Context, groups []routing.Group) map[int64]accessview.GroupCapacitySummary {
 	if h.groupCapacityService == nil || len(groups) == 0 {
 		return nil
 	}

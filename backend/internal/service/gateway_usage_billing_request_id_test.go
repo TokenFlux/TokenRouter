@@ -7,20 +7,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/stretchr/testify/require"
 )
 
 func TestResolveUsageBillingRequestID_ForcedWebSearchBeatsClientID(t *testing.T) {
 	t.Parallel()
-	ctx := context.WithValue(context.Background(), ctxkey.ClientRequestID, "client-shared-id")
+	ctx := context.WithValue(context.Background(), telemetry.ClientRequestID, "client-shared-id")
 	got := resolveUsageBillingRequestID(ctx, "web_search:uuid-1")
 	require.Equal(t, "web_search:uuid-1", got)
 }
 
 func TestResolveUsageBillingRequestID_ClientWinsOverPlainUpstream(t *testing.T) {
 	t.Parallel()
-	ctx := context.WithValue(context.Background(), ctxkey.ClientRequestID, "client-shared-id")
+	ctx := context.WithValue(context.Background(), telemetry.ClientRequestID, "client-shared-id")
 	got := resolveUsageBillingRequestID(ctx, "resp_abc")
 	require.Equal(t, "client:client-shared-id", got)
 }
@@ -53,7 +53,7 @@ func TestStableGrokRealtimeBillingRequestID(t *testing.T) {
 
 func TestResolveUsageBillingRequestID_ForcedGrokAudioBeatsClientID(t *testing.T) {
 	t.Parallel()
-	ctx := context.WithValue(context.Background(), ctxkey.ClientRequestID, "client-shared-id")
+	ctx := context.WithValue(context.Background(), telemetry.ClientRequestID, "client-shared-id")
 	got := resolveUsageBillingRequestID(ctx, StableGrokAudioBillingRequestID("up-9"))
 	require.Equal(t, "grok_audio:up-9", got)
 }

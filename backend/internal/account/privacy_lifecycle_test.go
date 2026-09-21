@@ -2,10 +2,11 @@ package account
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 不响应取消的供应商也不能在超时返回后继续持久化隐私结果。

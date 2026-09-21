@@ -3,10 +3,11 @@ package openaiforward
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"net/http"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 type PassthroughPorts interface {
@@ -30,9 +31,9 @@ type PassthroughPorts interface {
 	CodexModel(model string) bool
 	OAuthBody(body []byte, compact bool) ([]byte, bool, error)
 	AccountIdentityRaw(body []byte) ([]byte, bool, error)
-	StageFingerprint(ids *native.FingerprintIDs)
-	Fingerprint() *native.FingerprintIDs
-	FingerprintBody(body []byte, ids *native.FingerprintIDs) ([]byte, bool, error)
+	StageFingerprint(ids *openai.FingerprintIDs)
+	Fingerprint() *openai.FingerprintIDs
+	FingerprintBody(body []byte, ids *openai.FingerprintIDs) ([]byte, bool, error)
 	HasContext() bool
 	LiteHeader() bool
 	LitePayloadFlag(body []byte) bool
@@ -55,7 +56,7 @@ type PassthroughPorts interface {
 	AccessToken(ctx context.Context) (string, error)
 	PrepareTransportPass()
 	MarkPassthrough()
-	RetryState(body []byte) *native.ResponsesRejectedFieldRetryState
+	RetryState(body []byte) *openai.ResponsesRejectedFieldRetryState
 	UpstreamModelObserved(model string)
 	BuildPass(ctx context.Context, body []byte, token string) (*http.Request, error)
 	SendPass(r *http.Request) (*http.Response, error)
@@ -69,7 +70,7 @@ type PassthroughPorts interface {
 	ErrorResponsePass(ctx context.Context, r *http.Response, body, payload []byte) error
 	WrapResponseBody(r *http.Response)
 	ObserveProvenance(h http.Header)
-	ResponseOptions(ctx context.Context) native.PassthroughOptions
+	ResponseOptions(ctx context.Context) openai.PassthroughOptions
 	CompactFromSignal(model string, body []byte, err error, tried bool, r *http.Response) ([]byte, string, bool)
 	CompactSignal(err error) (CompactFailure, bool)
 	CompactErrorResponse(r *http.Response, v CompactFailure) (*http.Response, []byte)

@@ -9,6 +9,12 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -39,7 +45,6 @@ func (r *openAIWSIngressCapacityShedRepo) UpdateExtra(context.Context, int64, ma
 //
 // 第二个用例锁住改写范围：非容量类错误码必须原样下发，客户端依赖原码各自处理。
 func TestProxyResponsesWebSocketFromClient_RewritesCapacityShedCodeForClient(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name           string
@@ -97,9 +102,9 @@ func TestProxyResponsesWebSocketFromClient_RewritesCapacityShedCodeForClient(t *
 			account := Account{
 				ID:          5401,
 				Name:        "openai-ingress-capacity-shed",
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test"},
@@ -112,9 +117,9 @@ func TestProxyResponsesWebSocketFromClient_RewritesCapacityShedCodeForClient(t *
 				httpUpstream:     &httpUpstreamRecorder{},
 				cache:            &stubGatewayCache{},
 				cfg:              cfg,
-				openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-				toolCorrector:    NewCodexToolCorrector(),
-				openaiWSPool:     pool,
+
+				toolCorrector: openai.NewCodexToolCorrector(),
+				openaiWSPool:  pool,
 			}
 
 			serverDone := make(chan struct{})
@@ -187,7 +192,6 @@ func TestProxyResponsesWebSocketFromClient_RewritesCapacityShedCodeForClient(t *
 
 // ctx_pool 必须在错误早退前保存风控证据和用量，供 handler 的 AfterTurn 消费。
 func TestProxyResponsesWebSocketFromClient_MarksCyberPolicyBeforeEarlyReturn(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name          string
@@ -219,7 +223,7 @@ func TestProxyResponsesWebSocketFromClient_MarksCyberPolicyBeforeEarlyReturn(t *
 			cfg.Security.URLAllowlist.Enabled = false
 			cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 			cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-			cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+			cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 			cfg.Gateway.OpenAIWS.MinIdlePerAccount = 0
 
 			captureConn := &openAIWSCaptureConn{events: [][]byte{append([]byte(nil), tt.upstreamEvent...)}}
@@ -227,19 +231,19 @@ func TestProxyResponsesWebSocketFromClient_MarksCyberPolicyBeforeEarlyReturn(t *
 			t.Cleanup(pool.Close)
 			pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 			svc := &OpenAIGatewayService{
-				cfg:              cfg,
-				httpUpstream:     &httpUpstreamRecorder{},
-				cache:            &stubGatewayCache{},
-				openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-				toolCorrector:    NewCodexToolCorrector(),
-				openaiWSPool:     pool,
+				cfg:          cfg,
+				httpUpstream: &httpUpstreamRecorder{},
+				cache:        &stubGatewayCache{},
+
+				toolCorrector: openai.NewCodexToolCorrector(),
+				openaiWSPool:  pool,
 			}
 			account := &Account{
-				ID: 5402, Name: "openai-ingress-cyber", Platform: PlatformOpenAI,
-				Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1,
+				ID: 5402, Name: "openai-ingress-cyber", Platform: capability.PlatformOpenAI,
+				Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test"},
 				Extra: map[string]any{
-					"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModeCtxPool,
+					"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeCtxPool,
 				},
 			}
 
@@ -264,7 +268,7 @@ func TestProxyResponsesWebSocketFromClient_MarksCyberPolicyBeforeEarlyReturn(t *
 				recorder := httptest.NewRecorder()
 				ginCtx, _ := gin.CreateTestContext(recorder)
 				ginCtx.Request = r.Clone(r.Context())
-				hooks := &OpenAIWSIngressHooks{AfterTurn: func(_ OpenAIWSTurnCapture) {
+				hooks := &gatewayws.OpenAIIngressHooks{AfterTurn: func(_ gatewayws.OpenAITurnCapture) {
 					markCh <- GetOpsCyberPolicy(ginCtx)
 				}}
 				serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, hooks)
@@ -305,7 +309,7 @@ func TestProxyResponsesWebSocketFromClient_MarksCyberPolicyBeforeEarlyReturn(t *
 			_ = clientConn.CloseNow()
 			select {
 			case serverErr := <-serverErrCh:
-				var failoverErr *UpstreamFailoverError
+				var failoverErr *forwardcore.UpstreamFailoverError
 				require.Equal(t, tt.wantFailover, errors.As(serverErr, &failoverErr))
 			case <-time.After(5 * time.Second):
 				t.Fatal("等待 ingress websocket 结束超时")

@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -58,14 +60,14 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 		account    *Account
 		statusCode int
 		body       []byte
-		expected   ErrorPolicyResult
+		expected   accountcore.ErrorPolicyResult
 	}{
 		{
 			name: "gemini_apikey_custom_codes_hit",
 			account: &Account{
 				ID:       100,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(429), float64(500)},
@@ -73,14 +75,14 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 			},
 			statusCode: 429,
 			body:       []byte(`{"error":"rate limited"}`),
-			expected:   ErrorPolicyCustomMatched,
+			expected:   accountcore.ErrorPolicyCustomMatched,
 		},
 		{
 			name: "gemini_apikey_custom_codes_miss",
 			account: &Account{
 				ID:       101,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(429)},
@@ -88,25 +90,25 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 			},
 			statusCode: 500,
 			body:       []byte(`{"error":"internal"}`),
-			expected:   ErrorPolicyCustomSkipped,
+			expected:   accountcore.ErrorPolicyCustomSkipped,
 		},
 		{
 			name: "gemini_apikey_no_custom_codes_returns_none",
 			account: &Account{
 				ID:       102,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 			},
 			statusCode: 500,
 			body:       []byte(`{"error":"internal"}`),
-			expected:   ErrorPolicyNone,
+			expected:   accountcore.ErrorPolicyNone,
 		},
 		{
 			name: "gemini_apikey_temp_unschedulable_hit",
 			account: &Account{
 				ID:       103,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"temp_unschedulable_enabled": true,
 					"temp_unschedulable_rules": []any{
@@ -120,14 +122,14 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 			},
 			statusCode: 503,
 			body:       []byte(`overloaded service`),
-			expected:   ErrorPolicyTempUnscheduled,
+			expected:   accountcore.ErrorPolicyTempUnscheduled,
 		},
 		{
 			name: "gemini_apikey_temp_unschedulable_401_second_hit_returns_none",
 			account: &Account{
 				ID:                      105,
-				Type:                    AccountTypeAPIKey,
-				Platform:                PlatformGemini,
+				Type:                    capability.AccountTypeAPIKey,
+				Platform:                capability.PlatformGemini,
 				TempUnschedulableReason: `{"status_code":401,"until_unix":1735689600}`,
 				Credentials: map[string]any{
 					"temp_unschedulable_enabled": true,
@@ -142,14 +144,14 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 			},
 			statusCode: 401,
 			body:       []byte(`unauthorized`),
-			expected:   ErrorPolicyNone,
+			expected:   accountcore.ErrorPolicyNone,
 		},
 		{
 			name: "gemini_custom_codes_override_temp_unschedulable",
 			account: &Account{
 				ID:       104,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(503)},
@@ -165,7 +167,7 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 			},
 			statusCode: 503,
 			body:       []byte(`overloaded`),
-			expected:   ErrorPolicyCustomMatched, // custom codes take precedence
+			expected:   accountcore.ErrorPolicyCustomMatched, // custom codes take precedence
 		},
 	}
 
@@ -189,7 +191,6 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGeminiErrorPolicyIntegration(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name                 string
@@ -205,8 +206,8 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 			name: "custom_codes_matched_429_failover",
 			account: &Account{
 				ID:       200,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(429)},
@@ -221,8 +222,8 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 			name: "custom_codes_skipped_500_no_failover",
 			account: &Account{
 				ID:       201,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(429)},
@@ -237,8 +238,8 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 			name: "temp_unschedulable_matched_failover",
 			account: &Account{
 				ID:       202,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"temp_unschedulable_enabled": true,
 					"temp_unschedulable_rules": []any{
@@ -260,8 +261,8 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 			name: "no_policy_429_failover_via_shouldFailover",
 			account: &Account{
 				ID:       203,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 			},
 			statusCode:           429,
 			respBody:             []byte(`{"error":"rate limited"}`),
@@ -273,8 +274,8 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 			name: "no_policy_400_no_failover",
 			account: &Account{
 				ID:       204,
-				Type:     AccountTypeAPIKey,
-				Platform: PlatformGemini,
+				Type:     capability.AccountTypeAPIKey,
+				Platform: capability.PlatformGemini,
 			},
 			statusCode:        400,
 			respBody:          []byte(`{"error":"bad request"}`),
@@ -310,17 +311,17 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 			if svc.rateLimitService != nil {
 				policy := svc.rateLimitService.CheckErrorPolicy(ctx, account, statusCode, respBody, "gemini-2.5-pro")
 				switch policy {
-				case ErrorPolicyCustomSkipped:
+				case accountcore.ErrorPolicyCustomSkipped:
 					// Skipped → return error directly (no handleGeminiUpstreamError, no failover)
 					gotFailover = false
 					handleErrorCalled = false
 					goto verify
-				case ErrorPolicyCustomMatched:
+				case accountcore.ErrorPolicyCustomMatched:
 					svc.handleGeminiUpstreamError(ctx, account, statusCode, headers, respBody)
 					handleErrorCalled = true
 					gotFailover = true
 					goto verify
-				case ErrorPolicyTempUnscheduled:
+				case accountcore.ErrorPolicyTempUnscheduled:
 					handleErrorCalled = false
 					gotFailover = true
 					goto verify
@@ -368,8 +369,8 @@ func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
 	ctx := context.Background()
 	account := &Account{
 		ID:       300,
-		Type:     AccountTypeAPIKey,
-		Platform: PlatformGemini,
+		Type:     capability.AccountTypeAPIKey,
+		Platform: capability.PlatformGemini,
 		Credentials: map[string]any{
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(429)},
@@ -398,7 +399,7 @@ func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
 
 func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t *testing.T) {
 	repo := &rateLimit429AccountRepoStub{}
-	quotaSvc := NewGeminiQuotaService(&config.Config{}, nil)
+	quotaSvc := accountcore.NewGeminiQuotaService(accountcore.GeminiQuotaOptions{})
 	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, quotaSvc, nil)
 	svc := &GeminiMessagesCompatService{
 		accountRepo:      repo,
@@ -407,8 +408,8 @@ func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t 
 
 	account := &Account{
 		ID:       511,
-		Platform: PlatformGemini,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformGemini,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"oauth_type": "google_one",
 			"tier_id":    "google_ai_pro",
@@ -429,7 +430,7 @@ func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t 
 
 func TestHandleGeminiUpstreamError_ThirdPartyAPIKeyIgnoresOfficialQuotaMessage(t *testing.T) {
 	repo := &rateLimit429AccountRepoStub{}
-	quotaSvc := NewGeminiQuotaService(&config.Config{}, nil)
+	quotaSvc := accountcore.NewGeminiQuotaService(accountcore.GeminiQuotaOptions{})
 	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, quotaSvc, nil)
 	svc := &GeminiMessagesCompatService{
 		accountRepo:      repo,
@@ -437,10 +438,10 @@ func TestHandleGeminiUpstreamError_ThirdPartyAPIKeyIgnoresOfficialQuotaMessage(t
 	}
 	account := &Account{
 		ID:       512,
-		Platform: PlatformGemini,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGemini,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
-			GeminiProviderTypeCredentialKey: GeminiProviderTypeThirdParty,
+			accountcore.GeminiProviderTypeCredentialKey: accountcore.GeminiProviderTypeThirdParty,
 		},
 	}
 
@@ -463,8 +464,8 @@ func TestGeminiPoolMode429BypassesLocalRateLimit(t *testing.T) {
 	svc := &GeminiMessagesCompatService{accountRepo: repo, rateLimitService: rateLimitService}
 	account := &Account{
 		ID:       520,
-		Type:     AccountTypeAPIKey,
-		Platform: PlatformGemini,
+		Type:     capability.AccountTypeAPIKey,
+		Platform: capability.PlatformGemini,
 		Credentials: map[string]any{
 			"pool_mode": true,
 		},
@@ -474,7 +475,7 @@ func TestGeminiPoolMode429BypassesLocalRateLimit(t *testing.T) {
 		context.Background(), account, http.StatusTooManyRequests, http.Header{}, []byte(`{"error":{"message":"rate limited"}}`), "gemini-2.5-pro",
 	)
 
-	require.Equal(t, ErrorPolicyPoolBypassed, decision.Policy)
+	require.Equal(t, accountcore.ErrorPolicyPoolBypassed, decision.Policy)
 	require.True(t, decision.RetryableOnSameAccount(account, http.StatusTooManyRequests))
 	require.Zero(t, repo.setRateLimitedCalls)
 	require.Zero(t, repo.setTempCalls)
@@ -491,14 +492,14 @@ func TestHandleGeminiUpstreamError_PoolMode429SkipsAccountLimit(t *testing.T) {
 		{
 			name: "池模式跳过默认账号限流",
 			account: &Account{
-				ID: 530, Type: AccountTypeAPIKey, Platform: PlatformGemini,
+				ID: 530, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
 				Credentials: map[string]any{"pool_mode": true},
 			},
 		},
 		{
 			name: "自定义错误码命中优先于池模式",
 			account: &Account{
-				ID: 531, Type: AccountTypeAPIKey, Platform: PlatformGemini,
+				ID: 531, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"pool_mode":                  true,
 					"custom_error_codes_enabled": true,
@@ -510,7 +511,7 @@ func TestHandleGeminiUpstreamError_PoolMode429SkipsAccountLimit(t *testing.T) {
 		{
 			name: "自定义错误码未命中跳过账号限流",
 			account: &Account{
-				ID: 532, Type: AccountTypeAPIKey, Platform: PlatformGemini,
+				ID: 532, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"pool_mode":                  true,
 					"custom_error_codes_enabled": true,
@@ -520,7 +521,7 @@ func TestHandleGeminiUpstreamError_PoolMode429SkipsAccountLimit(t *testing.T) {
 		},
 		{
 			name:      "普通账号保留默认限流",
-			account:   &Account{ID: 533, Type: AccountTypeAPIKey, Platform: PlatformGemini},
+			account:   &Account{ID: 533, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini},
 			wantCalls: 1,
 		},
 	}
@@ -545,8 +546,8 @@ func TestGeminiCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 	svc := &GeminiMessagesCompatService{accountRepo: repo, rateLimitService: rateLimitService}
 	account := &Account{
 		ID:       521,
-		Type:     AccountTypeAPIKey,
-		Platform: PlatformGemini,
+		Type:     capability.AccountTypeAPIKey,
+		Platform: capability.PlatformGemini,
 		Credentials: map[string]any{
 			"pool_mode":                  true,
 			"custom_error_codes_enabled": true,
@@ -558,7 +559,7 @@ func TestGeminiCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 		context.Background(), account, http.StatusUnprocessableEntity, http.Header{}, []byte(`{"error":{"message":"configured"}}`), "gemini-2.5-pro",
 	)
 
-	require.Equal(t, ErrorPolicyCustomMatched, decision.Policy)
+	require.Equal(t, accountcore.ErrorPolicyCustomMatched, decision.Policy)
 	require.True(t, decision.StopScheduling)
 	require.False(t, decision.RetryableOnSameAccount(account, http.StatusUnprocessableEntity))
 	require.Equal(t, 1, repo.setErrorCalls)

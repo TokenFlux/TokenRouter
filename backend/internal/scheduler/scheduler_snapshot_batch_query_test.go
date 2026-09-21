@@ -144,7 +144,7 @@ func (c *batchSnapshotAccountIDCache) SetSnapshotAndReturnAccountIDs(ctx context
 	c.reuseMu.Lock()
 	c.fullCalls[bucket]++
 	c.reuseMu.Unlock()
-	if err := c.batchSnapshotCache.SetSnapshot(ctx, bucket, token, accounts); err != nil {
+	if err := c.SetSnapshot(ctx, bucket, token, accounts); err != nil {
 		return nil, err
 	}
 	c.reuseMu.Lock()
@@ -176,7 +176,7 @@ func (c *batchSnapshotAccountIDCache) SetSnapshotByAccountIDs(ctx context.Contex
 	for _, id := range accountIDs {
 		accounts = append(accounts, snapshotTestAccount{ID: id})
 	}
-	return c.batchSnapshotCache.SetSnapshot(ctx, bucket, token, accounts)
+	return c.SetSnapshot(ctx, bucket, token, accounts)
 }
 
 func (c *batchSnapshotAccountIDCache) reuseCounts(bucket SchedulerBucket) (full, idOnly int) {

@@ -4,10 +4,11 @@ package provider
 import (
 	context "context"
 	errors "errors"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	idtoken "google.golang.org/api/idtoken"
 	strings "strings"
 	time "time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	idtoken "google.golang.org/api/idtoken"
 )
 
 type GoogleIDTokenClaims = identity.GoogleIDTokenClaims

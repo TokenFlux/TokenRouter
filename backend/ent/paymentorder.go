@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
 	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // PaymentOrder is the model entity for the PaymentOrder schema.
@@ -71,7 +71,7 @@ type PaymentOrder struct {
 	// PlanID holds the value of the "plan_id" field.
 	PlanID *int64 `json:"plan_id,omitempty"`
 	// PlanSnapshot holds the value of the "plan_snapshot" field.
-	PlanSnapshot domain.SubscriptionPlanSnapshot `json:"plan_snapshot,omitempty"`
+	PlanSnapshot billing.SubscriptionPlanSnapshot `json:"plan_snapshot,omitempty"`
 	// ProviderInstanceID holds the value of the "provider_instance_id" field.
 	ProviderInstanceID *string `json:"provider_instance_id,omitempty"`
 	// ProviderKey holds the value of the "provider_key" field.

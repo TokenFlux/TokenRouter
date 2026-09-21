@@ -36,12 +36,8 @@ func openAIStickyCompatStats() (int64, int64, int64) { return SchedulerStickySta
 // DeriveSessionHashFromSeed computes the current-format sticky-session hash
 // from an arbitrary seed string.
 func DeriveSessionHashFromSeed(seed string) string {
-	currentHash, _ := deriveOpenAISessionHashes(seed)
+	currentHash, _ := scheduler.DeriveSessionHashes(seed)
 	return currentHash
-}
-
-func deriveOpenAISessionHashes(sessionID string) (string, string) {
-	return scheduler.DeriveSessionHashes(sessionID)
 }
 
 func withOpenAILegacySessionHash(ctx context.Context, legacyHash string) context.Context {

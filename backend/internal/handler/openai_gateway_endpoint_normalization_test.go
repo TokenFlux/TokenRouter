@@ -5,7 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,6 @@ import (
 // unified GetUpstreamEndpoint helper produces the same results as the
 // former normalizedOpenAIUpstreamEndpoint for OpenAI platform requests.
 func TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name string
@@ -24,7 +24,7 @@ func TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint(t *testing.T) {
 		{
 			name: "responses root maps to responses upstream",
 			path: "/v1/responses",
-			want: EndpointResponses,
+			want: gatewayhttp.EndpointResponses,
 		},
 		{
 			name: "responses compact keeps compact suffix",
@@ -39,7 +39,7 @@ func TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint(t *testing.T) {
 		{
 			name: "non responses path uses platform fallback",
 			path: "/v1/messages",
-			want: EndpointResponses,
+			want: gatewayhttp.EndpointResponses,
 		},
 	}
 
@@ -49,7 +49,7 @@ func TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint(t *testing.T) {
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, tt.path, nil)
 
-			got := GetUpstreamEndpoint(c, service.PlatformOpenAI)
+			got := gatewayhttp.GetUpstreamEndpoint(c, capability.PlatformOpenAI)
 			require.Equal(t, tt.want, got)
 		})
 	}

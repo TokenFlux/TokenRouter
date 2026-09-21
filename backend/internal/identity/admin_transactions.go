@@ -5,9 +5,10 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
+	strings "strings"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	strings "strings"
 )
 
 func (s *UserAdmin) BindUserAuthIdentity(ctx context.Context, userID int64, input AdminBindAuthIdentityInput) (*AdminBoundAuthIdentity, error) {

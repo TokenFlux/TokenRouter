@@ -4,8 +4,9 @@ package identity
 import (
 	context "context"
 	errors "errors"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 func (f *PendingFlow) EmailShouldCreatePendingRegistration(ctx context.Context, input EmailOAuthIdentityInput) (bool, error) {

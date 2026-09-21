@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/userplatformquota"
@@ -25,12 +26,13 @@ type UserPlatformQuotaSnapshot = billing.UserPlatformQuotaSnapshot
 type UserPlatformQuotaRepository = billing.UserPlatformQuotaRepository
 
 type PlatformQuotaStore struct {
-	client *dbent.Client
+	client   *dbent.Client
+	calendar timezone.Calendar
 }
 
 // NewUserPlatformQuotaRepository 创建 UserPlatformQuotaRepository 实现。
-func NewUserPlatformQuotaRepository(client *dbent.Client) *PlatformQuotaStore {
-	return &PlatformQuotaStore{client: client}
+func NewUserPlatformQuotaRepository(client *dbent.Client, calendar timezone.Calendar) *PlatformQuotaStore {
+	return &PlatformQuotaStore{client: client, calendar: calendar}
 }
 
 // BulkInsertInitial 用原生 SQL ON CONFLICT 实现幂等批量插入（带条件 limit 覆盖）。
@@ -160,15 +162,15 @@ func (r *PlatformQuotaStore) IncrementUsageWithReset(ctx context.Context, userID
 			// $6 = now：30 天滚动月度窗口以当前时刻为起始
 			_, e := txClient.ExecContext(txCtx, insertSQL,
 				userID, platform, cost,
-				timezone.StartOfDay(now), timezone.StartOfWeek(now), now, now)
+				r.calendar.StartOfDay(now), r.calendar.StartOfWeek(now), now, now)
 			return e
 		}
 		if err != nil {
 			return err
 		}
 
-		newDaily := maybeReset(existing.DailyUsageUsd, existing.DailyWindowStart, timezone.StartOfDay(now), cost)
-		newWeekly := maybeReset(existing.WeeklyUsageUsd, existing.WeeklyWindowStart, timezone.StartOfWeek(now), cost)
+		newDaily := maybeReset(existing.DailyUsageUsd, existing.DailyWindowStart, r.calendar.StartOfDay(now), cost)
+		newWeekly := maybeReset(existing.WeeklyUsageUsd, existing.WeeklyWindowStart, r.calendar.StartOfWeek(now), cost)
 		// 30 天滚动月度窗口：过期时重置为 cost 并以 now 为新起始，否则累加保留原起始
 		newMonthly, newMonthlyStart := monthlyMaybeReset(existing.MonthlyUsageUsd, existing.MonthlyWindowStart, cost, now)
 
@@ -176,8 +178,8 @@ func (r *PlatformQuotaStore) IncrementUsageWithReset(ctx context.Context, userID
 			SetDailyUsageUsd(newDaily).
 			SetWeeklyUsageUsd(newWeekly).
 			SetMonthlyUsageUsd(newMonthly).
-			SetDailyWindowStart(timezone.StartOfDay(now)).
-			SetWeeklyWindowStart(timezone.StartOfWeek(now)).
+			SetDailyWindowStart(r.calendar.StartOfDay(now)).
+			SetWeeklyWindowStart(r.calendar.StartOfWeek(now)).
 			SetMonthlyWindowStart(newMonthlyStart). // 30 天滚动：仅过期时更新起始
 			Save(txCtx)
 		return e

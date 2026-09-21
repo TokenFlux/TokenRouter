@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	"github.com/gin-gonic/gin"
@@ -24,8 +26,8 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
-) (*OpenAIForwardResult, error) {
+	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
+) (*forwardcore.OpenAIResult, error) {
 	adapter := &openAIRawFallbackAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch}, kind: forward.NativeMessages}
 	result, err := forward.MessagesViaRawChat(ctx, body, defaultMappedModel, adapter)
 	return openAIForwardResultFromHTTP(result), err

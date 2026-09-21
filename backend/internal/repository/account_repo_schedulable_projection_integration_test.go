@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +36,7 @@ func TestListSchedulableAccountLoadsMatchesListSchedulable(t *testing.T) {
 	require.NoError(t, err)
 
 	disabled := create("projection-disabled")
-	_, err = client.Account.UpdateOneID(disabled.ID).SetStatus(service.StatusDisabled).Save(ctx)
+	_, err = client.Account.UpdateOneID(disabled.ID).SetStatus(billing.StatusDisabled).Save(ctx)
 	require.NoError(t, err)
 	unschedulable := create("projection-unschedulable")
 	_, err = client.Account.UpdateOneID(unschedulable.ID).SetSchedulable(false).Save(ctx)

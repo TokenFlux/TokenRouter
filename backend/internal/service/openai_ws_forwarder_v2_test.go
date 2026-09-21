@@ -7,7 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +18,6 @@ import (
 // HTTP POST /v1/responses -> forwardOpenAIWSV2 keeps the canonical outbound
 // tier separate from response.completed.service_tier for usage-time billing.
 func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cases := []struct {
 		name        string
@@ -57,19 +59,19 @@ func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testi
 			pool.SetClientDialerForTest(captureDialer)
 
 			svc := &OpenAIGatewayService{
-				cfg:              cfg,
-				httpUpstream:     &httpUpstreamRecorder{},
-				cache:            &stubGatewayCache{},
-				openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-				toolCorrector:    NewCodexToolCorrector(),
-				openaiWSPool:     pool,
+				cfg:          cfg,
+				httpUpstream: &httpUpstreamRecorder{},
+				cache:        &stubGatewayCache{},
+
+				toolCorrector: openai.NewCodexToolCorrector(),
+				openaiWSPool:  pool,
 			}
 			account := &Account{
 				ID:          5882,
 				Name:        "openai-ws-v2-tier",
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test"},

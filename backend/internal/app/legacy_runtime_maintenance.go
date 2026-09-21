@@ -6,28 +6,31 @@ import (
 	"context"
 	"time"
 
-	account "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 
+	account "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 type maintenanceRuntimeReady struct{}
 
 func provideMaintenanceRuntime(
 	tokenRefresh *account.BackgroundRefreshService,
-	accountExpiry *service.AccountExpiryService,
-	proxyExpiry *service.ProxyExpiryService,
+	accountExpiry *account.ExpiryService,
+	proxyExpiry *egress.ProxyExpiryService,
 	subscriptionExpiry *billing.SubscriptionExpiryService,
-	announcementExpiry *service.AnnouncementExpiryService,
-	scheduledTestRunner *service.ScheduledTestRunnerService,
-	groupAvailabilityProbeRunner *service.GroupAvailabilityProbeRunnerService,
+	announcementExpiry *site.AnnouncementExpiryService,
+	scheduledTestRunner *account.ScheduledTestRunnerService,
+	groupAvailabilityProbeRunner *routing.GroupAvailabilityProbeRunnerService,
 	cfg *config.Config,
 	manager *lifecycle.Manager,
-	concurrency *service.ConcurrencyService,
-	messageQueue *service.UserMessageQueueService,
+	concurrency *scheduler.ConcurrencyService,
+	messageQueue *scheduler.UserMessageQueueService,
 ) *maintenanceRuntimeReady {
 	manager.Register(lifecycle.Hook{Name: "TokenRefreshService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if tokenRefresh != nil {

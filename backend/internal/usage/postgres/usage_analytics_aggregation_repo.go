@@ -50,7 +50,7 @@ func (r *AggregationStore) aggregateUsageAnalyticsRange(ctx context.Context, sta
 		if err != nil {
 			return err
 		}
-		txRepo := NewAggregationStoreWithSQL(tx)
+		txRepo := NewAggregationStoreWithSQL(tx, r.calendar)
 		if err := txRepo.aggregateUsageAnalyticsRangeInTx(ctx, hourStart, hourEnd, scanEnd, rebuildDaily); err != nil {
 			_ = tx.Rollback()
 			return err
@@ -151,7 +151,7 @@ func (r *AggregationStore) RebuildUsageAnalyticsDailyRange(ctx context.Context, 
 		if err != nil {
 			return err
 		}
-		txRepo := NewAggregationStoreWithSQL(tx)
+		txRepo := NewAggregationStoreWithSQL(tx, r.calendar)
 		if err := txRepo.rebuildUsageAnalyticsDailyRangeInTx(ctx, dayStart, dayEnd); err != nil {
 			_ = tx.Rollback()
 			return err
@@ -296,7 +296,7 @@ func (r *AggregationStore) ApplyUsageAnalyticsState(ctx context.Context, change 
 			return nil, err
 		}
 		defer func() { _ = tx.Rollback() }()
-		next, err := NewAggregationStoreWithSQL(tx).applyUsageAnalyticsStateInTx(ctx, change)
+		next, err := NewAggregationStoreWithSQL(tx, r.calendar).applyUsageAnalyticsStateInTx(ctx, change)
 		if err != nil {
 			return nil, err
 		}

@@ -8,14 +8,15 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identityredis "github.com/TokenFlux/TokenRouter/internal/identity/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 	notificationhttp "github.com/TokenFlux/TokenRouter/internal/notification/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/notification/smtp"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,18 +27,15 @@ func provideMailer(store *settings.Store) *notification.Mailer {
 func provideEmailChallenges(cache identity.EmailCache, mail *notification.Mailer) *identity.EmailChallenges {
 	return identity.NewEmailChallenges(cache, mail)
 }
-func provideLegacyEmail(mail *notification.Mailer, c *identity.EmailChallenges) *service.EmailService {
-	return service.WrapEmailService(mail, c)
-}
-func provideNotification(store *settings.Store, mail *notification.Mailer, old *service.EmailService) *notification.NotificationEmailService {
+func provideNotification(store *settings.Store, mail *notification.Mailer) *notification.NotificationEmailService {
 	n := notification.NewNotificationEmailService(store, mail)
-	old.SetNotificationEmailService(n)
+	mail.SetNotificationEmailService(n)
 	return n
 }
 func provideEmailQueue(c *identity.EmailChallenges) *notification.EmailQueueService {
 	return notification.NewEmailQueueService(c, 3)
 }
-func provideNotificationHTTP(mail *notification.Mailer, n *notification.NotificationEmailService, settings *service.SettingService) *notificationhttp.Handler {
+func provideNotificationHTTP(mail *notification.Mailer, n *notification.NotificationEmailService, settings *site.DisplaySettings) *notificationhttp.Handler {
 	return notificationhttp.New(mail, n, settings)
 }
 
@@ -53,20 +51,10 @@ func provideAlertDelivery(mail *notification.Mailer, n *notification.Notificatio
 func provideBalanceNotifications(sender *notification.AlertDelivery, settings *settings.Store, accounts *accountpostgres.AccountStore, tasks *lifecycle.Tasks) *billing.BalanceNotifyService {
 	return billing.NewBalanceNotifyService(sender, settings, billingQuotaNotifyReader{accounts}, func(name string, fn func()) { tasks.Go(name, fn) })
 }
-func provideLegacyBalanceNotifications(core *billing.BalanceNotifyService, delivery *notification.AlertDelivery) *service.BalanceNotifyService {
-	return service.WrapBalanceNotifyService(core, delivery)
-}
 
 type billingQuotaNotifyReader struct{ accounts *accountpostgres.AccountStore }
 
 func (r billingQuotaNotifyReader) GetByID(ctx context.Context, id int64) (*billing.QuotaNotifyAccount, error) {
 	a, e := r.accounts.GetByID(ctx, id)
-	if a == nil {
-		return nil, e
-	}
-	return &billing.QuotaNotifyAccount{ID: a.ID, Name: a.Name, Platform: a.Platform, Dimensions: []billing.QuotaNotifyDimension{
-		{Name: "daily", Enabled: a.GetQuotaNotifyDailyEnabled(), Threshold: a.GetQuotaNotifyDailyThreshold(), ThresholdType: a.GetQuotaNotifyDailyThresholdType(), CurrentUsed: a.GetQuotaDailyUsed(), Limit: a.GetQuotaDailyLimit()},
-		{Name: "weekly", Enabled: a.GetQuotaNotifyWeeklyEnabled(), Threshold: a.GetQuotaNotifyWeeklyThreshold(), ThresholdType: a.GetQuotaNotifyWeeklyThresholdType(), CurrentUsed: a.GetQuotaWeeklyUsed(), Limit: a.GetQuotaWeeklyLimit()},
-		{Name: "total", Enabled: a.GetQuotaNotifyTotalEnabled(), Threshold: a.GetQuotaNotifyTotalThreshold(), ThresholdType: a.GetQuotaNotifyTotalThresholdType(), CurrentUsed: a.GetQuotaUsed(), Limit: a.GetQuotaLimit()},
-	}}, e
+	return accountprovider.QuotaNotification(a), e
 }

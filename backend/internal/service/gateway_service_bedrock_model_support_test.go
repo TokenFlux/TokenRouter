@@ -1,12 +1,16 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+)
 
 func TestGatewayServiceIsModelSupportedByAccount_BedrockDefaultMappingRestrictsModels(t *testing.T) {
 	svc := &GatewayService{}
 	account := &Account{
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeBedrock,
+		Platform: capability.PlatformAnthropic,
+		Type:     capability.AccountTypeBedrock,
 		Credentials: map[string]any{
 			"aws_region": "us-east-1",
 		},
@@ -24,8 +28,8 @@ func TestGatewayServiceIsModelSupportedByAccount_BedrockDefaultMappingRestrictsM
 func TestGatewayServiceIsModelSupportedByAccount_BedrockCustomMappingStillActsAsAllowlist(t *testing.T) {
 	svc := &GatewayService{}
 	account := &Account{
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeBedrock,
+		Platform: capability.PlatformAnthropic,
+		Type:     capability.AccountTypeBedrock,
 		Credentials: map[string]any{
 			"aws_region": "eu-west-1",
 			"model_mapping": map[string]any{

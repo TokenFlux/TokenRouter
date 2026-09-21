@@ -6,15 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type PassthroughInput struct {
@@ -56,7 +57,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		}
 		// Codex passthrough 允许省略 instructions，但仍拒绝显式的非法值。
 		if p.CodexModel(reqModel) && !gjson.GetBytes(body, "instructions").Exists() {
-			nextBody, setErr := sjson.SetBytes(body, "instructions", native.DefaultCodexSynthInstructions(reqModel))
+			nextBody, setErr := sjson.SetBytes(body, "instructions", openai.DefaultCodexSynthInstructions(reqModel))
 			if setErr != nil {
 				return nil, fmt.Errorf("set passthrough codex instructions: %w", setErr)
 			}
@@ -132,7 +133,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		body = adaptedBody
 	}
 
-	sanitizedBody, sanitized, err := native.SanitizeEmptyBase64InputImagesInOpenAIBody(body)
+	sanitizedBody, sanitized, err := openai.SanitizeEmptyBase64InputImagesInOpenAIBody(body)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +241,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			probeBody := p.ReadErrorBody(resp)
 			_ = resp.Body.Close()
 			resp.Body = io.NopCloser(bytes.NewReader(probeBody))
-			if retryBody, reason, changed, retryErr := native.NormalizeOpenAIResponsesRejectedFieldRetryBody(resp.StatusCode, body, probeBody); retryErr != nil {
+			if retryBody, reason, changed, retryErr := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(resp.StatusCode, body, probeBody); retryErr != nil {
 				return nil, fmt.Errorf("normalize passthrough rejected Responses field retry body: %w", retryErr)
 			} else if changed && rejectedFieldRetryState.Allow(retryBody) {
 				body = retryBody
@@ -282,7 +283,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 		p.ObserveProvenance(resp.Header)
 
 		if reqStream {
-			result, handleErr := native.ReadPassthroughStreaming(ctx, resp, upstream.NewOutputContext(p.Sink()), p.ResponseOptions(ctx), startTime, reqModel, upstreamPassthroughModel)
+			result, handleErr := openai.ReadPassthroughStreaming(ctx, resp, upstream.NewOutputContext(p.Sink()), p.ResponseOptions(ctx), startTime, reqModel, upstreamPassthroughModel)
 			if handleErr != nil {
 				if retryBody, fallbackModel, retry := p.CompactFromSignal(requestedModel, body, handleErr, compactModelFallbackRetried, resp); retry {
 					body = retryBody
@@ -307,7 +308,7 @@ func RunPassthrough(ctx context.Context, in PassthroughInput, p PassthroughPorts
 			imageCount = result.ImageCount
 			imageOutputSizes = result.ImageOutputSizes
 		} else {
-			result, handleErr := native.ReadPassthroughNonStreaming(ctx, resp, p.Sink(), p.ResponseOptions(ctx), reqModel, upstreamPassthroughModel)
+			result, handleErr := openai.ReadPassthroughNonStreaming(ctx, resp, p.Sink(), p.ResponseOptions(ctx), reqModel, upstreamPassthroughModel)
 			if handleErr != nil {
 				if retryBody, fallbackModel, retry := p.CompactFromSignal(requestedModel, body, handleErr, compactModelFallbackRetried, resp); retry {
 					body = retryBody

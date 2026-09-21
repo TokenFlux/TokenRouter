@@ -8,16 +8,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+	"github.com/TokenFlux/TokenRouter/internal/usage/httpapi/ports"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 type dailyUsageRepoStub struct {
-	service.UsageLogRepository
-	trend []usagestats.TrendDataPoint
+	usage.UsageLogRepository
+	trend []usage.TrendDataPoint
 
 	called      bool
 	startTime   time.Time
@@ -36,7 +40,7 @@ func (s *dailyUsageRepoStub) GetUsageTrendWithFilters(
 	requestType *int16,
 	stream *bool,
 	billingType *int8,
-) ([]usagestats.TrendDataPoint, error) {
+) ([]usage.TrendDataPoint, error) {
 	s.called = true
 	s.startTime = startTime
 	s.endTime = endTime
@@ -47,25 +51,24 @@ func (s *dailyUsageRepoStub) GetUsageTrendWithFilters(
 }
 
 type dailyUsageAPIKeyRepoStub struct {
-	service.APIKeyRepository
-	keys map[int64]*service.APIKey
+	ports.KeyReader
+	keys map[int64]*ports.KeyReference
 }
 
-func (s *dailyUsageAPIKeyRepoStub) GetByID(ctx context.Context, id int64) (*service.APIKey, error) {
+func (s *dailyUsageAPIKeyRepoStub) GetByID(ctx context.Context, id int64) (*ports.KeyReference, error) {
 	key, ok := s.keys[id]
 	if !ok {
-		return nil, service.ErrAPIKeyNotFound
+		return nil, apikey.ErrAPIKeyNotFound
 	}
 	clone := *key
 	return &clone, nil
 }
 
 func newDailyUsageTestRouter(usageRepo *dailyUsageRepoStub, apiKeyRepo *dailyUsageAPIKeyRepoStub, userID int64) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	usageSvc := service.NewUsageService(usageRepo)
-	apiKeySvc := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, nil)
-	apiKeySvc.Start()
-	handler := newLegacyUsageHandlerFixture(usageSvc, apiKeySvc, nil, nil)
+
+	usageSvc := usage.NewUsageService(usageRepo)
+	// 本契约只查询归属投影；认证缓存和生命周期由 apikey 自身测试覆盖。
+	handler := NewUsageHandler(usageSvc, apiKeyRepo, nil, nil, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: userID})
@@ -78,16 +81,16 @@ func newDailyUsageTestRouter(usageRepo *dailyUsageRepoStub, apiKeyRepo *dailyUsa
 type dailyUsageHandlerResponse struct {
 	Code int `json:"code"`
 	Data struct {
-		Items []usagestats.APIKeyDailyUsagePoint `json:"items"`
-		Days  int                                `json:"days"`
+		Items []usage.APIKeyDailyUsagePoint `json:"items"`
+		Days  int                           `json:"days"`
 	} `json:"data"`
 }
 
 func TestGetMyAPIKeyDailyUsageRejectsCrossUserAccess(t *testing.T) {
 	usageRepo := &dailyUsageRepoStub{}
 	apiKeyRepo := &dailyUsageAPIKeyRepoStub{
-		keys: map[int64]*service.APIKey{
-			7: {ID: 7, UserID: 99, Status: service.StatusAPIKeyActive},
+		keys: map[int64]*ports.KeyReference{
+			7: {ID: 7, UserID: 99},
 		},
 	}
 	router := newDailyUsageTestRouter(usageRepo, apiKeyRepo, 42)
@@ -108,8 +111,8 @@ func TestGetMyAPIKeyDailyUsageRejectsInvalidDays(t *testing.T) {
 		t.Run(path, func(t *testing.T) {
 			usageRepo := &dailyUsageRepoStub{}
 			apiKeyRepo := &dailyUsageAPIKeyRepoStub{
-				keys: map[int64]*service.APIKey{
-					7: {ID: 7, UserID: 42, Status: service.StatusAPIKeyActive},
+				keys: map[int64]*ports.KeyReference{
+					7: {ID: 7, UserID: 42},
 				},
 			}
 			router := newDailyUsageTestRouter(usageRepo, apiKeyRepo, 42)
@@ -125,10 +128,10 @@ func TestGetMyAPIKeyDailyUsageRejectsInvalidDays(t *testing.T) {
 }
 
 func TestGetMyAPIKeyDailyUsageReturnsEmptyData(t *testing.T) {
-	usageRepo := &dailyUsageRepoStub{trend: []usagestats.TrendDataPoint{}}
+	usageRepo := &dailyUsageRepoStub{trend: []usage.TrendDataPoint{}}
 	apiKeyRepo := &dailyUsageAPIKeyRepoStub{
-		keys: map[int64]*service.APIKey{
-			7: {ID: 7, UserID: 42, Status: service.StatusAPIKeyActive},
+		keys: map[int64]*ports.KeyReference{
+			7: {ID: 7, UserID: 42},
 		},
 	}
 	router := newDailyUsageTestRouter(usageRepo, apiKeyRepo, 42)
@@ -146,7 +149,7 @@ func TestGetMyAPIKeyDailyUsageReturnsEmptyData(t *testing.T) {
 
 func TestGetMyAPIKeyDailyUsageAggregatesByDayForOwnedKey(t *testing.T) {
 	usageRepo := &dailyUsageRepoStub{
-		trend: []usagestats.TrendDataPoint{
+		trend: []usage.TrendDataPoint{
 			{
 				Date:                "2026-05-19",
 				Requests:            3,
@@ -161,8 +164,8 @@ func TestGetMyAPIKeyDailyUsageAggregatesByDayForOwnedKey(t *testing.T) {
 		},
 	}
 	apiKeyRepo := &dailyUsageAPIKeyRepoStub{
-		keys: map[int64]*service.APIKey{
-			7: {ID: 7, UserID: 42, Status: service.StatusAPIKeyActive},
+		keys: map[int64]*ports.KeyReference{
+			7: {ID: 7, UserID: 42},
 		},
 	}
 	router := newDailyUsageTestRouter(usageRepo, apiKeyRepo, 42)
@@ -182,7 +185,7 @@ func TestGetMyAPIKeyDailyUsageAggregatesByDayForOwnedKey(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, 7, got.Data.Days)
 	require.Len(t, got.Data.Items, 1)
-	require.Equal(t, usagestats.APIKeyDailyUsagePoint{
+	require.Equal(t, usage.APIKeyDailyUsagePoint{
 		Date:             "2026-05-19",
 		Requests:         3,
 		InputTokens:      10,

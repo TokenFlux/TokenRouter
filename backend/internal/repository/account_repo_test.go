@@ -9,12 +9,15 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"
+	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
+	"github.com/stretchr/testify/require"
+
 	entsql "entgo.io/ent/dialect/sql"
 )
 
@@ -30,11 +33,11 @@ func TestAccountsToService_LargeActiveAccountSetDoesNotExceedPostgresParameterLi
 		accounts = append(accounts, &dbent.Account{
 			ID:          int64(i + 1),
 			Name:        "large-active",
-			Platform:    service.PlatformOpenAI,
-			Type:        service.AccountTypeOAuth,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeOAuth,
 			Credentials: map[string]any{},
 			Extra:       map[string]any{},
-			Status:      service.StatusActive,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 		})
 	}

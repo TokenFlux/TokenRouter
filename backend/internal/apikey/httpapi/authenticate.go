@@ -3,14 +3,15 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"math"
+	"strconv"
+	"strings"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/gin-gonic/gin"
-	"math"
-	"strconv"
-	"strings"
 )
 
 // AuthenticationOptions 仅描述 HTTP 输入和观察端口；网关转换/计费仍由后续执行层拥有。

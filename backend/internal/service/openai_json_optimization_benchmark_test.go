@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/tidwall/gjson"
 )
 
@@ -13,7 +14,7 @@ var (
 	benchmarkToolContinuationBoolSink bool
 	benchmarkWSParseStringSink        string
 	benchmarkWSParseMapSink           map[string]any
-	benchmarkUsageSink                OpenAIUsage
+	benchmarkUsageSink                openai.ForwardUsage
 )
 
 func BenchmarkToolContinuationValidationLegacy(b *testing.B) {
@@ -83,7 +84,7 @@ func BenchmarkOpenAIUsageExtractOptimized(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		usage, ok := extractOpenAIUsageFromJSONBytes(body)
+		usage, ok := openai.ExtractOpenAIUsageFromJSONBytes(body)
 		if ok {
 			benchmarkUsageSink = usage
 		}
@@ -146,7 +147,7 @@ func legacyValidateFunctionCallOutputContext(reqBody map[string]any) bool {
 }
 
 func optimizedValidateFunctionCallOutputContext(reqBody map[string]any) bool {
-	validation := ValidateFunctionCallOutputContext(reqBody)
+	validation := openai.ValidateFunctionCallOutputContext(reqBody)
 	if !validation.HasFunctionCallOutput {
 		return true
 	}
@@ -325,18 +326,18 @@ func optimizedParseWSIngressPayload(raw []byte) (eventType, model, promptCacheKe
 	if err = json.Unmarshal(raw, &payload); err != nil {
 		return "", "", "", "", nil, err
 	}
-	eventType = openAIWSPayloadString(payload, "type")
+	eventType = openai.WSPayloadString(payload, "type")
 	if eventType == "" {
 		eventType = "response.create"
 		payload["type"] = eventType
 	}
-	model = openAIWSPayloadString(payload, "model")
-	promptCacheKey = openAIWSPayloadString(payload, "prompt_cache_key")
-	previousResponseID = openAIWSPayloadString(payload, "previous_response_id")
+	model = openai.WSPayloadString(payload, "model")
+	promptCacheKey = openai.WSPayloadString(payload, "prompt_cache_key")
+	previousResponseID = openai.WSPayloadString(payload, "previous_response_id")
 	return eventType, model, promptCacheKey, previousResponseID, payload, nil
 }
 
-func legacyExtractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
+func legacyExtractOpenAIUsageFromJSONBytes(body []byte) (openai.ForwardUsage, bool) {
 	var response struct {
 		Usage struct {
 			InputTokens       int `json:"input_tokens"`
@@ -347,9 +348,9 @@ func legacyExtractOpenAIUsageFromJSONBytes(body []byte) (OpenAIUsage, bool) {
 		} `json:"usage"`
 	}
 	if err := json.Unmarshal(body, &response); err != nil {
-		return OpenAIUsage{}, false
+		return openai.ForwardUsage{}, false
 	}
-	return OpenAIUsage{
+	return openai.ForwardUsage{
 		InputTokens:          response.Usage.InputTokens,
 		OutputTokens:         response.Usage.OutputTokens,
 		CacheReadInputTokens: response.Usage.InputTokenDetails.CachedTokens,

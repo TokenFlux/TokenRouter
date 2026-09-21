@@ -13,7 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
 	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // PaymentOrderCreate is the builder for creating a PaymentOrder entity.
@@ -303,13 +303,13 @@ func (_c *PaymentOrderCreate) SetNillablePlanID(v *int64) *PaymentOrderCreate {
 }
 
 // SetPlanSnapshot sets the "plan_snapshot" field.
-func (_c *PaymentOrderCreate) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderCreate {
+func (_c *PaymentOrderCreate) SetPlanSnapshot(v billing.SubscriptionPlanSnapshot) *PaymentOrderCreate {
 	_c.mutation.SetPlanSnapshot(v)
 	return _c
 }
 
 // SetNillablePlanSnapshot sets the "plan_snapshot" field if the given value is not nil.
-func (_c *PaymentOrderCreate) SetNillablePlanSnapshot(v *domain.SubscriptionPlanSnapshot) *PaymentOrderCreate {
+func (_c *PaymentOrderCreate) SetNillablePlanSnapshot(v *billing.SubscriptionPlanSnapshot) *PaymentOrderCreate {
 	if v != nil {
 		_c.SetPlanSnapshot(*v)
 	}
@@ -1504,7 +1504,7 @@ func (u *PaymentOrderUpsert) ClearPlanID() *PaymentOrderUpsert {
 }
 
 // SetPlanSnapshot sets the "plan_snapshot" field.
-func (u *PaymentOrderUpsert) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderUpsert {
+func (u *PaymentOrderUpsert) SetPlanSnapshot(v billing.SubscriptionPlanSnapshot) *PaymentOrderUpsert {
 	u.Set(paymentorder.FieldPlanSnapshot, v)
 	return u
 }
@@ -2367,7 +2367,7 @@ func (u *PaymentOrderUpsertOne) ClearPlanID() *PaymentOrderUpsertOne {
 }
 
 // SetPlanSnapshot sets the "plan_snapshot" field.
-func (u *PaymentOrderUpsertOne) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderUpsertOne {
+func (u *PaymentOrderUpsertOne) SetPlanSnapshot(v billing.SubscriptionPlanSnapshot) *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.SetPlanSnapshot(v)
 	})
@@ -3453,7 +3453,7 @@ func (u *PaymentOrderUpsertBulk) ClearPlanID() *PaymentOrderUpsertBulk {
 }
 
 // SetPlanSnapshot sets the "plan_snapshot" field.
-func (u *PaymentOrderUpsertBulk) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderUpsertBulk {
+func (u *PaymentOrderUpsertBulk) SetPlanSnapshot(v billing.SubscriptionPlanSnapshot) *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.SetPlanSnapshot(v)
 	})

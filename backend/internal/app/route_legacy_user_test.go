@@ -4,6 +4,7 @@ import (
 	apikeyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	billinghttp "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	creativehttp "github.com/TokenFlux/TokenRouter/internal/creative/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	promotionhttp "github.com/TokenFlux/TokenRouter/internal/promotion/httpapi"
 	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
@@ -11,7 +12,6 @@ import (
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +23,7 @@ func RegisterUserRoutes(
 	jwtAuth middleware.JWTAuthMiddleware,
 	auditLog middleware.AuditLogMiddleware,
 	stepUpAuth middleware.StepUpAuthMiddleware,
-	settingService *service.SettingService,
+	settingService *admission.BackendMode,
 	panelRateLimiter *middleware.PanelRateLimiter,
 ) {
 	authenticated := v1.Group("")
@@ -33,8 +33,8 @@ func RegisterUserRoutes(
 	authenticated.Use(panelRateLimiter.Global())
 	// 用户管理面变更类操作入审计（含 TOTP 启用/禁用、step-up 验证、密码修改等安全事件）
 	authenticated.Use(gin.HandlerFunc(auditLog))
-	identityhttp.RegisterUserRoutes(authenticated, h.User.UserHandler, h.Totp, h.Passkey)
-	promotionhttp.RegisterUserRoutes(authenticated, h.User.Promotion)
+	identityhttp.RegisterUserRoutes(authenticated, h.User, h.Totp, h.Passkey)
+	promotionhttp.RegisterUserRoutes(authenticated, h.PromotionUser)
 	apikeyhttp.RegisterUserRoutes(authenticated, h.APIKey)
 	teamhttp.RegisterUserRoutes(authenticated, h.Team, gin.HandlerFunc(stepUpAuth))
 	usagehttp.RegisterUserRoutes(authenticated, h.Usage, panelRateLimiter.Heavy())

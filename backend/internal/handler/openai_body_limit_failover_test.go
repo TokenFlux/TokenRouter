@@ -8,13 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedJSON413(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
@@ -32,7 +32,7 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedJSON413(t *testing.T) {
 }
 
 func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedResponsesSSE(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
@@ -47,7 +47,6 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedResponsesSSE(t *testing
 }
 
 func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedAnthropicError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("json", func(t *testing.T) {
 		rec := httptest.NewRecorder()
@@ -81,13 +80,13 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedAnthropicError(t *testi
 	})
 }
 
-func bodyLimitFailoverTestError() *service.UpstreamFailoverError {
-	return &service.UpstreamFailoverError{
+func bodyLimitFailoverTestError() *forwardcore.UpstreamFailoverError {
+	return &forwardcore.UpstreamFailoverError{
 		StatusCode:        http.StatusRequestEntityTooLarge,
 		ResponseBody:      []byte(`{"error":{"message":"proxy limit secret=must-not-leak"}}`),
-		Scope:             service.GatewayFailureScopeAccount,
-		Reason:            service.GatewayFailureReason("openai_request_body_too_large"),
-		NextAccountAction: service.NextAccountRetry,
+		Scope:             forwardcore.GatewayFailureScopeAccount,
+		Reason:            forwardcore.GatewayFailureReason("openai_request_body_too_large"),
+		NextAccountAction: forwardcore.NextAccountRetry,
 		ClientStatusCode:  http.StatusRequestEntityTooLarge,
 		ClientMessage:     "Request payload is too large",
 	}

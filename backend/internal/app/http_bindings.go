@@ -5,32 +5,34 @@ import (
 	"sync/atomic"
 	"time"
 
-	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-
-	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
 	"github.com/TokenFlux/TokenRouter/internal/site"
 	"github.com/gin-gonic/gin"
 
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 
-	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	gatewayhttpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	redisinfra "github.com/TokenFlux/TokenRouter/internal/infra/redis"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+
 	routinghttpapi "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/server"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/web"
-
 	"github.com/redis/go-redis/v9"
 )
 
-// provideRouterRuntime 只装配旧业务的公开投影与 HTTP 能力，业务解释留 S10/S15。
-func provideRouterRuntime(public *site.PublicService, pages *sitehttp.PageHandler, settingService *service.SettingService, store *settings.Store, redisClient *redis.Client, manager *lifecycle.Manager, cfg *config.Config, mount httpRouteMount, panelSettings *runtimeconfig.PanelSettings, opsService *service.OpsService, jwtAuth middleware.JWTAuthMiddleware, adminAuth middleware.AdminAuthMiddleware, auditLog middleware.AuditLogMiddleware, stepUpAuth middleware.StepUpAuthMiddleware,
+// provideRouterRuntime 装配公开投影与 HTTP 能力，规则及运行状态由原生模块持有。
+func provideRouterRuntime(public *site.PublicService, pages *sitehttp.PageHandler, backendMode *admission.BackendMode, store *settings.Store, redisClient *redis.Client, manager *lifecycle.Manager, cfg *config.Config, mount httpRouteMount, panelSettings *runtimeconfig.PanelSettings, opsService *ops.OpsService, jwtAuth middleware.JWTAuthMiddleware, adminAuth middleware.AdminAuthMiddleware, auditLog middleware.AuditLogMiddleware, stepUpAuth middleware.StepUpAuthMiddleware,
 ) (*server.RouterRuntime, error) {
 
 	manager.Register(lifecycle.Hook{Name: "SettingsUpdateAdmission", StopOrder: 14, Stop: func(context.Context) error { store.Updates().Seal(); return nil }})
@@ -85,7 +87,7 @@ func provideRouterRuntime(public *site.PublicService, pages *sitehttp.PageHandle
 	}
 	panelLimiter := middleware.NewPanelRateLimiter(panelCounter, panelSettings)
 	rt.Register = []func(*gin.Engine){func(r *gin.Engine) {
-		mount(r, httpRouteSecurity{JWT: gin.HandlerFunc(jwtAuth), Admin: gin.HandlerFunc(adminAuth), Audit: gin.HandlerFunc(auditLog), StepUp: gin.HandlerFunc(stepUpAuth), BackendAuth: identityhttp.BackendModeAuthGuard(settingService.BackendModeSettings()), BackendUser: identityhttp.BackendModeUserGuard(settingService.BackendModeSettings()), Panel: panelLimiter, AuthLimiter: authLimiter}, protocolCatalog, func(v1 *gin.RouterGroup) { pages.Register(v1, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth)) })
+		mount(r, httpRouteSecurity{JWT: gin.HandlerFunc(jwtAuth), Admin: gin.HandlerFunc(adminAuth), Audit: gin.HandlerFunc(auditLog), StepUp: gin.HandlerFunc(stepUpAuth), BackendAuth: identityhttp.BackendModeAuthGuard(backendMode), BackendUser: identityhttp.BackendModeUserGuard(backendMode), Panel: panelLimiter, AuthLimiter: authLimiter}, protocolCatalog, func(v1 *gin.RouterGroup) { pages.Register(v1, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth)) })
 	}}
 
 	return rt, nil

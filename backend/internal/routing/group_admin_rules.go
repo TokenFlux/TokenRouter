@@ -4,10 +4,11 @@ package routing
 import (
 	context "context"
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
 	sort "sort"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
 )
 
 // ClearOtherPlatformDefaultGroups 清理同平台的其他默认分组。

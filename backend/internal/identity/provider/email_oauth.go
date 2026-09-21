@@ -6,11 +6,12 @@ import (
 	json "encoding/json"
 	errors "errors"
 	fmt "fmt"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	req "github.com/imroc/req/v3"
 	gjson "github.com/tidwall/gjson"
-	strings "strings"
 )
 
 // EmailOAuthProviderConfig 保存 GitHub/Google 这类邮箱 OAuth 登录的配置。

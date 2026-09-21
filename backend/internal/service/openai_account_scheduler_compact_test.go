@@ -6,7 +6,13 @@ import (
 	"fmt"
 	"testing"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,25 +27,29 @@ func TestCompactSchedulingRechecksAdministratorSwitchFromDatabase(t *testing.T) 
 				if enabled {
 					cachedMode, dbMode = dbMode, cachedMode
 				}
-				cached := &Account{ID: 71990, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive,
+				cached := &Account{ID: 71990, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive,
 					Schedulable: true, Concurrency: 1, GroupIDs: []int64{groupID}, Extra: map[string]any{"openai_compact_mode": cachedMode}}
 				fresh := *cached
 				fresh.Extra = map[string]any{"openai_compact_mode": dbMode}
 				svc := &OpenAIGatewayService{
 					accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{fresh}},
 					cache:       &schedulerTestGatewayCache{}, cfg: &config.Config{},
-					rateLimitService:   newAdvancedSchedulerRateLimitService(fmt.Sprint(advanced)),
-					concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+					rateLimitService: newAdvancedSchedulerRateLimitService(fmt.Sprint(advanced)),
+					concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+						Event: logging.Event,
+					},
+					),
 					schedulerSnapshot: NewSchedulerSnapshotService(&openAISnapshotCacheStub{
 						snapshotAccounts: []*Account{cached}, accountsByID: map[int64]*Account{cached.ID: cached}}, nil, nil, nil, nil),
 				}
-				selected, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-5.4", nil, OpenAIUpstreamTransportAny, true)
+				selected, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-5.4", nil, egress.OpenAIUpstreamTransportAny, true)
 				if enabled {
 					require.NoError(t, err)
 					require.NotNil(t, selected)
 					require.Equal(t, cached.ID, selected.Account.ID)
 				} else {
-					require.ErrorIs(t, err, ErrNoAvailableCompactAccounts)
+					require.ErrorIs(t, err, scheduler.ErrNoAvailableCompactAccounts)
 					require.Nil(t, selected)
 				}
 			})
@@ -57,9 +67,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAc
 	accounts := []Account{
 		{
 			ID:          71001,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
@@ -67,9 +77,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAc
 		},
 		{
 			ID:          71002,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
@@ -79,10 +89,14 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAc
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:       &schedulerTestGatewayCache{},
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event,
+		},
+		),
 	}
 
 	selection, _, err := svc.SelectAccountWithScheduler(
@@ -91,9 +105,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAc
 		"",
 		"",
 		"gpt-5.4",
-		nil,
-		OpenAIUpstreamTransportAny,
-		true,
+		nil, egress.OpenAIUpstreamTransportAny, true,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
@@ -111,19 +123,19 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsDisabled(
 	accounts := []Account{
 		{
 			ID:          71010,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{"openai_compact_mode": OpenAICompactModeForceOff},
+			Extra:       map[string]any{"openai_compact_mode": accountcore.OpenAICompactModeForceOff},
 		},
 		{
 			ID:          71011,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
@@ -133,10 +145,14 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsDisabled(
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:       &schedulerTestGatewayCache{},
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event,
+		},
+		),
 	}
 
 	selection, _, err := svc.SelectAccountWithScheduler(
@@ -145,12 +161,10 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsDisabled(
 		"",
 		"",
 		"gpt-5.4",
-		nil,
-		OpenAIUpstreamTransportAny,
-		true,
+		nil, egress.OpenAIUpstreamTransportAny, true,
 	)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrNoAvailableCompactAccounts), "compact-only accounts should rejected explicitly unsupported and return compact error")
+	require.True(t, errors.Is(err, scheduler.ErrNoAvailableCompactAccounts), "compact-only accounts should rejected explicitly unsupported and return compact error")
 	require.Nil(t, selection)
 }
 
@@ -164,9 +178,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabl
 	accounts := []Account{
 		{
 			ID:          71020,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
@@ -174,9 +188,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabl
 		},
 		{
 			ID:          71021,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
@@ -186,10 +200,14 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabl
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:       &schedulerTestGatewayCache{},
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event,
+		},
+		),
 	}
 
 	selection, _, err := svc.SelectAccountWithScheduler(
@@ -198,9 +216,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabl
 		"",
 		"",
 		"gpt-5.4",
-		nil,
-		OpenAIUpstreamTransportAny,
-		true,
+		nil, egress.OpenAIUpstreamTransportAny, true,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
@@ -217,9 +233,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactAllowsGrok(t *te
 	accounts := []Account{
 		{
 			ID:          71030,
-			Platform:    PlatformGrok,
-			Type:        AccountTypeOAuth,
-			Status:      StatusActive,
+			Platform:    capability.PlatformGrok,
+			Type:        capability.AccountTypeOAuth,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
@@ -231,10 +247,14 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactAllowsGrok(t *te
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:       &schedulerTestGatewayCache{},
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event,
+		},
+		),
 	}
 
 	selection, _, err := svc.SelectAccountWithSchedulerForCapability(
@@ -243,12 +263,10 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactAllowsGrok(t *te
 		"",
 		"",
 		"grok-4.5",
-		nil,
-		OpenAIUpstreamTransportAny,
-		OpenAIEndpointCapabilityTextGeneration,
+		nil, egress.OpenAIUpstreamTransportAny, accountcore.OpenAIEndpointCapabilityTextGeneration,
 		true,
 		false,
-		PlatformGrok,
+		capability.PlatformGrok,
 	)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
@@ -263,9 +281,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionSeparat
 	accounts := []Account{
 		{
 			ID:          71050,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    10,
@@ -276,23 +294,27 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionSeparat
 		},
 		{
 			ID:          71051,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Extra: map[string]any{
-				"openai_compact_mode": OpenAICompactModeForceOff,
+				"openai_compact_mode": accountcore.OpenAICompactModeForceOff,
 			},
 		},
 	}
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:       &schedulerTestGatewayCache{},
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event,
+		},
+		),
 	}
 
 	nativeSelection, _, err := svc.SelectAccountWithSchedulerForCapability(
@@ -301,9 +323,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionSeparat
 		"",
 		"",
 		"gpt-5.6-sol",
-		nil,
-		OpenAIUpstreamTransportAny,
-		OpenAIEndpointCapabilityResponses,
+		nil, egress.OpenAIUpstreamTransportAny, accountcore.OpenAIEndpointCapabilityResponses,
 		false,
 		false,
 	)
@@ -317,13 +337,11 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionSeparat
 		"",
 		"",
 		"gpt-5.6-sol",
-		nil,
-		OpenAIUpstreamTransportAny,
-		OpenAIEndpointCapabilityResponses,
+		nil, egress.OpenAIUpstreamTransportAny, accountcore.OpenAIEndpointCapabilityResponses,
 		true,
 		false,
 	)
-	require.ErrorIs(t, err, ErrNoAvailableCompactAccounts)
+	require.ErrorIs(t, err, scheduler.ErrNoAvailableCompactAccounts)
 	require.Nil(t, legacySelection)
 }
 
@@ -336,51 +354,55 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode(
 	accounts := []Account{
 		{
 			ID:          71060,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
 			Extra: map[string]any{
-				openAINativeCompactionV2ModeExtraKey:    OpenAICompactModeForceOff,
-				"openai_native_compaction_v2_supported": true,
+				accountcore.OpenAINativeCompactionV2ModeExtraKey: accountcore.OpenAICompactModeForceOff,
+				"openai_native_compaction_v2_supported":          true,
 			},
 		},
 		{
 			ID:          71061,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    1,
 			Extra: map[string]any{
-				"openai_native_compaction_v2_supported": false,
-				openAINativeCompactionV2ModeExtraKey:    OpenAICompactModeForceOff,
+				"openai_native_compaction_v2_supported":          false,
+				accountcore.OpenAINativeCompactionV2ModeExtraKey: accountcore.OpenAICompactModeForceOff,
 			},
 		},
 		{
 			ID:          71062,
-			Platform:    PlatformOpenAI,
-			Type:        AccountTypeAPIKey,
-			Status:      StatusActive,
+			Platform:    capability.PlatformOpenAI,
+			Type:        capability.AccountTypeAPIKey,
+			Status:      billing.StatusActive,
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    2,
 			Extra: map[string]any{
-				openAINativeCompactionV2ModeExtraKey:    OpenAICompactModeForceOn,
-				"openai_native_compaction_v2_supported": false,
+				accountcore.OpenAINativeCompactionV2ModeExtraKey: accountcore.OpenAICompactModeForceOn,
+				"openai_native_compaction_v2_supported":          false,
 			},
 		},
 	}
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+		accountRepo: schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:       &schedulerTestGatewayCache{},
+		cfg:         cfg,
+		concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+			Event: logging.Event,
+		},
+		),
 	}
 
 	selection, _, err := svc.SelectAccountWithSchedulerForCapability(
@@ -389,9 +411,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode(
 		"",
 		"",
 		"gpt-5.6-sol",
-		nil,
-		OpenAIUpstreamTransportAny,
-		OpenAIEndpointCapabilityRemoteCompactionV2,
+		nil, egress.OpenAIUpstreamTransportAny, accountcore.OpenAIEndpointCapabilityRemoteCompactionV2,
 		false,
 		false,
 	)
@@ -409,13 +429,13 @@ func TestAllowsOpenAICompatibleCompact(t *testing.T) {
 		want    bool
 	}{
 		{name: "nil", account: nil, want: false},
-		{name: "non openai", account: &Account{Platform: PlatformAnthropic}, want: false},
-		{name: "grok", account: &Account{Platform: PlatformGrok}, want: true},
-		{name: "openai default enabled", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{}}, want: true},
-		{name: "openai enabled", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": "force_on"}}, want: true},
-		{name: "openai disabled", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": "force_off"}}, want: false},
-		{name: "force on", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOn}}, want: true},
-		{name: "force off overrides probe true", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOff, "openai_compact_supported": true}}, want: false},
+		{name: "non openai", account: &Account{Platform: capability.PlatformAnthropic}, want: false},
+		{name: "grok", account: &Account{Platform: capability.PlatformGrok}, want: true},
+		{name: "openai default enabled", account: &Account{Platform: capability.PlatformOpenAI, Extra: map[string]any{}}, want: true},
+		{name: "openai enabled", account: &Account{Platform: capability.PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": "force_on"}}, want: true},
+		{name: "openai disabled", account: &Account{Platform: capability.PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": "force_off"}}, want: false},
+		{name: "force on", account: &Account{Platform: capability.PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": accountcore.OpenAICompactModeForceOn}}, want: true},
+		{name: "force off overrides probe true", account: &Account{Platform: capability.PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": accountcore.OpenAICompactModeForceOff, "openai_compact_supported": true}}, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

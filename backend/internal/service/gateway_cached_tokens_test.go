@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -13,7 +15,7 @@ import (
 // ---------- reconcileCachedTokens 单元测试 ----------
 
 func TestReconcileCachedTokens_NilUsage(t *testing.T) {
-	assert.False(t, reconcileCachedTokens(nil))
+	assert.False(t, anthropic.ReconcileCachedTokens(nil))
 }
 
 func TestReconcileCachedTokens_AlreadyHasCacheRead(t *testing.T) {
@@ -22,7 +24,7 @@ func TestReconcileCachedTokens_AlreadyHasCacheRead(t *testing.T) {
 		"cache_read_input_tokens": float64(100),
 		"cached_tokens":           float64(50),
 	}
-	assert.False(t, reconcileCachedTokens(usage))
+	assert.False(t, anthropic.ReconcileCachedTokens(usage))
 	assert.Equal(t, float64(100), usage["cache_read_input_tokens"])
 }
 
@@ -34,7 +36,7 @@ func TestReconcileCachedTokens_KimiStyle(t *testing.T) {
 		"cache_read_input_tokens":     float64(0),
 		"cached_tokens":               float64(23),
 	}
-	assert.True(t, reconcileCachedTokens(usage))
+	assert.True(t, anthropic.ReconcileCachedTokens(usage))
 	assert.Equal(t, float64(23), usage["cache_read_input_tokens"])
 }
 
@@ -45,7 +47,7 @@ func TestReconcileCachedTokens_NoCachedTokens(t *testing.T) {
 		"cache_read_input_tokens":     float64(0),
 		"cache_creation_input_tokens": float64(0),
 	}
-	assert.False(t, reconcileCachedTokens(usage))
+	assert.False(t, anthropic.ReconcileCachedTokens(usage))
 	assert.Equal(t, float64(0), usage["cache_read_input_tokens"])
 }
 
@@ -55,7 +57,7 @@ func TestReconcileCachedTokens_CachedTokensZero(t *testing.T) {
 		"cache_read_input_tokens": float64(0),
 		"cached_tokens":           float64(0),
 	}
-	assert.False(t, reconcileCachedTokens(usage))
+	assert.False(t, anthropic.ReconcileCachedTokens(usage))
 	assert.Equal(t, float64(0), usage["cache_read_input_tokens"])
 }
 
@@ -64,7 +66,7 @@ func TestReconcileCachedTokens_MissingCacheReadField(t *testing.T) {
 	usage := map[string]any{
 		"cached_tokens": float64(42),
 	}
-	assert.True(t, reconcileCachedTokens(usage))
+	assert.True(t, anthropic.ReconcileCachedTokens(usage))
 	assert.Equal(t, float64(42), usage["cache_read_input_tokens"])
 }
 
@@ -97,7 +99,7 @@ func TestStreamingReconcile_MessageStart(t *testing.T) {
 	// 模拟 processSSEEvent 中的 reconcile 逻辑
 	if msg, ok := event["message"].(map[string]any); ok {
 		if u, ok := msg["usage"].(map[string]any); ok {
-			reconcileCachedTokens(u)
+			anthropic.ReconcileCachedTokens(u)
 		}
 	}
 
@@ -132,7 +134,7 @@ func TestStreamingReconcile_MessageStart_NativeClaude(t *testing.T) {
 
 	if msg, ok := event["message"].(map[string]any); ok {
 		if u, ok := msg["usage"].(map[string]any); ok {
-			reconcileCachedTokens(u)
+			anthropic.ReconcileCachedTokens(u)
 		}
 	}
 
@@ -165,7 +167,7 @@ func TestStreamingReconcile_MessageDelta(t *testing.T) {
 	// 模拟 processSSEEvent 中的 reconcile 逻辑
 	usage, ok := event["usage"].(map[string]any)
 	require.True(t, ok)
-	reconcileCachedTokens(usage)
+	anthropic.ReconcileCachedTokens(usage)
 	assert.Equal(t, float64(15), usage["cache_read_input_tokens"])
 }
 
@@ -183,7 +185,7 @@ func TestStreamingReconcile_MessageDelta_NativeClaude(t *testing.T) {
 
 	usage, ok := event["usage"].(map[string]any)
 	require.True(t, ok)
-	reconcileCachedTokens(usage)
+	anthropic.ReconcileCachedTokens(usage)
 	_, hasCacheRead := usage["cache_read_input_tokens"]
 	assert.False(t, hasCacheRead, "不应为原生 Claude 响应注入 cache_read_input_tokens")
 }
@@ -211,7 +213,7 @@ func TestNonStreamingReconcile_KimiResponse(t *testing.T) {
 
 	// 模拟 handleNonStreamingResponse 中的逻辑
 	var response struct {
-		Usage ClaudeUsage `json:"usage"`
+		Usage upstream.TokenUsage `json:"usage"`
 	}
 	require.NoError(t, json.Unmarshal(body, &response))
 
@@ -247,7 +249,7 @@ func TestNonStreamingReconcile_NativeClaude(t *testing.T) {
 	}`)
 
 	var response struct {
-		Usage ClaudeUsage `json:"usage"`
+		Usage upstream.TokenUsage `json:"usage"`
 	}
 	require.NoError(t, json.Unmarshal(body, &response))
 
@@ -268,7 +270,7 @@ func TestNonStreamingReconcile_NoCachedTokens(t *testing.T) {
 	}`)
 
 	var response struct {
-		Usage ClaudeUsage `json:"usage"`
+		Usage upstream.TokenUsage `json:"usage"`
 	}
 	require.NoError(t, json.Unmarshal(body, &response))
 

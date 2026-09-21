@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -27,7 +28,7 @@ func isOpenAICompatMessagesBridgeRequestBody(reqBody map[string]any) bool {
 	if input, ok := reqBody["input"].([]any); ok && inputContainsText(input, openAICompatClaudeCodeTodoGuardMarker) {
 		return true
 	}
-	return isOpenAICompatMessagesBridgePromptCacheKey(firstNonEmptyString(reqBody["prompt_cache_key"]))
+	return isOpenAICompatMessagesBridgePromptCacheKey(openai.FirstNonEmptyString(reqBody["prompt_cache_key"]))
 }
 
 func isOpenAICompatMessagesBridgePromptCacheKey(key string) bool {

@@ -4,8 +4,9 @@ package postgres
 import (
 	context "context"
 	fmt "fmt"
-	dbent "github.com/TokenFlux/TokenRouter/ent"
 	time "time"
+
+	dbent "github.com/TokenFlux/TokenRouter/ent"
 )
 
 type LifecycleParticipant struct {

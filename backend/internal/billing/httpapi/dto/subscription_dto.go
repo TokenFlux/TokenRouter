@@ -2,8 +2,9 @@
 package dto
 
 import (
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	time "time"
+
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 type SubscriptionPlan struct {

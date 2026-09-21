@@ -18,9 +18,12 @@ func (cyberBackgroundTasks) Go(name string, fn func()) bool {
 	return service.RunBackgroundTask(name, fn)
 }
 
-type cyberOpsWriter struct{ service *service.OpsService }
+type cyberOpsWriter struct {
+	service *ops.OpsService
+	queue   gatewayhttp.OpsErrorLogQueue
+}
 
-func (w cyberOpsWriter) Enqueue(in *ops.OpsInsertErrorLogInput) { enqueueOpsErrorLog(w.service, in) }
+func (w cyberOpsWriter) Enqueue(in *ops.OpsInsertErrorLogInput) { w.queue.Enqueue(w.service, in) }
 
 // NewCyberHTTPHandler 复用唯一 Recorder、moderation、会话与后台跟踪器，不创建队列。
 func (h *OpenAIGatewayHandler) NewCyberHTTPHandler() *gatewayhttp.CyberHandler {
@@ -32,8 +35,8 @@ func (h *OpenAIGatewayHandler) NewCyberHTTPHandler() *gatewayhttp.CyberHandler {
 		runtime.Recorder = h.completionRuntime()
 		runtime.Blocks = h.gatewayService
 	}
-	if h != nil && h.opsService != nil {
-		runtime.Ops = cyberOpsWriter{h.opsService}
+	if h != nil && h.opsService != nil && h.opsErrorQueue != nil {
+		runtime.Ops = cyberOpsWriter{h.opsService, h.opsErrorQueue}
 	}
 	var moderator gatewayhttp.ModerationPort
 	if h != nil {
@@ -58,16 +61,16 @@ func (p cyberHTTPBackend) Mark(c *gin.Context) *moderationflow.Mark {
 	return &v
 }
 func (p cyberHTTPBackend) StopKeepalive(c *gin.Context) bool {
-	return service.StopOpenAICompactSSEKeepaliveCommitted(c)
+	return gatewayhttp.StopOpenAICompactSSEKeepaliveCommitted(c)
 }
 func (p cyberHTTPBackend) MarkStream(c *gin.Context, k, m string, status int) {
-	service.MarkOpsStreamError(c, k, m, status)
+	gatewayhttp.MarkOpsStreamError(c, k, m, status)
 }
 func (p cyberHTTPBackend) FailedSSE(c *gin.Context, k, m string) bool {
-	return writeResponsesFailedSSE(c, k, "", m)
+	return gatewayhttp.WriteResponsesFailedSSE(c, k, "", m, gatewayhttp.ErrorRequestID(c), gatewayhttp.ErrorRequestModel(c))
 }
 func (p cyberHTTPBackend) UpstreamEndpoint(c *gin.Context, platform string) string {
-	return GetUpstreamEndpoint(c, platform)
+	return gatewayhttp.GetUpstreamEndpoint(c, platform)
 }
 
 // BindCyberHTTPHandler 在应用启动前固定审核编排入口，复用同一完成器。

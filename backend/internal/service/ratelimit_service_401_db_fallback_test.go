@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"testing"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,8 +43,8 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 
 		account := &Account{
 			ID:                      20,
-			Type:                    AccountTypeOAuth,
-			Platform:                PlatformGemini,
+			Type:                    capability.AccountTypeOAuth,
+			Platform:                capability.PlatformGemini,
 			TempUnschedulableReason: "",
 			Credentials: map[string]any{
 				"temp_unschedulable_enabled": true,
@@ -57,7 +59,7 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 		}
 
 		result := svc.CheckErrorPolicy(context.Background(), account, http.StatusUnauthorized, []byte(`unauthorized`))
-		require.Equal(t, ErrorPolicyNone, result, "gemini 401 with DB fallback showing previous 401 should escalate")
+		require.Equal(t, accountcore.ErrorPolicyNone, result, "gemini 401 with DB fallback showing previous 401 should escalate")
 	})
 
 	t.Run("antigravity_stays_temp", func(t *testing.T) {
@@ -71,8 +73,8 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 
 		account := &Account{
 			ID:                      20,
-			Type:                    AccountTypeOAuth,
-			Platform:                PlatformAntigravity,
+			Type:                    capability.AccountTypeOAuth,
+			Platform:                capability.PlatformAntigravity,
 			TempUnschedulableReason: "",
 			Credentials: map[string]any{
 				"temp_unschedulable_enabled": true,
@@ -87,7 +89,7 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 		}
 
 		result := svc.CheckErrorPolicy(context.Background(), account, http.StatusUnauthorized, []byte(`unauthorized`))
-		require.Equal(t, ErrorPolicyTempUnscheduled, result, "antigravity 401 skips escalation, stays temp-unscheduled")
+		require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "antigravity 401 skips escalation, stays temp-unscheduled")
 	})
 }
 
@@ -104,8 +106,8 @@ func TestCheckErrorPolicy_401_DBFallback_NoDBRecord_FirstHit(t *testing.T) {
 
 	account := &Account{
 		ID:                      21,
-		Type:                    AccountTypeOAuth,
-		Platform:                PlatformAntigravity,
+		Type:                    capability.AccountTypeOAuth,
+		Platform:                capability.PlatformAntigravity,
 		TempUnschedulableReason: "",
 		Credentials: map[string]any{
 			"temp_unschedulable_enabled": true,
@@ -120,7 +122,7 @@ func TestCheckErrorPolicy_401_DBFallback_NoDBRecord_FirstHit(t *testing.T) {
 	}
 
 	result := svc.CheckErrorPolicy(context.Background(), account, http.StatusUnauthorized, []byte(`unauthorized`))
-	require.Equal(t, ErrorPolicyTempUnscheduled, result, "401 first hit with no DB record should temp-unschedule")
+	require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "401 first hit with no DB record should temp-unschedule")
 }
 
 func TestCheckErrorPolicy_401_DBFallback_DBError_FirstHit(t *testing.T) {
@@ -133,8 +135,8 @@ func TestCheckErrorPolicy_401_DBFallback_DBError_FirstHit(t *testing.T) {
 
 	account := &Account{
 		ID:                      22,
-		Type:                    AccountTypeOAuth,
-		Platform:                PlatformAntigravity,
+		Type:                    capability.AccountTypeOAuth,
+		Platform:                capability.PlatformAntigravity,
 		TempUnschedulableReason: "",
 		Credentials: map[string]any{
 			"temp_unschedulable_enabled": true,
@@ -149,5 +151,5 @@ func TestCheckErrorPolicy_401_DBFallback_DBError_FirstHit(t *testing.T) {
 	}
 
 	result := svc.CheckErrorPolicy(context.Background(), account, http.StatusUnauthorized, []byte(`unauthorized`))
-	require.Equal(t, ErrorPolicyTempUnscheduled, result, "401 first hit with DB not found should temp-unschedule")
+	require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "401 first hit with DB not found should temp-unschedule")
 }

@@ -17,7 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // UsageLog is the model entity for the UsageLog schema.
@@ -84,7 +84,7 @@ type UsageLog struct {
 	// BalanceAmountUsd holds the value of the "balance_amount_usd" field.
 	BalanceAmountUsd float64 `json:"balance_amount_usd,omitempty"`
 	// BillingAllocations holds the value of the "billing_allocations" field.
-	BillingAllocations []domain.BillingAllocation `json:"billing_allocations,omitempty"`
+	BillingAllocations []billing.BillingAllocation `json:"billing_allocations,omitempty"`
 	// RateMultiplier holds the value of the "rate_multiplier" field.
 	RateMultiplier float64 `json:"rate_multiplier,omitempty"`
 	// 该请求是否因长上下文规则实际增加费用

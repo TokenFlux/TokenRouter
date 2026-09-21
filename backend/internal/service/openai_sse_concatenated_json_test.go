@@ -11,7 +11,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	openaicore "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +35,6 @@ func TestOpenAIStreamingPassthroughRepairsConcatenatedJSONDocumentsInSingleDataL
 }
 
 func TestOpenAIWSv2StreamingRepairsConcatenatedJSONDocumentsInSingleMessage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	largeInProgress, outputItemAdded, completed := openAIConcatenatedJSONTestEvents(t)
 	captureConn := &openAIWSCaptureConn{events: [][]byte{
@@ -52,19 +57,19 @@ func TestOpenAIWSv2StreamingRepairsConcatenatedJSONDocumentsInSingleMessage(t *t
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		cache:            &stubGatewayCache{},
-		httpUpstream:     &httpUpstreamRecorder{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		openaiWSPool:     pool,
-		toolCorrector:    NewCodexToolCorrector(),
+		cfg:          cfg,
+		cache:        &stubGatewayCache{},
+		httpUpstream: &httpUpstreamRecorder{},
+
+		openaiWSPool:  pool,
+		toolCorrector: openaicore.NewCodexToolCorrector(),
 	}
 	account := &Account{
 		ID:          2,
 		Name:        "ws-test",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
@@ -75,7 +80,7 @@ func TestOpenAIWSv2StreamingRepairsConcatenatedJSONDocumentsInSingleMessage(t *t
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	groupID := int64(1)
-	c.Set("api_key", &APIKey{GroupID: &groupID})
+	c.Set("api_key", &apikey.APIKey{GroupID: &groupID})
 
 	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
 	require.NoError(t, err)
@@ -101,7 +106,6 @@ func TestOpenAIWSv2RejectsMalformedUntypedMessageBeforeWritingDownstream(t *test
 }
 
 func TestOpenAIWSv2RejectsMalformedEventAfterWritingDownstream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	outputTextDelta := `{"type":"response.output_text.delta","delta":"ok","sequence_number":1}`
 	malformedMessage := `{"type":"response.in_progress"}unexpected-tail`
@@ -125,19 +129,19 @@ func TestOpenAIWSv2RejectsMalformedEventAfterWritingDownstream(t *testing.T) {
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		cache:            &stubGatewayCache{},
-		httpUpstream:     &httpUpstreamRecorder{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		openaiWSPool:     pool,
-		toolCorrector:    NewCodexToolCorrector(),
+		cfg:          cfg,
+		cache:        &stubGatewayCache{},
+		httpUpstream: &httpUpstreamRecorder{},
+
+		openaiWSPool:  pool,
+		toolCorrector: openaicore.NewCodexToolCorrector(),
 	}
 	account := &Account{
 		ID:          5,
 		Name:        "ws-malformed-event-after-output",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
@@ -148,7 +152,7 @@ func TestOpenAIWSv2RejectsMalformedEventAfterWritingDownstream(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	groupID := int64(1)
-	c.Set("api_key", &APIKey{GroupID: &groupID})
+	c.Set("api_key", &apikey.APIKey{GroupID: &groupID})
 
 	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
 	require.Error(t, err)
@@ -163,7 +167,6 @@ func TestOpenAIWSv2RejectsMalformedEventAfterWritingDownstream(t *testing.T) {
 
 func testOpenAIWSv2RejectsMalformedEventBeforeWritingDownstream(t *testing.T, malformedMessage []byte) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
 
 	_, _, completed := openAIConcatenatedJSONTestEvents(t)
 	outputTextDelta := `{"type":"response.output_text.delta","delta":"ok","sequence_number":3}`
@@ -188,19 +191,19 @@ func testOpenAIWSv2RejectsMalformedEventBeforeWritingDownstream(t *testing.T, ma
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		cache:            &stubGatewayCache{},
-		httpUpstream:     &httpUpstreamRecorder{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		openaiWSPool:     pool,
-		toolCorrector:    NewCodexToolCorrector(),
+		cfg:          cfg,
+		cache:        &stubGatewayCache{},
+		httpUpstream: &httpUpstreamRecorder{},
+
+		openaiWSPool:  pool,
+		toolCorrector: openaicore.NewCodexToolCorrector(),
 	}
 	account := &Account{
 		ID:          4,
 		Name:        "ws-malformed-event",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
@@ -211,11 +214,11 @@ func testOpenAIWSv2RejectsMalformedEventBeforeWritingDownstream(t *testing.T, ma
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	groupID := int64(1)
-	c.Set("api_key", &APIKey{GroupID: &groupID})
+	c.Set("api_key", &apikey.APIKey{GroupID: &groupID})
 
 	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
 	require.Error(t, err)
-	var fallbackErr *openAIWSFallbackError
+	var fallbackErr *ws.FallbackError
 	require.ErrorAs(t, err, &fallbackErr)
 	require.Equal(t, "invalid_event_json", fallbackErr.Reason)
 	require.Nil(t, result)
@@ -228,14 +231,14 @@ func TestSplitOpenAIConcatenatedJSONDocumentsRejectsPayloadOverRepairLimit(t *te
 	second := `{"type":"response.completed"}`
 	payload := first + second
 
-	documents, repaired := splitOpenAIConcatenatedJSONDocuments([]byte(payload))
+	documents, repaired := openai.SplitConcatenatedJSONDocuments([]byte(payload))
 	require.False(t, repaired)
 	require.Nil(t, documents)
 
 	line := "data: " + payload
 	scanner := bufio.NewScanner(strings.NewReader(line))
 	scanner.Buffer(make([]byte, 1024), len(line)+1)
-	documentScanner := newOpenAISSEJSONDocumentScanner(scanner)
+	documentScanner := openai.NewSSEJSONDocumentScanner(scanner)
 	require.True(t, documentScanner.Scan())
 	require.Equal(t, line, documentScanner.Text())
 	require.False(t, documentScanner.Scan())
@@ -243,7 +246,7 @@ func TestSplitOpenAIConcatenatedJSONDocumentsRejectsPayloadOverRepairLimit(t *te
 }
 
 func TestOpenAIWSv2StreamingBreaksConnectionWhenTerminalHasTrailingDocument(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	completed := `{"type":"response.completed","response":{"id":"resp_terminal_tail","usage":{"input_tokens":2,"output_tokens":1}}}`
 	tail := `{"type":"error","error":{"type":"upstream_error","message":"tail"}}`
 	captureConn := &openAIWSCaptureConn{events: [][]byte{[]byte(completed + tail)}}
@@ -263,19 +266,19 @@ func TestOpenAIWSv2StreamingBreaksConnectionWhenTerminalHasTrailingDocument(t *t
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		cache:            &stubGatewayCache{},
-		httpUpstream:     &httpUpstreamRecorder{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		openaiWSPool:     pool,
-		toolCorrector:    NewCodexToolCorrector(),
+		cfg:          cfg,
+		cache:        &stubGatewayCache{},
+		httpUpstream: &httpUpstreamRecorder{},
+
+		openaiWSPool:  pool,
+		toolCorrector: openaicore.NewCodexToolCorrector(),
 	}
 	account := &Account{
 		ID:          3,
 		Name:        "ws-terminal-tail",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
@@ -286,7 +289,7 @@ func TestOpenAIWSv2StreamingBreaksConnectionWhenTerminalHasTrailingDocument(t *t
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	groupID := int64(1)
-	c.Set("api_key", &APIKey{GroupID: &groupID})
+	c.Set("api_key", &apikey.APIKey{GroupID: &groupID})
 
 	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"hello"}`))
 	require.NoError(t, err)
@@ -297,7 +300,6 @@ func TestOpenAIWSv2StreamingBreaksConnectionWhenTerminalHasTrailingDocument(t *t
 
 func testOpenAIStreamingRepairsConcatenatedJSONDocuments(t *testing.T, passthrough bool, streamDataIntervalTimeout int) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
 
 	largeInProgress, outputItemAdded, completed := openAIConcatenatedJSONTestEvents(t)
 
@@ -323,11 +325,11 @@ func testOpenAIStreamingRepairsConcatenatedJSONDocuments(t *testing.T, passthrou
 			MaxLineSize:               defaultMaxLineSize,
 			StreamDataIntervalTimeout: streamDataIntervalTimeout,
 		}},
-		toolCorrector: NewCodexToolCorrector(),
+		toolCorrector: openaicore.NewCodexToolCorrector(),
 	}
-	account := &Account{ID: 1, Name: "test", Platform: PlatformOpenAI}
+	account := &Account{ID: 1, Name: "test", Platform: capability.PlatformOpenAI}
 
-	var usage *OpenAIUsage
+	var usage *openai.ForwardUsage
 	var err error
 	if passthrough {
 		result, forwardErr := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "gpt-5.6-sol", "gpt-5.6-sol")
@@ -356,7 +358,7 @@ func testOpenAIStreamingRepairsConcatenatedJSONDocuments(t *testing.T, passthrou
 
 func assertOpenAISSEFrames(t *testing.T, body string, expectedTypes []string) {
 	t.Helper()
-	var parser openAICompatSSEFrameParser
+	var parser openai.OpenAICompatSSEFrameParser
 	var eventTypes []string
 	for _, line := range strings.Split(body, "\n") {
 		frame, ok := parser.AddLine(strings.TrimSuffix(line, "\r"))

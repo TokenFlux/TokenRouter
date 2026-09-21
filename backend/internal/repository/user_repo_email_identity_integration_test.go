@@ -6,15 +6,17 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/ent/authidentity"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 func (s *UserRepoSuite) TestCreate_CreatesEmailAuthIdentityForNormalEmail() {
-	user := &service.User{
+	user := &identitycore.User{
 		Email:        "repo-create@example.com",
 		PasswordHash: "test-password-hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identitycore.RoleUser,
+		Status:       billing.StatusActive,
 		Concurrency:  2,
 	}
 
@@ -33,11 +35,11 @@ func (s *UserRepoSuite) TestCreate_CreatesEmailAuthIdentityForNormalEmail() {
 }
 
 func (s *UserRepoSuite) TestCreate_SkipsEmailAuthIdentityForSyntheticLinuxDoEmail() {
-	user := &service.User{
+	user := &identitycore.User{
 		Email:        "linuxdo-legacy-user@linuxdo-connect.invalid",
 		PasswordHash: "test-password-hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identitycore.RoleUser,
+		Status:       billing.StatusActive,
 		Concurrency:  2,
 	}
 
@@ -55,12 +57,12 @@ func (s *UserRepoSuite) TestCreate_SkipsEmailAuthIdentityForSyntheticLinuxDoEmai
 }
 
 func (s *UserRepoSuite) TestUpdate_ReplacesEmailAuthIdentityWhenEmailChanges() {
-	user := s.mustCreateUser(&service.User{
+	user := s.mustCreateUser(&identitycore.User{
 		Email: "before-update@example.com",
 	})
 
 	user.Email = "after-update@example.com"
-	s.Require().NoError(s.repo.Update(s.ctx, user, service.UserUpdateFields{Email: true}))
+	s.Require().NoError(s.repo.Update(s.ctx, user, identitycore.UserUpdateFields{Email: true}))
 
 	newIdentity, err := s.client.AuthIdentity.Query().
 		Where(

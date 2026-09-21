@@ -6,30 +6,34 @@ import (
 	"testing"
 	"time"
 
+	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseSSEUsagePassthroughNormalizesKimiPromptUsage(t *testing.T) {
-	usage := &ClaudeUsage{}
+	usage := &upstream.TokenUsage{}
 
-	parseSSEUsagePassthrough(`{"type":"message_start","message":{"usage":{"input_tokens":173306,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"prompt_tokens":173306,"cached_tokens":0}}}`, usage)
+	protocolanthropic.ParseSSEUsagePassthrough(`{"type":"message_start","message":{"usage":{"input_tokens":173306,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":0,"prompt_tokens":173306,"cached_tokens":0}}}`, usage)
 	require.Equal(t, 173306, usage.InputTokens)
 	require.Zero(t, usage.CacheReadInputTokens)
 
-	parseSSEUsagePassthrough(`{"type":"message_delta","usage":{"input_tokens":250,"cache_creation_input_tokens":0,"cache_read_input_tokens":173056,"output_tokens":166,"prompt_tokens":173306,"cached_tokens":173056}}`, usage)
+	protocolanthropic.ParseSSEUsagePassthrough(`{"type":"message_delta","usage":{"input_tokens":250,"cache_creation_input_tokens":0,"cache_read_input_tokens":173056,"output_tokens":166,"prompt_tokens":173306,"cached_tokens":173056}}`, usage)
 	require.Equal(t, 250, usage.InputTokens, "Kimi message_delta input_tokens is already the uncached bucket")
 	require.Equal(t, 173056, usage.CacheReadInputTokens)
 	require.Equal(t, 166, usage.OutputTokens)
 }
 
 func TestParseSSEUsagePassthroughKimiFullyCachedInputReplacesStartTotal(t *testing.T) {
-	usage := &ClaudeUsage{}
+	usage := &upstream.TokenUsage{}
 
-	parseSSEUsagePassthrough(`{"type":"message_start","message":{"usage":{"input_tokens":173306,"prompt_tokens":173306}}}`, usage)
-	parseSSEUsagePassthrough(`{"type":"message_delta","usage":{"input_tokens":0,"cache_read_input_tokens":173306,"output_tokens":8,"prompt_tokens":173306,"cached_tokens":173306}}`, usage)
+	protocolanthropic.ParseSSEUsagePassthrough(`{"type":"message_start","message":{"usage":{"input_tokens":173306,"prompt_tokens":173306}}}`, usage)
+	protocolanthropic.ParseSSEUsagePassthrough(`{"type":"message_delta","usage":{"input_tokens":0,"cache_read_input_tokens":173306,"output_tokens":8,"prompt_tokens":173306,"cached_tokens":173306}}`, usage)
 
 	require.Zero(t, usage.InputTokens, "an explicit zero uncached bucket must not retain message_start's total")
 	require.Equal(t, 173306, usage.CacheReadInputTokens)
@@ -68,7 +72,7 @@ func TestParseClaudeUsageFromResponseBodyNormalizesCNProviderAliases(t *testing.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			usage := parseClaudeUsageFromResponseBody([]byte(tt.body))
+			usage := protocolanthropic.ParseClaudeUsageFromResponseBody([]byte(tt.body))
 			require.Equal(t, tt.wantInput, usage.InputTokens)
 			require.Equal(t, tt.wantCacheRead, usage.CacheReadInputTokens)
 			require.Equal(t, tt.wantOutput, usage.OutputTokens)
@@ -99,8 +103,8 @@ func TestParseSSEUsagePassthroughNormalizesGLMAndDeepSeekAliases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			usage := &ClaudeUsage{}
-			parseSSEUsagePassthrough(tt.data, usage)
+			usage := &upstream.TokenUsage{}
+			protocolanthropic.ParseSSEUsagePassthrough(tt.data, usage)
 			require.Equal(t, tt.wantInput, usage.InputTokens)
 			require.Equal(t, tt.wantCacheRead, usage.CacheReadInputTokens)
 			require.Equal(t, 30, usage.OutputTokens)
@@ -114,13 +118,13 @@ func TestMergeAnthropicUsageNormalizesKimiStreamForOpenAIBilling(t *testing.T) {
 	var delta protocolanthropic.AnthropicStreamEvent
 	require.NoError(t, json.Unmarshal([]byte(`{"type":"message_delta","usage":{"input_tokens":250,"cache_read_input_tokens":173056,"output_tokens":166,"prompt_tokens":173306,"cached_tokens":173056}}`), &delta))
 
-	usage := &ClaudeUsage{}
-	mergeAnthropicUsage(usage, start.Message.Usage)
-	mergeAnthropicUsage(usage, *delta.Usage)
+	usage := &upstream.TokenUsage{}
+	protocolanthropic.MergeAnthropicUsage(usage, start.Message.Usage)
+	protocolanthropic.MergeAnthropicUsage(usage, *delta.Usage)
 	require.Equal(t, 250, usage.InputTokens)
 	require.Equal(t, 173056, usage.CacheReadInputTokens)
 
-	openAIUsage := claudeUsageToOpenAIUsage(usage)
+	openAIUsage := openaiforward.AnthropicUsageToOpenAI(usage)
 	require.Equal(t, 173306, openAIUsage.InputTokens, "OpenAI gateway expects an inclusive input total")
 	require.Equal(t, 250, openAIUsage.InputTokens-openAIUsage.CacheReadInputTokens-openAIUsage.CacheCreationInputTokens)
 	require.Equal(t, 166, openAIUsage.OutputTokens)
@@ -146,12 +150,12 @@ func TestMergeAnthropicUsageNormalizesGLMAndDeepSeekAliases(t *testing.T) {
 			var src protocolanthropic.AnthropicUsage
 			require.NoError(t, json.Unmarshal([]byte(tt.raw), &src))
 
-			usage := &ClaudeUsage{}
-			mergeAnthropicUsage(usage, src)
+			usage := &upstream.TokenUsage{}
+			protocolanthropic.MergeAnthropicUsage(usage, src)
 			require.Equal(t, 400, usage.InputTokens)
 			require.Equal(t, 800, usage.CacheReadInputTokens)
 
-			openAIUsage := claudeUsageToOpenAIUsage(usage)
+			openAIUsage := openaiforward.AnthropicUsageToOpenAI(usage)
 			require.Equal(t, 1200, openAIUsage.InputTokens)
 			require.Equal(t, 400, openAIUsage.InputTokens-openAIUsage.CacheReadInputTokens-openAIUsage.CacheCreationInputTokens)
 		})
@@ -161,13 +165,13 @@ func TestMergeAnthropicUsageNormalizesGLMAndDeepSeekAliases(t *testing.T) {
 func TestClaudeUsageToOpenAIUsagePreservesCNProviderNativeAnthropicBuckets(t *testing.T) {
 	tests := []struct {
 		name         string
-		usage        ClaudeUsage
+		usage        upstream.TokenUsage
 		wantTotal    int
 		wantUncached int
 	}{
 		{
 			name: "GLM",
-			usage: ClaudeUsage{
+			usage: upstream.TokenUsage{
 				InputTokens:              2,
 				OutputTokens:             302,
 				CacheCreationInputTokens: 733,
@@ -178,7 +182,7 @@ func TestClaudeUsageToOpenAIUsagePreservesCNProviderNativeAnthropicBuckets(t *te
 		},
 		{
 			name: "DeepSeek",
-			usage: ClaudeUsage{
+			usage: upstream.TokenUsage{
 				InputTokens:          400,
 				OutputTokens:         30,
 				CacheReadInputTokens: 800,
@@ -190,7 +194,7 @@ func TestClaudeUsageToOpenAIUsagePreservesCNProviderNativeAnthropicBuckets(t *te
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			openAIUsage := claudeUsageToOpenAIUsage(&tt.usage)
+			openAIUsage := openaiforward.AnthropicUsageToOpenAI(&tt.usage)
 			require.Equal(t, tt.wantTotal, openAIUsage.InputTokens)
 			require.Equal(t, tt.wantUncached, openAIUsage.InputTokens-openAIUsage.CacheReadInputTokens-openAIUsage.CacheCreationInputTokens)
 			require.Equal(t, tt.usage.CacheReadInputTokens, openAIUsage.CacheReadInputTokens)
@@ -229,17 +233,17 @@ func TestCNProviderAnthropicUsageBillsUncachedInput(t *testing.T) {
 	billing := NewBillingService(&config.Config{}, nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			claudeUsage := parseClaudeUsageFromResponseBody([]byte(tt.body))
-			openAIUsage := claudeUsageToOpenAIUsage(claudeUsage)
+			claudeUsage := protocolanthropic.ParseClaudeUsageFromResponseBody([]byte(tt.body))
+			openAIUsage := openaiforward.AnthropicUsageToOpenAI(claudeUsage)
 			uncachedInput := max(openAIUsage.InputTokens-openAIUsage.CacheReadInputTokens-openAIUsage.CacheCreationInputTokens, 0)
 			require.Equal(t, tt.wantInput, uncachedInput)
 
 			// 固定平时时刻，本用例只验证未缓存输入计费，不依赖执行时是否处于高峰。
-			cost, err := billing.CalculateCostUnified(CostInput{
+			cost, err := billing.CalculateCostUnified(billingcore.CostInput{
 				Ctx: context.Background(), Model: tt.model, RateMultiplier: 1,
 				Resolver:  NewModelPricingResolver(nil, billing),
 				PricingAt: time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC),
-				Tokens: UsageTokens{
+				Tokens: billingpricing.UsageTokens{
 					InputTokens: uncachedInput, OutputTokens: openAIUsage.OutputTokens,
 					CacheCreationTokens: openAIUsage.CacheCreationInputTokens,
 					CacheReadTokens:     openAIUsage.CacheReadInputTokens,

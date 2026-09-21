@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,19 +14,19 @@ func TestGrokTeamModelRateLimit_MarksAndFiltersSiblings(t *testing.T) {
 	// 使用唯一团队 ID，避免与其他测试相互影响。
 	team := "team-test-" + time.Now().Format("150405.000")
 	a1 := &Account{
-		ID: 101, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		ID: 101, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"team_id": team},
 	}
 	a2 := &Account{
-		ID: 102, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		ID: 102, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"team_id": team},
 	}
 	other := &Account{
-		ID: 103, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		ID: 103, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"team_id": team + "-other"},
 	}
 	noTeam := &Account{
-		ID: 104, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		ID: 104, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{},
 	}
 
@@ -48,7 +49,7 @@ func TestGrokTeamModelRateLimit_MarksAndFiltersSiblings(t *testing.T) {
 func TestGrokTeamModelRateLimit_Expires(t *testing.T) {
 	team := "team-expire-" + time.Now().Format("150405.000")
 	a := &Account{
-		ID: 201, Platform: PlatformGrok, Type: AccountTypeOAuth,
+		ID: 201, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"team_id": team},
 	}
 	past := time.Now().Add(-time.Minute)
@@ -62,8 +63,8 @@ func TestGrokTeamModelRateLimitFilterUsesMappedUpstreamModel(t *testing.T) {
 	now := time.Now()
 	account := &Account{
 		ID:       301,
-		Platform: PlatformGrok,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"team_id":       "team-mapped-301",
 			"model_mapping": map[string]any{"gpt-*": "grok-4.5"},

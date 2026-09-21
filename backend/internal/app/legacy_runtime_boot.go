@@ -5,20 +5,20 @@ package app
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	provider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
 
-	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 type bootRuntimeReady struct{}
 
 func provideBootRuntime(
-	creativeWorker *service.CreativeWorkerRuntime,
-	pricing *service.PricingService,
+	pricing *provider.PricingService,
 	manager *lifecycle.Manager,
-	settingService *service.SettingService, forwarded *runtimeconfig.ForwardedSettings,
+	settingService *gateway.RuntimeSettings, forwarded *runtimeconfig.ForwardedSettings,
 ) *bootRuntimeReady {
 	pricingReady := false
 	manager.Register(lifecycle.Hook{Name: "PricingInitialization", StartOrder: 188, Start: func(context.Context) error {
@@ -42,8 +42,6 @@ func provideBootRuntime(
 		}
 		return nil
 	}})
-	settingService.SetCreativeWorkerCountCallback(creativeWorker.SetWorkerCount)
-	settingService.SetCreativeWorkerStatusCallback(creativeWorker.Status)
 
 	manager.Register(lifecycle.Hook{Name: "PricingService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if pricing != nil && pricingReady {

@@ -8,8 +8,15 @@ import (
 	"testing"
 	"time"
 
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	promotionpostgres "github.com/TokenFlux/TokenRouter/internal/promotion/postgres"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,13 +52,13 @@ func TestAffiliateRepository_TransferQuotaToBalance_UsesClaimedQuotaBeforeClear(
 	txCtx := dbent.NewTxContext(ctx, tx)
 	client := tx.Client()
 
-	repo := NewAffiliateRepository(client, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 
-	u := mustCreateUser(t, client, &service.User{
+	u := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-transfer-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 		Balance:      5.5,
 		Concurrency:  5,
 	})
@@ -120,22 +127,22 @@ func TestAffiliateRepository_AccrueQuota_ReusesOuterTransaction(t *testing.T) {
 	client := outerTx.Client()
 	txCtx := dbent.NewTxContext(ctx, outerTx)
 
-	inviter := mustCreateUser(t, client, &service.User{
+	inviter := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-inviter-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 		Concurrency:  5,
 	})
-	invitee := mustCreateUser(t, client, &service.User{
+	invitee := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-invitee-%d@example.com", time.Now().UnixNano()+1),
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 		Concurrency:  5,
 	})
 
-	repo := NewAffiliateRepository(client, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 	_, err = repo.EnsureUserAffiliate(txCtx, inviter.ID)
 	require.NoError(t, err)
 	_, err = repo.EnsureUserAffiliate(txCtx, invitee.ID)
@@ -176,13 +183,13 @@ func TestAffiliateRepository_TransferQuotaToBalance_EmptyQuota(t *testing.T) {
 	txCtx := dbent.NewTxContext(ctx, tx)
 	client := tx.Client()
 
-	repo := NewAffiliateRepository(client, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 
-	u := mustCreateUser(t, client, &service.User{
+	u := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-empty-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 		Balance:      3.21,
 		Concurrency:  5,
 	})
@@ -194,7 +201,7 @@ VALUES ($1, $2, 0, 0, NOW(), NOW())`, u.ID, affCode)
 	require.NoError(t, err)
 
 	transferred, balance, err := repo.TransferQuotaToBalance(txCtx, u.ID)
-	require.ErrorIs(t, err, service.ErrAffiliateQuotaEmpty)
+	require.ErrorIs(t, err, promotion.ErrAffiliateQuotaEmpty)
 	require.InDelta(t, 0.0, transferred, 1e-9)
 	require.InDelta(t, 0.0, balance, 1e-9)
 
@@ -218,13 +225,13 @@ func TestAffiliateRepository_AdminCustomCode(t *testing.T) {
 	txCtx := dbent.NewTxContext(ctx, tx)
 	client := tx.Client()
 
-	repo := NewAffiliateRepository(client, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 
-	u := mustCreateUser(t, client, &service.User{
+	u := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-custom-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	})
 
 	original, err := repo.EnsureUserAffiliate(txCtx, u.ID)
@@ -248,7 +255,7 @@ func TestAffiliateRepository_AdminCustomCode(t *testing.T) {
 
 	// Old system code should no longer match
 	_, err = repo.GetAffiliateByCode(txCtx, originalCode)
-	require.ErrorIs(t, err, service.ErrAffiliateProfileNotFound)
+	require.ErrorIs(t, err, promotion.ErrAffiliateProfileNotFound)
 
 	// Reset back to a fresh system code, clears custom flag
 	newSysCode, err := repo.ResetUserAffCode(txCtx, u.ID)
@@ -262,7 +269,7 @@ func TestAffiliateRepository_AdminCustomCode(t *testing.T) {
 
 	// The old custom code is now free again
 	_, err = repo.GetAffiliateByCode(txCtx, customCode)
-	require.ErrorIs(t, err, service.ErrAffiliateProfileNotFound)
+	require.ErrorIs(t, err, promotion.ErrAffiliateProfileNotFound)
 }
 
 // TestAffiliateRepository_AdminCustomCode_Conflict isolates the unique-violation
@@ -275,17 +282,17 @@ func TestAffiliateRepository_AdminCustomCode_Conflict(t *testing.T) {
 	txCtx := dbent.NewTxContext(ctx, tx)
 	client := tx.Client()
 
-	repo := NewAffiliateRepository(client, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 
-	taker := mustCreateUser(t, client, &service.User{
+	taker := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-conflict-taker-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser, Status: service.StatusActive,
+		Role:         identity.RoleUser, Status: billing.StatusActive,
 	})
-	requester := mustCreateUser(t, client, &service.User{
+	requester := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-conflict-req-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser, Status: service.StatusActive,
+		Role:         identity.RoleUser, Status: billing.StatusActive,
 	})
 
 	takenCode := fmt.Sprintf("HOT%09d", time.Now().UnixNano()%1_000_000_000)
@@ -293,7 +300,7 @@ func TestAffiliateRepository_AdminCustomCode_Conflict(t *testing.T) {
 
 	// Now requester tries to grab the same code → conflict.
 	err := repo.UpdateUserAffCode(txCtx, requester.ID, takenCode)
-	require.ErrorIs(t, err, service.ErrAffiliateCodeTaken)
+	require.ErrorIs(t, err, promotion.ErrAffiliateCodeTaken)
 }
 
 // TestAffiliateRepository_AdminRebateRate covers per-user exclusive rate
@@ -304,19 +311,19 @@ func TestAffiliateRepository_AdminRebateRate(t *testing.T) {
 	txCtx := dbent.NewTxContext(ctx, tx)
 	client := tx.Client()
 
-	repo := NewAffiliateRepository(client, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 
-	u1 := mustCreateUser(t, client, &service.User{
+	u1 := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-rate-%d-a@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	})
-	u2 := mustCreateUser(t, client, &service.User{
+	u2 := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-rate-%d-b@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	})
 
 	// Set exclusive rate for u1
@@ -362,42 +369,42 @@ func TestAffiliateRepository_ListUsersWithCustomSettings(t *testing.T) {
 	txCtx := dbent.NewTxContext(ctx, tx)
 	client := tx.Client()
 
-	repo := NewAffiliateRepository(client, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 
 	// User without any custom config — should NOT appear in the list.
 	plainEmail := fmt.Sprintf("affiliate-plain-%d@example.com", time.Now().UnixNano())
-	uPlain := mustCreateUser(t, client, &service.User{
+	uPlain := mustCreateUser(t, client, &identity.User{
 		Email: plainEmail, PasswordHash: "hash",
-		Role: service.RoleUser, Status: service.StatusActive,
+		Role: identity.RoleUser, Status: billing.StatusActive,
 	})
 	_, err := repo.EnsureUserAffiliate(txCtx, uPlain.ID)
 	require.NoError(t, err)
 
 	// User with a custom code — should appear.
-	uCode := mustCreateUser(t, client, &service.User{
+	uCode := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-codeonly-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser, Status: service.StatusActive,
+		Role:         identity.RoleUser, Status: billing.StatusActive,
 	})
 	require.NoError(t, repo.UpdateUserAffCode(txCtx, uCode.ID, fmt.Sprintf("VIP%09d", time.Now().UnixNano()%1_000_000_000)))
 
 	// User with only an exclusive rate — should appear.
-	uRate := mustCreateUser(t, client, &service.User{
+	uRate := mustCreateUser(t, client, &identity.User{
 		Email:        fmt.Sprintf("affiliate-rateonly-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Role:         service.RoleUser, Status: service.StatusActive,
+		Role:         identity.RoleUser, Status: billing.StatusActive,
 	})
 	r := 33.3
 	require.NoError(t, repo.SetUserRebateRate(txCtx, uRate.ID, &r))
 
-	entries, total, err := repo.ListUsersWithCustomSettings(txCtx, service.AffiliateAdminFilter{
+	entries, total, err := repo.ListUsersWithCustomSettings(txCtx, promotion.AffiliateAdminFilter{
 		Page: 1, PageSize: 100,
 	})
 	require.NoError(t, err)
 
 	// Build a quick lookup to assert per-user attributes (other tests may have
 	// inserted custom rows in the same DB; we only care about our 3).
-	byUserID := make(map[int64]service.AffiliateAdminEntry, len(entries))
+	byUserID := make(map[int64]promotion.AffiliateAdminEntry, len(entries))
 	for _, e := range entries {
 		byUserID[e.UserID] = e
 	}

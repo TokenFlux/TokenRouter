@@ -6,93 +6,94 @@ import (
 	"strings"
 	"testing"
 
-	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	s15httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 )
 
 func TestNormalizeGroupAvailabilityProbeConfig(t *testing.T) {
 	tests := []struct {
 		name    string
-		input   GroupAvailabilityProbeConfig
-		want    GroupAvailabilityProbeConfig
+		input   routing.GroupAvailabilityProbeConfig
+		want    routing.GroupAvailabilityProbeConfig
 		wantErr bool
 	}{
 		{
 			name:  "disabled clears detail fields",
-			input: GroupAvailabilityProbeConfig{Enabled: false, ModelID: "gpt-5.4", Prompt: "hi", IntervalMinutes: 10, TimeoutSeconds: 10, MaxRetries: groupAvailabilityProbeRetryPointer(2), UserAgent: "probe/1.0"},
-			want:  GroupAvailabilityProbeConfig{},
+			input: routing.GroupAvailabilityProbeConfig{Enabled: false, ModelID: "gpt-5.4", Prompt: "hi", IntervalMinutes: 10, TimeoutSeconds: 10, MaxRetries: groupAvailabilityProbeRetryPointer(2), UserAgent: "probe/1.0"},
+			want:  routing.GroupAvailabilityProbeConfig{},
 		},
 		{
 			name:  "enabled applies defaults and trims strings",
-			input: GroupAvailabilityProbeConfig{Enabled: true, ModelID: " gpt-5.4 ", Prompt: " hi ", UserAgent: " probe/1.0 "},
-			want: GroupAvailabilityProbeConfig{
+			input: routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: " gpt-5.4 ", Prompt: " hi ", UserAgent: " probe/1.0 "},
+			want: routing.GroupAvailabilityProbeConfig{
 				Enabled:         true,
 				ModelID:         "gpt-5.4",
 				Prompt:          "hi",
-				IntervalMinutes: defaultGroupAvailabilityProbeIntervalMinutes,
-				TimeoutSeconds:  defaultGroupAvailabilityProbeTimeoutSeconds,
-				MaxRetries:      groupAvailabilityProbeRetryPointer(defaultGroupAvailabilityProbeMaxRetries),
+				IntervalMinutes: routing.DefaultGroupAvailabilityProbeIntervalMinutes,
+				TimeoutSeconds:  routing.DefaultGroupAvailabilityProbeTimeoutSeconds,
+				MaxRetries:      groupAvailabilityProbeRetryPointer(routing.DefaultGroupAvailabilityProbeMaxRetries),
 				UserAgent:       "probe/1.0",
 			},
 		},
 		{
 			name:  "enabled preserves explicit zero retries",
-			input: GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", MaxRetries: groupAvailabilityProbeRetryPointer(0)},
-			want: GroupAvailabilityProbeConfig{
+			input: routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", MaxRetries: groupAvailabilityProbeRetryPointer(0)},
+			want: routing.GroupAvailabilityProbeConfig{
 				Enabled:         true,
 				ModelID:         "gpt-5.4",
 				Prompt:          "hi",
-				IntervalMinutes: defaultGroupAvailabilityProbeIntervalMinutes,
-				TimeoutSeconds:  defaultGroupAvailabilityProbeTimeoutSeconds,
+				IntervalMinutes: routing.DefaultGroupAvailabilityProbeIntervalMinutes,
+				TimeoutSeconds:  routing.DefaultGroupAvailabilityProbeTimeoutSeconds,
 				MaxRetries:      groupAvailabilityProbeRetryPointer(0),
 			},
 		},
 		{
 			name:    "enabled requires model",
-			input:   GroupAvailabilityProbeConfig{Enabled: true, Prompt: "hi"},
+			input:   routing.GroupAvailabilityProbeConfig{Enabled: true, Prompt: "hi"},
 			wantErr: true,
 		},
 		{
 			name:    "enabled requires prompt",
-			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4"},
+			input:   routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4"},
 			wantErr: true,
 		},
 		{
 			name:    "rejects too short interval",
-			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", IntervalMinutes: -1},
+			input:   routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", IntervalMinutes: -1},
 			wantErr: true,
 		},
 		{
 			name:    "rejects too short timeout",
-			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", TimeoutSeconds: 1},
+			input:   routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", TimeoutSeconds: 1},
 			wantErr: true,
 		},
 		{
 			name:    "rejects negative retries",
-			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", MaxRetries: groupAvailabilityProbeRetryPointer(-1)},
+			input:   routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", MaxRetries: groupAvailabilityProbeRetryPointer(-1)},
 			wantErr: true,
 		},
 		{
 			name:    "rejects too many retries",
-			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", MaxRetries: groupAvailabilityProbeRetryPointer(maxGroupAvailabilityProbeMaxRetries + 1)},
+			input:   routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", MaxRetries: groupAvailabilityProbeRetryPointer(routing.MaxGroupAvailabilityProbeMaxRetries + 1)},
 			wantErr: true,
 		},
 		{
 			name:    "rejects too long user agent",
-			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", UserAgent: strings.Repeat("a", maxGroupAvailabilityProbeUserAgentLength+1)},
+			input:   routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", UserAgent: strings.Repeat("a", routing.MaxGroupAvailabilityProbeUserAgentLength+1)},
 			wantErr: true,
 		},
 		{
 			name:    "rejects invalid user agent header characters",
-			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", UserAgent: "probe/1.0\r\nx-test: injected"},
+			input:   routing.GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", UserAgent: "probe/1.0\r\nx-test: injected"},
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := normalizeGroupAvailabilityProbeConfig(tt.input)
+			got, err := routing.NormalizeGroupAvailabilityProbeConfig(tt.input)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatalf("normalizeGroupAvailabilityProbeConfig() expected error")
@@ -115,17 +116,17 @@ func groupAvailabilityProbeRetryPointer(value int) *int {
 }
 
 func TestNormalizeGroupAvailabilityProbeConfigForAdminWriteReturnsBadRequest(t *testing.T) {
-	_, err := normalizeGroupAvailabilityProbeConfigForAdminWrite(GroupAvailabilityProbeConfig{
+	_, err := routing.NormalizeGroupAvailabilityProbeConfigForAdminWrite(routing.GroupAvailabilityProbeConfig{
 		Enabled:    true,
 		ModelID:    "gpt-5.4",
 		Prompt:     "hi",
-		MaxRetries: groupAvailabilityProbeRetryPointer(maxGroupAvailabilityProbeMaxRetries + 1),
+		MaxRetries: groupAvailabilityProbeRetryPointer(routing.MaxGroupAvailabilityProbeMaxRetries + 1),
 	})
 
 	if s15httpx.ErrorCode(err) != http.StatusBadRequest {
 		t.Fatalf("normalizeGroupAvailabilityProbeConfigForAdminWrite() status = %d, want %d", s15httpx.ErrorCode(err), http.StatusBadRequest)
 	}
-	if infraerrors.Reason(err) != invalidGroupAvailabilityProbeConfigReason {
-		t.Fatalf("normalizeGroupAvailabilityProbeConfigForAdminWrite() reason = %q, want %q", infraerrors.Reason(err), invalidGroupAvailabilityProbeConfigReason)
+	if apperror.Reason(err) != routing.InvalidGroupAvailabilityProbeConfigReason {
+		t.Fatalf("normalizeGroupAvailabilityProbeConfigForAdminWrite() reason = %q, want %q", apperror.Reason(err), routing.InvalidGroupAvailabilityProbeConfigReason)
 	}
 }

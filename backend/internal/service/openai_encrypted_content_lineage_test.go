@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 )
 
 func TestCollectOpenAIEncryptedContentDigestsRaw(t *testing.T) {
 	t.Parallel()
 
-	digests := collectOpenAIEncryptedContentDigestsRaw([]byte(`{"input":[
+	digests := openai.CollectOpenAIEncryptedContentDigestsRaw([]byte(`{"input":[
 		{"type":"reasoning","encrypted_content":"cipher-a"},
 		{"type":"compaction","encrypted_content":"cipher-b"},
 		{"type":"input_text","text":"hello"},
@@ -19,18 +20,18 @@ func TestCollectOpenAIEncryptedContentDigestsRaw(t *testing.T) {
 	]}`))
 	// 剥离端处理不了的类型（message）不收摘要，否则该摘要永远命中却剥不掉。
 	require.Equal(t, []string{
-		openAIEncryptedContentDigest("cipher-a"),
-		openAIEncryptedContentDigest("cipher-b"),
+		openai.OpenAIEncryptedContentDigest("cipher-a"),
+		openai.OpenAIEncryptedContentDigest("cipher-b"),
 	}, digests)
 
-	require.Nil(t, collectOpenAIEncryptedContentDigestsRaw([]byte(`{"model":"gpt-5"}`)))
+	require.Nil(t, openai.CollectOpenAIEncryptedContentDigestsRaw([]byte(`{"model":"gpt-5"}`)))
 }
 
 func TestStripOpenAIInvalidEncryptedContentItems(t *testing.T) {
 	t.Parallel()
 
 	invalid := map[string]struct{}{
-		openAIEncryptedContentDigest("stale-cipher"): {},
+		openai.OpenAIEncryptedContentDigest("stale-cipher"): {},
 	}
 
 	t.Run("only_strips_matching_items", func(t *testing.T) {
@@ -42,7 +43,7 @@ func TestStripOpenAIInvalidEncryptedContentItems(t *testing.T) {
 				map[string]any{"type": "input_text", "text": "hello"},
 			},
 		}
-		stripped := stripOpenAIInvalidEncryptedContentItems(reqBody, invalid)
+		stripped := openai.StripOpenAIInvalidEncryptedContentItems(reqBody, invalid)
 		require.Equal(t, 1, stripped)
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
@@ -65,7 +66,7 @@ func TestStripOpenAIInvalidEncryptedContentItems(t *testing.T) {
 				map[string]any{"type": "input_text", "text": "hello"},
 			},
 		}
-		stripped := stripOpenAIInvalidEncryptedContentItems(reqBody, invalid)
+		stripped := openai.StripOpenAIInvalidEncryptedContentItems(reqBody, invalid)
 		require.Equal(t, 1, stripped)
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
@@ -82,7 +83,7 @@ func TestStripOpenAIInvalidEncryptedContentItems(t *testing.T) {
 				map[string]any{"type": "reasoning", "encrypted_content": "fresh-cipher"},
 			},
 		}
-		require.Zero(t, stripOpenAIInvalidEncryptedContentItems(reqBody, invalid))
+		require.Zero(t, openai.StripOpenAIInvalidEncryptedContentItems(reqBody, invalid))
 	})
 }
 
@@ -90,7 +91,7 @@ func TestStripOpenAIInvalidEncryptedContentFromReplayItems(t *testing.T) {
 	t.Parallel()
 
 	invalid := map[string]struct{}{
-		openAIEncryptedContentDigest("stale-cipher"): {},
+		openai.OpenAIEncryptedContentDigest("stale-cipher"): {},
 	}
 
 	t.Run("rewrites_hit_items_and_shares_the_rest", func(t *testing.T) {
@@ -100,7 +101,7 @@ func TestStripOpenAIInvalidEncryptedContentFromReplayItems(t *testing.T) {
 		compaction := json.RawMessage(`{"type":"compaction","encrypted_content":"stale-cipher"}`)
 		items := []json.RawMessage{original, clean, compaction}
 
-		next, stripped := stripOpenAIInvalidEncryptedContentFromReplayItems(items, invalid)
+		next, stripped := openai.StripOpenAIInvalidEncryptedContentFromReplayItems(items, invalid)
 		require.Equal(t, 2, stripped)
 		require.Len(t, next, 2, "compaction 命中项应整项删除")
 		var rewritten map[string]any
@@ -116,7 +117,7 @@ func TestStripOpenAIInvalidEncryptedContentFromReplayItems(t *testing.T) {
 	t.Run("miss_returns_original_header", func(t *testing.T) {
 		t.Parallel()
 		items := []json.RawMessage{json.RawMessage(`{"type":"reasoning","encrypted_content":"fresh-cipher"}`)}
-		next, stripped := stripOpenAIInvalidEncryptedContentFromReplayItems(items, invalid)
+		next, stripped := openai.StripOpenAIInvalidEncryptedContentFromReplayItems(items, invalid)
 		require.Zero(t, stripped)
 		require.Same(t, &items[0][0], &next[0][0])
 	})
@@ -126,7 +127,7 @@ func TestStripOpenAIInvalidEncryptedContentRaw(t *testing.T) {
 	t.Parallel()
 
 	invalid := map[string]struct{}{
-		openAIEncryptedContentDigest("stale-cipher"): {},
+		openai.OpenAIEncryptedContentDigest("stale-cipher"): {},
 	}
 	payload := []byte(`{"model":"gpt-5","input":[
 		{"type":"reasoning","id":"rs_1","encrypted_content":"stale-cipher"},
@@ -134,7 +135,7 @@ func TestStripOpenAIInvalidEncryptedContentRaw(t *testing.T) {
 		{"type":"input_text","text":"hello"}
 	],"stream":true}`)
 
-	stripped, count, err := stripOpenAIInvalidEncryptedContentRaw(payload, invalid)
+	stripped, count, err := openai.StripOpenAIInvalidEncryptedContentRaw(payload, invalid)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 	var decoded map[string]any
@@ -154,7 +155,7 @@ func TestStripOpenAIInvalidEncryptedContentRaw(t *testing.T) {
 	t.Run("miss_fast_path_returns_original", func(t *testing.T) {
 		t.Parallel()
 		cleanPayload := []byte(`{"input":[{"type":"reasoning","encrypted_content":"fresh-cipher"}]}`)
-		unchanged, count, err := stripOpenAIInvalidEncryptedContentRaw(cleanPayload, invalid)
+		unchanged, count, err := openai.StripOpenAIInvalidEncryptedContentRaw(cleanPayload, invalid)
 		require.NoError(t, err)
 		require.Zero(t, count)
 		require.Same(t, &cleanPayload[0], &unchanged[0], "未命中时应原样返回，不重编码")

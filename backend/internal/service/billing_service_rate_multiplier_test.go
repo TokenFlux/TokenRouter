@@ -5,6 +5,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -12,7 +13,7 @@ import (
 // 钳制为 0（而非历史上的 1.0），避免配置异常导致静默按标准价扣费。
 func TestCalculateCost_RateMultiplier_NegativeClampedToZero(t *testing.T) {
 	svc := newTestBillingService()
-	tokens := UsageTokens{InputTokens: 1000, OutputTokens: 500}
+	tokens := pricing.UsageTokens{InputTokens: 1000, OutputTokens: 500}
 
 	tests := []struct {
 		name       string

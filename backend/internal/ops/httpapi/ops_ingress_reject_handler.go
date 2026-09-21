@@ -130,13 +130,3 @@ func parseOptionalPositiveID(c *gin.Context, name string) (*int64, error) {
 type ingressRejectQueryError struct{ message string }
 
 func (e *ingressRejectQueryError) Error() string { return e.message }
-
-// CompatParseIngressRejectEnum 为旧测试及兼容入口提供精确委托。
-func CompatParseIngressRejectEnum(c *gin.Context, name string, allowed map[string]struct{}) (string, error) {
-	return parseIngressRejectEnum(c, name, allowed)
-}
-
-// CompatParseOptionalPositiveID 为旧测试及兼容入口提供精确委托。
-func CompatParseOptionalPositiveID(c *gin.Context, name string) (*int64, error) {
-	return parseOptionalPositiveID(c, name)
-}

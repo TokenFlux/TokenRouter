@@ -7,6 +7,6 @@ import (
 	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
-func openAIResponsesCompletedEventIsEmpty(data []byte, usage *OpenAIUsage) bool {
+func openAIResponsesCompletedEventIsEmpty(data []byte, usage *s09openai.ForwardUsage) bool {
 	return s09openai.OpenAIResponsesCompletedEventIsEmpty(data, usage)
 }

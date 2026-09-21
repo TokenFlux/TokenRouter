@@ -9,26 +9,30 @@ import (
 	"strings"
 	"testing"
 
+	accountpolicy "github.com/TokenFlux/TokenRouter/internal/account"
+
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 type stubCodexRestrictionDetector struct {
-	result CodexClientRestrictionDetectionResult
-}
-
-func (s *stubCodexRestrictionDetector) Detect(_ *gin.Context, _ *Account, _ []string, _ TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult {
-	return s.result
+	result accountpolicy.CodexClientRestrictionDetectionResult
 }
 
 func TestOpenAIGatewayService_GetCodexClientRestrictionDetector(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("使用注入的 detector", func(t *testing.T) {
 		expected := &stubCodexRestrictionDetector{
-			result: CodexClientRestrictionDetectionResult{Enabled: true, Matched: true, Reason: "stub"},
+			result: accountpolicy.CodexClientRestrictionDetectionResult{Enabled: true, Matched: true, Reason: "stub"},
 		}
 		svc := &OpenAIGatewayService{codexDetector: expected}
 
@@ -51,56 +55,55 @@ func TestOpenAIGatewayService_GetCodexClientRestrictionDetector(t *testing.T) {
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 		c.Request.Header.Set("User-Agent", "curl/8.0")
-		account := &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth, Extra: map[string]any{"codex_cli_only": true}}
+		account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Extra: map[string]any{"codex_cli_only": true}}
 
-		result := got.Detect(c, account, nil, TLSFingerprintRouterMatchResult{})
+		result := got.DetectClient(func() (string, string) { return c.GetHeader("User-Agent"), c.GetHeader("originator") }, AccountRecordView(account), nil, false)
 		require.True(t, result.Enabled)
 		require.True(t, result.Matched)
-		require.Equal(t, CodexClientRestrictionReasonForceCodexCLI, result.Reason)
+		require.Equal(t, accountpolicy.CodexClientRestrictionReasonForceCodexCLI, result.Reason)
 	})
 }
 
 func TestGetAPIKeyIDFromContext(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("context 为 nil", func(t *testing.T) {
-		require.Equal(t, int64(0), getAPIKeyIDFromContext(nil))
+		require.Equal(t, int64(0), gatewayhttp.APIKeyIDFromContext(nil))
 	})
 
 	t.Run("上下文没有 api_key", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
-		require.Equal(t, int64(0), getAPIKeyIDFromContext(c))
+		require.Equal(t, int64(0), gatewayhttp.APIKeyIDFromContext(c))
 	})
 
 	t.Run("api_key 类型错误", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		c.Set("api_key", "not-api-key")
-		require.Equal(t, int64(0), getAPIKeyIDFromContext(c))
+		require.Equal(t, int64(0), gatewayhttp.APIKeyIDFromContext(c))
 	})
 
 	t.Run("api_key 指针为空", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
-		var k *APIKey
+		var k *apikey.APIKey
 		c.Set("api_key", k)
-		require.Equal(t, int64(0), getAPIKeyIDFromContext(c))
+		require.Equal(t, int64(0), gatewayhttp.APIKeyIDFromContext(c))
 	})
 
 	t.Run("正常读取 api_key_id", func(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
-		c.Set("api_key", &APIKey{ID: 12345})
-		require.Equal(t, int64(12345), getAPIKeyIDFromContext(c))
+		c.Set("api_key", &apikey.APIKey{ID: 12345})
+		require.Equal(t, int64(12345), gatewayhttp.APIKeyIDFromContext(c))
 	})
 }
 
 func TestLogCodexCLIOnlyDetection_NilSafety(t *testing.T) {
 	// 不校验日志内容，仅保证在 nil 入参下不会 panic。
 	require.NotPanics(t, func() {
-		logCodexCLIOnlyDetection(context.TODO(), nil, nil, 0, CodexClientRestrictionDetectionResult{Enabled: true, Matched: false, Reason: "test"}, nil)
-		logCodexCLIOnlyDetection(context.Background(), nil, nil, 0, CodexClientRestrictionDetectionResult{Enabled: false, Matched: false, Reason: "disabled"}, nil)
+		logCodexCLIOnlyDetection(context.TODO(), nil, nil, 0, accountpolicy.CodexClientRestrictionDetectionResult{Enabled: true, Matched: false, Reason: "test"}, nil)
+		logCodexCLIOnlyDetection(context.Background(), nil, nil, 0, accountpolicy.CodexClientRestrictionDetectionResult{Enabled: false, Matched: false, Reason: "disabled"}, nil)
 	})
 }
 
@@ -109,15 +112,15 @@ func TestLogCodexCLIOnlyDetection_OnlyLogsRejected(t *testing.T) {
 	defer restore()
 
 	account := &Account{ID: 1001}
-	logCodexCLIOnlyDetection(context.Background(), nil, account, 2002, CodexClientRestrictionDetectionResult{
+	logCodexCLIOnlyDetection(context.Background(), nil, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
 		Enabled: true,
 		Matched: true,
-		Reason:  CodexClientRestrictionReasonMatchedUA,
+		Reason:  accountpolicy.CodexClientRestrictionReasonMatchedUA,
 	}, nil)
-	logCodexCLIOnlyDetection(context.Background(), nil, account, 2002, CodexClientRestrictionDetectionResult{
+	logCodexCLIOnlyDetection(context.Background(), nil, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
 		Enabled: true,
 		Matched: false,
-		Reason:  CodexClientRestrictionReasonNotMatchedUA,
+		Reason:  accountpolicy.CodexClientRestrictionReasonNotMatchedUA,
 	}, nil)
 
 	require.False(t, logSink.ContainsMessage("OpenAI codex_cli_only 允许官方客户端请求"))
@@ -125,7 +128,7 @@ func TestLogCodexCLIOnlyDetection_OnlyLogsRejected(t *testing.T) {
 }
 
 func TestLogCodexCLIOnlyDetection_RejectedIncludesRequestDetails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
@@ -140,10 +143,10 @@ func TestLogCodexCLIOnlyDetection_RejectedIncludesRequestDetails(t *testing.T) {
 
 	body := []byte(`{"model":"gpt-5.2","stream":false,"prompt_cache_key":"pc-123","access_token":"secret-token","input":[{"type":"text","text":"hello"}]}`)
 	account := &Account{ID: 1001}
-	logCodexCLIOnlyDetection(context.Background(), c, account, 2002, CodexClientRestrictionDetectionResult{
+	logCodexCLIOnlyDetection(context.Background(), c, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
 		Enabled: true,
 		Matched: false,
-		Reason:  CodexClientRestrictionReasonNotMatchedUA,
+		Reason:  accountpolicy.CodexClientRestrictionReasonNotMatchedUA,
 	}, body)
 
 	require.True(t, logSink.ContainsFieldValue("request_user_agent", "codex_cli_rs/0.98.0 (Windows 10.0.19045; x86_64) unknown"))
@@ -151,14 +154,14 @@ func TestLogCodexCLIOnlyDetection_RejectedIncludesRequestDetails(t *testing.T) {
 	require.True(t, logSink.ContainsFieldValue("request_query", "trace=1"))
 	require.True(t, logSink.ContainsFieldValue("request_client_ip", "203.0.113.42"))
 	require.True(t, logSink.ContainsFieldValue("request_remote_addr", "172.18.0.1:54321"))
-	require.True(t, logSink.ContainsFieldValue("request_prompt_cache_key_sha256", hashSensitiveValueForLog("pc-123")))
+	require.True(t, logSink.ContainsFieldValue("request_prompt_cache_key_sha256", upstreamcore.HashSensitiveValueForLog("pc-123")))
 	require.True(t, logSink.ContainsFieldValue("request_headers", "openai-beta"))
 	require.True(t, logSink.ContainsField("request_body_size"))
 	require.False(t, logSink.ContainsField("request_body_preview"))
 }
 
 func TestLogOpenAIInstructionsRequiredDebug_LogsRequestDetails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
@@ -193,7 +196,7 @@ func TestLogOpenAIInstructionsRequiredDebug_LogsRequestDetails(t *testing.T) {
 }
 
 func TestLogOpenAIInstructionsRequiredDebug_NonTargetErrorSkipped(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
@@ -217,61 +220,61 @@ func TestLogOpenAIInstructionsRequiredDebug_NonTargetErrorSkipped(t *testing.T) 
 }
 
 func TestIsOpenAITransientProcessingError(t *testing.T) {
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusBadRequest,
 		"An error occurred while processing your request.",
 		nil,
 	))
 
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusBadRequest,
 		"",
 		[]byte(`{"error":{"message":"An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com if the error persists. Please include the request ID req_123 in your message."}}`),
 	))
 
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusBadRequest,
 		"The selected model is at capacity. Please try again later.",
 		nil,
 	))
 
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusBadRequest,
 		"",
 		[]byte(`{"error":{"code":"server_is_overloaded","message":"Please retry later.","type":"invalid_request_error"}}`),
 	))
 
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusServiceUnavailable,
 		"",
 		[]byte(`{"error":{"code":"slow_down","message":"Please retry later."}}`),
 	))
 
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusServiceUnavailable,
 		"",
 		[]byte(`{"error":{"message":"Our servers are currently overloaded. Please try again later."}}`),
 	))
 
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusServiceUnavailable,
 		"Server is overloaded. Please try again later.",
 		nil,
 	))
 
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusBadGateway,
 		"",
 		[]byte(`{"error":{"message":"Our servers are currently overloaded. Please try again later."}}`),
 	))
 
-	require.True(t, isOpenAITransientProcessingError(
+	require.True(t, openai.IsOpenAITransientProcessingError(
 		http.StatusBadRequest,
 		"",
 		[]byte(`{"error":{"message":"An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com if the error persists. Please include the request ID req_123 in your message."}}`),
 	))
 
-	require.False(t, isOpenAITransientProcessingError(
+	require.False(t, openai.IsOpenAITransientProcessingError(
 		http.StatusBadRequest,
 		"Missing required parameter: 'instructions'",
 		[]byte(`{"error":{"message":"Missing required parameter: 'instructions'"}}`),
@@ -279,23 +282,23 @@ func TestIsOpenAITransientProcessingError(t *testing.T) {
 }
 
 func TestIsOpenAIContextWindowError(t *testing.T) {
-	require.True(t, isOpenAIContextWindowError(
+	require.True(t, openai.IsOpenAIContextWindowError(
 		"",
 		[]byte(`{"error":{"message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"upstream_error","code":null}}`),
 	))
-	require.True(t, isOpenAIContextWindowError(
+	require.True(t, openai.IsOpenAIContextWindowError(
 		"maximum context length exceeded",
 		nil,
 	))
-	require.True(t, isOpenAIContextWindowError(
+	require.True(t, openai.IsOpenAIContextWindowError(
 		"",
 		[]byte(`maximum context length exceeded`),
 	))
-	require.False(t, isOpenAIContextWindowError(
+	require.False(t, openai.IsOpenAIContextWindowError(
 		"context canceled",
 		nil,
 	))
-	require.False(t, isOpenAIContextWindowError(
+	require.False(t, openai.IsOpenAIContextWindowError(
 		"upstream unavailable",
 		[]byte(`{"error":{"message":"upstream unavailable","code":"upstream_error"},"echo":"context_length_exceeded maximum context length"}`),
 	))
@@ -304,12 +307,12 @@ func TestIsOpenAIContextWindowError(t *testing.T) {
 func TestOpenAITransientAndCapacityClassificationIgnoresEchoedJSON(t *testing.T) {
 	body := []byte(`{"error":{"message":"upstream unavailable","code":"upstream_error"},"echo":"server is overloaded; selected model is at capacity"}`)
 
-	require.False(t, isOpenAITransientProcessingError(http.StatusBadRequest, "upstream unavailable", body))
-	require.False(t, isOpenAIRequestScopedCapacityShed("upstream unavailable", body))
+	require.False(t, openai.IsOpenAITransientProcessingError(http.StatusBadRequest, "upstream unavailable", body))
+	require.False(t, openai.IsOpenAIRequestScopedCapacityShed("upstream unavailable", body))
 
 	plainText := []byte(`server is overloaded; please retry later`)
-	require.True(t, isOpenAITransientProcessingError(http.StatusServiceUnavailable, "", plainText))
-	require.True(t, isOpenAIRequestScopedCapacityShed("", plainText))
+	require.True(t, openai.IsOpenAITransientProcessingError(http.StatusServiceUnavailable, "", plainText))
+	require.True(t, openai.IsOpenAIRequestScopedCapacityShed("", plainText))
 }
 
 func TestShouldFailoverOpenAIUpstreamResponseContextWindow502(t *testing.T) {
@@ -326,7 +329,7 @@ func TestShouldFailoverOpenAIUpstreamResponseContextWindow502(t *testing.T) {
 }
 
 func TestOpenAIGatewayService_Forward_LogsInstructionsRequiredDetails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
@@ -356,11 +359,11 @@ func TestOpenAIGatewayService_Forward_LogsInstructionsRequiredDetails(t *testing
 	account := &Account{
 		ID:             1001,
 		Name:           "codex max套餐",
-		Platform:       PlatformOpenAI,
-		Type:           AccountTypeAPIKey,
+		Platform:       capability.PlatformOpenAI,
+		Type:           capability.AccountTypeAPIKey,
 		Concurrency:    1,
 		Credentials:    map[string]any{"api_key": "sk-test"},
-		Status:         StatusActive,
+		Status:         billing.StatusActive,
 		Schedulable:    true,
 		RateMultiplier: f64p(1),
 	}
@@ -383,7 +386,6 @@ func TestOpenAIGatewayService_Forward_LogsInstructionsRequiredDetails(t *testing
 }
 
 func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -410,11 +412,11 @@ func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t
 	account := &Account{
 		ID:             1001,
 		Name:           "codex max套餐",
-		Platform:       PlatformOpenAI,
-		Type:           AccountTypeAPIKey,
+		Platform:       capability.PlatformOpenAI,
+		Type:           capability.AccountTypeAPIKey,
 		Concurrency:    1,
 		Credentials:    map[string]any{"api_key": "sk-test"},
-		Status:         StatusActive,
+		Status:         billing.StatusActive,
 		Schedulable:    true,
 		RateMultiplier: f64p(1),
 	}
@@ -423,7 +425,7 @@ func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t
 	_, err := svc.Forward(context.Background(), c, account, body)
 	require.Error(t, err)
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusBadRequest, failoverErr.StatusCode)
 	require.Contains(t, string(failoverErr.ResponseBody), "An error occurred while processing your request")
@@ -431,6 +433,6 @@ func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t
 }
 
 // 新检测端口沿用同一替身结果，原断言保持不变。
-func (s *stubCodexRestrictionDetector) DetectClient(_ func() (string, string), a *Account, allowed []string, match TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult {
-	return s.Detect(nil, a, allowed, match)
+func (s *stubCodexRestrictionDetector) DetectClient(_ func() (string, string), _ *accountpolicy.Record, _ []string, _ bool) accountpolicy.CodexClientRestrictionDetectionResult {
+	return s.result
 }

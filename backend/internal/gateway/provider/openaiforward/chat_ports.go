@@ -3,12 +3,13 @@ package openaiforward
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 type ChatProfile struct {
@@ -24,7 +25,7 @@ type ChatPorts interface {
 	AgentRecoveryTried(ctx context.Context) bool
 	AutoCacheKey(model string) bool
 	BillingModel(model, fallback string) string
-	CodexTransform(body map[string]any, o native.CodexOAuthTransformOptions) native.CodexTransformResult
+	CodexTransform(body map[string]any, o openai.CodexOAuthTransformOptions) openai.CodexTransformResult
 	CyberError() error
 	CyberPolicy() bool
 	Debug(msg string, fields ...zap.Field)
@@ -69,5 +70,5 @@ type ChatPorts interface {
 	UpstreamSessionKey(id int64, key string) string
 	SessionUUID(key string) string
 	ChatErrorResponse(r *http.Response, model string) (*Result, error)
-	ChatResponseOptions(r *http.Response, original, billing, model string) native.ChatResponseOptions
+	ChatResponseOptions(r *http.Response, original, billing, model string) openai.ChatResponseOptions
 }

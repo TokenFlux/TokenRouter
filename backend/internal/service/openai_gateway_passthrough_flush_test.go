@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -69,7 +71,6 @@ func runPassthroughFlushTest(
 	setups ...func(*gin.Context),
 ) (*openaiStreamingResultPassthrough, *httptest.ResponseRecorder, *passthroughFlushTestWriter, error) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -96,7 +97,7 @@ func runPassthroughFlushTest(
 		context.Background(),
 		resp,
 		c,
-		&Account{ID: 1, Platform: PlatformOpenAI, Name: "flush-test"},
+		&Account{ID: 1, Platform: capability.PlatformOpenAI, Name: "flush-test"},
 		time.Now(),
 		"",
 		"",
@@ -170,7 +171,7 @@ func TestOpenAIStreamingPassthroughFailedBeforeOutputCanStillFailOverWithoutFlus
 	_, recorder, writer, err := runPassthroughFlushTest(t, io.NopCloser(strings.NewReader(upstream)), -1)
 
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Empty(t, recorder.Body.String())
 	require.Empty(t, writer.flushBodyLengths)
@@ -183,7 +184,7 @@ func TestOpenAIStreamingPassthroughNonRetryableFailedBeforeOutputFlushesAtBounda
 	result, recorder, writer, err := runPassthroughFlushTest(t, io.NopCloser(strings.NewReader(upstream)), -1)
 
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.NotNil(t, result)
 	require.Equal(t, upstream, recorder.Body.String())
@@ -200,7 +201,7 @@ func TestOpenAIStreamingPassthroughBareErrorTerminatesBeforeDone(t *testing.T) {
 	result, recorder, writer, err := runPassthroughFlushTest(t, io.NopCloser(strings.NewReader(upstream)), -1)
 
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.NotNil(t, result)
 	body := recorder.Body.String()
@@ -243,7 +244,7 @@ func TestOpenAIStreamingPassthroughFailedAfterOutputFlushesAtBoundaryAndKeepsUsa
 	result, recorder, writer, err := runPassthroughFlushTest(t, io.NopCloser(strings.NewReader(upstream)), -1)
 
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.NotNil(t, result)
 	require.Equal(t, upstream, recorder.Body.String())
@@ -295,7 +296,7 @@ func TestOpenAIStreamingPassthroughNamespaceRestoreErrorFlushesWrittenResidualOn
 		io.NopCloser(strings.NewReader(writtenPrefix+overflowData)),
 		-1,
 		func(c *gin.Context) {
-			setOpenAIResponsesNamespaceNames(c, map[string]apicompat.ResponsesNamespaceName{
+			setOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
 				"collaboration__spawn_agent": {Namespace: "collaboration", Name: "spawn_agent"},
 			})
 		},

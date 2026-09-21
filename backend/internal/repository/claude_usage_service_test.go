@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
@@ -14,7 +16,7 @@ import (
 type ClaudeUsageServiceSuite struct {
 	suite.Suite
 	srv     *httptest.Server
-	fetcher *claudeUsageService
+	fetcher *anthropic.UsageClient
 }
 
 func (s *ClaudeUsageServiceSuite) TearDownTest() {
@@ -45,7 +47,7 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_Success() {
 }`)
 	}))
 
-	s.fetcher = &claudeUsageService{
+	s.fetcher = &anthropic.UsageClient{
 		UsageURL:          s.srv.URL,
 		AllowPrivateHosts: true,
 	}
@@ -67,7 +69,7 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_NonOK() {
 		_, _ = io.WriteString(w, "nope")
 	}))
 
-	s.fetcher = &claudeUsageService{
+	s.fetcher = &anthropic.UsageClient{
 		UsageURL:          s.srv.URL,
 		AllowPrivateHosts: true,
 	}
@@ -84,7 +86,7 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_BadJSON() {
 		_, _ = io.WriteString(w, "not-json")
 	}))
 
-	s.fetcher = &claudeUsageService{
+	s.fetcher = &anthropic.UsageClient{
 		UsageURL:          s.srv.URL,
 		AllowPrivateHosts: true,
 	}
@@ -100,7 +102,7 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_ContextCancel() {
 		<-r.Context().Done()
 	}))
 
-	s.fetcher = &claudeUsageService{
+	s.fetcher = &anthropic.UsageClient{
 		UsageURL:          s.srv.URL,
 		AllowPrivateHosts: true,
 	}
@@ -113,7 +115,7 @@ func (s *ClaudeUsageServiceSuite) TestFetchUsage_ContextCancel() {
 }
 
 func (s *ClaudeUsageServiceSuite) TestFetchUsage_InvalidProxyReturnsError() {
-	s.fetcher = &claudeUsageService{
+	s.fetcher = &anthropic.UsageClient{
 		UsageURL:          "http://example.com",
 		AllowPrivateHosts: true,
 	}

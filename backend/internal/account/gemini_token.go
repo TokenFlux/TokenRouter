@@ -27,6 +27,15 @@ type GeminiTokenOptions struct {
 	Logf         func(string, ...any)
 }
 
+// GeminiTokenSource 固定请求侧端口，自动 project 回填仍使用原用例。
+type GeminiTokenSource struct {
+	Options GeminiTokenOptions
+}
+
+func (s *GeminiTokenSource) GetAccessToken(ctx context.Context, value *Record) (string, error) {
+	return GetGeminiAccessToken(ctx, value, s.Options)
+}
+
 func GeminiOAuthTokenCacheKey(account *Record) string {
 	projectID := strings.TrimSpace(account.GetCredential("project_id"))
 	if projectID != "" {

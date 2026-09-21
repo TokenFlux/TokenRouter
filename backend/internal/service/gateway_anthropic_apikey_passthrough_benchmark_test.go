@@ -1,6 +1,11 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+)
 
 func BenchmarkGatewayService_ParseSSEUsage_MessageStart(b *testing.B) {
 	svc := &GatewayService{}
@@ -8,7 +13,7 @@ func BenchmarkGatewayService_ParseSSEUsage_MessageStart(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		usage := &ClaudeUsage{}
+		usage := &upstream.TokenUsage{}
 		svc.parseSSEUsage(data, usage)
 	}
 }
@@ -18,8 +23,8 @@ func BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageStart(b *testing.B)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		usage := &ClaudeUsage{}
-		parseSSEUsagePassthrough(data, usage)
+		usage := &upstream.TokenUsage{}
+		anthropic.ParseSSEUsagePassthrough(data, usage)
 	}
 }
 
@@ -29,7 +34,7 @@ func BenchmarkGatewayService_ParseSSEUsage_MessageDelta(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		usage := &ClaudeUsage{}
+		usage := &upstream.TokenUsage{}
 		svc.parseSSEUsage(data, usage)
 	}
 }
@@ -39,8 +44,8 @@ func BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageDelta(b *testing.B)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		usage := &ClaudeUsage{}
-		parseSSEUsagePassthrough(data, usage)
+		usage := &upstream.TokenUsage{}
+		anthropic.ParseSSEUsagePassthrough(data, usage)
 	}
 }
 
@@ -49,6 +54,6 @@ func BenchmarkParseClaudeUsageFromResponseBody(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = parseClaudeUsageFromResponseBody(body)
+		_ = anthropic.ParseClaudeUsageFromResponseBody(body)
 	}
 }

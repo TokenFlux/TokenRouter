@@ -10,11 +10,11 @@ import (
 	"time"
 
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 const (
-	OpenAIAuthModeAgentIdentity          = acctcore.OpenAIAuthModeAgentIdentity
 	agentIdentityAuthAPIBaseURL          = "https://auth.openai.com/api/accounts"
 	agentIdentityTaskRegistrationTimeout = 30 * time.Second
 )
@@ -43,14 +43,7 @@ func agentIdentityPrivateKey(account *Account) (ed25519.PrivateKey, error) {
 	if account == nil {
 		return nil, errors.New("agent identity account is nil")
 	}
-	return native.ParseAgentIdentityPrivateKey(account.GetCredential("agent_private_key"))
-}
-
-// ValidateOpenAIAgentIdentityPrivateKey 校验 PKCS#8 Ed25519 私钥，但不返回或记录密钥材料。
-func ValidateOpenAIAgentIdentityPrivateKey(encoded string) error {
-	account := &Account{Credentials: map[string]any{"agent_private_key": encoded}}
-	_, err := agentIdentityPrivateKey(account)
-	return err
+	return openai.ParseAgentIdentityPrivateKey(account.GetCredential("agent_private_key"))
 }
 
 func agentIdentityKeyFromAccount(account *Account) (agentIdentityKey, error) {
@@ -70,11 +63,11 @@ func agentIdentityKeyFromAccount(account *Account) (agentIdentityKey, error) {
 }
 
 func buildAgentAssertion(key agentIdentityKey, now time.Time) (string, error) {
-	return native.BuildAgentAssertion(nativeAgentIdentityKey(key), now)
+	return openai.BuildAgentAssertion(nativeAgentIdentityKey(key), now)
 }
 
 func decryptAgentTaskID(key agentIdentityKey, encoded string) (string, error) {
-	return native.DecryptAgentTaskID(nativeAgentIdentityKey(key), encoded)
+	return openai.DecryptAgentTaskID(nativeAgentIdentityKey(key), encoded)
 }
 
 func registerAgentIdentityTask(ctx context.Context, account *Account) (string, error) {
@@ -87,7 +80,7 @@ func registerAgentIdentityTask(ctx context.Context, account *Account) (string, e
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	return native.RegisterAgentIdentityTask(ctx, nativeAgentIdentityKey(key), proxyURL, openAIAgentIdentityAuthAPIBaseURL, now)
+	return openai.RegisterAgentIdentityTask(ctx, nativeAgentIdentityKey(key), proxyURL, openAIAgentIdentityAuthAPIBaseURL, now)
 }
 
 // 兼容入口只转换记录和写回时机；锁、复查与登记规则由唯一账号协调器执行。
@@ -137,10 +130,6 @@ func (s *OpenAIGatewayService) ensureAgentIdentityTask(ctx context.Context, acco
 	return ensureAgentIdentityTaskForAccount(ctx, s.accountRepo, s, &s.agentIdentityTaskMu, account, expectedTaskID)
 }
 
-func isAgentIdentityTaskInvalidHTTPResponse(statusCode int, body []byte) bool {
-	return native.IsAgentTaskInvalidHTTPResponse(statusCode, body)
-}
-
 type agentIdentityTaskRecoveryContextKey struct{}
 
 func markAgentIdentityTaskRecoveryTried(ctx context.Context) context.Context {
@@ -152,8 +141,8 @@ func agentIdentityTaskRecoveryWasTried(ctx context.Context) bool {
 	return tried
 }
 
-func isAgentIdentityTaskInvalidWSDialError(err *openAIWSDialError) bool {
-	return err != nil && isAgentIdentityTaskInvalidHTTPResponse(err.StatusCode, err.ResponseBody)
+func isAgentIdentityTaskInvalidWSDialError(err *openai.WSDialError) bool {
+	return err != nil && openai.IsAgentTaskInvalidHTTPResponse(err.StatusCode, err.ResponseBody)
 }
 
 func (s *OpenAIGatewayService) buildOpenAIAuthenticationHeaders(ctx context.Context, account *Account, token string) (http.Header, error) {
@@ -208,7 +197,7 @@ func buildAgentIdentityAuthenticationHeadersWithTask(ctx context.Context, repo A
 
 func (s *OpenAIGatewayService) refreshOpenAIAgentIdentityHeaders(ctx context.Context, account *Account, headers http.Header) (http.Header, error) {
 	if account == nil {
-		return cloneHeader(headers), nil
+		return upstream.CloneHeader(headers), nil
 	}
 	credAccount := account
 	if account.IsShadow() {
@@ -219,9 +208,9 @@ func (s *OpenAIGatewayService) refreshOpenAIAgentIdentityHeaders(ctx context.Con
 		credAccount = resolved
 	}
 	if !credAccount.IsOpenAIAgentIdentity() {
-		return cloneHeader(headers), nil
+		return upstream.CloneHeader(headers), nil
 	}
-	refreshed := cloneHeader(headers)
+	refreshed := upstream.CloneHeader(headers)
 	if refreshed == nil {
 		refreshed = make(http.Header)
 	}
@@ -272,38 +261,7 @@ func redactAgentIdentitySensitiveBodyForAccount(ctx context.Context, repo Accoun
 	if credAccount == nil || !credAccount.IsOpenAIAgentIdentity() {
 		return body
 	}
-	redacted := string(body)
-	for _, key := range []string{
-		"agent_private_key",
-		"agent_runtime_id",
-		"task_id",
-		"access_token",
-		"refresh_token",
-		"id_token",
-		"api_key",
-		"session_key",
-		"cookie",
-	} {
-		if value := strings.TrimSpace(credAccount.GetCredential(key)); value != "" {
-			redacted = strings.ReplaceAll(redacted, value, "[redacted]")
-		}
-	}
-	const assertionPrefix = "AgentAssertion "
-	for offset := 0; offset < len(redacted); {
-		relativeStart := strings.Index(redacted[offset:], assertionPrefix)
-		if relativeStart < 0 {
-			break
-		}
-		start := offset + relativeStart
-		valueStart := start + len(assertionPrefix)
-		end := valueStart
-		for end < len(redacted) && !strings.ContainsRune(" \t\r\n\"',}", rune(redacted[end])) {
-			end++
-		}
-		redacted = redacted[:valueStart] + "[redacted]" + redacted[end:]
-		offset = valueStart + len("[redacted]")
-	}
-	return []byte(redacted)
+	return openai.RedactAgentIdentityBody(body, credAccount.GetCredential)
 }
 
 func (s *OpenAIGatewayService) redactAgentIdentitySensitiveBody(ctx context.Context, account *Account, body []byte) []byte {
@@ -314,6 +272,6 @@ func (s *OpenAIGatewayService) redactAgentIdentitySensitiveBody(ctx context.Cont
 }
 
 // 密钥只在原生执行边界作字段投影，不进入公开结果或日志。
-func nativeAgentIdentityKey(key agentIdentityKey) native.AgentIdentityKey {
-	return native.AgentIdentityKey{RuntimeID: key.runtimeID, PrivateKey: key.privateKey, TaskID: key.taskID}
+func nativeAgentIdentityKey(key agentIdentityKey) openai.AgentIdentityKey {
+	return openai.AgentIdentityKey{RuntimeID: key.runtimeID, PrivateKey: key.privateKey, TaskID: key.taskID}
 }

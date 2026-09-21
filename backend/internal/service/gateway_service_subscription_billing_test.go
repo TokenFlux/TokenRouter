@@ -4,6 +4,14 @@ package service
 
 import (
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 // TestBuildUsageBillingCommand_BillableAmountTracksActualCost locks in the fix
@@ -50,11 +58,11 @@ func TestBuildUsageBillingCommand_BillableAmountTracksActualCost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			p := &usageBillingParams{
-				Cost:         &CostBreakdown{TotalCost: tt.totalCost, ActualCost: tt.actualCost},
-				User:         &User{ID: 1},
-				APIKey:       &APIKey{ID: 2, GroupID: &groupID},
+				Cost:         &pricing.CostBreakdown{TotalCost: tt.totalCost, ActualCost: tt.actualCost},
+				User:         &identity.User{ID: 1},
+				APIKey:       &apikey.APIKey{ID: 2, GroupID: &groupID},
 				Account:      &Account{ID: 3},
-				Subscription: &UserSubscription{ID: subID},
+				Subscription: &billing.UserSubscription{ID: subID},
 			}
 
 			cmd := buildUsageBillingCommand("req-1", nil, p)
@@ -109,15 +117,15 @@ func TestBuildUsageBillingCommand_AccountQuotaUsesAccountStatsCost(t *testing.T)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			usageLog := &UsageLog{AccountStatsCost: tt.accountStatsCost}
+			usageLog := &usage.UsageLog{AccountStatsCost: tt.accountStatsCost}
 			p := &usageBillingParams{
-				Cost: &CostBreakdown{
+				Cost: &pricing.CostBreakdown{
 					TotalCost:  tt.totalCost,
 					ActualCost: tt.actualCost,
 				},
-				User:                  &User{ID: 1},
-				APIKey:                &APIKey{ID: 2},
-				Account:               &Account{ID: 3, Type: AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}},
+				User:                  &identity.User{ID: 1},
+				APIKey:                &apikey.APIKey{ID: 2},
+				Account:               &Account{ID: 3, Type: capability.AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}},
 				AccountRateMultiplier: tt.accountRateMultiplier,
 			}
 
@@ -140,13 +148,13 @@ func TestBuildUsageBillingCommand_AccountQuotaUsesAccountStatsCost(t *testing.T)
 func TestBuildUsageBillingCommand_IncludesRequestGroupID(t *testing.T) {
 	groupID := int64(42)
 	p := &usageBillingParams{
-		Cost: &CostBreakdown{ActualCost: 1.25},
-		User: &User{ID: 10},
-		APIKey: &APIKey{
+		Cost: &pricing.CostBreakdown{ActualCost: 1.25},
+		User: &identity.User{ID: 10},
+		APIKey: &apikey.APIKey{
 			ID:      20,
 			GroupID: &groupID,
 		},
-		Account: &Account{ID: 30, Type: AccountTypeAPIKey},
+		Account: &Account{ID: 30, Type: capability.AccountTypeAPIKey},
 	}
 
 	cmd := buildUsageBillingCommand("req-group", nil, p)
@@ -167,27 +175,27 @@ func TestBuildUsageBillingCommand_NonTokenModesKeepAllocationRates(t *testing.T)
 
 	tests := []struct {
 		name       string
-		mode       BillingMode
+		mode       routing.BillingMode
 		totalCost  float64
 		actualCost float64
 		wantRate   float64
 	}{
-		{name: "image rate", mode: BillingModeImage, totalCost: 0.2, actualCost: 0.2, wantRate: 0.15},
-		{name: "video rate", mode: BillingModeVideo, totalCost: 0.08, actualCost: 0.02, wantRate: 0.15},
-		{name: "per request rate", mode: BillingModePerRequest, totalCost: 0.4, actualCost: 0.1, wantRate: 0.15},
+		{name: "image rate", mode: routing.BillingModeImage, totalCost: 0.2, actualCost: 0.2, wantRate: 0.15},
+		{name: "video rate", mode: routing.BillingModeVideo, totalCost: 0.08, actualCost: 0.02, wantRate: 0.15},
+		{name: "per request rate", mode: routing.BillingModePerRequest, totalCost: 0.4, actualCost: 0.1, wantRate: 0.15},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			p := &usageBillingParams{
-				Cost: &CostBreakdown{
+				Cost: &pricing.CostBreakdown{
 					TotalCost:   tt.totalCost,
 					ActualCost:  tt.actualCost,
 					BillingMode: string(tt.mode),
 				},
-				User:                            &User{ID: 1},
-				APIKey:                          &APIKey{ID: 2},
+				User:                            &identity.User{ID: 1},
+				APIKey:                          &apikey.APIKey{ID: 2},
 				Account:                         &Account{ID: 3},
 				SubscriptionRateMultiplier:      0.15,
 				SubscriptionRateMultiplierScale: 1,
@@ -216,13 +224,13 @@ func TestBuildUsageBillingCommand_TokenModeKeepsAllocationRates(t *testing.T) {
 	t.Parallel()
 
 	p := &usageBillingParams{
-		Cost: &CostBreakdown{
+		Cost: &pricing.CostBreakdown{
 			TotalCost:   1,
 			ActualCost:  0.5,
-			BillingMode: string(BillingModeToken),
+			BillingMode: string(routing.BillingModeToken),
 		},
-		User:                            &User{ID: 1},
-		APIKey:                          &APIKey{ID: 2},
+		User:                            &identity.User{ID: 1},
+		APIKey:                          &apikey.APIKey{ID: 2},
 		Account:                         &Account{ID: 3},
 		SubscriptionRateMultiplier:      0.8,
 		SubscriptionRateMultiplierScale: 1.5,
@@ -255,15 +263,15 @@ func TestBuildUsageBillingCommand_UsesOverrideBaseAmountForFreeFast(t *testing.T
 	groupID := int64(88)
 	accountRate := 1.5
 
-	cmd := buildUsageBillingCommand("req-free-fast-base", &UsageLog{AccountStatsCost: &accountStatsCost}, &usageBillingParams{
-		Cost: &CostBreakdown{
+	cmd := buildUsageBillingCommand("req-free-fast-base", &usage.UsageLog{AccountStatsCost: &accountStatsCost}, &usageBillingParams{
+		Cost: &pricing.CostBreakdown{
 			TotalCost:  fastTotal,
 			ActualCost: standardActual,
 		},
 		BillingBaseAmountUSD:  &standardBase,
-		User:                  &User{ID: 1},
-		APIKey:                &APIKey{ID: 2, GroupID: &groupID},
-		Account:               &Account{ID: 3, Type: AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}},
+		User:                  &identity.User{ID: 1},
+		APIKey:                &apikey.APIKey{ID: 2, GroupID: &groupID},
+		Account:               &Account{ID: 3, Type: capability.AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}},
 		AccountRateMultiplier: accountRate,
 	})
 

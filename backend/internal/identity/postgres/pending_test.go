@@ -5,10 +5,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"sync"
 	"testing"
 	"time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/enttest"

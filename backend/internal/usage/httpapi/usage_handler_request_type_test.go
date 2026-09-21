@@ -8,27 +8,28 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 type userUsageRepoCapture struct {
-	service.UsageLogRepository
+	usage.UsageLogRepository
 	listParams   pagination.PaginationParams
-	listFilters  usagestats.UsageLogFilters
-	statsFilters usagestats.UsageLogFilters
-	trendFilters usagestats.UsageLogFilters
-	groupFilters usagestats.UsageLogFilters
-	listRows     []service.UsageLog
-	stats        *usagestats.UsageStats
-	modelStats   []usagestats.ModelStat
-	groupStats   []usagestats.GroupStat
+	listFilters  usage.UsageLogFilters
+	statsFilters usage.UsageLogFilters
+	trendFilters usage.UsageLogFilters
+	groupFilters usage.UsageLogFilters
+	listRows     []usage.UsageLog
+	stats        *usage.UsageStats
+	modelStats   []usage.ModelStat
+	groupStats   []usage.GroupStat
 }
 
-func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
+func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usage.UsageLogFilters) ([]usage.UsageLog, *pagination.PaginationResult, error) {
 	s.listParams = params
 	s.listFilters = filters
 	return s.listRows, &pagination.PaginationResult{
@@ -39,16 +40,16 @@ func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagin
 	}, nil
 }
 
-func (s *userUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, error) {
+func (s *userUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters usage.UsageLogFilters) (*usage.UsageStats, error) {
 	s.statsFilters = filters
 	if s.stats != nil {
 		return s.stats, nil
 	}
-	return &usagestats.UsageStats{}, nil
+	return &usage.UsageStats{}, nil
 }
 
-func (s *userUsageRepoCapture) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8) ([]usagestats.TrendDataPoint, error) {
-	s.trendFilters = usagestats.UsageLogFilters{
+func (s *userUsageRepoCapture) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8) ([]usage.TrendDataPoint, error) {
+	s.trendFilters = usage.UsageLogFilters{
 		UserID:      userID,
 		APIKeyID:    apiKeyID,
 		AccountID:   accountID,
@@ -58,20 +59,20 @@ func (s *userUsageRepoCapture) GetUsageTrendWithFilters(ctx context.Context, sta
 		Stream:      stream,
 		BillingType: billingType,
 	}
-	return []usagestats.TrendDataPoint{}, nil
+	return []usage.TrendDataPoint{}, nil
 }
 
-func (s *userUsageRepoCapture) GetUsageTrendWithUsageFilters(_ context.Context, _, _ time.Time, _ string, filters usagestats.UsageLogFilters) ([]usagestats.TrendDataPoint, error) {
+func (s *userUsageRepoCapture) GetUsageTrendWithUsageFilters(_ context.Context, _, _ time.Time, _ string, filters usage.UsageLogFilters) ([]usage.TrendDataPoint, error) {
 	s.trendFilters = filters
-	return []usagestats.TrendDataPoint{}, nil
+	return []usage.TrendDataPoint{}, nil
 }
 
-func (s *userUsageRepoCapture) GetModelStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) ([]usagestats.ModelStat, error) {
+func (s *userUsageRepoCapture) GetModelStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) ([]usage.ModelStat, error) {
 	return s.modelStats, nil
 }
 
-func (s *userUsageRepoCapture) GetGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) ([]usagestats.GroupStat, error) {
-	s.groupFilters = usagestats.UsageLogFilters{
+func (s *userUsageRepoCapture) GetGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8) ([]usage.GroupStat, error) {
+	s.groupFilters = usage.UsageLogFilters{
 		UserID:      userID,
 		APIKeyID:    apiKeyID,
 		AccountID:   accountID,
@@ -83,15 +84,15 @@ func (s *userUsageRepoCapture) GetGroupStatsWithFilters(ctx context.Context, sta
 	return s.groupStats, nil
 }
 
-func (s *userUsageRepoCapture) GetGroupStatsWithUsageFilters(_ context.Context, _, _ time.Time, filters usagestats.UsageLogFilters) ([]usagestats.GroupStat, error) {
+func (s *userUsageRepoCapture) GetGroupStatsWithUsageFilters(_ context.Context, _, _ time.Time, filters usage.UsageLogFilters) ([]usage.GroupStat, error) {
 	s.groupFilters = filters
 	return s.groupStats, nil
 }
 
 func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	usageSvc := service.NewUsageService(repo)
-	handler := newLegacyUsageHandlerFixture(usageSvc, nil, nil, nil)
+
+	usageSvc := usage.NewUsageService(repo)
+	handler := NewUsageHandler(usageSvc, nil, nil, nil, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
@@ -117,7 +118,7 @@ func TestUserUsageListRequestTypePriority(t *testing.T) {
 	require.True(t, repo.listFilters.IncludeOwnedTeam)
 	require.False(t, repo.listFilters.PersonalOnly)
 	require.NotNil(t, repo.listFilters.RequestType)
-	require.Equal(t, int16(service.RequestTypeWSV2), *repo.listFilters.RequestType)
+	require.Equal(t, int16(usage.RequestTypeWSV2), *repo.listFilters.RequestType)
 	require.Nil(t, repo.listFilters.Stream)
 }
 
@@ -144,12 +145,12 @@ func TestUserUsageListInvalidStream(t *testing.T) {
 }
 
 func TestParseUsageRankingTimeRangeDefaultsToToday(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?timezone=Asia/Shanghai", nil)
 	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.FixedZone("CST", 8*3600))
 
-	start, end, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai")
+	start, end, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai", timezone.NewCalendar(time.Local))
 
 	require.NoError(t, err)
 	require.Equal(t, "2026-05-06 00:00:00 +0800 CST", start.String())
@@ -157,12 +158,12 @@ func TestParseUsageRankingTimeRangeDefaultsToToday(t *testing.T) {
 }
 
 func TestParseUsageRankingTimeRangeDateOnlyEndIsInclusive(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?start_date=2026-05-01&end_date=2026-05-03&timezone=Asia/Shanghai", nil)
 	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.UTC)
 
-	start, end, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai")
+	start, end, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai", timezone.NewCalendar(time.Local))
 
 	require.NoError(t, err)
 	require.Equal(t, "2026-05-01 00:00:00 +0800 CST", start.String())
@@ -171,12 +172,12 @@ func TestParseUsageRankingTimeRangeDateOnlyEndIsInclusive(t *testing.T) {
 }
 
 func TestParseUsageRankingTimeRangeRejectsInvalidRange(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?start_date=2026-05-03&end_date=2026-05-01&timezone=Asia/Shanghai", nil)
 	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.UTC)
 
-	_, _, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai")
+	_, _, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai", timezone.NewCalendar(time.Local))
 
 	require.ErrorContains(t, err, "end_date must be later than start_date")
 }
@@ -193,7 +194,7 @@ func TestUserUsageListAdvancedFilters(t *testing.T) {
 	require.Equal(t, int64(42), repo.listFilters.UserID)
 	require.Equal(t, int64(7), repo.listFilters.GroupID)
 	require.Equal(t, "gpt-5", repo.listFilters.Model)
-	require.Equal(t, usagestats.ModelSourceRequested, repo.listFilters.ModelFilterSource)
+	require.Equal(t, usage.ModelSourceRequested, repo.listFilters.ModelFilterSource)
 	require.NotNil(t, repo.listFilters.BillingType)
 	require.Equal(t, int8(1), *repo.listFilters.BillingType)
 	require.Equal(t, "image", repo.listFilters.BillingMode)
@@ -232,7 +233,7 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 	accountRateMultiplier := 1.7
 	accountStatsCost := 0.12
 	repo := &userUsageRepoCapture{
-		listRows: []service.UsageLog{{
+		listRows: []usage.UsageLog{{
 			ID:                    1,
 			UserID:                42,
 			APIKeyID:              7,
@@ -282,14 +283,14 @@ func TestUserUsageListKeepsUserBillingAndIPWithoutAdminCostFields(t *testing.T) 
 func TestUserUsageStatsUsesScopedFilters(t *testing.T) {
 	accountCost := 0.12
 	repo := &userUsageRepoCapture{
-		stats: &usagestats.UsageStats{
+		stats: &usage.UsageStats{
 			TotalCost:        0.10,
 			TotalActualCost:  0.08,
 			TotalAccountCost: &accountCost,
-			UpstreamEndpoints: []usagestats.EndpointStat{{
+			UpstreamEndpoints: []usage.EndpointStat{{
 				Endpoint: "/v1/responses",
 			}},
-			EndpointPaths: []usagestats.EndpointStat{{
+			EndpointPaths: []usage.EndpointStat{{
 				Endpoint: "/v1/chat/completions -> /v1/responses",
 			}},
 		},
@@ -305,9 +306,9 @@ func TestUserUsageStatsUsesScopedFilters(t *testing.T) {
 	require.True(t, repo.statsFilters.IncludeOwnedTeam)
 	require.False(t, repo.statsFilters.PersonalOnly)
 	require.Equal(t, int64(9), repo.statsFilters.GroupID)
-	require.Equal(t, usagestats.ModelSourceRequested, repo.statsFilters.ModelFilterSource)
+	require.Equal(t, usage.ModelSourceRequested, repo.statsFilters.ModelFilterSource)
 	require.NotNil(t, repo.statsFilters.RequestType)
-	require.Equal(t, int16(service.RequestTypeSync), *repo.statsFilters.RequestType)
+	require.Equal(t, int16(usage.RequestTypeSync), *repo.statsFilters.RequestType)
 	require.Equal(t, "token", repo.statsFilters.BillingMode)
 	require.Contains(t, rec.Body.String(), `"total_cost":0.1`)
 	require.Contains(t, rec.Body.String(), `"total_actual_cost":0.08`)
@@ -318,7 +319,7 @@ func TestUserUsageStatsUsesScopedFilters(t *testing.T) {
 
 func TestUserUsageDashboardModelsOmitsAccountCost(t *testing.T) {
 	repo := &userUsageRepoCapture{
-		modelStats: []usagestats.ModelStat{{
+		modelStats: []usage.ModelStat{{
 			Model:       "gpt-5",
 			Requests:    2,
 			TotalTokens: 30,
@@ -353,8 +354,8 @@ func TestUserUsageDashboardModelsRejectsAdminModelSources(t *testing.T) {
 
 func TestUserUsageSnapshotUsesScopedFilters(t *testing.T) {
 	repo := &userUsageRepoCapture{
-		modelStats: []usagestats.ModelStat{{Model: "gpt-5", AccountCost: 0.07}},
-		groupStats: []usagestats.GroupStat{{GroupID: 1, GroupName: "default", AccountCost: 0.06}},
+		modelStats: []usage.ModelStat{{Model: "gpt-5", AccountCost: 0.07}},
+		groupStats: []usage.GroupStat{{GroupID: 1, GroupName: "default", AccountCost: 0.06}},
 	}
 	router := newUserUsageRequestTypeTestRouter(repo)
 
@@ -368,7 +369,7 @@ func TestUserUsageSnapshotUsesScopedFilters(t *testing.T) {
 	require.False(t, repo.trendFilters.PersonalOnly)
 	require.Equal(t, int64(11), repo.trendFilters.GroupID)
 	require.NotNil(t, repo.trendFilters.RequestType)
-	require.Equal(t, int16(service.RequestTypeStream), *repo.trendFilters.RequestType)
+	require.Equal(t, int16(usage.RequestTypeStream), *repo.trendFilters.RequestType)
 	require.Equal(t, int64(42), repo.groupFilters.UserID)
 	require.True(t, repo.groupFilters.IncludeOwnedTeam)
 	require.False(t, repo.groupFilters.PersonalOnly)

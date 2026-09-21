@@ -5,12 +5,13 @@ import (
 	context "context"
 	json "encoding/json"
 	fmt "fmt"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	http "net/http"
 	url "net/url"
 	strings "strings"
 	time "time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 const turnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"

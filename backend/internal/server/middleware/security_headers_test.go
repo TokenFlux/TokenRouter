@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	gin.SetMode(gin.TestMode)
+
 }
 
 func TestGenerateNonce(t *testing.T) {

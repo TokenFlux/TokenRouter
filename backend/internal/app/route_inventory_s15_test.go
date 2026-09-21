@@ -62,7 +62,7 @@ func routeInventoryMount[T any](t *testing.T, factory any) T {
 
 // TestS15NativeRouteInventory 对照迁移前冻结的 693 条路径，实际调用生产注册函数并由 Gin 检测重复注册。
 func TestS15NativeRouteInventory(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	r := gin.New()
 	var chain []string
 	r.Use(func(c *gin.Context) { chain = c.HandlerNames(); c.Abort() })

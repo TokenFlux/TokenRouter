@@ -2,14 +2,17 @@ package app
 
 import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/search"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // ProvideGatewaySearchTools 由组合根为请求链持有唯一工具编排器；不创建新 Manager 或配额状态。
-func ProvideGatewaySearchTools(gateway *service.GatewayService) *searchtools.Emulator {
-	runtime := gateway.SearchToolsRuntime()
+func ProvideGatewaySearchTools(gateway *service.GatewayService, settings *search.ConfigService, channels *routing.ChannelService) *searchtools.Emulator {
+	runtime := gatewayprovider.NewSearchTools(settings, channels)
 	gateway.BindSearchToolsRuntime(runtime)
 	return runtime
 }

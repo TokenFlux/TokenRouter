@@ -2,8 +2,9 @@
 package egress
 
 import (
-	require "github.com/stretchr/testify/require"
 	testing "testing"
+
+	require "github.com/stretchr/testify/require"
 )
 
 // 缓存写入和返回都必须隔离，不因多个请求共享来源而串改策略。

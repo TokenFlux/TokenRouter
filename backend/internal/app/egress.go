@@ -2,22 +2,35 @@
 package app
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	context "context"
+
 	sql "database/sql"
+
 	time "time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+
 	config "github.com/TokenFlux/TokenRouter/internal/config"
+
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
+
 	egresspostgres "github.com/TokenFlux/TokenRouter/internal/egress/postgres"
+
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
+
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
 	schedulerpostgres "github.com/TokenFlux/TokenRouter/internal/scheduler/postgres"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 func provideEgressProxyStore(client *dbent.Client, db *sql.DB) *egresspostgres.ProxyStore {
@@ -26,7 +39,7 @@ func provideEgressProxyStore(client *dbent.Client, db *sql.DB) *egresspostgres.P
 			return accountpostgres.ProxyChangesInTx(exec)
 		},
 		Enqueue: func(ctx context.Context, exec postgresinfra.Executor, payload any) error {
-			return schedulerpostgres.EnqueueSchedulerChange(ctx, exec, service.SchedulerOutboxEventAccountBulkChanged, nil, nil, payload)
+			return schedulerpostgres.EnqueueSchedulerChange(ctx, exec, scheduler.SchedulerOutboxEventAccountBulkChanged, nil, nil, payload)
 		},
 	})
 }
@@ -48,9 +61,6 @@ func provideEgressAdmin(store *egresspostgres.ProxyStore, prober egress.ProxyExi
 }
 func provideEgressProfiles(repo egress.TLSFingerprintProfileRepository, cache egress.TLSFingerprintProfileCache) *egress.TLSFingerprintProfileService {
 	return egress.NewTLSFingerprintProfileService(repo, cache, egress.Diagnostics{Logf: logging.LegacyPrintf})
-}
-func provideLegacyTLSProfiles(core *egress.TLSFingerprintProfileService) *service.TLSFingerprintProfileService {
-	return service.WrapTLSFingerprintProfileService(core)
 }
 func provideEgressRouters(repo egress.TLSFingerprintRouterRepository, cache egress.TLSFingerprintRouterCache) *egress.TLSFingerprintRouterService {
 	return egress.NewTLSFingerprintRouterService(repo, cache, egress.Diagnostics{Logf: logging.LegacyPrintf})
@@ -78,4 +88,9 @@ func provideProxyTransfer(admin *egress.ProxyAdmin, tasks *lifecycle.Tasks) *egr
 }
 func provideProxyHTTP(admin *egress.ProxyAdmin, transfers *egress.ProxyTransfer) *egresshttp.ProxyHandler {
 	return egresshttp.NewProxyHandler(admin, transfers)
+}
+
+// provideProxyExpiry 复用唯一代理仓储，生命周期保持一分钟周期和立即首轮。
+func provideProxyExpiry(repo egress.ProxyRepository) *egress.ProxyExpiryService {
+	return egress.NewProxyExpiryService(repo, time.Minute)
 }

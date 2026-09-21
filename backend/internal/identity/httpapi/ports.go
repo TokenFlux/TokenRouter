@@ -3,6 +3,7 @@ package httpapi
 
 import (
 	context "context"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"

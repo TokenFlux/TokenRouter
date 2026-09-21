@@ -10,18 +10,21 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/identity/rediscache"
+	identitytestkit "github.com/TokenFlux/TokenRouter/internal/identity/testkit"
 	"github.com/stretchr/testify/require"
 )
 
 // s05RefreshReadBarrier 让两个请求都读取到原凭据，再同时进入轮换，验证真实 Redis 原子消费。
 type s05RefreshReadBarrier struct {
-	service.RefreshTokenCache
+	identity.RefreshTokenCache
 	arrived chan struct{}
 	release chan struct{}
 }
 
-func (c *s05RefreshReadBarrier) GetRefreshToken(ctx context.Context, key string) (*service.RefreshTokenData, error) {
+func (c *s05RefreshReadBarrier) GetRefreshToken(ctx context.Context, key string) (*identity.RefreshTokenData, error) {
 	value, err := c.RefreshTokenCache.GetRefreshToken(ctx, key)
 	if err != nil {
 		return nil, err
@@ -41,7 +44,7 @@ func (c *s05RefreshReadBarrier) GetRefreshToken(ctx context.Context, key string)
 
 // s05RefreshDeleteFailure 同时覆盖旧删除入口与新消费入口，不模拟 Redis 的成功行为。
 type s05RefreshDeleteFailure struct {
-	service.RefreshTokenCache
+	identity.RefreshTokenCache
 	failure error
 }
 
@@ -54,9 +57,9 @@ func TestS05RefreshRotationConsumesOnce(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	client := testEntClient(t)
-	users := NewUserRepository(client, integrationDB)
-	user := mustCreateUser(t, client, &service.User{})
-	cache := NewRefreshTokenCache(testRedis(t))
+	users := postgres.NewUserStore(client, integrationDB)
+	user := mustCreateUser(t, client, &identity.User{})
+	cache := rediscache.NewRefreshTokenCache(testRedis(t))
 	barrier := &s05RefreshReadBarrier{RefreshTokenCache: cache, arrived: make(chan struct{}, 2), release: make(chan struct{})}
 	var releaseOnce sync.Once
 	unblock := func() { releaseOnce.Do(func() { close(barrier.release) }) }
@@ -65,7 +68,7 @@ func TestS05RefreshRotationConsumesOnce(t *testing.T) {
 	cfg.JWT.Secret = "s05-local-fixture-only"
 	cfg.JWT.ExpireHour = 1
 	cfg.JWT.RefreshTokenExpireDays = 1
-	auth := service.NewAuthService(client, users, nil, barrier, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	auth := identitytestkit.Auth(client, &identity.AuthDependencies{Users: users, RefreshTokens: barrier, Options: identitytestkit.AuthOptions(cfg)})
 	pair, err := auth.GenerateTokenPair(ctx, user, "")
 	require.NoError(t, err)
 	results := make(chan error, 2)
@@ -89,7 +92,7 @@ func TestS05RefreshRotationConsumesOnce(t *testing.T) {
 	for e := range results {
 		if e == nil {
 			successes++
-		} else if errors.Is(e, service.ErrRefreshTokenInvalid) {
+		} else if errors.Is(e, identity.ErrRefreshTokenInvalid) {
 			invalid++
 		} else {
 			t.Errorf("轮换出现非预期错误: %v", e)
@@ -102,21 +105,21 @@ func TestS05RefreshRotationConsumesOnce(t *testing.T) {
 func TestS05RefreshRotationStorageFailureDoesNotIssueTokens(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	users := NewUserRepository(client, integrationDB)
-	user := mustCreateUser(t, client, &service.User{})
-	cache := NewRefreshTokenCache(testRedis(t))
+	users := postgres.NewUserStore(client, integrationDB)
+	user := mustCreateUser(t, client, &identity.User{})
+	cache := rediscache.NewRefreshTokenCache(testRedis(t))
 	failing := s05RefreshDeleteFailure{RefreshTokenCache: cache, failure: errors.New("s05 injected token consume failure")}
 	cfg := &config.Config{}
 	cfg.JWT.Secret = "s05-local-fixture-only"
 	cfg.JWT.ExpireHour = 1
 	cfg.JWT.RefreshTokenExpireDays = 1
-	auth := service.NewAuthService(client, users, nil, failing, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	auth := identitytestkit.Auth(client, &identity.AuthDependencies{Users: users, RefreshTokens: failing, Options: identitytestkit.AuthOptions(cfg)})
 	pair, err := auth.GenerateTokenPair(ctx, user, "")
 	require.NoError(t, err)
 	before, err := cache.GetUserTokenHashes(ctx, user.ID)
 	require.NoError(t, err)
 	next, err := auth.RefreshTokenPair(ctx, pair.RefreshToken)
-	require.ErrorIs(t, err, service.ErrServiceUnavailable, "无法使旧凭据失效时不得继续签发")
+	require.ErrorIs(t, err, identity.ErrServiceUnavailable, "无法使旧凭据失效时不得继续签发")
 	require.Nil(t, next)
 	after, err := cache.GetUserTokenHashes(ctx, user.ID)
 	require.NoError(t, err)

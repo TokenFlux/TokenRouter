@@ -7,9 +7,11 @@ import (
 	"strings"
 	"time"
 
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,15 +39,15 @@ func (s *OpenAIGatewayService) newOpenAIFirstOutputTimeoutError(
 	timeout time.Duration,
 	phase string,
 	responseHeaders http.Header,
-) *UpstreamFailoverError {
+) *forwardcore.UpstreamFailoverError {
 	elapsed := time.Since(startTime)
-	logger.LegacyPrintf(
+	logging.LegacyPrintf(
 		"service.openai_gateway",
 		"OpenAI first output timeout: account=%d model=%s effort=%s phase=%s elapsed=%s limit=%s",
 		account.ID, originalModel, reasoningEffort, phase, elapsed, timeout,
 	)
 	requestID := strings.TrimSpace(responseHeaders.Get("x-request-id"))
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 		Platform: account.Platform, AccountID: account.ID, AccountName: account.Name,
 		UpstreamStatusCode: http.StatusGatewayTimeout, UpstreamRequestID: requestID,
 		Kind: "first_output_timeout", Message: "OpenAI upstream produced no semantic output before the deadline",
@@ -54,18 +56,9 @@ func (s *OpenAIGatewayService) newOpenAIFirstOutputTimeoutError(
 	if s.rateLimitService != nil {
 		s.rateLimitService.HandleStreamTimeout(ctx, account, originalModel)
 	}
-	return &UpstreamFailoverError{
+	return &forwardcore.UpstreamFailoverError{
 		StatusCode:      http.StatusGatewayTimeout,
 		ResponseBody:    []byte(`{"error":{"type":"first_output_timeout","message":"Upstream produced no output before the deadline"}}`),
 		ResponseHeaders: responseHeaders.Clone(), SafeToFailoverAfterWrite: true,
 	}
-}
-
-const openAIFirstOutputStageMaxBytes = nativeopenai.OpenAIFirstOutputStageMaxBytes
-const openAIFirstOutputScannerFramingAllowance = nativeopenai.OpenAIFirstOutputScannerFramingAllowance
-
-type openAIFirstOutputStage = nativeopenai.OpenAIFirstOutputStage
-
-func newDefaultOpenAIFirstOutputStage() *openAIFirstOutputStage {
-	return nativeopenai.NewDefaultOpenAIFirstOutputStage()
 }

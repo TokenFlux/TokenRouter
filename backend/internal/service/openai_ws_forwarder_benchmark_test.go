@@ -5,6 +5,10 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 var (
@@ -17,7 +21,7 @@ var (
 func BenchmarkOpenAIWSForwarderHotPath(b *testing.B) {
 	cfg := &config.Config{}
 	svc := &OpenAIGatewayService{cfg: cfg}
-	account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	reqBody := benchmarkOpenAIWSHotPathRequest()
 
 	b.ReportAllocs()
@@ -25,13 +29,13 @@ func BenchmarkOpenAIWSForwarderHotPath(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		payload := svc.buildOpenAIWSCreatePayload(reqBody, account)
-		_, _ = applyOpenAIWSRetryPayloadStrategy(payload, 2)
-		setOpenAIWSTurnMetadata(payload, `{"trace":"bench","turn":"1"}`)
+		_, _ = openai.ApplyWSRetryPayloadStrategy(payload, 2)
+		openai.SetOpenAIWSTurnMetadata(payload, `{"trace":"bench","turn":"1"}`)
 
-		benchmarkOpenAIWSStringSink = openAIWSPayloadString(payload, "previous_response_id")
+		benchmarkOpenAIWSStringSink = protocolopenai.WSPayloadString(payload, "previous_response_id")
 		benchmarkOpenAIWSBoolSink = payload["tools"] != nil
-		benchmarkOpenAIWSStringSink = summarizeOpenAIWSPayloadKeySizes(payload, openAIWSPayloadKeySizeTopN)
-		benchmarkOpenAIWSStringSink = summarizeOpenAIWSInput(payload["input"])
+		benchmarkOpenAIWSStringSink = gatewayprovider.SummarizeOpenAIWSPayloadKeySizes(payload, openAIWSPayloadKeySizeTopN)
+		benchmarkOpenAIWSStringSink = gatewayprovider.SummarizeOpenAIWSInput(payload["input"])
 		benchmarkOpenAIWSPayloadJSONSink = payloadAsJSON(payload)
 	}
 }
@@ -83,7 +87,7 @@ func BenchmarkOpenAIWSEventEnvelopeParse(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		eventType, responseID, response := parseOpenAIWSEventEnvelope(event)
+		eventType, responseID, response := protocolopenai.ParseWSEventEnvelope(event)
 		benchmarkOpenAIWSStringSink = eventType
 		benchmarkOpenAIWSStringSink = responseID
 		benchmarkOpenAIWSBoolSink = response.Exists()
@@ -96,13 +100,13 @@ func BenchmarkOpenAIWSErrorEventFieldReuse(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		codeRaw, errTypeRaw, errMsgRaw := parseOpenAIWSErrorEventFields(event)
-		benchmarkOpenAIWSStringSink, benchmarkOpenAIWSBoolSink = classifyOpenAIWSErrorEventFromRaw(codeRaw, errTypeRaw, errMsgRaw)
-		code, errType, errMsg := summarizeOpenAIWSErrorEventFieldsFromRaw(codeRaw, errTypeRaw, errMsgRaw)
+		codeRaw, errTypeRaw, errMsgRaw := protocolopenai.ParseWSErrorEventFields(event)
+		benchmarkOpenAIWSStringSink, benchmarkOpenAIWSBoolSink = openai.ClassifyWSErrorEventFromRaw(codeRaw, errTypeRaw, errMsgRaw)
+		code, errType, errMsg := gatewayprovider.SummarizeOpenAIWSErrorEventFieldsFromRaw(codeRaw, errTypeRaw, errMsgRaw)
 		benchmarkOpenAIWSStringSink = code
 		benchmarkOpenAIWSStringSink = errType
 		benchmarkOpenAIWSStringSink = errMsg
-		benchmarkOpenAIWSBoolSink = openAIWSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw) > 0
+		benchmarkOpenAIWSBoolSink = openai.WSErrorHTTPStatusFromRaw(codeRaw, errTypeRaw) > 0
 	}
 }
 
@@ -112,7 +116,7 @@ func BenchmarkReplaceOpenAIWSMessageModel_NoMatchFastPath(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		benchmarkOpenAIWSBytesSink = replaceOpenAIWSMessageModel(event, "gpt-5.1", "custom-model")
+		benchmarkOpenAIWSBytesSink = protocolopenai.ReplaceWSMessageModel(event, "gpt-5.1", "custom-model")
 	}
 }
 
@@ -122,6 +126,6 @@ func BenchmarkReplaceOpenAIWSMessageModel_DualReplace(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		benchmarkOpenAIWSBytesSink = replaceOpenAIWSMessageModel(event, "gpt-5.1", "custom-model")
+		benchmarkOpenAIWSBytesSink = protocolopenai.ReplaceWSMessageModel(event, "gpt-5.1", "custom-model")
 	}
 }

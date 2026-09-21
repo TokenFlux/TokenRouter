@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 // Grok OAuth 调度使用本地免费层软门禁。
@@ -121,7 +121,7 @@ var freeQuotaRefreshInFlight sync.Map // *sync.Map -> *sync.Map (accountID -> st
 func filterGrokFreeQuotaAccountsCore(
 	ctx context.Context,
 	cfg *config.Config,
-	usageLogRepo UsageLogRepository,
+	usageLogRepo usage.UsageLogRepository,
 	cache *sync.Map,
 	accounts []Account,
 ) []Account {
@@ -181,7 +181,7 @@ func filterGrokFreeQuotaAccountsCore(
 
 // scheduleGrokFreeQuotaStatsRefresh 在请求路径外加载用量统计，并用进行中标记合并同账号并发刷新。
 func scheduleGrokFreeQuotaStatsRefresh(
-	usageLogRepo UsageLogRepository,
+	usageLogRepo usage.UsageLogRepository,
 	cache *sync.Map,
 	settings grokFreeQuotaGateSettings,
 	accountIDs []int64,
@@ -276,14 +276,14 @@ func sweepGrokFreeQuotaGateCache(cache *sync.Map, now time.Time, cacheTTL time.D
 	})
 }
 
-func queryGrokFreeQuotaWindowStats(ctx context.Context, usageLogRepo UsageLogRepository, accountIDs []int64, start time.Time) (map[int64]*usagestats.AccountStats, error) {
+func queryGrokFreeQuotaWindowStats(ctx context.Context, usageLogRepo usage.UsageLogRepository, accountIDs []int64, start time.Time) (map[int64]*usage.AccountStats, error) {
 	if usageLogRepo == nil {
 		return nil, nil
 	}
 	if batch, ok := usageLogRepo.(accountWindowStatsBatchReader); ok {
 		return batch.GetAccountWindowStatsBatch(ctx, accountIDs, start)
 	}
-	statsByID := make(map[int64]*usagestats.AccountStats, len(accountIDs))
+	statsByID := make(map[int64]*usage.AccountStats, len(accountIDs))
 	for _, accountID := range accountIDs {
 		stats, err := usageLogRepo.GetAccountWindowStats(ctx, accountID, start)
 		if err != nil {

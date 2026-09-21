@@ -2,23 +2,37 @@
 package app
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
+	"github.com/TokenFlux/TokenRouter/internal/settings/composite"
+	"github.com/TokenFlux/TokenRouter/internal/site"
+
 	context "context"
+
 	slog "log/slog"
+
 	strings "strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/payment"
+
 	paymenthttp "github.com/TokenFlux/TokenRouter/internal/payment/httpapi"
 
-	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+
 	config "github.com/TokenFlux/TokenRouter/internal/config"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
 	provider "github.com/TokenFlux/TokenRouter/internal/identity/provider"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	gin "github.com/gin-gonic/gin"
 )
 
@@ -28,12 +42,83 @@ type identityHTTP struct {
 	*paymenthttp.WeChatPaymentHandler
 }
 
-func provideIdentityHTTP(g *identityAuthGraph, users *identity.UserService, cfg *config.Config, settings *service.SettingService, promo *service.PromoService, redeems *service.RedeemService, totp *identity.TotpService, attributes *identity.UserAttributeService, tasks *lifecycle.Tasks, payments *payment.Runtime) *identityHTTP {
-	runtime := legacybridge.IdentityHTTPSettings{Service: settings}
+// identityHTTPSettings 只投影请求时读取的认证设置，保持旧入口的回退和错误语义。
+type identityHTTPSettings struct {
+	*identityAuthSettings
+	*admission.BackendMode
+	public    *site.PublicService
+	composite *composite.Runtime
+}
+
+func (s identityHTTPSettings) ReadBackendMode(ctx context.Context) bool {
+	value, err := s.public.GetPublicSettings(ctx)
+	if err == nil && value != nil {
+		return value.BackendModeEnabled
+	}
+	return s.Enabled(ctx)
+}
+
+func (s identityHTTPSettings) ForceEmail(ctx context.Context) bool {
+	value, err := s.GetAuthSourceDefaultSettings(ctx)
+	return err == nil && value != nil && value.ForceEmailOnThirdPartySignup
+}
+
+func (s identityHTTPSettings) LinuxDo(ctx context.Context) (identity.LinuxDoOAuthOptions, error) {
+	value, err := s.oauth.GetLinuxDoConnectOAuthConfig(ctx)
+	return identity.LinuxDoOAuthOptions(value), err
+}
+
+func (s identityHTTPSettings) OIDC(ctx context.Context) (identity.OIDCOAuthOptions, error) {
+	value, err := s.oauth.GetOIDCConnectOAuthConfig(ctx)
+	return identity.OIDCOAuthOptions(value), err
+}
+
+func (s identityHTTPSettings) Email(ctx context.Context, providerName string) (identity.EmailOAuthOptions, error) {
+	value, err := s.oauth.GetEmailOAuthProviderConfig(ctx, providerName)
+	return identity.EmailOAuthOptions(value), err
+}
+
+func (s identityHTTPSettings) DingTalk(ctx context.Context) (identity.DingTalkOAuthOptions, error) {
+	value, err := s.oauth.GetDingTalkConnectOAuthConfig(ctx)
+	return identity.DingTalkOAuthOptions(value), err
+}
+
+func (s identityHTTPSettings) GoogleOneTap(ctx context.Context) (identityhttp.GoogleOneTapOptions, error) {
+	value, err := s.oauth.GetGoogleOneTapConfig(ctx)
+	return identityhttp.GoogleOneTapOptions{ClientID: value.ClientID, FrontendRedirectURL: value.FrontendRedirectURL}, err
+}
+
+func (s identityHTTPSettings) APIBaseURL(ctx context.Context) string {
+	value, err := s.composite.GetAllSettings(ctx)
+	if err == nil && value != nil {
+		return strings.TrimSpace(value.APIBaseURL)
+	}
+	return ""
+}
+
+func (s identityHTTPSettings) WeChat(ctx context.Context, mode string) (identity.WeChatOAuthOptions, error) {
+	base := s.APIBaseURL(ctx)
+	value, err := s.oauth.GetWeChatConnectOAuthConfig(ctx)
+	if err != nil {
+		return identity.WeChatOAuthOptions{}, err
+	}
+	return identity.WeChatOAuthOptions{Mode: mode, AppID: value.AppIDForMode(mode), AppSecret: value.AppSecretForMode(mode), Scope: value.ScopeForMode(mode), RedirectURI: value.RedirectURL, FrontendCallback: value.FrontendRedirectURL, APIBaseURL: base, OpenEnabled: value.OpenEnabled, MPEnabled: value.MPEnabled}, nil
+}
+
+func (s identityHTTPSettings) WeChatFrontend(ctx context.Context) string {
+	value, err := s.oauth.GetWeChatConnectOAuthConfig(ctx)
+	if err == nil && strings.TrimSpace(value.FrontendRedirectURL) != "" {
+		return strings.TrimSpace(value.FrontendRedirectURL)
+	}
+	return identityhttp.WechatOAuthDefaultFrontendCB
+}
+
+func provideIdentityHTTP(g *identityAuthGraph, users *identity.UserService, cfg *config.Config, settings *identityAuthSettings, backend *admission.BackendMode, public *site.PublicService, composite *composite.Runtime, promo *promotion.PromoService, redeems *billing.RedeemService, totp *identity.TotpService, attributes *identity.UserAttributeService, tasks *lifecycle.Tasks, payments *payment.Runtime) *identityHTTP {
+	runtime := identityHTTPSettings{identityAuthSettings: settings, BackendMode: backend, public: public, composite: composite}
 	flow := &identity.PendingFlow{Store: identitypostgres.NewPendingRepository(g.Client, time.Now), Database: &identitypostgres.PendingFlowDatabase{Client: g.Client, Auth: g.Core, Profiles: users}, Auth: g.Core, Profiles: users}
 	var pending *identityhttp.PendingHandler
-	session := identityhttp.NewSessionHandler(g.Core, users, settings, redeems, totp, flow, identityhttp.SessionHTTPOptions{
-		RunMode: cfg.RunMode, BackendMode: runtime.BackendMode, AuditActor: middleware.SetAuditActor,
+	session := identityhttp.NewSessionHandler(g.Core, users, runtime, redeems, totp, flow, identityhttp.SessionHTTPOptions{
+		RunMode: cfg.RunMode, BackendMode: runtime.ReadBackendMode, AuditActor: middleware.SetAuditActor,
 		ClearPendingCookies: func(c *gin.Context) {
 			secure := identityhttp.IsRequestHTTPS(c)
 			identityhttp.ClearOAuthPendingSessionCookie(c, secure)

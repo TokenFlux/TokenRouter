@@ -8,7 +8,12 @@ import (
 
 func TruncateUTF8Value(value string, maxLen int) string {
 	value = strings.TrimSpace(value)
-	if value == "" || maxLen <= 0 {
+	return TruncateUTF8(value, maxLen)
+}
+
+// TruncateUTF8 按原字节上限截断并保留完整 UTF-8 字符，不清理首尾空白。
+func TruncateUTF8(value string, maxLen int) string {
+	if maxLen <= 0 {
 		return ""
 	}
 	if len(value) <= maxLen {

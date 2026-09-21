@@ -5,8 +5,11 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // AccountExtraImagesURLToB64JSON 是账户 extra 中的开关键。
@@ -14,10 +17,10 @@ const AccountExtraImagesURLToB64JSON = "images_url_to_b64_json"
 
 // ImagesURLToB64JSONEnabled 返回账户是否开启 URL 到 base64 的图片回填。
 func ImagesURLToB64JSONEnabled(account *Account) bool {
-	return account != nil && account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey && account.getExtraBool(AccountExtraImagesURLToB64JSON)
+	return account != nil && account.Platform == capability.PlatformOpenAI && account.Type == capability.AccountTypeAPIKey && account.getExtraBool(AccountExtraImagesURLToB64JSON)
 }
-func (s *OpenAIGatewayService) imageBackfillOptions(account *Account) native.ImageBackfillOptions {
-	options := native.ImageBackfillOptions{Enabled: ImagesURLToB64JSONEnabled(account)}
+func (s *OpenAIGatewayService) imageBackfillOptions(account *Account) openai.ImageBackfillOptions {
+	options := openai.ImageBackfillOptions{Enabled: ImagesURLToB64JSONEnabled(account)}
 	if s != nil {
 		options.ValidateURL = s.validateOutboundURL
 		if s.httpUpstream != nil && account != nil {
@@ -32,12 +35,12 @@ func (s *OpenAIGatewayService) imageBackfillOptions(account *Account) native.Ima
 	}
 	if account != nil {
 		options.Failure = func(index int) {
-			logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Images b64_json backfill skipped account_id=%d index=%d: image download or conversion failed", account.ID, index)
+			logging.LegacyPrintf("service.openai_gateway", "[OpenAI] Images b64_json backfill skipped account_id=%d index=%d: image download or conversion failed", account.ID, index)
 		}
 	}
 	return options
 }
-func (s *OpenAIGatewayService) backfillOpenAIImagesB64JSON(ctx context.Context, account *Account, parsed *OpenAIImagesRequest, body []byte) []byte {
+func (s *OpenAIGatewayService) backfillOpenAIImagesB64JSON(ctx context.Context, account *Account, parsed *media.ImageRequest, body []byte) []byte {
 	options := s.imageBackfillOptions(account)
 	if parsed != nil {
 		options.Stream = parsed.Stream
@@ -45,5 +48,3 @@ func (s *OpenAIGatewayService) backfillOpenAIImagesB64JSON(ctx context.Context, 
 	}
 	return options.Backfill(ctx, body)
 }
-
-func isBackfillImageContent(data []byte) bool { return native.IsBackfillImageContent(data) }

@@ -7,10 +7,11 @@ import (
 	base64 "encoding/base64"
 	json "encoding/json"
 	fmt "fmt"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	redis "github.com/redis/go-redis/v9"
 	strings "strings"
 	time "time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	redis "github.com/redis/go-redis/v9"
 )
 
 const passkeySessionPrefix = "passkey:session:"

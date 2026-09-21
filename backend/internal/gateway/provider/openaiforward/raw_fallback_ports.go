@@ -4,12 +4,13 @@ package openaiforward
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 type RawFallbackPorts interface {
@@ -39,5 +40,5 @@ type RawFallbackPorts interface {
 	AnthropicError(*http.Response, string) (*Result, error)
 	ResponsesError(context.Context, *http.Response, []byte, string) (*Result, error)
 	Sink() upstream.OutputSink
-	RawOptions(*http.Response, string, string, *string) native.RawResponseOptions
+	RawOptions(*http.Response, string, string, *string) openai.RawResponseOptions
 }

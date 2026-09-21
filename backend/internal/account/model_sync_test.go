@@ -2,9 +2,10 @@ package account
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 实时模型查询持有独立凭据输入；停止等待真实执行结束，不能继续发起请求。

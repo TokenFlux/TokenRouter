@@ -5,6 +5,8 @@ package service
 import (
 	"context"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
 func TestIsForceCacheBilling(t *testing.T) {
@@ -111,7 +113,7 @@ func TestForceCacheBilling_TokenConversion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 模拟 RecordUsage 中的 ForceCacheBilling 逻辑
-			usage := ClaudeUsage{
+			usage := upstream.TokenUsage{
 				InputTokens:          tt.inputTokens,
 				CacheReadInputTokens: tt.cacheReadInputTokens,
 			}

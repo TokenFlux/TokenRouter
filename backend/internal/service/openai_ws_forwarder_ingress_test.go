@@ -10,6 +10,12 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	openaicore "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	coderws "github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -42,7 +48,7 @@ func TestIsOpenAIWSClientDisconnectError(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tt.want, isOpenAIWSClientDisconnectError(tt.err))
+			require.Equal(t, tt.want, gatewayprovider.IsOpenAIWSClientDisconnectError(tt.err))
 		})
 	}
 }
@@ -50,16 +56,16 @@ func TestIsOpenAIWSClientDisconnectError(t *testing.T) {
 func TestIsOpenAIWSIngressPreviousResponseNotFound(t *testing.T) {
 	t.Parallel()
 
-	require.False(t, isOpenAIWSIngressPreviousResponseNotFound(nil))
-	require.False(t, isOpenAIWSIngressPreviousResponseNotFound(errors.New("plain error")))
-	require.False(t, isOpenAIWSIngressPreviousResponseNotFound(
-		wrapOpenAIWSIngressTurnError("read_upstream", errors.New("upstream read failed"), false),
+	require.False(t, ws.IsPreviousResponseNotFound(nil))
+	require.False(t, ws.IsPreviousResponseNotFound(errors.New("plain error")))
+	require.False(t, ws.IsPreviousResponseNotFound(
+		ws.WrapIngressTurnError("read_upstream", errors.New("upstream read failed"), false),
 	))
-	require.False(t, isOpenAIWSIngressPreviousResponseNotFound(
-		wrapOpenAIWSIngressTurnError(openAIWSIngressStagePreviousResponseNotFound, errors.New("previous response not found"), true),
+	require.False(t, ws.IsPreviousResponseNotFound(
+		ws.WrapIngressTurnError(ws.IngressStagePreviousResponseNotFound, errors.New("previous response not found"), true),
 	))
-	require.True(t, isOpenAIWSIngressPreviousResponseNotFound(
-		wrapOpenAIWSIngressTurnError(openAIWSIngressStagePreviousResponseNotFound, errors.New("previous response not found"), false),
+	require.True(t, ws.IsPreviousResponseNotFound(
+		ws.WrapIngressTurnError(ws.IngressStagePreviousResponseNotFound, errors.New("previous response not found"), false),
 	))
 }
 
@@ -83,8 +89,8 @@ func TestOpenAIWSIngressPreviousResponseRecoveryEnabled(t *testing.T) {
 
 // TestApplyOpenAIWSReasoningEffortPolicyUsesSessionModel 验证省略 model 的后续帧仍能命中分组映射。
 func TestApplyOpenAIWSReasoningEffortPolicyUsesSessionModel(t *testing.T) {
-	hooks := &OpenAIWSIngressHooks{
-		ReasoningEffortMappings: []ReasoningEffortMapping{{
+	hooks := &ws.OpenAIIngressHooks{
+		ReasoningEffortMappings: []routing.ReasoningEffortMapping{{
 			From:      "none",
 			To:        "low",
 			MatchType: "exact",
@@ -102,7 +108,7 @@ func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty_payload", func(t *testing.T) {
-		updated, removed, err := dropPreviousResponseIDFromRawPayload(nil)
+		updated, removed, err := openaicore.DropPreviousResponseIDFromRawPayload(nil)
 		require.NoError(t, err)
 		require.False(t, removed)
 		require.Empty(t, updated)
@@ -110,7 +116,7 @@ func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 
 	t.Run("payload_without_previous_response_id", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1"}`)
-		updated, removed, err := dropPreviousResponseIDFromRawPayload(payload)
+		updated, removed, err := openaicore.DropPreviousResponseIDFromRawPayload(payload)
 		require.NoError(t, err)
 		require.False(t, removed)
 		require.Equal(t, string(payload), string(updated))
@@ -118,7 +124,7 @@ func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 
 	t.Run("normal_delete_success", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1","previous_response_id":"resp_abc"}`)
-		updated, removed, err := dropPreviousResponseIDFromRawPayload(payload)
+		updated, removed, err := openaicore.DropPreviousResponseIDFromRawPayload(payload)
 		require.NoError(t, err)
 		require.True(t, removed)
 		require.False(t, gjson.GetBytes(updated, "previous_response_id").Exists())
@@ -126,7 +132,7 @@ func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 
 	t.Run("duplicate_keys_are_removed", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","previous_response_id":"resp_a","input":[],"previous_response_id":"resp_b"}`)
-		updated, removed, err := dropPreviousResponseIDFromRawPayload(payload)
+		updated, removed, err := openaicore.DropPreviousResponseIDFromRawPayload(payload)
 		require.NoError(t, err)
 		require.True(t, removed)
 		require.False(t, gjson.GetBytes(updated, "previous_response_id").Exists())
@@ -134,7 +140,7 @@ func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 
 	t.Run("nil_delete_fn_uses_default_delete_logic", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1","previous_response_id":"resp_abc"}`)
-		updated, removed, err := dropPreviousResponseIDFromRawPayloadWithDeleteFn(payload, nil)
+		updated, removed, err := openaicore.DropPreviousResponseIDFromRawPayloadWithDeleteFn(payload, nil)
 		require.NoError(t, err)
 		require.True(t, removed)
 		require.False(t, gjson.GetBytes(updated, "previous_response_id").Exists())
@@ -142,7 +148,7 @@ func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 
 	t.Run("delete_error", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1","previous_response_id":"resp_abc"}`)
-		updated, removed, err := dropPreviousResponseIDFromRawPayloadWithDeleteFn(payload, func(_ []byte, _ string) ([]byte, error) {
+		updated, removed, err := openaicore.DropPreviousResponseIDFromRawPayloadWithDeleteFn(payload, func(_ []byte, _ string) ([]byte, error) {
 			return nil, errors.New("delete failed")
 		})
 		require.Error(t, err)
@@ -154,7 +160,7 @@ func TestDropPreviousResponseIDFromRawPayload(t *testing.T) {
 		payload := []byte(`{"type":"response.create","previous_response_id":"resp_abc"`)
 		require.True(t, gjson.GetBytes(payload, "previous_response_id").Exists())
 
-		updated, removed, err := dropPreviousResponseIDFromRawPayload(payload)
+		updated, removed, err := openaicore.DropPreviousResponseIDFromRawPayload(payload)
 		require.NoError(t, err)
 		require.True(t, removed)
 		require.False(t, gjson.GetBytes(updated, "previous_response_id").Exists())
@@ -184,7 +190,7 @@ func TestStripCodexSparkImageGenerationToolFromRawPayload(t *testing.T) {
 		updated, changed, err := stripCodexSparkImageGenerationToolFromRawPayload(payload, "gpt-5.3-codex-spark")
 		require.NoError(t, err)
 		require.True(t, changed)
-		require.False(t, IsImageGenerationIntent(openAIResponsesEndpoint, "gpt-5.3-codex-spark", updated))
+		require.False(t, IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.3-codex-spark", updated))
 		require.Equal(t, "hello", gjson.GetBytes(updated, "input.0.content").String())
 		require.False(t, gjson.GetBytes(updated, "tool_choice").Exists())
 	})
@@ -246,7 +252,7 @@ func TestStripOpenAIImageGenerationToolsFromRawPayload(t *testing.T) {
 
 		require.NoError(t, err)
 		require.True(t, changed)
-		require.False(t, IsImageGenerationIntent(openAIResponsesEndpoint, "gpt-5.5", updated))
+		require.False(t, IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.5", updated))
 		require.True(t, gjson.GetBytes(updated, `tools.#(name=="code_tools")`).Exists())
 		require.Equal(t, "hello", gjson.GetBytes(updated, "input.0.content").String())
 		require.False(t, gjson.GetBytes(updated, "tool_choice").Exists())
@@ -267,7 +273,7 @@ func TestAlignStoreDisabledPreviousResponseID(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty_payload", func(t *testing.T) {
-		updated, changed, err := alignStoreDisabledPreviousResponseID(nil, "resp_target")
+		updated, changed, err := openaicore.AlignStoreDisabledPreviousResponseID(nil, "resp_target")
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Empty(t, updated)
@@ -275,7 +281,7 @@ func TestAlignStoreDisabledPreviousResponseID(t *testing.T) {
 
 	t.Run("empty_expected", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","previous_response_id":"resp_old"}`)
-		updated, changed, err := alignStoreDisabledPreviousResponseID(payload, "")
+		updated, changed, err := openaicore.AlignStoreDisabledPreviousResponseID(payload, "")
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Equal(t, string(payload), string(updated))
@@ -283,7 +289,7 @@ func TestAlignStoreDisabledPreviousResponseID(t *testing.T) {
 
 	t.Run("missing_previous_response_id", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1"}`)
-		updated, changed, err := alignStoreDisabledPreviousResponseID(payload, "resp_target")
+		updated, changed, err := openaicore.AlignStoreDisabledPreviousResponseID(payload, "resp_target")
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Equal(t, string(payload), string(updated))
@@ -291,7 +297,7 @@ func TestAlignStoreDisabledPreviousResponseID(t *testing.T) {
 
 	t.Run("already_aligned", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","previous_response_id":"resp_target"}`)
-		updated, changed, err := alignStoreDisabledPreviousResponseID(payload, "resp_target")
+		updated, changed, err := openaicore.AlignStoreDisabledPreviousResponseID(payload, "resp_target")
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Equal(t, "resp_target", gjson.GetBytes(updated, "previous_response_id").String())
@@ -299,7 +305,7 @@ func TestAlignStoreDisabledPreviousResponseID(t *testing.T) {
 
 	t.Run("mismatch_rewrites_to_expected", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","previous_response_id":"resp_old","input":[]}`)
-		updated, changed, err := alignStoreDisabledPreviousResponseID(payload, "resp_target")
+		updated, changed, err := openaicore.AlignStoreDisabledPreviousResponseID(payload, "resp_target")
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.Equal(t, "resp_target", gjson.GetBytes(updated, "previous_response_id").String())
@@ -307,7 +313,7 @@ func TestAlignStoreDisabledPreviousResponseID(t *testing.T) {
 
 	t.Run("duplicate_keys_rewrites_to_single_expected", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","previous_response_id":"resp_old_1","input":[],"previous_response_id":"resp_old_2"}`)
-		updated, changed, err := alignStoreDisabledPreviousResponseID(payload, "resp_target")
+		updated, changed, err := openaicore.AlignStoreDisabledPreviousResponseID(payload, "resp_target")
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.Equal(t, "resp_target", gjson.GetBytes(updated, "previous_response_id").String())
@@ -318,21 +324,21 @@ func TestSetPreviousResponseIDToRawPayload(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty_payload", func(t *testing.T) {
-		updated, err := setPreviousResponseIDToRawPayload(nil, "resp_target")
+		updated, err := openaicore.SetPreviousResponseIDToRawPayload(nil, "resp_target")
 		require.NoError(t, err)
 		require.Empty(t, updated)
 	})
 
 	t.Run("empty_previous_response_id", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1"}`)
-		updated, err := setPreviousResponseIDToRawPayload(payload, "")
+		updated, err := openaicore.SetPreviousResponseIDToRawPayload(payload, "")
 		require.NoError(t, err)
 		require.Equal(t, string(payload), string(updated))
 	})
 
 	t.Run("set_previous_response_id_when_missing", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1"}`)
-		updated, err := setPreviousResponseIDToRawPayload(payload, "resp_target")
+		updated, err := openaicore.SetPreviousResponseIDToRawPayload(payload, "resp_target")
 		require.NoError(t, err)
 		require.Equal(t, "resp_target", gjson.GetBytes(updated, "previous_response_id").String())
 		require.Equal(t, "gpt-5.1", gjson.GetBytes(updated, "model").String())
@@ -340,7 +346,7 @@ func TestSetPreviousResponseIDToRawPayload(t *testing.T) {
 
 	t.Run("overwrite_existing_previous_response_id", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1","previous_response_id":"resp_old"}`)
-		updated, err := setPreviousResponseIDToRawPayload(payload, "resp_new")
+		updated, err := openaicore.SetPreviousResponseIDToRawPayload(payload, "resp_new")
 		require.NoError(t, err)
 		require.Equal(t, "resp_new", gjson.GetBytes(updated, "previous_response_id").String())
 	})
@@ -353,7 +359,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 		name                    string
 		storeDisabled           bool
 		turn                    int
-		signals                 ToolContinuationSignals
+		signals                 openai.ToolContinuationSignals
 		currentPreviousResponse string
 		expectedPrevious        string
 		want                    bool
@@ -362,7 +368,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "infer_when_all_conditions_match",
 			storeDisabled:    true,
 			turn:             2,
-			signals:          ToolContinuationSignals{HasFunctionCallOutput: true},
+			signals:          openai.ToolContinuationSignals{HasFunctionCallOutput: true},
 			expectedPrevious: "resp_1",
 			want:             true,
 		},
@@ -370,7 +376,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "skip_when_store_enabled",
 			storeDisabled:    false,
 			turn:             2,
-			signals:          ToolContinuationSignals{HasFunctionCallOutput: true},
+			signals:          openai.ToolContinuationSignals{HasFunctionCallOutput: true},
 			expectedPrevious: "resp_1",
 			want:             false,
 		},
@@ -378,7 +384,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "skip_on_first_turn",
 			storeDisabled:    true,
 			turn:             1,
-			signals:          ToolContinuationSignals{HasFunctionCallOutput: true},
+			signals:          openai.ToolContinuationSignals{HasFunctionCallOutput: true},
 			expectedPrevious: "resp_1",
 			want:             false,
 		},
@@ -386,7 +392,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "skip_without_function_call_output",
 			storeDisabled:    true,
 			turn:             2,
-			signals:          ToolContinuationSignals{},
+			signals:          openai.ToolContinuationSignals{},
 			expectedPrevious: "resp_1",
 			want:             false,
 		},
@@ -394,7 +400,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:                    "skip_when_request_already_has_previous_response_id",
 			storeDisabled:           true,
 			turn:                    2,
-			signals:                 ToolContinuationSignals{HasFunctionCallOutput: true},
+			signals:                 openai.ToolContinuationSignals{HasFunctionCallOutput: true},
 			currentPreviousResponse: "resp_client",
 			expectedPrevious:        "resp_1",
 			want:                    false,
@@ -403,7 +409,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "skip_when_last_turn_response_id_missing",
 			storeDisabled:    true,
 			turn:             2,
-			signals:          ToolContinuationSignals{HasFunctionCallOutput: true},
+			signals:          openai.ToolContinuationSignals{HasFunctionCallOutput: true},
 			expectedPrevious: "",
 			want:             false,
 		},
@@ -411,7 +417,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "trim_whitespace_before_judgement",
 			storeDisabled:    true,
 			turn:             2,
-			signals:          ToolContinuationSignals{HasFunctionCallOutput: true},
+			signals:          openai.ToolContinuationSignals{HasFunctionCallOutput: true},
 			expectedPrevious: "   resp_2   ",
 			want:             true,
 		},
@@ -419,7 +425,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "skip_when_tool_call_context_already_present",
 			storeDisabled:    true,
 			turn:             2,
-			signals:          ToolContinuationSignals{HasFunctionCallOutput: true, HasToolCallContext: true},
+			signals:          openai.ToolContinuationSignals{HasFunctionCallOutput: true, HasToolCallContext: true},
 			expectedPrevious: "resp_2",
 			want:             false,
 		},
@@ -427,7 +433,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "infer_when_only_item_reference_covers_call_ids",
 			storeDisabled:    true,
 			turn:             2,
-			signals:          ToolContinuationSignals{HasFunctionCallOutput: true, HasItemReferenceForAllCallIDs: true},
+			signals:          openai.ToolContinuationSignals{HasFunctionCallOutput: true, HasItemReferenceForAllCallIDs: true},
 			expectedPrevious: "resp_2",
 			want:             true,
 		},
@@ -435,7 +441,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 			name:             "skip_when_function_call_output_missing_call_id",
 			storeDisabled:    true,
 			turn:             2,
-			signals:          ToolContinuationSignals{HasFunctionCallOutput: true, HasFunctionCallOutputMissingCallID: true},
+			signals:          openai.ToolContinuationSignals{HasFunctionCallOutput: true, HasFunctionCallOutputMissingCallID: true},
 			expectedPrevious: "resp_2",
 			want:             false,
 		},
@@ -445,7 +451,7 @@ func TestShouldInferIngressFunctionCallOutputPreviousResponseID(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := shouldInferIngressFunctionCallOutputPreviousResponseID(
+			got := openaicore.ShouldInferIngressFunctionCallOutputPreviousResponseID(
 				tt.storeDisabled,
 				tt.turn,
 				tt.signals,
@@ -533,7 +539,7 @@ func TestOpenAIWSInputIsPrefixExtended(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := openAIWSInputIsPrefixExtended(tt.previous, tt.current)
+			got, err := openaicore.OpenAIWSInputIsPrefixExtended(tt.previous, tt.current)
 			if tt.expectErr {
 				require.Error(t, err)
 				return
@@ -547,28 +553,28 @@ func TestOpenAIWSInputIsPrefixExtended(t *testing.T) {
 func TestNormalizeOpenAIWSJSONForCompare(t *testing.T) {
 	t.Parallel()
 
-	normalized, err := normalizeOpenAIWSJSONForCompare([]byte(`{"b":2,"a":1}`))
+	normalized, err := openaicore.NormalizeOpenAIWSJSONForCompare([]byte(`{"b":2,"a":1}`))
 	require.NoError(t, err)
 	require.Equal(t, `{"a":1,"b":2}`, string(normalized))
 
-	_, err = normalizeOpenAIWSJSONForCompare([]byte("   "))
+	_, err = openaicore.NormalizeOpenAIWSJSONForCompare([]byte("   "))
 	require.Error(t, err)
 
-	_, err = normalizeOpenAIWSJSONForCompare([]byte(`{"a":`))
+	_, err = openaicore.NormalizeOpenAIWSJSONForCompare([]byte(`{"a":`))
 	require.Error(t, err)
 }
 
 func TestNormalizeOpenAIWSJSONForCompareOrRaw(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, `{"a":1,"b":2}`, string(normalizeOpenAIWSJSONForCompareOrRaw([]byte(`{"b":2,"a":1}`))))
-	require.Equal(t, `{"a":`, string(normalizeOpenAIWSJSONForCompareOrRaw([]byte(`{"a":`))))
+	require.Equal(t, `{"a":1,"b":2}`, string(openaicore.NormalizeOpenAIWSJSONForCompareOrRaw([]byte(`{"b":2,"a":1}`))))
+	require.Equal(t, `{"a":`, string(openaicore.NormalizeOpenAIWSJSONForCompareOrRaw([]byte(`{"a":`))))
 }
 
 func TestNormalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(t *testing.T) {
 	t.Parallel()
 
-	normalized, err := normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(
+	normalized, err := openaicore.NormalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(
 		[]byte(`{"model":"gpt-5.1","input":[1],"previous_response_id":"resp_x","client_metadata":{"request_start_ms":"1"},"stream_options":{"include_usage":true},"generate":false,"metadata":{"b":2,"a":1}}`),
 	)
 	require.NoError(t, err)
@@ -579,16 +585,16 @@ func TestNormalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(t *testing.T)
 	require.False(t, gjson.GetBytes(normalized, "generate").Exists())
 	require.Equal(t, float64(1), gjson.GetBytes(normalized, "metadata.a").Float())
 
-	normalized, err = normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(
+	normalized, err = openaicore.NormalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(
 		[]byte(`{"model":"gpt-5.1","generate":true}`),
 	)
 	require.NoError(t, err)
 	require.True(t, gjson.GetBytes(normalized, "generate").Bool())
 
-	_, err = normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(nil)
+	_, err = openaicore.NormalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(nil)
 	require.Error(t, err)
 
-	_, err = normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID([]byte(`[]`))
+	_, err = openaicore.NormalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID([]byte(`[]`))
 	require.Error(t, err)
 }
 
@@ -596,35 +602,35 @@ func TestOpenAIWSExtractNormalizedInputSequence(t *testing.T) {
 	t.Parallel()
 
 	t.Run("empty_payload", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence(nil)
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence(nil)
 		require.NoError(t, err)
 		require.False(t, exists)
 		require.Nil(t, items)
 	})
 
 	t.Run("input_missing", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence([]byte(`{"type":"response.create"}`))
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence([]byte(`{"type":"response.create"}`))
 		require.NoError(t, err)
 		require.False(t, exists)
 		require.Nil(t, items)
 	})
 
 	t.Run("input_array", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence([]byte(`{"input":[{"type":"input_text","text":"hello"}]}`))
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence([]byte(`{"input":[{"type":"input_text","text":"hello"}]}`))
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 1)
 	})
 
 	t.Run("input_object", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence([]byte(`{"input":{"type":"input_text","text":"hello"}}`))
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence([]byte(`{"input":{"type":"input_text","text":"hello"}}`))
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 1)
 	})
 
 	t.Run("input_string", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence([]byte(`{"input":"hello"}`))
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence([]byte(`{"input":"hello"}`))
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 1)
@@ -632,7 +638,7 @@ func TestOpenAIWSExtractNormalizedInputSequence(t *testing.T) {
 	})
 
 	t.Run("input_number", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence([]byte(`{"input":42}`))
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence([]byte(`{"input":42}`))
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 1)
@@ -640,7 +646,7 @@ func TestOpenAIWSExtractNormalizedInputSequence(t *testing.T) {
 	})
 
 	t.Run("input_bool", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence([]byte(`{"input":true}`))
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence([]byte(`{"input":true}`))
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 1)
@@ -648,7 +654,7 @@ func TestOpenAIWSExtractNormalizedInputSequence(t *testing.T) {
 	})
 
 	t.Run("input_null", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence([]byte(`{"input":null}`))
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence([]byte(`{"input":null}`))
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 1)
@@ -656,7 +662,7 @@ func TestOpenAIWSExtractNormalizedInputSequence(t *testing.T) {
 	})
 
 	t.Run("input_invalid_array_json", func(t *testing.T) {
-		items, exists, err := openAIWSExtractNormalizedInputSequence([]byte(`{"input":[}`))
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence([]byte(`{"input":[}`))
 		require.Error(t, err)
 		require.True(t, exists)
 		require.Nil(t, items)
@@ -683,7 +689,7 @@ func TestShouldKeepIngressPreviousResponseID(t *testing.T) {
 	}`)
 
 	t.Run("strict_incremental_keep", func(t *testing.T) {
-		keep, reason, err := shouldKeepIngressPreviousResponseID(previousPayload, currentStrictPayload, "resp_turn_1", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(previousPayload, currentStrictPayload, "resp_turn_1", false)
 		require.NoError(t, err)
 		require.True(t, keep)
 		require.Equal(t, "strict_incremental_ok", reason)
@@ -708,7 +714,7 @@ func TestShouldKeepIngressPreviousResponseID(t *testing.T) {
 			"input":[{"type":"input_text","text":"hello"}]
 		}`)
 
-		keep, reason, err := shouldKeepIngressPreviousResponseID(
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(
 			prewarmPayload,
 			businessPayload,
 			"resp_prewarm",
@@ -721,28 +727,28 @@ func TestShouldKeepIngressPreviousResponseID(t *testing.T) {
 
 	t.Run("missing_previous_response_id", func(t *testing.T) {
 		payload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[]}`)
-		keep, reason, err := shouldKeepIngressPreviousResponseID(previousPayload, payload, "resp_turn_1", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(previousPayload, payload, "resp_turn_1", false)
 		require.NoError(t, err)
 		require.False(t, keep)
 		require.Equal(t, "missing_previous_response_id", reason)
 	})
 
 	t.Run("missing_last_turn_response_id", func(t *testing.T) {
-		keep, reason, err := shouldKeepIngressPreviousResponseID(previousPayload, currentStrictPayload, "", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(previousPayload, currentStrictPayload, "", false)
 		require.NoError(t, err)
 		require.False(t, keep)
 		require.Equal(t, "missing_last_turn_response_id", reason)
 	})
 
 	t.Run("previous_response_id_mismatch", func(t *testing.T) {
-		keep, reason, err := shouldKeepIngressPreviousResponseID(previousPayload, currentStrictPayload, "resp_turn_other", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(previousPayload, currentStrictPayload, "resp_turn_other", false)
 		require.NoError(t, err)
 		require.False(t, keep)
 		require.Equal(t, "previous_response_id_mismatch", reason)
 	})
 
 	t.Run("missing_previous_turn_payload", func(t *testing.T) {
-		keep, reason, err := shouldKeepIngressPreviousResponseID(nil, currentStrictPayload, "resp_turn_1", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(nil, currentStrictPayload, "resp_turn_1", false)
 		require.NoError(t, err)
 		require.False(t, keep)
 		require.Equal(t, "missing_previous_turn_payload", reason)
@@ -757,7 +763,7 @@ func TestShouldKeepIngressPreviousResponseID(t *testing.T) {
 			"previous_response_id":"resp_turn_1",
 			"input":[{"type":"input_text","text":"hello"},{"type":"input_text","text":"world"}]
 		}`)
-		keep, reason, err := shouldKeepIngressPreviousResponseID(previousPayload, payload, "resp_turn_1", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(previousPayload, payload, "resp_turn_1", false)
 		require.NoError(t, err)
 		require.False(t, keep)
 		require.Equal(t, "non_input_changed", reason)
@@ -772,7 +778,7 @@ func TestShouldKeepIngressPreviousResponseID(t *testing.T) {
 			"previous_response_id":"resp_turn_1",
 			"input":[{"type":"input_text","text":"different"}]
 		}`)
-		keep, reason, err := shouldKeepIngressPreviousResponseID(previousPayload, payload, "resp_turn_1", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(previousPayload, payload, "resp_turn_1", false)
 		require.NoError(t, err)
 		require.True(t, keep)
 		require.Equal(t, "strict_incremental_ok", reason)
@@ -786,21 +792,21 @@ func TestShouldKeepIngressPreviousResponseID(t *testing.T) {
 			"previous_response_id":"resp_external",
 			"input":[{"type":"function_call_output","call_id":"call_1","output":"ok"}]
 		}`)
-		keep, reason, err := shouldKeepIngressPreviousResponseID(previousPayload, payload, "resp_turn_1", true)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(previousPayload, payload, "resp_turn_1", true)
 		require.NoError(t, err)
 		require.True(t, keep)
 		require.Equal(t, "has_function_call_output", reason)
 	})
 
 	t.Run("non_input_compare_error", func(t *testing.T) {
-		keep, reason, err := shouldKeepIngressPreviousResponseID([]byte(`[]`), currentStrictPayload, "resp_turn_1", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID([]byte(`[]`), currentStrictPayload, "resp_turn_1", false)
 		require.Error(t, err)
 		require.False(t, keep)
 		require.Equal(t, "non_input_compare_error", reason)
 	})
 
 	t.Run("current_payload_compare_error", func(t *testing.T) {
-		keep, reason, err := shouldKeepIngressPreviousResponseID(previousPayload, []byte(`{"previous_response_id":"resp_turn_1","input":[}`), "resp_turn_1", false)
+		keep, reason, err := openaicore.ShouldKeepIngressPreviousResponseID(previousPayload, []byte(`{"previous_response_id":"resp_turn_1","input":[}`), "resp_turn_1", false)
 		require.Error(t, err)
 		require.False(t, keep)
 		require.Equal(t, "non_input_compare_error", reason)
@@ -815,7 +821,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 	}
 
 	t.Run("no_previous_response_id_use_current", func(t *testing.T) {
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			lastFull,
 			true,
 			[]byte(`{"input":[{"type":"input_text","text":"new"}]}`),
@@ -839,7 +845,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 		]}`)
 
 		for range 3 {
-			items, exists, err := buildOpenAIWSReplayInputSequence(
+			items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 				previousFull,
 				true,
 				currentPayload,
@@ -857,7 +863,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 	})
 
 	t.Run("previous_response_id_delta_append", func(t *testing.T) {
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			lastFull,
 			true,
 			[]byte(`{"previous_response_id":"resp_1","input":[{"type":"input_text","text":"world"}]}`),
@@ -875,7 +881,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 			json.RawMessage(`{"type":"input_text","text":"hello"}`),
 			json.RawMessage(`{"type":"custom_tool_call","id":"item_orphan","call_id":"call_orphan","name":"exec","input":"pwd"}`),
 		}
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			previousFull,
 			true,
 			[]byte(`{"previous_response_id":"resp_1","input":[{"role":"user","content":"continue"}]}`),
@@ -893,7 +899,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 			json.RawMessage(`{"type":"function_call","id":"item_1","call_id":"call_1","name":"lookup","arguments":"{}"}`),
 			json.RawMessage(`{"type":"function_call_output","call_id":"call_1","output":"ok"}`),
 		}
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			previousFull,
 			true,
 			[]byte(`{"previous_response_id":"resp_1","input":[{"role":"user","content":"continue"}]}`),
@@ -911,7 +917,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 			json.RawMessage(`{"type":"custom_tool_call","id":"item_1","call_id":"call_1","name":"exec","input":"pwd"}`),
 			json.RawMessage(`{"type":"custom_tool_call_output","call_id":"call_1","output":"/tmp"}`),
 		}
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			previousFull,
 			true,
 			[]byte(`{"previous_response_id":"resp_1","input":[{"role":"user","content":"continue"}]}`),
@@ -928,7 +934,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 		previousFull := []json.RawMessage{
 			json.RawMessage(`{"type":"custom_tool_call","id":"item_1","call_id":"call_1","name":"exec","input":"pwd"}`),
 		}
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			previousFull,
 			true,
 			[]byte(`{"previous_response_id":"resp_1","input":[{"type":"item_reference","id":"call_1"},{"role":"user","content":"continue"}]}`),
@@ -942,7 +948,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 	})
 
 	t.Run("previous_response_id_preserves_current_orphan_custom_tool_call", func(t *testing.T) {
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			lastFull,
 			true,
 			[]byte(`{"previous_response_id":"resp_1","input":[{"type":"custom_tool_call","id":"item_live","call_id":"call_live","name":"exec","input":"pwd"}]}`),
@@ -956,7 +962,7 @@ func TestBuildOpenAIWSReplayInputSequence(t *testing.T) {
 	})
 
 	t.Run("previous_response_id_full_input_replace", func(t *testing.T) {
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			lastFull,
 			true,
 			[]byte(`{"previous_response_id":"resp_1","input":[{"type":"input_text","text":"hello"},{"type":"input_text","text":"world"}]}`),
@@ -983,20 +989,20 @@ func TestOpenAIWSRawPayloadHasToolCallOutput(t *testing.T) {
 		t.Run(typ, func(t *testing.T) {
 			t.Parallel()
 			payload := []byte(`{"input":[{"type":"` + typ + `","call_id":"call_1","output":"ok"}]}`)
-			require.True(t, openAIWSRawPayloadHasToolCallOutput(payload))
+			require.True(t, openaicore.OpenAIWSRawPayloadHasToolCallOutput(payload))
 		})
 	}
 
 	t.Run("object_input", func(t *testing.T) {
 		t.Parallel()
 		payload := []byte(`{"input":{"type":"tool_search_output","call_id":"call_1","output":"ok"}}`)
-		require.True(t, openAIWSRawPayloadHasToolCallOutput(payload))
+		require.True(t, openaicore.OpenAIWSRawPayloadHasToolCallOutput(payload))
 	})
 
 	t.Run("non_tool_output", func(t *testing.T) {
 		t.Parallel()
 		payload := []byte(`{"input":[{"type":"input_text","text":"hello"}]}`)
-		require.False(t, openAIWSRawPayloadHasToolCallOutput(payload))
+		require.False(t, openaicore.OpenAIWSRawPayloadHasToolCallOutput(payload))
 	})
 }
 
@@ -1009,7 +1015,7 @@ func TestSetOpenAIWSPayloadInputSequence(t *testing.T) {
 			json.RawMessage(`{"type":"input_text","text":"hello"}`),
 			json.RawMessage(`{"type":"input_text","text":"world"}`),
 		}
-		updated, err := setOpenAIWSPayloadInputSequence(original, items, true)
+		updated, err := openaicore.SetOpenAIWSPayloadInputSequence(original, items, true)
 		require.NoError(t, err)
 		require.Equal(t, "hello", gjson.GetBytes(updated, "input.0.text").String())
 		require.Equal(t, "world", gjson.GetBytes(updated, "input.1.text").String())
@@ -1017,7 +1023,7 @@ func TestSetOpenAIWSPayloadInputSequence(t *testing.T) {
 
 	t.Run("preserve_empty_array_not_null", func(t *testing.T) {
 		original := []byte(`{"type":"response.create","previous_response_id":"resp_1"}`)
-		updated, err := setOpenAIWSPayloadInputSequence(original, nil, true)
+		updated, err := openaicore.SetOpenAIWSPayloadInputSequence(original, nil, true)
 		require.NoError(t, err)
 		require.True(t, gjson.GetBytes(updated, "input").IsArray())
 		require.Len(t, gjson.GetBytes(updated, "input").Array(), 0)
@@ -1030,15 +1036,15 @@ func TestCombineOpenAIWSReplayItems(t *testing.T) {
 
 	t.Run("empty_delta_returns_history", func(t *testing.T) {
 		history := []json.RawMessage{json.RawMessage(`{"a":1}`)}
-		require.Nil(t, combineOpenAIWSReplayItems(nil, nil))
-		combined := combineOpenAIWSReplayItems(history, nil)
+		require.Nil(t, openaicore.CombineOpenAIWSReplayItems(nil, nil))
+		combined := openaicore.CombineOpenAIWSReplayItems(history, nil)
 		require.Len(t, combined, 1)
 	})
 
 	t.Run("new_header_shares_bodies", func(t *testing.T) {
 		history := []json.RawMessage{json.RawMessage(`{"a":1}`)}
 		delta := []json.RawMessage{json.RawMessage(`{"b":2}`)}
-		combined := combineOpenAIWSReplayItems(history, delta)
+		combined := openaicore.CombineOpenAIWSReplayItems(history, delta)
 		require.Len(t, combined, 2)
 		// 头数组必须是新建的：对 combined 追加不影响 history。
 		require.NotSame(t, &history[0], &combined[0])
@@ -1053,7 +1059,7 @@ func TestOpenAIWSReplaySequenceSharesBodies(t *testing.T) {
 
 	t.Run("extract_shares_payload_backing_array", func(t *testing.T) {
 		payload := []byte(`{"input":[{"type":"input_text","text":"hello"},{"type":"input_text","text":"world"}]}`)
-		items, exists, err := openAIWSExtractNormalizedInputSequence(payload)
+		items, exists, err := openaicore.OpenAIWSExtractNormalizedInputSequence(payload)
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 2)
@@ -1066,7 +1072,7 @@ func TestOpenAIWSReplaySequenceSharesBodies(t *testing.T) {
 
 	t.Run("build_transfers_current_items_ownership", func(t *testing.T) {
 		payload := []byte(`{"input":[{"type":"input_text","text":"hello"}]}`)
-		items, exists, err := buildOpenAIWSReplayInputSequence(nil, false, payload, false)
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(nil, false, payload, false)
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 1)
@@ -1077,7 +1083,7 @@ func TestOpenAIWSReplaySequenceSharesBodies(t *testing.T) {
 
 	t.Run("build_merge_shares_history_bodies", func(t *testing.T) {
 		history := []json.RawMessage{json.RawMessage(`{"type":"input_text","text":"hello"}`)}
-		items, exists, err := buildOpenAIWSReplayInputSequence(
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(
 			history,
 			true,
 			[]byte(`{"previous_response_id":"resp_1","input":[{"type":"input_text","text":"world"}]}`),
@@ -1092,7 +1098,7 @@ func TestOpenAIWSReplaySequenceSharesBodies(t *testing.T) {
 	t.Run("build_prefix_hit_transfers_current_items", func(t *testing.T) {
 		history := []json.RawMessage{json.RawMessage(`{"type":"input_text","text":"hello"}`)}
 		payload := []byte(`{"previous_response_id":"resp_1","input":[{"type":"input_text","text":"hello"},{"type":"input_text","text":"world"}]}`)
-		items, exists, err := buildOpenAIWSReplayInputSequence(history, true, payload, true)
+		items, exists, err := openaicore.BuildOpenAIWSReplayInputSequence(history, true, payload, true)
 		require.NoError(t, err)
 		require.True(t, exists)
 		require.Len(t, items, 2)

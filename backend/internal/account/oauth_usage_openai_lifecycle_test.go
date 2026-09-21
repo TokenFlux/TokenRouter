@@ -2,9 +2,10 @@ package account
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 五秒独立写回不阻塞查询返回，应用停止仍能等待或报告未完成。

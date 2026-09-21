@@ -1,9 +1,10 @@
 package apikey
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // TestKeyClockExpiryBoundary 保留结束时刻相等仍未过期，且无到期字段不额外取时。

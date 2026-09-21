@@ -4,11 +4,11 @@
 package service
 
 import (
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 
 	"github.com/gin-gonic/gin"
 )
 
 func explicitGrokCacheSeed(c *gin.Context, body []byte, explicitKey string) string {
-	return nativegrok.ExplicitCacheSeed(grokCacheInput(c, explicitKey, ""), body)
+	return grok.ExplicitCacheSeed(grokCacheInput(c, explicitKey, ""), body)
 }

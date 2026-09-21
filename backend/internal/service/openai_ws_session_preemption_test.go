@@ -11,7 +11,13 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -41,7 +47,7 @@ func TestOpenAIWSSessionPreemptRegistryCancelsSameScopedSessionOnly(t *testing.T
 }
 
 type openAIWSSessionPreemptCacheStub struct {
-	GatewayCache
+	session.GatewayCache
 	mu     sync.Mutex
 	owners map[string][]byte
 }
@@ -80,11 +86,11 @@ func (c *openAIWSSessionPreemptCacheStub) CompareAndDeleteOpenAIResponsesSession
 }
 
 func TestOpenAIWSSessionPreemptContextEligibilityAndLocalCancellation(t *testing.T) {
-	stateStore := NewOpenAIWSStateStore(nil)
+	stateStore := session.NewOpenAIWSStateStore(nil, gatewayprovider.LogOpenAIWSModeInfo)
 	svc := &OpenAIGatewayService{openaiWSStateStore: stateStore}
-	oauth := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
-	apiKey := &Account{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
-	grok := &Account{ID: 3, Platform: PlatformGrok, Type: AccountTypeOAuth}
+	oauth := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	apiKey := &Account{ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	grok := &Account{ID: 3, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
 
 	_, cleanup, armed, _ := svc.beginOpenAIWSSessionPreemptContext(context.Background(), apiKey, 7, 11, "sess", false)
 	cleanup()
@@ -105,7 +111,7 @@ func TestOpenAIWSSessionPreemptContextEligibilityAndLocalCancellation(t *testing
 	require.True(t, armed)
 	require.True(t, replaced)
 	require.True(t, isOpenAIWSSessionPreempted(firstCtx))
-	require.True(t, IsOpenAIWSSessionPreemptedError(context.Cause(firstCtx)))
+	require.True(t, ws.IsSessionPreemptedError(context.Cause(firstCtx)))
 	_, turnStateExists := stateStore.GetSessionTurnState(7, "sess")
 	_, sessionConnExists := stateStore.GetSessionConn(7, "sess")
 	require.False(t, turnStateExists)
@@ -115,17 +121,17 @@ func TestOpenAIWSSessionPreemptContextEligibilityAndLocalCancellation(t *testing
 }
 
 func TestOpenAIWSIngressSessionPreemptionSurvivesNestedForwardCleanup(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	groupID := int64(7)
 	newContext := func() *gin.Context {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
-		c.Set("api_key", &APIKey{ID: 11, GroupID: &groupID})
+		c.Set("api_key", &apikey.APIKey{ID: 11, GroupID: &groupID})
 		return c
 	}
 
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	firstMessage := []byte(`{"type":"response.create","prompt_cache_key":"session-1","input":"hello"}`)
 
 	firstCtx, firstCleanup, armed := svc.BeginOpenAIWSIngressSessionPreemption(
@@ -149,23 +155,23 @@ func TestOpenAIWSIngressSessionPreemptionSurvivesNestedForwardCleanup(t *testing
 	)
 	require.True(t, armed)
 	defer secondCleanup()
-	require.True(t, IsOpenAIWSSessionPreemptedError(context.Cause(firstCtx)))
+	require.True(t, ws.IsSessionPreemptedError(context.Cause(firstCtx)))
 }
 
 func TestOpenAIWSIngressSessionPreemptionRespectsResolvedMode(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	groupID := int64(7)
 	newContext := func() *gin.Context {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
-		c.Set("api_key", &APIKey{ID: 11, GroupID: &groupID})
+		c.Set("api_key", &apikey.APIKey{ID: 11, GroupID: &groupID})
 		return c
 	}
 	newAccount := func(mode string) *Account {
 		return &Account{
 			ID:       1,
-			Platform: PlatformOpenAI,
-			Type:     AccountTypeOAuth,
+			Platform: capability.PlatformOpenAI,
+			Type:     capability.AccountTypeOAuth,
 			Extra: map[string]any{
 				"openai_oauth_responses_websockets_v2_mode": mode,
 			},
@@ -174,10 +180,10 @@ func TestOpenAIWSIngressSessionPreemptionRespectsResolvedMode(t *testing.T) {
 	firstMessage := []byte(`{"type":"response.create","prompt_cache_key":"session-1","input":"hello"}`)
 	cfg := &config.Config{}
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-	cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 	svc := &OpenAIGatewayService{cfg: cfg}
 
-	passthrough := newAccount(OpenAIWSIngressModePassthrough)
+	passthrough := newAccount(accountcore.OpenAIWSIngressModePassthrough)
 	firstCtx, firstCleanup, armed := svc.BeginOpenAIWSIngressSessionPreemption(
 		context.Background(), newContext(), passthrough, firstMessage,
 	)
@@ -191,7 +197,7 @@ func TestOpenAIWSIngressSessionPreemptionRespectsResolvedMode(t *testing.T) {
 	require.NoError(t, firstCtx.Err(), "concurrent passthrough request must remain isolated")
 	require.NoError(t, secondCtx.Err())
 
-	ctxPool := newAccount(OpenAIWSIngressModeCtxPool)
+	ctxPool := newAccount(accountcore.OpenAIWSIngressModeCtxPool)
 	sharedCtx, sharedCleanup, armed := svc.BeginOpenAIWSIngressSessionPreemption(
 		context.Background(), newContext(), ctxPool, firstMessage,
 	)
@@ -202,7 +208,7 @@ func TestOpenAIWSIngressSessionPreemptionRespectsResolvedMode(t *testing.T) {
 	)
 	require.True(t, armed)
 	defer replacementCleanup()
-	require.True(t, IsOpenAIWSSessionPreemptedError(context.Cause(sharedCtx)), "ctx_pool must retain shared-session preemption")
+	require.True(t, ws.IsSessionPreemptedError(context.Cause(sharedCtx)), "ctx_pool must retain shared-session preemption")
 }
 
 func TestOpenAIWSSessionPreemptRemoteClaimAndStaleReleaseAreAtomic(t *testing.T) {

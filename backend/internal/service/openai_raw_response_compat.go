@@ -7,28 +7,32 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeRawResponseOptions(c *gin.Context, resp *http.Response, account *Account, billingModel, upstreamModel string, serviceTier *string, writeError compatErrorWriter) native.RawResponseOptions {
-	options := native.RawResponseOptions{
+func (s *OpenAIGatewayService) nativeRawResponseOptions(c *gin.Context, resp *http.Response, account *Account, billingModel, upstreamModel string, serviceTier *string, writeError compatErrorWriter) openai.RawResponseOptions {
+	options := openai.RawResponseOptions{
 		Runtime:        bridge.Runtime{Now: time.Now, ReadRandom: rand.Read},
 		Scanner:        s.newUpstreamSSEScanner,
-		CC:             func() native.CCResponseOptions { return s.nativeCCResponseOptions(c, writeError) },
+		CC:             func() openai.CCResponseOptions { return s.nativeCCResponseOptions(c, writeError) },
 		ReadBody:       func(r io.Reader) ([]byte, error) { return ReadUpstreamResponseBody(r, s.cfg, c, openAITooLargeError) },
 		BodyLimitError: ErrUpstreamResponseBodyTooLarge,
 		Headers: func(dst, src http.Header) {
 			if s.responseHeaderFilter != nil {
-				responseheaders.WriteFilteredHeaders(dst, src, s.responseHeaderFilter)
+				provider.WriteFilteredHeaders(dst, src, s.responseHeaderFilter)
 			}
 		},
 		WriteError:    func(status int, kind, message string) { writeError(c, status, kind, message) },
-		Observe:       func(body []byte, event string) { observeOpenAIServiceTierInContext(c, body, event) },
-		ObserveSSE:    func(body string) { observeOpenAISSEBody(c, body) },
+		Observe:       func(body []byte, event string) { gatewayhttp.ObserveOpenAIServiceTierInContext(c, body, event) },
+		ObserveSSE:    func(body string) { gatewayhttp.ObserveOpenAISSEBody(c, body) },
 		TransformLine: func(line string) string { return applyOllamaCloudRawChatCompletionsSSELine(account, line) },
 		TransformBody: func(body []byte) []byte { return applyOllamaCloudRawChatCompletionsResponse(account, body) },
 		MissingUsage: func(model string, usage wire.ForwardUsage) error {
@@ -37,9 +41,9 @@ func (s *OpenAIGatewayService) nativeRawResponseOptions(c *gin.Context, resp *ht
 			}
 			return nil
 		},
-		ServiceTier:          func() string { return observedUpstreamResponseServiceTier(c) },
-		ResolvedServiceTier:  func() *string { return resolvedOpenAIUpstreamServiceTier(c, serviceTier) },
-		NormalizeServiceTier: normalizeObservedOpenAIServiceTier,
+		ServiceTier:          func() string { return gatewayhttp.ObservedUpstreamResponseServiceTier(c) },
+		ResolvedServiceTier:  func() *string { return gatewayhttp.ResolvedOpenAIUpstreamServiceTier(c, serviceTier) },
+		NormalizeServiceTier: forwardcore.NormalizeObservedOpenAIServiceTier,
 		TruncatedFailover: func(err error) error {
 			return newOpenAIRawStreamTruncatedFailoverError(c, account, resp.Header.Get("x-request-id"), err)
 		},

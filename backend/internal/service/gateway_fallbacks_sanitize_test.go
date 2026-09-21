@@ -8,8 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,14 +50,14 @@ import (
 
 func TestSanitizeAnthropicBodyForBetaTokens_NoFallbackFieldsNoChange(t *testing.T) {
 	body := []byte(`{"model":"claude-haiku-4-5","messages":[]}`)
-	out, changed := sanitizeAnthropicBodyForBetaTokens(body, "oauth-2025-04-20")
+	out, changed := claude.SanitizeAnthropicBodyForBetaTokens(body, "oauth-2025-04-20")
 	require.False(t, changed)
 	require.Equal(t, string(body), string(out))
 }
 
 func TestSanitizeAnthropicBodyForBetaTokens_FallbacksKeptWhenBetaPresent(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-7","fallbacks":"default","messages":[]}`)
-	out, changed := sanitizeAnthropicBodyForBetaTokens(body,
+	out, changed := claude.SanitizeAnthropicBodyForBetaTokens(body,
 		"claude-code-20250219,oauth-2025-04-20,server-side-fallback-2026-07-01")
 	require.False(t, changed, "客户端 header 已带 server-side-fallback beta → 字段保留（不过度删除）")
 	require.True(t, gjson.GetBytes(out, "fallbacks").Exists())
@@ -70,7 +73,7 @@ func TestSanitizeAnthropicBodyForBetaTokens_FallbacksStrippedWhenBetaMissing(t *
 		t.Run(name, func(t *testing.T) {
 			body := []byte(`{"model":"claude-haiku-4-5",` + fallbacks + `,"messages":[]}`)
 			// 模拟 OAuth mimic / 默认 API-key beta：只有 oauth/interleaved，无 fallback beta
-			out, changed := sanitizeAnthropicBodyForBetaTokens(body,
+			out, changed := claude.SanitizeAnthropicBodyForBetaTokens(body,
 				"oauth-2025-04-20,interleaved-thinking-2025-05-14")
 			require.True(t, changed)
 			require.False(t, gjson.GetBytes(out, "fallbacks").Exists(),
@@ -82,14 +85,14 @@ func TestSanitizeAnthropicBodyForBetaTokens_FallbacksStrippedWhenBetaMissing(t *
 
 func TestSanitizeAnthropicBodyForBetaTokens_FallbacksStrippedWhenHeaderEmpty(t *testing.T) {
 	body := []byte(`{"model":"claude-haiku-4-5","fallbacks":"default","messages":[]}`)
-	out, changed := sanitizeAnthropicBodyForBetaTokens(body, "")
+	out, changed := claude.SanitizeAnthropicBodyForBetaTokens(body, "")
 	require.True(t, changed)
 	require.False(t, gjson.GetBytes(out, "fallbacks").Exists())
 }
 
 func TestSanitizeAnthropicBodyForBetaTokens_FallbackCreditTokenStrippedWhenCreditBetaMissing(t *testing.T) {
 	body := []byte(`{"model":"claude-haiku-4-5","fallback_credit_token":"tok_123","messages":[]}`)
-	out, changed := sanitizeAnthropicBodyForBetaTokens(body, "oauth-2025-04-20,interleaved-thinking-2025-05-14")
+	out, changed := claude.SanitizeAnthropicBodyForBetaTokens(body, "oauth-2025-04-20,interleaved-thinking-2025-05-14")
 	require.True(t, changed)
 	require.False(t, gjson.GetBytes(out, "fallback_credit_token").Exists(),
 		"缺 credit/fallback beta 时必须 strip fallback_credit_token")
@@ -103,7 +106,7 @@ func TestSanitizeAnthropicBodyForBetaTokens_FallbackCreditTokenKeptWithAnyAccept
 		claude.BetaFallbackCredit,
 		claude.BetaFallbackCreditLegacy,
 	} {
-		out, changed := sanitizeAnthropicBodyForBetaTokens(body, "oauth-2025-04-20,"+beta)
+		out, changed := claude.SanitizeAnthropicBodyForBetaTokens(body, "oauth-2025-04-20,"+beta)
 		require.Falsef(t, changed, "header 含 %s 时 fallback_credit_token 必须保留", beta)
 		require.Truef(t, gjson.GetBytes(out, "fallback_credit_token").Exists(),
 			"header 含 %s 时 fallback_credit_token 必须保留", beta)
@@ -114,7 +117,7 @@ func TestSanitizeAnthropicBodyForBetaTokens_FallbackCreditTokenKeptWithAnyAccept
 // （守住"早退导致 fallbacks 漏洗"与"过度删除 context_management"两个方向的回归）
 func TestSanitizeAnthropicBodyForBetaTokens_StripsFallbacksKeepsContextManagement(t *testing.T) {
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"fallbacks":"default","messages":[]}`)
-	out, changed := sanitizeAnthropicBodyForBetaTokens(body, "context-management-2025-06-27")
+	out, changed := claude.SanitizeAnthropicBodyForBetaTokens(body, "context-management-2025-06-27")
 	require.True(t, changed)
 	require.False(t, gjson.GetBytes(out, "fallbacks").Exists(),
 		"header 只有 context-management beta → fallbacks 必须 strip")
@@ -124,7 +127,7 @@ func TestSanitizeAnthropicBodyForBetaTokens_StripsFallbacksKeepsContextManagemen
 
 func TestSanitizeAnthropicBodyForBetaTokens_KeepsBothWhenBothBetasPresent(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-7","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"fallbacks":"default","fallback_credit_token":"tok_123","messages":[]}`)
-	out, changed := sanitizeAnthropicBodyForBetaTokens(body,
+	out, changed := claude.SanitizeAnthropicBodyForBetaTokens(body,
 		"context-management-2025-06-27,server-side-fallback-2026-07-01")
 	require.False(t, changed, "两个 beta 都在 header 中 → 所有字段保留")
 	require.True(t, gjson.GetBytes(out, "context_management").Exists())
@@ -133,11 +136,11 @@ func TestSanitizeAnthropicBodyForBetaTokens_KeepsBothWhenBothBetasPresent(t *tes
 }
 
 func TestSanitizeAnthropicBodyForBetaTokens_EmptyBodyUnchanged(t *testing.T) {
-	out, changed := sanitizeAnthropicBodyForBetaTokens([]byte{}, "server-side-fallback-2026-07-01")
+	out, changed := claude.SanitizeAnthropicBodyForBetaTokens([]byte{}, "server-side-fallback-2026-07-01")
 	require.False(t, changed)
 	require.Empty(t, out)
 
-	out, changed = sanitizeAnthropicBodyForBetaTokens(nil, "server-side-fallback-2026-07-01")
+	out, changed = claude.SanitizeAnthropicBodyForBetaTokens(nil, "server-side-fallback-2026-07-01")
 	require.False(t, changed)
 	require.Empty(t, out)
 }
@@ -151,14 +154,14 @@ func TestSanitizeAnthropicBodyForBetaTokens_EmptyBodyUnchanged(t *testing.T) {
 // 必须被 strip，且 outgoing anthropic-beta 不得注入 server-side-fallback beta
 // （剥字段，不注入 beta）。
 func TestBuildUpstreamRequest_OAuthMimicHaiku_StripsFallbacksEndToEnd(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	account := &Account{ID: 601, Platform: PlatformAnthropic, Type: AccountTypeOAuth,
+	account := &Account{ID: 601, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"access_token": "oauth-tok"},
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 	}
 	// 客户端默认透传 "fallbacks":"default"（Claude Code / SDK / OpenCode 等）
@@ -171,20 +174,20 @@ func TestBuildUpstreamRequest_OAuthMimicHaiku_StripsFallbacksEndToEnd(t *testing
 	require.NoError(t, err)
 
 	outBody := readUpstreamBodyForTest(t, req)
-	outBeta := getHeaderRaw(req.Header, "anthropic-beta")
+	outBeta := claude.GetHeaderRaw(req.Header, "anthropic-beta")
 
 	require.False(t, gjson.GetBytes(outBody, "fallbacks").Exists(),
 		"OAuth mimic 端到端：mimic beta 集合不含 fallback beta → outgoing body 必须没有 fallbacks，"+
 			"否则上游报 fallbacks: Extra inputs are not permitted")
-	require.False(t, anthropicBetaTokensContains(outBeta, claude.BetaServerSideFallback),
+	require.False(t, claude.AnthropicBetaTokensContains(outBeta, claude.BetaServerSideFallback),
 		"修复策略是剥字段而非注入 beta：outgoing anthropic-beta 不得含 server-side-fallback beta")
-	require.True(t, anthropicBetaTokensContains(outBeta, claude.BetaContextManagement),
+	require.True(t, claude.AnthropicBetaTokensContains(outBeta, claude.BetaContextManagement),
 		"mimic beta 集合本身不受影响")
 }
 
 // API-key passthrough + 客户端 header 未带 fallback beta → strip
 func TestBuildUpstreamRequestAnthropicAPIKeyPassthrough_StripsFallbacksWhenClientHeaderMissingBeta(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -203,7 +206,7 @@ func TestBuildUpstreamRequestAnthropicAPIKeyPassthrough_StripsFallbacksWhenClien
 
 // API-key passthrough + 客户端 header 带 fallback beta → 保留（不过度删除）
 func TestBuildUpstreamRequestAnthropicAPIKeyPassthrough_PreservesFallbacksWhenClientHeaderHasBeta(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -244,7 +247,7 @@ func TestPrepareBedrockRequestBodyWithTokens_FallbacksRequireSupportedBeta(t *te
 		}`
 		betaTokens := []string{"context-1m-2025-08-07"}
 
-		result, err := PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, betaTokens, false)
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, betaTokens, false)
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "fallbacks").Exists())
@@ -256,7 +259,7 @@ func TestPrepareBedrockRequestBodyWithTokens_FallbacksRequireSupportedBeta(t *te
 	t.Run("strips fallbacks even when client passes server-side-fallback token (not whitelisted)", func(t *testing.T) {
 		input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100,"fallbacks":"default"}`
 
-		result, err := PrepareBedrockRequestBodyWithTokens(
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens(
 			[]byte(input), modelID, []string{claude.BetaServerSideFallback}, false,
 		)
 		require.NoError(t, err)
@@ -272,7 +275,7 @@ func TestPrepareBedrockRequestBodyWithTokens_FallbacksRequireSupportedBeta(t *te
 	t.Run("leaves body without fallback fields otherwise intact", func(t *testing.T) {
 		input := `{"messages":[{"role":"user","content":"hi"}],"max_tokens":100}`
 
-		result, err := PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, nil, false)
+		result, err := bedrock.PrepareBedrockRequestBodyWithTokens([]byte(input), modelID, nil, false)
 		require.NoError(t, err)
 
 		assert.False(t, gjson.GetBytes(result, "fallbacks").Exists())
@@ -286,7 +289,7 @@ func TestPrepareBedrockRequestBodyWithTokens_FallbacksRequireSupportedBeta(t *te
 // beta API 专有字段，Bedrock 无对应 beta → 无条件剥除。
 func TestSanitizeBedrockCCFields_StripsFallbacksUnconditionally(t *testing.T) {
 	body := []byte(`{"model":"claude-opus-4-6","context_management":{"edits":[]},"fallbacks":"default","fallback_credit_token":"tok_123","messages":[]}`)
-	result := sanitizeBedrockCCFields(body)
+	result := bedrock.SanitizeBedrockCCFields(body)
 
 	assert.False(t, gjson.GetBytes(result, "fallbacks").Exists())
 	assert.False(t, gjson.GetBytes(result, "fallback_credit_token").Exists())

@@ -328,8 +328,8 @@ func (c *OpsMetricsCollector) collectAndPersist(ctx context.Context) error {
 
 		TokenConsumed:      tokenConsumed,
 		AccountSwitchCount: accountSwitchCount,
-		QPS:                float64Ptr(roundTo1DP(qps)),
-		TPS:                float64Ptr(roundTo1DP(tps)),
+		QPS:                float64Ptr(RoundTo1DP(qps)),
+		TPS:                float64Ptr(RoundTo1DP(tps)),
 
 		DurationP50Ms: duration.P50,
 		DurationP90Ms: duration.P90,

@@ -3,11 +3,12 @@ package account
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/TokenFlux/TokenRouter/internal/account/transfer"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 type archiveAccountsFixture struct {

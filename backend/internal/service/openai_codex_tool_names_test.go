@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -26,25 +29,25 @@ func TestAliasOpenAIOAuthReservedToolNames_RewritesDeclarationsAndReferences(t *
 		},
 	}
 
-	reverse, changed, err := aliasOpenAIOAuthReservedToolNames(reqBody)
+	reverse, changed, err := openai.AliasOpenAIOAuthReservedToolNames(reqBody)
 	require.NoError(t, err)
 	require.True(t, changed)
-	require.Equal(t, "python", reverse[codexPythonToolAlias])
+	require.Equal(t, "python", reverse[openai.CodexPythonToolAlias])
 	tools, ok := reqBody["tools"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, tools)
 	firstTool, ok := tools[0].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, codexPythonToolAlias, firstTool["name"])
+	require.Equal(t, openai.CodexPythonToolAlias, firstTool["name"])
 	toolChoice, ok := reqBody["tool_choice"].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, codexPythonToolAlias, toolChoice["name"])
+	require.Equal(t, openai.CodexPythonToolAlias, toolChoice["name"])
 	input, ok := reqBody["input"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, input)
 	firstInput, ok := input[0].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, codexPythonToolAlias, firstInput["name"])
+	require.Equal(t, openai.CodexPythonToolAlias, firstInput["name"])
 	secondInput, ok := input[1].(map[string]any)
 	require.True(t, ok)
 	nestedTools, ok := secondInput["tools"].([]any)
@@ -54,18 +57,18 @@ func TestAliasOpenAIOAuthReservedToolNames_RewritesDeclarationsAndReferences(t *
 	require.True(t, ok)
 	nestedFn, ok := nestedTool["function"].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, codexPythonToolAlias, nestedFn["name"])
+	require.Equal(t, openai.CodexPythonToolAlias, nestedFn["name"])
 }
 
 func TestAliasOpenAIOAuthReservedToolNames_CollisionDoesNotMutate(t *testing.T) {
 	reqBody := map[string]any{"tools": []any{
 		map[string]any{"type": "function", "name": "python"},
-		map[string]any{"type": "function", "name": codexPythonToolAlias},
+		map[string]any{"type": "function", "name": openai.CodexPythonToolAlias},
 	}}
 	before, err := json.Marshal(reqBody)
 	require.NoError(t, err)
 
-	reverse, changed, err := aliasOpenAIOAuthReservedToolNames(reqBody)
+	reverse, changed, err := openai.AliasOpenAIOAuthReservedToolNames(reqBody)
 	require.ErrorContains(t, err, `both normalize to "python__sub2api"`)
 	require.False(t, changed)
 	require.Nil(t, reverse)
@@ -82,16 +85,16 @@ func TestApplyCodexOAuthTransform_ReservedPythonNameIsOAuthOnly(t *testing.T) {
 
 	result := applyCodexOAuthTransform(reqBody, true, false)
 	require.NoError(t, result.Error)
-	require.Equal(t, "PYTHON", result.ToolNameReverse[codexPythonToolAlias])
+	require.Equal(t, "PYTHON", result.ToolNameReverse[openai.CodexPythonToolAlias])
 	tools, ok := reqBody["tools"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, tools)
 	tool, ok := tools[0].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, codexPythonToolAlias, tool["name"])
+	require.Equal(t, openai.CodexPythonToolAlias, tool["name"])
 
 	apiKeyBody := []byte(`{"type":"response.create","tools":[{"type":"function","name":"python"}]}`)
-	normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(apiKeyBody, &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, false)
+	normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(apiKeyBody, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, false)
 	require.NoError(t, err)
 	require.False(t, changed)
 	require.JSONEq(t, string(apiKeyBody), string(normalized))
@@ -99,7 +102,7 @@ func TestApplyCodexOAuthTransform_ReservedPythonNameIsOAuthOnly(t *testing.T) {
 
 func TestRestoreCodexToolNamesFromContext_HTTPAndWSPayloadShapes(t *testing.T) {
 	c, _ := gin.CreateTestContext(nil)
-	setCodexToolNameReverse(c, map[string]string{codexPythonToolAlias: "python"})
+	setCodexToolNameReverse(c, map[string]string{openai.CodexPythonToolAlias: "python"})
 
 	streamEvent := restoreCodexToolNamesFromContext(c, []byte(
 		`{"type":"response.output_item.done","item":{"type":"function_call","name":"python__sub2api"},"note":"python__sub2api"}`,
@@ -122,11 +125,11 @@ func TestRestoreCodexToolNamesFromContext_HTTPAndWSPayloadShapes(t *testing.T) {
 func TestAliasOpenAIOAuthReservedToolNames_SessionUpdateOnlyTouchesFunctionProtocolNodes(t *testing.T) {
 	body := []byte(`{"type":"session.update","session":{"tools":[{"type":"function","name":"python"},{"type":"image_generation","name":"python"},{"type":"namespace","name":"python","tools":[{"type":"function","name":"shell"}]}]},"metadata":{"name":"python"},"sequence":900719925474099312345}`)
 
-	aliased, reverse, changed, err := aliasOpenAIOAuthReservedToolNamesBody(body)
+	aliased, reverse, changed, err := openai.AliasOpenAIOAuthReservedToolNamesBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
-	require.Equal(t, "python", reverse[codexPythonToolAlias])
-	require.Equal(t, codexPythonToolAlias, gjson.GetBytes(aliased, "session.tools.0.name").String())
+	require.Equal(t, "python", reverse[openai.CodexPythonToolAlias])
+	require.Equal(t, openai.CodexPythonToolAlias, gjson.GetBytes(aliased, "session.tools.0.name").String())
 	require.Equal(t, "python", gjson.GetBytes(aliased, "session.tools.1.name").String())
 	require.Equal(t, "python", gjson.GetBytes(aliased, "session.tools.2.name").String())
 	require.Equal(t, "shell", gjson.GetBytes(aliased, "session.tools.2.tools.0.name").String())
@@ -135,18 +138,18 @@ func TestAliasOpenAIOAuthReservedToolNames_SessionUpdateOnlyTouchesFunctionProto
 }
 
 func TestRestoreCodexToolNamesInJSON_OnlyTouchesResponseToolCallNodesAndPreservesNumbers(t *testing.T) {
-	reverse := map[string]string{codexPythonToolAlias: "python"}
+	reverse := map[string]string{openai.CodexPythonToolAlias: "python"}
 	body := []byte(`{"type":"response.completed","response":{"output":[{"type":"function_call","name":"python__sub2api"},{"type":"message","name":"python__sub2api","content":[]}]},"metadata":{"name":"python__sub2api"},"sequence":900719925474099312345}`)
 
-	restored := restoreCodexToolNamesInJSON(body, reverse)
+	restored := openai.RestoreCodexToolNamesInJSON(body, reverse)
 	require.Equal(t, "python", gjson.GetBytes(restored, "response.output.0.name").String())
-	require.Equal(t, codexPythonToolAlias, gjson.GetBytes(restored, "response.output.1.name").String())
-	require.Equal(t, codexPythonToolAlias, gjson.GetBytes(restored, "metadata.name").String())
+	require.Equal(t, openai.CodexPythonToolAlias, gjson.GetBytes(restored, "response.output.1.name").String())
+	require.Equal(t, openai.CodexPythonToolAlias, gjson.GetBytes(restored, "metadata.name").String())
 	require.Equal(t, "900719925474099312345", gjson.GetBytes(restored, "sequence").Raw)
 }
 
 func TestRestoreCodexToolNamesInJSON_ExplicitHTTPAndSSEToolCallProtocols(t *testing.T) {
-	reverse := map[string]string{codexPythonToolAlias: "python"}
+	reverse := map[string]string{openai.CodexPythonToolAlias: "python"}
 	tests := []struct {
 		name string
 		body string
@@ -170,9 +173,9 @@ func TestRestoreCodexToolNamesInJSON_ExplicitHTTPAndSSEToolCallProtocols(t *test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			restored := restoreCodexToolNamesInJSON([]byte(tt.body), reverse)
+			restored := openai.RestoreCodexToolNamesInJSON([]byte(tt.body), reverse)
 			require.Equal(t, "python", gjson.GetBytes(restored, tt.path).String())
-			require.Equal(t, codexPythonToolAlias, gjson.GetBytes(restored, "metadata.name").String())
+			require.Equal(t, openai.CodexPythonToolAlias, gjson.GetBytes(restored, "metadata.name").String())
 		})
 	}
 }
@@ -188,16 +191,16 @@ func TestAliasOpenAIOAuthReservedToolNames_PromptCompatibilityRunsFirst(t *testi
 	require.NotEmpty(t, input)
 	firstInput, ok := input[0].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, codexPythonToolAlias, firstInput["name"])
+	require.Equal(t, openai.CodexPythonToolAlias, firstInput["name"])
 	tools, ok := reqBody["tools"].([]any)
 	require.True(t, ok)
 	require.NotEmpty(t, tools)
 	tool, ok := tools[0].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, codexPythonToolAlias, tool["name"])
+	require.Equal(t, openai.CodexPythonToolAlias, tool["name"])
 	toolChoice, ok := reqBody["tool_choice"].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, codexPythonToolAlias, toolChoice["name"])
+	require.Equal(t, openai.CodexPythonToolAlias, toolChoice["name"])
 	encoded, err := json.Marshal(reqBody)
 	require.NoError(t, err)
 	require.Equal(t, "900719925474099312345", gjson.GetBytes(encoded, "sequence").Raw)
@@ -207,26 +210,26 @@ func TestCodexToolNameReverse_WSSessionReplacementDoesNotChangeActiveTurn(t *tes
 	c, _ := gin.CreateTestContext(nil)
 	setCodexToolNameReverse(c, nil)
 	first := []byte(`{"type":"response.create","tools":[{"type":"function","name":"python"}]}`)
-	updateCodexToolNameReverseForWSFrame(c, first, map[string]string{codexPythonToolAlias: "python"})
+	updateCodexToolNameReverseForWSFrame(c, first, map[string]string{openai.CodexPythonToolAlias: "python"})
 
 	update := []byte(`{"type":"session.update","session":{"tools":[{"type":"function","name":"python__sub2api"}]}}`)
 	updateCodexToolNameReverseForWSFrame(c, update, nil)
 	currentOutput := restoreCodexToolNamesFromContext(c, []byte(`{"type":"response.output_item.done","item":{"type":"function_call","name":"python__sub2api"}}`))
 	require.Equal(t, "python", gjson.GetBytes(currentOutput, "item.name").String())
 	sessionEcho := restoreCodexToolNamesFromContext(c, []byte(`{"type":"session.updated","session":{"tools":[{"type":"function","name":"python__sub2api"}]}}`))
-	require.Equal(t, codexPythonToolAlias, gjson.GetBytes(sessionEcho, "session.tools.0.name").String())
+	require.Equal(t, openai.CodexPythonToolAlias, gjson.GetBytes(sessionEcho, "session.tools.0.name").String())
 
 	next := []byte(`{"type":"response.create","input":"next"}`)
 	updateCodexToolNameReverseForWSFrame(c, next, nil)
 	nextOutput := restoreCodexToolNamesFromContext(c, []byte(`{"type":"response.output_item.done","item":{"type":"function_call","name":"python__sub2api"}}`))
-	require.Equal(t, codexPythonToolAlias, gjson.GetBytes(nextOutput, "item.name").String())
+	require.Equal(t, openai.CodexPythonToolAlias, gjson.GetBytes(nextOutput, "item.name").String())
 
 	sessionPython := []byte(`{"type":"session.update","session":{"tools":[{"type":"function","name":"python"}]}}`)
-	updateCodexToolNameReverseForWSFrame(c, sessionPython, map[string]string{codexPythonToolAlias: "python"})
+	updateCodexToolNameReverseForWSFrame(c, sessionPython, map[string]string{openai.CodexPythonToolAlias: "python"})
 	explicitLiteral := []byte(`{"type":"response.create","input":[{"type":"additional_tools","tools":[{"type":"function","name":"python__sub2api"}]}]}`)
 	updateCodexToolNameReverseForWSFrame(c, explicitLiteral, nil)
 	literalOutput := restoreCodexToolNamesFromContext(c, []byte(`{"type":"response.output_item.done","item":{"type":"function_call","name":"python__sub2api"}}`))
-	require.Equal(t, codexPythonToolAlias, gjson.GetBytes(literalOutput, "item.name").String())
+	require.Equal(t, openai.CodexPythonToolAlias, gjson.GetBytes(literalOutput, "item.name").String())
 	updateCodexToolNameReverseForWSFrame(c, next, nil)
 	inheritedOutput := restoreCodexToolNamesFromContext(c, []byte(`{"type":"response.output_item.done","item":{"type":"function_call","name":"python__sub2api"}}`))
 	require.Equal(t, "python", gjson.GetBytes(inheritedOutput, "item.name").String())
@@ -234,17 +237,17 @@ func TestCodexToolNameReverse_WSSessionReplacementDoesNotChangeActiveTurn(t *tes
 
 func TestDecodeOpenAIJSONUseNumberRejectsTrailingDocument(t *testing.T) {
 	var decoded map[string]any
-	require.Error(t, decodeOpenAIJSONUseNumber([]byte(`{"name":"python"}{"extra":true}`), &decoded))
+	require.Error(t, wirejson.DecodeUseNumber([]byte(`{"name":"python"}{"extra":true}`), &decoded))
 }
 
 func TestRestoreCodexToolNamesFromSSEContextUsesEventLineTypeWithoutAddingType(t *testing.T) {
 	c, _ := gin.CreateTestContext(nil)
-	setCodexToolNameReverse(c, map[string]string{codexPythonToolAlias: codexReservedPythonToolName})
+	setCodexToolNameReverse(c, map[string]string{openai.CodexPythonToolAlias: openai.CodexReservedPythonToolName})
 	payload := []byte(`{"item":{"type":"function_call","name":"python__sub2api"},"metadata":{"name":"python__sub2api"}}`)
 
 	restored := restoreCodexToolNamesFromSSEContext(c, payload, "response.output_item.done")
 
-	require.Equal(t, codexReservedPythonToolName, gjson.GetBytes(restored, "item.name").String())
-	require.Equal(t, codexPythonToolAlias, gjson.GetBytes(restored, "metadata.name").String())
+	require.Equal(t, openai.CodexReservedPythonToolName, gjson.GetBytes(restored, "item.name").String())
+	require.Equal(t, openai.CodexPythonToolAlias, gjson.GetBytes(restored, "metadata.name").String())
 	require.False(t, gjson.GetBytes(restored, "type").Exists())
 }

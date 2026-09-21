@@ -3,6 +3,10 @@
 package repository
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"context"
 	"database/sql"
 	"errors"
@@ -11,10 +15,16 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	billingpg "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
+
 	creativepg "github.com/TokenFlux/TokenRouter/internal/creative/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -23,9 +33,9 @@ import (
 func TestS13ProviderOutcomeRollbackAndDeliveryLost(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	user := mustCreateUser(t, client, &service.User{Email: "s13-" + uuid.NewString() + "@example.com", Balance: 10})
-	group := mustCreateGroup(t, client, &service.Group{Name: "s13-outcome-" + uuid.NewString(), Platform: service.PlatformGemini})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-s13-" + uuid.NewString(), Name: "s13"})
+	user := mustCreateUser(t, client, &identity.User{Email: "s13-" + uuid.NewString() + "@example.com", Balance: 10})
+	group := mustCreateGroup(t, client, &routing.Group{Name: "s13-outcome-" + uuid.NewString(), Platform: capability.PlatformGemini})
+	key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-s13-" + uuid.NewString(), Name: "s13"})
 	repo := creativepg.NewCreativeRunRepository(client)
 	id := "crun_" + uuid.NewString()
 	_, err := repo.CreateCreativeRun(ctx, creative.CreateCreativeRunParams{RunID: id, UserID: user.ID, GroupID: group.ID, APIKeyID: key.ID, Model: "image", RequestedModel: "image", Operation: creative.CreativeOperationGenerate, RequestedOutputCount: 1, ImageSize: "1K", ResponseMIMEType: "image/png", PromptHash: "hash", RequestFingerprint: "fingerprint"})
@@ -83,16 +93,18 @@ func (p s13FailingProjection) SaveReservation(ctx context.Context, balance float
 func TestS13TaskFundingProjectionRollback(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	user := mustCreateUser(t, client, &service.User{Email: "s13-funds-" + uuid.NewString() + "@example.com", Balance: 10})
-	group := mustCreateGroup(t, client, &service.Group{Name: "s13-funds-" + uuid.NewString(), Platform: service.PlatformGemini})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-s13-funds-" + uuid.NewString(), Name: "s13"})
+	user := mustCreateUser(t, client, &identity.User{Email: "s13-funds-" + uuid.NewString() + "@example.com", Balance: 10})
+	group := mustCreateGroup(t, client, &routing.Group{Name: "s13-funds-" + uuid.NewString(), Platform: capability.PlatformGemini})
+	key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-s13-funds-" + uuid.NewString(), Name: "s13"})
 	repo := creativepg.NewCreativeRunRepository(client)
 	id := "crun_" + uuid.NewString()
 	_, err := repo.CreateCreativeRun(ctx, creative.CreateCreativeRunParams{RunID: id, UserID: user.ID, GroupID: group.ID, APIKeyID: key.ID, Model: "image", RequestedModel: "image", Operation: creative.CreativeOperationGenerate, RequestedOutputCount: 1, ImageSize: "1K", ResponseMIMEType: "image/png", PromptHash: "hash", RequestFingerprint: "fingerprint", EstimatedCost: 0.2})
 	require.NoError(t, err)
-	store := billingpg.NewSettlementStore(integrationDB, nil, billingpg.TaskProjectionFactories{creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpg.TaskProjection {
-		return s13FailingProjection{creativepg.NewFundingParticipant(tx, ref.ID)}
-	}})
+	store := billingpg.NewSettlementStore(integrationDB, timezone.NewCalendar(time.Local),
+
+		nil, billingpg.TaskProjectionFactories{creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpg.TaskProjection {
+			return s13FailingProjection{creativepg.NewFundingParticipant(tx, ref.ID)}
+		}})
 	cmd := &billing.TaskFundsCommand{Task: creative.FundingReference(id), UserID: user.ID, APIKeyID: key.ID, RequestID: "creative_hold:" + id, HoldAmount: 0.2}
 	_, err = store.Reserve(ctx, cmd)
 	require.ErrorContains(t, err, "s13 projection failure")
@@ -103,9 +115,11 @@ func TestS13TaskFundingProjectionRollback(t *testing.T) {
 	var count int
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM usage_billing_dedup WHERE request_id=$1`, cmd.RequestID).Scan(&count))
 	require.Zero(t, count)
-	good := billingpg.NewSettlementStore(integrationDB, nil, billingpg.TaskProjectionFactories{creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpg.TaskProjection {
-		return creativepg.NewFundingParticipant(tx, ref.ID)
-	}})
+	good := billingpg.NewSettlementStore(integrationDB, timezone.NewCalendar(time.Local),
+
+		nil, billingpg.TaskProjectionFactories{creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpg.TaskProjection {
+			return creativepg.NewFundingParticipant(tx, ref.ID)
+		}})
 	funds := billing.NewFunds(good)
 	result, err := funds.Reserve(ctx, cmd)
 	require.NoError(t, err)
@@ -116,15 +130,17 @@ func TestS13TaskFundingProjectionRollback(t *testing.T) {
 func TestS13NativeCreativeFundingReplay(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	user := mustCreateUser(t, client, &service.User{Email: "s13-native-" + uuid.NewString() + "@example.com", Balance: 10})
-	group := mustCreateGroup(t, client, &service.Group{Name: "s13-native-" + uuid.NewString(), Platform: service.PlatformGemini})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "sk-s13-native-" + uuid.NewString(), Name: "native"})
+	user := mustCreateUser(t, client, &identity.User{Email: "s13-native-" + uuid.NewString() + "@example.com", Balance: 10})
+	group := mustCreateGroup(t, client, &routing.Group{Name: "s13-native-" + uuid.NewString(), Platform: capability.PlatformGemini})
+	key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-s13-native-" + uuid.NewString(), Name: "native"})
 	repo := creativepg.NewCreativeRunRepository(client)
 	run, err := repo.CreateCreativeRun(ctx, creative.CreateCreativeRunParams{RunID: "crun_" + uuid.NewString(), UserID: user.ID, GroupID: group.ID, APIKeyID: key.ID, Model: "image", RequestedModel: "image", Operation: creative.CreativeOperationGenerate, RequestedOutputCount: 1, ImageSize: "1K", ResponseMIMEType: "image/png", PromptHash: "hash", RequestFingerprint: "fingerprint", EstimatedCost: 0.2, HoldAmount: 0.2, BaseUnitPrice: 0.2, SubscriptionRateMultiplier: 1, BalanceRateMultiplier: 1, PlanGroupRateEnabled: true})
 	require.NoError(t, err)
-	store := billingpg.NewSettlementStore(integrationDB, nil, billingpg.TaskProjectionFactories{creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpg.TaskProjection {
-		return creativepg.NewFundingParticipant(tx, ref.ID)
-	}})
+	store := billingpg.NewSettlementStore(integrationDB, timezone.NewCalendar(time.Local),
+
+		nil, billingpg.TaskProjectionFactories{creative.FundingScope: func(tx *sql.Tx, ref billing.TaskReference) billingpg.TaskProjection {
+			return creativepg.NewFundingParticipant(tx, ref.ID)
+		}})
 	funding := creative.Funding{Store: billing.NewFunds(store)}
 	require.NoError(t, funding.Reserve(ctx, run))
 	first, err := funding.Capture(ctx, run, 1)

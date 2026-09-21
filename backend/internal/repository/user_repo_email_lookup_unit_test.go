@@ -8,17 +8,22 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/enttest"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/stretchr/testify/require"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 
 	"entgo.io/ent/dialect"
+
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/enttest"
+	"github.com/stretchr/testify/require"
+
 	entsql "entgo.io/ent/dialect/sql"
+
 	_ "modernc.org/sqlite"
 )
 
-func newUserEntRepo(t *testing.T) (*userRepository, *dbent.Client) {
+func newUserEntRepo(t *testing.T) (*postgres.UserStore, *dbent.Client) {
 	t.Helper()
 
 	db, err := sql.Open("sqlite", fmt.Sprintf("file:%s?mode=memory&cache=shared&_fk=1", t.Name()))
@@ -33,19 +38,19 @@ func newUserEntRepo(t *testing.T) (*userRepository, *dbent.Client) {
 	client := enttest.NewClient(t, enttest.WithOptions(dbent.Driver(drv)))
 	t.Cleanup(func() { _ = client.Close() })
 
-	return newUserRepositoryWithSQL(client, db), client
+	return postgres.NewUserStoreWithSQL(client, db), client
 }
 
 func TestUserRepositoryGetByEmailNormalizesLegacySpacingAndCase(t *testing.T) {
 	repo, _ := newUserEntRepo(t)
 	ctx := context.Background()
 
-	err := repo.Create(ctx, &service.User{
+	err := repo.Create(ctx, &identity.User{
 		Email:        " Legacy@Example.com ",
 		Username:     "legacy-user",
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	})
 	require.NoError(t, err)
 
@@ -58,12 +63,12 @@ func TestUserRepositoryExistsByEmailNormalizesLegacySpacingAndCase(t *testing.T)
 	repo, _ := newUserEntRepo(t)
 	ctx := context.Background()
 
-	err := repo.Create(ctx, &service.User{
+	err := repo.Create(ctx, &identity.User{
 		Email:        " Legacy@Example.com ",
 		Username:     "legacy-user",
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	})
 	require.NoError(t, err)
 
@@ -76,50 +81,50 @@ func TestUserRepositoryCreateRejectsNormalizedEmailDuplicate(t *testing.T) {
 	repo, _ := newUserEntRepo(t)
 	ctx := context.Background()
 
-	err := repo.Create(ctx, &service.User{
+	err := repo.Create(ctx, &identity.User{
 		Email:        " Existing@Example.com ",
 		Username:     "existing-user",
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	})
 	require.NoError(t, err)
 
-	err = repo.Create(ctx, &service.User{
+	err = repo.Create(ctx, &identity.User{
 		Email:        "existing@example.com",
 		Username:     "duplicate-user",
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	})
-	require.ErrorIs(t, err, service.ErrEmailExists)
+	require.ErrorIs(t, err, identity.ErrEmailExists)
 }
 
 func TestUserRepositoryUpdateRejectsNormalizedEmailDuplicate(t *testing.T) {
 	repo, _ := newUserEntRepo(t)
 	ctx := context.Background()
 
-	first := &service.User{
+	first := &identity.User{
 		Email:        " Existing@Example.com ",
 		Username:     "existing-user",
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, first))
 
-	second := &service.User{
+	second := &identity.User{
 		Email:        "second@example.com",
 		Username:     "second-user",
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identity.RoleUser,
+		Status:       billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, second))
 
 	second.Email = " existing@example.com "
-	err := repo.Update(ctx, second, service.UserUpdateFields{Email: true})
-	require.ErrorIs(t, err, service.ErrEmailExists)
+	err := repo.Update(ctx, second, identity.UserUpdateFields{Email: true})
+	require.ErrorIs(t, err, identity.ErrEmailExists)
 }
 
 func TestUserRepositoryGetByEmailReportsNormalizedEmailConflict(t *testing.T) {
@@ -130,8 +135,8 @@ func TestUserRepositoryGetByEmailReportsNormalizedEmailConflict(t *testing.T) {
 		SetEmail("Conflict@Example.com").
 		SetUsername("conflict-user-1").
 		SetPasswordHash("hash").
-		SetRole(service.RoleUser).
-		SetStatus(service.StatusActive).
+		SetRole(identity.RoleUser).
+		SetStatus(billing.StatusActive).
 		Save(ctx)
 	require.NoError(t, err)
 
@@ -139,8 +144,8 @@ func TestUserRepositoryGetByEmailReportsNormalizedEmailConflict(t *testing.T) {
 		SetEmail(" conflict@example.com ").
 		SetUsername("conflict-user-2").
 		SetPasswordHash("hash").
-		SetRole(service.RoleUser).
-		SetStatus(service.StatusActive).
+		SetRole(identity.RoleUser).
+		SetStatus(billing.StatusActive).
 		Save(ctx)
 	require.NoError(t, err)
 
@@ -178,24 +183,24 @@ func TestUserRepositoryCreateSerializesNormalizedEmailConflictsUnderConcurrency(
 
 	results := make(chan createResult, 2)
 	go func() {
-		results <- createResult{err: repo.Create(ctx, &service.User{
+		results <- createResult{err: repo.Create(ctx, &identity.User{
 			Email:        " Race@Example.com ",
 			Username:     "race-user-1",
 			PasswordHash: "hash",
-			Role:         service.RoleUser,
-			Status:       service.StatusActive,
+			Role:         identity.RoleUser,
+			Status:       billing.StatusActive,
 		})}
 	}()
 
 	<-firstCreateStarted
 
 	go func() {
-		results <- createResult{err: repo.Create(ctx, &service.User{
+		results <- createResult{err: repo.Create(ctx, &identity.User{
 			Email:        "race@example.com",
 			Username:     "race-user-2",
 			PasswordHash: "hash",
-			Role:         service.RoleUser,
-			Status:       service.StatusActive,
+			Role:         identity.RoleUser,
+			Status:       billing.StatusActive,
 		})}
 	}()
 
@@ -212,7 +217,7 @@ func TestUserRepositoryCreateSerializesNormalizedEmailConflictsUnderConcurrency(
 		switch err {
 		case nil:
 			successes++
-		case service.ErrEmailExists:
+		case identity.ErrEmailExists:
 			conflicts++
 		default:
 			t.Fatalf("unexpected create error: %v", err)
@@ -221,7 +226,7 @@ func TestUserRepositoryCreateSerializesNormalizedEmailConflictsUnderConcurrency(
 	require.Equal(t, 1, successes)
 	require.Equal(t, 1, conflicts)
 
-	count, err := client.User.Query().Where(userEmailLookupPredicate("race@example.com")).Count(ctx)
+	count, err := client.User.Query().Where(postgres.IdentityUserEmailLookupPredicate("race@example.com")).Count(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
@@ -231,12 +236,12 @@ func TestUserRepositoryCountUsersByEmailDomain(t *testing.T) {
 	ctx := context.Background()
 
 	for index, email := range []string{"first@custom.example", "second@sub.custom.example", "other@example.com"} {
-		require.NoError(t, repo.Create(ctx, &service.User{
+		require.NoError(t, repo.Create(ctx, &identity.User{
 			Email:        email,
 			Username:     fmt.Sprintf("domain-user-%d", index),
 			PasswordHash: "hash",
-			Role:         service.RoleUser,
-			Status:       service.StatusActive,
+			Role:         identity.RoleUser,
+			Status:       billing.StatusActive,
 		}))
 	}
 
@@ -249,9 +254,9 @@ func TestUserRepositoryCountUsersByEmailDomainIgnoresDeletedAndEscapesWildcards(
 	repo, _ := newUserEntRepo(t)
 	ctx := context.Background()
 
-	active := &service.User{Email: "active@foo_bar.com", Username: "active", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
-	deleted := &service.User{Email: "deleted@foo_bar.com", Username: "deleted", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
-	other := &service.User{Email: "other@fooxbar.com", Username: "other", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
+	active := &identity.User{Email: "active@foo_bar.com", Username: "active", PasswordHash: "hash", Role: identity.RoleUser, Status: billing.StatusActive}
+	deleted := &identity.User{Email: "deleted@foo_bar.com", Username: "deleted", PasswordHash: "hash", Role: identity.RoleUser, Status: billing.StatusActive}
+	other := &identity.User{Email: "other@fooxbar.com", Username: "other", PasswordHash: "hash", Role: identity.RoleUser, Status: billing.StatusActive}
 	require.NoError(t, repo.Create(ctx, active))
 	require.NoError(t, repo.Create(ctx, deleted))
 	require.NoError(t, repo.Create(ctx, other))
@@ -266,10 +271,10 @@ func TestUserRepositoryCreateWithRegistrationEmailGuardsRejectsSecondDomainAccou
 	repo, _ := newUserEntRepo(t)
 	ctx := context.Background()
 
-	first := &service.User{Email: "first@custom.example.", Username: "first", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
-	second := &service.User{Email: "second@sub.custom.example", Username: "second", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
+	first := &identity.User{Email: "first@custom.example.", Username: "first", PasswordHash: "hash", Role: identity.RoleUser, Status: billing.StatusActive}
+	second := &identity.User{Email: "second@sub.custom.example", Username: "second", PasswordHash: "hash", Role: identity.RoleUser, Status: billing.StatusActive}
 	require.NoError(t, repo.CreateWithRegistrationEmailGuards(ctx, first, "", "custom.example"))
 
 	err := repo.CreateWithRegistrationEmailGuards(ctx, second, "", "sub.custom.example")
-	require.ErrorIs(t, err, service.ErrEmailDomainRegistrationLimit)
+	require.ErrorIs(t, err, identity.ErrEmailDomainRegistrationLimit)
 }

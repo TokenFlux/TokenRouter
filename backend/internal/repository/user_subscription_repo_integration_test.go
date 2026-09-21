@@ -7,9 +7,17 @@ import (
 	"testing"
 	"time"
 
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -17,37 +25,37 @@ type UserSubscriptionRepoSuite struct {
 	suite.Suite
 	ctx    context.Context
 	client *dbent.Client
-	repo   *userSubscriptionRepository
+	repo   *billingpostgres.SubscriptionStore
 }
 
 func (s *UserSubscriptionRepoSuite) SetupTest() {
 	s.ctx = context.Background()
 	tx := testEntTx(s.T())
 	s.client = tx.Client()
-	s.repo = NewUserSubscriptionRepository(s.client).(*userSubscriptionRepository)
+	s.repo = billingpostgres.NewUserSubscriptionRepository(s.client)
 }
 
 func TestUserSubscriptionRepoSuite(t *testing.T) {
 	suite.Run(t, new(UserSubscriptionRepoSuite))
 }
 
-func (s *UserSubscriptionRepoSuite) mustCreateUser(email string, role string) *service.User {
+func (s *UserSubscriptionRepoSuite) mustCreateUser(email string, role string) *identity.User {
 	s.T().Helper()
 	if role == "" {
-		role = service.RoleUser
+		role = identity.RoleUser
 	}
 
 	user, err := s.client.User.Create().
 		SetEmail(email).
 		SetPasswordHash("test-password-hash").
-		SetStatus(service.StatusActive).
+		SetStatus(billing.StatusActive).
 		SetRole(role).
 		Save(s.ctx)
 	s.Require().NoError(err, "create user")
-	return userEntityToService(user)
+	return identitypostgres.UserFromEntity(user)
 }
 
-func (s *UserSubscriptionRepoSuite) mustCreatePlan(name string, validityDays int) *service.SubscriptionPlan {
+func (s *UserSubscriptionRepoSuite) mustCreatePlan(name string, validityDays int) *billing.SubscriptionPlan {
 	s.T().Helper()
 	if validityDays <= 0 {
 		validityDays = 30
@@ -65,7 +73,7 @@ func (s *UserSubscriptionRepoSuite) mustCreatePlan(name string, validityDays int
 		SetSortOrder(0).
 		Save(s.ctx)
 	s.Require().NoError(err, "create plan")
-	return subscriptionPlanEntityToService(plan)
+	return billingpostgres.PlanFromEntity(plan)
 }
 
 func (s *UserSubscriptionRepoSuite) mustCreateSubscription(userID, planID int64, mutate func(*dbent.UserSubscriptionCreate)) *dbent.UserSubscription {
@@ -77,7 +85,7 @@ func (s *UserSubscriptionRepoSuite) mustCreateSubscription(userID, planID int64,
 		SetPlanID(planID).
 		SetStartsAt(now.Add(-1 * time.Hour)).
 		SetExpiresAt(now.Add(24 * time.Hour)).
-		SetStatus(service.SubscriptionStatusActive).
+		SetStatus(billing.SubscriptionStatusActive).
 		SetAssignedAt(now).
 		SetNotes("")
 
@@ -91,15 +99,15 @@ func (s *UserSubscriptionRepoSuite) mustCreateSubscription(userID, planID int64,
 }
 
 func (s *UserSubscriptionRepoSuite) TestCreateAndGetByID_WithPreloads() {
-	user := s.mustCreateUser("sub-create@test.com", service.RoleUser)
+	user := s.mustCreateUser("sub-create@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-create", 30)
-	admin := s.mustCreateUser("sub-admin@test.com", service.RoleAdmin)
+	admin := s.mustCreateUser("sub-admin@test.com", identity.RoleAdmin)
 
 	now := time.Now().UTC().Truncate(time.Second)
-	sub := &service.UserSubscription{
+	sub := &billing.UserSubscription{
 		UserID:        user.ID,
 		PlanID:        plan.ID,
-		Status:        service.SubscriptionStatusActive,
+		Status:        billing.SubscriptionStatusActive,
 		StartsAt:      now.Add(-2 * time.Hour),
 		ExpiresAt:     now.Add(48 * time.Hour),
 		AssignedBy:    &admin.ID,
@@ -125,7 +133,7 @@ func (s *UserSubscriptionRepoSuite) TestCreateAndGetByID_WithPreloads() {
 }
 
 func (s *UserSubscriptionRepoSuite) TestGetLatestByUserIDAndPlanID() {
-	user := s.mustCreateUser("latest@test.com", service.RoleUser)
+	user := s.mustCreateUser("latest@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-latest", 30)
 
 	older := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
@@ -135,7 +143,7 @@ func (s *UserSubscriptionRepoSuite) TestGetLatestByUserIDAndPlanID() {
 	newer := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Now().Add(6 * 24 * time.Hour))
 		c.SetExpiresAt(time.Now().Add(35 * 24 * time.Hour))
-		c.SetStatus(service.SubscriptionStatusPending)
+		c.SetStatus(billing.SubscriptionStatusPending)
 	})
 
 	got, err := s.repo.GetLatestByUserIDAndPlanID(s.ctx, user.ID, plan.ID)
@@ -145,7 +153,7 @@ func (s *UserSubscriptionRepoSuite) TestGetLatestByUserIDAndPlanID() {
 }
 
 func (s *UserSubscriptionRepoSuite) TestListByUserIDAndPlanID_OrderedByStartsAt() {
-	user := s.mustCreateUser("plan-list@test.com", service.RoleUser)
+	user := s.mustCreateUser("plan-list@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-list", 30)
 
 	first := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
@@ -155,7 +163,7 @@ func (s *UserSubscriptionRepoSuite) TestListByUserIDAndPlanID_OrderedByStartsAt(
 	second := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC))
 		c.SetExpiresAt(time.Date(2026, 3, 3, 0, 0, 0, 0, time.UTC))
-		c.SetStatus(service.SubscriptionStatusPending)
+		c.SetStatus(billing.SubscriptionStatusPending)
 	})
 
 	subs, err := s.repo.ListByUserIDAndPlanID(s.ctx, user.ID, plan.ID)
@@ -166,7 +174,7 @@ func (s *UserSubscriptionRepoSuite) TestListByUserIDAndPlanID_OrderedByStartsAt(
 }
 
 func (s *UserSubscriptionRepoSuite) TestListActiveByUserID_OnlyReturnsEffectiveSubscriptions() {
-	user := s.mustCreateUser("active-list@test.com", service.RoleUser)
+	user := s.mustCreateUser("active-list@test.com", identity.RoleUser)
 	activePlan := s.mustCreatePlan("plan-active", 30)
 	expiredPlan := s.mustCreatePlan("plan-expired", 30)
 	pendingPlan := s.mustCreatePlan("plan-pending", 30)
@@ -178,12 +186,12 @@ func (s *UserSubscriptionRepoSuite) TestListActiveByUserID_OnlyReturnsEffectiveS
 	_ = s.mustCreateSubscription(user.ID, expiredPlan.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Now().Add(-48 * time.Hour))
 		c.SetExpiresAt(time.Now().Add(-24 * time.Hour))
-		c.SetStatus(service.SubscriptionStatusExpired)
+		c.SetStatus(billing.SubscriptionStatusExpired)
 	})
 	_ = s.mustCreateSubscription(user.ID, pendingPlan.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Now().Add(24 * time.Hour))
 		c.SetExpiresAt(time.Now().Add(48 * time.Hour))
-		c.SetStatus(service.SubscriptionStatusPending)
+		c.SetStatus(billing.SubscriptionStatusPending)
 	})
 
 	subs, err := s.repo.ListActiveByUserID(s.ctx, user.ID)
@@ -194,14 +202,14 @@ func (s *UserSubscriptionRepoSuite) TestListActiveByUserID_OnlyReturnsEffectiveS
 }
 
 func (s *UserSubscriptionRepoSuite) TestFilterByGroup_KeepsGlobalAndMatchingPlans() {
-	user := s.mustCreateUser("group-filter@test.com", service.RoleUser)
-	groupA := mustCreateGroup(s.T(), s.client, &service.Group{
+	user := s.mustCreateUser("group-filter@test.com", identity.RoleUser)
+	groupA := mustCreateGroup(s.T(), s.client, &routing.Group{
 		Name:     "subscription-filter-a",
-		Platform: service.PlatformAnthropic,
+		Platform: capability.PlatformAnthropic,
 	})
-	groupB := mustCreateGroup(s.T(), s.client, &service.Group{
+	groupB := mustCreateGroup(s.T(), s.client, &routing.Group{
 		Name:     "subscription-filter-b",
-		Platform: service.PlatformAnthropic,
+		Platform: capability.PlatformAnthropic,
 	})
 	globalPlan := s.mustCreatePlan("plan-global", 30)
 	planA := s.mustCreatePlan("plan-group-a", 30)
@@ -231,14 +239,14 @@ func (s *UserSubscriptionRepoSuite) TestFilterByGroup_KeepsGlobalAndMatchingPlan
 }
 
 func (s *UserSubscriptionRepoSuite) TestList_FilterByPlanAndPendingStatus() {
-	user := s.mustCreateUser("filter@test.com", service.RoleUser)
+	user := s.mustCreateUser("filter@test.com", identity.RoleUser)
 	planA := s.mustCreatePlan("plan-filter-a", 30)
 	planB := s.mustCreatePlan("plan-filter-b", 30)
 
 	pending := s.mustCreateSubscription(user.ID, planA.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Now().Add(24 * time.Hour))
 		c.SetExpiresAt(time.Now().Add(48 * time.Hour))
-		c.SetStatus(service.SubscriptionStatusPending)
+		c.SetStatus(billing.SubscriptionStatusPending)
 	})
 	_ = s.mustCreateSubscription(user.ID, planB.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Now().Add(-2 * time.Hour))
@@ -251,7 +259,7 @@ func (s *UserSubscriptionRepoSuite) TestList_FilterByPlanAndPendingStatus() {
 		pagination.PaginationParams{Page: 1, PageSize: 10},
 		&user.ID,
 		&planID,
-		service.SubscriptionStatusPending,
+		billing.SubscriptionStatusPending,
 		"",
 		"starts_at",
 		"asc",
@@ -263,14 +271,14 @@ func (s *UserSubscriptionRepoSuite) TestList_FilterByPlanAndPendingStatus() {
 }
 
 func (s *UserSubscriptionRepoSuite) TestList_IncludesRevokedWhenStatusEmpty() {
-	user := s.mustCreateUser("revoked-all@test.com", service.RoleUser)
+	user := s.mustCreateUser("revoked-all@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-revoked-all", 30)
 
 	active := s.mustCreateSubscription(user.ID, plan.ID, nil)
 	revoked := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Now().Add(24 * time.Hour))
 		c.SetExpiresAt(time.Now().Add(48 * time.Hour))
-		c.SetStatus(service.SubscriptionStatusPending)
+		c.SetStatus(billing.SubscriptionStatusPending)
 	})
 	s.Require().NoError(s.repo.Delete(s.ctx, revoked.ID))
 
@@ -288,19 +296,19 @@ func (s *UserSubscriptionRepoSuite) TestList_IncludesRevokedWhenStatusEmpty() {
 	s.Require().Equal(int64(2), page.Total)
 	s.Require().Len(subs, 2)
 
-	byID := make(map[int64]service.UserSubscription, len(subs))
+	byID := make(map[int64]billing.UserSubscription, len(subs))
 	for _, sub := range subs {
 		byID[sub.ID] = sub
 	}
-	s.Require().Equal(service.SubscriptionStatusActive, byID[active.ID].Status)
-	s.Require().Equal(service.SubscriptionStatusRevoked, byID[revoked.ID].Status)
+	s.Require().Equal(billing.SubscriptionStatusActive, byID[active.ID].Status)
+	s.Require().Equal(billing.SubscriptionStatusRevoked, byID[revoked.ID].Status)
 	s.Require().NotNil(byID[revoked.ID].DeletedAt)
 	s.Require().NotNil(byID[revoked.ID].User)
 	s.Require().NotNil(byID[revoked.ID].Plan)
 }
 
 func (s *UserSubscriptionRepoSuite) TestList_FilterByRevokedStatus() {
-	user := s.mustCreateUser("revoked-filter@test.com", service.RoleUser)
+	user := s.mustCreateUser("revoked-filter@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-revoked-filter", 30)
 
 	_ = s.mustCreateSubscription(user.ID, plan.ID, nil)
@@ -311,9 +319,7 @@ func (s *UserSubscriptionRepoSuite) TestList_FilterByRevokedStatus() {
 		s.ctx,
 		pagination.PaginationParams{Page: 1, PageSize: 10},
 		&user.ID,
-		nil,
-		service.SubscriptionStatusRevoked,
-		"",
+		nil, billing.SubscriptionStatusRevoked, "",
 		"created_at",
 		"desc",
 	)
@@ -321,12 +327,12 @@ func (s *UserSubscriptionRepoSuite) TestList_FilterByRevokedStatus() {
 	s.Require().Equal(int64(1), page.Total)
 	s.Require().Len(subs, 1)
 	s.Require().Equal(revoked.ID, subs[0].ID)
-	s.Require().Equal(service.SubscriptionStatusRevoked, subs[0].Status)
+	s.Require().Equal(billing.SubscriptionStatusRevoked, subs[0].Status)
 	s.Require().NotNil(subs[0].DeletedAt)
 }
 
 func (s *UserSubscriptionRepoSuite) TestGetByIDIncludeDeleted_PreservesPersistedStatus() {
-	user := s.mustCreateUser("include-deleted@test.com", service.RoleUser)
+	user := s.mustCreateUser("include-deleted@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-include-deleted", 30)
 
 	sub := s.mustCreateSubscription(user.ID, plan.ID, nil)
@@ -335,33 +341,33 @@ func (s *UserSubscriptionRepoSuite) TestGetByIDIncludeDeleted_PreservesPersisted
 	got, err := s.repo.GetByIDIncludeDeleted(s.ctx, sub.ID)
 	s.Require().NoError(err)
 	s.Require().Equal(sub.ID, got.ID)
-	s.Require().Equal(service.SubscriptionStatusActive, got.Status)
+	s.Require().Equal(billing.SubscriptionStatusActive, got.Status)
 	s.Require().NotNil(got.DeletedAt)
 	s.Require().NotNil(got.User)
 	s.Require().NotNil(got.Plan)
 }
 
 func (s *UserSubscriptionRepoSuite) TestRestore() {
-	user := s.mustCreateUser("restore@test.com", service.RoleUser)
+	user := s.mustCreateUser("restore@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-restore", 30)
 
 	sub := s.mustCreateSubscription(user.ID, plan.ID, nil)
 	s.Require().NoError(s.repo.Delete(s.ctx, sub.ID))
 
-	restored, err := s.repo.Restore(s.ctx, sub.ID, service.SubscriptionStatusExpired)
+	restored, err := s.repo.Restore(s.ctx, sub.ID, billing.SubscriptionStatusExpired)
 	s.Require().NoError(err)
 	s.Require().Equal(sub.ID, restored.ID)
-	s.Require().Equal(service.SubscriptionStatusExpired, restored.Status)
+	s.Require().Equal(billing.SubscriptionStatusExpired, restored.Status)
 	s.Require().Nil(restored.DeletedAt)
 
 	got, err := s.repo.GetByID(s.ctx, sub.ID)
 	s.Require().NoError(err)
-	s.Require().Equal(service.SubscriptionStatusExpired, got.Status)
+	s.Require().Equal(billing.SubscriptionStatusExpired, got.Status)
 	s.Require().Nil(got.DeletedAt)
 }
 
 func (s *UserSubscriptionRepoSuite) TestResetDailyUsage_StaleResetDoesNotClearNewWindowUsage() {
-	user := s.mustCreateUser("resetd-cas@test.com", service.RoleUser)
+	user := s.mustCreateUser("resetd-cas@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-resetd-cas", 30)
 	oldWindowStart := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	sub := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
@@ -382,7 +388,7 @@ func (s *UserSubscriptionRepoSuite) TestResetDailyUsage_StaleResetDoesNotClearNe
 }
 
 func (s *UserSubscriptionRepoSuite) TestResetUsageWindows_ClearsUsageAfterAutomaticWindowAdvance() {
-	user := s.mustCreateUser("admin-reset-current@test.com", service.RoleUser)
+	user := s.mustCreateUser("admin-reset-current@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-admin-reset-current", 30)
 	oldWindowStart := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	sub := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
@@ -402,7 +408,7 @@ func (s *UserSubscriptionRepoSuite) TestResetUsageWindows_ClearsUsageAfterAutoma
 }
 
 func (s *UserSubscriptionRepoSuite) TestListBySourceOrderIDAndUsageMutations() {
-	user := s.mustCreateUser("source-order@test.com", service.RoleUser)
+	user := s.mustCreateUser("source-order@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-source-order", 30)
 	now := time.Now().UTC().Truncate(time.Second)
 	sourceOrderID := int64(12345)
@@ -438,18 +444,18 @@ func (s *UserSubscriptionRepoSuite) TestListBySourceOrderIDAndUsageMutations() {
 }
 
 func (s *UserSubscriptionRepoSuite) TestBatchUpdateExpiredStatus() {
-	user := s.mustCreateUser("expire@test.com", service.RoleUser)
+	user := s.mustCreateUser("expire@test.com", identity.RoleUser)
 	plan := s.mustCreatePlan("plan-expire", 30)
 
 	expired := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Now().Add(-48 * time.Hour))
 		c.SetExpiresAt(time.Now().Add(-24 * time.Hour))
-		c.SetStatus(service.SubscriptionStatusActive)
+		c.SetStatus(billing.SubscriptionStatusActive)
 	})
 	_ = s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
 		c.SetStartsAt(time.Now().Add(-2 * time.Hour))
 		c.SetExpiresAt(time.Now().Add(24 * time.Hour))
-		c.SetStatus(service.SubscriptionStatusActive)
+		c.SetStatus(billing.SubscriptionStatusActive)
 	})
 	updated, err := s.repo.BatchUpdateExpiredStatus(s.ctx)
 	s.Require().NoError(err)
@@ -457,5 +463,5 @@ func (s *UserSubscriptionRepoSuite) TestBatchUpdateExpiredStatus() {
 
 	got, err := s.repo.GetByID(s.ctx, expired.ID)
 	s.Require().NoError(err)
-	s.Require().Equal(service.SubscriptionStatusExpired, got.Status)
+	s.Require().Equal(billing.SubscriptionStatusExpired, got.Status)
 }

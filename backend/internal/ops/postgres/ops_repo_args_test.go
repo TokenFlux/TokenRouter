@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/ops"
+	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,16 +23,16 @@ func TestOpsInsertErrorLogArgsPreservesExplicitZeroUpstreamStatus(t *testing.T) 
 }
 
 func TestOpsNullableIntPointerDistinguishesNilZeroAndStatus(t *testing.T) {
-	missing := opsNullableIntPointer(nil).(sql.NullInt64)
+	missing := testassert.MustType[sql.NullInt64](opsNullableIntPointer(nil))
 	require.False(t, missing.Valid)
 
 	zeroValue := 0
-	zero := opsNullableIntPointer(&zeroValue).(sql.NullInt64)
+	zero := testassert.MustType[sql.NullInt64](opsNullableIntPointer(&zeroValue))
 	require.True(t, zero.Valid)
 	require.Zero(t, zero.Int64)
 
 	statusValue := 503
-	status := opsNullableIntPointer(&statusValue).(sql.NullInt64)
+	status := testassert.MustType[sql.NullInt64](opsNullableIntPointer(&statusValue))
 	require.True(t, status.Valid)
 	require.EqualValues(t, 503, status.Int64)
 }

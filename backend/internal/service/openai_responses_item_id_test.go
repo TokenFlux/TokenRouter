@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -40,7 +41,7 @@ func TestOpenAIResponsesInputItemIDPrefixUsesObservedOutputContracts(t *testing.
 	}
 	for _, tt := range tests {
 		t.Run(tt.itemType+"/"+tt.id, func(t *testing.T) {
-			require.Equal(t, tt.strip, shouldStripOpenAIResponsesInputItemID(tt.itemType, tt.id))
+			require.Equal(t, tt.strip, openai.ShouldStripOpenAIResponsesInputItemID(tt.itemType, tt.id))
 		})
 	}
 }

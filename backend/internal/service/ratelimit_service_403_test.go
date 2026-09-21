@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,8 +39,8 @@ func TestRateLimitService_HandleUpstreamError_OpenAI403FirstHitTempUnschedulable
 	service.SetAccountRuntimeBlocker(blocker)
 	account := &Account{
 		ID:       301,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 	}
 
 	shouldDisable := service.HandleUpstreamError(
@@ -68,8 +69,8 @@ func TestRateLimitService_HandleUpstreamError_OpenAI403ThresholdDisables(t *test
 	service.SetOpenAI403CounterCache(counter)
 	account := &Account{
 		ID:       302,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 	}
 
 	shouldDisable := service.HandleUpstreamError(

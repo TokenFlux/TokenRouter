@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
@@ -16,7 +18,7 @@ import (
 type genericSelectionScope struct {
 	next     uint64
 	accounts map[uint64]*Account
-	groups   map[uint64]*Group
+	groups   map[uint64]*routing.Group
 }
 
 func (g *genericSelectionScope) account(value *Account) *scheduler.FlowAccount {
@@ -26,16 +28,20 @@ func (g *genericSelectionScope) account(value *Account) *scheduler.FlowAccount {
 	g.next++
 	id := g.next
 	g.accounts[id] = value
-	return &scheduler.FlowAccount{Plan: value.resolvedCandidate, ProjectionID: id, ID: value.ID, Name: value.Name, Platform: value.Platform, Type: value.Type, Concurrency: value.Concurrency, Priority: value.Priority, LastUsedAt: cloneFlowTime(value.LastUsedAt), SessionWindowEnd: cloneFlowTime(value.SessionWindowEnd), LoadFactor: value.EffectiveLoadFactor(), BaseRPM: value.GetBaseRPM(), PrivacySet: value.IsPrivacySet(), MixedScheduling: value.IsMixedSchedulingEnabled()}
+	var plan *routing.CandidatePlan
+	if captured, ok := value.attemptRoute.Candidate(); ok {
+		plan = &captured
+	}
+	return &scheduler.FlowAccount{Plan: plan, ProjectionID: id, ID: value.ID, Name: value.Name, Platform: value.Platform, Type: value.Type, Concurrency: value.Concurrency, Priority: value.Priority, LastUsedAt: cloneFlowTime(value.LastUsedAt), SessionWindowEnd: cloneFlowTime(value.SessionWindowEnd), LoadFactor: value.EffectiveLoadFactor(), BaseRPM: value.GetBaseRPM(), PrivacySet: value.IsPrivacySet(), MixedScheduling: value.IsMixedSchedulingEnabled()}
 }
-func (g *genericSelectionScope) group(value *Group) *scheduler.FlowGroup {
+func (g *genericSelectionScope) group(value *routing.Group) *scheduler.FlowGroup {
 	if value == nil {
 		return nil
 	}
 	g.next++
 	id := g.next
 	g.groups[id] = value
-	return &scheduler.FlowGroup{ProjectionID: id, Group: *RoutingGroupView(value)}
+	return &scheduler.FlowGroup{ProjectionID: id, Group: *routing.CloneGroup(value)}
 }
 func (g *genericSelectionScope) oldAccount(v *scheduler.FlowAccount) *Account {
 	if v == nil {
@@ -43,7 +49,7 @@ func (g *genericSelectionScope) oldAccount(v *scheduler.FlowAccount) *Account {
 	}
 	return g.accounts[v.ProjectionID]
 }
-func (g *genericSelectionScope) oldGroup(v *scheduler.FlowGroup) *Group {
+func (g *genericSelectionScope) oldGroup(v *scheduler.FlowGroup) *routing.Group {
 	if v == nil {
 		return nil
 	}
@@ -113,8 +119,9 @@ func schedulerEffectiveProjection(v advancedSchedulerEffectiveSettings) policy.E
 	return policy.EffectiveSettings{StickyWeightedEnabled: v.stickyWeightedEnabled, SubscriptionPriorityEnabled: v.subscriptionPriorityEnabled, TopK: v.topK, Weights: policy.ScoreWeights(v.weights), Feedback: policy.FeedbackConfig{ErrorRateAlpha: v.feedback.errorRateAlpha, TtftAlpha: v.feedback.ttftAlpha}, StickyEscape: policy.StickyEscapeConfig{Enabled: v.stickyEscape.enabled, TtftMs: v.stickyEscape.ttftMs, ErrorRate: v.stickyEscape.errorRate}}
 }
 func (s *GatewayService) genericSelector() (*scheduler.GenericSelector, *genericSelectionScope) {
-	scope := &genericSelectionScope{accounts: map[uint64]*Account{}, groups: map[uint64]*Group{}}
-	diagnostics := LegacySchedulerDiagnostics()
+	scope := &genericSelectionScope{accounts: map[uint64]*Account{}, groups: map[uint64]*routing.Group{}}
+	diagnostics := scheduler.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event}
+
 	// 保留原结构化日志等级和字段，核心不安装日志后端。
 	diagnostics.Event = func(level, event string, args ...any) {
 		switch level {
@@ -130,7 +137,7 @@ func (s *GatewayService) genericSelector() (*scheduler.GenericSelector, *generic
 	}
 	ports := scheduler.GenericSelectionPorts{
 		ForcePlatform: func(ctx context.Context) (string, bool) {
-			value, ok := ctx.Value(ctxkey.ForcePlatform).(string)
+			value, ok := apikey.ForcePlatformFromContext(ctx)
 			return value, ok
 		},
 		ResolveGroupByID: func(ctx context.Context, id int64) (*scheduler.FlowGroup, error) {

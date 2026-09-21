@@ -15,9 +15,11 @@ import (
 	"testing"
 	"time"
 
+	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
+	"github.com/TokenFlux/TokenRouter/migrations"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
@@ -45,10 +47,8 @@ var (
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 
-	if err := timezone.Init("UTC"); err != nil {
-		log.Printf("failed to init timezone: %v", err)
-		os.Exit(1)
-	}
+	// 在启动测试资源前固定进程时区，各存储显式捕获对应日历。
+	time.Local = time.UTC
 
 	if !dockerIsAvailable(ctx) {
 		// In CI we expect Docker to be available so integration tests should fail loudly.
@@ -96,7 +96,7 @@ func TestMain(m *testing.M) {
 		log.Printf("failed to open sql db: %v", err)
 		os.Exit(1)
 	}
-	if err := ApplyMigrations(ctx, integrationDB); err != nil {
+	if err := postgresinfra.ApplyMigrations(ctx, integrationDB, migrations.FS); err != nil {
 		log.Printf("failed to apply db migrations: %v", err)
 		os.Exit(1)
 	}
@@ -233,20 +233,6 @@ func testEntTx(t *testing.T) *dbent.Tx {
 		_ = tx.Rollback()
 	})
 	return tx
-}
-
-// testEntSQLTx 已弃用：不要在新测试中使用此函数。
-// 基于 *sql.Tx 创建的 ent client 在调用 client.Tx() 时会 panic。
-// 对于需要测试内部使用事务的代码，请使用 testEntClient。
-// 对于需要事务隔离的测试，请使用 testEntTx。
-//
-// Deprecated: Use testEntClient or testEntTx instead.
-func testEntSQLTx(t *testing.T) (*dbent.Client, *sql.Tx) {
-	t.Helper()
-
-	// 直接失败，避免旧测试误用导致的事务嵌套 panic。
-	t.Fatalf("testEntSQLTx 已弃用：请使用 testEntClient 或 testEntTx")
-	return nil, nil
 }
 
 func testRedis(t *testing.T) *redisclient.Client {

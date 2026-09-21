@@ -5,9 +5,12 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -244,12 +247,12 @@ func TestFilterThinkingBlocksForRetry_DropsThinkingBlockWithEmptyContent(t *test
 	_, hasThinking := req["thinking"]
 	require.False(t, hasThinking, "top-level thinking should be removed")
 
-	msgs := req["messages"].([]any)
-	assistant := msgs[1].(map[string]any)
-	content := assistant["content"].([]any)
+	msgs := testassert.MustType[[]any](req["messages"])
+	assistant := testassert.MustType[map[string]any](msgs[1])
+	content := testassert.MustType[[]any](assistant["content"])
 	require.Len(t, content, 1, "empty thinking block should be dropped, only text remains")
-	require.Equal(t, "text", content[0].(map[string]any)["type"])
-	require.Equal(t, "Answer", content[0].(map[string]any)["text"])
+	require.Equal(t, "text", testassert.MustType[map[string]any](content[0])["type"])
+	require.Equal(t, "Answer", testassert.MustType[map[string]any](content[0])["text"])
 }
 
 func TestFilterThinkingBlocksForRetry_EmptyContentGetsPlaceholder(t *testing.T) {
@@ -294,16 +297,16 @@ func TestFilterThinkingBlocksForRetry_StripsEmptyTextBlocks(t *testing.T) {
 	require.True(t, ok)
 
 	// First message: empty text block stripped, "hello" preserved
-	msg0 := msgs[0].(map[string]any)
-	content0 := msg0["content"].([]any)
+	msg0 := testassert.MustType[map[string]any](msgs[0])
+	content0 := testassert.MustType[[]any](msg0["content"])
 	require.Len(t, content0, 1)
-	require.Equal(t, "hello", content0[0].(map[string]any)["text"])
+	require.Equal(t, "hello", testassert.MustType[map[string]any](content0[0])["text"])
 
 	// Second message: only had empty text block → gets placeholder
-	msg1 := msgs[1].(map[string]any)
-	content1 := msg1["content"].([]any)
+	msg1 := testassert.MustType[map[string]any](msgs[1])
+	content1 := testassert.MustType[[]any](msg1["content"])
 	require.Len(t, content1, 1)
-	block1 := content1[0].(map[string]any)
+	block1 := testassert.MustType[map[string]any](content1[0])
 	require.Equal(t, "text", block1["type"])
 	require.NotEmpty(t, block1["text"])
 }
@@ -325,15 +328,15 @@ func TestFilterThinkingBlocksForRetry_StripsNestedEmptyTextInToolResult(t *testi
 
 	var req map[string]any
 	require.NoError(t, json.Unmarshal(out, &req))
-	msgs := req["messages"].([]any)
-	msg0 := msgs[0].(map[string]any)
-	content0 := msg0["content"].([]any)
+	msgs := testassert.MustType[[]any](req["messages"])
+	msg0 := testassert.MustType[map[string]any](msgs[0])
+	content0 := testassert.MustType[[]any](msg0["content"])
 	require.Len(t, content0, 1)
-	toolResult := content0[0].(map[string]any)
+	toolResult := testassert.MustType[map[string]any](content0[0])
 	require.Equal(t, "tool_result", toolResult["type"])
-	nestedContent := toolResult["content"].([]any)
+	nestedContent := testassert.MustType[[]any](toolResult["content"])
 	require.Len(t, nestedContent, 1)
-	require.Equal(t, "valid result", nestedContent[0].(map[string]any)["text"])
+	require.Equal(t, "valid result", testassert.MustType[map[string]any](nestedContent[0])["text"])
 }
 
 func TestFilterThinkingBlocksForRetry_NestedAllEmptyGetsEmptySlice(t *testing.T) {
@@ -353,56 +356,56 @@ func TestFilterThinkingBlocksForRetry_NestedAllEmptyGetsEmptySlice(t *testing.T)
 
 	var req map[string]any
 	require.NoError(t, json.Unmarshal(out, &req))
-	msgs := req["messages"].([]any)
-	msg0 := msgs[0].(map[string]any)
-	content0 := msg0["content"].([]any)
+	msgs := testassert.MustType[[]any](req["messages"])
+	msg0 := testassert.MustType[map[string]any](msgs[0])
+	content0 := testassert.MustType[[]any](msg0["content"])
 	require.Len(t, content0, 2)
-	toolResult := content0[0].(map[string]any)
-	nestedContent := toolResult["content"].([]any)
+	toolResult := testassert.MustType[map[string]any](content0[0])
+	nestedContent := testassert.MustType[[]any](toolResult["content"])
 	require.Len(t, nestedContent, 0)
 }
 
 func TestStripEmptyTextBlocks(t *testing.T) {
 	t.Run("strips top-level empty text", func(t *testing.T) {
 		input := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"hello"},{"type":"text","text":""}]}]}`)
-		out := StripEmptyTextBlocks(input)
+		out := anthropic.StripEmptyTextBlocks(input)
 		var req map[string]any
 		require.NoError(t, json.Unmarshal(out, &req))
-		msgs := req["messages"].([]any)
-		content := msgs[0].(map[string]any)["content"].([]any)
+		msgs := testassert.MustType[[]any](req["messages"])
+		content := testassert.MustType[[]any](testassert.MustType[map[string]any](msgs[0])["content"])
 		require.Len(t, content, 1)
-		require.Equal(t, "hello", content[0].(map[string]any)["text"])
+		require.Equal(t, "hello", testassert.MustType[map[string]any](content[0])["text"])
 	})
 
 	t.Run("strips nested empty text in tool_result", func(t *testing.T) {
 		input := []byte(`{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"ok"},{"type":"text","text":""}]}]}]}`)
-		out := StripEmptyTextBlocks(input)
+		out := anthropic.StripEmptyTextBlocks(input)
 		var req map[string]any
 		require.NoError(t, json.Unmarshal(out, &req))
-		msgs := req["messages"].([]any)
-		content := msgs[0].(map[string]any)["content"].([]any)
-		toolResult := content[0].(map[string]any)
-		nestedContent := toolResult["content"].([]any)
+		msgs := testassert.MustType[[]any](req["messages"])
+		content := testassert.MustType[[]any](testassert.MustType[map[string]any](msgs[0])["content"])
+		toolResult := testassert.MustType[map[string]any](content[0])
+		nestedContent := testassert.MustType[[]any](toolResult["content"])
 		require.Len(t, nestedContent, 1)
-		require.Equal(t, "ok", nestedContent[0].(map[string]any)["text"])
+		require.Equal(t, "ok", testassert.MustType[map[string]any](nestedContent[0])["text"])
 	})
 
 	t.Run("no-op when no empty text", func(t *testing.T) {
 		input := []byte(`{"messages":[{"role":"user","content":[{"type":"text","text":"hello"}]}]}`)
-		out := StripEmptyTextBlocks(input)
+		out := anthropic.StripEmptyTextBlocks(input)
 		require.Equal(t, input, out)
 	})
 
 	t.Run("preserves non-map blocks in content", func(t *testing.T) {
 		// tool_result content can be a string; non-map blocks should pass through unchanged
 		input := []byte(`{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"string content"},{"type":"text","text":""}]}]}`)
-		out := StripEmptyTextBlocks(input)
+		out := anthropic.StripEmptyTextBlocks(input)
 		var req map[string]any
 		require.NoError(t, json.Unmarshal(out, &req))
-		msgs := req["messages"].([]any)
-		content := msgs[0].(map[string]any)["content"].([]any)
+		msgs := testassert.MustType[[]any](req["messages"])
+		content := testassert.MustType[[]any](testassert.MustType[map[string]any](msgs[0])["content"])
 		require.Len(t, content, 1)
-		toolResult := content[0].(map[string]any)
+		toolResult := testassert.MustType[map[string]any](content[0])
 		require.Equal(t, "tool_result", toolResult["type"])
 		require.Equal(t, "string content", toolResult["content"])
 	})
@@ -410,17 +413,17 @@ func TestStripEmptyTextBlocks(t *testing.T) {
 	t.Run("handles deeply nested tool_result", func(t *testing.T) {
 		// Recursive: tool_result containing another tool_result with empty text
 		input := []byte(`{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"tool_result","tool_use_id":"t2","content":[{"type":"text","text":""},{"type":"text","text":"deep"}]}]}]}]}`)
-		out := StripEmptyTextBlocks(input)
+		out := anthropic.StripEmptyTextBlocks(input)
 		var req map[string]any
 		require.NoError(t, json.Unmarshal(out, &req))
-		msgs := req["messages"].([]any)
-		content := msgs[0].(map[string]any)["content"].([]any)
-		outer := content[0].(map[string]any)
-		innerContent := outer["content"].([]any)
-		inner := innerContent[0].(map[string]any)
-		deepContent := inner["content"].([]any)
+		msgs := testassert.MustType[[]any](req["messages"])
+		content := testassert.MustType[[]any](testassert.MustType[map[string]any](msgs[0])["content"])
+		outer := testassert.MustType[map[string]any](content[0])
+		innerContent := testassert.MustType[[]any](outer["content"])
+		inner := testassert.MustType[map[string]any](innerContent[0])
+		deepContent := testassert.MustType[[]any](inner["content"])
 		require.Len(t, deepContent, 1)
-		require.Equal(t, "deep", deepContent[0].(map[string]any)["text"])
+		require.Equal(t, "deep", testassert.MustType[map[string]any](deepContent[0])["text"])
 	})
 }
 
@@ -690,9 +693,9 @@ func TestFilterSignatureSensitiveBlocksForRetry_NoThinkingField_ContextManagemen
 
 // parseGatewayRequestOld 是基于完整 json.Unmarshal 的旧实现，用于 benchmark 对比基线。
 // 核心路径：先 Unmarshal 到 map[string]any，再逐字段提取。
-func parseGatewayRequestOld(body []byte, protocol string) (*ParsedRequest, error) {
-	parsed := &ParsedRequest{
-		Body: NewRequestBodyRef(body),
+func parseGatewayRequestOld(body []byte, protocol string) (*requeststate.ParsedRequest, error) {
+	parsed := &requeststate.ParsedRequest{
+		Body: requeststate.NewRequestBodyRef(body),
 	}
 
 	var req map[string]any
@@ -739,7 +742,7 @@ func parseGatewayRequestOld(body []byte, protocol string) (*ParsedRequest, error
 		}
 	}
 
-	return ParseGatewayRequest(parsed.Body, protocol)
+	return requeststate.ParseGatewayRequest(parsed.Body, protocol)
 }
 
 // buildSmallJSON 构建 ~500B 的小型测试 JSON
@@ -749,23 +752,21 @@ func buildSmallJSON() []byte {
 
 // buildLargeJSON 构建 ~50KB 的大型测试 JSON（大量 messages）
 func buildLargeJSON() []byte {
-	var b strings.Builder
-	b.WriteString(`{"model":"claude-sonnet-4-5","stream":true,"max_tokens":8192,"metadata":{"user_id":"user-xyz789"},"system":[{"type":"text","text":"You are a detailed assistant.","cache_control":{"type":"ephemeral"}}],"messages":[`)
+	b := []byte(`{"model":"claude-sonnet-4-5","stream":true,"max_tokens":8192,"metadata":{"user_id":"user-xyz789"},"system":[{"type":"text","text":"You are a detailed assistant.","cache_control":{"type":"ephemeral"}}],"messages":[`)
 
 	msgCount := 200
 	for i := 0; i < msgCount; i++ {
 		if i > 0 {
-			b.WriteByte(',')
+			b = append(b, ',')
 		}
 		if i%2 == 0 {
-			b.WriteString(fmt.Sprintf(`{"role":"user","content":"This is user message number %d with some extra padding text to make the message reasonably long for benchmarking purposes. Lorem ipsum dolor sit amet."}`, i))
+			b = fmt.Appendf(b, `{"role":"user","content":"This is user message number %d with some extra padding text to make the message reasonably long for benchmarking purposes. Lorem ipsum dolor sit amet."}`, i)
 		} else {
-			b.WriteString(fmt.Sprintf(`{"role":"assistant","content":[{"type":"text","text":"This is assistant response number %d. I will provide a detailed answer with multiple sentences to simulate real conversation content for benchmark testing."}]}`, i))
+			b = fmt.Appendf(b, `{"role":"assistant","content":[{"type":"text","text":"This is assistant response number %d. I will provide a detailed answer with multiple sentences to simulate real conversation content for benchmark testing."}]}`, i)
 		}
 	}
 
-	b.WriteString(`]}`)
-	return []byte(b.String())
+	return append(b, ']', '}')
 }
 
 func BenchmarkParseGatewayRequest_Old_Small(b *testing.B) {
@@ -782,7 +783,7 @@ func BenchmarkParseGatewayRequest_New_Small(b *testing.B) {
 	b.SetBytes(int64(len(data)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ParseGatewayRequest(NewRequestBodyRef(data), "")
+		_, _ = requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(data), "")
 	}
 }
 
@@ -814,7 +815,7 @@ func TestNormalizeClaudeOutputEffort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := NormalizeClaudeOutputEffort(tt.input)
+			got := protocolcore.NormalizeClaudeOutputEffort(tt.input)
 			if tt.want == nil {
 				require.Nil(t, got)
 			} else {
@@ -872,7 +873,7 @@ func TestOpenAIBodyHasThinkingEnabled(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, OpenAIBodyHasThinkingEnabled([]byte(tt.body)))
+			require.Equal(t, tt.want, requeststate.OpenAIBodyHasThinkingEnabled([]byte(tt.body)))
 		})
 	}
 }
@@ -1071,6 +1072,6 @@ func BenchmarkParseGatewayRequest_New_Large(b *testing.B) {
 	b.SetBytes(int64(len(data)))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = ParseGatewayRequest(NewRequestBodyRef(data), "")
+		_, _ = requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(data), "")
 	}
 }

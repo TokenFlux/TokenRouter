@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type GrokMediaOptions struct {
 	AccountID      int64
-	Endpoint       native.GrokMediaEndpoint
+	Endpoint       grok.GrokMediaEndpoint
 	Request        *http.Request `json:"-"`
 	StartedAt      time.Time
 	Do             func(*http.Request) (*http.Response, error)
@@ -37,7 +37,7 @@ type GrokMedia struct{ Options GrokMediaOptions }
 
 func (e GrokMedia) Execute(ctx context.Context, input upstream.AttemptInput, sink upstream.OutputSink) (upstream.AttemptResult, error) {
 	o := e.Options
-	target := &native.MediaTarget{
+	target := &grok.MediaTarget{
 		AccountID:      o.AccountID,
 		Endpoint:       o.Endpoint,
 		Request:        o.Request,
@@ -52,5 +52,5 @@ func (e GrokMedia) Execute(ctx context.Context, input upstream.AttemptInput, sin
 		CopyHeaders:    o.CopyHeaders,
 	}
 	input.Target = target
-	return (native.MediaExecutor{}).Execute(ctx, input, sink)
+	return (grok.MediaExecutor{}).Execute(ctx, input, sink)
 }

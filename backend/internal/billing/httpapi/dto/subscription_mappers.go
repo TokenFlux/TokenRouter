@@ -2,8 +2,9 @@
 package dto
 
 import (
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	strconv "strconv"
+
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 func SubscriptionPlanFromServiceShallow(plan *billing.SubscriptionPlan) *SubscriptionPlan {

@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"testing"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,7 +45,7 @@ func newOpenAI403TestHarness(t *testing.T, accountID int64, counts ...int64) *op
 		repo:    repo,
 		counter: counter,
 		blocker: blocker,
-		account: &Account{ID: accountID, Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+		account: &Account{ID: accountID, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
 	}
 }
 
@@ -89,11 +91,11 @@ func TestHandleUpstreamError_OpenAIHTML403DoesNotPenalizeAccount(t *testing.T) {
 }
 
 func TestHandleUpstreamErrorCNProviderHTML403DoesNotPenalizeAccount(t *testing.T) {
-	for _, platform := range []string{PlatformKimi, PlatformZhipu, PlatformDeepseek} {
+	for _, platform := range []string{capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
 		t.Run(platform, func(t *testing.T) {
 			h := newOpenAI403TestHarness(t, 507, 1)
 			h.account.Platform = platform
-			h.account.Type = AccountTypeAPIKey
+			h.account.Type = capability.AccountTypeAPIKey
 
 			require.False(t, h.handle(openAI403HTMLBody))
 			h.requireNoAccountPenalty(t)
@@ -102,11 +104,11 @@ func TestHandleUpstreamErrorCNProviderHTML403DoesNotPenalizeAccount(t *testing.T
 }
 
 func TestHandleUpstreamErrorCNProviderStructured403UsesCumulativeCooldown(t *testing.T) {
-	for _, platform := range []string{PlatformKimi, PlatformZhipu, PlatformDeepseek} {
+	for _, platform := range []string{capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
 		t.Run(platform, func(t *testing.T) {
 			h := newOpenAI403TestHarness(t, 508, 1)
 			h.account.Platform = platform
-			h.account.Type = AccountTypeAPIKey
+			h.account.Type = capability.AccountTypeAPIKey
 
 			require.True(t, h.handle(`{"error":{"message":"forbidden"}}`))
 			require.Equal(t, 1, h.counter.increments)
@@ -121,7 +123,7 @@ func TestHandleUpstreamErrorCNProviderStructured403UsesCumulativeCooldown(t *tes
 func TestHandleUpstreamError_OpenAIHTML403RepeatedNeverEscalates(t *testing.T) {
 	h := newOpenAI403TestHarness(t, 502, 1, 2, 3, 4, 5)
 
-	for i := 0; i < openAI403DisableThresholdDefault+2; i++ {
+	for i := 0; i < accountcore.OpenAI403DisableThresholdDefault+2; i++ {
 		require.False(t, h.handle(openAI403HTMLBody), "第 %d 次 HTML 403 仍不得判定账号应下线", i+1)
 	}
 
@@ -142,7 +144,7 @@ func TestHandleUpstreamError_OpenAIStructured403StillPenalizes(t *testing.T) {
 	})
 
 	t.Run("threshold_disables", func(t *testing.T) {
-		h := newOpenAI403TestHarness(t, 504, int64(openAI403DisableThresholdDefault))
+		h := newOpenAI403TestHarness(t, 504, int64(accountcore.OpenAI403DisableThresholdDefault))
 
 		require.True(t, h.handle(`{"error":{"message":"workspace forbidden by policy"}}`))
 		require.Equal(t, 1, h.repo.setErrorCalls)
@@ -159,11 +161,11 @@ func TestHandleUpstreamError_OpenAIStructured403StillPenalizes(t *testing.T) {
 
 // TestHandleUpstreamError_HTML403OnOtherPlatformsUnchanged 验证豁免不扩散到其它平台。
 func TestHandleUpstreamError_HTML403OnOtherPlatformsUnchanged(t *testing.T) {
-	for _, platform := range []string{PlatformAnthropic, PlatformGemini} {
+	for _, platform := range []string{capability.PlatformAnthropic, capability.PlatformGemini} {
 		t.Run(platform, func(t *testing.T) {
 			repo := &rateLimitAccountRepoStub{}
 			svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-			account := &Account{ID: 506, Platform: platform, Type: AccountTypeAPIKey}
+			account := &Account{ID: 506, Platform: platform, Type: capability.AccountTypeAPIKey}
 
 			shouldDisable := svc.HandleUpstreamError(
 				context.Background(), account, http.StatusForbidden, http.Header{}, []byte(openAI403HTMLBody),
@@ -171,30 +173,6 @@ func TestHandleUpstreamError_HTML403OnOtherPlatformsUnchanged(t *testing.T) {
 
 			require.True(t, shouldDisable)
 			require.Equal(t, 1, repo.setErrorCalls, "其他平台保持原有 SetError 行为")
-		})
-	}
-}
-
-// TestIsHTMLResponse 固化只识别 HTML 前缀而不扩大到其它文本格式。
-func TestIsHTMLResponse(t *testing.T) {
-	cases := []struct {
-		name string
-		body string
-		want bool
-	}{
-		{"doctype_lower", "<!doctype html><html></html>", true},
-		{"doctype_upper", "<!DOCTYPE HTML>", true},
-		{"bare_html", "<html lang=\"en\">", true},
-		{"leading_whitespace", "\n\n   <html>", true},
-		{"json_error", `{"error":{"message":"forbidden"}}`, false},
-		{"plain_text", "Forbidden", false},
-		{"empty", "", false},
-		{"xml_declaration", `<?xml version="1.0"?><error/>`, false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, isHTMLResponse([]byte(tc.body)))
 		})
 	}
 }

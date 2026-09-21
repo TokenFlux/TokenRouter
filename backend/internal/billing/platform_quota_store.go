@@ -7,17 +7,13 @@ import (
 	time "time"
 )
 
-// ErrUserPlatformQuotaNotFound service 层 sentinel：quota 记录不存在。
-// adapter 将 repository.ErrUserPlatformQuotaNotFound 包装为此错误，
-// handler 只需引用 service 包，无需直接依赖 repository 包。
+// ErrUserPlatformQuotaNotFound 表示平台额度记录不存在，存储与调用方共享同一错误。
 var ErrUserPlatformQuotaNotFound = errors.New("user platform quota not found")
 
-// ErrUserPlatformQuotaFKViolation service 层 sentinel：批量 snapshot UPSERT 时存在
-// user_id 不在 users 表的记录（外键违反）。adapter 负责将 repository 层同名 sentinel 包装为此错误。
+// ErrUserPlatformQuotaFKViolation 表示批量快照中存在已失效的用户外键。
 var ErrUserPlatformQuotaFKViolation = errors.New("user platform quota snapshot FK violation")
 
-// UserPlatformQuotaSnapshot 是 service 层 flusher 向 DB 写入快照时使用的传输结构。
-// 字段语义与 repository.UserPlatformQuotaSnapshot 完全对应，由 adapter 负责转换。
+// UserPlatformQuotaSnapshot 是镜像写回与存储共享的消费快照。
 type UserPlatformQuotaSnapshot struct {
 	UserID             int64
 	Platform           string
@@ -29,7 +25,7 @@ type UserPlatformQuotaSnapshot struct {
 	MonthlyWindowStart time.Time
 }
 
-// UserPlatformQuotaRecord service 层传输结构体（与 repository 层解耦）。
+// UserPlatformQuotaRecord 是平台额度存取和只读展示的共同值类型。
 type UserPlatformQuotaRecord struct {
 	UserID          int64
 	Platform        string
@@ -45,8 +41,7 @@ type UserPlatformQuotaRecord struct {
 	MonthlyWindowStart *time.Time
 }
 
-// UserPlatformQuotaRepository 定义 service 层所需的 user × platform quota 数据访问端口。
-// repository 包的 userPlatformQuotaRepository 实现此接口。
+// UserPlatformQuotaRepository 定义平台额度数据端口，由 billing/postgres 实现。
 type UserPlatformQuotaRepository interface {
 	// GetByUserPlatform 查询单条配额记录，未找到时返回 (nil, nil)。
 	GetByUserPlatform(ctx context.Context, userID int64, platform string) (*UserPlatformQuotaRecord, error)
@@ -63,7 +58,7 @@ type UserPlatformQuotaRepository interface {
 	// records 为空时仅执行步骤 1。
 	UpsertForUser(ctx context.Context, userID int64, records []UserPlatformQuotaRecord) error
 	// ResetExpiredWindow 重置指定窗口（"daily"|"weekly"|"monthly"）的用量与起始时间。
-	// 未命中活跃记录时返回（service-side wrapper of repository.ErrUserPlatformQuotaNotFound）。
+	// 未命中活跃记录时返回 ErrUserPlatformQuotaNotFound。
 	ResetExpiredWindow(ctx context.Context, userID int64, platform string, window string, newStart time.Time) error
 	// BatchSnapshotUsage 绝对值覆盖写入整批 usage 快照。FK 违反返回 ErrUserPlatformQuotaFKViolation。
 	BatchSnapshotUsage(ctx context.Context, snapshots []UserPlatformQuotaSnapshot, now time.Time) error

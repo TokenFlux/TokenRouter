@@ -20,6 +20,7 @@ import (
 
 type SettlementStore struct {
 	db              *sql.DB
+	calendar        timezone.Calendar
 	accountOutbox   AccountQuotaOutbox
 	taskProjections TaskProjectionFactories
 }
@@ -28,14 +29,14 @@ type SettlementStore struct {
 type AccountQuotaOutbox func(context.Context, *sql.Tx, int64) error
 
 // NewSettlementStore 构造唯一闭合资金存储，不启动后台任务。
-func NewSettlementStore(sqlDB *sql.DB, outbox AccountQuotaOutbox, factories ...TaskProjectionFactories) *SettlementStore {
+func NewSettlementStore(sqlDB *sql.DB, calendar timezone.Calendar, outbox AccountQuotaOutbox, factories ...TaskProjectionFactories) *SettlementStore {
 	projections := make(TaskProjectionFactories)
 	for _, set := range factories {
 		for scope, factory := range set {
 			projections[scope] = factory
 		}
 	}
-	return &SettlementStore{db: sqlDB, accountOutbox: outbox, taskProjections: projections}
+	return &SettlementStore{db: sqlDB, calendar: calendar, accountOutbox: outbox, taskProjections: projections}
 }
 
 func (r *SettlementStore) Apply(ctx context.Context, cmd *billing.UsageBillingCommand) (_ *billing.UsageBillingApplyResult, err error) {
@@ -381,7 +382,7 @@ func (r *SettlementStore) applyTaskBalanceHoldOnce(
 		result = &billing.TaskFundsResult{}
 	}
 	result.Applied = true
-	if err := applyTaskAllowance(ctx, tx, cmd, operation, projection); err != nil {
+	if err := r.applyTaskAllowance(ctx, tx, cmd, operation, projection); err != nil {
 		return nil, err
 	}
 
@@ -416,7 +417,7 @@ func taskAllowanceOperationName(operation taskAllowanceOperation) string {
 	}
 }
 
-func applyTaskAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, operation taskAllowanceOperation, projection TaskProjection) error {
+func (r *SettlementStore) applyTaskAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, operation taskAllowanceOperation, projection TaskProjection) error {
 	if cmd == nil || (cmd.HoldAmount <= 0 && cmd.BaseAmountUSD <= 0) {
 		return nil
 	}
@@ -429,7 +430,7 @@ func applyTaskAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsC
 		if err := reserveTaskAPIKeyAllowance(ctx, tx, cmd.APIKeyID, cmd.HoldAmount, reservedAt); err != nil {
 			return err
 		}
-		if err := reserveTaskMemberAllowance(ctx, tx, cmd, cmd.HoldAmount); err != nil {
+		if err := r.reserveTaskMemberAllowance(ctx, tx, cmd, cmd.HoldAmount); err != nil {
 			return err
 		}
 		return projection.SetAllowanceReserved(ctx, true)
@@ -452,7 +453,7 @@ func applyTaskAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsC
 				return err
 			}
 			if cmd.TeamID != nil && cmd.ActorUserID > 0 && cmd.ActorUserID != cmd.UserID {
-				if err := incrementUsageBillingTeamMember(ctx, tx, *cmd.TeamID, cmd.ActorUserID, cmd.ActualAmount, time.Now()); err != nil {
+				if err := r.incrementUsageBillingTeamMember(ctx, tx, *cmd.TeamID, cmd.ActorUserID, cmd.ActualAmount, time.Now()); err != nil {
 					return err
 				}
 			}
@@ -578,14 +579,14 @@ func effectiveSQLWindowUsage(usage float64, start sql.NullTime, duration time.Du
 	return usage
 }
 
-func reserveTaskMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, amount float64) error {
+func (r *SettlementStore) reserveTaskMemberAllowance(ctx context.Context, tx *sql.Tx, cmd *billing.TaskFundsCommand, amount float64) error {
 	if cmd.TeamID == nil || cmd.ActorUserID <= 0 || cmd.ActorUserID == cmd.UserID {
 		return nil
 	}
 	now := time.Now()
-	dailyStart := timezone.StartOfDay(now)
-	weeklyStart := timezone.StartOfWeek(now)
-	monthlyStart := timezone.StartOfMonth(now)
+	dailyStart := r.calendar.StartOfDay(now)
+	weeklyStart := r.calendar.StartOfWeek(now)
+	monthlyStart := r.calendar.StartOfMonth(now)
 	var id int64
 	err := tx.QueryRowContext(ctx, `
 		UPDATE team_memberships SET
@@ -722,7 +723,7 @@ func (r *SettlementStore) applyUsageBillingEffects(ctx context.Context, tx *sql.
 
 	billableAmount := result.SubscriptionAmountUSD + result.BalanceAmountUSD
 	if cmd.TeamID != nil && cmd.ActorUserID > 0 && cmd.ActorUserID != cmd.UserID {
-		if err := incrementUsageBillingTeamMember(ctx, tx, *cmd.TeamID, cmd.ActorUserID, billableAmount, time.Now()); err != nil {
+		if err := r.incrementUsageBillingTeamMember(ctx, tx, *cmd.TeamID, cmd.ActorUserID, billableAmount, time.Now()); err != nil {
 			return err
 		}
 	}
@@ -764,13 +765,13 @@ func (r *SettlementStore) applyUsageBillingEffects(ctx context.Context, tx *sql.
 }
 
 // incrementUsageBillingTeamMember 在同一扣费事务中累计成员自然周期用量。
-func incrementUsageBillingTeamMember(ctx context.Context, tx *sql.Tx, teamID, actorUserID int64, amount float64, now time.Time) error {
+func (r *SettlementStore) incrementUsageBillingTeamMember(ctx context.Context, tx *sql.Tx, teamID, actorUserID int64, amount float64, now time.Time) error {
 	if amount <= 0 {
 		return nil
 	}
-	dailyStart := timezone.StartOfDay(now)
-	weeklyStart := timezone.StartOfWeek(now)
-	monthlyStart := timezone.StartOfMonth(now)
+	dailyStart := r.calendar.StartOfDay(now)
+	weeklyStart := r.calendar.StartOfWeek(now)
+	monthlyStart := r.calendar.StartOfMonth(now)
 	_, err := tx.ExecContext(ctx, `
 		UPDATE team_memberships SET
 			daily_usage_usd = CASE WHEN daily_window_start IS NULL OR daily_window_start < $4 THEN $3 ELSE daily_usage_usd + $3 END,

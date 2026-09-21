@@ -12,7 +12,11 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +25,7 @@ func filterGrokPingTestInput(t *testing.T, input string) string {
 	t.Helper()
 	body := newGrokResponsesBillingPingFilterBody(
 		io.NopCloser(strings.NewReader(input)),
-		&Account{Platform: PlatformGrok},
+		&Account{Platform: capability.PlatformGrok},
 		defaultMaxLineSize,
 	)
 	output, err := io.ReadAll(body)
@@ -70,10 +74,10 @@ func TestGrokResponsesBillingPingFilterComposesWithClientToolStream(t *testing.T
 		"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\"}}\n\n"
 	filtered := newGrokResponsesBillingPingFilterBody(
 		io.NopCloser(strings.NewReader(input)),
-		&Account{Platform: PlatformGrok},
+		&Account{Platform: capability.PlatformGrok},
 		defaultMaxLineSize,
 	)
-	body := newGrokResponsesClientToolStreamBody(filtered, apicompat.ResponsesClientToolMapping{
+	body := upstream.NewResponsesClientToolStreamBody(filtered, bridge.ResponsesClientToolMapping{
 		CustomTools: map[string]bool{"apply_patch": true},
 	}, defaultMaxLineSize)
 
@@ -140,7 +144,7 @@ func TestGrokResponsesBillingPingFilterPassesThroughPingFrameWithUnknownField(t 
 // 超过行数或字节上限的候选帧应原样直通，避免无界占用内存。
 func TestGrokResponsesBillingPingFilterPassesThroughOversizedPingFrame(t *testing.T) {
 	lines := []string{"event: ping"}
-	for i := 0; i < grokResponsesPingFrameMaxLines; i++ {
+	for i := 0; i < grok.ResponsesPingFrameMaxLines; i++ {
 		lines = append(lines, ": filler comment")
 	}
 	lines = append(lines, `data: {"type":"ping","cost":"0"}`, "")
@@ -148,7 +152,7 @@ func TestGrokResponsesBillingPingFilterPassesThroughOversizedPingFrame(t *testin
 	require.Equal(t, byLines, filterGrokPingTestInput(t, byLines))
 
 	byBytes := "event: ping\ndata: {\"type\":\"ping\",\"pad\":\"" +
-		strings.Repeat("x", grokResponsesPingFrameMaxBytes) + "\"}\n\n"
+		strings.Repeat("x", grok.ResponsesPingFrameMaxBytes) + "\"}\n\n"
 	require.Equal(t, byBytes, filterGrokPingTestInput(t, byBytes))
 }
 
@@ -176,7 +180,7 @@ func TestGrokResponsesBillingPingFilterConvertsPartialPingFrameAtEOF(t *testing.
 func TestGrokResponsesBillingPingFilterDoesNotFilterNonGrokAccounts(t *testing.T) {
 	input := "event: ping\ndata: {\"type\":\"ping\",\"cost\":\"0\"}\n\n"
 	source := io.NopCloser(strings.NewReader(input))
-	body := newGrokResponsesBillingPingFilterBody(source, &Account{Platform: PlatformOpenAI}, defaultMaxLineSize)
+	body := newGrokResponsesBillingPingFilterBody(source, &Account{Platform: capability.PlatformOpenAI}, defaultMaxLineSize)
 
 	output, err := io.ReadAll(body)
 	require.NoError(t, err)
@@ -185,7 +189,7 @@ func TestGrokResponsesBillingPingFilterDoesNotFilterNonGrokAccounts(t *testing.T
 }
 
 func TestGrokResponsesBillingPingFilterPreservesUsageAndTerminalEvent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	input := strings.Join([]string{
 		"event: ping",
 		`data: {"type":"ping","x-opencode-type":"inference-cost","cost":"0"}`,
@@ -194,7 +198,7 @@ func TestGrokResponsesBillingPingFilterPreservesUsageAndTerminalEvent(t *testing
 		`data: {"type":"response.completed","response":{"id":"resp_1","usage":{"input_tokens":3,"output_tokens":5}}}`,
 		"",
 	}, "\n")
-	account := &Account{ID: 1, Platform: PlatformGrok}
+	account := &Account{ID: 1, Platform: capability.PlatformGrok}
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{},
@@ -207,7 +211,7 @@ func TestGrokResponsesBillingPingFilterPreservesUsageAndTerminalEvent(t *testing
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	svc := &OpenAIGatewayService{
 		cfg:           &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
-		toolCorrector: NewCodexToolCorrector(),
+		toolCorrector: openai.NewCodexToolCorrector(),
 	}
 
 	result, err := svc.handleStreamingResponse(context.Background(), resp, c, account, time.Now(), "grok-4.5", "grok-4.5")
@@ -234,7 +238,7 @@ func (r *grokPingFilterTestReadCloser) Close() error {
 func TestGrokResponsesBillingPingFilterCloseCancelsSourceOnce(t *testing.T) {
 	upstreamReader, upstreamWriter := io.Pipe()
 	source := &grokPingFilterTestReadCloser{reader: upstreamReader}
-	body := newGrokResponsesBillingPingFilterBody(source, &Account{Platform: PlatformGrok}, defaultMaxLineSize)
+	body := newGrokResponsesBillingPingFilterBody(source, &Account{Platform: capability.PlatformGrok}, defaultMaxLineSize)
 
 	require.NoError(t, body.Close())
 	require.Eventually(t, func() bool { return source.closeCount.Load() == 1 }, time.Second, time.Millisecond)
@@ -245,7 +249,7 @@ func TestGrokResponsesBillingPingFilterCloseCancelsSourceOnce(t *testing.T) {
 
 func TestGrokResponsesBillingPingFilterFlushesCompletedFrames(t *testing.T) {
 	upstreamReader, upstreamWriter := io.Pipe()
-	body := newGrokResponsesBillingPingFilterBody(upstreamReader, &Account{Platform: PlatformGrok}, defaultMaxLineSize)
+	body := newGrokResponsesBillingPingFilterBody(upstreamReader, &Account{Platform: capability.PlatformGrok}, defaultMaxLineSize)
 	t.Cleanup(func() { require.NoError(t, body.Close()) })
 
 	go func() {
@@ -272,7 +276,7 @@ func TestGrokResponsesBillingPingFilterFlushesCompletedFrames(t *testing.T) {
 func TestGrokResponsesBillingPingFilterReportsOversizedLine(t *testing.T) {
 	body := newGrokResponsesBillingPingFilterBody(
 		io.NopCloser(strings.NewReader("data: 123456789\n\n")),
-		&Account{Platform: PlatformGrok},
+		&Account{Platform: capability.PlatformGrok},
 		8,
 	)
 	_, err := io.ReadAll(body)

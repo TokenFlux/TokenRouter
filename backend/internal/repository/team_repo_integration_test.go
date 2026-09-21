@@ -10,17 +10,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	schedulerpostgres "github.com/TokenFlux/TokenRouter/internal/scheduler/postgres"
+	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+
+	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
+
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/team"
+	teampostgres "github.com/TokenFlux/TokenRouter/internal/team/postgres"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTeamInvitationConcurrentAcceptanceEnforcesMemberLimit(t *testing.T) {
 	ctx := context.Background()
-	repo := NewTeamRepository(integrationDB)
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("owner"), Balance: 10})
-	first := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("first")})
-	second := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("second")})
+	repo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("owner"), Balance: 10})
+	first := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("first")})
+	second := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("second")})
 	teamCtx, err := repo.Create(ctx, "并发邀请团队", owner.ID, 1)
 	require.NoError(t, err)
 
@@ -34,7 +50,7 @@ func TestTeamInvitationConcurrentAcceptanceEnforcesMemberLimit(t *testing.T) {
 	start := make(chan struct{})
 	results := make(chan error, 2)
 	var wg sync.WaitGroup
-	accept := func(token string, user *service.User) {
+	accept := func(token string, user *identity.User) {
 		defer wg.Done()
 		<-start
 		_, acceptErr := repo.ResolveInvitation(ctx, token, user.ID, user.Email, "accepted", time.Now())
@@ -52,7 +68,7 @@ func TestTeamInvitationConcurrentAcceptanceEnforcesMemberLimit(t *testing.T) {
 		switch {
 		case result == nil:
 			accepted++
-		case errors.Is(result, service.ErrTeamMemberLimitReached):
+		case errors.Is(result, team.ErrTeamMemberLimitReached):
 			limited++
 		default:
 			require.NoError(t, result)
@@ -68,9 +84,9 @@ func TestTeamInvitationConcurrentAcceptanceEnforcesMemberLimit(t *testing.T) {
 
 func TestTeamInvitationMemberLimitZeroRejectsMembers(t *testing.T) {
 	ctx := context.Background()
-	repo := NewTeamRepository(integrationDB)
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("zero-owner")})
-	member := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("zero-member")})
+	repo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("zero-owner")})
+	member := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("zero-member")})
 	teamCtx, err := repo.Create(ctx, "零成员容量团队", owner.ID, 0)
 	require.NoError(t, err)
 	token := uuid.NewString()
@@ -78,14 +94,14 @@ func TestTeamInvitationMemberLimitZeroRejectsMembers(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = repo.ResolveInvitation(ctx, token, member.ID, member.Email, "accepted", time.Now())
-	require.ErrorIs(t, err, service.ErrTeamMemberLimitReached)
+	require.ErrorIs(t, err, team.ErrTeamMemberLimitReached)
 }
 
 func TestTeamMembershipAndBillingAreIdempotent(t *testing.T) {
 	ctx := context.Background()
-	teamRepo := NewTeamRepository(integrationDB)
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("billing-owner"), Balance: 10})
-	member := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("billing-member")})
+	teamRepo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("billing-owner"), Balance: 10})
+	member := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("billing-member")})
 	teamCtx, err := teamRepo.Create(ctx, "计费团队", owner.ID, 10)
 	require.NoError(t, err)
 	token := uuid.NewString()
@@ -100,27 +116,27 @@ func TestTeamMembershipAndBillingAreIdempotent(t *testing.T) {
 		WHERE team_id = $1 AND user_id = $2`, teamCtx.Team.ID, member.ID, oldWindow)
 	require.NoError(t, err)
 
-	otherOwner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("other-owner")})
+	otherOwner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("other-owner")})
 	otherTeam, err := teamRepo.Create(ctx, "其他团队", otherOwner.ID, 10)
 	require.NoError(t, err)
 	otherToken := uuid.NewString()
 	_, err = teamRepo.CreateInvitation(ctx, otherTeam.Team.ID, otherOwner.ID, member.Email, otherToken, time.Now().Add(time.Hour))
 	require.NoError(t, err)
 	_, err = teamRepo.ResolveInvitation(ctx, otherToken, member.ID, member.Email, "accepted", time.Now())
-	require.ErrorIs(t, err, service.ErrTeamAlreadyJoined)
+	require.ErrorIs(t, err, team.ErrTeamAlreadyJoined)
 
 	teamID := teamCtx.Team.ID
-	apiKey := mustCreateApiKey(t, integrationEntClient, &service.APIKey{UserID: member.ID, TeamID: &teamID, Key: "sk-team-" + uuid.NewString(), Name: "team"})
-	account := mustCreateAccount(t, integrationEntClient, &service.Account{Name: "team-account-" + uuid.NewString(), Type: service.AccountTypeAPIKey})
-	billingRepo := NewUsageBillingRepository(integrationEntClient, integrationDB)
-	command := &service.UsageBillingCommand{
+	apiKey := mustCreateApiKey(t, integrationEntClient, &apikey.APIKey{UserID: member.ID, TeamID: &teamID, Key: "sk-team-" + uuid.NewString(), Name: "team"})
+	account := mustCreateAccount(t, integrationEntClient, &service.Account{Name: "team-account-" + uuid.NewString(), Type: capability.AccountTypeAPIKey})
+	billingRepo := billingpostgres.NewSettlementStore(integrationDB, timezone.NewCalendar(time.Local), schedulerpostgres.EnqueueAccountQuotaChangedInTx, billingpostgres.TaskProjectionFactories{})
+	command := &billing.UsageBillingCommand{
 		RequestID:         uuid.NewString(),
 		APIKeyID:          apiKey.ID,
 		UserID:            owner.ID,
 		ActorUserID:       member.ID,
 		TeamID:            &teamID,
 		AccountID:         account.ID,
-		AccountType:       service.AccountTypeAPIKey,
+		AccountType:       capability.AccountTypeAPIKey,
 		BillableAmountUSD: 1.25,
 	}
 	firstResult, err := billingRepo.Apply(ctx, command)
@@ -161,20 +177,20 @@ func TestTeamMembershipAndBillingAreIdempotent(t *testing.T) {
 	var oldRole, newRole string
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT role FROM team_memberships WHERE team_id = $1 AND user_id = $2`, teamID, owner.ID).Scan(&oldRole))
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT role FROM team_memberships WHERE team_id = $1 AND user_id = $2`, teamID, member.ID).Scan(&newRole))
-	require.Equal(t, service.TeamRoleMember, oldRole)
-	require.Equal(t, service.TeamRoleOwner, newRole)
+	require.Equal(t, team.TeamRoleMember, oldRole)
+	require.Equal(t, team.TeamRoleOwner, newRole)
 }
 
 func TestActiveTeamOwnerCannotBeDeleted(t *testing.T) {
 	ctx := context.Background()
-	repo := NewTeamRepository(integrationDB)
-	userRepo := NewUserRepository(integrationEntClient, integrationDB)
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("protected-owner")})
+	repo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
+	userRepo := postgres.NewUserStore(integrationEntClient, integrationDB)
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("protected-owner")})
 	teamCtx, err := repo.Create(ctx, "删除保护团队", owner.ID, 10)
 	require.NoError(t, err)
 
 	err = userRepo.Delete(ctx, owner.ID)
-	require.ErrorIs(t, err, service.ErrTeamOwnerTransferRequired)
+	require.ErrorIs(t, err, team.ErrTeamOwnerTransferRequired)
 
 	_, err = integrationDB.ExecContext(ctx, `UPDATE users SET deleted_at = NOW() WHERE id = $1`, owner.ID)
 	require.Error(t, err)
@@ -187,9 +203,9 @@ func TestActiveTeamOwnerCannotBeDeleted(t *testing.T) {
 
 func TestSoftDeletedTeamMemberIsRemovedAndKeysDisabled(t *testing.T) {
 	ctx := context.Background()
-	repo := NewTeamRepository(integrationDB)
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("delete-owner")})
-	member := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("delete-member")})
+	repo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("delete-owner")})
+	member := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("delete-member")})
 	teamCtx, err := repo.Create(ctx, "成员删除清理团队", owner.ID, 5)
 	require.NoError(t, err)
 	token := uuid.NewString()
@@ -198,7 +214,7 @@ func TestSoftDeletedTeamMemberIsRemovedAndKeysDisabled(t *testing.T) {
 	_, err = repo.ResolveInvitation(ctx, token, member.ID, member.Email, "accepted", time.Now())
 	require.NoError(t, err)
 	teamID := teamCtx.Team.ID
-	apiKey := mustCreateApiKey(t, integrationEntClient, &service.APIKey{
+	apiKey := mustCreateApiKey(t, integrationEntClient, &apikey.APIKey{
 		UserID: member.ID,
 		TeamID: &teamID,
 		Key:    "sk-team-delete-" + uuid.NewString(),
@@ -213,14 +229,14 @@ func TestSoftDeletedTeamMemberIsRemovedAndKeysDisabled(t *testing.T) {
 	require.False(t, leftAt.IsZero())
 	var status string
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT status FROM api_keys WHERE id = $1`, apiKey.ID).Scan(&status))
-	require.Equal(t, service.StatusAPIKeyDisabled, status)
+	require.Equal(t, apikey.StatusAPIKeyDisabled, status)
 }
 
 func TestTeamOwnerKeyLockRequiresExplicitOwnerEnable(t *testing.T) {
 	ctx := context.Background()
-	repo := NewTeamRepository(integrationDB)
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("key-owner")})
-	member := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("key-member")})
+	repo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("key-owner")})
+	member := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("key-member")})
 	teamCtx, err := repo.Create(ctx, "团队密钥锁定测试", owner.ID, 5)
 	require.NoError(t, err)
 	token := uuid.NewString()
@@ -229,7 +245,7 @@ func TestTeamOwnerKeyLockRequiresExplicitOwnerEnable(t *testing.T) {
 	_, err = repo.ResolveInvitation(ctx, token, member.ID, member.Email, "accepted", time.Now())
 	require.NoError(t, err)
 	teamID := teamCtx.Team.ID
-	apiKey := mustCreateApiKey(t, integrationEntClient, &service.APIKey{
+	apiKey := mustCreateApiKey(t, integrationEntClient, &apikey.APIKey{
 		UserID: member.ID,
 		TeamID: &teamID,
 		Key:    "sk-team-owner-lock-" + uuid.NewString(),
@@ -241,28 +257,28 @@ func TestTeamOwnerKeyLockRequiresExplicitOwnerEnable(t *testing.T) {
 	var status string
 	var ownerDisabled bool
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT status, team_owner_disabled FROM api_keys WHERE id = $1`, apiKey.ID).Scan(&status, &ownerDisabled))
-	require.Equal(t, service.StatusAPIKeyDisabled, status)
+	require.Equal(t, apikey.StatusAPIKeyDisabled, status)
 	require.True(t, ownerDisabled)
 
 	// 普通更新只能改状态，无法清除 Owner 的独立锁定标记。
 	_, err = integrationDB.ExecContext(ctx, `UPDATE api_keys SET status = 'active' WHERE id = $1`, apiKey.ID)
 	require.NoError(t, err)
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT status, team_owner_disabled FROM api_keys WHERE id = $1`, apiKey.ID).Scan(&status, &ownerDisabled))
-	require.Equal(t, service.StatusAPIKeyActive, status)
+	require.Equal(t, apikey.StatusAPIKeyActive, status)
 	require.True(t, ownerDisabled)
 
 	_, err = repo.EnableTeamKey(ctx, teamID, apiKey.ID, nil)
 	require.NoError(t, err)
 	require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT status, team_owner_disabled FROM api_keys WHERE id = $1`, apiKey.ID).Scan(&status, &ownerDisabled))
-	require.Equal(t, service.StatusAPIKeyActive, status)
+	require.Equal(t, apikey.StatusAPIKeyActive, status)
 	require.False(t, ownerDisabled)
 }
 
 func TestTeamInvitationCopiesCurrentDefaultMemberLimits(t *testing.T) {
 	ctx := context.Background()
-	repo := NewTeamRepository(integrationDB)
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("default-limit-owner")})
-	member := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("default-limit-member")})
+	repo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("default-limit-owner")})
+	member := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("default-limit-member")})
 	teamCtx, err := repo.Create(ctx, "默认限额团队", owner.ID, 10)
 	require.NoError(t, err)
 	require.NoError(t, repo.SetDefaultMemberLimits(ctx, teamCtx.Team.ID, 1.5, 8, 30))
@@ -285,10 +301,10 @@ func TestTeamInvitationCopiesCurrentDefaultMemberLimits(t *testing.T) {
 
 func TestTeamMemberUsageSeriesKeepsDepartedMemberHistory(t *testing.T) {
 	ctx := context.Background()
-	teamRepo := NewTeamRepository(integrationDB)
+	teamRepo := teampostgres.NewTeamRepository(integrationDB, keypostgres.NewTeamKeys(integrationDB), billingpostgres.NewMemberUsageStore(integrationDB, nil))
 	usageRepo := newUsageLogRepositoryWithSQL(integrationEntClient, integrationDB)
-	owner := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("usage-owner")})
-	member := mustCreateUser(t, integrationEntClient, &service.User{Email: uniqueTeamTestEmail("usage-member")})
+	owner := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("usage-owner")})
+	member := mustCreateUser(t, integrationEntClient, &identity.User{Email: uniqueTeamTestEmail("usage-member")})
 	teamCtx, err := teamRepo.Create(ctx, "历史成员用量团队", owner.ID, 5)
 	require.NoError(t, err)
 	token := uuid.NewString()
@@ -297,9 +313,9 @@ func TestTeamMemberUsageSeriesKeepsDepartedMemberHistory(t *testing.T) {
 	_, err = teamRepo.ResolveInvitation(ctx, token, member.ID, member.Email, "accepted", time.Now())
 	require.NoError(t, err)
 	teamID := teamCtx.Team.ID
-	ownerKey := mustCreateApiKey(t, integrationEntClient, &service.APIKey{UserID: owner.ID, TeamID: &teamID, Key: "sk-team-usage-owner-" + uuid.NewString()})
-	memberKey := mustCreateApiKey(t, integrationEntClient, &service.APIKey{UserID: member.ID, TeamID: &teamID, Key: "sk-team-usage-member-" + uuid.NewString()})
-	account := mustCreateAccount(t, integrationEntClient, &service.Account{Name: "team-usage-" + uuid.NewString(), Type: service.AccountTypeAPIKey})
+	ownerKey := mustCreateApiKey(t, integrationEntClient, &apikey.APIKey{UserID: owner.ID, TeamID: &teamID, Key: "sk-team-usage-owner-" + uuid.NewString()})
+	memberKey := mustCreateApiKey(t, integrationEntClient, &apikey.APIKey{UserID: member.ID, TeamID: &teamID, Key: "sk-team-usage-member-" + uuid.NewString()})
+	account := mustCreateAccount(t, integrationEntClient, &service.Account{Name: "team-usage-" + uuid.NewString(), Type: capability.AccountTypeAPIKey})
 	createdAt := time.Now().UTC()
 	for _, item := range []struct {
 		userID   int64
@@ -309,7 +325,7 @@ func TestTeamMemberUsageSeriesKeepsDepartedMemberHistory(t *testing.T) {
 		{userID: owner.ID, apiKeyID: ownerKey.ID, cost: 1.2},
 		{userID: member.ID, apiKeyID: memberKey.ID, cost: 0.8},
 	} {
-		_, err = usageRepo.Create(ctx, &service.UsageLog{
+		_, err = usageRepo.Create(ctx, &usage.UsageLog{
 			UserID:        item.userID,
 			BillingUserID: owner.ID,
 			TeamID:        &teamID,
@@ -327,7 +343,7 @@ func TestTeamMemberUsageSeriesKeepsDepartedMemberHistory(t *testing.T) {
 	}
 	require.NoError(t, teamRepo.RemoveMember(ctx, teamID, member.ID, time.Now()))
 
-	query := service.TeamUsageQuery{From: createdAt.Add(-time.Hour), To: createdAt.Add(time.Hour)}
+	query := team.TeamUsageQuery{From: createdAt.Add(-time.Hour), To: createdAt.Add(time.Hour)}
 	total, err := teamRepo.GetUsageSummary(ctx, teamID, query)
 	require.NoError(t, err)
 	series, err := teamRepo.ListMemberUsageSeries(ctx, teamID, query)

@@ -3,6 +3,9 @@ package service
 import (
 	"testing"
 
+	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -10,7 +13,7 @@ import (
 func TestNormalizeOpenAIPassthroughOAuthBody_RemovesUnsupportedUser(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":"hello","user":"user_123","metadata":{"user_id":"user_123"},"prompt_cache_retention":"24h","safety_identifier":"sid","stream_options":{"include_usage":true}}`)
 
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	normalized, changed, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
 	for _, field := range openAIChatGPTInternalUnsupportedFields {
@@ -23,7 +26,7 @@ func TestNormalizeOpenAIPassthroughOAuthBody_RemovesUnsupportedUser(t *testing.T
 func TestNormalizeOpenAIPassthroughOAuthBody_NormalizesCompatibilityFields(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.5","prompt":"hello","commands":["unsupported"],"truncation":"auto","stop_sequences":["END"],"chat_template_kwargs":{"enable_thinking":true}}`)
 
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	normalized, changed, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "hello", gjson.GetBytes(normalized, "input.0.content").String())
@@ -35,7 +38,7 @@ func TestNormalizeOpenAIPassthroughOAuthBody_NormalizesCompatibilityFields(t *te
 func TestNormalizeOpenAIPassthroughOAuthBody_NormalizesReasoningMode(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.6-sol","input":"hello","reasoning":{"mode":"pro"}}`)
 
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	normalized, changed, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "max", gjson.GetBytes(normalized, "reasoning.effort").String())
@@ -45,7 +48,7 @@ func TestNormalizeOpenAIPassthroughOAuthBody_NormalizesReasoningMode(t *testing.
 func TestNormalizeOpenAIOAuthResponsesCompatibilityBody_PreservesExplicitInput(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.5","input":"explicit","prompt":"legacy"}`)
 
-	normalized, changed, err := normalizeOpenAIOAuthResponsesCompatibilityBody(body)
+	normalized, changed, err := openaicore.NormalizeOpenAIOAuthResponsesCompatibilityBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "explicit", gjson.GetBytes(normalized, "input").String())
@@ -55,7 +58,7 @@ func TestNormalizeOpenAIOAuthResponsesCompatibilityBody_PreservesExplicitInput(t
 func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_OnlyStripsOAuthFields(t *testing.T) {
 	body := []byte(`{"type":"response.create","prompt":"hello","commands":{},"truncation":"auto","stop_sequences":["END"],"chat_template_kwargs":{"enable_thinking":true}}`)
 
-	oauthBody, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth}, false)
+	oauthBody, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}, false)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "hello", gjson.GetBytes(oauthBody, "input").String())
@@ -63,7 +66,7 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_OnlyStripsOAuthField
 		require.False(t, gjson.GetBytes(oauthBody, field).Exists(), field)
 	}
 
-	apiKeyBody, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, false)
+	apiKeyBody, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, false)
 	require.NoError(t, err)
 	require.False(t, changed)
 	require.JSONEq(t, string(body), string(apiKeyBody))
@@ -77,11 +80,11 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_SanitizesNativeItemI
 		`{"type":"tool_search_call","id":"tsc_valid","call_id":"call_search_2","arguments":{"query":"docs"}}]}`)
 
 	for _, oauth := range []bool{false, true} {
-		accountType := AccountTypeAPIKey
+		accountType := capability.AccountTypeAPIKey
 		if oauth {
-			accountType = AccountTypeOAuth
+			accountType = capability.AccountTypeOAuth
 		}
-		normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: PlatformOpenAI, Type: accountType}, false)
+		normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: capability.PlatformOpenAI, Type: accountType}, false)
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.Equal(t, "response.create", gjson.GetBytes(normalized, "type").String())
@@ -103,8 +106,8 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_APIKeyStoreFalseRepl
 		`]}`)
 
 	normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 	}, false)
 
 	require.NoError(t, err)
@@ -119,7 +122,7 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_APIKeyStoreFalseRepl
 
 func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_PreservesResponsesLiteParallelToolCalls(t *testing.T) {
 	body := []byte(`{"type":"response.create","input":"hello","parallel_tool_calls":false}`)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, account, true)
 	require.NoError(t, err)
@@ -144,7 +147,7 @@ func TestNormalizeOpenAIResponsesReasoningMode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			normalized, changed, err := normalizeOpenAIResponsesReasoningMode([]byte(tt.body))
+			normalized, changed, err := openai.NormalizeOpenAIResponsesReasoningMode([]byte(tt.body))
 			require.NoError(t, err)
 			require.True(t, changed)
 			require.False(t, gjson.GetBytes(normalized, "reasoning.mode").Exists())
@@ -155,14 +158,14 @@ func TestNormalizeOpenAIResponsesReasoningMode(t *testing.T) {
 
 func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_ReasoningModeAccountScope(t *testing.T) {
 	body := []byte(`{"type":"response.create","reasoning":{"mode":"pro"}}`)
-	for _, accountType := range []string{AccountTypeOAuth, AccountTypeSetupToken} {
-		normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: PlatformOpenAI, Type: accountType}, false)
+	for _, accountType := range []string{capability.AccountTypeOAuth, capability.AccountTypeSetupToken} {
+		normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: capability.PlatformOpenAI, Type: accountType}, false)
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.Equal(t, "max", gjson.GetBytes(normalized, "reasoning.effort").String())
 		require.False(t, gjson.GetBytes(normalized, "reasoning.mode").Exists())
 	}
-	apiKeyBody, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, false)
+	apiKeyBody, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, false)
 	require.NoError(t, err)
 	require.False(t, changed)
 	require.JSONEq(t, string(body), string(apiKeyBody))
@@ -170,8 +173,8 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_ReasoningModeAccount
 
 func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_SanitizesToolSchemas(t *testing.T) {
 	body := []byte(`{"type":"response.create","tools":[{"type":"function","name":"search","parameters":{"type":null,"properties":{"q":{"type":"string","pattern":"^(?=.*foo).+$"}}}}]}`)
-	for _, accountType := range []string{AccountTypeAPIKey, AccountTypeOAuth} {
-		normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: PlatformOpenAI, Type: accountType}, false)
+	for _, accountType := range []string{capability.AccountTypeAPIKey, capability.AccountTypeOAuth} {
+		normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{Platform: capability.PlatformOpenAI, Type: accountType}, false)
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.Equal(t, "object", gjson.GetBytes(normalized, "tools.0.parameters.type").String())
@@ -182,7 +185,7 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBody_SanitizesToolSchemas
 func TestNormalizeOpenAIResponseFormatSchemasBody_PreservesNonStrictOptionalFields(t *testing.T) {
 	body := []byte(`{"text":{"format":{"type":"json_schema","strict":false,"schema":{"properties":{"tags":{"items":{"type":"string"},"uniqueItems":true}},"minProperties":1,"maxProperties":4}}}}`)
 
-	normalized, changed, err := normalizeOpenAIResponseFormatSchemasBody(body)
+	normalized, changed, err := openai.NormalizeOpenAIResponseFormatSchemasBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "object", gjson.GetBytes(normalized, "text.format.schema.type").String())
@@ -196,7 +199,7 @@ func TestNormalizeOpenAIResponseFormatSchemasBody_PreservesNonStrictOptionalFiel
 func TestNormalizeOpenAIResponseFormatSchemasBody_DoesNotExpandStrictSchema(t *testing.T) {
 	body := []byte(`{"response_format":{"type":"json_schema","json_schema":{"strict":true,"schema":{"properties":{"name":{"type":"string"}}}}}}`)
 
-	normalized, changed, err := normalizeOpenAIResponseFormatSchemasBody(body)
+	normalized, changed, err := openai.NormalizeOpenAIResponseFormatSchemasBody(body)
 	require.NoError(t, err)
 	require.True(t, changed) // Safe type inference still applies.
 	require.Equal(t, "object", gjson.GetBytes(normalized, "response_format.json_schema.schema.type").String())
@@ -215,7 +218,7 @@ func TestNormalizeOpenAIResponseFormatSchemasBody_TraversesNestedSchemaContainer
 		}}}
 	}`)
 
-	normalized, changed, err := normalizeOpenAIResponseFormatSchemasBody(body)
+	normalized, changed, err := openai.NormalizeOpenAIResponseFormatSchemasBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "object", gjson.GetBytes(normalized, "text.format.schema.$defs.entry.type").String())
@@ -235,7 +238,7 @@ func TestNormalizeOpenAIResponseFormatSchemasBody_TraversesNestedSchemaContainer
 func TestNormalizeOpenAIResponseFormatSchemasBody_PreservesExistingTypeValues(t *testing.T) {
 	body := []byte(`{"text":{"format":{"type":"json_schema","schema":{"properties":{"union":{"type":["object","null"],"properties":{"name":{"type":"string"}}},"custom":{"type":{"vendor":"shape"},"properties":{"id":{"type":"string"}}},"inferred":{"type":null,"items":{"type":"string"}}}}}}}`)
 
-	normalized, changed, err := normalizeOpenAIResponseFormatSchemasBody(body)
+	normalized, changed, err := openai.NormalizeOpenAIResponseFormatSchemasBody(body)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "object", gjson.GetBytes(normalized, "text.format.schema.type").String())
@@ -248,7 +251,7 @@ func TestNormalizeOpenAIResponseFormatSchemasBody_PreservesExistingTypeValues(t 
 func TestNormalizeOpenAIPassthroughOAuthBody_CompactRemovesUnsupportedUser(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":"hello","user":"user_123","metadata":{"user_id":"user_123"},"stream":true,"store":true}`)
 
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, true)
+	normalized, changed, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, true)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.False(t, gjson.GetBytes(normalized, "user").Exists())
@@ -261,7 +264,7 @@ func TestNormalizeOpenAIPassthroughOAuthBody_CompactRemovesUnsupportedUser(t *te
 func TestNormalizeOpenAIPassthroughOAuthBody_StringInputWrappedAsArray(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":"hello world"}`)
 
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	normalized, changed, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
 
@@ -277,7 +280,7 @@ func TestNormalizeOpenAIPassthroughOAuthBody_StringInputWrappedAsArray(t *testin
 func TestNormalizeOpenAIPassthroughOAuthBody_EmptyStringInputWrappedAsEmptyArray(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":"  "}`)
 
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	normalized, changed, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
 
@@ -289,7 +292,7 @@ func TestNormalizeOpenAIPassthroughOAuthBody_EmptyStringInputWrappedAsEmptyArray
 func TestNormalizeOpenAIPassthroughOAuthBody_ObjectInputWrappedAsArray(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":{"type":"message","role":"user","content":"hi"}}`)
 
-	normalized, changed, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	normalized, changed, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 	require.True(t, changed)
 
@@ -303,7 +306,7 @@ func TestNormalizeOpenAIPassthroughOAuthBody_ObjectInputWrappedAsArray(t *testin
 func TestNormalizeOpenAIPassthroughOAuthBody_ArrayInputUnchanged(t *testing.T) {
 	body := []byte(`{"model":"gpt-5.4","input":[{"type":"message","role":"user","content":"hi"}]}`)
 
-	normalized, _, err := normalizeOpenAIPassthroughOAuthBody(body, false)
+	normalized, _, err := openai.NormalizeOpenAIPassthroughOAuthBody(body, false)
 	require.NoError(t, err)
 
 	input := gjson.GetBytes(normalized, "input")
@@ -324,7 +327,7 @@ func TestDetectOpenAIPassthroughInstructionsRejectReason(t *testing.T) {
 		{name: "non empty remains accepted", body: `{"instructions":"client guidance"}`, want: ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, detectOpenAIPassthroughInstructionsRejectReason("gpt-5.1-codex", []byte(tt.body)))
+			require.Equal(t, tt.want, openai.DetectOpenAIPassthroughInstructionsRejectReason("gpt-5.1-codex", []byte(tt.body)))
 		})
 	}
 }

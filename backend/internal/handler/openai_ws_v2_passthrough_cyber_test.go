@@ -1,6 +1,12 @@
 package handler
 
 import (
+	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
+	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -8,10 +14,21 @@ import (
 	"testing"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/testutil"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -22,14 +39,14 @@ type openAIWSPassthroughHandlerHarness struct {
 	clientConn     *coderws.Conn
 	handlerDone    <-chan struct{}
 	moderationRepo *contentModerationHandlerTestRepo
-	gatewayCache   service.GatewayCache
-	apiKey         *service.APIKey
+	gatewayCache   session.GatewayCache
+	apiKey         *apikey.APIKey
 }
 
-func (r *contentModerationHandlerTestRepo) cyberWarningSnapshot() []service.ContentModerationCyberWarning {
+func (r *contentModerationHandlerTestRepo) cyberWarningSnapshot() []moderation.ContentModerationCyberWarning {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return append([]service.ContentModerationCyberWarning(nil), r.cyberWarnings...)
+	return append([]moderation.ContentModerationCyberWarning(nil), r.cyberWarnings...)
 }
 
 func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *openAIWSPassthroughHandlerHarness {
@@ -37,29 +54,29 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	gatewayCache := testutil.NewRedisGatewayCache(t)
 
 	settingRepo := &contentModerationHandlerSettingRepo{values: map[string]string{
-		service.SettingKeyRiskControlEnabled:          "true",
-		service.SettingKeyCyberSessionBlockEnabled:    "true",
-		service.SettingKeyCyberSessionBlockTTLSeconds: "60",
-		service.SettingKeyContentModerationConfig:     `{"enabled":true,"mode":"observe","cyber_warning_enabled":true,"all_groups":true}`,
+		moderation.SettingKeyRiskControlEnabled:          "true",
+		moderation.SettingKeyCyberSessionBlockEnabled:    "true",
+		moderation.SettingKeyCyberSessionBlockTTLSeconds: "60",
+		moderation.SettingKeyContentModerationConfig:     `{"enabled":true,"mode":"observe","cyber_warning_enabled":true,"all_groups":true}`,
 	}}
 	moderationRepo := &contentModerationHandlerTestRepo{}
-	moderationSvc := service.NewContentModerationService(settingRepo, moderationRepo, nil, nil, nil, nil, nil)
+	moderationSvc := newHTTPModeration(t, settingRepo, moderationRepo)
 	moderationSvc.Start()
-	settingSvc := service.NewSettingService(settingRepo, nil)
+	settingSvc := gatewaytestkit.RuntimeReaders(settingRepo)
 
 	groupID := int64(4301)
 	account := service.Account{
 		ID:          9951,
 		Name:        "openai-ws-passthrough-cyber",
-		Platform:    service.PlatformOpenAI,
-		Type:        service.AccountTypeAPIKey,
-		Status:      service.StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test", "base_url": upstreamURL},
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_enabled": true,
-			"openai_apikey_responses_websockets_v2_mode":    service.OpenAIWSIngressModePassthrough,
+			"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
 		},
 	}
 	cfg := &config.Config{}
@@ -77,12 +94,11 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = 3
 
 	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
-	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 2)}
-	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *usage.UsageLog, 2)}
+	billingCacheSvc := newBillingEligibilityFixture(cfg)
 	billingCacheSvc.Start()
 	gatewaySvc := service.NewOpenAIGatewayService(
-		accountRepo, usageRepo, nil, nil, nil, nil, gatewayCache, cfg, nil, nil,
-		service.NewBillingService(cfg, nil), nil, billingCacheSvc, nil, nil, &service.DeferredService{},
+		accountRepo, usageRepo, nil, nil, nil, nil, gatewayCache, cfg, nil, nil, billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil), nil, billingCacheSvc, nil, nil, &accountcore.DeferredService{},
 		nil, nil, nil, nil, nil, settingSvc, nil,
 	)
 	concurrencyCache := &concurrencyCacheMock{
@@ -91,18 +107,18 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	}
 	h := &OpenAIGatewayHandler{
 		gatewayService:           gatewaySvc,
-		billingCacheService:      billingCacheSvc,
-		apiKeyService:            &service.APIKeyService{},
+		billingCacheService:      newFundingAdmissionFixture(billingCacheSvc, cfg),
+		apiKeyService:            &apikey.APIKeyService{},
 		contentModerationService: moderationSvc,
-		concurrencyHelper:        NewConcurrencyHelper(service.NewConcurrencyService(concurrencyCache), SSEPingFormatNone, time.Second),
+		concurrencyHelper:        gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event}), gatewayhttp.SSEPingFormatNone, time.Second),
 	}
 
-	apiKey := &service.APIKey{
+	apiKey := &apikey.APIKey{
 		ID:      1851,
 		Name:    "ws-cyber-key",
 		Key:     "sk-handler-cyber-test",
 		GroupID: &groupID,
-		User:    &service.User{ID: 1751, Status: service.StatusActive},
+		User:    &identity.User{ID: 1751, Status: billing.StatusActive},
 	}
 	handlerDone := make(chan struct{})
 	router := gin.New()
@@ -134,7 +150,6 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 }
 
 func TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	upstreamDone := make(chan struct{})
 	secondUpstreamFrame := make(chan []byte, 1)
@@ -195,7 +210,7 @@ func TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn(t *te
 	keyCtx.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(requestPayload))
 	blockKey := service.CyberSessionExplicitBlockKey(harness.apiKey.ID, keyCtx, []byte(requestPayload))
 	require.NotEmpty(t, blockKey)
-	store, ok := harness.gatewayCache.(service.CyberSessionBlockStore)
+	store, ok := harness.gatewayCache.(session.CyberSessionBlockStore)
 	require.True(t, ok)
 	require.Eventually(t, func() bool {
 		matched, findErr := store.FindCyberSessionBlocked(context.Background(), []string{blockKey})
@@ -234,7 +249,6 @@ func TestOpenAIResponsesWebSocketV2PassthroughCyberMarkIsConsumedAfterTurn(t *te
 }
 
 func TestOpenAIResponsesWebSocketV2PassthroughNonCyberTurnAllowsFollowup(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	upstreamDone := make(chan struct{})
 	secondUpstreamFrame := make(chan []byte, 1)
@@ -303,7 +317,7 @@ func TestOpenAIResponsesWebSocketV2PassthroughNonCyberTurnAllowsFollowup(t *test
 	keyCtx.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(firstPayload))
 	blockKey := service.CyberSessionExplicitBlockKey(harness.apiKey.ID, keyCtx, []byte(firstPayload))
 	require.NotEmpty(t, blockKey)
-	store, ok := harness.gatewayCache.(service.CyberSessionBlockStore)
+	store, ok := harness.gatewayCache.(session.CyberSessionBlockStore)
 	require.True(t, ok)
 	matched, findErr := store.FindCyberSessionBlocked(context.Background(), []string{blockKey})
 	require.NoError(t, findErr)

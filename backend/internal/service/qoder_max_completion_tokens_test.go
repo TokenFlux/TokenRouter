@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +16,7 @@ func TestQoderChatCompletionsRespectsMaxCompletionTokens(t *testing.T) {
 		"max_tokens": 2000
 	}`)
 
-	req, err := parseQoderChatCompletionsPayload(body)
+	req, err := qoder.ParseQoderChatCompletionsPayload(body)
 
 	require.NoError(t, err)
 	require.Equal(t, 1000, req.MaxTokens, "max_completion_tokens should take precedence")
@@ -29,7 +30,7 @@ func TestQoderChatCompletionsFallsBackToMaxTokens(t *testing.T) {
 		"max_tokens": 2000
 	}`)
 
-	req, err := parseQoderChatCompletionsPayload(body)
+	req, err := qoder.ParseQoderChatCompletionsPayload(body)
 
 	require.NoError(t, err)
 	require.Equal(t, 2000, req.MaxTokens, "should use max_tokens when max_completion_tokens absent")
@@ -42,10 +43,10 @@ func TestQoderChatCompletionsUsesDefaultWhenBothAbsent(t *testing.T) {
 		"messages": [{"role": "user", "content": "hi"}]
 	}`)
 
-	req, err := parseQoderChatCompletionsPayload(body)
+	req, err := qoder.ParseQoderChatCompletionsPayload(body)
 
 	require.NoError(t, err)
-	require.Equal(t, qoderDefaultMaxTokens, req.MaxTokens, "should use default when both absent")
+	require.Equal(t, qoder.QoderDefaultMaxTokens, req.MaxTokens, "should use default when both absent")
 }
 
 // TestQoderChatCompletionsIgnoresZeroMaxTokens 验证 max_tokens=0 时使用 max_completion_tokens
@@ -57,7 +58,7 @@ func TestQoderChatCompletionsIgnoresZeroMaxTokens(t *testing.T) {
 		"max_tokens": 0
 	}`)
 
-	req, err := parseQoderChatCompletionsPayload(body)
+	req, err := qoder.ParseQoderChatCompletionsPayload(body)
 
 	require.NoError(t, err)
 	require.Equal(t, 1000, req.MaxTokens, "should ignore max_tokens when it's 0")

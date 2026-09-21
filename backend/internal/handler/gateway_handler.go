@@ -1,21 +1,34 @@
 package handler
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	moderationcore "github.com/TokenFlux/TokenRouter/internal/moderation"
+	upstream "github.com/TokenFlux/TokenRouter/internal/upstream"
+	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
+
 	"context"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
-
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-
-	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -29,24 +42,25 @@ var gatewayCompatibilityMetricsLogCounter atomic.Uint64
 
 // GatewayHandler handles API gateway requests
 type GatewayHandler struct {
+	runtimeSettings           *gateway.RuntimeSettings
+	balanceUnit               usagehttp.BalanceUnitReader
 	completionRecorder        *completion.Recorder
 	gatewayService            *service.GatewayService
 	openAIGatewayService      *service.OpenAIGatewayService
 	geminiCompatService       *service.GeminiMessagesCompatService
 	antigravityGatewayService *service.AntigravityGatewayService
-	userService               *service.UserService
-	billingCacheService       *service.BillingCacheService
-	usageService              *service.UsageService
-	apiKeyService             *service.APIKeyService
-	usageRecordWorkerPool     *service.UsageRecordWorkerPool
-	errorPassthroughService   *service.ErrorPassthroughService
-	contentModerationService  *service.ContentModerationService
-	concurrencyHelper         *ConcurrencyHelper
+	userService               *identity.UserService
+	billingCacheService       *admission.FundingAdmission
+	usageService              *usage.UsageService
+	apiKeyService             *apikey.APIKeyService
+	usageRecordWorkerPool     *completion.UsageRecordWorkerPool
+	errorPassthroughService   *errorpolicy.ErrorPassthroughService
+	contentModerationService  *moderationcore.ContentModerationService
+	concurrencyHelper         *gatewayhttp.ConcurrencyHelper
 	userMsgQueueHelper        *UserMsgQueueHelper
 	maxAccountSwitches        int
 	maxAccountSwitchesGemini  int
 	cfg                       *config.Config
-	settingService            *service.SettingService
 }
 
 // NewGatewayHandler creates a new GatewayHandler
@@ -55,17 +69,18 @@ func NewGatewayHandler(
 	openAIGatewayService *service.OpenAIGatewayService,
 	geminiCompatService *service.GeminiMessagesCompatService,
 	antigravityGatewayService *service.AntigravityGatewayService,
-	userService *service.UserService,
-	concurrencyService *service.ConcurrencyService,
-	billingCacheService *service.BillingCacheService,
-	usageService *service.UsageService,
-	apiKeyService *service.APIKeyService,
-	usageRecordWorkerPool *service.UsageRecordWorkerPool,
-	errorPassthroughService *service.ErrorPassthroughService,
-	contentModerationService *service.ContentModerationService,
-	userMsgQueueService *service.UserMessageQueueService,
+	userService *identity.UserService,
+	concurrencyService *scheduler.ConcurrencyService,
+	billingCacheService *admission.FundingAdmission,
+	usageService *usage.UsageService,
+	apiKeyService *apikey.APIKeyService,
+	usageRecordWorkerPool *completion.UsageRecordWorkerPool,
+	errorPassthroughService *errorpolicy.ErrorPassthroughService,
+	contentModerationService *moderationcore.ContentModerationService,
+	userMsgQueueService *scheduler.UserMessageQueueService,
 	cfg *config.Config,
-	settingService *service.SettingService,
+	runtimeSettings *gateway.RuntimeSettings,
+	balanceUnit usagehttp.BalanceUnitReader,
 ) *GatewayHandler {
 	pingInterval := time.Duration(0)
 	maxAccountSwitches := 10
@@ -83,10 +98,11 @@ func NewGatewayHandler(
 	// 初始化用户消息串行队列 helper
 	var umqHelper *UserMsgQueueHelper
 	if userMsgQueueService != nil && cfg != nil {
-		umqHelper = NewUserMsgQueueHelper(userMsgQueueService, SSEPingFormatClaude, pingInterval)
+		umqHelper = NewUserMsgQueueHelper(userMsgQueueService, gatewayhttp.SSEPingFormatClaude, pingInterval)
 	}
 
 	return &GatewayHandler{
+		runtimeSettings: runtimeSettings, balanceUnit: balanceUnit,
 		gatewayService:            gatewayService,
 		openAIGatewayService:      openAIGatewayService,
 		geminiCompatService:       geminiCompatService,
@@ -98,12 +114,11 @@ func NewGatewayHandler(
 		usageRecordWorkerPool:     usageRecordWorkerPool,
 		errorPassthroughService:   errorPassthroughService,
 		contentModerationService:  contentModerationService,
-		concurrencyHelper:         NewConcurrencyHelper(concurrencyService, SSEPingFormatClaude, pingInterval),
+		concurrencyHelper:         gatewayhttp.NewConcurrencyHelper(concurrencyService, gatewayhttp.SSEPingFormatClaude, pingInterval),
 		userMsgQueueHelper:        umqHelper,
 		maxAccountSwitches:        maxAccountSwitches,
 		maxAccountSwitchesGemini:  maxAccountSwitchesGemini,
 		cfg:                       cfg,
-		settingService:            settingService,
 	}
 }
 
@@ -128,7 +143,7 @@ func (h *GatewayHandler) AntigravityModels(c *gin.Context) {
 	h.NewModelsHTTPHandler().AntigravityModels(c)
 }
 
-func cloneAPIKeyWithGroup(apiKey *service.APIKey, group *service.Group) *service.APIKey {
+func cloneAPIKeyWithGroup(apiKey *apikey.APIKey, group *routing.Group) *apikey.APIKey {
 	if apiKey == nil || group == nil {
 		return apiKey
 	}
@@ -143,14 +158,14 @@ func cloneAPIKeyWithGroup(apiKey *service.APIKey, group *service.Group) *service
 // 每次账号尝试都重新解析当前分组，确保兜底分组不会沿用原分组的映射和用量字段。
 func (h *GatewayHandler) prepareGatewayAttemptRequest(
 	ctx context.Context,
-	parsed *service.ParsedRequest,
+	parsed *requeststate.ParsedRequest,
 	body []byte,
-	apiKey *service.APIKey,
+	apiKey *apikey.APIKey,
 	requestedModel string,
-) (*service.ParsedRequest, service.ChannelMappingResult, error) {
+) (*requeststate.ParsedRequest, routing.ChannelMappingResult, error) {
 	attempt, err := parsed.CloneForBody(body)
 	if err != nil {
-		return nil, service.ChannelMappingResult{}, err
+		return nil, routing.ChannelMappingResult{}, err
 	}
 
 	var groupID *int64
@@ -168,28 +183,28 @@ func (h *GatewayHandler) prepareGatewayAttemptRequest(
 
 	attempt.Model = mapping.MappedModel
 	if err := attempt.ReplaceBody(h.gatewayService.ReplaceModelInBody(attempt.Body.Bytes(), mapping.MappedModel)); err != nil {
-		return nil, service.ChannelMappingResult{}, err
+		return nil, routing.ChannelMappingResult{}, err
 	}
 	return attempt, mapping, nil
 }
 
 func (h *GatewayHandler) Usage(c *gin.Context) { h.publicUsageHTTP().Usage(c) }
 
-func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, usageData gin.H, dailyUsage any, modelStats any, balanceUnitName string) {
-	h.publicUsageHTTP().UsageUnrestricted(c, ctx, service.APIKeyView(apiKey), subject, usageData, dailyUsage, modelStats, balanceUnitName)
+func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, apiKey *apikey.APIKey, subject middleware2.AuthSubject, usageData gin.H, dailyUsage any, modelStats any, balanceUnitName string) {
+	h.publicUsageHTTP().UsageUnrestricted(c, ctx, apikey.CopyAPIKey(apiKey), subject, usageData, dailyUsage, modelStats, balanceUnitName)
 }
 
 // handleConcurrencyError 统一处理并发槽位获取失败。
 func (h *GatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool) {
-	status, errType, code, message := concurrencyErrorResponse(err, slotType)
+	status, errType, code, message := gatewayhttp.ConcurrencyErrorResponse(err, slotType)
 	h.handleStreamingAwareErrorWithCode(c, status, errType, code, message, streamStarted)
 }
 
-func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, platform string, streamStarted bool) {
+func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError, platform string, streamStarted bool) {
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody
 	if service.IsOpenAISilentRefusalErrorBody(responseBody) {
-		service.SetOpsUpstreamError(c, statusCode, service.OpenAISilentRefusalClientMessage(), "")
+		gatewayhttp.SetOpsUpstreamError(c, statusCode, service.OpenAISilentRefusalClientMessage(), "")
 		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", service.OpenAISilentRefusalClientMessage(), streamStarted)
 		return
 	}
@@ -204,13 +219,13 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 			}
 
 			// 确定响应消息
-			msg := service.ExtractUpstreamErrorMessage(responseBody)
+			msg := upstream.ExtractErrorMessage(responseBody)
 			if !rule.PassthroughBody && rule.CustomMessage != nil {
 				msg = *rule.CustomMessage
 			}
 
 			if rule.SkipMonitoring {
-				c.Set(service.OpsSkipPassthroughKey, true)
+				c.Set(gatewayhttp.OpsSkipPassthroughKey, true)
 			}
 
 			h.handleStreamingAwareError(c, respCode, "upstream_error", msg, streamStarted)
@@ -219,8 +234,8 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 	}
 
 	// 记录原始上游状态码，以便 ops 错误日志捕获真实的上游错误
-	upstreamMsg := service.ExtractUpstreamErrorMessage(responseBody)
-	service.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
+	upstreamMsg := upstream.ExtractErrorMessage(responseBody)
+	gatewayhttp.SetOpsUpstreamError(c, statusCode, upstreamMsg, "")
 
 	// 使用默认的错误映射
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
@@ -230,7 +245,7 @@ func (h *GatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *se
 // handleFailoverExhaustedSimple 简化版本，用于没有响应体的情况
 func (h *GatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, statusCode int, streamStarted bool) {
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
-	service.SetOpsUpstreamError(c, statusCode, errMsg, "")
+	gatewayhttp.SetOpsUpstreamError(c, statusCode, errMsg, "")
 	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
 }
 
@@ -258,7 +273,7 @@ func (h *GatewayHandler) handleStreamingAwareError(c *gin.Context, status int, e
 
 // 旧文本输出委托 gateway/httpapi 的唯一实现。
 func (h *GatewayHandler) handleStreamingAwareErrorWithCode(c *gin.Context, status int, errType, code, message string, streamStarted bool) {
-	gatewayhttp.WriteAnthropicStreamError(c, status, errType, code, message, streamStarted, service.MarkOpsStreamError)
+	gatewayhttp.WriteAnthropicStreamError(c, status, errType, code, message, streamStarted, gatewayhttp.MarkOpsStreamError)
 }
 
 // ensureForwardErrorResponse 在 Forward 返回错误但尚未写响应时补写统一错误响应。
@@ -269,7 +284,7 @@ func (h *GatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarte
 	if c == nil || c.Writer == nil {
 		return false
 	}
-	if service.IsResponseCommitted(c) {
+	if gatewayhttp.IsResponseCommitted(c) {
 		return false
 	}
 	if c.Writer.Written() {
@@ -335,21 +350,6 @@ func sendMockInterceptResponse(c *gin.Context, model string, interceptType Inter
 	gatewayhttp.WriteInterceptResponse(c, model, interceptType)
 }
 
-// 旧文本输出委托 gateway/httpapi 的唯一实现。
-func extractQuotaResetSeconds(err error) int { return gatewayhttp.ExtractQuotaResetSeconds(err) }
-
-// 旧文本输出委托 gateway/httpapi 的唯一实现。
-func billingErrorDetails(err error) (status int, code, message string, retryAfter int) {
-	return gatewayhttp.BillingErrorDetails(err)
-}
-
-func (h *GatewayHandler) metadataBridgeEnabled() bool {
-	if h == nil || h.cfg == nil {
-		return true
-	}
-	return h.cfg.Gateway.OpenAIWS.MetadataBridgeEnabled
-}
-
 func (h *GatewayHandler) maybeLogCompatibilityFallbackMetrics(reqLog *zap.Logger) {
 	if reqLog == nil {
 		return
@@ -367,65 +367,9 @@ func (h *GatewayHandler) maybeLogCompatibilityFallbackMetrics(reqLog *zap.Logger
 	)
 }
 
-func (h *GatewayHandler) submitUsageRecordTask(c *gin.Context, task service.UsageRecordTask) {
-	if task == nil {
-		return
-	}
-	task = wrapUsageRecordTaskContext(c, task)
-	if h.usageRecordWorkerPool != nil {
-		if mode := h.usageRecordWorkerPool.Submit(task); mode != service.UsageRecordSubmitModeDroppedStopped {
-			return
-		}
-		// 池已停止时处于进程关停窗口，计费任务不能静默丢失。
-		// 显式 drop/sample 溢出仍保持运维配置的取舍。
-		logger.L().With(
-			zap.String("component", "handler.gateway.messages"),
-		).Warn("gateway.usage_record_task_stopped_sync_fallback")
-	}
-	// 回退路径：worker 池未注入或已停止时同步执行，避免退回到无界 goroutine 模式。
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			logger.L().With(
-				zap.String("component", "handler.gateway.messages"),
-				zap.Any("panic", recovered),
-			).Error("gateway.usage_record_task_panic_recovered")
-		}
-	}()
-	task(ctx)
-}
-
-// submitMandatoryUsageRecordTask 在工作池溢出时同步回退，不能静默丢弃结算任务。
-func (h *GatewayHandler) submitMandatoryUsageRecordTask(c *gin.Context, task service.UsageRecordTask) {
-	if task == nil {
-		return
-	}
-	task = wrapUsageRecordTaskContext(c, task)
-	if h.usageRecordWorkerPool != nil {
-		if mode := h.usageRecordWorkerPool.Submit(task); !mode.Dropped() {
-			return
-		}
-		logger.L().With(
-			zap.String("component", "handler.gateway.usage"),
-		).Warn("gateway.usage_record_task_mandatory_sync_fallback")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			logger.L().With(
-				zap.String("component", "handler.gateway.usage"),
-				zap.Any("panic", recovered),
-			).Error("gateway.usage_record_task_panic_recovered")
-		}
-	}()
-	task(ctx)
-}
-
 // getUserMsgQueueMode 获取当前请求的 UMQ 模式
 // 返回 "serialize" | "throttle" | ""
-func (h *GatewayHandler) getUserMsgQueueMode(account *service.Account, parsed *service.ParsedRequest) string {
+func (h *GatewayHandler) getUserMsgQueueMode(account *service.Account, parsed *requeststate.ParsedRequest) string {
 	if h.userMsgQueueHelper == nil {
 		return ""
 	}

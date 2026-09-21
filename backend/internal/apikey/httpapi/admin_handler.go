@@ -3,11 +3,13 @@ package httpapi
 
 import (
 	context "context"
+	strconv "strconv"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	dto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
 )
 
 type KeyAdministration interface {
@@ -17,10 +19,10 @@ type KeyAdministration interface {
 // AdminAPIKeyHandler 把同请求配置和重置交给一个用例，不能分成两次独立提交。
 type AdminAPIKeyHandler[G any] struct {
 	adminService KeyAdministration
-	group        func(*apikey.Group) *G
+	group        func(*routing.Group) *G
 }
 
-func NewAdminAPIKeyHandler[G any](a KeyAdministration, g func(*apikey.Group) *G) *AdminAPIKeyHandler[G] {
+func NewAdminAPIKeyHandler[G any](a KeyAdministration, g func(*routing.Group) *G) *AdminAPIKeyHandler[G] {
 	return &AdminAPIKeyHandler[G]{a, g}
 }
 

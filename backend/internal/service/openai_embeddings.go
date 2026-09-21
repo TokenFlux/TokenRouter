@@ -9,6 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
@@ -18,9 +28,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -32,24 +39,24 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (*forwardcore.OpenAIResult, error) {
 	startTime := time.Now()
 
 	originalModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	if originalModel == "" {
-		writeOpenAIEmbeddingsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
+		gatewayhttp.WriteEmbeddingsError(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return nil, fmt.Errorf("missing model in request")
 	}
 
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
-	SetOpsUpstreamModel(c, upstreamModel)
+	gatewayhttp.SetOpsUpstreamModel(c, upstreamModel)
 	upstreamBody := body
 	if upstreamModel != originalModel {
-		upstreamBody = ReplaceModelInBody(body, upstreamModel)
+		upstreamBody = s09openai.ReplaceModelInBody(body, upstreamModel)
 	}
 
-	logger.L().Debug("openai embeddings: forwarding",
+	logging.L().Debug("openai embeddings: forwarding",
 		zap.Int64("account_id", account.ID),
 		zap.String("original_model", originalModel),
 		zap.String("billing_model", billingModel),
@@ -109,9 +116,9 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		},
 
 		TransportError: func(err error) error {
-			safeErr := sanitizeUpstreamErrorMessage(err.Error())
-			setOpsUpstreamError(c, 0, safeErr, "")
-			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+			safeErr := logredact.SanitizeUpstreamQueries(err.Error())
+			gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
+			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
 				Platform: account.Platform,
 
@@ -125,19 +132,19 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 
 				Message: safeErr,
 			})
-			writeOpenAIEmbeddingsError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
+			gatewayhttp.WriteEmbeddingsError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 			return fmt.Errorf("upstream request failed: %s", safeErr)
 		},
 
 		ReadErrorBody: s.readUpstreamErrorBody,
 
 		HTTPError: func(resp *http.Response, respBody []byte) error {
-			upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+			upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 			var decision UpstreamErrorDecision
 			return gatewaymedia.ResolveEmbeddingFailure(resp.StatusCode, gatewaymedia.EmbeddingFailurePorts{
-				InvalidRequest: func() bool { return isOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) },
+				InvalidRequest: func() bool { return openai.IsOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) },
 				ApplyPolicy: func() {
-					if account.Platform == PlatformGrok {
+					if account.Platform == capability.PlatformGrok {
 						decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 					} else {
 						decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
@@ -146,7 +153,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 				Generic: func() bool { return decision.ShouldReturnGenericError() },
 				Failover: func() bool {
 					defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
-					if account.Platform == PlatformGrok {
+					if account.Platform == capability.PlatformGrok {
 						defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
 					}
 					return decision.ShouldFailover(account, resp.StatusCode, defaultFailover)
@@ -158,9 +165,9 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 						if maxBytes <= 0 {
 							maxBytes = 2048
 						}
-						upstreamDetail = truncateString(string(respBody), maxBytes)
+						upstreamDetail = logredact.TruncateUTF8(string(respBody), maxBytes)
 					}
-					appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+					gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
 						Platform: account.Platform,
 
@@ -188,11 +195,11 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
 						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMsg, retryableOnSameAccount)
 					}
-					return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
+					return &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
 				},
-				Forward: func() { writeOpenAIEmbeddingsUpstreamResponse(c, resp, respBody, s.responseHeaderFilter) },
+				Forward: func() { gatewayhttp.WriteEmbeddingsUpstreamResponse(c, resp, respBody, s.responseHeaderFilter) },
 				Write: func(response gatewaymedia.ErrorResponse) {
-					writeOpenAIEmbeddingsError(c, response.Status, response.Type, response.Message)
+					gatewayhttp.WriteEmbeddingsError(c, response.Status, response.Type, response.Message)
 				},
 			})
 		},
@@ -203,13 +210,13 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 
 		ReadFailure: func(err error) error {
 			if !errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
-				writeOpenAIEmbeddingsError(c, http.StatusBadGateway, "api_error", "Failed to read upstream response")
+				gatewayhttp.WriteEmbeddingsError(c, http.StatusBadGateway, "api_error", "Failed to read upstream response")
 			}
 			return fmt.Errorf("read upstream body: %w", err)
 		},
 
 		WriteHeaders: func(output, input http.Header) {
-			responseheaders.WriteFilteredHeaders(output, input, s.responseHeaderFilter)
+			provider.WriteFilteredHeaders(output, input, s.responseHeaderFilter)
 		},
 	}
 	result, err := (mediaprovider.Embeddings{Options: *target}).Execute(ctx, upstream.AttemptInput{
@@ -220,13 +227,13 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	if err != nil {
 		return nil, err
 	}
-	return &OpenAIForwardResult{
+	return &forwardcore.OpenAIResult{
 
 		RequestID: result.RequestID,
 
 		UpstreamHeaders: result.UpstreamHeaders,
 
-		Usage: OpenAIUsage{
+		Usage: s09openai.ForwardUsage{
 			InputTokens:              result.Usage.InputTokens,
 			ImageInputTokens:         result.ImageInputTokens,
 			OutputTokens:             result.Usage.OutputTokens,
@@ -246,18 +253,6 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	}, nil
 }
 
-func writeOpenAIEmbeddingsUpstreamResponse(c *gin.Context, resp *http.Response, body []byte, filter *responseheaders.CompiledHeaderFilter) {
-	gatewayhttp.WriteEmbeddingsUpstreamResponse(c, resp, body, filter)
-}
-
-func writeOpenAIEmbeddingsError(c *gin.Context, statusCode int, errType, message string) {
-	gatewayhttp.WriteEmbeddingsError(c, statusCode, errType, message)
-}
-
-func extractOpenAIEmbeddingsUsage(body []byte) OpenAIUsage {
-	return s09openai.ExtractEmbeddingsUsage(body)
-}
-
 func buildOpenAIEmbeddingsURL(base string) string {
-	return buildOpenAIEndpointURL(base, "/v1/embeddings")
+	return httpclient.BuildOpenAIEndpointURL(base, "/v1/embeddings")
 }

@@ -3,9 +3,10 @@ package openaiforward
 
 import (
 	"context"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"net/http"
 	"time"
+
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 type RawChatPorts interface {

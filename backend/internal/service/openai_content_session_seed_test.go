@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -386,12 +387,12 @@ func referenceDeriveOpenAIContentSessionSeed(body []byte) string {
 
 	if tools := gjson.GetBytes(body, "tools"); tools.Exists() && tools.IsArray() && tools.Raw != "[]" {
 		_, _ = b.WriteString("|tools=")
-		_, _ = b.WriteString(normalizeCompatSeedJSON(json.RawMessage(tools.Raw)))
+		_, _ = b.WriteString(openai.NormalizeCompatSeedJSON(json.RawMessage(tools.Raw)))
 	}
 
 	if funcs := gjson.GetBytes(body, "functions"); funcs.Exists() && funcs.IsArray() && funcs.Raw != "[]" {
 		_, _ = b.WriteString("|functions=")
-		_, _ = b.WriteString(normalizeCompatSeedJSON(json.RawMessage(funcs.Raw)))
+		_, _ = b.WriteString(openai.NormalizeCompatSeedJSON(json.RawMessage(funcs.Raw)))
 	}
 
 	if instr := gjson.GetBytes(body, "instructions").String(); instr != "" {
@@ -411,7 +412,7 @@ func referenceDeriveOpenAIContentSessionSeed(body []byte) string {
 				if systemPrefixOpen {
 					_, _ = b.WriteString("|system=")
 					if c := msg.Get("content"); c.Exists() {
-						_, _ = b.WriteString(normalizeCompatSeedJSON(json.RawMessage(c.Raw)))
+						_, _ = b.WriteString(openai.NormalizeCompatSeedJSON(json.RawMessage(c.Raw)))
 					}
 				}
 			case "user":
@@ -419,7 +420,7 @@ func referenceDeriveOpenAIContentSessionSeed(body []byte) string {
 				if !firstUserCaptured {
 					_, _ = b.WriteString("|first_user=")
 					if c := msg.Get("content"); c.Exists() {
-						_, _ = b.WriteString(normalizeCompatSeedJSON(json.RawMessage(c.Raw)))
+						_, _ = b.WriteString(openai.NormalizeCompatSeedJSON(json.RawMessage(c.Raw)))
 					}
 					firstUserCaptured = true
 				}
@@ -439,13 +440,13 @@ func referenceDeriveOpenAIContentSessionSeed(body []byte) string {
 				case "system", "developer":
 					_, _ = b.WriteString("|system=")
 					if c := item.Get("content"); c.Exists() {
-						_, _ = b.WriteString(normalizeCompatSeedJSON(json.RawMessage(c.Raw)))
+						_, _ = b.WriteString(openai.NormalizeCompatSeedJSON(json.RawMessage(c.Raw)))
 					}
 				case "user":
 					if !firstUserCaptured {
 						_, _ = b.WriteString("|first_user=")
 						if c := item.Get("content"); c.Exists() {
-							_, _ = b.WriteString(normalizeCompatSeedJSON(json.RawMessage(c.Raw)))
+							_, _ = b.WriteString(openai.NormalizeCompatSeedJSON(json.RawMessage(c.Raw)))
 						}
 						firstUserCaptured = true
 					}

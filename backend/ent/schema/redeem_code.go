@@ -3,8 +3,6 @@ package schema
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -12,6 +10,7 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // RedeemCode holds the schema definition for the RedeemCode entity.
@@ -41,13 +40,13 @@ func (RedeemCode) Fields() []ent.Field {
 			Unique(),
 		field.String("type").
 			MaxLen(20).
-			Default(domain.RedeemTypeBalance),
+			Default(billing.RedeemTypeBalance),
 		field.Float("value").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
 		field.String("status").
 			MaxLen(20).
-			Default(domain.StatusUnused),
+			Default(billing.StatusUnused),
 		field.Int("max_uses").
 			Default(1),
 		field.Int("used_count").

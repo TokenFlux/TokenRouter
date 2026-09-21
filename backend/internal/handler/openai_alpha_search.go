@@ -1,14 +1,26 @@
 package handler
 
 import (
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	"context"
 	"errors"
 	"net/http"
 
-	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -21,21 +33,21 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) { h.AuxiliaryHTTPHand
 // 与 images 一致使用 mandatory 池提交，池满时同步兜底执行，保证扣费不丢。
 func (h *OpenAIGatewayHandler) recordAlphaSearchUsage(
 	c *gin.Context,
-	apiKey *service.APIKey,
+	apiKey *apikey.APIKey,
 	account *service.Account,
-	subscription *service.UserSubscription,
-	channelMapping service.ChannelMappingResult,
+	subscription *billing.UserSubscription,
+	channelMapping routing.ChannelMappingResult,
 	requestedModel string,
 	body []byte,
-	result *service.OpenAIForwardResult,
+	result *forwardcore.OpenAIResult,
 	userID int64,
 ) {
 	userAgent := c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(c)
+	clientIP := clientip.GetClientIP(c)
 	sessionID := service.ExtractClientSessionID(c)
-	requestPayloadHash := service.HashUsageRequestPayload(body)
-	inboundEndpoint := GetInboundEndpoint(c)
-	upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+	requestPayloadHash := billing.HashUsageRequestPayload(body)
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
 	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 
 	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{
@@ -55,7 +67,7 @@ func (h *OpenAIGatewayHandler) recordAlphaSearchUsage(
 		ChannelUsageFields: channelMapping.ToUsageFields(requestedModel, result.UpstreamModel),
 	})
 	completionRecorder := h.completionRuntime()
-	completionLog := logger.L().With(
+	completionLog := logging.L().With(
 		zap.String("component", "handler.openai_gateway.alpha_search"),
 		zap.Int64("user_id", userID),
 		zap.Int64("api_key_id", apiKey.ID),
@@ -74,20 +86,20 @@ func (h *OpenAIGatewayHandler) recordAlphaSearchUsage(
 type alphaRequestAdapter struct {
 	h                           *OpenAIGatewayHandler
 	c                           *gin.Context
-	apiKey                      *service.APIKey
-	subscription                *service.UserSubscription
-	channelMapping              service.ChannelMappingResult
+	apiKey                      *apikey.APIKey
+	subscription                *billing.UserSubscription
+	channelMapping              routing.ChannelMappingResult
 	requestedModel, sessionHash string
 	originalBody                []byte
 	userID                      int64
 	reqLog                      *zap.Logger
 	streamStarted               *bool
 	selection                   *service.AccountSelectionResult
-	oauth429                    service.OpenAIOAuth429FailoverState
+	oauth429                    failover.OAuth429State
 }
 
 func (p *alphaRequestAdapter) SelectAlpha(ctx context.Context, excluded map[int64]struct{}) (gatewaymedia.AlphaSelection, bool, error) {
-	selected, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", p.sessionHash, p.requestedModel, excluded, service.OpenAIUpstreamTransportHTTPSSE, service.OpenAIEndpointCapabilityAlphaSearch, false, false, service.PlatformOpenAI)
+	selected, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", p.sessionHash, p.requestedModel, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityAlphaSearch, false, false, capability.PlatformOpenAI)
 	p.selection = selected
 	if selected == nil || selected.Account == nil {
 		return gatewaymedia.AlphaSelection{}, false, err
@@ -101,13 +113,13 @@ func (p *alphaRequestAdapter) ForwardAlpha(ctx context.Context, _ gatewaymedia.A
 	size := p.c.Writer.Size()
 	account := p.selection.Account
 	match := p.h.gatewayService.MatchOpenAITLSFingerprintRouterForRequest(p.c, account)
-	var result *service.OpenAIForwardResult
+	var result *forwardcore.OpenAIResult
 	err := p.h.gatewayService.EnforceOpenAIClientPolicyForRequest(ctx, p.c, account, body, match)
 	if err == nil {
 		result, err = p.h.gatewayService.ForwardAlphaSearch(ctx, p.c, account, body, match)
 	}
 	outcome := gatewaymedia.AlphaOutcome{Result: alphaResultView(result), Err: err, OutputChanged: p.c.Writer.Size() != size}
-	var failure *service.UpstreamFailoverError
+	var failure *forwardcore.UpstreamFailoverError
 	if errors.As(err, &failure) {
 		outcome.Failure = failure.RetryFailure()
 	}
@@ -130,15 +142,15 @@ func (p *alphaRequestAdapter) SwitchAlpha(gatewaymedia.AlphaSelection) {
 func (p *alphaRequestAdapter) StopAlpha429(_ gatewaymedia.AlphaSelection, status, count int) bool {
 	return p.h.gatewayService.ShouldStopOpenAIOAuth429Failover(p.selection.Account, status, count, &p.oauth429)
 }
-func (p *alphaRequestAdapter) AlphaClientGone() bool { return failoverClientGone(p.c) }
+func (p *alphaRequestAdapter) AlphaClientGone() bool { return gatewayhttp.FailoverClientGone(p.c) }
 func (p *alphaRequestAdapter) ObserveAlpha(e gatewaymedia.AlphaEvent) {
 	switch e.Kind {
 	case "selected":
-		setOpsSelectedAccount(p.c, e.Account.ID, e.Account.Platform)
+		gatewayhttp.SetOpsSelectedAccount(p.c, e.Account.ID, e.Account.Platform)
 	case "routing":
-		service.SetOpsLatencyMs(p.c, service.OpsRoutingLatencyMsKey, e.Elapsed.Milliseconds())
+		gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsRoutingLatencyMsKey, e.Elapsed.Milliseconds())
 	case "response":
-		service.SetOpsLatencyMs(p.c, service.OpsResponseLatencyMsKey, e.Elapsed.Milliseconds())
+		gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsResponseLatencyMsKey, e.Elapsed.Milliseconds())
 	case "select_canceled":
 		p.reqLog.Info("openai_alpha_search.account_select_aborted_client_disconnected", zap.Error(e.Outcome.Err))
 	case "forward_canceled":
@@ -159,14 +171,14 @@ func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 			if f.Err != nil && p.h.handleOpenAISelectionBusinessError(p.c, f.Err, *p.streamStarted) {
 				return
 			}
-			cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.requestedModel, p.requestedModel, service.PlatformOpenAI)
+			cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.requestedModel, p.requestedModel, capability.PlatformOpenAI)
 			if !cls.ModelNotFound {
-				markOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
+				gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
 			}
 			p.h.errorResponse(p.c, cls.Status, cls.ErrType, cls.Message)
 			return
 		}
-		var last *service.UpstreamFailoverError
+		var last *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &last) {
 			p.h.handleFailoverExhausted(p.c, last, false)
 		} else {
@@ -178,21 +190,21 @@ func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 		}
 		p.reqLog.Warn("openai_alpha_search.forward_failed", zap.Int64("account_id", p.selection.Account.ID), zap.Error(f.Err))
 	case "exhausted":
-		var last *service.UpstreamFailoverError
+		var last *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &last) {
 			p.h.handleFailoverExhausted(p.c, last, f.Outcome.OutputChanged)
 		}
 	}
 }
-func alphaResultView(result *service.OpenAIForwardResult) *gatewaymedia.AlphaResult {
+func alphaResultView(result *forwardcore.OpenAIResult) *gatewaymedia.AlphaResult {
 	if result == nil {
 		return nil
 	}
-	return &gatewaymedia.AlphaResult{RequestID: result.RequestID, Model: result.Model, UpstreamModel: result.UpstreamModel, UpstreamEndpoint: result.UpstreamEndpoint, Headers: result.UpstreamHeaders.Clone(), ResponseHeaders: result.ResponseHeaders.Clone(), Duration: result.Duration, Calls: result.WebSearchCalls}
+	return &gatewaymedia.AlphaResult{RequestID: result.RequestID, Model: result.Model, UpstreamModel: result.UpstreamModel, UpstreamEndpoint: result.UpstreamEndpoint, Headers: http.Header(result.UpstreamHeaders).Clone(), ResponseHeaders: http.Header(result.ResponseHeaders).Clone(), Duration: result.Duration, Calls: result.WebSearchCalls}
 }
-func legacyAlphaResult(result *gatewaymedia.AlphaResult) *service.OpenAIForwardResult {
+func legacyAlphaResult(result *gatewaymedia.AlphaResult) *forwardcore.OpenAIResult {
 	if result == nil {
 		return nil
 	}
-	return &service.OpenAIForwardResult{RequestID: result.RequestID, Model: result.Model, UpstreamModel: result.UpstreamModel, UpstreamEndpoint: result.UpstreamEndpoint, UpstreamHeaders: http.Header(result.Headers).Clone(), ResponseHeaders: http.Header(result.ResponseHeaders).Clone(), Duration: result.Duration, WebSearchCalls: result.Calls}
+	return &forwardcore.OpenAIResult{RequestID: result.RequestID, Model: result.Model, UpstreamModel: result.UpstreamModel, UpstreamEndpoint: result.UpstreamEndpoint, UpstreamHeaders: http.Header(result.Headers).Clone(), ResponseHeaders: http.Header(result.ResponseHeaders).Clone(), Duration: result.Duration, WebSearchCalls: result.Calls}
 }

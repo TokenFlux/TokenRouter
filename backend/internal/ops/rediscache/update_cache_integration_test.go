@@ -19,7 +19,9 @@ type UpdateCacheSuite struct {
 
 func (s *UpdateCacheSuite) SetupTest() {
 	s.IntegrationRedisSuite.SetupTest()
-	s.cache = NewUpdateCache(s.rdb).(*updateCache)
+	cache, ok := NewUpdateCache(s.rdb).(*updateCache)
+	s.Require().True(ok, "update cache constructor type")
+	s.cache = cache
 }
 
 func (s *UpdateCacheSuite) TestGetUpdateInfo_Missing() {

@@ -10,11 +10,13 @@ package service
 
 import (
 	"context"
+	"net/http"
+	"time"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,7 +34,7 @@ func (s *OpenAIGatewayService) forwardChatCompletionsViaNativeAnthropic(
 	account *Account,
 	body []byte,
 	defaultMappedModel string,
-) (*OpenAIForwardResult, error) {
+) (*forwardcore.OpenAIResult, error) {
 	adapter := &openAINativeAnthropicAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account}, kind: forward.NativeChat}
 	result, err := forward.ForwardNativeChat(ctx, body, defaultMappedModel, adapter)
 	return openAIForwardResultFromHTTP(result), err
@@ -48,7 +50,7 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 	upstreamModel string,
 	reasoningEffort *string,
 	startTime time.Time,
-) (*OpenAIForwardResult, error) {
+) (*forwardcore.OpenAIResult, error) {
 	result, err := forward.ChatFromAnthropicBuffered(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeAnthropicOutputOptions(c, writeChatCompletionsError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime)
 	return openAIForwardResultFromHTTP(result), err
 }
@@ -64,7 +66,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 	reasoningEffort *string,
 	startTime time.Time,
 	includeUsage bool,
-) (*OpenAIForwardResult, error) {
+) (*forwardcore.OpenAIResult, error) {
 	result, err := forward.ChatFromAnthropicStreaming(resp, upstream.NewDeferredOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), s.nativeAnthropicOutputOptions(c, writeChatCompletionsError), originalModel, billingModel, upstreamModel, reasoningEffort, startTime, includeUsage)
 	return openAIForwardResultFromHTTP(result), err
 }

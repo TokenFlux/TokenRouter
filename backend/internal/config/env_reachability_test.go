@@ -32,7 +32,7 @@ func collectMapstructureKeys(t reflect.Type, prefix string, out map[string]strin
 		}
 
 		ft := field.Type
-		for ft.Kind() == reflect.Ptr {
+		for ft.Kind() == reflect.Pointer {
 			ft = ft.Elem()
 		}
 		if ft.Kind() == reflect.Struct {
@@ -45,7 +45,7 @@ func collectMapstructureKeys(t reflect.Type, prefix string, out map[string]strin
 		}
 		if ft.Kind() == reflect.Slice {
 			elem := ft.Elem()
-			for elem.Kind() == reflect.Ptr {
+			for elem.Kind() == reflect.Pointer {
 				elem = elem.Elem()
 			}
 			if elem.Kind() == reflect.Struct {

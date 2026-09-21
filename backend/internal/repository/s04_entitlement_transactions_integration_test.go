@@ -6,17 +6,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/redeemcodeusage"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +34,7 @@ func TestS04SubscriptionParticipantReadsUncommittedAndRollsBack(t *testing.T) {
 			plan, err := tx.Client().SubscriptionPlan.Create().SetPrice(10).SetName("s04 uncommitted").SetValidityDays(7).Save(ctx)
 			require.NoError(t, err)
 			callCtx := dbent.NewTxContext(ctx, tx)
-			subs := service.NewSubscriptionService(nil, NewUserSubscriptionRepository(client), nil, client, nil)
+			subs := billing.NewSubscriptionService(subscriptionContractEmptyGroups{}, billingpostgres.NewUserSubscriptionRepository(client), billingpostgres.NewSubscriptionMutations(client))
 			if explicit {
 				subs = billingpostgres.SubscriptionsInTx(tx, nil, billing.DateRuntime{Now: time.Now})
 				callCtx = ctx // 显式参与入口无需调用者自行安装 context。
@@ -67,12 +67,12 @@ func TestS04ValidityChangeParticipatesInOuterTransaction(t *testing.T) {
 	t.Cleanup(func() { _ = client.SubscriptionPlan.DeleteOneID(plan.ID).Exec(context.Background()) })
 	now := time.Now().UTC().Truncate(time.Second)
 	expires := now.Add(48 * time.Hour)
-	sub, err := client.UserSubscription.Create().SetUserID(user.ID).SetPlanID(plan.ID).SetStartsAt(now).SetExpiresAt(expires).SetStatus(service.SubscriptionStatusActive).SetAssignedAt(now).Save(ctx)
+	sub, err := client.UserSubscription.Create().SetUserID(user.ID).SetPlanID(plan.ID).SetStartsAt(now).SetExpiresAt(expires).SetStatus(billing.SubscriptionStatusActive).SetAssignedAt(now).Save(ctx)
 	require.NoError(t, err)
 	tx, err := client.Tx(ctx)
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback() }()
-	svc := service.NewSubscriptionService(nil, NewUserSubscriptionRepository(client), nil, client, nil)
+	svc := billing.NewSubscriptionService(subscriptionContractEmptyGroups{}, billingpostgres.NewUserSubscriptionRepository(client), billingpostgres.NewSubscriptionMutations(client))
 	_, err = svc.SetSubscriptionValidityDays(dbent.NewTxContext(ctx, tx), sub.ID, 30)
 	require.NoError(t, err)
 	outside, err := client.UserSubscription.Get(ctx, sub.ID)
@@ -108,13 +108,13 @@ func TestS04RedeemEffectsWaitForCommit(t *testing.T) {
 			plan, err := client.SubscriptionPlan.Create().SetPrice(10).SetName("s04 redeem").SetValidityDays(7).Save(ctx)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = client.SubscriptionPlan.DeleteOneID(plan.ID).Exec(context.Background()) })
-			repo := NewRedeemCodeRepository(client)
+			repo := billingpostgres.NewRedeemCodeRepository(client)
 			code := &billing.RedeemCode{Code: "S04-" + kind, Type: kind, Value: 5, Status: billing.StatusUnused, MaxUses: 1, PlanID: &plan.ID}
 			require.NoError(t, repo.Create(ctx, code))
 			auth := &redeemAuthObservation{}
-			subs := service.NewSubscriptionService(nil, NewUserSubscriptionRepository(client), nil, client, nil)
+			subs := billing.NewSubscriptionService(subscriptionContractEmptyGroups{}, billingpostgres.NewUserSubscriptionRepository(client), billingpostgres.NewSubscriptionMutations(client))
 			makeService := func(store billing.RedeemCodeRepository) *billing.RedeemService {
-				return billing.NewRedeemService(store, quotaUsersForContract{NewUserRepository(client, integrationDB)}, subs, nil, nil,
+				return billing.NewRedeemService(store, quotaUsersForContract{identitypostgres.NewUserStore(client, integrationDB)}, subs, nil, nil,
 					billingpostgres.NewRedeemMutations(client, billingpostgres.RedeemWriters{Balances: billingpostgres.NewBalanceStore(client), Concurrency: identitypostgres.NewConcurrencyStore(client)}), auth, nil, billing.RedeemRuntime{Now: time.Now})
 			}
 			_, err = makeService(failedRedeemUsage{repo}).Redeem(ctx, user.ID, code.Code)
@@ -142,4 +142,11 @@ func TestS04RedeemEffectsWaitForCommit(t *testing.T) {
 			require.Equal(t, int32(1), auth.count.Load())
 		})
 	}
+}
+
+// subscriptionContractEmptyGroups 保留旧未配置分组来源的空读取语义。
+type subscriptionContractEmptyGroups struct{}
+
+func (subscriptionContractEmptyGroups) GetByIDLite(context.Context, int64) (*billing.SubscriptionPlanGroup, error) {
+	return nil, nil
 }

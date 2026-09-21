@@ -4,17 +4,19 @@ package repository
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/settings"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/settings"
+	settingspostgres "github.com/TokenFlux/TokenRouter/internal/settings/postgres"
+	"github.com/stretchr/testify/require"
 )
 
 // 真实 settings 表验证 TTL、生效顺序与损坏 JSON 回退，不修改生产设置。
 func TestS06GeminiQuotaPolicyLoadsSettingsAndKeepsSnapshot(t *testing.T) {
 	ctx := context.Background()
-	repo := NewSettingRepository(testEntClient(t))
+	repo := settings.New(settingspostgres.NewSettingRepository(testEntClient(t)))
 	key := "s06.gemini.quota.policy"
 	require.NoError(t, repo.Delete(ctx, key))
 	t.Cleanup(func() { require.NoError(t, repo.Delete(ctx, key)) })

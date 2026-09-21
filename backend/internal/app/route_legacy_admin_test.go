@@ -241,18 +241,6 @@ func registerPromoCodeRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
 	routepromotion.RegisterPromoCodeRoutes(admin, h.Admin.Promo)
 }
 
-func registerSettingsRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
-	adminSettings := admin.Group("/settings")
-	routesettings.RegisterSettingsSettingsRoutes(adminSettings, h.Admin.Setting, h.Admin.Setting)
-	routecreative.RegisterCreativeSettingsRoutes(adminSettings, h.Admin.Setting)
-	routeidentity.RegisterIdentitySettingsRoutes(adminSettings, h.Admin.Setting)
-	routeaccount.RegisterAccountSettingsRoutes(adminSettings, h.Admin.Setting)
-	serverhttp.RegisterPanelSettingsRoutes(adminSettings, h.Admin.Setting)
-	routegateway.RegisterGatewaySettingsRoutes(adminSettings, h.Admin.Setting)
-	routenotification.RegisterSettingsRoutes(adminSettings, h.Notification)
-	routesearch.RegisterSettingsRoutes(adminSettings, h.Search)
-}
-
 func registerDataManagementRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth middleware.StepUpAuthMiddleware) {
 	routebackup.RegisterDataManagementRoutes(admin, h.Admin.DataManagement, gin.HandlerFunc(stepUpAuth))
 }
@@ -297,4 +285,17 @@ func registerTLSFingerprintRouterRoutes(admin *gin.RouterGroup, h *routeTestHand
 
 func registerChannelRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
 	routerouting.RegisterChannelRoutes(admin, h.Admin.Channel)
+}
+
+// registerSettingsRoutes 使用原生端点登记路由形状；此夹具不执行设置读写。
+func registerSettingsRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
+	group := admin.Group("/settings")
+	routesettings.RegisterSettingsSettingsRoutes(group, &routesettings.Handler{}, &routesettings.PreAggregationHandler{})
+	routecreative.RegisterCreativeSettingsRoutes(group, &routecreative.SettingsHandler{})
+	routeidentity.RegisterIdentitySettingsRoutes(group, &routeidentity.AdminKeySettingsHandler{})
+	routeaccount.RegisterAccountSettingsRoutes(group, &routeaccount.RuntimeSettingsHandler{})
+	serverhttp.RegisterPanelSettingsRoutes(group, &serverhttp.PanelSettingsHandler{})
+	routegateway.RegisterGatewaySettingsRoutes(group, &routegateway.RuntimeSettingsHandler{})
+	routenotification.RegisterSettingsRoutes(group, h.Notification)
+	routesearch.RegisterSettingsRoutes(group, h.Search)
 }

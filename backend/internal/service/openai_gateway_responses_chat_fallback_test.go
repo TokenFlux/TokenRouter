@@ -12,21 +12,23 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletions(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"deepseek-v4-flash","input":"hello","reasoning":{"effort":"max"},"stream":false,"service_tier":"priority"}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
+	gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -39,14 +41,14 @@ func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletion
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
 	}
-	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
+	gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
 
 	result, err := svc.Forward(context.Background(), c, forceChatResponsesFallbackAccount(), body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "http://upstream.example/v1/chat/completions", upstream.lastReq.URL.String())
-	require.Equal(t, "/v1/chat/completions", GetActualOpenAIUpstreamEndpoint(c))
-	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.lastReq.Context()))
+	require.Equal(t, "/v1/chat/completions", gatewayhttp.GetActualOpenAIUpstreamEndpoint(c))
+	require.Equal(t, upstreamcore.HTTPUpstreamProfileOpenAI, upstreamcore.HTTPUpstreamProfileFromContext(upstream.lastReq.Context()))
 	require.Equal(t, "hello", gjson.GetBytes(upstream.lastBody, "messages.0.content").String())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 	require.Equal(t, "response", gjson.Get(rec.Body.String(), "object").String())
@@ -64,7 +66,6 @@ func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletion
 }
 
 func TestForwardResponses_ForceChatCompletionsRoutesStreamingToChatCompletions(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"gpt-5.4","input":"hello","stream":true}`)
 	rec := httptest.NewRecorder()
@@ -113,7 +114,6 @@ func TestForwardResponses_ForceChatCompletionsRoutesStreamingToChatCompletions(t
 }
 
 func TestForwardResponses_ChatFallbackRejectsInvalidToolArgumentsAtOutputLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"deepseek-v4-flash","input":"run the command","stream":true}`)
 	rec := httptest.NewRecorder()
@@ -150,7 +150,6 @@ func TestForwardResponses_ChatFallbackRejectsInvalidToolArgumentsAtOutputLimit(t
 }
 
 func TestForwardResponses_DeepSeekReasoningOnlyStreamProducesVisibleText(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"deepseek-reasoner","input":"hello","stream":true}`)
 	rec := httptest.NewRecorder()
@@ -189,14 +188,13 @@ func TestForwardResponses_DeepSeekReasoningOnlyStreamProducesVisibleText(t *test
 }
 
 func TestForwardResponses_PreserveClientProtocolUsesResponsesEndpoint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"deepseek-v4-flash","input":"hello","reasoning":{"effort":"max"},"stream":false}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
+	gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions")
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -211,14 +209,14 @@ func TestForwardResponses_PreserveClientProtocolUsesResponsesEndpoint(t *testing
 	}
 	account := rawChatCompletionsTestAccount()
 	account.Extra = map[string]any{
-		openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModePreserveClientProtocol),
+		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModePreserveClientProtocol),
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "http://upstream.example/v1/responses", upstream.lastReq.URL.String())
-	require.Equal(t, "/v1/responses", GetActualOpenAIUpstreamEndpoint(c))
+	require.Equal(t, "/v1/responses", gatewayhttp.GetActualOpenAIUpstreamEndpoint(c))
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
 	require.Equal(t, "ok", gjson.Get(rec.Body.String(), "output.0.content.0.text").String())
@@ -229,7 +227,7 @@ func TestForwardResponses_PreserveClientProtocolUsesResponsesEndpoint(t *testing
 func forceChatResponsesFallbackAccount() *Account {
 	account := rawChatCompletionsTestAccount()
 	account.Extra = map[string]any{
-		openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
+		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 	}
 	return account
 }
@@ -252,11 +250,11 @@ func (c *reasoningCacheStub) GetReasoningContent(_ context.Context, itemID strin
 	if content, ok := c.getResp[itemID]; ok {
 		return content, nil
 	}
-	return "", ErrReasoningContentNotFound
+	return "", session.ErrReasoningContentNotFound
 }
 
 func TestForwardResponsesChatFallbackRestoresEncryptedReasoningFromCache(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"model":"deepseek-reasoner","stream":false,"input":[
 		{"type":"reasoning","id":"item_plain","summary":[{"type":"summary_text","text":"plain thinking"}]},
 		{"type":"function_call","call_id":"call_0","name":"get_value","arguments":"{}"},

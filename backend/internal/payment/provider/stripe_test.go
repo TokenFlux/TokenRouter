@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/payment"
+	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 	"github.com/stretchr/testify/require"
 	stripe "github.com/stripe/stripe-go/v85"
 )
@@ -21,8 +22,8 @@ type stripeRefundBackend struct {
 }
 
 func (b *stripeRefundBackend) Call(_ string, _ string, _ string, params stripe.ParamsContainer, v stripe.LastResponseSetter) error {
-	b.params = append(b.params, params.(*stripe.RefundCreateParams))
-	refund := v.(*stripe.Refund)
+	b.params = append(b.params, testassert.MustType[*stripe.RefundCreateParams](params))
+	refund := testassert.MustType[*stripe.Refund](v)
 	refund.ID = "re_123"
 	refund.Status = stripe.RefundStatusSucceeded
 	return nil

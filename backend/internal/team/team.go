@@ -7,15 +7,16 @@ import (
 	sha256 "crypto/sha256"
 	hex "encoding/hex"
 	fmt "fmt"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	slog "log/slog"
 	mail "net/mail"
 	url "net/url"
 	strconv "strconv"
 	strings "strings"
 	time "time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 )
 
 const (

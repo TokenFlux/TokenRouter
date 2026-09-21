@@ -15,12 +15,13 @@ import (
 type AggregationStore struct {
 	archiveDedup func(context.Context, time.Time) error
 	sql          sqlExecutor
+	calendar     timezone.Calendar
 }
 
 const usageLogsCleanupBatchSize = 10000
 
 // NewDashboardAggregationRepository 创建仪表盘预聚合仓储。
-func NewDashboardAggregationRepository(sqlDB *sql.DB, archive func(context.Context, time.Time) error) *AggregationStore {
+func NewDashboardAggregationRepository(sqlDB *sql.DB, calendar timezone.Calendar, archive func(context.Context, time.Time) error) *AggregationStore {
 	if sqlDB == nil {
 		return nil
 	}
@@ -28,11 +29,11 @@ func NewDashboardAggregationRepository(sqlDB *sql.DB, archive func(context.Conte
 		log.Printf("[DashboardAggregation] 检测到非 PostgreSQL 驱动，已自动禁用预聚合")
 		return nil
 	}
-	return NewAggregationStoreWithSQL(sqlDB, archive)
+	return NewAggregationStoreWithSQL(sqlDB, calendar, archive)
 }
 
-func NewAggregationStoreWithSQL(sqlq sqlExecutor, archive ...func(context.Context, time.Time) error) *AggregationStore {
-	r := &AggregationStore{sql: sqlq}
+func NewAggregationStoreWithSQL(sqlq sqlExecutor, calendar timezone.Calendar, archive ...func(context.Context, time.Time) error) *AggregationStore {
+	r := &AggregationStore{sql: sqlq, calendar: calendar}
 	if len(archive) > 0 {
 		r.archiveDedup = archive[0]
 	}
@@ -51,7 +52,7 @@ func (r *AggregationStore) AggregateRange(ctx context.Context, start, end time.T
 	if r == nil || r.sql == nil {
 		return nil
 	}
-	loc := timezone.Location()
+	loc := r.calendar.Location()
 	startLocal := start.In(loc)
 	endLocal := end.In(loc)
 	if !endLocal.After(startLocal) {
@@ -64,8 +65,8 @@ func (r *AggregationStore) AggregateRange(ctx context.Context, start, end time.T
 		hourEnd = hourEnd.Add(time.Hour)
 	}
 
-	dayStart := truncateToDay(startLocal)
-	dayEnd := truncateToDay(endLocal)
+	dayStart := truncateToDay(startLocal, r.calendar)
+	dayEnd := truncateToDay(endLocal, r.calendar)
 	if endLocal.After(dayEnd) {
 		dayEnd = dayEnd.AddDate(0, 0, 1)
 	}
@@ -75,7 +76,7 @@ func (r *AggregationStore) AggregateRange(ctx context.Context, start, end time.T
 		if err != nil {
 			return err
 		}
-		txRepo := NewAggregationStoreWithSQL(tx)
+		txRepo := NewAggregationStoreWithSQL(tx, r.calendar)
 		if err := txRepo.aggregateRangeInTx(ctx, hourStart, hourEnd, dayStart, dayEnd); err != nil {
 			_ = tx.Rollback()
 			return err
@@ -106,7 +107,7 @@ func (r *AggregationStore) RecomputeRange(ctx context.Context, start, end time.T
 	if r == nil || r.sql == nil {
 		return nil
 	}
-	loc := timezone.Location()
+	loc := r.calendar.Location()
 	startLocal := start.In(loc)
 	endLocal := end.In(loc)
 	if !endLocal.After(startLocal) {
@@ -117,8 +118,8 @@ func (r *AggregationStore) RecomputeRange(ctx context.Context, start, end time.T
 	// 清理过滤器的结束时间包含端点，整点记录属于以该整点开始的新桶。
 	hourEnd := endLocal.Truncate(time.Hour).Add(time.Hour)
 
-	dayStart := truncateToDay(startLocal)
-	dayEnd := truncateToDay(endLocal).AddDate(0, 0, 1)
+	dayStart := truncateToDay(startLocal, r.calendar)
+	dayEnd := truncateToDay(endLocal, r.calendar).AddDate(0, 0, 1)
 
 	// 尽量使用事务保证范围内的一致性（允许在非 *sql.DB 的情况下退化为非事务执行）。
 	if db, ok := r.sql.(*sql.DB); ok {
@@ -126,7 +127,7 @@ func (r *AggregationStore) RecomputeRange(ctx context.Context, start, end time.T
 		if err != nil {
 			return err
 		}
-		txRepo := NewAggregationStoreWithSQL(tx)
+		txRepo := NewAggregationStoreWithSQL(tx, r.calendar)
 		if err := txRepo.recomputeRangeInTx(ctx, hourStart, hourEnd, dayStart, dayEnd); err != nil {
 			_ = tx.Rollback()
 			return err
@@ -266,7 +267,7 @@ func (r *AggregationStore) EnsureUsageLogsPartitions(ctx context.Context, now ti
 }
 
 func (r *AggregationStore) insertHourlyActiveUsers(ctx context.Context, start, end time.Time) error {
-	tzName := timezone.Name()
+	tzName := r.calendar.Location().String()
 	query := `
 		INSERT INTO usage_dashboard_hourly_users (bucket_start, user_id)
 		SELECT DISTINCT
@@ -281,7 +282,7 @@ func (r *AggregationStore) insertHourlyActiveUsers(ctx context.Context, start, e
 }
 
 func (r *AggregationStore) insertDailyActiveUsers(ctx context.Context, start, end time.Time) error {
-	tzName := timezone.Name()
+	tzName := r.calendar.Location().String()
 	query := `
 		INSERT INTO usage_dashboard_daily_users (bucket_date, user_id)
 		SELECT DISTINCT
@@ -296,7 +297,7 @@ func (r *AggregationStore) insertDailyActiveUsers(ctx context.Context, start, en
 }
 
 func (r *AggregationStore) upsertHourlyAggregates(ctx context.Context, start, end time.Time) error {
-	tzName := timezone.Name()
+	tzName := r.calendar.Location().String()
 	query := `
 		WITH hourly AS (
 			SELECT
@@ -368,7 +369,7 @@ func (r *AggregationStore) upsertHourlyAggregates(ctx context.Context, start, en
 }
 
 func (r *AggregationStore) upsertDailyAggregates(ctx context.Context, start, end time.Time) error {
-	tzName := timezone.Name()
+	tzName := r.calendar.Location().String()
 	query := `
 		WITH daily AS (
 			SELECT
@@ -508,8 +509,8 @@ func (r *AggregationStore) createUsageLogsPartition(ctx context.Context, month t
 	return err
 }
 
-func truncateToDay(t time.Time) time.Time {
-	return timezone.StartOfDay(t)
+func truncateToDay(t time.Time, calendar timezone.Calendar) time.Time {
+	return calendar.StartOfDay(t)
 }
 
 func truncateToMonthUTC(t time.Time) time.Time {

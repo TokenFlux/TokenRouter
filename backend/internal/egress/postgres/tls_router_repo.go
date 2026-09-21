@@ -3,6 +3,7 @@ package postgres
 
 import (
 	context "context"
+
 	ent "github.com/TokenFlux/TokenRouter/ent"
 	tlsfingerprintrouter "github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"

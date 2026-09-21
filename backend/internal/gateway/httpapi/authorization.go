@@ -25,7 +25,6 @@ type AuthorizationSubscriptions interface {
 type APIKeyAuthorizationOptions struct {
 	Simple         bool
 	Authentication keyhttp.AuthenticationOptions
-	PrepareContext func(*gin.Context, *apikey.APIKey)
 	BindLegacyKey  func(*gin.Context, *apikey.APIKey)
 }
 
@@ -82,9 +81,11 @@ func NewAPIKeyAuthorization(apiKeyService *apikey.APIKeyService, subscriptionSer
 		if abortAuthorizationGroupNotAllowed(c, apiKey, options) {
 			return
 		}
-		if options.PrepareContext != nil {
-			options.PrepareContext(c, apiKey)
-		}
+		// 沿用通用入口的绑定时点；Google 入口仍不增加这一步策略投影。
+		requestAccess := *access
+		requestAccess.PayerUserID = apiKey.User.ID
+		ctx := apikey.WithAccessSnapshot(c.Request.Context(), requestAccess)
+		c.Request = c.Request.WithContext(apikey.WithFastModePolicy(ctx, apiKey.FastModePolicy))
 		ApplyAPIKeyModelRedirect(c, apiKey)
 		// 批任务管理只读取已有数据或释放冻结；即使任务耗尽额度，结果仍应可取回或取消。
 		skipBilling := IsAPIKeyUsageRequest(c.Request.Method, c.Request.URL.Path) ||

@@ -6,20 +6,30 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *gin.Context, account *Account) native.PassthroughOptions {
-	stream := native.StreamOptions{
-		NativeOpenAI:        account != nil && account.Platform == PlatformOpenAI,
-		MaxLineSize:         defaultMaxLineSize,
-		TTFTMode:            func() string { return s.openAITTFTMode(ctx) },
-		Logf:                func(format string, args ...any) { logger.LegacyPrintf("service.openai_gateway", format, args...) },
-		MarkCommitted:       func() { MarkResponseCommitted(c) },
+func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *gin.Context, account *Account) upstreamopenai.PassthroughOptions {
+	stream := upstreamopenai.StreamOptions{
+		NativeOpenAI: account != nil && account.Platform == capability.PlatformOpenAI,
+		MaxLineSize:  defaultMaxLineSize,
+		TTFTMode:     func() string { return s.openAITTFTMode(ctx) },
+		Logf: func(format string, args ...any) {
+			logging.LegacyPrintf("service.openai_gateway", format, args...)
+		},
+		MarkCommitted:       func() { httpapi.MarkResponseCommitted(c) },
 		ClientOutputStarted: func(started bool) bool { return openAIStreamClientOutputStarted(c, started) },
 		ClearDisconnect:     func() { s.clearOpenAIProxyStreamDisconnect(account) },
 		RecordDisconnect:    func(err error, id string) { s.recordOpenAIProxyStreamDisconnect(account, err, id) },
@@ -39,15 +49,15 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 		CapacitySuppressed: func(id, event string) {
 			logOpenAICapacityFailoverSuppressed(ctx, account, "passthrough_sse", id, event)
 		},
-		MarkCyber: func(value native.CyberObservation) {
+		MarkCyber: func(value upstreamopenai.CyberObservation) {
 			MarkOpsCyberPolicy(c, CyberPolicyMark{Code: value.Code, Message: value.Message, Body: value.Body, UpstreamStatus: value.UpstreamStatus, UpstreamInTok: value.UpstreamInTok, UpstreamOutTok: value.UpstreamOutTok})
 		},
 		RestoreNamespace:                    func(body []byte) ([]byte, error) { return restoreOpenAIResponsesNamespacePayload(c, body) },
 		RestoreToolNames:                    func(body []byte, event string) []byte { return restoreCodexToolNamesFromSSEContext(c, body, event) },
 		EmptyCompleted:                      func(id string) error { return newOpenAIResponsesEmptyCompletedFailoverError(c, account, id) },
 		BuildOpenAIResponseFailedSSE:        buildOpenAIResponseFailedSSE,
-		WrapOpenAIUpstreamWarningIfCyber:    wrapOpenAIUpstreamWarningIfCyber,
-		TruncateString:                      truncateString,
+		WrapOpenAIUpstreamWarningIfCyber:    gatewayprovider.WrapOpenAIUpstreamWarningIfCyber,
+		TruncateString:                      logredact.TruncateUTF8,
 		OpenAIStreamDataStartsTTFT:          openAIStreamDataStartsTTFT,
 		OpenAIStreamEventIsTerminalWithType: openAIStreamEventIsTerminalWithType,
 	}
@@ -57,14 +67,14 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 		stream.MaxLineSize = s.cfg.Gateway.MaxLineSize
 	}
-	stream.MarkTime = func(moment native.StreamTime) {
+	stream.MarkTime = func(moment upstreamopenai.StreamTime) {
 		switch moment {
-		case native.StreamTimeFlush:
-			MarkOpsTimestamp(c, ctxkey.FirstDownstreamFlushAt)
-		case native.StreamTimeData:
-			MarkOpsTimestamp(c, ctxkey.FirstSSEDataAt)
-		case native.StreamTimeVisible:
-			MarkOpsTimestamp(c, ctxkey.FirstVisibleOutputAt)
+		case upstreamopenai.StreamTimeFlush:
+			httpapi.MarkOpsTimestamp(c, telemetry.FirstDownstreamFlushAt)
+		case upstreamopenai.StreamTimeData:
+			httpapi.MarkOpsTimestamp(c, telemetry.FirstSSEDataAt)
+		case upstreamopenai.StreamTimeVisible:
+			httpapi.MarkOpsTimestamp(c, telemetry.FirstVisibleOutputAt)
 		}
 	}
 	nonstream := s.nativeNonStreamOptions(ctx, c, account)
@@ -74,7 +84,7 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 		}
 		return nil
 	}
-	return native.PassthroughOptions{
+	return upstreamopenai.PassthroughOptions{
 		StreamOptions: stream,
 		NonStream:     nonstream,
 		Headers:       func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
@@ -84,15 +94,15 @@ func (s *OpenAIGatewayService) nativePassthroughOptions(ctx context.Context, c *
 				c.Writer.Header()[key] = append([]string(nil), values...)
 			}
 			if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
-				return startOpenAISSEKeepalive(c, time.Duration(s.cfg.Gateway.StreamKeepaliveInterval)*time.Second)
+				return httpapi.StartOpenAISSEKeepalive(c, time.Duration(s.cfg.Gateway.StreamKeepaliveInterval)*time.Second)
 			}
 			return func() {}
 		},
-		MissingUsage: func(resp *http.Response, usage *OpenAIUsage, event string, disconnected bool) {
+		MissingUsage: func(resp *http.Response, usage *openai.ForwardUsage, event string, disconnected bool) {
 			logOpenAISuccessMissingUsage(ctx, c, account, resp, usage, event, disconnected)
 		},
 		MissingTerminal: func(id string) {
-			logger.FromContext(ctx).With(zap.String("component", "service.openai_gateway"), zap.Int64("account_id", account.ID), zap.String("upstream_request_id", id)).Info("OpenAI passthrough 上游流在未收到 [DONE] 时结束，疑似断流")
+			logging.FromContext(ctx).With(zap.String("component", "service.openai_gateway"), zap.Int64("account_id", account.ID), zap.String("upstream_request_id", id)).Info("OpenAI passthrough 上游流在未收到 [DONE] 时结束，疑似断流")
 		},
 		PassthroughFailoverWithModel: func(id string, body []byte, message, model string) error {
 			return s.newOpenAIStreamFailoverErrorWithModel(c, account, true, id, body, message, model)

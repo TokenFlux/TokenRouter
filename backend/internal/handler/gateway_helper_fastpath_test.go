@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -80,12 +82,12 @@ func (m *concurrencyCacheMock) DecrementWaitCount(ctx context.Context, userID in
 	return nil
 }
 
-func (m *concurrencyCacheMock) GetAccountsLoadBatch(ctx context.Context, accounts []service.AccountWithConcurrency) (map[int64]*service.AccountLoadInfo, error) {
-	return map[int64]*service.AccountLoadInfo{}, nil
+func (m *concurrencyCacheMock) GetAccountsLoadBatch(ctx context.Context, accounts []scheduler.AccountWithConcurrency) (map[int64]*scheduler.AccountLoadInfo, error) {
+	return map[int64]*scheduler.AccountLoadInfo{}, nil
 }
 
-func (m *concurrencyCacheMock) GetUsersLoadBatch(ctx context.Context, users []service.UserWithConcurrency) (map[int64]*service.UserLoadInfo, error) {
-	return map[int64]*service.UserLoadInfo{}, nil
+func (m *concurrencyCacheMock) GetUsersLoadBatch(ctx context.Context, users []scheduler.UserWithConcurrency) (map[int64]*scheduler.UserLoadInfo, error) {
+	return map[int64]*scheduler.UserLoadInfo{}, nil
 }
 
 func (m *concurrencyCacheMock) CleanupExpiredAccountSlots(ctx context.Context, accountID int64) error {
@@ -125,7 +127,10 @@ func TestConcurrencyHelper_TryAcquireUserSlot(t *testing.T) {
 			return true, nil
 		},
 	}
-	helper := NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second)
+	helper := gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	},
+	), gatewayhttp.SSEPingFormatNone, time.Second)
 
 	release, acquired, err := helper.TryAcquireUserSlot(context.Background(), 101, 2)
 	require.NoError(t, err)
@@ -142,7 +147,10 @@ func TestConcurrencyHelper_TryAcquireAccountSlot_NotAcquired(t *testing.T) {
 			return false, nil
 		},
 	}
-	helper := NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second)
+	helper := gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	},
+	), gatewayhttp.SSEPingFormatNone, time.Second)
 
 	release, acquired, err := helper.TryAcquireAccountSlot(context.Background(), 201, 1)
 	require.NoError(t, err)

@@ -5,6 +5,7 @@ package service
 import (
 	"testing"
 
+	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,8 +76,8 @@ func TestFilterCodexInput_PreservesNativeCustomAndToolSearchIDs(t *testing.T) {
 
 	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{PreserveReferences: true})
 
-	require.Equal(t, "ctc_valid", filtered[0].(map[string]any)["id"])
-	require.Equal(t, "tsc_valid", filtered[1].(map[string]any)["id"])
+	require.Equal(t, "ctc_valid", testassert.MustType[map[string]any](filtered[0])["id"])
+	require.Equal(t, "tsc_valid", testassert.MustType[map[string]any](filtered[1])["id"])
 }
 
 func TestFilterCodexInput_StripsWrongCustomAndToolSearchIDs(t *testing.T) {
@@ -87,8 +88,8 @@ func TestFilterCodexInput_StripsWrongCustomAndToolSearchIDs(t *testing.T) {
 
 	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{PreserveReferences: true})
 
-	require.NotContains(t, filtered[0].(map[string]any), "id")
-	require.NotContains(t, filtered[1].(map[string]any), "id")
+	require.NotContains(t, testassert.MustType[map[string]any](filtered[0]), "id")
+	require.NotContains(t, testassert.MustType[map[string]any](filtered[1]), "id")
 }
 
 func TestFilterCodexInput_MapsItemReferencesToNativeToolCallPair(t *testing.T) {
@@ -103,12 +104,12 @@ func TestFilterCodexInput_MapsItemReferencesToNativeToolCallPair(t *testing.T) {
 
 	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{PreserveReferences: true})
 
-	require.Equal(t, "ctc_custom", filtered[0].(map[string]any)["call_id"])
-	require.Equal(t, "ctc_custom", filtered[1].(map[string]any)["call_id"])
-	require.Equal(t, "ctc_custom", filtered[2].(map[string]any)["id"])
-	require.Equal(t, "tsc_search", filtered[3].(map[string]any)["call_id"])
-	require.Equal(t, "tsc_search", filtered[4].(map[string]any)["call_id"])
-	require.Equal(t, "tsc_search", filtered[5].(map[string]any)["id"])
+	require.Equal(t, "ctc_custom", testassert.MustType[map[string]any](filtered[0])["call_id"])
+	require.Equal(t, "ctc_custom", testassert.MustType[map[string]any](filtered[1])["call_id"])
+	require.Equal(t, "ctc_custom", testassert.MustType[map[string]any](filtered[2])["id"])
+	require.Equal(t, "tsc_search", testassert.MustType[map[string]any](filtered[3])["call_id"])
+	require.Equal(t, "tsc_search", testassert.MustType[map[string]any](filtered[4])["call_id"])
+	require.Equal(t, "tsc_search", testassert.MustType[map[string]any](filtered[5])["id"])
 }
 
 func TestFilterCodexInput_PreservesAmbiguousItemReference(t *testing.T) {
@@ -120,9 +121,9 @@ func TestFilterCodexInput_PreservesAmbiguousItemReference(t *testing.T) {
 
 	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{PreserveReferences: true})
 
-	require.Equal(t, "ctc_shared", filtered[0].(map[string]any)["call_id"])
-	require.Equal(t, "tsc_shared", filtered[1].(map[string]any)["call_id"])
-	require.Equal(t, "call_shared", filtered[2].(map[string]any)["id"])
+	require.Equal(t, "ctc_shared", testassert.MustType[map[string]any](filtered[0])["call_id"])
+	require.Equal(t, "tsc_shared", testassert.MustType[map[string]any](filtered[1])["call_id"])
+	require.Equal(t, "call_shared", testassert.MustType[map[string]any](filtered[2])["id"])
 }
 
 func TestFilterCodexInput_PreservesNativeItemIDReferenceIndependentlyFromCallID(t *testing.T) {
@@ -133,9 +134,9 @@ func TestFilterCodexInput_PreservesNativeItemIDReferenceIndependentlyFromCallID(
 
 	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{PreserveReferences: true})
 
-	require.Equal(t, "ctc_item", filtered[0].(map[string]any)["id"])
-	require.Equal(t, "ctc_custom", filtered[0].(map[string]any)["call_id"])
-	require.Equal(t, "ctc_item", filtered[1].(map[string]any)["id"])
+	require.Equal(t, "ctc_item", testassert.MustType[map[string]any](filtered[0])["id"])
+	require.Equal(t, "ctc_custom", testassert.MustType[map[string]any](filtered[0])["call_id"])
+	require.Equal(t, "ctc_item", testassert.MustType[map[string]any](filtered[1])["id"])
 }
 
 func TestFilterCodexInput_ExistingItemIDWinsOverLegacyCallIDMapping(t *testing.T) {
@@ -147,9 +148,9 @@ func TestFilterCodexInput_ExistingItemIDWinsOverLegacyCallIDMapping(t *testing.T
 
 	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{PreserveReferences: true})
 
-	require.Equal(t, "ctc_shared", filtered[0].(map[string]any)["call_id"])
-	require.Equal(t, "call_shared", filtered[1].(map[string]any)["id"])
-	require.Equal(t, "call_shared", filtered[2].(map[string]any)["id"])
+	require.Equal(t, "ctc_shared", testassert.MustType[map[string]any](filtered[0])["call_id"])
+	require.Equal(t, "call_shared", testassert.MustType[map[string]any](filtered[1])["id"])
+	require.Equal(t, "call_shared", testassert.MustType[map[string]any](filtered[2])["id"])
 }
 
 func TestFilterCodexInput_NormalizesCrossTurnLegacyCallReference(t *testing.T) {
@@ -159,7 +160,7 @@ func TestFilterCodexInput_NormalizesCrossTurnLegacyCallReference(t *testing.T) {
 
 	filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{PreserveReferences: true})
 
-	require.Equal(t, "fc_previous_turn", filtered[0].(map[string]any)["id"])
+	require.Equal(t, "fc_previous_turn", testassert.MustType[map[string]any](filtered[0])["id"])
 }
 
 func TestFilterCodexInput_PreservesNativeRemoteItemReferences(t *testing.T) {
@@ -169,7 +170,7 @@ func TestFilterCodexInput_PreservesNativeRemoteItemReferences(t *testing.T) {
 
 			filtered := filterCodexInputWithOptions(input, codexInputFilterOptions{PreserveReferences: true})
 
-			require.Equal(t, id, filtered[0].(map[string]any)["id"])
+			require.Equal(t, id, testassert.MustType[map[string]any](filtered[0])["id"])
 		})
 	}
 }

@@ -5,13 +5,13 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
 type accountLocalStats struct{ source usage.UsageLogRepository }
 
-func localWindowStats(v *usagestats.AccountStats) *account.WindowStats {
+func localWindowStats(v *usage.AccountStats) *account.WindowStats {
 	if v == nil {
 		return nil
 	}
@@ -27,7 +27,7 @@ func (r accountLocalStats) GetAccountTodayStats(ctx context.Context, id int64) (
 }
 
 type accountLocalStatsBatchSource interface {
-	GetAccountWindowStatsBatch(context.Context, []int64, time.Time) (map[int64]*usagestats.AccountStats, error)
+	GetAccountWindowStatsBatch(context.Context, []int64, time.Time) (map[int64]*usage.AccountStats, error)
 }
 type accountLocalStatsBatch struct {
 	accountLocalStats
@@ -46,7 +46,7 @@ func (r accountLocalStatsBatch) GetAccountWindowStatsBatch(ctx context.Context, 
 	return out, err
 }
 
-// newAccountLocalUsageStats 只投影旧查询；批量失败回退由 account 拥有，S08 改绑来源。
+// newAccountLocalUsageStats 投影 usage 查询；批量失败回退由 account 拥有。
 func newAccountLocalUsageStats(source usage.UsageLogRepository) account.LocalUsageStats {
 	reader := accountLocalStats{source}
 	if batch, ok := source.(accountLocalStatsBatchSource); ok {

@@ -4,12 +4,13 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
+	"time"
+
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"net/http"
-	"time"
 )
 
 // BuildInfo 仅供进程入口传入，模块通过投影取得所需字段。

@@ -10,12 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	"github.com/TokenFlux/TokenRouter/internal/moderation"
+	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func newCyberBlockTestCtx(headers map[string]string, body string) (*gin.Context, []byte) {
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	req := httptest.NewRequest("POST", "/openai/v1/responses", strings.NewReader(body))
 	for k, v := range headers {
@@ -105,7 +108,7 @@ type fakeCyberBlockStore struct {
 	findCalls int
 }
 
-var _ CyberSessionBlockStore = (*fakeCyberBlockStore)(nil)
+var _ session.CyberSessionBlockStore = (*fakeCyberBlockStore)(nil)
 
 func (f *fakeCyberBlockStore) SetCyberSessionBlocked(_ context.Context, scopeKey string, keys []string, _ time.Duration) error {
 	if f.blocked == nil {
@@ -147,11 +150,11 @@ type fakeSettingRepo struct {
 func (r *fakeSettingRepo) GetValue(_ context.Context, key string) (string, error) {
 	v, ok := r.vals[key]
 	if !ok {
-		return "", ErrSettingNotFound
+		return "", settings.ErrSettingNotFound
 	}
 	return v, nil
 }
-func (r *fakeSettingRepo) Get(_ context.Context, _ string) (*Setting, error) {
+func (r *fakeSettingRepo) Get(_ context.Context, _ string) (*settings.Setting, error) {
 	panic("fakeSettingRepo.Get not implemented")
 }
 func (r *fakeSettingRepo) Set(_ context.Context, _, _ string) error {
@@ -170,7 +173,7 @@ func (r *fakeSettingRepo) Delete(_ context.Context, _ string) error {
 	panic("fakeSettingRepo.Delete not implemented")
 }
 
-var _ SettingRepository = (*fakeSettingRepo)(nil)
+var _ settings.Repository = (*fakeSettingRepo)(nil)
 
 // comboCacheAndStore implements both GatewayCache (no-op stubs) and
 // CyberSessionBlockStore (delegates to fakeCyberBlockStore) so it can be
@@ -179,8 +182,8 @@ type comboCacheAndStore struct {
 	store fakeCyberBlockStore
 }
 
-var _ GatewayCache = (*comboCacheAndStore)(nil)
-var _ CyberSessionBlockStore = (*comboCacheAndStore)(nil)
+var _ session.GatewayCache = (*comboCacheAndStore)(nil)
+var _ session.CyberSessionBlockStore = (*comboCacheAndStore)(nil)
 
 func (c *comboCacheAndStore) GetSessionAccountID(_ context.Context, _ int64, _ string) (int64, error) {
 	return 0, errors.New("stub")
@@ -223,7 +226,7 @@ func (c *comboCacheAndStore) SetReasoningContent(_ context.Context, _ string, _ 
 	return nil
 }
 func (c *comboCacheAndStore) GetReasoningContent(_ context.Context, _ string) (string, error) {
-	return "", ErrReasoningContentNotFound
+	return "", session.ErrReasoningContentNotFound
 }
 
 func (c *comboCacheAndStore) SetCyberSessionBlocked(ctx context.Context, scopeKey string, keys []string, ttl time.Duration) error {
@@ -255,14 +258,12 @@ func TestFindCyberSessionBlocked_EmptyAndNilService(t *testing.T) {
 func TestCyberSessionBlock_RoundTrip(t *testing.T) {
 	// SettingService with only settingRepo set — GetCyberSessionBlockRuntime needs
 	// nothing else (cfg/proxyRepo/etc. are not touched by this code path).
-	settingSvc := &SettingService{
-		settingRepo: &fakeSettingRepo{
-			vals: map[string]string{
-				SettingKeyCyberSessionBlockEnabled:    "true",
-				SettingKeyCyberSessionBlockTTLSeconds: "60",
-			},
+	settingSvc := newExecutionReadersFixture(&fakeSettingRepo{
+		vals: map[string]string{
+			moderation.SettingKeyCyberSessionBlockEnabled:    "true",
+			moderation.SettingKeyCyberSessionBlockTTLSeconds: "60",
 		},
-	}
+	}, nil)
 
 	combo := &comboCacheAndStore{}
 	svc := &OpenAIGatewayService{
@@ -283,10 +284,10 @@ func TestCyberSessionBlock_RoundTrip(t *testing.T) {
 }
 
 func TestFindCyberSessionBlockedForRequestUsesScopeForTranscript(t *testing.T) {
-	settingSvc := &SettingService{settingRepo: &fakeSettingRepo{vals: map[string]string{
-		SettingKeyCyberSessionBlockEnabled:    "true",
-		SettingKeyCyberSessionBlockTTLSeconds: "60",
-	}}}
+	settingSvc := newExecutionReadersFixture(&fakeSettingRepo{vals: map[string]string{
+		moderation.SettingKeyCyberSessionBlockEnabled:    "true",
+		moderation.SettingKeyCyberSessionBlockTTLSeconds: "60",
+	}}, nil)
 	combo := &comboCacheAndStore{}
 	svc := &OpenAIGatewayService{cache: combo, settingService: settingSvc}
 	ctx := context.Background()
@@ -306,10 +307,10 @@ func TestFindCyberSessionBlockedForRequestUsesScopeForTranscript(t *testing.T) {
 }
 
 func TestFindCyberSessionBlockedForRequestFailsClosedOnScopedTranscriptOverflow(t *testing.T) {
-	settingSvc := &SettingService{settingRepo: &fakeSettingRepo{vals: map[string]string{
-		SettingKeyCyberSessionBlockEnabled:    "true",
-		SettingKeyCyberSessionBlockTTLSeconds: "60",
-	}}}
+	settingSvc := newExecutionReadersFixture(&fakeSettingRepo{vals: map[string]string{
+		moderation.SettingKeyCyberSessionBlockEnabled:    "true",
+		moderation.SettingKeyCyberSessionBlockTTLSeconds: "60",
+	}}, nil)
 	combo := &comboCacheAndStore{}
 	svc := &OpenAIGatewayService{cache: combo, settingService: settingSvc}
 	ctx := context.Background()

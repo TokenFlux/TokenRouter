@@ -7,12 +7,13 @@ import (
 	x509 "crypto/x509"
 	binary "encoding/binary"
 	fmt "fmt"
-	require "github.com/stretchr/testify/require"
 	io "io"
 	net "net"
 	http "net/http"
 	testing "testing"
 	time "time"
+
+	require "github.com/stretchr/testify/require"
 )
 
 func TestTLSFingerprintCollectorServiceLifecycleAndCapture(t *testing.T) {

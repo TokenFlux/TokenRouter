@@ -6,14 +6,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/TokenFlux/TokenRouter/internal/account"
-	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 // 真实 PostgreSQL 与实际管理用例验证 HTTP 导入、同批更新和部分失败；平台隐私任务不在本测试执行。

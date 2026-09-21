@@ -1,10 +1,11 @@
 package authctx
 
 import (
+	"testing"
+
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 // TestPrincipalOwnsLegacyProjection 防止旧 Gin 展示字段成为第二份可变认证来源。

@@ -8,14 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGatewayEnsureForwardErrorResponse_WritesFallbackWhenNotWritten(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
@@ -39,7 +39,7 @@ func TestGatewayEnsureForwardErrorResponse_WritesFallbackWhenNotWritten(t *testi
 // Writer 已写后 ensureForwardErrorResponse 必须把错误以 SSE 形式追加，
 // 而不是 silent EOF。非 /responses 路径走 legacy data:{"type":"error"} 分支。
 func TestGatewayEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
@@ -55,13 +55,13 @@ func TestGatewayEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) 
 }
 
 func TestGatewayEnsureForwardErrorResponse_SkipsCommittedSSEError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, EndpointResponses, nil)
+	c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointResponses, nil)
 	c.Header("Content-Type", "text/event-stream")
 	_, _ = c.Writer.WriteString("event: error\ndata: {\"type\":\"error\"}\n\n")
-	service.MarkResponseCommitted(c)
+	gatewayhttp.MarkResponseCommitted(c)
 
 	h := &GatewayHandler{}
 	wrote := h.ensureForwardErrorResponse(c, true)
@@ -73,10 +73,10 @@ func TestGatewayEnsureForwardErrorResponse_SkipsCommittedSSEError(t *testing.T) 
 // case B 回归：Anthropic-backed /responses，Writer 已被写过时
 // ensureForwardErrorResponse 仍要发 response.failed。
 func TestGatewayEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsResponseFailed(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, EndpointResponses, nil)
+	c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointResponses, nil)
 	_, _ = c.Writer.WriteString(":\n\n")
 
 	h := &GatewayHandler{}
@@ -90,12 +90,11 @@ func TestGatewayEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsRespon
 }
 
 func TestGatewayForwardErrorAlreadyCommunicated(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	t.Run("json error already written", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, EndpointMessages, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointMessages, nil)
 		before := c.Writer.Size()
 		c.JSON(http.StatusBadGateway, gin.H{
 			"type": "error",
@@ -115,7 +114,7 @@ func TestGatewayForwardErrorAlreadyCommunicated(t *testing.T) {
 	t.Run("sse ping still needs fallback", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, EndpointMessages, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointMessages, nil)
 		c.Header("Content-Type", "text/event-stream")
 		before := c.Writer.Size()
 		_, _ = c.Writer.WriteString(":\n\n")
@@ -128,7 +127,7 @@ func TestGatewayForwardErrorAlreadyCommunicated(t *testing.T) {
 	t.Run("no write still needs fallback", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, EndpointMessages, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointMessages, nil)
 
 		reported := gatewayForwardErrorAlreadyCommunicated(c, c.Writer.Size(), errors.New("upstream request failed"))
 
@@ -141,7 +140,7 @@ func TestGatewayForwardErrorAlreadyCommunicated(t *testing.T) {
 	t.Run("upstream 400 json passthrough via c.Data", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, EndpointMessages, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointMessages, nil)
 		before := c.Writer.Size()
 		upstreamBody := []byte(`{"type":"error","error":{"type":"upstream_error","message":"Your Claude Code version (2.1.39) is below the minimum required version (2.1.81). Please update: npm update -g @anthropic-ai/claude-code"}}`)
 		c.Data(http.StatusBadRequest, "application/json", upstreamBody)
@@ -160,7 +159,7 @@ func TestGatewayForwardErrorAlreadyCommunicated(t *testing.T) {
 	t.Run("streaming 400 mid-stream still needs fallback", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, EndpointMessages, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointMessages, nil)
 		c.Header("Content-Type", "text/event-stream")
 		before := c.Writer.Size()
 		_, _ = c.Writer.WriteString("event: message_start\ndata: {\"type\":\"message_start\"}\n\n")
@@ -174,7 +173,7 @@ func TestGatewayForwardErrorAlreadyCommunicated(t *testing.T) {
 	t.Run("nil error never reports communicated", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, EndpointMessages, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointMessages, nil)
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 
 		reported := gatewayForwardErrorAlreadyCommunicated(c, 0, nil)

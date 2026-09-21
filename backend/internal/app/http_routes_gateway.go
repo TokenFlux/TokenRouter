@@ -3,7 +3,7 @@ package app
 import (
 	batchhttp "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	native_usage_httpapi "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 	gin "github.com/gin-gonic/gin"
 )
 
@@ -20,7 +20,7 @@ func provideGatewayRouteMount(eCountTokensHTTP *gatewayhttp.CountTokensHandler,
 	eAuxiliaryHTTP *gatewayhttp.AuxiliaryHandler,
 	eLiveHTTP *gatewayhttp.LiveHandler,
 	eSearchHTTP *gatewayhttp.SearchHandler,
-	ePublicUsage *native_usage_httpapi.PublicUsageHandler,
+	ePublicUsage *httpapi.PublicUsageHandler,
 	eQoderChat *gatewayhttp.QoderChatHandler,
 	batch *batchhttp.BatchImageHandler,
 	options gatewayhttp.RouteMiddleware) gatewayRouteMount {

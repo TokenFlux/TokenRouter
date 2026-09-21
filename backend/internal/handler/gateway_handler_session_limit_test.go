@@ -13,9 +13,20 @@ import (
 	"testing"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/testutil"
@@ -70,14 +81,14 @@ func gatewaySessionResponse(status int, stream bool) *http.Response {
 }
 
 // 使用真实调度、Forward 和 handler 收尾，只替换外部上游、Redis 与账单依赖。
-func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bool, upstream *gatewaySessionUpstreamStub) (*GatewayHandler, *service.APIKey, *gatewaySessionLimitCacheStub) {
+func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bool, upstream *gatewaySessionUpstreamStub) (*GatewayHandler, *apikey.APIKey, *gatewaySessionLimitCacheStub) {
 	t.Helper()
 	groupID := int64(11)
-	group := &service.Group{ID: groupID, Hydrated: true, Platform: service.PlatformAnthropic, Status: service.StatusActive}
+	group := &routing.Group{ID: groupID, Hydrated: true, Platform: capability.PlatformAnthropic, Status: billing.StatusActive}
 	accounts := []*service.Account{{
-		ID: 12, Name: "session-test", Platform: service.PlatformAnthropic, Type: accountType,
+		ID: 12, Name: "session-test", Platform: capability.PlatformAnthropic, Type: accountType,
 		Credentials: map[string]any{"access_token": "test-token"}, Extra: map[string]any{"max_sessions": 1},
-		Concurrency: 2, Status: service.StatusActive, Schedulable: true,
+		Concurrency: 2, Status: billing.StatusActive, Schedulable: true,
 		AccountGroups: []service.AccountGroup{{AccountID: 12, GroupID: groupID}},
 	}}
 	if failover {
@@ -89,27 +100,29 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 	sessions := &gatewaySessionLimitCacheStub{registered: make(map[int64][]string), unregistered: make(map[int64][]string)}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	snapshots := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: accounts}, nil, nil, nil, nil)
-	billingCache := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCache := newBillingEligibilityFixture(cfg)
 	billingCache.Start()
 	t.Cleanup(billingCache.Stop)
 	gateway := service.NewGatewayService(
-		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, cfg, snapshots, nil,
-		service.NewBillingService(cfg, nil), nil, billingCache, nil, upstream, nil, nil, sessions,
+		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, cfg, snapshots, nil, billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil), nil, billingCache, nil, upstream, nil, nil, sessions, sessions,
 		nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 	h := &GatewayHandler{
-		cfg: cfg, gatewayService: gateway, billingCacheService: billingCache,
-		concurrencyHelper:  NewConcurrencyHelper(service.NewConcurrencyService(&fakeConcurrencyCache{}), SSEPingFormatClaude, 0),
+		cfg: cfg, gatewayService: gateway, billingCacheService: newFundingAdmissionFixture(billingCache, cfg),
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event,
+		},
+		), gatewayhttp.SSEPingFormatClaude, 0),
 		maxAccountSwitches: 1,
 	}
-	key := &service.APIKey{
-		ID: 21, UserID: 22, GroupID: &groupID, Status: service.StatusActive, Group: group,
-		User: &service.User{ID: 22, Concurrency: 10, Balance: 100},
+	key := &apikey.APIKey{
+		ID: 21, UserID: 22, GroupID: &groupID, Status: billing.StatusActive, Group: group,
+		User: &identity.User{ID: 22, Concurrency: 10, Balance: 100},
 	}
 	return h, key, sessions
 }
 
-func serveGatewaySessionMessage(h *GatewayHandler, key *service.APIKey, stream bool) *httptest.ResponseRecorder {
+func serveGatewaySessionMessage(h *GatewayHandler, key *apikey.APIKey, stream bool) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	body := `{"model":"claude-sonnet-4-5","max_tokens":256,"messages":[{"role":"user","content":"check session lifecycle"}]`
@@ -119,7 +132,7 @@ func serveGatewaySessionMessage(h *GatewayHandler, key *service.APIKey, stream b
 	body += `}`
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), ctxkey.Group, key.Group))
+	c.Request = c.Request.WithContext(requeststate.WithGroup(c.Request.Context(), key.Group))
 	c.Set(string(middleware.ContextKeyAPIKey), key)
 	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: key.UserID, Concurrency: 10})
 	h.Messages(c)
@@ -127,8 +140,8 @@ func serveGatewaySessionMessage(h *GatewayHandler, key *service.APIKey, stream b
 }
 
 func TestGatewayHandlerMessages_SessionSlotLifecycle(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	for _, accountType := range []string{service.AccountTypeOAuth, service.AccountTypeSetupToken} {
+
+	for _, accountType := range []string{capability.AccountTypeOAuth, capability.AccountTypeSetupToken} {
 		for _, tc := range []struct {
 			name         string
 			stream       bool

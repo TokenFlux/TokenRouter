@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,10 +96,10 @@ func (c *sessionIsolationCacheStub) RefreshSessionOwnerTTL(_ context.Context, us
 	return nil
 }
 
-func sessionIsolationAPIKey(groupID int64, isolated bool) *APIKey {
-	return &APIKey{
+func sessionIsolationAPIKey(groupID int64, isolated bool) *apikey.APIKey {
+	return &apikey.APIKey{
 		GroupID: &groupID,
-		Group: &Group{
+		Group: &routing.Group{
 			ID:                      groupID,
 			SessionIsolationEnabled: isolated,
 		},
@@ -108,11 +111,11 @@ func TestEnsureSessionIsolation_FirstBindRecordsOwnerEvenWhenTargetNotIsolated(t
 	cache := &sessionIsolationCacheStub{}
 	ttl := 2 * time.Minute
 
-	err := ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(11, false), 7, SessionIsolationSourceOpenAI, " session-a ", ttl)
+	err := ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(11, false), 7, session.SessionIsolationSourceOpenAI, " session-a ", ttl)
 
 	require.NoError(t, err)
-	require.Equal(t, int64(11), cache.ownerGroupID(7, SessionIsolationSourceOpenAI, "session-a"))
-	require.Equal(t, ttl, cache.ownerTTL(7, SessionIsolationSourceOpenAI, "session-a"))
+	require.Equal(t, int64(11), cache.ownerGroupID(7, session.SessionIsolationSourceOpenAI, "session-a"))
+	require.Equal(t, ttl, cache.ownerTTL(7, session.SessionIsolationSourceOpenAI, "session-a"))
 	require.Equal(t, 1, cache.setCalls)
 	require.Zero(t, cache.refreshCalls)
 }
@@ -122,40 +125,40 @@ func TestEnsureSessionIsolation_SameOwnerRefreshesTTL(t *testing.T) {
 	cache := &sessionIsolationCacheStub{}
 	initialTTL := time.Minute
 	refreshTTL := 5 * time.Minute
-	_, err := cache.SetSessionOwnerGroupID(ctx, 7, SessionIsolationSourceGateway, "session-a", 11, initialTTL)
+	_, err := cache.SetSessionOwnerGroupID(ctx, 7, session.SessionIsolationSourceGateway, "session-a", 11, initialTTL)
 	require.NoError(t, err)
 
-	err = ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(11, true), 7, SessionIsolationSourceGateway, "session-a", refreshTTL)
+	err = ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(11, true), 7, session.SessionIsolationSourceGateway, "session-a", refreshTTL)
 
 	require.NoError(t, err)
-	require.Equal(t, int64(11), cache.ownerGroupID(7, SessionIsolationSourceGateway, "session-a"))
-	require.Equal(t, refreshTTL, cache.ownerTTL(7, SessionIsolationSourceGateway, "session-a"))
+	require.Equal(t, int64(11), cache.ownerGroupID(7, session.SessionIsolationSourceGateway, "session-a"))
+	require.Equal(t, refreshTTL, cache.ownerTTL(7, session.SessionIsolationSourceGateway, "session-a"))
 	require.Equal(t, 1, cache.refreshCalls)
 }
 
 func TestEnsureSessionIsolation_NonIsolatedTargetAllowsDifferentOwner(t *testing.T) {
 	ctx := context.Background()
 	cache := &sessionIsolationCacheStub{}
-	_, err := cache.SetSessionOwnerGroupID(ctx, 7, SessionIsolationSourceGateway, "session-a", 11, time.Minute)
+	_, err := cache.SetSessionOwnerGroupID(ctx, 7, session.SessionIsolationSourceGateway, "session-a", 11, time.Minute)
 	require.NoError(t, err)
 
-	err = ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(22, false), 7, SessionIsolationSourceGateway, "session-a", time.Minute)
+	err = ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(22, false), 7, session.SessionIsolationSourceGateway, "session-a", time.Minute)
 
 	require.NoError(t, err)
-	require.Equal(t, int64(11), cache.ownerGroupID(7, SessionIsolationSourceGateway, "session-a"))
+	require.Equal(t, int64(11), cache.ownerGroupID(7, session.SessionIsolationSourceGateway, "session-a"))
 	require.Zero(t, cache.refreshCalls)
 }
 
 func TestEnsureSessionIsolation_IsolatedTargetRejectsDifferentOwner(t *testing.T) {
 	ctx := context.Background()
 	cache := &sessionIsolationCacheStub{}
-	_, err := cache.SetSessionOwnerGroupID(ctx, 7, SessionIsolationSourceGemini, "session-a", 11, time.Minute)
+	_, err := cache.SetSessionOwnerGroupID(ctx, 7, session.SessionIsolationSourceGemini, "session-a", 11, time.Minute)
 	require.NoError(t, err)
 
-	err = ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(22, true), 7, SessionIsolationSourceGemini, "session-a", time.Minute)
+	err = ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(22, true), 7, session.SessionIsolationSourceGemini, "session-a", time.Minute)
 
-	require.ErrorIs(t, err, ErrSessionIsolationConflict)
-	require.Equal(t, int64(11), cache.ownerGroupID(7, SessionIsolationSourceGemini, "session-a"))
+	require.ErrorIs(t, err, session.ErrSessionIsolationConflict)
+	require.Equal(t, int64(11), cache.ownerGroupID(7, session.SessionIsolationSourceGemini, "session-a"))
 	require.Zero(t, cache.refreshCalls)
 }
 
@@ -168,7 +171,7 @@ func TestEnsureSessionIsolation_ConcurrentFirstBindAllowsSingleOwner(t *testing.
 		groupID := groupID
 		go func() {
 			<-start
-			results <- ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(groupID, true), 7, SessionIsolationSourceOpenAI, "session-a", time.Minute)
+			results <- ensureSessionIsolation(ctx, cache, sessionIsolationAPIKey(groupID, true), 7, session.SessionIsolationSourceOpenAI, "session-a", time.Minute)
 		}()
 	}
 
@@ -182,7 +185,7 @@ func TestEnsureSessionIsolation_ConcurrentFirstBindAllowsSingleOwner(t *testing.
 		switch {
 		case err == nil:
 			successes++
-		case errors.Is(err, ErrSessionIsolationConflict):
+		case errors.Is(err, session.ErrSessionIsolationConflict):
 			conflicts++
 		default:
 			t.Fatalf("unexpected error: %v", err)
@@ -190,5 +193,5 @@ func TestEnsureSessionIsolation_ConcurrentFirstBindAllowsSingleOwner(t *testing.
 	}
 	require.Equal(t, 1, successes)
 	require.Equal(t, 1, conflicts)
-	require.Contains(t, []int64{11, 22}, cache.ownerGroupID(7, SessionIsolationSourceOpenAI, "session-a"))
+	require.Contains(t, []int64{11, 22}, cache.ownerGroupID(7, session.SessionIsolationSourceOpenAI, "session-a"))
 }

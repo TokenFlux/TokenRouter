@@ -364,23 +364,3 @@ func pickThroughputBucketSeconds(window time.Duration) int {
 		return 3600
 	}
 }
-
-// CompatParseOpsLatencyBucketBoundaries 为旧测试及兼容入口提供精确委托。
-func CompatParseOpsLatencyBucketBoundaries(raw string) ([]int64, error) {
-	return parseOpsLatencyBucketBoundaries(raw)
-}
-
-// CompatParseOpsTokenStatsFilter 为旧测试及兼容入口提供精确委托。
-func CompatParseOpsTokenStatsFilter(c *gin.Context) (*ops.OpsTokenStatsFilter, error) {
-	return parseOpsTokenStatsFilter(c)
-}
-
-// CompatParseOpsTokenStatsDuration 为旧测试及兼容入口提供精确委托。
-func CompatParseOpsTokenStatsDuration(v string) (time.Duration, bool) {
-	return parseOpsTokenStatsDuration(v)
-}
-
-// CompatPickThroughputBucketSeconds 为旧测试及兼容入口提供精确委托。
-func CompatPickThroughputBucketSeconds(window time.Duration) int {
-	return pickThroughputBucketSeconds(window)
-}

@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 // TLSFingerprintRouter is the model entity for the TLSFingerprintRouter schema.
@@ -38,7 +38,7 @@ type TLSFingerprintRouter struct {
 	// CodexInviteResetTLSFingerprintProfileID holds the value of the "codex_invite_reset_tls_fingerprint_profile_id" field.
 	CodexInviteResetTLSFingerprintProfileID *int64 `json:"codex_invite_reset_tls_fingerprint_profile_id,omitempty"`
 	// Rules holds the value of the "rules" field.
-	Rules        []model.TLSFingerprintRouterRule `json:"rules,omitempty"`
+	Rules        []egress.TLSFingerprintRouterRule `json:"rules,omitempty"`
 	selectValues sql.SelectValues
 }
 

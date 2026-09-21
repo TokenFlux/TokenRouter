@@ -10,7 +10,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
+
+	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
@@ -19,7 +28,7 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -39,8 +48,8 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 	c *gin.Context,
 	account *Account,
 	body []byte,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
-) (*OpenAIForwardResult, error) {
+	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
+) (*forwardcore.OpenAIResult, error) {
 	if s == nil || c == nil || account == nil {
 		return nil, fmt.Errorf("service, context, and account are required")
 	}
@@ -55,9 +64,9 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 
 	upstreamModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(requestedModel))
 	if upstreamModel != "" && upstreamModel != requestedModel {
-		body = ReplaceModelInBody(body, upstreamModel)
+		body = openaiprotocol.ReplaceModelInBody(body, upstreamModel)
 	}
-	sanitizedBody, err := sanitizeOpenAIAlphaSearchBody(body)
+	sanitizedBody, err := openai.SanitizeOpenAIAlphaSearchBody(body)
 	if err != nil {
 		return nil, fmt.Errorf("sanitize alpha search request body: %w", err)
 	}
@@ -75,7 +84,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 	if err := s.ensureOpenAIAlphaSearchAuthMetadata(ctx, account, token, proxyURL); err != nil {
 		return nil, err
 	}
-	SetOpsUpstreamModel(c, upstreamModel)
+	gatewayhttp.SetOpsUpstreamModel(c, upstreamModel)
 
 	// Codex Personal Access Token（at-...）目前可访问 ChatGPT Codex
 	// /responses，但会被 standalone /alpha/search 的 access enforcement
@@ -95,13 +104,15 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 		Do: func(request *http.Request) (*http.Response, error) {
 			return s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
 		},
-		Latency:        func(duration time.Duration) { SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, duration.Milliseconds()) },
+		Latency: func(duration time.Duration) {
+			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, duration.Milliseconds())
+		},
 		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true) },
 		ReadBody: func(reader io.Reader) ([]byte, error) {
 			return ReadUpstreamResponseBody(reader, s.cfg, c, openAITooLargeError)
 		},
 		HTTPError: func(resp *http.Response, respBody []byte) error {
-			upstreamMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+			upstreamMessage := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 			return gatewaymedia.ResolveAlphaFailure(resp.StatusCode, gatewaymedia.AlphaFailurePorts{
 				Failover:            func() bool { return s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMessage, respBody) },
 				EndpointUnsupported: func() bool { return isOpenAIAlphaSearchEndpointUnsupported(account, resp.StatusCode) },
@@ -117,7 +128,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
 						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
 					}
-					return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
+					return &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
 				},
 			})
 		},
@@ -135,7 +146,7 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(
 	if result.SearchCount == 0 {
 		return nil, nil
 	}
-	output := &OpenAIForwardResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Model: requestedModel, UpstreamModel: upstreamModel, Duration: result.Duration, WebSearchCalls: 1}
+	output := &forwardcore.OpenAIResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Model: requestedModel, UpstreamModel: upstreamModel, Duration: result.Duration, WebSearchCalls: 1}
 	return output, nil
 }
 
@@ -148,12 +159,12 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	proxyURL string,
 	requestedModel string,
 	upstreamModel string,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
-) (*OpenAIForwardResult, error) {
+	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
+) (*forwardcore.OpenAIResult, error) {
 	if upstreamModel == "" {
 		upstreamModel = requestedModel
 	}
-	responsesBody, err := buildOpenAIAlphaSearchResponsesWebSearchBody(alphaBody, upstreamModel)
+	responsesBody, err := openai.BuildOpenAIAlphaSearchResponsesWebSearchBody(alphaBody, upstreamModel)
 	if err != nil {
 		return nil, err
 	}
@@ -161,20 +172,22 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	if err != nil {
 		return nil, err
 	}
-	SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
+	gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, "/v1/responses")
 
 	target := &mediaprovider.AlphaSearchOptions{
 		AccountID: account.ID, Request: req, ResponsesFallback: true, Model: upstreamModel, Enter: s.nativeAttemptActivity,
 		Do: func(request *http.Request) (*http.Response, error) {
 			return s.httpUpstream.DoWithTLS(request, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
 		},
-		Latency:        func(duration time.Duration) { SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, duration.Milliseconds()) },
+		Latency: func(duration time.Duration) {
+			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, duration.Milliseconds())
+		},
 		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, true) },
 		ReadBody: func(reader io.Reader) ([]byte, error) {
 			return ReadUpstreamResponseBody(reader, s.cfg, c, openAITooLargeError)
 		},
 		HTTPError: func(resp *http.Response, respBody []byte) error {
-			upstreamMessage := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+			upstreamMessage := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 			return gatewaymedia.ResolveAlphaFailure(resp.StatusCode, gatewaymedia.AlphaFailurePorts{
 				Failover:            func() bool { return s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMessage, respBody) },
 				EndpointUnsupported: func() bool { return false },
@@ -190,7 +203,7 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMessage, respBody) {
 						return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, respBody, upstreamMessage, retryableOnSameAccount)
 					}
-					return &UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
+					return &forwardcore.UpstreamFailoverError{StatusCode: resp.StatusCode, ResponseBody: respBody, RetryableOnSameAccount: retryableOnSameAccount}
 				},
 			})
 		},
@@ -208,7 +221,7 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	if result.SearchCount == 0 {
 		return nil, nil
 	}
-	output := &OpenAIForwardResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Model: requestedModel, UpstreamModel: upstreamModel, Duration: result.Duration, WebSearchCalls: 1}
+	output := &forwardcore.OpenAIResult{RequestID: result.RequestID, UpstreamHeaders: result.UpstreamHeaders, Model: requestedModel, UpstreamModel: upstreamModel, Duration: result.Duration, WebSearchCalls: 1}
 	output.UpstreamEndpoint = "/v1/responses"
 	output.ResponseHeaders = result.UpstreamHeaders.Clone()
 	return output, nil
@@ -218,11 +231,11 @@ func openAIAlphaSearchSchedulingModel(account *Account, requestedModel string) s
 	return canonicalOpenAIAccountSchedulingModel(account, requestedModel)
 }
 
-func (s *OpenAIGatewayService) buildOpenAIAlphaSearchResponsesWebSearchRequest(ctx context.Context, c *gin.Context, account *Account, alphaBody []byte, body []byte, token string, tlsRouterMatch ...TLSFingerprintRouterMatchResult) (*http.Request, error) {
+func (s *OpenAIGatewayService) buildOpenAIAlphaSearchResponsesWebSearchRequest(ctx context.Context, c *gin.Context, account *Account, alphaBody []byte, body []byte, token string, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*http.Request, error) {
 	targetURL := chatgptCodexURL
 	options := s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, true, tlsRouterMatch...)
 	options.ApplyUserAgent = func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, true, tlsRouterMatch...) }
-	return nativeopenai.BuildAlphaSearchResponsesRequest(ctx, alphaBody, body, nativeopenai.AlphaSearchRequestOptions{
+	return openai.BuildAlphaSearchResponsesRequest(ctx, alphaBody, body, openai.AlphaSearchRequestOptions{
 		ResponsesRequestOptions: options,
 		Query: func() url.Values {
 			if c == nil || c.Request == nil || c.Request.URL == nil {
@@ -230,17 +243,13 @@ func (s *OpenAIGatewayService) buildOpenAIAlphaSearchResponsesWebSearchRequest(c
 			}
 			return c.Request.URL.Query()
 		},
-		OAuth:         func() bool { return account.Type == AccountTypeOAuth },
+		OAuth:         func() bool { return account.Type == capability.AccountTypeOAuth },
 		InboundHeader: func(key string) string { return openAIAlphaSearchInboundHeader(c, key) },
 		IdentityWithKey: func(headers http.Header, key int64) {
 			applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), key)
 		},
-		ResponsesLiteHeader: responsesLiteHeaderKey,
+		ResponsesLiteHeader: gatewaymedia.ResponsesLiteHeaderKey,
 	})
-}
-
-func buildOpenAIAlphaSearchResponsesWebSearchBody(alphaBody []byte, model string) ([]byte, error) {
-	return nativeopenai.BuildOpenAIAlphaSearchResponsesWebSearchBody(alphaBody, model)
 }
 
 func (s *OpenAIGatewayService) buildOpenAIAlphaSearchRequest(
@@ -249,7 +258,7 @@ func (s *OpenAIGatewayService) buildOpenAIAlphaSearchRequest(
 	account *Account,
 	body []byte,
 	token string,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
+	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
 ) (*http.Request, error) {
 	targetURL, err := s.openAIAlphaSearchURL(account)
 	if err != nil {
@@ -257,7 +266,7 @@ func (s *OpenAIGatewayService) buildOpenAIAlphaSearchRequest(
 	}
 	options := s.nativeResponsesRequestOptions(ctx, c, account, token, targetURL, true, tlsRouterMatch...)
 	options.ApplyUserAgent = func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, true, tlsRouterMatch...) }
-	return nativeopenai.BuildAlphaSearchRequest(ctx, body, nativeopenai.AlphaSearchRequestOptions{
+	return openai.BuildAlphaSearchRequest(ctx, body, openai.AlphaSearchRequestOptions{
 		ResponsesRequestOptions: options,
 		Query: func() url.Values {
 			if c == nil || c.Request == nil || c.Request.URL == nil {
@@ -265,12 +274,12 @@ func (s *OpenAIGatewayService) buildOpenAIAlphaSearchRequest(
 			}
 			return c.Request.URL.Query()
 		},
-		OAuth:         func() bool { return account.Type == AccountTypeOAuth },
+		OAuth:         func() bool { return account.Type == capability.AccountTypeOAuth },
 		InboundHeader: func(key string) string { return openAIAlphaSearchInboundHeader(c, key) },
 		IdentityWithKey: func(headers http.Header, key int64) {
 			applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), key)
 		},
-		ResponsesLiteHeader: responsesLiteHeaderKey,
+		ResponsesLiteHeader: gatewaymedia.ResponsesLiteHeaderKey,
 	})
 }
 
@@ -281,10 +290,6 @@ func openAIAlphaSearchInboundHeader(c *gin.Context, key string) string {
 	return strings.TrimSpace(c.GetHeader(key))
 }
 
-func sanitizeOpenAIAlphaSearchBody(body []byte) ([]byte, error) {
-	return nativeopenai.SanitizeOpenAIAlphaSearchBody(body)
-}
-
 func (s *OpenAIGatewayService) ensureOpenAIAlphaSearchAuthMetadata(ctx context.Context, account *Account, token string, proxyURL string) error {
 	if s == nil || account == nil || !account.IsOpenAIPersonalAccessToken() {
 		return nil
@@ -292,30 +297,28 @@ func (s *OpenAIGatewayService) ensureOpenAIAlphaSearchAuthMetadata(ctx context.C
 	if strings.TrimSpace(account.GetChatGPTAccountID()) != "" {
 		return nil
 	}
-	var oauthService *OpenAIOAuthService
-	if s.openAITokenProvider != nil {
-		oauthService = s.openAITokenProvider.openAIOAuthService
-	}
+	oauthService := s.openAIAuthorization
 	if oauthService == nil {
 		return nil
 	}
 	ports := accountcore.OpenAIAlphaMetadataPorts{
-		Apply: func(credentials map[string]any) { account.Credentials = shallowCopyMap(credentials) },
+		Apply: func(credentials map[string]any) { account.Credentials = querycache.ShallowMap(credentials) },
 	}
 	if s.accountRepo != nil {
 		ports.Persist = func(ctx context.Context, credentials map[string]any) error {
 			return persistAccountCredentials(ctx, s.accountRepo, account, credentials)
 		}
 	}
-	return oauthService.Core().EnsureAlphaSearchMetadata(ctx, AccountRecordView(account), token, proxyURL, ports)
+	return oauthService.EnsureAlphaSearchMetadata(ctx, AccountRecordView(account), token, proxyURL, ports)
+}
+
+// BindOpenAIAuthorization 在构造阶段绑定同一授权实例，搜索元数据不再从 token 包装取回依赖。
+func (s *OpenAIGatewayService) BindOpenAIAuthorization(authorization *accountcore.OpenAIAuthorization) {
+	s.openAIAuthorization = authorization
 }
 
 func isOpenAIAlphaSearchEndpointUnsupported(account *Account, statusCode int) bool {
-	return gatewaymedia.AlphaEndpointUnsupported(account != nil && account.Type == AccountTypeAPIKey, statusCode)
-}
-
-func shouldApplyOpenAIAlphaSearchAccountErrorSideEffects(statusCode int) bool {
-	return gatewaymedia.AlphaAccountErrorSideEffects(statusCode)
+	return gatewaymedia.AlphaEndpointUnsupported(account != nil && account.Type == capability.AccountTypeAPIKey, statusCode)
 }
 
 // openAIAlphaSearchURL 按账号类型选择 ChatGPT Codex 或 API-key 搜索端点。
@@ -324,9 +327,9 @@ func (s *OpenAIGatewayService) openAIAlphaSearchURL(account *Account) (string, e
 		return "", fmt.Errorf("account is required")
 	}
 	switch account.Type {
-	case AccountTypeOAuth, AccountTypeSetupToken:
+	case capability.AccountTypeOAuth, capability.AccountTypeSetupToken:
 		return chatgptCodexAlphaSearchURL, nil
-	case AccountTypeAPIKey:
+	case capability.AccountTypeAPIKey:
 		baseURL := account.GetOpenAIBaseURL()
 		if baseURL == "" {
 			return openAIPlatformAlphaSearchURL, nil
@@ -335,7 +338,7 @@ func (s *OpenAIGatewayService) openAIAlphaSearchURL(account *Account) (string, e
 		if err != nil {
 			return "", err
 		}
-		return buildOpenAIEndpointURL(validatedURL, "/v1/alpha/search"), nil
+		return httpclient.BuildOpenAIEndpointURL(validatedURL, "/v1/alpha/search"), nil
 	default:
 		return "", fmt.Errorf("unsupported OpenAI account type: %s", account.Type)
 	}

@@ -4,13 +4,18 @@ package handler
 import (
 	"context"
 	"errors"
+	"net/http"
 	"slices"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
@@ -22,9 +27,9 @@ func (r *fixedOpenAITextRuntime) Open(ctx context.Context, in execution.Request,
 		return nil, errors.New("openai text execution requires its HTTP output adapter")
 	}
 	output.HTTP.Request = output.HTTP.Request.WithContext(ctx)
-	base := responsesAttemptBridge{fixed: r.dependencies, c: output.HTTP, apiKey: service.APIKeyFromView(in.Funding.Key), subject: authctx.AuthSubject{UserID: in.UserID, Concurrency: in.Concurrency}, subscription: in.Funding.Subscription, reqLog: output.Log,
+	base := responsesAttemptBridge{fixed: r.dependencies, c: output.HTTP, apiKey: apikey.CopyAPIKey(in.Funding.Key), subject: authctx.AuthSubject{UserID: in.UserID, Concurrency: in.Concurrency}, subscription: in.Funding.Subscription, reqLog: output.Log,
 		body: in.Body, forwardBody: in.AttemptBody, sessionHashBody: in.Text.SessionHashBody, reqModel: in.Model, forwardModel: in.Text.ForwardModel, sessionHash: in.SessionHash, previousResponseID: in.Text.PreviousResponseID, requestPlatform: in.Text.Platform, reqStream: in.Stream,
-		nativeCompactionV2: in.Text.NativeCompactionV2, legacyCompact: in.Text.LegacyCompact, requireCompact: in.Text.RequireCompact, streamStarted: output.StreamStarted, selectionCtx: in.Text.SelectionContext, channelMapping: service.ChannelMappingResult(in.Text.Mapping), routingStart: in.Text.RoutingStart, requiredCapability: in.Text.RequiredCapability}
+		nativeCompactionV2: in.Text.NativeCompactionV2, legacyCompact: in.Text.LegacyCompact, requireCompact: in.Text.RequireCompact, streamStarted: output.StreamStarted, selectionCtx: in.Text.SelectionContext, channelMapping: routing.ChannelMappingResult(in.Text.Mapping), routingStart: in.Text.RoutingStart, requiredCapability: in.Text.RequiredCapability}
 	switch in.Text.Kind {
 	case execution.TextOpenAIChat:
 		return &openAIChatAttemptBridge{responsesAttemptBridge: base, promptCacheKey: in.Text.PromptCacheKey}, nil
@@ -36,14 +41,14 @@ func (r *fixedOpenAITextRuntime) Open(ctx context.Context, in execution.Request,
 			accountLayerModel:      in.Text.AccountLayerModel,
 			currentRoutingModel:    in.Text.AccountLayerModel,
 			promptCacheKey:         in.Text.PromptCacheKey,
-			channelMappingMsg:      service.ChannelMappingResult(in.Text.Mapping),
+			channelMappingMsg:      routing.ChannelMappingResult(in.Text.Mapping),
 			mappedBodyForMessages:  mapped,
 		}, nil
 	default:
 		return &base, nil
 	}
 }
-func openAIObservedAttempt(result *service.OpenAIForwardResult, err error) upstream.AttemptResult {
+func openAIObservedAttempt(result *forwardcore.OpenAIResult, err error) upstream.AttemptResult {
 	if result == nil {
 		return upstream.AttemptResult{Cancelled: errors.Is(err, context.Canceled)}
 	}
@@ -55,7 +60,7 @@ func openAIObservedAttempt(result *service.OpenAIForwardResult, err error) upstr
 		Stream:           result.Stream,
 		Duration:         result.Duration,
 		ClientDisconnect: result.ClientDisconnect,
-		UpstreamHeaders:  result.UpstreamHeaders.Clone(),
+		UpstreamHeaders:  http.Header(result.UpstreamHeaders).Clone(),
 		ObservedImages:   result.ImageCount,
 		ImageOutputSizes: slices.Clone(result.ImageOutputSizes),
 		SearchCount:      result.SearchCount,

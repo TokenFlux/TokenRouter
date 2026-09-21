@@ -35,9 +35,23 @@ type PublicUsage struct {
 	SortBy                                        string
 	ShowTotalTokens, ShowRequests, ShowActualCost bool
 }
-type PublicService struct{ source PublicSource }
+type PublicService struct {
+	source       PublicSource
+	calendar     timezone.Calendar
+	timezoneName string
+}
 
-func NewPublicService(source PublicSource) *PublicService { return &PublicService{source: source} }
+func NewPublicService(source PublicSource, calendar timezone.Calendar, timezoneName string) *PublicService {
+	if timezoneName == "" {
+		timezoneName = calendar.Location().String()
+	}
+	return &PublicService{source: source, calendar: calendar, timezoneName: timezoneName}
+}
+
+// ServerTimezone 供 API 和 HTML 投影共享配置时区与当前偏移，保留各自读取时点。
+func (s *PublicService) ServerTimezone() (string, string) {
+	return s.timezoneName, s.calendar.UTCOffset(s.calendar.Now())
+}
 func (s *PublicService) GetPublicSettings(ctx context.Context) (*PublicSettings, error) {
 	input, err := s.source.LoadSitePublicInputs(ctx)
 	if err != nil {
@@ -462,8 +476,8 @@ func (s *PublicService) GetPublicSettingsForInjection(ctx context.Context) (any,
 		GoogleOneTapEnabled:                 settings.GoogleOneTapEnabled,
 		GoogleOAuthClientID:                 settings.GoogleOAuthClientID,
 		Version:                             s.source.PublicVersion(),
-		ServerTimezone:                      timezone.Name(),
-		ServerUTCOffset:                     timezone.UTCOffset(),
+		ServerTimezone:                      s.timezoneName,
+		ServerUTCOffset:                     s.calendar.UTCOffset(s.calendar.Now()),
 		BalanceUnitName:                     settings.BalanceUnitName,
 		BalanceUnitSymbol:                   settings.BalanceUnitSymbol,
 		BalanceIconSVG:                      settings.BalanceIconSVG,

@@ -3,9 +3,10 @@ package service
 
 import (
 	context "context"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	slog "log/slog"
 	time "time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // legacyRecoveryStore 只转换旧账号形状，不复制恢复规则。
@@ -22,7 +23,7 @@ func (s *RateLimitService) RecoveryOptions() accountcore.RecoveryOptions {
 		if s.tokenCacheInvalidator == nil {
 			return nil
 		}
-		return s.tokenCacheInvalidator.InvalidateToken(ctx, AccountFromRecord(v))
+		return s.tokenCacheInvalidator.InvalidateToken(ctx, v)
 	}}
 }
 

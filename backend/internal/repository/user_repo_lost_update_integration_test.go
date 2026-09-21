@@ -3,7 +3,8 @@
 package repository
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 // 这一组用例覆盖用户行上的 lost update：调用方手里的快照可能早于并发发生的
@@ -11,7 +12,7 @@ import (
 // 未声明的列一律保持库中当前值，因此陈旧快照不会回滚这些并发结果。
 
 func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentBalanceDeduction() {
-	user := s.mustCreateUser(&service.User{
+	user := s.mustCreateUser(&identity.User{
 		Email:    "lost-update-balance@example.com",
 		Username: "before",
 		Balance:  0.30,
@@ -29,7 +30,7 @@ func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentBalanceDeduction() {
 	// 基于旧快照的资料更新这时才落库。
 	stale.Username = "after"
 	s.Require().NoError(
-		s.repo.Update(s.ctx, stale, service.UserUpdateFields{Username: true}),
+		s.repo.Update(s.ctx, stale, identity.UserUpdateFields{Username: true}),
 		"Update",
 	)
 
@@ -42,39 +43,39 @@ func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentBalanceDeduction() {
 // 同理，风控自动封禁把 status 置为 disabled 后，
 // 基于旧快照的资料更新不得把 status 刷回 active。
 func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentBan() {
-	user := s.mustCreateUser(&service.User{
+	user := s.mustCreateUser(&identity.User{
 		Email:    "lost-update-ban@example.com",
 		Username: "before",
-		Status:   service.StatusActive,
+		Status:   billing.StatusActive,
 	})
 
 	stale, err := s.repo.GetByID(s.ctx, user.ID)
 	s.Require().NoError(err, "GetByID")
-	s.Require().Equal(service.StatusActive, stale.Status)
+	s.Require().Equal(billing.StatusActive, stale.Status)
 
 	banned, err := s.repo.GetByID(s.ctx, user.ID)
 	s.Require().NoError(err, "GetByID for ban")
-	banned.Status = service.StatusDisabled
+	banned.Status = billing.StatusDisabled
 	s.Require().NoError(
-		s.repo.Update(s.ctx, banned, service.UserUpdateFields{Status: true}),
+		s.repo.Update(s.ctx, banned, identity.UserUpdateFields{Status: true}),
 		"ban",
 	)
 
 	stale.Username = "after"
 	s.Require().NoError(
-		s.repo.Update(s.ctx, stale, service.UserUpdateFields{Username: true}),
+		s.repo.Update(s.ctx, stale, identity.UserUpdateFields{Username: true}),
 		"stale profile save",
 	)
 
 	got, err := s.repo.GetByID(s.ctx, user.ID)
 	s.Require().NoError(err, "GetByID after update")
 	s.Require().Equal("after", got.Username)
-	s.Require().Equal(service.StatusDisabled, got.Status, "ban must survive a stale profile save")
+	s.Require().Equal(billing.StatusDisabled, got.Status, "ban must survive a stale profile save")
 }
 
 // 未声明的列不写，也意味着并发的限额调整不会被资料保存回滚。
 func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentLimitChanges() {
-	user := s.mustCreateUser(&service.User{
+	user := s.mustCreateUser(&identity.User{
 		Email:       "lost-update-limits@example.com",
 		Username:    "before",
 		Concurrency: 3,
@@ -91,7 +92,7 @@ func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentLimitChanges() {
 
 	stale.Username = "after"
 	s.Require().NoError(
-		s.repo.Update(s.ctx, stale, service.UserUpdateFields{Username: true}),
+		s.repo.Update(s.ctx, stale, identity.UserUpdateFields{Username: true}),
 		"stale profile save",
 	)
 
@@ -104,7 +105,7 @@ func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentLimitChanges() {
 // AllowedGroups 只在显式声明时才同步，否则并发授予的分组权限会被旧快照删掉。
 func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentAllowedGroupGrant() {
 	group := s.mustCreateGroup("lost-update-group")
-	user := s.mustCreateUser(&service.User{
+	user := s.mustCreateUser(&identity.User{
 		Email:    "lost-update-groups@example.com",
 		Username: "before",
 	})
@@ -117,7 +118,7 @@ func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentAllowedGroupGrant() {
 
 	stale.Username = "after"
 	s.Require().NoError(
-		s.repo.Update(s.ctx, stale, service.UserUpdateFields{Username: true}),
+		s.repo.Update(s.ctx, stale, identity.UserUpdateFields{Username: true}),
 		"stale profile save",
 	)
 
@@ -127,7 +128,7 @@ func (s *UserRepoSuite) TestUpdate_DoesNotRevertConcurrentAllowedGroupGrant() {
 }
 
 func (s *UserRepoSuite) TestAdjustBalance_AppliesDeltaAndReportsChange() {
-	user := s.mustCreateUser(&service.User{Email: "adjust-balance@example.com", Balance: 10})
+	user := s.mustCreateUser(&identity.User{Email: "adjust-balance@example.com", Balance: 10})
 
 	change, err := s.repo.AdjustBalance(s.ctx, user.ID, 5)
 	s.Require().NoError(err, "AdjustBalance add")
@@ -145,10 +146,10 @@ func (s *UserRepoSuite) TestAdjustBalance_AppliesDeltaAndReportsChange() {
 }
 
 func (s *UserRepoSuite) TestAdjustBalance_RefusesNegativeResult() {
-	user := s.mustCreateUser(&service.User{Email: "adjust-balance-negative@example.com", Balance: 3})
+	user := s.mustCreateUser(&identity.User{Email: "adjust-balance-negative@example.com", Balance: 3})
 
 	change, err := s.repo.AdjustBalance(s.ctx, user.ID, -4)
-	s.Require().ErrorIs(err, service.ErrBalanceNegative)
+	s.Require().ErrorIs(err, identity.ErrBalanceNegative)
 	s.Require().InDelta(3, change.Old, 1e-9, "error must report the real current balance")
 	s.Require().InDelta(-1, change.New, 1e-9)
 
@@ -159,11 +160,11 @@ func (s *UserRepoSuite) TestAdjustBalance_RefusesNegativeResult() {
 
 func (s *UserRepoSuite) TestAdjustBalance_UserNotFound() {
 	_, err := s.repo.AdjustBalance(s.ctx, 99999999, 1)
-	s.Require().ErrorIs(err, service.ErrUserNotFound)
+	s.Require().ErrorIs(err, identity.ErrUserNotFound)
 }
 
 func (s *UserRepoSuite) TestSetBalance_ReplacesValueAndReportsPrevious() {
-	user := s.mustCreateUser(&service.User{Email: "set-balance@example.com", Balance: 7})
+	user := s.mustCreateUser(&identity.User{Email: "set-balance@example.com", Balance: 7})
 
 	change, err := s.repo.SetBalance(s.ctx, user.ID, 2)
 	s.Require().NoError(err, "SetBalance")
@@ -176,10 +177,10 @@ func (s *UserRepoSuite) TestSetBalance_ReplacesValueAndReportsPrevious() {
 }
 
 func (s *UserRepoSuite) TestSetBalance_RejectsNegativeValue() {
-	user := s.mustCreateUser(&service.User{Email: "set-balance-negative@example.com", Balance: 7})
+	user := s.mustCreateUser(&identity.User{Email: "set-balance-negative@example.com", Balance: 7})
 
 	_, err := s.repo.SetBalance(s.ctx, user.ID, -1)
-	s.Require().ErrorIs(err, service.ErrBalanceNegative)
+	s.Require().ErrorIs(err, identity.ErrBalanceNegative)
 
 	got, err := s.repo.GetByID(s.ctx, user.ID)
 	s.Require().NoError(err, "GetByID")
@@ -188,5 +189,5 @@ func (s *UserRepoSuite) TestSetBalance_RejectsNegativeValue() {
 
 func (s *UserRepoSuite) TestSetBalance_UserNotFound() {
 	_, err := s.repo.SetBalance(s.ctx, 99999999, 1)
-	s.Require().ErrorIs(err, service.ErrUserNotFound)
+	s.Require().ErrorIs(err, identity.ErrUserNotFound)
 }

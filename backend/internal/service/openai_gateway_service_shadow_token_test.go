@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,17 +18,17 @@ func TestGetAccessToken_SparkShadowResolvesToParent(t *testing.T) {
 	parentID := int64(100)
 	parent := Account{
 		ID:       parentID,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
-		Status:   StatusActive,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
+		Status:   billing.StatusActive,
 		Credentials: map[string]any{
 			"access_token": "parent-access-token",
 		},
 	}
 	shadow := Account{
 		ID:              200,
-		Platform:        PlatformOpenAI,
-		Type:            AccountTypeOAuth,
+		Platform:        capability.PlatformOpenAI,
+		Type:            capability.AccountTypeOAuth,
 		ParentAccountID: &parentID,
 		// 影子账号不持凭据，与生产语义一致
 	}

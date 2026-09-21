@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// ClaudeTokenRefresher 将原有资格与凭据合并接到统一刷新协调器。
+type ClaudeTokenRefresher struct {
+	Authorization *ClaudeAuthorization
+}
+
+func (r *ClaudeTokenRefresher) CanRefresh(value *Record) bool {
+	return CanRefreshClaude(value)
+}
+
+func (r *ClaudeTokenRefresher) NeedsRefresh(value *Record, window time.Duration) bool {
+	return NeedsRefreshClaude(value, window)
+}
+
+func (r *ClaudeTokenRefresher) CacheKey(value *Record) string {
+	return ClaudeTokenCacheKey(value)
+}
+
+func (r *ClaudeTokenRefresher) Refresh(ctx context.Context, value *Record) (map[string]any, error) {
+	return RefreshClaudeCredentials(ctx, value, r.Authorization.RefreshAccountToken)
+}
+
 // CanRefresh 检查是否能处理此账号
 // 处理 anthropic 平台的 oauth 与 setup-token 类型账号。
 // 两者的 access_token 均为短期令牌（expires_in=28800，即 8h），到期都需刷新；

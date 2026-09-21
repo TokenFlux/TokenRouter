@@ -4,14 +4,17 @@ package service
 import (
 	"bytes"
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 type s09AlphaResponseBody struct {
@@ -23,7 +26,7 @@ func (b *s09AlphaResponseBody) Close() error { b.closes++; return b.ReadCloser.C
 
 // 可重试错误必须在写入响应前返回给 handler，以便切换账号。
 func TestS09AlphaSearchFailoverClosesOriginalResponse(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"id":"search-session","model":"gpt-5.6-sol","commands":{}}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -38,8 +41,8 @@ func TestS09AlphaSearchFailoverClosesOriginalResponse(t *testing.T) {
 	service := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
 	account := &Account{
 		ID:       8,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
 		},
@@ -48,7 +51,7 @@ func TestS09AlphaSearchFailoverClosesOriginalResponse(t *testing.T) {
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
 	require.Empty(t, failoverErr.Stage)

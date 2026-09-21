@@ -7,11 +7,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNormalizeAPIKeyModelMapping(t *testing.T) {
-	normalized, err := NormalizeAPIKeyModelMapping(map[string]string{
+	normalized, err := apikey.NormalizeAPIKeyModelMapping(map[string]string{
 		" codex-auto-review ": " gpt-5.6-luna ",
 		"claude-*":            "claude-sonnet-4-6",
 	})
@@ -31,24 +35,24 @@ func TestNormalizeAPIKeyModelMappingRejectsInvalidRules(t *testing.T) {
 		"来源多个通配": {"source**": "target"},
 		"目标通配":   {"source": "target*"},
 		"去空格后重复": {"source": "one", " source ": "two"},
-		"来源过长":   {strings.Repeat("源", MaxAPIKeyModelNameRunes+1): "target"},
-		"目标过长":   {"source": strings.Repeat("目", MaxAPIKeyModelNameRunes+1)},
+		"来源过长":   {strings.Repeat("源", apikey.MaxAPIKeyModelNameRunes+1): "target"},
+		"目标过长":   {"source": strings.Repeat("目", apikey.MaxAPIKeyModelNameRunes+1)},
 	}
 	for name, mapping := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := NormalizeAPIKeyModelMapping(mapping)
+			_, err := apikey.NormalizeAPIKeyModelMapping(mapping)
 			require.Error(t, err)
-			require.True(t, errors.Is(err, ErrInvalidAPIKeyModelMapping))
+			require.True(t, errors.Is(err, apikey.ErrInvalidAPIKeyModelMapping))
 		})
 	}
 
-	tooMany := make(map[string]string, MaxAPIKeyModelMappingRules+1)
-	for i := 0; i <= MaxAPIKeyModelMappingRules; i++ {
+	tooMany := make(map[string]string, apikey.MaxAPIKeyModelMappingRules+1)
+	for i := 0; i <= apikey.MaxAPIKeyModelMappingRules; i++ {
 		tooMany[fmt.Sprintf("source-%d", i)] = fmt.Sprintf("target-%d", i)
 	}
-	_, err := NormalizeAPIKeyModelMapping(tooMany)
+	_, err := apikey.NormalizeAPIKeyModelMapping(tooMany)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, ErrInvalidAPIKeyModelMapping))
+	require.True(t, errors.Is(err, apikey.ErrInvalidAPIKeyModelMapping))
 }
 
 func TestResolveAPIKeyModelMappingPriorityAndSinglePass(t *testing.T) {
@@ -60,25 +64,25 @@ func TestResolveAPIKeyModelMappingPriorityAndSinglePass(t *testing.T) {
 		"Codex-*":           "case-sensitive",
 	}
 
-	model, matched := ResolveModelMapping(mapping, "codex-auto-review")
+	model, matched := apikey.ResolveModelMapping(mapping, "codex-auto-review")
 	require.True(t, matched)
 	require.Equal(t, "gpt-5.6-luna", model)
 
-	model, matched = ResolveModelMapping(mapping, "codex-auto-fix")
+	model, matched = apikey.ResolveModelMapping(mapping, "codex-auto-fix")
 	require.True(t, matched)
 	require.Equal(t, "wildcard-long", model)
 
-	model, matched = ResolveModelMapping(mapping, "Codex-review")
+	model, matched = apikey.ResolveModelMapping(mapping, "Codex-review")
 	require.True(t, matched)
 	require.Equal(t, "case-sensitive", model)
 
-	model, matched = ResolveModelMapping(mapping, "CODEX-review")
+	model, matched = apikey.ResolveModelMapping(mapping, "CODEX-review")
 	require.False(t, matched)
 	require.Equal(t, "CODEX-review", model)
 }
 
 func TestAppendAPIKeyModelAliases(t *testing.T) {
-	models := AppendAPIKeyModelAliases(
+	models := apikey.AppendAPIKeyModelAliases(
 		[]string{"gpt-5.6-luna", "claude-sonnet-4-6", "gpt-5.6-luna"},
 		map[string]string{
 			"z-review": "gpt-5.6-luna",
@@ -96,15 +100,15 @@ func TestAppendAPIKeyModelAliases(t *testing.T) {
 }
 
 func TestChannelMappingChainIncludesAPIKeyRedirectAndDeduplicatesStages(t *testing.T) {
-	ctx := WithAPIKeyModelRedirectTrace(
+	ctx := modeltrace.WithContext(
 		context.Background(),
-		NewAPIKeyModelRedirectTrace("codex-auto-review", "codex-auto-review", "gpt-5.6-luna"),
+		modeltrace.NewAPIKeyModelRedirectTrace("codex-auto-review", "codex-auto-review", "gpt-5.6-luna"),
 	)
-	mapping := (ChannelMappingResult{
+	mapping := modeltrace.WithChannelRedirect((routing.ChannelMappingResult{
 		MappedModel:        "gpt-5.6-luna-channel",
 		Mapped:             true,
-		BillingModelSource: BillingModelSourceChannelMapped,
-	}).WithAPIKeyModelRedirect(ctx, "gpt-5.6-luna")
+		BillingModelSource: routing.BillingModelSourceChannelMapped,
+	}), ctx, "gpt-5.6-luna")
 
 	fields := mapping.ToUsageFields("gpt-5.6-luna", "gpt-5.6-luna-upstream")
 	require.Equal(t, "gpt-5.6-luna", fields.OriginalModel)
@@ -117,13 +121,13 @@ func TestChannelMappingChainIncludesAPIKeyRedirectAndDeduplicatesStages(t *testi
 }
 
 func TestResolveAccountUpstreamModelRegistersFinalRedirectStage(t *testing.T) {
-	ctx := WithAPIKeyModelRedirectTrace(
+	ctx := modeltrace.WithContext(
 		context.Background(),
-		NewAPIKeyModelRedirectTrace("model-alias", "model-alias", "key-target"),
+		modeltrace.NewAPIKeyModelRedirectTrace("model-alias", "model-alias", "key-target"),
 	)
 	account := &Account{
-		Platform: PlatformAnthropic,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformAnthropic,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"key-target": "upstream-target"},
 		},
@@ -135,7 +139,7 @@ func TestResolveAccountUpstreamModelRegistersFinalRedirectStage(t *testing.T) {
 
 func mustAPIKeyResponseModels(t *testing.T, ctx context.Context) []string {
 	t.Helper()
-	trace, ok := APIKeyModelRedirectTraceFromContext(ctx)
+	trace, ok := modeltrace.FromContext(ctx)
 	require.True(t, ok)
 	return trace.ResponseModels()
 }

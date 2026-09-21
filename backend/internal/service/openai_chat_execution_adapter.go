@@ -4,13 +4,24 @@ package service
 import (
 	"context"
 	"errors"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
+	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	"net/http"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 type openAIChatExecutionAdapter struct {
@@ -23,19 +34,19 @@ func (p *openAIChatExecutionAdapter) PrepareChat(ctx context.Context) (forward.C
 		return forward.ChatProfile{}, err
 	}
 	p.account = account
-	beginUpstreamResponseModelObservation(p.c)
-	ClearActualOpenAIUpstreamEndpoint(p.c)
+	gatewayhttp.BeginUpstreamResponseModelObservation(p.c)
+	gatewayhttp.ClearActualOpenAIUpstreamEndpoint(p.c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
-		SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
+		gatewayhttp.SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
 	}
 	setCodexToolNameReverse(p.c, nil)
 	if _, err := p.s.prepareCodexAccountIdentitySource(ctx, p.c, account); err != nil {
 		return forward.ChatProfile{}, err
 	}
-	return forward.ChatProfile{MessagesProfile: forward.MessagesProfile{Profile: openAIForwardProfile(account), ID: account.ID, GrokOAuth: account.IsGrokOAuth(), Shadow: account.IsShadow()}, Protocol: account.resolvedProtocol, Adaptive: account.IsAdaptiveAPIProtocol(), SupportsNativeCN: account.SupportsNativeCNResponses(), CNProvider: account.IsCNProvider(), OpenAIAPIKey: account.IsOpenAIApiKey()}, nil
+	return forward.ChatProfile{MessagesProfile: forward.MessagesProfile{Profile: openAIForwardProfile(account), ID: account.ID, GrokOAuth: account.IsGrokOAuth(), Shadow: account.IsShadow()}, Protocol: account.attemptRoute.Protocol(), Adaptive: account.IsAdaptiveAPIProtocol(), SupportsNativeCN: account.SupportsNativeCNResponses(), CNProvider: account.IsCNProvider(), OpenAIAPIKey: account.IsOpenAIApiKey()}, nil
 }
 func (p *openAIChatExecutionAdapter) DispatchChat(ctx context.Context, route forward.Dispatch, body []byte, key, model string) (*forward.Result, error) {
-	var r *OpenAIForwardResult
+	var r *protocolforward.OpenAIResult
 	var err error
 	switch route {
 	case forward.DispatchAnthropic:
@@ -48,53 +59,53 @@ func (p *openAIChatExecutionAdapter) DispatchChat(ctx context.Context, route for
 	return openAIHTTPResultFromForward(r), err
 }
 func (p *openAIChatExecutionAdapter) ClientAllowed(ctx context.Context, body []byte) bool {
-	var match TLSFingerprintRouterMatchResult
+	var match egress.TLSFingerprintRouterMatchResult
 	if len(p.tls) > 0 {
 		match = p.tls[0]
 	} else {
 		match = p.s.matchTLSFingerprintRouter(p.c, p.account)
 	}
 	restriction := p.s.detectCodexClientRestriction(p.c, p.account, match)
-	logCodexCLIOnlyDetection(ctx, p.c, p.account, getAPIKeyIDFromContext(p.c), restriction, body)
+	logCodexCLIOnlyDetection(ctx, p.c, p.account, gatewayhttp.APIKeyIDFromContext(p.c), restriction, body)
 	return !restriction.Enabled || restriction.Matched
 }
 func (p *openAIChatExecutionAdapter) PolicyDenied() {
-	MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 }
 func (p *openAIChatExecutionAdapter) Reject(status int, kind, message string) {
 	gatewayhttp.WriteOpenAIForwardRejection(p.c, status, kind, message, "")
 }
 func (p *openAIChatExecutionAdapter) ResponsesToChat(r *protocolopenai.ResponsesRequest) (*protocolopenai.ChatCompletionsRequest, error) {
-	return apicompat.ResponsesToChatCompletionsRequestWithOptions(r, &apicompat.ResponsesToChatOptions{ReasoningContentByID: p.s.reasoningContentByID})
+	return protocolbridge.ResponsesToChatCompletionsRequestWithOptions(r, &protocolbridge.ResponsesToChatOptions{ReasoningContentByID: p.s.reasoningContentByID})
 }
 func (p *openAIChatExecutionAdapter) GrokBridgeEligible(body []byte) (bool, string) {
 	return grokChatResponsesBridgeEligibility(body)
 }
 func (p *openAIChatExecutionAdapter) ChatError(status int, kind, message string) {
-	MarkResponseCommitted(p.c)
+	gatewayhttp.MarkResponseCommitted(p.c)
 	gatewayhttp.WriteOpenAIForwardRejection(p.c, status, kind, message, "")
 }
 func (p *openAIChatExecutionAdapter) DefaultChat() bool {
-	return resolveOpenAITextProtocolForAttempt(p.c, p.account, openai_compat.TextProtocolChatCompletions) == openai_compat.TextProtocolChatCompletions
+	return resolveOpenAITextProtocolForAttempt(p.c, p.account, accountcore.TextProtocolChatCompletions) == accountcore.TextProtocolChatCompletions
 }
 func (p *openAIChatExecutionAdapter) DeriveCacheKey(r *protocolopenai.ChatCompletionsRequest, model string) string {
-	return deriveCompatPromptCacheKey(r, model)
+	return gatewayprovider.DeriveCompatPromptCacheKey(r, model)
 }
 func (p *openAIChatExecutionAdapter) IsolateCacheKey(key string) string {
-	return isolateOpenAISessionID(getAPIKeyIDFromContext(p.c), key)
+	return upstream.IsolateSessionID(gatewayhttp.APIKeyIDFromContext(p.c), key)
 }
 func (p *openAIChatExecutionAdapter) NormalizeBodyTier(body []byte) ([]byte, string, error) {
 	return normalizeResponsesBodyServiceTier(body)
 }
 func (p *openAIChatExecutionAdapter) ChatToResponses(r *protocolopenai.ChatCompletionsRequest) (*protocolopenai.ResponsesRequest, error) {
-	return apicompat.ChatCompletionsToResponses(r)
+	return protocolbridge.ChatCompletionsToResponses(r, protocolforward.ConversionOptionsForModel(r.Model))
 }
 func (p *openAIChatExecutionAdapter) NormalizeRequestTier(r *protocolopenai.ResponsesRequest) {
 	normalizeResponsesRequestServiceTier(r)
 }
 func (p *openAIChatExecutionAdapter) ApplyChatFast(ctx context.Context, model string, body []byte) ([]byte, error) {
 	updated, err := p.s.applyOpenAIFastPolicyToBody(ctx, p.account, model, body)
-	var blocked *OpenAIFastBlockedError
+	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		p.PolicyDenied()
 		p.ChatError(403, "permission_error", blocked.Message)
@@ -118,12 +129,12 @@ func (p *openAIChatExecutionAdapter) UpstreamSessionKey(id int64, key string) st
 	return isolateOpenAIUpstreamSessionID(id, codexAccountIdentitySource(p.c, p.account), key)
 }
 func (p *openAIChatExecutionAdapter) SessionUUID(key string) string {
-	return generateSessionUUID(key)
+	return upstream.GenerateSessionUUID(key)
 }
 func (p *openAIChatExecutionAdapter) ChatErrorResponse(r *http.Response, model string) (*forward.Result, error) {
 	_, err := p.s.handleChatCompletionsErrorResponse(r, p.c, p.account, model)
 	return nil, err
 }
-func (p *openAIChatExecutionAdapter) ChatResponseOptions(r *http.Response, original, billing, model string) native.ChatResponseOptions {
+func (p *openAIChatExecutionAdapter) ChatResponseOptions(r *http.Response, original, billing, model string) openai.ChatResponseOptions {
 	return p.s.nativeChatResponseOptions(p.c, p.account, r, original, billing, model)
 }

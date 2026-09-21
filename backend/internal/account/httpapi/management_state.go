@@ -2,9 +2,10 @@
 package httpapi
 
 import (
+	strconv "strconv"
+
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
 )
 
 // SetSchedulableRequest represents the request body for setting schedulable status

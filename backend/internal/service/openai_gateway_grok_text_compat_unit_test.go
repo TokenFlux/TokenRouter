@@ -7,14 +7,17 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	uuid "github.com/google/uuid"
 
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 func sanitizeGrokResponsesTools(body []byte) ([]byte, error) {
-	return grokBodyCodec().SanitizeGrokResponsesTools(body)
+	return (grok.BodyCodec{
+		NewID: uuid.NewString}).
+		SanitizeGrokResponsesTools(body)
 }
 
-func grokRateLimitResetAt(snapshot *nativegrok.QuotaSnapshot, now time.Time) (time.Time, bool) {
+func grokRateLimitResetAt(snapshot *grok.QuotaSnapshot, now time.Time) (time.Time, bool) {
 	return accountcore.GrokRateLimitResetAt(snapshot, now)
 }

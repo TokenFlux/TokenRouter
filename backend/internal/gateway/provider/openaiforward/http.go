@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/tidwall/gjson"
 )
 
@@ -30,12 +31,6 @@ type HTTPInput struct {
 	StartedAt                                                  time.Time
 }
 
-// Result 保存既有 HTTP 完成字段；不会把失败响应升级为可结算成功。
-type Warning struct {
-	StatusCode   int
-	ResponseBody []byte
-	Message      string
-}
 type Result struct {
 	UpstreamEndpoint                     string
 	RequestedReasoningEffort             *string
@@ -44,7 +39,7 @@ type Result struct {
 	ResponseHeaders                      http.Header
 	ImageOutputSize, ImageSizeSource     string
 	ImageSizeBreakdown                   map[string]int
-	UpstreamWarning                      *Warning
+	UpstreamWarning                      *forwardcore.UpstreamWarning
 	VideoCount                           int
 	VideoResolution                      string
 	VideoDurationSeconds, WebSearchCalls int
@@ -73,10 +68,10 @@ type CompactFailure struct {
 
 // HTTPOptions 的端口仅处理一次外部操作或值转换；恢复次数和重试顺序由 RunHTTP 唯一拥有。
 type HTTPOptions struct {
-	Exchange              native.HTTPExchangeOptions
+	Exchange              openai.HTTPExchangeOptions
 	Sink                  upstream.OutputSink
-	StreamOptions         func() native.StreamOptions
-	NonStreamOptions      func() native.NonStreamOptions
+	StreamOptions         func() openai.StreamOptions
+	NonStreamOptions      func() openai.NonStreamOptions
 	ReadErrorBody         func(*http.Response) []byte
 	IsAgentIdentity       func(context.Context) bool
 	InvalidAgentTask      func(int, []byte) bool
@@ -110,9 +105,9 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 	body := input.Body
 	upstreamModel := input.UpstreamModel
 	encryptedRetried, compactRetried, agentRetried := false, false, false
-	rejected := native.NewOpenAIResponsesRejectedFieldRetryState(body)
+	rejected := openai.NewOpenAIResponsesRejectedFieldRetryState(body)
 	for {
-		resp, err := native.ExchangeHTTP(ctx, body, o.Exchange)
+		resp, err := openai.ExchangeHTTP(ctx, body, o.Exchange)
 		if err != nil {
 			return nil, err
 		}
@@ -145,7 +140,7 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 				}
 				o.Log("[OpenAI] Skip non-WSv2 invalid_encrypted_content retry because encrypted state items are missing (account: %s)", input.AccountName)
 			}
-			if retryBody, reason, changed, retryErr := native.NormalizeOpenAIResponsesRejectedFieldRetryBody(resp.StatusCode, body, payload); retryErr != nil {
+			if retryBody, reason, changed, retryErr := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(resp.StatusCode, body, payload); retryErr != nil {
 				return nil, fmt.Errorf("normalize rejected Responses field retry body: %w", retryErr)
 			} else if changed && rejected.Allow(retryBody) {
 				body = retryBody
@@ -181,7 +176,7 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 		imageCount := 0
 		var imageSizes []string
 		if input.Stream {
-			result, readErr := native.ReadStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.StreamOptions(), input.StartedAt, input.OriginalModel, upstreamModel, input.ReasoningEffortValue)
+			result, readErr := openai.ReadStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.StreamOptions(), input.StartedAt, input.OriginalModel, upstreamModel, input.ReasoningEffortValue)
 			if readErr != nil {
 				if signal, ok := o.CompactSignal(readErr); ok {
 					if retryBody, model, retry := o.CompactRetry(body, http.StatusBadRequest, signal.Message, signal.Payload, compactRetried); retry {
@@ -212,7 +207,7 @@ func RunHTTP(ctx context.Context, input HTTPInput, o HTTPOptions) (*Result, erro
 			imageCount = result.ImageCount
 			imageSizes = result.ImageOutputSizes
 		} else {
-			result, readErr := native.ReadNonStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.NonStreamOptions(), input.OriginalModel, upstreamModel)
+			result, readErr := openai.ReadNonStreamingResponse(ctx, resp, upstream.NewOutputContext(o.Sink), o.NonStreamOptions(), input.OriginalModel, upstreamModel)
 			if readErr != nil {
 				if signal, ok := o.CompactSignal(readErr); ok {
 					if retryBody, model, retry := o.CompactRetry(body, http.StatusBadRequest, signal.Message, signal.Payload, compactRetried); retry {

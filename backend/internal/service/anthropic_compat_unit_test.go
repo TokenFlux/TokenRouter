@@ -6,14 +6,10 @@ package service
 import (
 	"net/http"
 
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
-
-const claudeTokenRefreshSkew = accountcore.ClaudeTokenRefreshSkew
-const claudeTokenCacheSkew = accountcore.ClaudeTokenCacheSkew
 
 func removeThinkingDependentContextStrategies(body []byte) []byte {
 	return protocolanthropic.RemoveThinkingDependentContextStrategies(body)

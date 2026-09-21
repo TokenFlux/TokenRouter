@@ -12,7 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	identitytestkit "github.com/TokenFlux/TokenRouter/internal/identity/testkit"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -21,9 +21,8 @@ import (
 func TestS05PendingFinalizeRollbackAndCompensation(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	users := NewUserRepository(client, integrationDB)
-	legacyAuth := service.NewAuthService(client, users, nil, nil, &config.Config{}, nil, nil, nil, nil, nil, nil, nil, nil)
-	auth := legacyAuth.IdentityCore()
+	users := identitypostgres.NewUserStore(client, integrationDB)
+	auth := identitytestkit.Auth(client, &identity.AuthDependencies{Users: users, Options: identitytestkit.AuthOptions(&config.Config{})})
 	pending := identitypostgres.NewPendingRepository(client)
 	flow := &identity.PendingFlow{Auth: auth, Store: pending, Database: &identitypostgres.PendingFlowDatabase{Client: client, Auth: auth}}
 	for _, fail := range []bool{true, false} {
@@ -32,12 +31,12 @@ func TestS05PendingFinalizeRollbackAndCompensation(t *testing.T) {
 			label = "rollback"
 		}
 		t.Run(label, func(t *testing.T) {
-			user := mustCreateUser(t, client, &service.User{})
+			user := mustCreateUser(t, client, &identity.User{})
 			session, err := pending.CreatePendingSession(ctx, identity.CreatePendingAuthSessionInput{Intent: "login", Identity: identity.PendingAuthIdentityKey{ProviderType: "oidc", ProviderKey: "https://s05.example.invalid", ProviderSubject: uuid.NewString()}, BrowserSessionKey: uuid.NewString(), ResolvedEmail: user.Email})
 			require.NoError(t, err)
 			failure := errors.New("s05 after identity binding and pending consume")
 			called := false
-			request := identity.PendingAccountFinalization{Session: session, User: service.IdentityUser(user), BeforeCommit: func(txCtx context.Context, _ *identity.PendingAuthSession) error {
+			request := identity.PendingAccountFinalization{Session: session, User: identity.CopyUser(user), BeforeCommit: func(txCtx context.Context, _ *identity.PendingAuthSession) error {
 				called = true
 				tx := dbent.TxFromContext(txCtx)
 				require.NotNil(t, tx, "必须沿用原 Ent context")

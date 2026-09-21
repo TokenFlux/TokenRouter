@@ -20,7 +20,6 @@ import (
 	moderationredis "github.com/TokenFlux/TokenRouter/internal/moderation/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/notification"
 	routingpg "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -45,9 +44,7 @@ func provideModerationCore(store *settings.Store, repo moderation.ContentModerat
 	core.SetProxyRepository(moderationProxies{proxies})
 	return core
 }
-func provideLegacyModeration(core *moderation.ContentModerationService) *service.ContentModerationService {
-	return service.WrapContentModeration(core)
-}
+
 func provideModerationHTTP(core *moderation.ContentModerationService) *moderationhttp.ContentModerationHandler {
 	return moderationhttp.NewContentModerationHandler(core)
 }

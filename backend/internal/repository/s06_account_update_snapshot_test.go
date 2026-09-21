@@ -5,17 +5,18 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/stretchr/testify/require"
 )
 
 // 普通名称编辑不能把读取之后发生的使用时间和限流窗口写回旧值。
 func TestS06AccountConfigurationPreservesConcurrentRuntime(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	account, err := client.Account.Create().SetName(fmt.Sprintf("s06-runtime-%d", time.Now().UnixNano())).SetPlatform(service.PlatformOpenAI).SetType(service.AccountTypeOAuth).Save(ctx)
+	account, err := client.Account.Create().SetName(fmt.Sprintf("s06-runtime-%d", time.Now().UnixNano())).SetPlatform(capability.PlatformOpenAI).SetType(capability.AccountTypeOAuth).Save(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Account.DeleteOneID(account.ID).Exec(context.Background())) })
 	repo := &accountRepository{client: client, sql: integrationDB}

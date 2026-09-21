@@ -5,11 +5,12 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	slog "log/slog"
 	mail "net/mail"
 	strings "strings"
 	time "time"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 func AuthNormalizeOAuthSignupSource(signupSource string) string {

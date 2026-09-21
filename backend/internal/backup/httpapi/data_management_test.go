@@ -21,7 +21,6 @@ type apiEnvelope struct {
 }
 
 func TestDataManagementHandler_AgentHealthAlways200(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	svc := service.NewDataManagementServiceWithOptions(filepath.Join(t.TempDir(), "missing.sock"), 50*time.Millisecond)
 	h := NewDataManagementHandler(svc)
@@ -51,7 +50,6 @@ func TestDataManagementHandler_AgentHealthAlways200(t *testing.T) {
 }
 
 func TestDataManagementHandler_NonHealthRouteReturns503WhenDisabled(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	svc := service.NewDataManagementServiceWithOptions(filepath.Join(t.TempDir(), "missing.sock"), 50*time.Millisecond)
 	h := NewDataManagementHandler(svc)

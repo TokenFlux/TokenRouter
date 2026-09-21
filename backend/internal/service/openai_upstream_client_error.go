@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -28,7 +29,7 @@ func writeOpenAIUpstreamClientError(c *gin.Context, statusCode int, body []byte,
 	if errType := strings.TrimSpace(gjson.GetBytes(body, "error.type").String()); errType != "" {
 		errorPayload["type"] = errType
 	}
-	if code := strings.TrimSpace(extractUpstreamErrorCode(body)); code != "" {
+	if code := strings.TrimSpace(upstream.ExtractErrorCode(body)); code != "" {
 		errorPayload["code"] = code
 	}
 	if param := strings.TrimSpace(gjson.GetBytes(body, "error.param").String()); param != "" {

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+
 	"github.com/TokenFlux/TokenRouter/migrations"
 )
 

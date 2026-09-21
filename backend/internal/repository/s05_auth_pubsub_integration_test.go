@@ -11,8 +11,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 	keyredis "github.com/TokenFlux/TokenRouter/internal/apikey/rediscache"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +23,7 @@ func TestS05AuthPubSubReconnect(t *testing.T) {
 	defer cancel()
 	client := testEntClient(t)
 	rdb := testRedis(t)
-	user := mustCreateUser(t, client, &service.User{})
+	user := mustCreateUser(t, client, &identity.User{})
 	store := keypostgres.NewKeyStore(client, integrationDB, nil)
 	key := &apikey.APIKey{UserID: user.ID, Key: fmt.Sprintf("sk-s05-pubsub-%d", time.Now().UnixNano()), Name: "before", Status: "active", ModelMapping: map[string]string{"client": "upstream"}}
 	require.NoError(t, store.Create(ctx, key))

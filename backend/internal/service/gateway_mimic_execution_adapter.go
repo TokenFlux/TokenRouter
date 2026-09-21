@@ -1,6 +1,10 @@
 package service
 
-import "context"
+import (
+	"context"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+)
 
 // mimicExecutionAdapter 的 systemRaw 仅兼容原 JSON string/array 输入，不携带业务实体。
 type mimicExecutionAdapter struct {
@@ -9,8 +13,8 @@ type mimicExecutionAdapter struct {
 }
 
 func (a *mimicExecutionAdapter) RewriteMimicSystem(body []byte, model, prompt, blocks string) []byte {
-	blocks = claudeOAuthSystemPromptBlocksForModel(model, blocks)
-	return rewriteSystemForNonClaudeCodeWithPromptBlocks(body, normalizeSystemParam(a.systemRaw), prompt, blocks)
+	blocks = anthropic.ClaudeOAuthSystemPromptBlocksForModel(model, blocks)
+	return anthropic.RewriteSystemForNonClaudeCodeWithPromptBlocks(body, anthropic.NormalizeSystemParam(a.systemRaw), prompt, blocks)
 }
 func (a *mimicExecutionAdapter) MimicMetadata(ctx context.Context, body []byte) string {
 	if a.s.identityService == nil || a.c == nil || a.c.Request == nil {
@@ -22,7 +26,7 @@ func (a *mimicExecutionAdapter) MimicMetadata(ctx context.Context, body []byte) 
 	}
 	mimic := false
 	if a.s.settingService != nil {
-		_, mimic, _ = a.s.settingService.GetGatewayForwardingSettings(ctx)
+		_, mimic, _ = a.s.settingService.Gateway.GetGatewayForwardingSettings(ctx)
 	}
 	if mimic {
 		return ""

@@ -13,7 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/announcement"
 	"github.com/TokenFlux/TokenRouter/ent/announcementread"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 )
 
 // AnnouncementCreate is the builder for creating a Announcement entity.
@@ -65,13 +65,13 @@ func (_c *AnnouncementCreate) SetNillableNotifyMode(v *string) *AnnouncementCrea
 }
 
 // SetTargeting sets the "targeting" field.
-func (_c *AnnouncementCreate) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementCreate {
+func (_c *AnnouncementCreate) SetTargeting(v site.AnnouncementTargeting) *AnnouncementCreate {
 	_c.mutation.SetTargeting(v)
 	return _c
 }
 
 // SetNillableTargeting sets the "targeting" field if the given value is not nil.
-func (_c *AnnouncementCreate) SetNillableTargeting(v *domain.AnnouncementTargeting) *AnnouncementCreate {
+func (_c *AnnouncementCreate) SetNillableTargeting(v *site.AnnouncementTargeting) *AnnouncementCreate {
 	if v != nil {
 		_c.SetTargeting(*v)
 	}
@@ -458,7 +458,7 @@ func (u *AnnouncementUpsert) UpdateNotifyMode() *AnnouncementUpsert {
 }
 
 // SetTargeting sets the "targeting" field.
-func (u *AnnouncementUpsert) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementUpsert {
+func (u *AnnouncementUpsert) SetTargeting(v site.AnnouncementTargeting) *AnnouncementUpsert {
 	u.Set(announcement.FieldTargeting, v)
 	return u
 }
@@ -673,7 +673,7 @@ func (u *AnnouncementUpsertOne) UpdateNotifyMode() *AnnouncementUpsertOne {
 }
 
 // SetTargeting sets the "targeting" field.
-func (u *AnnouncementUpsertOne) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementUpsertOne {
+func (u *AnnouncementUpsertOne) SetTargeting(v site.AnnouncementTargeting) *AnnouncementUpsertOne {
 	return u.Update(func(s *AnnouncementUpsert) {
 		s.SetTargeting(v)
 	})
@@ -1073,7 +1073,7 @@ func (u *AnnouncementUpsertBulk) UpdateNotifyMode() *AnnouncementUpsertBulk {
 }
 
 // SetTargeting sets the "targeting" field.
-func (u *AnnouncementUpsertBulk) SetTargeting(v domain.AnnouncementTargeting) *AnnouncementUpsertBulk {
+func (u *AnnouncementUpsertBulk) SetTargeting(v site.AnnouncementTargeting) *AnnouncementUpsertBulk {
 	return u.Update(func(s *AnnouncementUpsert) {
 		s.SetTargeting(v)
 	})

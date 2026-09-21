@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	adminhandler "github.com/TokenFlux/TokenRouter/internal/handler/admin"
+	opshttp "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -13,9 +13,9 @@ import (
 )
 
 func TestOpsAdminRoutesRequireAdminAuthentication(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	router := gin.New()
-	handlers := &routeTestHandlers{Admin: &routeTestAdminHandlers{Ops: adminhandler.NewOpsHandler(nil)}}
+	handlers := &routeTestHandlers{Admin: &routeTestAdminHandlers{Ops: opshttp.NewOpsHandler(nil)}}
 	adminAuth := servermiddleware.AdminAuthMiddleware(func(c *gin.Context) {
 		if c.GetHeader("Authorization") == "" {
 			servermiddleware.AbortWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization required")

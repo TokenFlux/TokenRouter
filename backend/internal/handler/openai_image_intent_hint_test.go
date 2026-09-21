@@ -3,7 +3,10 @@ package handler
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -38,9 +41,9 @@ func TestResolveOpenAIChannelMappedImageIntent(t *testing.T) {
 				"/v1/responses",
 				tt.requestedModel,
 				body,
-				service.ChannelMappingResult{Mapped: true, MappedModel: tt.mappedModel},
-				service.PlatformOpenAI,
-				service.ReplaceModelInBody,
+				routing.ChannelMappingResult{Mapped: true, MappedModel: tt.mappedModel},
+				capability.PlatformOpenAI,
+				openaiprotocol.ReplaceModelInBody,
 			)
 
 			require.Equal(t, tt.mappedModel, routingModel)
@@ -51,7 +54,7 @@ func TestResolveOpenAIChannelMappedImageIntent(t *testing.T) {
 }
 
 func TestSeedOpenAIForwardImageIntentHint(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	tests := []struct {
 		name          string
 		channelMapped bool
@@ -66,7 +69,7 @@ func TestSeedOpenAIForwardImageIntentHint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &gin.Context{}
-			service.SetOpenAIClientTransport(c, service.OpenAIClientTransportHTTP)
+			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 
 			seedOpenAIForwardImageIntentHint(c, tt.channelMapped, tt.imageIntent)
 

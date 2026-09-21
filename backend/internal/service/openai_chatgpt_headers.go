@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"net/http"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // setOpenAIChatGPTAccountHeaders 统一补齐 ChatGPT internal API 需要的账号级请求头。
@@ -10,14 +12,7 @@ func setOpenAIChatGPTAccountHeaders(headers http.Header, account *Account) {
 	if headers == nil || account == nil || !account.IsOpenAIOAuthLike() {
 		return
 	}
-	if chatgptAccountID := account.GetChatGPTAccountID(); chatgptAccountID != "" {
-		headers.Set("chatgpt-account-id", chatgptAccountID)
-	}
-	if account.IsChatGPTAccountFedRAMP() {
-		headers.Set("x-openai-fedramp", "true")
-	} else {
-		headers.Del("x-openai-fedramp")
-	}
+	openai.SetChatGPTAccountHeaders(headers, account.GetChatGPTAccountID(), account.IsChatGPTAccountFedRAMP())
 }
 
 // resolveAndSetOpenAIChatGPTAccountHeaders 解析 spark 影子账号至其母账号（凭据透传），

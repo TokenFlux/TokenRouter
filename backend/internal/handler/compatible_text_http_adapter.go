@@ -4,15 +4,17 @@ package handler
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -29,21 +31,21 @@ func (h *GatewayHandler) NewCompatibleTextHTTPHandler() *gatewayhttp.CompatibleT
 	return gatewayhttp.NewCompatibleTextHandler(options, compatibleTextHTTPBackend{messagesHTTPBackend{h}}, h.gatewayService, h.concurrencyHelper, h.NewCompatibleTextExecutor())
 }
 func (p compatibleTextHTTPBackend) ImageIntent(key *apikey.APIKey, model string, body []byte, mapping routing.ChannelMappingResult) ([]byte, bool) {
-	projected := service.APIKeyFromView(key)
-	forwarded, _, image := resolveOpenAIChannelMappedImageIntent("/v1/responses", model, body, service.ChannelMappingResult(mapping), openAICompatibleRequestPlatform(projected), p.h.gatewayService.ReplaceModelInBody)
+	projected := apikey.CopyAPIKey(key)
+	forwarded, _, image := resolveOpenAIChannelMappedImageIntent("/v1/responses", model, body, routing.ChannelMappingResult(mapping), openAICompatibleRequestPlatform(projected), p.h.gatewayService.ReplaceModelInBody)
 	return forwarded, image
 }
 func (p compatibleTextHTTPBackend) ImageContext(ctx context.Context) context.Context {
-	return service.WithOpenAIImageGenerationIntent(ctx)
+	return requeststate.WithOpenAIImageGenerationIntent(ctx)
 }
 func (p compatibleTextHTTPBackend) ChatImageModel(model string, mapping routing.ChannelMappingResult) bool {
-	return service.IsGPTImageGenerationModel(openAIChannelMappedModel(model, service.ChannelMappingResult(mapping)))
+	return media.IsGPTImageGenerationModel(openAIChannelMappedModel(model, routing.ChannelMappingResult(mapping)))
 }
 func (p compatibleTextHTTPBackend) Moderate(c *gin.Context, log *zap.Logger, key *apikey.APIKey, subject authctx.AuthSubject, protocol, model string, body []byte) *moderation.Decision {
-	return p.h.checkContentModeration(c, log, service.APIKeyFromView(key), subject, protocol, model, body)
+	return p.h.checkContentModeration(c, log, apikey.CopyAPIKey(key), subject, protocol, model, body)
 }
 func (p compatibleTextHTTPBackend) AuthLatency(c *gin.Context, millis int64) {
-	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, millis)
+	gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsAuthLatencyMsKey, millis)
 }
 
 // NewCompatibleTextExecutor 在 Recorder 完成绑定后构造，不增加共享运行状态。

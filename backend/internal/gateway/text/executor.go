@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
@@ -24,6 +25,8 @@ func NewMessagesExecutor(runtime MessageRuntime, messages, gemini MessageOptions
 
 // Execute 接管本次执行及结果观测，HTTP 不再取得 ports 或调用 RunMessages。
 func (e *MessagesExecutor) Execute(ctx context.Context, in execution.Request, sink upstream.OutputSink) (execution.ExecutionResult, error) {
+	ctx = requeststate.WithExecutionHints(ctx, in.Hints)
+	ctx = requeststate.WithRoutingState(ctx, in.Routing)
 	session, err := e.runtime.Open(ctx, in, sink)
 	if err != nil {
 		return execution.ExecutionResult{}, err

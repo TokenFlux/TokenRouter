@@ -11,16 +11,27 @@
 package repository
 
 import (
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/infra/postgres"
+
 	context "context"
+
 	sql "database/sql"
+
 	time "time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -34,8 +45,8 @@ import (
 type accountRepository struct {
 	usage  *billingpostgres.AccountUsageStore
 	data   *accountpostgres.AccountStore
-	client *dbent.Client // Ent ORM 客户端
-	sql    sqlExecutor   // 原生 SQL 执行接口
+	client *dbent.Client     // Ent ORM 客户端
+	sql    postgres.Executor // 原生 SQL 执行接口
 	// schedulerCache 用于在账号状态变更时主动同步快照到缓存，
 	// 确保粘性会话能及时感知账号不可用状态。
 	// Used to proactively sync account snapshot to cache when status changes,
@@ -56,31 +67,15 @@ func NewAccountRepository(client *dbent.Client, sqlDB *sql.DB, schedulerCache se
 	return newAccountRepositoryWithSQL(client, sqlDB, schedulerCache)
 }
 
-// NewAdminAccountRepository 将账号仓储的原子复制能力显式提供给管理服务。
-func NewAdminAccountRepository(client *dbent.Client, sqlDB *sql.DB, schedulerCache service.SchedulerCache) service.AdminAccountRepository {
-	return newAccountRepositoryWithSQL(client, sqlDB, schedulerCache)
-}
-
 // newAccountRepositoryWithSQL 是内部构造函数，支持依赖注入 SQL 执行器。
 // 这种设计便于单元测试时注入 mock 对象。
-func newAccountRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor, schedulerCache service.SchedulerCache) *accountRepository {
+func newAccountRepositoryWithSQL(client *dbent.Client, sqlq postgres.Executor, schedulerCache service.SchedulerCache) *accountRepository {
 	return &accountRepository{client: client, sql: sqlq, schedulerCache: schedulerCache}
 }
 
 func (r *accountRepository) Create(ctx context.Context, account *service.Account) error {
 	v := service.AccountRecordView(account)
 	err := r.accountData().Create(ctx, v)
-	service.ApplyAccountRecord(account, v)
-	return err
-}
-
-func (r *accountRepository) CreateWithAccountGroups(ctx context.Context, account *service.Account, groups []service.AccountGroup) error {
-	v := service.AccountRecordView(account)
-	members := service.AccountMembershipsForRecord(groups, account, v)
-	err := r.accountData().CreateWithAccountGroups(ctx, v, members)
-	for i := range groups {
-		groups[i].AccountID = members[i].AccountID
-	}
 	service.ApplyAccountRecord(account, v)
 	return err
 }
@@ -160,7 +155,7 @@ func (r *accountRepository) ListActive(ctx context.Context) ([]service.Account, 
 	return service.AccountsFromRecords(v), err
 }
 
-func (r *accountRepository) ListOAuthRefreshCandidatePage(ctx context.Context, options service.OAuthRefreshPageOptions) (*service.OAuthRefreshCandidatePage, error) {
+func (r *accountRepository) ListOAuthRefreshCandidatePage(ctx context.Context, options accountcore.OAuthRefreshPageOptions) (*service.OAuthRefreshCandidatePage, error) {
 	v, err := r.accountData().ListOAuthRefreshCandidatePage(ctx, options)
 	if v == nil {
 		return nil, err
@@ -188,10 +183,10 @@ func (r *accountRepository) SetError(ctx context.Context, id int64, errorMsg str
 func (r *accountRepository) SetGrokCredentialErrorIfMatch(
 	ctx context.Context,
 	id int64,
-	snapshot service.GrokCredentialMutationSnapshot,
+	snapshot accountcore.CredentialMutationSnapshot,
 	errorMsg string,
 ) (bool, error) {
-	return r.accountData().SetGrokCredentialErrorIfMatch(ctx, id, snapshot, errorMsg, string(service.GrokCredentialReasonProxyInvalid))
+	return r.accountData().SetGrokCredentialErrorIfMatch(ctx, id, snapshot, errorMsg, string(forwardcore.GrokCredentialReasonProxyInvalid))
 }
 
 func (r *accountRepository) SetGrokOAuthErrorIfCredentialsUnchanged(
@@ -246,14 +241,14 @@ func (r *accountRepository) RemoveFromGroup(ctx context.Context, accountID, grou
 	return r.accountData().RemoveFromGroup(ctx, accountID, groupID)
 }
 
-func (r *accountRepository) GetGroups(ctx context.Context, accountID int64) ([]service.Group, error) {
+func (r *accountRepository) GetGroups(ctx context.Context, accountID int64) ([]routing.Group, error) {
 	values, err := r.accountData().GetGroups(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]service.Group, 0, len(values))
+	out := make([]routing.Group, 0, len(values))
 	for i := range values {
-		out = append(out, *service.GroupFromRouting((*routing.Group)(&values[i])))
+		out = append(out, *routing.CloneGroup((*routing.Group)(&values[i])))
 	}
 	return out, nil
 }
@@ -267,14 +262,14 @@ func (r *accountRepository) ListSchedulable(ctx context.Context) ([]service.Acco
 	return service.AccountsFromRecords(v), err
 }
 
-func (r *accountRepository) ListSchedulableAccountLoads(ctx context.Context) ([]service.AccountWithConcurrency, error) {
+func (r *accountRepository) ListSchedulableAccountLoads(ctx context.Context) ([]scheduler.AccountWithConcurrency, error) {
 	rows, err := r.accountData().ListSchedulableAccountLoads(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]service.AccountWithConcurrency, len(rows))
+	out := make([]scheduler.AccountWithConcurrency, len(rows))
 	for i, v := range rows {
-		out[i] = service.AccountWithConcurrency{ID: v.ID, MaxConcurrency: v.MaxConcurrency}
+		out[i] = scheduler.AccountWithConcurrency{ID: v.ID, MaxConcurrency: v.MaxConcurrency}
 	}
 	return out, nil
 }
@@ -284,7 +279,7 @@ func (r *accountRepository) ListSchedulableByGroupID(ctx context.Context, groupI
 	return service.AccountsFromRecords(v), err
 }
 
-func (r *accountRepository) ListSchedulableCapacityByGroupIDs(ctx context.Context, groupIDs []int64) ([]service.GroupAccountCapacityRow, error) {
+func (r *accountRepository) ListSchedulableCapacityByGroupIDs(ctx context.Context, groupIDs []int64) ([]accountcore.GroupAccountCapacityRow, error) {
 	return r.accountData().ListSchedulableCapacityByGroupIDs(ctx, groupIDs)
 }
 
@@ -355,7 +350,7 @@ func (r *accountRepository) SetTempUnschedulable(ctx context.Context, id int64, 
 func (r *accountRepository) SetGrokCredentialTempUnschedulableIfMatch(
 	ctx context.Context,
 	id int64,
-	snapshot service.GrokCredentialMutationSnapshot,
+	snapshot accountcore.CredentialMutationSnapshot,
 	until time.Time,
 	reason string,
 ) (bool, error) {
@@ -402,13 +397,13 @@ func (r *accountRepository) UpdateCNUsageMonitorSnapshotCAS(
 	ctx context.Context,
 	accountID int64,
 	expectedUpdatedAt time.Time,
-	snapshot *service.CNUsageMonitorSnapshot,
+	snapshot *accountcore.CNUsageMonitorSnapshot,
 	clearExtraKey string,
 ) (bool, error) {
 	return r.accountData().UpdateCNUsageMonitorSnapshotCAS(ctx, accountID, expectedUpdatedAt, snapshot, clearExtraKey)
 }
 
-func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates service.AccountBulkUpdate) (int64, error) {
+func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates accountcore.AccountBulkUpdate) (int64, error) {
 	return r.accountData().BulkUpdate(ctx, ids, updates)
 }
 
@@ -425,13 +420,6 @@ func buildSchedulerGroupPayload(groupIDs []int64) any { return scheduler.GroupPa
 
 func accountEntityToService(m *dbent.Account) *service.Account {
 	return service.AccountFromRecord(accountpostgres.RecordFromEntity(m))
-}
-
-func normalizeJSONMap(in map[string]any) map[string]any {
-	if in == nil {
-		return map[string]any{}
-	}
-	return in
 }
 
 func (r *accountRepository) FindByExtraField(ctx context.Context, key string, value any) ([]service.Account, error) {

@@ -5,6 +5,9 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
+	strconv "strconv"
+	strings "strings"
+
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
 	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
@@ -12,8 +15,6 @@ import (
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
-	strings "strings"
 )
 
 // ArchiveHandler 只负责备份 HTTP 输入、幂等和管理员响应；资源查询与导入由账号用例拥有。

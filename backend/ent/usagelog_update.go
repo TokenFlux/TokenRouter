@@ -19,7 +19,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // UsageLogUpdate is the builder for updating UsageLog entities.
@@ -614,13 +614,13 @@ func (_u *UsageLogUpdate) AddBalanceAmountUsd(v float64) *UsageLogUpdate {
 }
 
 // SetBillingAllocations sets the "billing_allocations" field.
-func (_u *UsageLogUpdate) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpdate {
+func (_u *UsageLogUpdate) SetBillingAllocations(v []billing.BillingAllocation) *UsageLogUpdate {
 	_u.mutation.SetBillingAllocations(v)
 	return _u
 }
 
 // AppendBillingAllocations appends value to the "billing_allocations" field.
-func (_u *UsageLogUpdate) AppendBillingAllocations(v []domain.BillingAllocation) *UsageLogUpdate {
+func (_u *UsageLogUpdate) AppendBillingAllocations(v []billing.BillingAllocation) *UsageLogUpdate {
 	_u.mutation.AppendBillingAllocations(v)
 	return _u
 }
@@ -2250,13 +2250,13 @@ func (_u *UsageLogUpdateOne) AddBalanceAmountUsd(v float64) *UsageLogUpdateOne {
 }
 
 // SetBillingAllocations sets the "billing_allocations" field.
-func (_u *UsageLogUpdateOne) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpdateOne {
+func (_u *UsageLogUpdateOne) SetBillingAllocations(v []billing.BillingAllocation) *UsageLogUpdateOne {
 	_u.mutation.SetBillingAllocations(v)
 	return _u
 }
 
 // AppendBillingAllocations appends value to the "billing_allocations" field.
-func (_u *UsageLogUpdateOne) AppendBillingAllocations(v []domain.BillingAllocation) *UsageLogUpdateOne {
+func (_u *UsageLogUpdateOne) AppendBillingAllocations(v []billing.BillingAllocation) *UsageLogUpdateOne {
 	_u.mutation.AppendBillingAllocations(v)
 	return _u
 }

@@ -14,7 +14,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/creativerun"
 	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // CreativeRunUpdate is the builder for updating CreativeRun entities.
@@ -410,13 +410,13 @@ func (_u *CreativeRunUpdate) AddBalanceHoldAmount(v float64) *CreativeRunUpdate 
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (_u *CreativeRunUpdate) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *CreativeRunUpdate {
+func (_u *CreativeRunUpdate) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *CreativeRunUpdate {
 	_u.mutation.SetSubscriptionHoldAllocations(v)
 	return _u
 }
 
 // AppendSubscriptionHoldAllocations appends value to the "subscription_hold_allocations" field.
-func (_u *CreativeRunUpdate) AppendSubscriptionHoldAllocations(v []domain.BillingAllocation) *CreativeRunUpdate {
+func (_u *CreativeRunUpdate) AppendSubscriptionHoldAllocations(v []billing.BillingAllocation) *CreativeRunUpdate {
 	_u.mutation.AppendSubscriptionHoldAllocations(v)
 	return _u
 }
@@ -1527,13 +1527,13 @@ func (_u *CreativeRunUpdateOne) AddBalanceHoldAmount(v float64) *CreativeRunUpda
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (_u *CreativeRunUpdateOne) SetSubscriptionHoldAllocations(v []domain.BillingAllocation) *CreativeRunUpdateOne {
+func (_u *CreativeRunUpdateOne) SetSubscriptionHoldAllocations(v []billing.BillingAllocation) *CreativeRunUpdateOne {
 	_u.mutation.SetSubscriptionHoldAllocations(v)
 	return _u
 }
 
 // AppendSubscriptionHoldAllocations appends value to the "subscription_hold_allocations" field.
-func (_u *CreativeRunUpdateOne) AppendSubscriptionHoldAllocations(v []domain.BillingAllocation) *CreativeRunUpdateOne {
+func (_u *CreativeRunUpdateOne) AppendSubscriptionHoldAllocations(v []billing.BillingAllocation) *CreativeRunUpdateOne {
 	_u.mutation.AppendSubscriptionHoldAllocations(v)
 	return _u
 }

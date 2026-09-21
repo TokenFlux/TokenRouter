@@ -2,6 +2,8 @@ package service
 
 import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -18,18 +20,10 @@ import (
 // replaceModelInBody 替换请求体中的model字段
 // 优先使用定点修改，尽量保持客户端原始字段顺序。
 func (s *GatewayService) replaceModelInBody(body []byte, newModel string) []byte {
-	return ReplaceModelInBody(body, newModel)
+	return openaiprotocol.ReplaceModelInBody(body, newModel)
 }
 
-type claudeOAuthNormalizeOptions = claude.ClaudeOAuthNormalizeOptions
-
-func sanitizeSystemText(text string) string { return claude.SanitizeSystemText(text) }
-
-func normalizeClaudeOAuthRequestBody(body []byte, modelID string, opts claudeOAuthNormalizeOptions) ([]byte, string) {
-	return claude.NormalizeClaudeOAuthRequestBody(body, modelID, opts)
-}
-
-func (s *GatewayService) buildOAuthMetadataUserID(parsed *ParsedRequest, account *Account, fp *Fingerprint) string {
+func (s *GatewayService) buildOAuthMetadataUserID(parsed *requeststate.ParsedRequest, account *Account, fp *claude.Fingerprint) string {
 	if parsed == nil || account == nil {
 		return ""
 	}
@@ -44,7 +38,7 @@ func (s *GatewayService) buildOAuthMetadataUserID(parsed *ParsedRequest, account
 	if userID == "" {
 		// Fall back to a random, well-formed client id so we can still satisfy
 		// Claude Code OAuth requirements when account metadata is incomplete.
-		userID = generateClientID()
+		userID = claude.GenerateClientID()
 	}
 
 	// session_id 用"会话级稳定种子"派生（账号 + 客户端区分因子 + 首条 user 文本）：
@@ -52,18 +46,18 @@ func (s *GatewayService) buildOAuthMetadataUserID(parsed *ParsedRequest, account
 	// 不复用 GenerateSessionHash —— 后者是粘性路由键、按设计逐轮变化（见其测试）。
 	var firstUserText string
 	if parsed.Body != nil {
-		firstUserText = extractFirstUserText(parsed.Body.Bytes())
+		firstUserText = claude.ExtractFirstUserText(parsed.Body.Bytes())
 	}
-	seed := buildStableSessionSeed(account.ID, sessionContextDiscriminator(parsed.SessionContext), firstUserText)
-	sessionID := generateSessionUUID(seed)
+	seed := claude.BuildStableSessionSeed(account.ID, sessionContextDiscriminator(parsed.SessionContext), firstUserText)
+	sessionID := upstream.GenerateSessionUUID(seed)
 
 	// 根据指纹 UA 版本选择输出格式
 	var uaVersion string
 	if fp != nil {
-		uaVersion = ExtractCLIVersion(fp.UserAgent)
+		uaVersion = claude.ExtractCLIVersion(fp.UserAgent)
 	}
 	accountUUID := strings.TrimSpace(account.GetExtraString("account_uuid"))
-	return FormatMetadataUserID(userID, accountUUID, sessionID, uaVersion)
+	return claude.FormatMetadataUserID(userID, accountUUID, sessionID, uaVersion)
 }
 
 // applyClaudeCodeOAuthMimicryToBody 将"非 Claude Code 客户端 + Claude OAuth 账号"
@@ -107,7 +101,7 @@ func (s *GatewayService) applyClaudeCodeOAuthMimicryToBody(
 func (s *GatewayService) buildOAuthMetadataUserIDFromBody(
 	ctx context.Context,
 	account *Account,
-	fp *Fingerprint,
+	fp *claude.Fingerprint,
 	body []byte,
 ) string {
 	_ = ctx
@@ -123,7 +117,7 @@ func (s *GatewayService) buildOAuthMetadataUserIDFromBody(
 		userID = fp.ClientID
 	}
 	if userID == "" {
-		userID = generateClientID()
+		userID = claude.GenerateClientID()
 	}
 
 	// 与 buildOAuthMetadataUserID 一致：用会话级稳定种子，避免整 body 哈希导致
@@ -132,78 +126,31 @@ func (s *GatewayService) buildOAuthMetadataUserIDFromBody(
 	if fp != nil {
 		clientDiscriminator = fp.ClientID
 	}
-	seed := buildStableSessionSeed(account.ID, clientDiscriminator, extractFirstUserText(body))
-	sessionID := generateSessionUUID(seed)
+	seed := claude.BuildStableSessionSeed(account.ID, clientDiscriminator, claude.ExtractFirstUserText(body))
+	sessionID := upstream.GenerateSessionUUID(seed)
 
 	var uaVersion string
 	if fp != nil {
-		uaVersion = ExtractCLIVersion(fp.UserAgent)
+		uaVersion = claude.ExtractCLIVersion(fp.UserAgent)
 	}
 	accountUUID := strings.TrimSpace(account.GetExtraString("account_uuid"))
-	return FormatMetadataUserID(userID, accountUUID, sessionID, uaVersion)
-}
-
-func buildStableSessionSeed(accountID int64, clientDiscriminator, firstUserText string) string {
-	return claude.BuildStableSessionSeed(accountID, clientDiscriminator, firstUserText)
+	return claude.FormatMetadataUserID(userID, accountUUID, sessionID, uaVersion)
 }
 
 // sessionContextDiscriminator 把请求上下文（客户端 IP / 归一化 UA / API Key ID）拼成
 // 一个跨客户端的区分因子，避免不同用户的相同首条消息派生出相同 session_id。
-func sessionContextDiscriminator(sc *SessionContext) string {
+func sessionContextDiscriminator(sc *requeststate.SessionContext) string {
 	if sc == nil {
 		return ""
 	}
-	return sc.ClientIP + ":" + NormalizeSessionUserAgent(sc.UserAgent) + ":" + strconv.FormatInt(sc.APIKeyID, 10)
-}
-
-// GenerateSessionUUID creates a deterministic UUID4 from a seed string.
-func GenerateSessionUUID(seed string) string {
-	return generateSessionUUID(seed)
-}
-
-func generateSessionUUID(seed string) string { return upstream.GenerateSessionUUID(seed) }
-
-func normalizeSystemParam(system any) any { return claude.NormalizeSystemParam(system) }
-
-func systemIncludesClaudeCodePrompt(system any) bool {
-	return claude.SystemIncludesClaudeCodePrompt(system)
-}
-
-func injectClaudeCodePrompt(body []byte, system any) []byte {
-	return claude.InjectClaudeCodePrompt(body, system)
-}
-
-func rewriteSystemForNonClaudeCode(body []byte, system any) []byte {
-	return claude.RewriteSystemForNonClaudeCode(body, system)
-}
-
-func rewriteSystemForNonClaudeCodeWithPrompt(body []byte, system any, expansionPrompt string) []byte {
-	return claude.RewriteSystemForNonClaudeCodeWithPrompt(body, system, expansionPrompt)
-}
-
-func claudeOAuthSystemPromptBlocksForModel(model, configured string) string {
-	return claude.ClaudeOAuthSystemPromptBlocksForModel(model, configured)
-}
-
-func ValidateClaudeOAuthSystemPromptBlocksConfig(raw string) error {
-	return claude.ValidateClaudeOAuthSystemPromptBlocksConfig(raw)
-}
-
-func rewriteSystemForNonClaudeCodeWithPromptBlocks(body []byte, system any, expansionPrompt string, blocksConfig string) []byte {
-	return claude.RewriteSystemForNonClaudeCodeWithPromptBlocks(body, system, expansionPrompt, blocksConfig)
-}
-
-func enforceCacheControlLimit(body []byte) []byte { return claude.EnforceCacheControlLimit(body) }
-
-func injectAnthropicCacheControlTTL1h(body []byte) []byte {
-	return claude.InjectAnthropicCacheControlTTL1h(body)
+	return sc.ClientIP + ":" + requeststate.NormalizeSessionUserAgent(sc.UserAgent) + ":" + strconv.FormatInt(sc.APIKeyID, 10)
 }
 
 func (s *GatewayService) shouldInjectAnthropicCacheTTL1h(ctx context.Context, account *Account) bool {
 	if account == nil || !account.IsAnthropicOAuthOrSetupToken() || s == nil || s.settingService == nil {
 		return false
 	}
-	return s.settingService.IsAnthropicCacheTTL1hInjectionEnabled(ctx)
+	return s.settingService.Gateway.IsAnthropicCacheTTL1hInjectionEnabled(ctx)
 }
 
 // shouldNormalizeClientDateline reports whether the request body's client
@@ -214,7 +161,7 @@ func (s *GatewayService) shouldNormalizeClientDateline(ctx context.Context, acco
 	if account == nil || !account.IsAnthropicOAuthOrSetupToken() || s == nil || s.settingService == nil {
 		return false
 	}
-	return s.settingService.IsClientDatelineNormalizationEnabled(ctx)
+	return s.settingService.Gateway.IsClientDatelineNormalizationEnabled(ctx)
 }
 
 // normalizeClientDatelineIfEnabled applies dateline normalization to body when
@@ -236,13 +183,5 @@ func (s *GatewayService) claudeOAuthSystemPromptInjectionSettings(ctx context.Co
 	if s == nil || s.settingService == nil {
 		return true, "", ""
 	}
-	return s.settingService.GetClaudeOAuthSystemPromptInjectionSettings(ctx)
-}
-
-func systemHasClaudeCodeBillingAttribution(body []byte) bool {
-	return claude.SystemHasClaudeCodeBillingAttribution(body)
-}
-
-func isProxiedClaudeCodeRequest(body []byte, metadataUserID string) bool {
-	return claude.IsProxiedClaudeCodeRequest(body, metadataUserID)
+	return s.settingService.Gateway.GetClaudeOAuthSystemPromptInjectionSettings(ctx)
 }

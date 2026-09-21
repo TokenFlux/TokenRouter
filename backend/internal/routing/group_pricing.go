@@ -2,8 +2,9 @@
 package routing
 
 import (
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 func (v ChannelValidation) NormalizeGroupPricing(platform string, pricing []ChannelModelPricing) ([]ChannelModelPricing, error) {

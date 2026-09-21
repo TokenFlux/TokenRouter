@@ -4,9 +4,10 @@ package identity
 import (
 	json "encoding/json"
 	fmt "fmt"
-	publicsuffix "golang.org/x/net/publicsuffix"
 	regexp "regexp"
 	strings "strings"
+
+	publicsuffix "golang.org/x/net/publicsuffix"
 )
 
 var RegistrationEmailDomainPattern = regexp.MustCompile(

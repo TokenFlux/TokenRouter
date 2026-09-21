@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
@@ -131,6 +133,8 @@ func NewOpenAITextHandler(options OpenAITextOptions, backend OpenAITextBackend, 
 // executeText 的入参全部来自已经完成的前置步骤，不追加读取或提前解释报文。
 func (h *OpenAITextHandler) executeText(c *gin.Context, call OpenAITextCall, kind execution.TextKind) {
 	request := execution.Request{
+		Hints:       requeststate.ExecutionHintsFromContext(c.Request.Context()),
+		Routing:     requeststate.RoutingStateFromContext(c.Request.Context()),
 		Route:       call.Route,
 		UserID:      call.Subject.UserID,
 		Concurrency: call.Subject.Concurrency,

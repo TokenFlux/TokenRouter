@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -67,7 +69,7 @@ func TestApplyCodexOAuthTransform_MessagesBridgePromptCacheKeyIsHeaderOnly(t *te
 		},
 	}
 
-	result := applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
+	result := applyCodexOAuthTransformWithOptions(reqBody, openai.CodexOAuthTransformOptions{
 		SkipDefaultInstructions: true,
 		PreserveToolCallIDs:     true,
 	})
@@ -180,11 +182,11 @@ func TestApplyCodexOAuthTransform_BoundsLongCallIDsAndPreservesPairing(t *testin
 
 			fixedCallID, ok := call["call_id"].(string)
 			require.True(t, ok)
-			require.LessOrEqual(t, len(fixedCallID), codexCallIDMaxLength)
-			require.True(t, strings.HasPrefix(fixedCallID, codexCallIDPrefix))
+			require.LessOrEqual(t, len(fixedCallID), openai.CodexCallIDMaxLength)
+			require.True(t, strings.HasPrefix(fixedCallID, openai.CodexCallIDPrefix))
 			require.Equal(t, fixedCallID, output["call_id"])
-			require.Equal(t, fixedCallID, normalizeCodexCallID(tc.callID))
-			require.Equal(t, fixedCallID, normalizeCodexCallID(tc.outputCallID))
+			require.Equal(t, fixedCallID, openai.NormalizeCodexCallID(tc.callID))
+			require.Equal(t, fixedCallID, openai.NormalizeCodexCallID(tc.outputCallID))
 		})
 	}
 }
@@ -197,10 +199,10 @@ func TestApplyCodexOAuthTransform_PreservesCallIDsWithinLimitWhenRequested(t *te
 		callID string
 	}{
 		{name: "anthropic toolu id", callID: "toolu_01ABCdefGHIjklMNOpqrsTUV"},
-		{name: "boundary 64 chars", callID: "toolu_" + strings.Repeat("x", codexCallIDMaxLength-len("toolu_"))},
+		{name: "boundary 64 chars", callID: "toolu_" + strings.Repeat("x", openai.CodexCallIDMaxLength-len("toolu_"))},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			require.LessOrEqual(t, len(tc.callID), codexCallIDMaxLength)
+			require.LessOrEqual(t, len(tc.callID), openai.CodexCallIDMaxLength)
 			reqBody := map[string]any{
 				"model": "gpt-5.2",
 				"input": []any{
@@ -209,7 +211,7 @@ func TestApplyCodexOAuthTransform_PreservesCallIDsWithinLimitWhenRequested(t *te
 				},
 			}
 
-			applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
+			applyCodexOAuthTransformWithOptions(reqBody, openai.CodexOAuthTransformOptions{
 				PreserveToolCallIDs: true,
 			})
 
@@ -238,7 +240,7 @@ func TestApplyCodexOAuthTransform_CompactsOverlongCallIDsWhenPreserveRequested(t
 		},
 	}
 
-	applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{
+	applyCodexOAuthTransformWithOptions(reqBody, openai.CodexOAuthTransformOptions{
 		PreserveToolCallIDs: true,
 	})
 
@@ -251,10 +253,10 @@ func TestApplyCodexOAuthTransform_CompactsOverlongCallIDsWhenPreserveRequested(t
 
 	compacted, ok := call["call_id"].(string)
 	require.True(t, ok)
-	require.Len(t, compacted, codexCallIDMaxLength)
-	require.True(t, strings.HasPrefix(compacted, codexCallIDPrefix))
+	require.Len(t, compacted, openai.CodexCallIDMaxLength)
+	require.True(t, strings.HasPrefix(compacted, openai.CodexCallIDPrefix))
 	require.Equal(t, compacted, output["call_id"], "两侧压缩结果必须一致以保持配对")
-	require.Equal(t, normalizeCodexCallID(callID), compacted, "压缩必须是确定性的")
+	require.Equal(t, openai.NormalizeCodexCallID(callID), compacted, "压缩必须是确定性的")
 }
 
 func TestApplyCodexOAuthTransform_ToolSearchOutputPreservesCallID(t *testing.T) {
@@ -344,7 +346,7 @@ func TestApplyCodexOAuthTransform_PreservesNativeCallIDsWhenRequested(t *testing
 		},
 	}
 
-	applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{PreserveToolCallIDs: true})
+	applyCodexOAuthTransformWithOptions(reqBody, openai.CodexOAuthTransformOptions{PreserveToolCallIDs: true})
 
 	input, ok := reqBody["input"].([]any)
 	require.True(t, ok)
@@ -375,7 +377,7 @@ func TestApplyCodexOAuthTransform_BoundsEquivalentNativeToolCallIDsWithPairing(t
 		},
 	}
 
-	applyCodexOAuthTransformWithOptions(reqBody, codexOAuthTransformOptions{PreserveToolCallIDs: true})
+	applyCodexOAuthTransformWithOptions(reqBody, openai.CodexOAuthTransformOptions{PreserveToolCallIDs: true})
 
 	input, ok := reqBody["input"].([]any)
 	require.True(t, ok)
@@ -388,7 +390,7 @@ func TestApplyCodexOAuthTransform_BoundsEquivalentNativeToolCallIDsWithPairing(t
 	require.True(t, ok)
 	outputCallID, ok := second["call_id"].(string)
 	require.True(t, ok)
-	require.LessOrEqual(t, len(callID), codexCallIDMaxLength)
+	require.LessOrEqual(t, len(callID), openai.CodexCallIDMaxLength)
 	require.True(t, strings.HasPrefix(callID, "ctc_"))
 	require.Equal(t, callID, outputCallID)
 }
@@ -611,8 +613,8 @@ func TestApplyCodexOAuthTransform_PreservesMCPToolCallIDAndName(t *testing.T) {
 
 func TestCodexInputItemRequiresNameTypesAllowCallID(t *testing.T) {
 	for _, typ := range []string{"function_call", "custom_tool_call", "mcp_tool_call"} {
-		require.True(t, codexInputItemRequiresName(typ), typ)
-		require.True(t, isCodexToolCallItemType(typ), typ)
+		require.True(t, openai.CodexInputItemRequiresName(typ), typ)
+		require.True(t, openai.IsCodexToolCallItemType(typ), typ)
 	}
 }
 
@@ -728,7 +730,7 @@ func TestFilterCodexInput_RemovesItemReferenceWhenNotPreserved(t *testing.T) {
 		map[string]any{"type": "text", "id": "t1", "text": "hi"},
 	}
 
-	filtered := filterCodexInput(input, false)
+	filtered := openai.FilterCodexInput(input, false)
 	require.Len(t, filtered, 1)
 	// 校验 filtered[0] 为 map，确保字段检查可靠。
 	item, ok := filtered[0].(map[string]any)
@@ -778,7 +780,7 @@ func TestNormalizeOpenAIResponsesImageGenerationTools_RewritesLegacyFields(t *te
 		},
 	}
 
-	modified := normalizeOpenAIResponsesImageGenerationTools(reqBody)
+	modified := openai.NormalizeOpenAIResponsesImageGenerationTools(reqBody)
 	require.True(t, modified)
 
 	tools, ok := reqBody["tools"].([]any)
@@ -909,7 +911,7 @@ func TestEnsureOpenAIResponsesImageGenerationTool_PreservesImageGenNamespace(t *
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.True(t, hasOpenAIImageGenerationTool(tt.reqBody))
+			require.True(t, openai.HasOpenAIImageGenerationTool(tt.reqBody))
 
 			modified := ensureOpenAIResponsesImageGenerationTool(tt.reqBody)
 
@@ -918,7 +920,7 @@ func TestEnsureOpenAIResponsesImageGenerationTool_PreservesImageGenNamespace(t *
 			for _, rawTool := range tools {
 				tool, ok := rawTool.(map[string]any)
 				require.True(t, ok)
-				require.NotEqual(t, "image_generation", firstNonEmptyString(tool["type"]))
+				require.NotEqual(t, "image_generation", openai.FirstNonEmptyString(tool["type"]))
 			}
 		})
 	}
@@ -973,7 +975,7 @@ func TestCodexImageGenerationBridge_PreservesClientImageFunctionTools(t *testing
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.reqBody["instructions"] = "existing instructions"
-			require.Equal(t, tt.wantClient, hasCodexImageGenerationFunctionTool(tt.reqBody))
+			require.Equal(t, tt.wantClient, openai.HasCodexImageGenerationFunctionTool(tt.reqBody))
 
 			toolModified := ensureOpenAIResponsesImageGenerationTool(tt.reqBody)
 			choiceModified := ensureOpenAIResponsesImageGenerationToolChoiceAuto(tt.reqBody)
@@ -987,7 +989,7 @@ func TestCodexImageGenerationBridge_PreservesClientImageFunctionTools(t *testing
 			tools, _ := tt.reqBody["tools"].([]any)
 			for _, rawTool := range tools {
 				tool, ok := rawTool.(map[string]any)
-				if ok && firstNonEmptyString(tool["type"]) == "image_generation" {
+				if ok && openai.FirstNonEmptyString(tool["type"]) == "image_generation" {
 					hasHostedTool = true
 				}
 			}
@@ -998,7 +1000,7 @@ func TestCodexImageGenerationBridge_PreservesClientImageFunctionTools(t *testing
 				require.Equal(t, "existing instructions", tt.reqBody["instructions"])
 			} else {
 				require.Equal(t, "auto", tt.reqBody["tool_choice"])
-				require.Contains(t, tt.reqBody["instructions"], codexImageGenerationBridgeMarker)
+				require.Contains(t, tt.reqBody["instructions"], openai.CodexImageGenerationBridgeMarker)
 			}
 		})
 	}
@@ -1019,7 +1021,7 @@ func TestApplyCodexImageGenerationBridgeInstructions_AppendsBridgeOnce(t *testin
 	instructions, ok := reqBody["instructions"].(string)
 	require.True(t, ok)
 	require.Contains(t, instructions, "existing instructions")
-	require.Contains(t, instructions, codexImageGenerationBridgeMarker)
+	require.Contains(t, instructions, openai.CodexImageGenerationBridgeMarker)
 	require.Contains(t, instructions, "Responses native `image_generation` tool")
 
 	modified = applyCodexImageGenerationBridgeInstructions(reqBody)
@@ -1119,10 +1121,10 @@ func TestApplyCodexOAuthTransform_AddsSparkImageUnsupportedInstructions(t *testi
 	instructions, ok := reqBody["instructions"].(string)
 	require.True(t, ok)
 	require.Contains(t, instructions, "existing instructions")
-	require.Contains(t, instructions, codexSparkImageUnsupportedMarker)
+	require.Contains(t, instructions, openai.CodexSparkImageUnsupportedMarker)
 	require.Contains(t, instructions, "does not support image generation")
 	require.Contains(t, instructions, "switch to a non-Spark Codex model")
-	require.NotContains(t, instructions, codexImageGenerationBridgeMarker)
+	require.NotContains(t, instructions, openai.CodexImageGenerationBridgeMarker)
 }
 
 func TestApplyCodexOAuthTransform_DoesNotAddSparkImageUnsupportedForNonSpark(t *testing.T) {
@@ -1135,7 +1137,7 @@ func TestApplyCodexOAuthTransform_DoesNotAddSparkImageUnsupportedForNonSpark(t *
 	applyCodexOAuthTransform(reqBody, true, false)
 	instructions, ok := reqBody["instructions"].(string)
 	require.True(t, ok)
-	require.NotContains(t, instructions, codexSparkImageUnsupportedMarker)
+	require.NotContains(t, instructions, openai.CodexSparkImageUnsupportedMarker)
 }
 
 // gpt-5.3-codex-spark 上游会拒绝 image_generation 工具，OAuth 转换需要剥离该工具并保留其它工具。
@@ -1151,7 +1153,7 @@ func TestApplyCodexOAuthTransform_StripsImageGenerationToolForSpark(t *testing.T
 
 	result := applyCodexOAuthTransform(reqBody, true, false)
 	require.True(t, result.Modified)
-	require.False(t, hasOpenAIImageGenerationTool(reqBody))
+	require.False(t, openai.HasOpenAIImageGenerationTool(reqBody))
 
 	tools, ok := reqBody["tools"].([]any)
 	require.True(t, ok)
@@ -1174,7 +1176,7 @@ func TestApplyCodexOAuthTransform_StripsImageGenerationToolForSparkAlias(t *test
 
 	result := applyCodexOAuthTransform(reqBody, true, false)
 	require.True(t, result.Modified)
-	require.False(t, hasOpenAIImageGenerationTool(reqBody))
+	require.False(t, openai.HasOpenAIImageGenerationTool(reqBody))
 	// 剥离唯一工具后 tools 会被清空并删除字段。
 	_, hasTools := reqBody["tools"]
 	require.False(t, hasTools)
@@ -1221,8 +1223,8 @@ func TestStripOpenAIImageGenerationTools_StripsNamespaceFormats(t *testing.T) {
 		"tool_choice": map[string]any{"type": "namespace", "name": "image_gen"},
 	}
 
-	require.True(t, stripOpenAIImageGenerationTools(reqBody))
-	require.False(t, hasOpenAIImageGenerationTool(reqBody))
+	require.True(t, openai.StripOpenAIImageGenerationTools(reqBody))
+	require.False(t, openai.HasOpenAIImageGenerationTool(reqBody))
 	require.NotContains(t, reqBody, "tool_choice")
 
 	tools, ok := reqBody["tools"].([]any)
@@ -1249,7 +1251,7 @@ func TestStripOpenAIImageGenerationTools_StripsNamespaceFormats(t *testing.T) {
 	additionalTool, ok := additionalTools[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "code_tools", additionalTool["name"])
-	require.False(t, stripOpenAIImageGenerationTools(reqBody), "stripping should be idempotent")
+	require.False(t, openai.StripOpenAIImageGenerationTools(reqBody), "stripping should be idempotent")
 }
 
 func TestStripOpenAIImageGenerationTools_KeepsNonImageNamespaces(t *testing.T) {
@@ -1268,9 +1270,9 @@ func TestStripOpenAIImageGenerationTools_KeepsNonImageNamespaces(t *testing.T) {
 		"tool_choice": "auto",
 	}
 
-	require.False(t, stripOpenAIImageGenerationTools(reqBody))
+	require.False(t, openai.StripOpenAIImageGenerationTools(reqBody))
 	require.Equal(t, "auto", reqBody["tool_choice"])
-	require.False(t, hasOpenAIImageGenerationTool(reqBody))
+	require.False(t, openai.HasOpenAIImageGenerationTool(reqBody))
 }
 
 func TestStripOpenAIImageGenerationTools_KeepsCustomImagegenFunctionChoice(t *testing.T) {
@@ -1280,7 +1282,7 @@ func TestStripOpenAIImageGenerationTools_KeepsCustomImagegenFunctionChoice(t *te
 		},
 	}
 
-	require.False(t, stripOpenAIImageGenerationTools(reqBody))
+	require.False(t, openai.StripOpenAIImageGenerationTools(reqBody))
 	require.Contains(t, reqBody, "tool_choice")
 }
 
@@ -1295,7 +1297,7 @@ func TestApplyCodexOAuthTransform_KeepsImageGenerationToolForNonSpark(t *testing
 	}
 
 	applyCodexOAuthTransform(reqBody, true, false)
-	require.True(t, hasOpenAIImageGenerationTool(reqBody))
+	require.True(t, openai.HasOpenAIImageGenerationTool(reqBody))
 }
 
 func TestNormalizeOpenAIResponsesImageOnlyModel_BuildsImageToolRequest(t *testing.T) {
@@ -1308,7 +1310,7 @@ func TestNormalizeOpenAIResponsesImageOnlyModel_BuildsImageToolRequest(t *testin
 
 	modified := normalizeOpenAIResponsesImageOnlyModel(reqBody)
 	require.True(t, modified)
-	require.Equal(t, openAIImagesResponsesMainModel, reqBody["model"])
+	require.Equal(t, openai.ImagesResponsesMainModel, reqBody["model"])
 	require.Equal(t, "draw a cat", reqBody["input"])
 	_, hasPrompt := reqBody["prompt"]
 	require.False(t, hasPrompt)
@@ -1345,7 +1347,7 @@ func TestNormalizeOpenAIResponsesImageOnlyModel_PreservesExistingImageTool(t *te
 
 	modified := normalizeOpenAIResponsesImageOnlyModel(reqBody)
 	require.True(t, modified)
-	require.Equal(t, openAIImagesResponsesMainModel, reqBody["model"])
+	require.Equal(t, openai.ImagesResponsesMainModel, reqBody["model"])
 	require.Equal(t, "auto", reqBody["tool_choice"])
 
 	tools, ok := reqBody["tools"].([]any)
@@ -1422,7 +1424,7 @@ func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 	}
 
 	for input, expected := range cases {
-		require.Equal(t, expected, normalizeCodexModel(input))
+		require.Equal(t, expected, gatewayprovider.NormalizeCodexModel(input))
 	}
 }
 
@@ -1442,7 +1444,7 @@ func TestNormalizeCodexModel_RemovedModelsFallbackToSupportedTargets(t *testing.
 	}
 
 	for input, expected := range cases {
-		require.Equal(t, expected, normalizeCodexModel(input))
+		require.Equal(t, expected, gatewayprovider.NormalizeCodexModel(input))
 	}
 }
 
@@ -1588,7 +1590,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 				map[string]any{"role": "user", "content": "hello"},
 			},
 		}
-		result := extractSystemMessagesFromInput(reqBody, false)
+		result := openai.ExtractSystemMessagesFromInput(reqBody, false)
 		require.False(t, result)
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
@@ -1604,7 +1606,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 				map[string]any{"role": "user", "content": "hello"},
 			},
 		}
-		result := extractSystemMessagesFromInput(reqBody, false)
+		result := openai.ExtractSystemMessagesFromInput(reqBody, false)
 		require.True(t, result)
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
@@ -1631,7 +1633,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 				},
 			},
 		}
-		result := extractSystemMessagesFromInput(reqBody, false)
+		result := openai.ExtractSystemMessagesFromInput(reqBody, false)
 		require.True(t, result)
 		require.Equal(t, "Be helpful.", reqBody["instructions"])
 		input, ok := reqBody["input"].([]any)
@@ -1650,7 +1652,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 				map[string]any{"role": "user", "content": "hi"},
 			},
 		}
-		result := extractSystemMessagesFromInput(reqBody, false)
+		result := openai.ExtractSystemMessagesFromInput(reqBody, false)
 		require.True(t, result)
 		require.Equal(t, "First.\n\nSecond.", reqBody["instructions"])
 		input, ok := reqBody["input"].([]any)
@@ -1675,7 +1677,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 				map[string]any{"role": "assistant", "content": "Hi there"},
 			},
 		}
-		result := extractSystemMessagesFromInput(reqBody, false)
+		result := openai.ExtractSystemMessagesFromInput(reqBody, false)
 		require.True(t, result)
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
@@ -1700,7 +1702,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 			},
 			"instructions": "Existing instructions.",
 		}
-		result := extractSystemMessagesFromInput(reqBody, false)
+		result := openai.ExtractSystemMessagesFromInput(reqBody, false)
 		require.True(t, result)
 		require.Equal(t, "Extracted.\n\nExisting instructions.", reqBody["instructions"])
 		input, ok := reqBody["input"].([]any)
@@ -1727,7 +1729,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 			"instructions": "Existing.",
 		}
 
-		result := extractSystemMessagesFromInput(reqBody, true)
+		result := openai.ExtractSystemMessagesFromInput(reqBody, true)
 
 		require.True(t, result)
 		require.Equal(t, "First.\n\nSecond and third.\n\nExisting.", reqBody["instructions"])
@@ -1753,7 +1755,7 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 			},
 		}
 
-		result := extractSystemMessagesFromInput(reqBody, true)
+		result := openai.ExtractSystemMessagesFromInput(reqBody, true)
 
 		require.True(t, result)
 		require.Equal(t, "Inspect this image.", reqBody["instructions"])
@@ -1833,7 +1835,7 @@ func TestNormalizeOpenAIResponsesImageGenerationTools_StripsGPTImage2InputFideli
 		map[string]any{"type": "image_generation", "model": "gpt-image-1.5", "input_fidelity": "high"},
 	}}
 
-	require.True(t, normalizeOpenAIResponsesImageGenerationTools(reqBody))
+	require.True(t, openai.NormalizeOpenAIResponsesImageGenerationTools(reqBody))
 	tools, ok := reqBody["tools"].([]any)
 	require.True(t, ok)
 	require.Len(t, tools, 2)
@@ -1934,7 +1936,7 @@ func TestIsInstructionsEmpty(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := isInstructionsEmpty(tt.reqBody)
+			result := openai.IsInstructionsEmpty(tt.reqBody)
 			require.Equal(t, tt.expected, result)
 		})
 	}
@@ -1965,7 +1967,7 @@ func TestFilterCodexInput_PreservesReasoningStripsID(t *testing.T) {
 	for _, preserve := range []bool{true, false} {
 		preserve := preserve
 		t.Run(fmt.Sprintf("preserveReferences=%v", preserve), func(t *testing.T) {
-			filtered := filterCodexInput(build(), preserve)
+			filtered := openai.FilterCodexInput(build(), preserve)
 			require.Len(t, filtered, 1)
 
 			item, ok := filtered[0].(map[string]any)
@@ -2005,7 +2007,7 @@ func TestFilterCodexInput_BareReasoningStripsIDBackfillsSummary(t *testing.T) {
 		map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "{}"},
 	}
 
-	filtered := filterCodexInput(input, false)
+	filtered := openai.FilterCodexInput(input, false)
 
 	require.Len(t, filtered, 4)
 	reasoning, ok := filtered[1].(map[string]any)
@@ -2025,7 +2027,7 @@ func TestFilterCodexInput_ReasoningBackfillsMissingSummary(t *testing.T) {
 		},
 	}
 
-	filtered := filterCodexInput(input, false)
+	filtered := openai.FilterCodexInput(input, false)
 
 	require.Len(t, filtered, 1)
 	reasoning, ok := filtered[0].(map[string]any)
@@ -2050,7 +2052,7 @@ func TestFilterCodexInput_PreservesReasoningSummaryContentAndEncryptedContent(t 
 		},
 	}
 
-	filtered := filterCodexInput(input, true)
+	filtered := openai.FilterCodexInput(input, true)
 
 	require.Len(t, filtered, 1)
 	reasoning, ok := filtered[0].(map[string]any)
@@ -2071,7 +2073,7 @@ func TestFilterCodexInput_StripsReasoningIDsWhenReferencesArePreserved(t *testin
 		},
 	}
 
-	filtered := filterCodexInput(input, true)
+	filtered := openai.FilterCodexInput(input, true)
 
 	require.Len(t, filtered, 1)
 	reasoning, ok := filtered[0].(map[string]any)

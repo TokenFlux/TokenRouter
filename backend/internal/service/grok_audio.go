@@ -7,16 +7,18 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 
-	nativeupstream "github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
@@ -27,15 +29,15 @@ const DefaultGrokRealtimeDialTimeout = 12 * time.Second
 
 // ForwardGrokVoice 转发官方 xAI Voice HTTP API，包括 TTS、STT 和自定义 Voice 子资源。
 // TTS 返回音频字节、STT 返回 JSON，且 xAI 可能附加格式专用响应头，因此响应保持透传。
-func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Context, account *Account, endpoint string, body []byte, contentType string) (*OpenAIForwardResult, error) {
+func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Context, account *Account, endpoint string, body []byte, contentType string) (*forwardcore.OpenAIResult, error) {
 	if s == nil || account == nil {
 		return nil, fmt.Errorf("grok voice service/account is required")
 	}
-	if account.Platform != PlatformGrok {
+	if account.Platform != capability.PlatformGrok {
 		return nil, fmt.Errorf("account platform %s is not supported for grok voice", account.Platform)
 	}
 	var err error
-	endpoint, baseEndpoint, err := nativegrok.ValidateVoiceEndpoint(endpoint)
+	endpoint, baseEndpoint, err := grok.ValidateVoiceEndpoint(endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -50,14 +52,14 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 	}
 	upstreamCtx, release := detachUpstreamContext(ctx)
 	defer release()
-	upstreamCtx = WithHTTPUpstreamProfile(upstreamCtx, HTTPUpstreamProfileGrok)
+	upstreamCtx = upstreamcore.WithHTTPUpstreamProfile(upstreamCtx, upstreamcore.HTTPUpstreamProfileGrok)
 	method := http.MethodPost
 	if c != nil && c.Request != nil && strings.TrimSpace(c.Request.Method) != "" {
 		method = c.Request.Method
 	}
-	req, err := nativegrok.BuildVoiceRequest(upstreamCtx, method, targetURL, token, contentType, body, func(headers http.Header) {
+	req, err := grok.BuildVoiceRequest(upstreamCtx, method, targetURL, token, contentType, body, func(headers http.Header) {
 		if account.IsGrokOAuth() && isGrokCLIProxyTarget(targetURL) {
-			applyGrokCLIHeaders(headers)
+			grok.ApplyCLIHeaders(headers)
 		}
 		account.ApplyHeaderOverrides(headers)
 	})
@@ -68,7 +70,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	var handledResult *OpenAIForwardResult
+	var handledResult *forwardcore.OpenAIResult
 	handled := false
 	target := &mediaprovider.GrokVoiceOptions{
 		AccountID:    account.ID,
@@ -81,7 +83,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 			return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 		},
 		AfterExchange: func(elapsed time.Duration, err error) error {
-			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, elapsed.Milliseconds())
+			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, elapsed.Milliseconds())
 			if err != nil {
 				return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
 			}
@@ -101,7 +103,7 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 		},
 		CopyHeaders: func(dst, src http.Header) { writeOpenAIPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) },
 	}
-	var sink nativeupstream.OutputSink
+	var sink upstreamcore.OutputSink
 	if c != nil {
 		sink = gatewayhttp.ResponseSink{Writer: c.Writer}
 	}
@@ -112,14 +114,14 @@ func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Cont
 	case "stt":
 		proto = protocol.ProtocolSTT
 	}
-	result, err := (mediaprovider.GrokVoice{Options: *target}).Execute(upstreamCtx, nativeupstream.AttemptInput{Protocol: proto, Body: body}, sink)
+	result, err := (mediaprovider.GrokVoice{Options: *target}).Execute(upstreamCtx, upstreamcore.AttemptInput{Protocol: proto, Body: body}, sink)
 	if handled {
 		return handledResult, err
 	}
 	if err != nil {
 		return nil, err
 	}
-	return &OpenAIForwardResult{
+	return &forwardcore.OpenAIResult{
 		RequestID:       StableGrokAudioBillingRequestID(result.RequestID),
 		UpstreamHeaders: result.UpstreamHeaders,
 		Model:           result.Model,
@@ -135,7 +137,7 @@ func (s *OpenAIGatewayService) ProxyGrokRealtime(ctx context.Context, c *gin.Con
 	if s == nil || client == nil || account == nil {
 		return false, fmt.Errorf("realtime service, client, and account are required")
 	}
-	if account.Platform != PlatformGrok {
+	if account.Platform != capability.PlatformGrok {
 		return false, fmt.Errorf("account platform %s is not supported for grok realtime", account.Platform)
 	}
 	upstream, err := s.OpenGrokRealtime(ctx, account, token, model)
@@ -146,12 +148,8 @@ func (s *OpenAIGatewayService) ProxyGrokRealtime(ctx context.Context, c *gin.Con
 	return s.ProxyGrokRealtimeConn(ctx, c, client, upstream)
 }
 
-type GrokRealtimeUpstream = nativegrok.RealtimeSession
-
-type GrokRealtimeDialError = nativegrok.RealtimeDialError
-
-func (s *OpenAIGatewayService) OpenGrokRealtime(ctx context.Context, account *Account, token, model string) (*GrokRealtimeUpstream, error) {
-	if s == nil || account == nil || account.Platform != PlatformGrok {
+func (s *OpenAIGatewayService) OpenGrokRealtime(ctx context.Context, account *Account, token, model string) (*grok.RealtimeSession, error) {
+	if s == nil || account == nil || account.Platform != capability.PlatformGrok {
 		return nil, fmt.Errorf("grok realtime account is required")
 	}
 	base, err := buildGrokVoiceURL(account, s.cfg, "realtime")
@@ -169,18 +167,18 @@ func (s *OpenAIGatewayService) HandleGrokRealtimeUpstreamError(ctx context.Conte
 	_ = s.applyGrokAccountUpstreamError(ctx, account, statusCode, nil, body)
 }
 
-func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin.Context, client *coderws.Conn, upstream *GrokRealtimeUpstream) (bool, error) {
+func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin.Context, client *coderws.Conn, upstream *grok.RealtimeSession) (bool, error) {
 	if s == nil || client == nil || !upstream.Ready() {
 		return false, fmt.Errorf("realtime connection is required")
 	}
-	return nativegrok.RelayRealtime(ctx, grokClientFrames{client}, upstream)
+	return grok.RelayRealtime(ctx, grokClientFrames{client}, upstream)
 }
 
 func (s *OpenAIGatewayService) ProbeGrokRealtime(ctx context.Context, account *Account, token, model string) error {
 	if s == nil || account == nil {
 		return fmt.Errorf("realtime service and account are required")
 	}
-	if account.Platform != PlatformGrok {
+	if account.Platform != capability.PlatformGrok {
 		return fmt.Errorf("account platform %s is not supported for grok realtime", account.Platform)
 	}
 	base, err := buildGrokVoiceURL(account, s.cfg, "realtime")
@@ -190,31 +188,25 @@ func (s *OpenAIGatewayService) ProbeGrokRealtime(ctx context.Context, account *A
 	return mediaprovider.ProbeRealtime(ctx, s.grokRealtimeOptions(account, base, token, model))
 }
 
-func awaitGrokRealtimeAudioObserved(errCh <-chan error, audioObserved *atomic.Bool) (bool, error) {
-	return nativegrok.AwaitGrokRealtimeAudioObserved(errCh, audioObserved)
-}
-
-func grokRealtimeEventHasAudio(msg []byte) bool { return nativegrok.GrokRealtimeEventHasAudio(msg) }
-
 // HTTP/既有 WS SDK 只转换同步帧接口，升级与连接租约仍由原入口拥有。
 type grokClientFrames struct{ conn *coderws.Conn }
 
-func (c grokClientFrames) ReadFrame(ctx context.Context) (nativeupstream.FrameKind, []byte, error) {
+func (c grokClientFrames) ReadFrame(ctx context.Context) (upstreamcore.FrameKind, []byte, error) {
 	kind, data, err := c.conn.Read(ctx)
-	return nativeupstream.FrameKind(kind), data, err
+	return upstreamcore.FrameKind(kind), data, err
 }
-func (c grokClientFrames) WriteFrame(ctx context.Context, kind nativeupstream.FrameKind, data []byte) error {
+func (c grokClientFrames) WriteFrame(ctx context.Context, kind upstreamcore.FrameKind, data []byte) error {
 	return c.conn.Write(ctx, coderws.MessageType(kind), data)
 }
 func (c grokClientFrames) Close() error { return c.conn.CloseNow() }
 
-type grokUpstreamFrames struct{ conn openAIWSClientConn }
+type grokUpstreamFrames struct{ conn openai.WSClientConn }
 
-func (c grokUpstreamFrames) ReadFrame(ctx context.Context) (nativeupstream.FrameKind, []byte, error) {
+func (c grokUpstreamFrames) ReadFrame(ctx context.Context) (upstreamcore.FrameKind, []byte, error) {
 	data, err := c.conn.ReadMessage(ctx)
-	return nativeupstream.FrameText, data, err
+	return upstreamcore.FrameText, data, err
 }
-func (c grokUpstreamFrames) WriteFrame(ctx context.Context, _ nativeupstream.FrameKind, data []byte) error {
+func (c grokUpstreamFrames) WriteFrame(ctx context.Context, _ upstreamcore.FrameKind, data []byte) error {
 	return c.conn.WriteJSON(ctx, json.RawMessage(data))
 }
 func (c grokUpstreamFrames) Close() error { return c.conn.Close() }
@@ -231,7 +223,7 @@ func (s *OpenAIGatewayService) grokRealtimeOptions(account *Account, base, token
 		Model:        model,
 		ApplyHeaders: account.ApplyHeaderOverrides,
 		Enter:        s.nativeAttemptActivity,
-		Dial: func(ctx context.Context, target string, headers http.Header) (nativeupstream.FrameConn, int, error) {
+		Dial: func(ctx context.Context, target string, headers http.Header) (upstreamcore.FrameConn, int, error) {
 			conn, status, _, err := s.getOpenAIWSPassthroughDialer().Dial(ctx, target, headers, proxyURL, s.resolveOpenAITLSProfile(account))
 			if conn == nil {
 				return nil, status, err
@@ -240,20 +232,20 @@ func (s *OpenAIGatewayService) grokRealtimeOptions(account *Account, base, token
 		},
 	}
 	if account.IsGrokOAuth() {
-		options.CLIHeaders = applyGrokCLIHeaders
+		options.CLIHeaders = grok.ApplyCLIHeaders
 	}
 	return options
 }
 
 // ProxyGrokRealtimeFrames 接收受控帧连接，供 media 持有关闭和账号槽所有权。
-func (s *OpenAIGatewayService) ProxyGrokRealtimeFrames(ctx context.Context, client *coderws.Conn, conn nativeupstream.FrameConn) (bool, error) {
+func (s *OpenAIGatewayService) ProxyGrokRealtimeFrames(ctx context.Context, client *coderws.Conn, conn upstreamcore.FrameConn) (bool, error) {
 	if s == nil || client == nil || conn == nil {
 		return false, fmt.Errorf("realtime connection is required")
 	}
-	return nativegrok.RelayRealtime(ctx, grokClientFrames{client}, conn)
+	return grok.RelayRealtime(ctx, grokClientFrames{client}, conn)
 }
 
 // RelayGrokRealtimeFrames 只连接原生帧中继；入站升级与槽位由媒体 HTTP/core 拥有。
-func (s *OpenAIGatewayService) RelayGrokRealtimeFrames(ctx context.Context, client, server nativeupstream.FrameConn) (bool, error) {
-	return nativegrok.RelayRealtime(ctx, client, server)
+func (s *OpenAIGatewayService) RelayGrokRealtimeFrames(ctx context.Context, client, server upstreamcore.FrameConn) (bool, error) {
+	return grok.RelayRealtime(ctx, client, server)
 }

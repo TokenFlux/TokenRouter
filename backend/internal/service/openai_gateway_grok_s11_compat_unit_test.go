@@ -4,9 +4,13 @@
 package service
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	grok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	uuid "github.com/google/uuid"
 )
 
-func patchGrokResponsesBodyWithClientTools(body []byte, upstreamModel string) ([]byte, apicompat.ResponsesClientToolMapping, error) {
-	return grokBodyCodec().PatchGrokResponsesBodyWithClientTools(body, upstreamModel)
+func patchGrokResponsesBodyWithClientTools(body []byte, upstreamModel string) ([]byte, bridge.ResponsesClientToolMapping, error) {
+	return (grok.BodyCodec{
+		NewID: uuid.NewString}).
+		PatchGrokResponsesBodyWithClientTools(body, upstreamModel)
 }

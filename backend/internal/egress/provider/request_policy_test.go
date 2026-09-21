@@ -1,11 +1,12 @@
 package provider
 
 import (
+	"net/http"
+	"testing"
+
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
 )
 
 // TLS 技术投影往返保持全部身份字段及 nil/空切片，不复用调用方可变容器。

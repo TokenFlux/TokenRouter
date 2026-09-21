@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestForwardResponsesInputTokensCustomRelayUsesLocalEstimate(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/input_tokens", nil)
@@ -26,7 +27,7 @@ func TestForwardResponsesInputTokensCustomRelayUsesLocalEstimate(t *testing.T) {
 		httpUpstream: upstream,
 	}
 	account := &Account{
-		ID: 159, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
+		ID: 159, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "relay-key", "base_url": "https://relay.example/v1"},
 	}
 	body := []byte(`{"model":"gpt-5.4","instructions":"Be concise.","input":"hello world","tools":[{"type":"function","name":"lookup","description":"Look up a value","parameters":{"type":"object"}}]}`)
@@ -40,12 +41,12 @@ func TestForwardResponsesInputTokensCustomRelayUsesLocalEstimate(t *testing.T) {
 }
 
 func TestForwardResponsesInputTokensGrokUsesLocalEstimate(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/input_tokens", nil)
 	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 160, Platform: PlatformGrok, Type: AccountTypeOAuth}
+	account := &Account{ID: 160, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
 
 	err := svc.ForwardResponsesInputTokens(context.Background(), c, account, []byte(`{"model":"grok-4.1","input":"hello world"}`))
 	require.NoError(t, err)
@@ -55,7 +56,7 @@ func TestForwardResponsesInputTokensGrokUsesLocalEstimate(t *testing.T) {
 }
 
 func TestForwardResponsesInputTokensUpstream404FallsBackLocally(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/input_tokens", nil)
@@ -69,7 +70,7 @@ func TestForwardResponsesInputTokensUpstream404FallsBackLocally(t *testing.T) {
 		httpUpstream: upstream,
 	}
 	account := &Account{
-		ID: 171, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
+		ID: 171, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "official-key", "base_url": "https://api.openai.com/v1"},
 	}
 	body := []byte(`{"model":"gpt-5.4","instructions":"Be concise.","input":"hello world"}`)

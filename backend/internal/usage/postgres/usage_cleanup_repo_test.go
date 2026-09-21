@@ -9,7 +9,8 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,9 +26,9 @@ func TestUsageCleanupRepositoryCreateTask(t *testing.T) {
 
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	task := &service.UsageCleanupTask{
-		Status:    service.UsageCleanupStatusPending,
-		Filters:   service.UsageCleanupFilters{StartTime: start, EndTime: end},
+	task := &usage.UsageCleanupTask{
+		Status:    usage.UsageCleanupStatusPending,
+		Filters:   usage.UsageCleanupFilters{StartTime: start, EndTime: end},
 		CreatedBy: 12,
 	}
 	now := time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC)
@@ -57,9 +58,9 @@ func TestUsageCleanupRepositoryCreateTaskQueryError(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &CleanupStore{sql: db}
 
-	task := &service.UsageCleanupTask{
-		Status:    service.UsageCleanupStatusPending,
-		Filters:   service.UsageCleanupFilters{StartTime: time.Now(), EndTime: time.Now().Add(time.Hour)},
+	task := &usage.UsageCleanupTask{
+		Status:    usage.UsageCleanupStatusPending,
+		Filters:   usage.UsageCleanupFilters{StartTime: time.Now(), EndTime: time.Now().Add(time.Hour)},
 		CreatedBy: 1,
 	}
 
@@ -92,7 +93,7 @@ func TestUsageCleanupRepositoryListTasks(t *testing.T) {
 
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(2 * time.Hour)
-	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
+	filters := usage.UsageCleanupFilters{StartTime: start, EndTime: end}
 	filtersJSON, err := json.Marshal(filters)
 	require.NoError(t, err)
 
@@ -104,7 +105,7 @@ func TestUsageCleanupRepositoryListTasks(t *testing.T) {
 		"started_at", "finished_at", "created_at", "updated_at",
 	}).AddRow(
 		int64(1),
-		service.UsageCleanupStatusSucceeded,
+		usage.UsageCleanupStatusSucceeded,
 		filtersJSON,
 		int64(2),
 		int64(9),
@@ -127,7 +128,7 @@ func TestUsageCleanupRepositoryListTasks(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	require.Equal(t, int64(1), tasks[0].ID)
-	require.Equal(t, service.UsageCleanupStatusSucceeded, tasks[0].Status)
+	require.Equal(t, usage.UsageCleanupStatusSucceeded, tasks[0].Status)
 	require.Equal(t, int64(2), tasks[0].CreatedBy)
 	require.Equal(t, int64(9), tasks[0].DeletedRows)
 	require.NotNil(t, tasks[0].ErrorMsg)
@@ -163,7 +164,7 @@ func TestUsageCleanupRepositoryListTasksInvalidFilters(t *testing.T) {
 		"started_at", "finished_at", "created_at", "updated_at",
 	}).AddRow(
 		int64(1),
-		service.UsageCleanupStatusSucceeded,
+		usage.UsageCleanupStatusSucceeded,
 		[]byte("not-json"),
 		int64(2),
 		int64(9),
@@ -192,7 +193,7 @@ func TestUsageCleanupRepositoryClaimNextPendingTaskNone(t *testing.T) {
 	repo := &CleanupStore{sql: db}
 
 	mock.ExpectQuery("UPDATE usage_cleanup_tasks").
-		WithArgs(service.UsageCleanupStatusPending, service.UsageCleanupStatusRunning, int64(1800), service.UsageCleanupStatusRunning).
+		WithArgs(usage.UsageCleanupStatusPending, usage.UsageCleanupStatusRunning, int64(1800), usage.UsageCleanupStatusRunning).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"id", "status", "filters", "created_by", "deleted_rows", "error_message",
 			"started_at", "finished_at", "created_at", "updated_at",
@@ -210,7 +211,7 @@ func TestUsageCleanupRepositoryClaimNextPendingTask(t *testing.T) {
 
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
+	filters := usage.UsageCleanupFilters{StartTime: start, EndTime: end}
 	filtersJSON, err := json.Marshal(filters)
 	require.NoError(t, err)
 
@@ -219,7 +220,7 @@ func TestUsageCleanupRepositoryClaimNextPendingTask(t *testing.T) {
 		"started_at", "finished_at", "created_at", "updated_at",
 	}).AddRow(
 		int64(4),
-		service.UsageCleanupStatusRunning,
+		usage.UsageCleanupStatusRunning,
 		filtersJSON,
 		int64(7),
 		int64(0),
@@ -231,14 +232,14 @@ func TestUsageCleanupRepositoryClaimNextPendingTask(t *testing.T) {
 	)
 
 	mock.ExpectQuery("UPDATE usage_cleanup_tasks").
-		WithArgs(service.UsageCleanupStatusPending, service.UsageCleanupStatusRunning, int64(1800), service.UsageCleanupStatusRunning).
+		WithArgs(usage.UsageCleanupStatusPending, usage.UsageCleanupStatusRunning, int64(1800), usage.UsageCleanupStatusRunning).
 		WillReturnRows(rows)
 
 	task, err := repo.ClaimNextPendingTask(context.Background(), 1800)
 	require.NoError(t, err)
 	require.NotNil(t, task)
 	require.Equal(t, int64(4), task.ID)
-	require.Equal(t, service.UsageCleanupStatusRunning, task.Status)
+	require.Equal(t, usage.UsageCleanupStatusRunning, task.Status)
 	require.Equal(t, int64(7), task.CreatedBy)
 	require.NotNil(t, task.StartedAt)
 	require.Nil(t, task.ErrorMsg)
@@ -250,7 +251,7 @@ func TestUsageCleanupRepositoryClaimNextPendingTaskError(t *testing.T) {
 	repo := &CleanupStore{sql: db}
 
 	mock.ExpectQuery("UPDATE usage_cleanup_tasks").
-		WithArgs(service.UsageCleanupStatusPending, service.UsageCleanupStatusRunning, int64(1800), service.UsageCleanupStatusRunning).
+		WithArgs(usage.UsageCleanupStatusPending, usage.UsageCleanupStatusRunning, int64(1800), usage.UsageCleanupStatusRunning).
 		WillReturnError(sql.ErrConnDone)
 
 	_, err := repo.ClaimNextPendingTask(context.Background(), 1800)
@@ -267,7 +268,7 @@ func TestUsageCleanupRepositoryClaimNextPendingTaskInvalidFilters(t *testing.T) 
 		"started_at", "finished_at", "created_at", "updated_at",
 	}).AddRow(
 		int64(4),
-		service.UsageCleanupStatusRunning,
+		usage.UsageCleanupStatusRunning,
 		[]byte("invalid"),
 		int64(7),
 		int64(0),
@@ -279,7 +280,7 @@ func TestUsageCleanupRepositoryClaimNextPendingTaskInvalidFilters(t *testing.T) 
 	)
 
 	mock.ExpectQuery("UPDATE usage_cleanup_tasks").
-		WithArgs(service.UsageCleanupStatusPending, service.UsageCleanupStatusRunning, int64(1800), service.UsageCleanupStatusRunning).
+		WithArgs(usage.UsageCleanupStatusPending, usage.UsageCleanupStatusRunning, int64(1800), usage.UsageCleanupStatusRunning).
 		WillReturnRows(rows)
 
 	_, err := repo.ClaimNextPendingTask(context.Background(), 1800)
@@ -292,7 +293,7 @@ func TestUsageCleanupRepositoryMarkTaskSucceeded(t *testing.T) {
 	repo := &CleanupStore{sql: db}
 
 	mock.ExpectExec("UPDATE usage_cleanup_tasks").
-		WithArgs(service.UsageCleanupStatusSucceeded, int64(12), int64(9)).
+		WithArgs(usage.UsageCleanupStatusSucceeded, int64(12), int64(9)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.MarkTaskSucceeded(context.Background(), 9, 12)
@@ -305,7 +306,7 @@ func TestUsageCleanupRepositoryMarkTaskFailed(t *testing.T) {
 	repo := &CleanupStore{sql: db}
 
 	mock.ExpectExec("UPDATE usage_cleanup_tasks").
-		WithArgs(service.UsageCleanupStatusFailed, int64(4), "boom", int64(2)).
+		WithArgs(usage.UsageCleanupStatusFailed, int64(4), "boom", int64(2)).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	err := repo.MarkTaskFailed(context.Background(), 2, 4, "boom")
@@ -319,11 +320,11 @@ func TestUsageCleanupRepositoryGetTaskStatus(t *testing.T) {
 
 	mock.ExpectQuery("SELECT status FROM usage_cleanup_tasks").
 		WithArgs(int64(9)).
-		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(service.UsageCleanupStatusPending))
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(usage.UsageCleanupStatusPending))
 
 	status, err := repo.GetTaskStatus(context.Background(), 9)
 	require.NoError(t, err)
-	require.Equal(t, service.UsageCleanupStatusPending, status)
+	require.Equal(t, usage.UsageCleanupStatusPending, status)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -358,7 +359,7 @@ func TestUsageCleanupRepositoryCancelTask(t *testing.T) {
 	repo := &CleanupStore{sql: db}
 
 	mock.ExpectQuery("UPDATE usage_cleanup_tasks").
-		WithArgs(service.UsageCleanupStatusCanceled, int64(6), int64(9), service.UsageCleanupStatusPending, service.UsageCleanupStatusRunning).
+		WithArgs(usage.UsageCleanupStatusCanceled, int64(6), int64(9), usage.UsageCleanupStatusPending, usage.UsageCleanupStatusRunning).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(int64(6)))
 
 	ok, err := repo.CancelTask(context.Background(), 6, 9)
@@ -372,7 +373,7 @@ func TestUsageCleanupRepositoryCancelTaskNoRows(t *testing.T) {
 	repo := &CleanupStore{sql: db}
 
 	mock.ExpectQuery("UPDATE usage_cleanup_tasks").
-		WithArgs(service.UsageCleanupStatusCanceled, int64(6), int64(9), service.UsageCleanupStatusPending, service.UsageCleanupStatusRunning).
+		WithArgs(usage.UsageCleanupStatusCanceled, int64(6), int64(9), usage.UsageCleanupStatusPending, usage.UsageCleanupStatusRunning).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 	ok, err := repo.CancelTask(context.Background(), 6, 9)
@@ -385,7 +386,7 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchMissingRange(t *testing.T) {
 	db, _ := newSQLMock(t)
 	repo := &CleanupStore{sql: db}
 
-	_, err := repo.DeleteUsageLogsBatch(context.Background(), service.UsageCleanupFilters{}, 10)
+	_, err := repo.DeleteUsageLogsBatch(context.Background(), usage.UsageCleanupFilters{}, 10)
 	require.Error(t, err)
 }
 
@@ -397,7 +398,7 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatch(t *testing.T) {
 	end := start.Add(24 * time.Hour)
 	userID := int64(3)
 	model := " gpt-4 "
-	filters := service.UsageCleanupFilters{
+	filters := usage.UsageCleanupFilters{
 		StartTime: start,
 		EndTime:   end,
 		UserID:    &userID,
@@ -420,7 +421,7 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchQueryError(t *testing.T) {
 
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
+	filters := usage.UsageCleanupFilters{StartTime: start, EndTime: end}
 
 	mock.ExpectQuery("DELETE FROM usage_logs").
 		WithArgs(start, end, 5).
@@ -443,7 +444,7 @@ func TestBuildUsageCleanupWhere(t *testing.T) {
 	stream := true
 	billingType := int8(2)
 
-	where, args := buildUsageCleanupWhere(service.UsageCleanupFilters{
+	where, args := buildUsageCleanupWhere(usage.UsageCleanupFilters{
 		StartTime:   start,
 		EndTime:     end,
 		UserID:      &userID,
@@ -463,10 +464,10 @@ func TestBuildUsageCleanupWhere(t *testing.T) {
 func TestBuildUsageCleanupWhereRequestTypePriority(t *testing.T) {
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	requestType := int16(service.RequestTypeWSV2)
+	requestType := int16(usage.RequestTypeWSV2)
 	stream := false
 
-	where, args := buildUsageCleanupWhere(service.UsageCleanupFilters{
+	where, args := buildUsageCleanupWhere(usage.UsageCleanupFilters{
 		StartTime:   start,
 		EndTime:     end,
 		RequestType: &requestType,
@@ -480,9 +481,9 @@ func TestBuildUsageCleanupWhereRequestTypePriority(t *testing.T) {
 func TestBuildUsageCleanupWhereRequestTypeLegacyFallback(t *testing.T) {
 	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	requestType := int16(service.RequestTypeStream)
+	requestType := int16(usage.RequestTypeStream)
 
-	where, args := buildUsageCleanupWhere(service.UsageCleanupFilters{
+	where, args := buildUsageCleanupWhere(usage.UsageCleanupFilters{
 		StartTime:   start,
 		EndTime:     end,
 		RequestType: &requestType,
@@ -497,7 +498,7 @@ func TestBuildUsageCleanupWhereModelEmpty(t *testing.T) {
 	end := start.Add(24 * time.Hour)
 	model := "   "
 
-	where, args := buildUsageCleanupWhere(service.UsageCleanupFilters{
+	where, args := buildUsageCleanupWhere(usage.UsageCleanupFilters{
 		StartTime: start,
 		EndTime:   end,
 		Model:     &model,

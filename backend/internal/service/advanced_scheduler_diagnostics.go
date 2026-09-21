@@ -5,61 +5,47 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
-// AdvancedSchedulerScoreCalculationVersion 标识诊断公式的兼容版本。
-const AdvancedSchedulerScoreCalculationVersion = scheduler.AdvancedSchedulerScoreCalculationVersion
-
 // AdvancedSchedulerScoreDiagnosticRequest 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticRequest = policy.AdvancedSchedulerScoreDiagnosticRequest
 
 // AdvancedSchedulerScoreDiagnosticAccount 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticAccount = policy.AdvancedSchedulerScoreDiagnosticAccount
 
 // AdvancedSchedulerScoreDiagnosticGroup 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticGroup = policy.AdvancedSchedulerScoreDiagnosticGroup
 
 // AdvancedSchedulerScoreDiagnosticGroupSummary 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticGroupSummary = policy.AdvancedSchedulerScoreDiagnosticGroupSummary
 
 // AdvancedSchedulerScoreDiagnosticResponse 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticResponse = policy.AdvancedSchedulerScoreDiagnosticResponse
 
 // AdvancedSchedulerScoreDiagnosticContext 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticContext = policy.AdvancedSchedulerScoreDiagnosticContext
 
 // AdvancedSchedulerScoreDiagnosticDetail 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticDetail = policy.AdvancedSchedulerScoreDiagnosticDetail
 
 // AdvancedSchedulerScoreDiagnosticCandidatePool 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticCandidatePool = policy.AdvancedSchedulerScoreDiagnosticCandidatePool
 
 // AdvancedSchedulerScoreDiagnosticRanges 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticRanges = policy.AdvancedSchedulerScoreDiagnosticRanges
 
 // AdvancedSchedulerScoreDiagnosticCandidate 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticCandidate = policy.AdvancedSchedulerScoreDiagnosticCandidate
 
 // AdvancedSchedulerScoreDiagnosticScore 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticScore = policy.AdvancedSchedulerScoreDiagnosticScore
 
 // AdvancedSchedulerScoreDiagnosticMetric 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticMetric = policy.AdvancedSchedulerScoreDiagnosticMetric
 
 // AdvancedSchedulerScoreDiagnosticSetting 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticSetting = policy.AdvancedSchedulerScoreDiagnosticSetting
 
 // AdvancedSchedulerScoreDiagnosticPolicySignal 保留原诊断值入口。
-type AdvancedSchedulerScoreDiagnosticPolicySignal = policy.AdvancedSchedulerScoreDiagnosticPolicySignal
 
 // AdvancedSchedulerScoreDiagnosticSource 是诊断服务所需的最小账号读取能力。
 // 通过窄接口保持服务可独立测试，也避免诊断路径触及凭据读取或写入接口。
 type AdvancedSchedulerScoreDiagnosticSource interface {
 	GetAccount(ctx context.Context, id int64) (*Account, error)
-	GetGroup(ctx context.Context, id int64) (*Group, error)
+	GetGroup(ctx context.Context, id int64) (*routing.Group, error)
 	ListAccountsForSchedulerScoreFilter(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, error)
 	ListSchedulableAccountsForAdvancedSchedulerScore(ctx context.Context, groupID *int64, platform string) ([]Account, error)
 }
@@ -68,7 +54,7 @@ type AdvancedSchedulerScoreDiagnosticSource interface {
 // 它复用高级评分核心，但绝不获取并发槽、绑定会话或回写运行时状态。
 type AdvancedSchedulerScoreDiagnosticService struct {
 	source             AdvancedSchedulerScoreDiagnosticSource
-	concurrencyService *ConcurrencyService
+	concurrencyService *schedulercore.ConcurrencyService
 	rateLimitService   *RateLimitService
 	gatewayService     *GatewayService
 	openAIGateway      *OpenAIGatewayService
@@ -86,7 +72,7 @@ func (s *AdvancedSchedulerScoreDiagnosticService) SetSchedulingServices(gateway 
 // NewAdvancedSchedulerScoreDiagnosticService 创建高级评分诊断服务。
 func NewAdvancedSchedulerScoreDiagnosticService(
 	source AdvancedSchedulerScoreDiagnosticSource,
-	concurrencyService *ConcurrencyService,
+	concurrencyService *schedulercore.ConcurrencyService,
 	rateLimitService *RateLimitService,
 ) *AdvancedSchedulerScoreDiagnosticService {
 	return &AdvancedSchedulerScoreDiagnosticService{
@@ -96,23 +82,23 @@ func NewAdvancedSchedulerScoreDiagnosticService(
 	}
 }
 
-func (s *AdvancedSchedulerScoreDiagnosticService) GetOverview(ctx context.Context, id int64) (*AdvancedSchedulerScoreDiagnosticResponse, error) {
+func (s *AdvancedSchedulerScoreDiagnosticService) GetOverview(ctx context.Context, id int64) (*policy.AdvancedSchedulerScoreDiagnosticResponse, error) {
 	core, _ := s.diagnosticCore()
 	return core.GetOverview(ctx, id)
 }
-func (s *AdvancedSchedulerScoreDiagnosticService) GetDetail(ctx context.Context, id int64, request AdvancedSchedulerScoreDiagnosticRequest) (*AdvancedSchedulerScoreDiagnosticResponse, error) {
+func (s *AdvancedSchedulerScoreDiagnosticService) GetDetail(ctx context.Context, id int64, request policy.AdvancedSchedulerScoreDiagnosticRequest) (*policy.AdvancedSchedulerScoreDiagnosticResponse, error) {
 	core, _ := s.diagnosticCore()
 	return core.GetDetail(ctx, id, request)
 }
-func (s *AdvancedSchedulerScoreDiagnosticService) loadMap(ctx context.Context, accounts []*Account) map[int64]*AccountLoadInfo {
+func (s *AdvancedSchedulerScoreDiagnosticService) loadMap(ctx context.Context, accounts []*Account) map[int64]*schedulercore.AccountLoadInfo {
 	core, scope := s.diagnosticCore()
 	return core.LoadMap(ctx, scope.accounts(accounts))
 }
-func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticHardFilterReason(ctx context.Context, a *Account, g *Group, request AdvancedSchedulerScoreDiagnosticRequest, now time.Time) string {
+func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticHardFilterReason(ctx context.Context, a *Account, g *routing.Group, request policy.AdvancedSchedulerScoreDiagnosticRequest, now time.Time) string {
 	core, scope := s.diagnosticCore()
 	return core.HardFilterReason(ctx, scope.account(a), scope.group(g), request, now)
 }
-func (s *AdvancedSchedulerScoreDiagnosticService) effectiveSettings(ctx context.Context, group *Group) (advancedSchedulerEffectiveSettings, advancedSchedulerRuntimeSettings) {
+func (s *AdvancedSchedulerScoreDiagnosticService) effectiveSettings(ctx context.Context, group *routing.Group) (advancedSchedulerEffectiveSettings, advancedSchedulerRuntimeSettings) {
 	gateway := &OpenAIGatewayService{}
 	if s != nil && s.rateLimitService != nil {
 		gateway.rateLimitService = s.rateLimitService
@@ -121,7 +107,7 @@ func (s *AdvancedSchedulerScoreDiagnosticService) effectiveSettings(ctx context.
 	runtime := gateway.advancedSchedulerRuntimeSettings(ctx)
 	return gateway.advancedSchedulerEffectiveSettingsForGroup(ctx, group), runtime
 }
-func (s *AdvancedSchedulerScoreDiagnosticService) prepareEligibilityContext(ctx context.Context, group *Group, accounts []Account) context.Context {
+func (s *AdvancedSchedulerScoreDiagnosticService) prepareEligibilityContext(ctx context.Context, group *routing.Group, accounts []Account) context.Context {
 	if s == nil {
 		return ctx
 	}
@@ -130,7 +116,7 @@ func (s *AdvancedSchedulerScoreDiagnosticService) prepareEligibilityContext(ctx 
 		ctx = s.gatewayService.withWindowCostPrefetch(ctx, accounts)
 		ctx = s.gatewayService.withRPMPrefetch(ctx, accounts)
 	}
-	if s.openAIGateway != nil && group != nil && (group.Platform == PlatformOpenAI || group.Platform == PlatformGrok) {
+	if s.openAIGateway != nil && group != nil && (group.Platform == capability.PlatformOpenAI || group.Platform == capability.PlatformGrok) {
 		ctx = s.openAIGateway.withOpenAIQuotaAutoPauseContext(ctx)
 	}
 	return ctx
@@ -138,12 +124,12 @@ func (s *AdvancedSchedulerScoreDiagnosticService) prepareEligibilityContext(ctx 
 func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticPlatformFilterReason(
 	ctx context.Context,
 	account *Account,
-	group *Group,
-	request AdvancedSchedulerScoreDiagnosticRequest,
+	group *routing.Group,
+	request policy.AdvancedSchedulerScoreDiagnosticRequest,
 	now time.Time,
 ) string {
 	model := strings.TrimSpace(request.RequestedModel)
-	if group != nil && (group.Platform == PlatformOpenAI || group.Platform == PlatformGrok) {
+	if group != nil && (group.Platform == capability.PlatformOpenAI || group.Platform == capability.PlatformGrok) {
 		if !account.IsSchedulableForModelWithContext(ctx, model) {
 			return "model_runtime_blocked"
 		}
@@ -168,8 +154,8 @@ func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticPlatformFilterReason
 				return "proxy_stream_quarantined"
 			}
 			scheduler := &defaultOpenAIAccountScheduler{service: s.openAIGateway}
-			if !parentHealthyForShadow(account, func(id int64) *Account {
-				return scheduler.lookupShadowParentAccount(ctx, id)
+			if !accountcore.ParentHealthyForShadow(AccountRecordView(account), func(id int64) *accountcore.Record {
+				return AccountRecordView(scheduler.lookupShadowParentAccount(ctx, id))
 			}) {
 				return "shadow_parent_unhealthy"
 			}

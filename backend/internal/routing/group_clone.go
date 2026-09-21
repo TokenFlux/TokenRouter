@@ -9,3 +9,15 @@ import (
 func CloneGroup(g *Group) *Group {
 	return (*Group)(accessview.CloneGroupConfig((*accessview.GroupConfig)(g)))
 }
+
+// CloneGroups 保留 nil/空集合并逐项隔离可变分组配置。
+func CloneGroups(values []Group) []Group {
+	if values == nil {
+		return nil
+	}
+	out := make([]Group, len(values))
+	for i := range values {
+		out[i] = *CloneGroup(&values[i])
+	}
+	return out
+}

@@ -1,0 +1,67 @@
+package account_test
+
+import (
+	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/google"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNormalizeAntigravitySubscription_PaidTierWithIneligible(t *testing.T) {
+	resp := &google.AntigravityLoadCodeAssistResponse{
+		PaidTier: &google.AntigravityPaidTierInfo{ID: "g1-pro-tier"},
+		IneligibleTiers: []*google.AntigravityIneligibleTier{
+			{ReasonMessage: "location validation required"},
+		},
+	}
+
+	result := account.NormalizeAntigravitySubscription(resp)
+
+	assert.Equal(t, "Pro", result.PlanType, "paid tier should preserve Pro even with ineligible tiers")
+	assert.Equal(t, "abnormal", result.SubscriptionStatus)
+	assert.Equal(t, "location validation required", result.SubscriptionError)
+}
+
+func TestNormalizeAntigravitySubscription_FreeTierWithIneligible(t *testing.T) {
+	resp := &google.AntigravityLoadCodeAssistResponse{
+		PaidTier: &google.AntigravityPaidTierInfo{ID: "free-tier"},
+		IneligibleTiers: []*google.AntigravityIneligibleTier{
+			{ReasonMessage: "some warning"},
+		},
+	}
+
+	result := account.NormalizeAntigravitySubscription(resp)
+
+	assert.Equal(t, "Abnormal", result.PlanType, "free tier with ineligible should be Abnormal")
+	assert.Equal(t, "abnormal", result.SubscriptionStatus)
+}
+
+func TestNormalizeAntigravitySubscription_NoIneligible(t *testing.T) {
+	resp := &google.AntigravityLoadCodeAssistResponse{
+		PaidTier: &google.AntigravityPaidTierInfo{ID: "g1-ultra-tier"},
+	}
+
+	result := account.NormalizeAntigravitySubscription(resp)
+
+	assert.Equal(t, "Ultra", result.PlanType)
+	assert.Empty(t, result.SubscriptionStatus)
+}
+
+func TestNormalizeAntigravitySubscription_NilResponse(t *testing.T) {
+	result := account.NormalizeAntigravitySubscription(nil)
+	assert.Equal(t, "Free", result.PlanType)
+}
+
+func TestNormalizeAntigravitySubscription_NoTierWithIneligible(t *testing.T) {
+	resp := &google.AntigravityLoadCodeAssistResponse{
+		IneligibleTiers: []*google.AntigravityIneligibleTier{
+			{ReasonMessage: "unknown issue"},
+		},
+	}
+
+	result := account.NormalizeAntigravitySubscription(resp)
+
+	assert.Equal(t, "Abnormal", result.PlanType, "no tier + ineligible should be Abnormal")
+	assert.Equal(t, "abnormal", result.SubscriptionStatus)
+}

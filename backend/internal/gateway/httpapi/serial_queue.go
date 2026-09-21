@@ -24,7 +24,7 @@ func NewUserMsgQueueHelper(
 	pingInterval time.Duration,
 ) *UserMsgQueueHelper {
 	if pingInterval <= 0 {
-		pingInterval = defaultPingInterval
+		pingInterval = DefaultPingInterval
 	}
 	return &UserMsgQueueHelper{
 		queueService: queueService,

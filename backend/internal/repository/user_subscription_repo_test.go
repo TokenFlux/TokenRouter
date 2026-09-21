@@ -3,6 +3,8 @@ package repository
 import (
 	"testing"
 
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +16,7 @@ func TestSubscriptionPlanEntityToServiceMapsGroupIDs(t *testing.T) {
 		GroupIds: []int64{2, 3},
 	}
 
-	got := subscriptionPlanEntityToService(plan)
+	got := billingpostgres.PlanFromEntity(plan)
 
 	require.NotNil(t, got)
 	require.Equal(t, []int64{int64(2), int64(3)}, got.GroupIDs)

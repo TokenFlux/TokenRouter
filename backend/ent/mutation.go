@@ -58,8 +58,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/userdisabledpublicgroup"
 	"github.com/TokenFlux/TokenRouter/ent/userplatformquota"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 )
 
 const (
@@ -7017,7 +7021,7 @@ type AnnouncementMutation struct {
 	content       *string
 	status        *string
 	notify_mode   *string
-	targeting     *domain.AnnouncementTargeting
+	targeting     *site.AnnouncementTargeting
 	starts_at     *time.Time
 	ends_at       *time.Time
 	created_by    *int64
@@ -7278,12 +7282,12 @@ func (m *AnnouncementMutation) ResetNotifyMode() {
 }
 
 // SetTargeting sets the "targeting" field.
-func (m *AnnouncementMutation) SetTargeting(dt domain.AnnouncementTargeting) {
-	m.targeting = &dt
+func (m *AnnouncementMutation) SetTargeting(st site.AnnouncementTargeting) {
+	m.targeting = &st
 }
 
 // Targeting returns the value of the "targeting" field in the mutation.
-func (m *AnnouncementMutation) Targeting() (r domain.AnnouncementTargeting, exists bool) {
+func (m *AnnouncementMutation) Targeting() (r site.AnnouncementTargeting, exists bool) {
 	v := m.targeting
 	if v == nil {
 		return
@@ -7294,7 +7298,7 @@ func (m *AnnouncementMutation) Targeting() (r domain.AnnouncementTargeting, exis
 // OldTargeting returns the old "targeting" field's value of the Announcement entity.
 // If the Announcement object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *AnnouncementMutation) OldTargeting(ctx context.Context) (v domain.AnnouncementTargeting, err error) {
+func (m *AnnouncementMutation) OldTargeting(ctx context.Context) (v site.AnnouncementTargeting, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldTargeting is only allowed on UpdateOne operations")
 	}
@@ -7857,7 +7861,7 @@ func (m *AnnouncementMutation) SetField(name string, value ent.Value) error {
 		m.SetNotifyMode(v)
 		return nil
 	case announcement.FieldTargeting:
-		v, ok := value.(domain.AnnouncementTargeting)
+		v, ok := value.(site.AnnouncementTargeting)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -12786,8 +12790,8 @@ type BatchImageJobMutation struct {
 	addactual_cost                      *float64
 	balance_hold_amount                 *float64
 	addbalance_hold_amount              *float64
-	subscription_hold_allocations       *[]domain.BillingAllocation
-	appendsubscription_hold_allocations []domain.BillingAllocation
+	subscription_hold_allocations       *[]billing.BillingAllocation
+	appendsubscription_hold_allocations []billing.BillingAllocation
 	subscription_rate_multiplier        *float64
 	addsubscription_rate_multiplier     *float64
 	balance_rate_multiplier             *float64
@@ -14264,13 +14268,13 @@ func (m *BatchImageJobMutation) ResetBalanceHoldAmount() {
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (m *BatchImageJobMutation) SetSubscriptionHoldAllocations(da []domain.BillingAllocation) {
-	m.subscription_hold_allocations = &da
+func (m *BatchImageJobMutation) SetSubscriptionHoldAllocations(ba []billing.BillingAllocation) {
+	m.subscription_hold_allocations = &ba
 	m.appendsubscription_hold_allocations = nil
 }
 
 // SubscriptionHoldAllocations returns the value of the "subscription_hold_allocations" field in the mutation.
-func (m *BatchImageJobMutation) SubscriptionHoldAllocations() (r []domain.BillingAllocation, exists bool) {
+func (m *BatchImageJobMutation) SubscriptionHoldAllocations() (r []billing.BillingAllocation, exists bool) {
 	v := m.subscription_hold_allocations
 	if v == nil {
 		return
@@ -14281,7 +14285,7 @@ func (m *BatchImageJobMutation) SubscriptionHoldAllocations() (r []domain.Billin
 // OldSubscriptionHoldAllocations returns the old "subscription_hold_allocations" field's value of the BatchImageJob entity.
 // If the BatchImageJob object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BatchImageJobMutation) OldSubscriptionHoldAllocations(ctx context.Context) (v []domain.BillingAllocation, err error) {
+func (m *BatchImageJobMutation) OldSubscriptionHoldAllocations(ctx context.Context) (v []billing.BillingAllocation, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldSubscriptionHoldAllocations is only allowed on UpdateOne operations")
 	}
@@ -14295,13 +14299,13 @@ func (m *BatchImageJobMutation) OldSubscriptionHoldAllocations(ctx context.Conte
 	return oldValue.SubscriptionHoldAllocations, nil
 }
 
-// AppendSubscriptionHoldAllocations adds da to the "subscription_hold_allocations" field.
-func (m *BatchImageJobMutation) AppendSubscriptionHoldAllocations(da []domain.BillingAllocation) {
-	m.appendsubscription_hold_allocations = append(m.appendsubscription_hold_allocations, da...)
+// AppendSubscriptionHoldAllocations adds ba to the "subscription_hold_allocations" field.
+func (m *BatchImageJobMutation) AppendSubscriptionHoldAllocations(ba []billing.BillingAllocation) {
+	m.appendsubscription_hold_allocations = append(m.appendsubscription_hold_allocations, ba...)
 }
 
 // AppendedSubscriptionHoldAllocations returns the list of values that were appended to the "subscription_hold_allocations" field in this mutation.
-func (m *BatchImageJobMutation) AppendedSubscriptionHoldAllocations() ([]domain.BillingAllocation, bool) {
+func (m *BatchImageJobMutation) AppendedSubscriptionHoldAllocations() ([]billing.BillingAllocation, bool) {
 	if len(m.appendsubscription_hold_allocations) == 0 {
 		return nil, false
 	}
@@ -16040,7 +16044,7 @@ func (m *BatchImageJobMutation) SetField(name string, value ent.Value) error {
 		m.SetBalanceHoldAmount(v)
 		return nil
 	case batchimagejob.FieldSubscriptionHoldAllocations:
-		v, ok := value.([]domain.BillingAllocation)
+		v, ok := value.([]billing.BillingAllocation)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -16887,8 +16891,8 @@ type CreativeRunMutation struct {
 	addactual_cost                      *float64
 	balance_hold_amount                 *float64
 	addbalance_hold_amount              *float64
-	subscription_hold_allocations       *[]domain.BillingAllocation
-	appendsubscription_hold_allocations []domain.BillingAllocation
+	subscription_hold_allocations       *[]billing.BillingAllocation
+	appendsubscription_hold_allocations []billing.BillingAllocation
 	base_unit_price                     *float64
 	addbase_unit_price                  *float64
 	subscription_rate_multiplier        *float64
@@ -18096,13 +18100,13 @@ func (m *CreativeRunMutation) ResetBalanceHoldAmount() {
 }
 
 // SetSubscriptionHoldAllocations sets the "subscription_hold_allocations" field.
-func (m *CreativeRunMutation) SetSubscriptionHoldAllocations(da []domain.BillingAllocation) {
-	m.subscription_hold_allocations = &da
+func (m *CreativeRunMutation) SetSubscriptionHoldAllocations(ba []billing.BillingAllocation) {
+	m.subscription_hold_allocations = &ba
 	m.appendsubscription_hold_allocations = nil
 }
 
 // SubscriptionHoldAllocations returns the value of the "subscription_hold_allocations" field in the mutation.
-func (m *CreativeRunMutation) SubscriptionHoldAllocations() (r []domain.BillingAllocation, exists bool) {
+func (m *CreativeRunMutation) SubscriptionHoldAllocations() (r []billing.BillingAllocation, exists bool) {
 	v := m.subscription_hold_allocations
 	if v == nil {
 		return
@@ -18113,7 +18117,7 @@ func (m *CreativeRunMutation) SubscriptionHoldAllocations() (r []domain.BillingA
 // OldSubscriptionHoldAllocations returns the old "subscription_hold_allocations" field's value of the CreativeRun entity.
 // If the CreativeRun object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *CreativeRunMutation) OldSubscriptionHoldAllocations(ctx context.Context) (v []domain.BillingAllocation, err error) {
+func (m *CreativeRunMutation) OldSubscriptionHoldAllocations(ctx context.Context) (v []billing.BillingAllocation, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldSubscriptionHoldAllocations is only allowed on UpdateOne operations")
 	}
@@ -18127,13 +18131,13 @@ func (m *CreativeRunMutation) OldSubscriptionHoldAllocations(ctx context.Context
 	return oldValue.SubscriptionHoldAllocations, nil
 }
 
-// AppendSubscriptionHoldAllocations adds da to the "subscription_hold_allocations" field.
-func (m *CreativeRunMutation) AppendSubscriptionHoldAllocations(da []domain.BillingAllocation) {
-	m.appendsubscription_hold_allocations = append(m.appendsubscription_hold_allocations, da...)
+// AppendSubscriptionHoldAllocations adds ba to the "subscription_hold_allocations" field.
+func (m *CreativeRunMutation) AppendSubscriptionHoldAllocations(ba []billing.BillingAllocation) {
+	m.appendsubscription_hold_allocations = append(m.appendsubscription_hold_allocations, ba...)
 }
 
 // AppendedSubscriptionHoldAllocations returns the list of values that were appended to the "subscription_hold_allocations" field in this mutation.
-func (m *CreativeRunMutation) AppendedSubscriptionHoldAllocations() ([]domain.BillingAllocation, bool) {
+func (m *CreativeRunMutation) AppendedSubscriptionHoldAllocations() ([]billing.BillingAllocation, bool) {
 	if len(m.appendsubscription_hold_allocations) == 0 {
 		return nil, false
 	}
@@ -19598,7 +19602,7 @@ func (m *CreativeRunMutation) SetField(name string, value ent.Value) error {
 		m.SetBalanceHoldAmount(v)
 		return nil
 	case creativerun.FieldSubscriptionHoldAllocations:
-		v, ok := value.([]domain.BillingAllocation)
+		v, ok := value.([]billing.BillingAllocation)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -23548,7 +23552,7 @@ type GroupMutation struct {
 	duplicate_operation_id                  *string
 	platform                                *string
 	scheduler_type                          *string
-	advanced_scheduler_overrides            *domain.GroupAdvancedSchedulerOverrides
+	advanced_scheduler_overrides            *policy.GroupAdvancedSchedulerOverrides
 	display_brand                           *string
 	allow_image_generation                  *bool
 	allow_batch_image_generation            *bool
@@ -23584,9 +23588,9 @@ type GroupMutation struct {
 	sort_order                              *int
 	addsort_order                           *int
 	allow_messages_dispatch                 *bool
-	allowed_protocols                       *[]domain.ProtocolID
-	appendallowed_protocols                 []domain.ProtocolID
-	protocol_fallbacks                      *map[domain.ProtocolID]domain.ProtocolID
+	allowed_protocols                       *[]protocol.ProtocolID
+	appendallowed_protocols                 []protocol.ProtocolID
+	protocol_fallbacks                      *map[protocol.ProtocolID]protocol.ProtocolID
 	responses_image_policy                  *string
 	allow_live                              *bool
 	openai_fast_policy                      *string
@@ -23595,15 +23599,15 @@ type GroupMutation struct {
 	require_oauth_only                      *bool
 	require_privacy_set                     *bool
 	default_mapped_model                    *string
-	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
-	models_list_config                      *domain.GroupModelsListConfig
-	availability_probe_config               *domain.GroupAvailabilityProbeConfig
+	messages_dispatch_model_config          *accessview.OpenAIMessagesDispatchModelConfig
+	models_list_config                      *accessview.GroupModelsListConfig
+	availability_probe_config               *accessview.GroupAvailabilityProbeConfig
 	rpm_limit                               *int
 	addrpm_limit                            *int
 	max_reasoning_effort                    *string
 	max_reasoning_effort_over_limit         *string
-	reasoning_effort_mappings               *[]domain.ReasoningEffortMapping
-	appendreasoning_effort_mappings         []domain.ReasoningEffortMapping
+	reasoning_effort_mappings               *[]accessview.ReasoningEffortMapping
+	appendreasoning_effort_mappings         []accessview.ReasoningEffortMapping
 	session_isolation_enabled               *bool
 	clearedFields                           map[string]struct{}
 	api_keys                                map[int64]struct{}
@@ -24383,12 +24387,12 @@ func (m *GroupMutation) ResetSchedulerType() {
 }
 
 // SetAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field.
-func (m *GroupMutation) SetAdvancedSchedulerOverrides(daso domain.GroupAdvancedSchedulerOverrides) {
-	m.advanced_scheduler_overrides = &daso
+func (m *GroupMutation) SetAdvancedSchedulerOverrides(paso policy.GroupAdvancedSchedulerOverrides) {
+	m.advanced_scheduler_overrides = &paso
 }
 
 // AdvancedSchedulerOverrides returns the value of the "advanced_scheduler_overrides" field in the mutation.
-func (m *GroupMutation) AdvancedSchedulerOverrides() (r domain.GroupAdvancedSchedulerOverrides, exists bool) {
+func (m *GroupMutation) AdvancedSchedulerOverrides() (r policy.GroupAdvancedSchedulerOverrides, exists bool) {
 	v := m.advanced_scheduler_overrides
 	if v == nil {
 		return
@@ -24399,7 +24403,7 @@ func (m *GroupMutation) AdvancedSchedulerOverrides() (r domain.GroupAdvancedSche
 // OldAdvancedSchedulerOverrides returns the old "advanced_scheduler_overrides" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldAdvancedSchedulerOverrides(ctx context.Context) (v domain.GroupAdvancedSchedulerOverrides, err error) {
+func (m *GroupMutation) OldAdvancedSchedulerOverrides(ctx context.Context) (v policy.GroupAdvancedSchedulerOverrides, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldAdvancedSchedulerOverrides is only allowed on UpdateOne operations")
 	}
@@ -25600,13 +25604,13 @@ func (m *GroupMutation) ResetAllowMessagesDispatch() {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (m *GroupMutation) SetAllowedProtocols(di []domain.ProtocolID) {
-	m.allowed_protocols = &di
+func (m *GroupMutation) SetAllowedProtocols(pi []protocol.ProtocolID) {
+	m.allowed_protocols = &pi
 	m.appendallowed_protocols = nil
 }
 
 // AllowedProtocols returns the value of the "allowed_protocols" field in the mutation.
-func (m *GroupMutation) AllowedProtocols() (r []domain.ProtocolID, exists bool) {
+func (m *GroupMutation) AllowedProtocols() (r []protocol.ProtocolID, exists bool) {
 	v := m.allowed_protocols
 	if v == nil {
 		return
@@ -25617,7 +25621,7 @@ func (m *GroupMutation) AllowedProtocols() (r []domain.ProtocolID, exists bool) 
 // OldAllowedProtocols returns the old "allowed_protocols" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldAllowedProtocols(ctx context.Context) (v []domain.ProtocolID, err error) {
+func (m *GroupMutation) OldAllowedProtocols(ctx context.Context) (v []protocol.ProtocolID, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldAllowedProtocols is only allowed on UpdateOne operations")
 	}
@@ -25631,13 +25635,13 @@ func (m *GroupMutation) OldAllowedProtocols(ctx context.Context) (v []domain.Pro
 	return oldValue.AllowedProtocols, nil
 }
 
-// AppendAllowedProtocols adds di to the "allowed_protocols" field.
-func (m *GroupMutation) AppendAllowedProtocols(di []domain.ProtocolID) {
-	m.appendallowed_protocols = append(m.appendallowed_protocols, di...)
+// AppendAllowedProtocols adds pi to the "allowed_protocols" field.
+func (m *GroupMutation) AppendAllowedProtocols(pi []protocol.ProtocolID) {
+	m.appendallowed_protocols = append(m.appendallowed_protocols, pi...)
 }
 
 // AppendedAllowedProtocols returns the list of values that were appended to the "allowed_protocols" field in this mutation.
-func (m *GroupMutation) AppendedAllowedProtocols() ([]domain.ProtocolID, bool) {
+func (m *GroupMutation) AppendedAllowedProtocols() ([]protocol.ProtocolID, bool) {
 	if len(m.appendallowed_protocols) == 0 {
 		return nil, false
 	}
@@ -25651,12 +25655,12 @@ func (m *GroupMutation) ResetAllowedProtocols() {
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (m *GroupMutation) SetProtocolFallbacks(mii map[domain.ProtocolID]domain.ProtocolID) {
+func (m *GroupMutation) SetProtocolFallbacks(mii map[protocol.ProtocolID]protocol.ProtocolID) {
 	m.protocol_fallbacks = &mii
 }
 
 // ProtocolFallbacks returns the value of the "protocol_fallbacks" field in the mutation.
-func (m *GroupMutation) ProtocolFallbacks() (r map[domain.ProtocolID]domain.ProtocolID, exists bool) {
+func (m *GroupMutation) ProtocolFallbacks() (r map[protocol.ProtocolID]protocol.ProtocolID, exists bool) {
 	v := m.protocol_fallbacks
 	if v == nil {
 		return
@@ -25667,7 +25671,7 @@ func (m *GroupMutation) ProtocolFallbacks() (r map[domain.ProtocolID]domain.Prot
 // OldProtocolFallbacks returns the old "protocol_fallbacks" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldProtocolFallbacks(ctx context.Context) (v map[domain.ProtocolID]domain.ProtocolID, err error) {
+func (m *GroupMutation) OldProtocolFallbacks(ctx context.Context) (v map[protocol.ProtocolID]protocol.ProtocolID, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldProtocolFallbacks is only allowed on UpdateOne operations")
 	}
@@ -25975,12 +25979,12 @@ func (m *GroupMutation) ResetDefaultMappedModel() {
 }
 
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (m *GroupMutation) SetMessagesDispatchModelConfig(damdmc domain.OpenAIMessagesDispatchModelConfig) {
-	m.messages_dispatch_model_config = &damdmc
+func (m *GroupMutation) SetMessagesDispatchModelConfig(aamdmc accessview.OpenAIMessagesDispatchModelConfig) {
+	m.messages_dispatch_model_config = &aamdmc
 }
 
 // MessagesDispatchModelConfig returns the value of the "messages_dispatch_model_config" field in the mutation.
-func (m *GroupMutation) MessagesDispatchModelConfig() (r domain.OpenAIMessagesDispatchModelConfig, exists bool) {
+func (m *GroupMutation) MessagesDispatchModelConfig() (r accessview.OpenAIMessagesDispatchModelConfig, exists bool) {
 	v := m.messages_dispatch_model_config
 	if v == nil {
 		return
@@ -25991,7 +25995,7 @@ func (m *GroupMutation) MessagesDispatchModelConfig() (r domain.OpenAIMessagesDi
 // OldMessagesDispatchModelConfig returns the old "messages_dispatch_model_config" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldMessagesDispatchModelConfig(ctx context.Context) (v domain.OpenAIMessagesDispatchModelConfig, err error) {
+func (m *GroupMutation) OldMessagesDispatchModelConfig(ctx context.Context) (v accessview.OpenAIMessagesDispatchModelConfig, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldMessagesDispatchModelConfig is only allowed on UpdateOne operations")
 	}
@@ -26011,12 +26015,12 @@ func (m *GroupMutation) ResetMessagesDispatchModelConfig() {
 }
 
 // SetModelsListConfig sets the "models_list_config" field.
-func (m *GroupMutation) SetModelsListConfig(dmlc domain.GroupModelsListConfig) {
-	m.models_list_config = &dmlc
+func (m *GroupMutation) SetModelsListConfig(amlc accessview.GroupModelsListConfig) {
+	m.models_list_config = &amlc
 }
 
 // ModelsListConfig returns the value of the "models_list_config" field in the mutation.
-func (m *GroupMutation) ModelsListConfig() (r domain.GroupModelsListConfig, exists bool) {
+func (m *GroupMutation) ModelsListConfig() (r accessview.GroupModelsListConfig, exists bool) {
 	v := m.models_list_config
 	if v == nil {
 		return
@@ -26027,7 +26031,7 @@ func (m *GroupMutation) ModelsListConfig() (r domain.GroupModelsListConfig, exis
 // OldModelsListConfig returns the old "models_list_config" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldModelsListConfig(ctx context.Context) (v domain.GroupModelsListConfig, err error) {
+func (m *GroupMutation) OldModelsListConfig(ctx context.Context) (v accessview.GroupModelsListConfig, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldModelsListConfig is only allowed on UpdateOne operations")
 	}
@@ -26047,12 +26051,12 @@ func (m *GroupMutation) ResetModelsListConfig() {
 }
 
 // SetAvailabilityProbeConfig sets the "availability_probe_config" field.
-func (m *GroupMutation) SetAvailabilityProbeConfig(dapc domain.GroupAvailabilityProbeConfig) {
-	m.availability_probe_config = &dapc
+func (m *GroupMutation) SetAvailabilityProbeConfig(aapc accessview.GroupAvailabilityProbeConfig) {
+	m.availability_probe_config = &aapc
 }
 
 // AvailabilityProbeConfig returns the value of the "availability_probe_config" field in the mutation.
-func (m *GroupMutation) AvailabilityProbeConfig() (r domain.GroupAvailabilityProbeConfig, exists bool) {
+func (m *GroupMutation) AvailabilityProbeConfig() (r accessview.GroupAvailabilityProbeConfig, exists bool) {
 	v := m.availability_probe_config
 	if v == nil {
 		return
@@ -26063,7 +26067,7 @@ func (m *GroupMutation) AvailabilityProbeConfig() (r domain.GroupAvailabilityPro
 // OldAvailabilityProbeConfig returns the old "availability_probe_config" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldAvailabilityProbeConfig(ctx context.Context) (v domain.GroupAvailabilityProbeConfig, err error) {
+func (m *GroupMutation) OldAvailabilityProbeConfig(ctx context.Context) (v accessview.GroupAvailabilityProbeConfig, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldAvailabilityProbeConfig is only allowed on UpdateOne operations")
 	}
@@ -26211,13 +26215,13 @@ func (m *GroupMutation) ResetMaxReasoningEffortOverLimit() {
 }
 
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
-func (m *GroupMutation) SetReasoningEffortMappings(dem []domain.ReasoningEffortMapping) {
-	m.reasoning_effort_mappings = &dem
+func (m *GroupMutation) SetReasoningEffortMappings(aem []accessview.ReasoningEffortMapping) {
+	m.reasoning_effort_mappings = &aem
 	m.appendreasoning_effort_mappings = nil
 }
 
 // ReasoningEffortMappings returns the value of the "reasoning_effort_mappings" field in the mutation.
-func (m *GroupMutation) ReasoningEffortMappings() (r []domain.ReasoningEffortMapping, exists bool) {
+func (m *GroupMutation) ReasoningEffortMappings() (r []accessview.ReasoningEffortMapping, exists bool) {
 	v := m.reasoning_effort_mappings
 	if v == nil {
 		return
@@ -26228,7 +26232,7 @@ func (m *GroupMutation) ReasoningEffortMappings() (r []domain.ReasoningEffortMap
 // OldReasoningEffortMappings returns the old "reasoning_effort_mappings" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldReasoningEffortMappings(ctx context.Context) (v []domain.ReasoningEffortMapping, err error) {
+func (m *GroupMutation) OldReasoningEffortMappings(ctx context.Context) (v []accessview.ReasoningEffortMapping, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldReasoningEffortMappings is only allowed on UpdateOne operations")
 	}
@@ -26242,13 +26246,13 @@ func (m *GroupMutation) OldReasoningEffortMappings(ctx context.Context) (v []dom
 	return oldValue.ReasoningEffortMappings, nil
 }
 
-// AppendReasoningEffortMappings adds dem to the "reasoning_effort_mappings" field.
-func (m *GroupMutation) AppendReasoningEffortMappings(dem []domain.ReasoningEffortMapping) {
-	m.appendreasoning_effort_mappings = append(m.appendreasoning_effort_mappings, dem...)
+// AppendReasoningEffortMappings adds aem to the "reasoning_effort_mappings" field.
+func (m *GroupMutation) AppendReasoningEffortMappings(aem []accessview.ReasoningEffortMapping) {
+	m.appendreasoning_effort_mappings = append(m.appendreasoning_effort_mappings, aem...)
 }
 
 // AppendedReasoningEffortMappings returns the list of values that were appended to the "reasoning_effort_mappings" field in this mutation.
-func (m *GroupMutation) AppendedReasoningEffortMappings() ([]domain.ReasoningEffortMapping, bool) {
+func (m *GroupMutation) AppendedReasoningEffortMappings() ([]accessview.ReasoningEffortMapping, bool) {
 	if len(m.appendreasoning_effort_mappings) == 0 {
 		return nil, false
 	}
@@ -27194,7 +27198,7 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		m.SetSchedulerType(v)
 		return nil
 	case group.FieldAdvancedSchedulerOverrides:
-		v, ok := value.(domain.GroupAdvancedSchedulerOverrides)
+		v, ok := value.(policy.GroupAdvancedSchedulerOverrides)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -27355,14 +27359,14 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		m.SetAllowMessagesDispatch(v)
 		return nil
 	case group.FieldAllowedProtocols:
-		v, ok := value.([]domain.ProtocolID)
+		v, ok := value.([]protocol.ProtocolID)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAllowedProtocols(v)
 		return nil
 	case group.FieldProtocolFallbacks:
-		v, ok := value.(map[domain.ProtocolID]domain.ProtocolID)
+		v, ok := value.(map[protocol.ProtocolID]protocol.ProtocolID)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -27425,21 +27429,21 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		m.SetDefaultMappedModel(v)
 		return nil
 	case group.FieldMessagesDispatchModelConfig:
-		v, ok := value.(domain.OpenAIMessagesDispatchModelConfig)
+		v, ok := value.(accessview.OpenAIMessagesDispatchModelConfig)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetMessagesDispatchModelConfig(v)
 		return nil
 	case group.FieldModelsListConfig:
-		v, ok := value.(domain.GroupModelsListConfig)
+		v, ok := value.(accessview.GroupModelsListConfig)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetModelsListConfig(v)
 		return nil
 	case group.FieldAvailabilityProbeConfig:
-		v, ok := value.(domain.GroupAvailabilityProbeConfig)
+		v, ok := value.(accessview.GroupAvailabilityProbeConfig)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -27467,7 +27471,7 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		m.SetMaxReasoningEffortOverLimit(v)
 		return nil
 	case group.FieldReasoningEffortMappings:
-		v, ok := value.([]domain.ReasoningEffortMapping)
+		v, ok := value.([]accessview.ReasoningEffortMapping)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -30506,7 +30510,7 @@ type PaymentOrderMutation struct {
 	order_type              *string
 	plan_id                 *int64
 	addplan_id              *int64
-	plan_snapshot           *domain.SubscriptionPlanSnapshot
+	plan_snapshot           *billing.SubscriptionPlanSnapshot
 	provider_instance_id    *string
 	provider_key            *string
 	provider_snapshot       *map[string]interface{}
@@ -31820,12 +31824,12 @@ func (m *PaymentOrderMutation) ResetPlanID() {
 }
 
 // SetPlanSnapshot sets the "plan_snapshot" field.
-func (m *PaymentOrderMutation) SetPlanSnapshot(dps domain.SubscriptionPlanSnapshot) {
-	m.plan_snapshot = &dps
+func (m *PaymentOrderMutation) SetPlanSnapshot(bps billing.SubscriptionPlanSnapshot) {
+	m.plan_snapshot = &bps
 }
 
 // PlanSnapshot returns the value of the "plan_snapshot" field in the mutation.
-func (m *PaymentOrderMutation) PlanSnapshot() (r domain.SubscriptionPlanSnapshot, exists bool) {
+func (m *PaymentOrderMutation) PlanSnapshot() (r billing.SubscriptionPlanSnapshot, exists bool) {
 	v := m.plan_snapshot
 	if v == nil {
 		return
@@ -31836,7 +31840,7 @@ func (m *PaymentOrderMutation) PlanSnapshot() (r domain.SubscriptionPlanSnapshot
 // OldPlanSnapshot returns the old "plan_snapshot" field's value of the PaymentOrder entity.
 // If the PaymentOrder object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *PaymentOrderMutation) OldPlanSnapshot(ctx context.Context) (v domain.SubscriptionPlanSnapshot, err error) {
+func (m *PaymentOrderMutation) OldPlanSnapshot(ctx context.Context) (v billing.SubscriptionPlanSnapshot, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldPlanSnapshot is only allowed on UpdateOne operations")
 	}
@@ -33406,7 +33410,7 @@ func (m *PaymentOrderMutation) SetField(name string, value ent.Value) error {
 		m.SetPlanID(v)
 		return nil
 	case paymentorder.FieldPlanSnapshot:
-		v, ok := value.(domain.SubscriptionPlanSnapshot)
+		v, ok := value.(billing.SubscriptionPlanSnapshot)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -45547,8 +45551,8 @@ type TLSFingerprintRouterMutation struct {
 	codex_invite_reset_user_agent                     *string
 	codex_invite_reset_tls_fingerprint_profile_id     *int64
 	addcodex_invite_reset_tls_fingerprint_profile_id  *int64
-	rules                                             *[]model.TLSFingerprintRouterRule
-	appendrules                                       []model.TLSFingerprintRouterRule
+	rules                                             *[]egress.TLSFingerprintRouterRule
+	appendrules                                       []egress.TLSFingerprintRouterRule
 	clearedFields                                     map[string]struct{}
 	done                                              bool
 	oldValue                                          func(context.Context) (*TLSFingerprintRouter, error)
@@ -46059,13 +46063,13 @@ func (m *TLSFingerprintRouterMutation) ResetCodexInviteResetTLSFingerprintProfil
 }
 
 // SetRules sets the "rules" field.
-func (m *TLSFingerprintRouterMutation) SetRules(mfrr []model.TLSFingerprintRouterRule) {
-	m.rules = &mfrr
+func (m *TLSFingerprintRouterMutation) SetRules(efrr []egress.TLSFingerprintRouterRule) {
+	m.rules = &efrr
 	m.appendrules = nil
 }
 
 // Rules returns the value of the "rules" field in the mutation.
-func (m *TLSFingerprintRouterMutation) Rules() (r []model.TLSFingerprintRouterRule, exists bool) {
+func (m *TLSFingerprintRouterMutation) Rules() (r []egress.TLSFingerprintRouterRule, exists bool) {
 	v := m.rules
 	if v == nil {
 		return
@@ -46076,7 +46080,7 @@ func (m *TLSFingerprintRouterMutation) Rules() (r []model.TLSFingerprintRouterRu
 // OldRules returns the old "rules" field's value of the TLSFingerprintRouter entity.
 // If the TLSFingerprintRouter object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *TLSFingerprintRouterMutation) OldRules(ctx context.Context) (v []model.TLSFingerprintRouterRule, err error) {
+func (m *TLSFingerprintRouterMutation) OldRules(ctx context.Context) (v []egress.TLSFingerprintRouterRule, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldRules is only allowed on UpdateOne operations")
 	}
@@ -46090,13 +46094,13 @@ func (m *TLSFingerprintRouterMutation) OldRules(ctx context.Context) (v []model.
 	return oldValue.Rules, nil
 }
 
-// AppendRules adds mfrr to the "rules" field.
-func (m *TLSFingerprintRouterMutation) AppendRules(mfrr []model.TLSFingerprintRouterRule) {
-	m.appendrules = append(m.appendrules, mfrr...)
+// AppendRules adds efrr to the "rules" field.
+func (m *TLSFingerprintRouterMutation) AppendRules(efrr []egress.TLSFingerprintRouterRule) {
+	m.appendrules = append(m.appendrules, efrr...)
 }
 
 // AppendedRules returns the list of values that were appended to the "rules" field in this mutation.
-func (m *TLSFingerprintRouterMutation) AppendedRules() ([]model.TLSFingerprintRouterRule, bool) {
+func (m *TLSFingerprintRouterMutation) AppendedRules() ([]egress.TLSFingerprintRouterRule, bool) {
 	if len(m.appendrules) == 0 {
 		return nil, false
 	}
@@ -46318,7 +46322,7 @@ func (m *TLSFingerprintRouterMutation) SetField(name string, value ent.Value) er
 		m.SetCodexInviteResetTLSFingerprintProfileID(v)
 		return nil
 	case tlsfingerprintrouter.FieldRules:
-		v, ok := value.([]model.TLSFingerprintRouterRule)
+		v, ok := value.([]egress.TLSFingerprintRouterRule)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
@@ -52373,8 +52377,8 @@ type UsageLogMutation struct {
 	addsubscription_amount_usd   *float64
 	balance_amount_usd           *float64
 	addbalance_amount_usd        *float64
-	billing_allocations          *[]domain.BillingAllocation
-	appendbilling_allocations    []domain.BillingAllocation
+	billing_allocations          *[]billing.BillingAllocation
+	appendbilling_allocations    []billing.BillingAllocation
 	rate_multiplier              *float64
 	addrate_multiplier           *float64
 	long_context_billing_applied *bool
@@ -54016,13 +54020,13 @@ func (m *UsageLogMutation) ResetBalanceAmountUsd() {
 }
 
 // SetBillingAllocations sets the "billing_allocations" field.
-func (m *UsageLogMutation) SetBillingAllocations(da []domain.BillingAllocation) {
-	m.billing_allocations = &da
+func (m *UsageLogMutation) SetBillingAllocations(ba []billing.BillingAllocation) {
+	m.billing_allocations = &ba
 	m.appendbilling_allocations = nil
 }
 
 // BillingAllocations returns the value of the "billing_allocations" field in the mutation.
-func (m *UsageLogMutation) BillingAllocations() (r []domain.BillingAllocation, exists bool) {
+func (m *UsageLogMutation) BillingAllocations() (r []billing.BillingAllocation, exists bool) {
 	v := m.billing_allocations
 	if v == nil {
 		return
@@ -54033,7 +54037,7 @@ func (m *UsageLogMutation) BillingAllocations() (r []domain.BillingAllocation, e
 // OldBillingAllocations returns the old "billing_allocations" field's value of the UsageLog entity.
 // If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *UsageLogMutation) OldBillingAllocations(ctx context.Context) (v []domain.BillingAllocation, err error) {
+func (m *UsageLogMutation) OldBillingAllocations(ctx context.Context) (v []billing.BillingAllocation, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldBillingAllocations is only allowed on UpdateOne operations")
 	}
@@ -54047,13 +54051,13 @@ func (m *UsageLogMutation) OldBillingAllocations(ctx context.Context) (v []domai
 	return oldValue.BillingAllocations, nil
 }
 
-// AppendBillingAllocations adds da to the "billing_allocations" field.
-func (m *UsageLogMutation) AppendBillingAllocations(da []domain.BillingAllocation) {
-	m.appendbilling_allocations = append(m.appendbilling_allocations, da...)
+// AppendBillingAllocations adds ba to the "billing_allocations" field.
+func (m *UsageLogMutation) AppendBillingAllocations(ba []billing.BillingAllocation) {
+	m.appendbilling_allocations = append(m.appendbilling_allocations, ba...)
 }
 
 // AppendedBillingAllocations returns the list of values that were appended to the "billing_allocations" field in this mutation.
-func (m *UsageLogMutation) AppendedBillingAllocations() ([]domain.BillingAllocation, bool) {
+func (m *UsageLogMutation) AppendedBillingAllocations() ([]billing.BillingAllocation, bool) {
 	if len(m.appendbilling_allocations) == 0 {
 		return nil, false
 	}
@@ -55897,7 +55901,7 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 		m.SetBalanceAmountUsd(v)
 		return nil
 	case usagelog.FieldBillingAllocations:
-		v, ok := value.([]domain.BillingAllocation)
+		v, ok := value.([]billing.BillingAllocation)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}

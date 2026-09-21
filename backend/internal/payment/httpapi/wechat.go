@@ -2,19 +2,28 @@
 package httpapi
 
 import (
+	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
+
 	context "context"
 	"encoding/json"
+
 	http "net/http"
+
 	url "net/url"
 	"strconv"
+
 	strings "strings"
 
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
+
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+
 	payment "github.com/TokenFlux/TokenRouter/internal/payment"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	oauth "github.com/TokenFlux/TokenRouter/internal/pkg/oauth"
+
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	gin "github.com/gin-gonic/gin"
 )
 
@@ -47,12 +56,13 @@ func (h *WeChatPaymentHandler) WeChatPaymentOAuthStart(c *gin.Context) {
 		return
 	}
 
-	state, err := oauth.GenerateState()
+	stateBytes, err := oauthpkce.RandomBytes(32)
 	if err != nil {
 		response.ErrorFrom(c, infraerrors.InternalServer("OAUTH_STATE_GEN_FAILED", "failed to generate oauth state").WithCause(err))
 		return
 	}
 
+	state := oauthpkce.Base64URL(stateBytes)
 	redirectTo := NormalizeWeChatPaymentRedirectPath(identityhttp.SanitizeFrontendRedirectPath(c.Query("redirect")))
 	if redirectTo == "" {
 		redirectTo = WechatPaymentOAuthDefaultTo

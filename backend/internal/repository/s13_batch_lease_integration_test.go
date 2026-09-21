@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	native "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache"
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +19,7 @@ func TestS13BatchImageLostOwner(t *testing.T) {
 	t.Run("renewal_reports_loss", func(t *testing.T) {
 		ctx := context.Background()
 		db := testRedis(t)
-		q := native.NewBatchImageQueue(db, nil)
+		q := rediscache.NewBatchImageQueue(db, nil)
 		old, ok, err := q.TryAcquireJobLock(ctx, "imgbatch_s13", time.Minute)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -28,7 +28,7 @@ func TestS13BatchImageLostOwner(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 		defer func() { require.NoError(t, next.Release(ctx)) }()
-		refresher, ok := old.(service.BatchImageJobLockRefresher)
+		refresher, ok := old.(batchimage.BatchImageJobLockRefresher)
 		require.True(t, ok)
 		err = refresher.Refresh(ctx, time.Minute)
 		require.Error(t, err, "旧 token 续期未命中，必须报告失去所有权")
@@ -36,7 +36,7 @@ func TestS13BatchImageLostOwner(t *testing.T) {
 	t.Run("old_ack_preserves_successor", func(t *testing.T) {
 		ctx := context.Background()
 		db := testRedis(t)
-		q := native.NewBatchImageQueue(db, nil)
+		q := rediscache.NewBatchImageQueue(db, nil)
 		id := "imgbatch_s13_ack"
 		old, ok, err := q.TryAcquireJobLock(ctx, id, time.Minute)
 		require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestS13BatchImageLostOwner(t *testing.T) {
 		defer func() { require.NoError(t, next.Release(ctx)) }()
 		require.NoError(t, db.ZAdd(ctx, "batch_image:queue:active", redis.Z{Score: float64(time.Now().UnixMilli()), Member: id}).Err())
 		require.NoError(t, db.Set(ctx, "batch_image:queue:inflight:"+id, id, time.Hour).Err())
-		require.ErrorIs(t, old.Ack(ctx), service.ErrBatchImageLeaseLost)
+		require.ErrorIs(t, old.Ack(ctx), batchimage.ErrBatchImageLeaseLost)
 		_, err = db.ZScore(ctx, "batch_image:queue:active", id).Result()
 		require.NoError(t, err, "旧 worker 的 ACK 不能删除接管者的 active 记录")
 	})

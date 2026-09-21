@@ -2,7 +2,13 @@ package service
 
 import (
 	"context"
-	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	"io"
 	"net/http"
 	"strings"
@@ -10,8 +16,8 @@ import (
 	"testing"
 	"time"
 
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +26,7 @@ type cnUsageMonitorRepo struct {
 	mu               sync.Mutex
 	accounts         map[int64]*Account
 	byPlatform       map[string][]int64
-	writes           []*CNUsageMonitorSnapshot
+	writes           []*acctcore.CNUsageMonitorSnapshot
 	casResult        bool
 	pauseReason      string
 	pauseUntil       time.Time
@@ -33,7 +39,7 @@ func (r *cnUsageMonitorRepo) GetByID(_ context.Context, id int64) (*Account, err
 	defer r.mu.Unlock()
 	account := r.accounts[id]
 	if account == nil {
-		return nil, ErrAccountNotFound
+		return nil, acctcore.ErrAccountNotFound
 	}
 	copy := *account
 	return &copy, nil
@@ -56,7 +62,7 @@ func (r *cnUsageMonitorRepo) UpdateCNUsageMonitorSnapshotCAS(
 	_ context.Context,
 	accountID int64,
 	expectedUpdatedAt time.Time,
-	snapshot *CNUsageMonitorSnapshot,
+	snapshot *acctcore.CNUsageMonitorSnapshot,
 	_ string,
 ) (bool, error) {
 	r.mu.Lock()
@@ -161,8 +167,8 @@ func newCNUsageMonitorAccount(id int64, platform, mode string) *Account {
 	return &Account{
 		ID:          id,
 		Platform:    platform,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		UpdatedAt:   time.Date(2026, 8, 23, 1, 0, 0, 0, time.UTC),
@@ -174,16 +180,16 @@ func newCNUsageMonitorAccount(id int64, platform, mode string) *Account {
 	}
 }
 
-func newCNUsageMonitorForTest(repo *cnUsageMonitorRepo, upstream HTTPUpstream, cfg *config.Config, configure ...func(*acctcore.CNMonitorOptions)) *acctcore.CNUsageMonitor {
+func newCNUsageMonitorForTest(repo *cnUsageMonitorRepo, upstream httpclient.UpstreamTransport, cfg *config.Config, configure ...func(*acctcore.CNMonitorOptions)) *acctcore.CNUsageMonitor {
 	usage := NewUpstreamUsageService(repo, upstream, cfg, nil)
 	return newCNMonitorLegacyFixture(repo, usage, cfg, configure...)
 }
 
 func TestCNUsageMonitorRunOncePersistsUnifiedSnapshotWithoutLegacyWrites(t *testing.T) {
-	account := newCNUsageMonitorAccount(1, PlatformKimi, AccountModePayG)
+	account := newCNUsageMonitorAccount(1, capability.PlatformKimi, acctcore.AccountModePayG)
 	repo := &cnUsageMonitorRepo{
 		accounts:   map[int64]*Account{1: account},
-		byPlatform: map[string][]int64{PlatformKimi: {1}},
+		byPlatform: map[string][]int64{capability.PlatformKimi: {1}},
 		casResult:  true,
 	}
 	upstream := &cnUsageMonitorHTTP{body: `{"code":0,"data":{"available_balance":12.5}}`}
@@ -192,9 +198,9 @@ func TestCNUsageMonitorRunOncePersistsUnifiedSnapshotWithoutLegacyWrites(t *test
 
 	require.Len(t, repo.writes, 1)
 	snapshot := repo.writes[0]
-	require.Equal(t, cnUsageMonitorSnapshotVersion, snapshot.Version)
-	require.Equal(t, UpstreamUsageAdapterKimiBalance, snapshot.Adapter)
-	require.Equal(t, PlatformKimi, snapshot.Provider)
+	require.Equal(t, acctcore.CNUsageMonitorSnapshotVersion, snapshot.Version)
+	require.Equal(t, acctcore.UpstreamUsageAdapterKimiBalance, snapshot.Adapter)
+	require.Equal(t, capability.PlatformKimi, snapshot.Provider)
 	require.Equal(t, "balance", snapshot.Mode)
 	require.NotNil(t, snapshot.Balance)
 	require.InDelta(t, 12.5, *snapshot.Balance.Remaining, 1e-9)
@@ -202,30 +208,30 @@ func TestCNUsageMonitorRunOncePersistsUnifiedSnapshotWithoutLegacyWrites(t *test
 	require.Zero(t, repo.updateExtraCalls, "纯适配器和协调器不得调用通用 UpdateExtra")
 	require.Len(t, upstream.requests, 1)
 	require.Equal(t, "api.moonshot.cn", upstream.requests[0].URL.Hostname())
-	require.True(t, HTTPUpstreamRedirectsDisabled(upstream.requests[0].Context()))
+	require.True(t, upstreamcore.HTTPUpstreamRedirectsDisabled(upstream.requests[0].Context()))
 }
 
 func TestCNUsageMonitorFailurePreservesLastSuccess(t *testing.T) {
-	account := newCNUsageMonitorAccount(2, PlatformDeepseek, AccountModePayG)
+	account := newCNUsageMonitorAccount(2, capability.PlatformDeepseek, acctcore.AccountModePayG)
 	queryConfig, err := EffectiveUpstreamUsageConfig(account)
 	require.NoError(t, err)
 	queryConfig.Adapter = cnUpstreamUsageAdapterName(account)
 	observed := time.Date(2026, 8, 22, 3, 0, 0, 0, time.UTC)
 	remaining := 8.0
-	account.Extra[CNUsageMonitorSnapshotExtraKey] = &CNUsageMonitorSnapshot{
-		Version:       cnUsageMonitorSnapshotVersion,
+	account.Extra[acctcore.CNUsageMonitorSnapshotExtraKey] = &acctcore.CNUsageMonitorSnapshot{
+		Version:       acctcore.CNUsageMonitorSnapshotVersion,
 		Adapter:       queryConfig.Adapter,
 		IdentityHash:  upstreamUsageContextFingerprint(account, queryConfig),
-		Provider:      PlatformDeepseek,
+		Provider:      capability.PlatformDeepseek,
 		Mode:          "balance",
 		Unit:          "CNY",
-		Balance:       &UpstreamUsageAmount{Remaining: &remaining},
+		Balance:       &acctcore.UpstreamUsageAmount{Remaining: &remaining},
 		ObservedAt:    &observed,
 		LastAttemptAt: observed,
 	}
 	repo := &cnUsageMonitorRepo{
 		accounts:   map[int64]*Account{2: account},
-		byPlatform: map[string][]int64{PlatformDeepseek: {2}},
+		byPlatform: map[string][]int64{capability.PlatformDeepseek: {2}},
 		casResult:  true,
 	}
 	upstream := &cnUsageMonitorHTTP{status: http.StatusBadGateway, body: `{}`}
@@ -240,11 +246,11 @@ func TestCNUsageMonitorFailurePreservesLastSuccess(t *testing.T) {
 }
 
 func TestCNUsageMonitorCustomHostRequiresExplicitAllowlist(t *testing.T) {
-	account := newCNUsageMonitorAccount(3, PlatformDeepseek, AccountModePayG)
+	account := newCNUsageMonitorAccount(3, capability.PlatformDeepseek, acctcore.AccountModePayG)
 	account.Credentials["base_url"] = "https://relay.example/v1"
 	repo := &cnUsageMonitorRepo{
 		accounts:   map[int64]*Account{3: account},
-		byPlatform: map[string][]int64{PlatformDeepseek: {3}},
+		byPlatform: map[string][]int64{capability.PlatformDeepseek: {3}},
 		casResult:  true,
 	}
 	upstream := &cnUsageMonitorHTTP{body: `{}`}
@@ -267,10 +273,10 @@ func TestCNUsageMonitorCustomHostRequiresExplicitAllowlist(t *testing.T) {
 }
 
 func TestCNUsageMonitorSkipsCycleWhenNotLeader(t *testing.T) {
-	account := newCNUsageMonitorAccount(4, PlatformKimi, AccountModePayG)
+	account := newCNUsageMonitorAccount(4, capability.PlatformKimi, acctcore.AccountModePayG)
 	repo := &cnUsageMonitorRepo{
 		accounts:   map[int64]*Account{4: account},
-		byPlatform: map[string][]int64{PlatformKimi: {4}},
+		byPlatform: map[string][]int64{capability.PlatformKimi: {4}},
 		casResult:  true,
 	}
 	upstream := &cnUsageMonitorHTTP{body: `{}`}
@@ -289,9 +295,9 @@ func TestCNUsageMonitorDefaultOffAndStopCancelsProbe(t *testing.T) {
 	// 同一构造无上下文断言迁至 account 的生命周期测试；这里保留外层无探测副作用。
 	require.Empty(t, repo.writes)
 
-	account := newCNUsageMonitorAccount(5, PlatformKimi, AccountModePayG)
+	account := newCNUsageMonitorAccount(5, capability.PlatformKimi, acctcore.AccountModePayG)
 	repo.accounts[5] = account
-	repo.byPlatform[PlatformKimi] = []int64{5}
+	repo.byPlatform[capability.PlatformKimi] = []int64{5}
 	started := make(chan struct{}, 1)
 	upstream := &cnUsageMonitorHTTP{started: started, block: true}
 	cfg := testUpstreamUsageConfig()
@@ -317,20 +323,20 @@ func TestCNUsageMonitorDefaultOffAndStopCancelsProbe(t *testing.T) {
 
 func TestCNUsageBalanceThresholdUsesAllCurrenciesAndIdentityReason(t *testing.T) {
 	available := true
-	result := &UpstreamUsageQueryResult{
+	result := &acctcore.UpstreamUsageQueryResult{
 		Mode:      "balance",
 		Available: &available,
-		Balances: []UpstreamUsageBalanceEntry{
+		Balances: []acctcore.UpstreamUsageBalanceEntry{
 			{Currency: "CNY", Remaining: 0.1},
 			{Currency: "USD", Remaining: 2},
 		},
 	}
-	low, known := cnUsageBalanceBelowThreshold(result, 0.5)
+	low, known := acctcore.CNUsageBalanceBelowThreshold(result, 0.5)
 	require.True(t, known)
 	require.False(t, low)
 	result.Balances[1].Remaining = 0.2
-	low, known = cnUsageBalanceBelowThreshold(result, 0.5)
+	low, known = acctcore.CNUsageBalanceBelowThreshold(result, 0.5)
 	require.True(t, known)
 	require.True(t, low)
-	require.True(t, strings.HasPrefix(cnUsageMonitorReason("abc"), "cn_usage_monitor:abc:"))
+	require.True(t, strings.HasPrefix(acctcore.CNUsageMonitorReason("abc"), "cn_usage_monitor:abc:"))
 }

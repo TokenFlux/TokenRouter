@@ -2,9 +2,10 @@
 package account
 
 import (
+	strings "strings"
+
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	strings "strings"
 )
 
 const maxUpstreamRequestIDHeaderNameLen = 64

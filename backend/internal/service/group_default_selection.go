@@ -3,12 +3,13 @@ package service
 
 import (
 	context "context"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // findPlatformDefaultGroup 查找平台默认分组。
 // 优先使用显式默认分组；未配置时回退到历史命名约定，兼容旧配置。
-func findPlatformDefaultGroup(ctx context.Context, groupRepo GroupRepository, platform string) (*Group, error) {
+func findPlatformDefaultGroup(ctx context.Context, groupRepo routing.GroupRepository, platform string) (*routing.Group, error) {
 	if groupRepo == nil {
 		return nil, nil
 	}
@@ -33,6 +34,6 @@ func findPlatformDefaultGroup(ctx context.Context, groupRepo GroupRepository, pl
 }
 
 // FindPlatformDefaultGroup 为过渡装配提供原选择结果，规则仍归分组用例，S06 改绑。
-func FindPlatformDefaultGroup(ctx context.Context, repo GroupRepository, platform string) (*Group, error) {
+func FindPlatformDefaultGroup(ctx context.Context, repo routing.GroupRepository, platform string) (*routing.Group, error) {
 	return findPlatformDefaultGroup(ctx, repo, platform)
 }

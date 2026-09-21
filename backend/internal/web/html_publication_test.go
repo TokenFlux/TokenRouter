@@ -29,7 +29,7 @@ func (p *s15BlockingPublic) GetPublicSettingsForInjection(context.Context) (any,
 
 // 旧回源跨过失效点后不能成为后续请求使用的缓存。
 func TestFrontendServerLateHTMLPublication(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	p := &s15BlockingPublic{entered: make(chan struct{}), release: make(chan struct{})}
 	s, err := NewFrontendServer(p)
 	require.NoError(t, err)

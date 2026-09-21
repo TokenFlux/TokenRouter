@@ -2,11 +2,12 @@ package account
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 多个同时到达的启动调用只能取得一次立即扫描，停止等待该轮实际退出。

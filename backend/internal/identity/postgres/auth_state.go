@@ -3,17 +3,18 @@ package postgres
 
 import (
 	context "context"
-	entsql "entgo.io/ent/dialect/sql"
 	errors "errors"
 	fmt "fmt"
+	slog "log/slog"
+	strings "strings"
+	time "time"
+
+	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	authidentity "github.com/TokenFlux/TokenRouter/ent/authidentity"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	slog "log/slog"
-	strings "strings"
-	time "time"
 )
 
 // ApplyProviderDefaultSettingsOnFirstBind applies provider-specific bootstrap

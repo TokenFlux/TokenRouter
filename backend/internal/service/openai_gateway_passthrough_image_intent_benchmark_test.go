@@ -1,6 +1,10 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+)
 
 var passthroughImageIntentBenchmarkSink bool
 
@@ -11,7 +15,7 @@ func BenchmarkOpenAIPassthroughImageIntentReuse_LargeBody(b *testing.B) {
 		b.SetBytes(int64(len(body)))
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			passthroughImageIntentBenchmarkSink = IsImageGenerationIntent(openAIResponsesEndpoint, "gpt-5.4", body)
+			passthroughImageIntentBenchmarkSink = IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.4", body)
 		}
 	})
 
@@ -19,8 +23,8 @@ func BenchmarkOpenAIPassthroughImageIntentReuse_LargeBody(b *testing.B) {
 		b.SetBytes(int64(len(body)))
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			permissionIntent := IsImageGenerationIntent(openAIResponsesEndpoint, "gpt-5.4", body)
-			billingIntent := IsImageGenerationIntent(openAIResponsesEndpoint, "gpt-5.4", body)
+			permissionIntent := IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.4", body)
+			billingIntent := IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.4", body)
 			passthroughImageIntentBenchmarkSink = permissionIntent && billingIntent
 		}
 	})

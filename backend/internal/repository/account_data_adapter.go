@@ -2,15 +2,24 @@
 package repository
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
 	sql "database/sql"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
 	egresspostgres "github.com/TokenFlux/TokenRouter/internal/egress/postgres"
-	logger "github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+
 	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
+
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -26,14 +35,12 @@ func (r *accountRepository) accountData() *accountpostgres.AccountStore {
 		Group: func(g *dbent.Group) *accessview.GroupConfig {
 			return (*accessview.GroupConfig)(routingpostgres.GroupFromEnt(g))
 		},
-		Proxy: egresspostgres.ProxyEntity,
-		OllamaIdentity: func(record *accountcore.Record) bool {
-			return service.IsOllamaCloudUsageAccount(service.AccountFromRecord(record))
-		},
-		Events:  AccountEventBinding{Read: r.GetByID, ReadMany: r.GetByIDs, Cache: r.schedulerCache},
-		Observe: func(format string, args ...any) { logger.LegacyPrintf("repository.account", format, args...) },
+		Proxy:          egresspostgres.ProxyEntity,
+		OllamaIdentity: accountcore.IsOllamaCloudUsageAccount,
+		Events:         AccountEventBinding{Read: r.GetByID, ReadMany: r.GetByIDs, Cache: r.schedulerCache},
+		Observe:        func(format string, args ...any) { logging.LegacyPrintf("repository.account", format, args...) },
 	})
 }
-func WrapAccountStore(data *accountpostgres.AccountStore, usage *billingpostgres.AccountUsageStore, client *dbent.Client, db *sql.DB, cache service.SchedulerCache) service.AdminAccountRepository {
+func WrapAccountStore(data *accountpostgres.AccountStore, usage *billingpostgres.AccountUsageStore, client *dbent.Client, db *sql.DB, cache service.SchedulerCache) service.AccountRepository {
 	return &accountRepository{usage: usage, data: data, client: client, sql: db, schedulerCache: cache}
 }

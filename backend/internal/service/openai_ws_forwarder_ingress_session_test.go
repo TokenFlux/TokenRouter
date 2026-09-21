@@ -12,8 +12,20 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -30,14 +42,14 @@ func (c *openAIWSLeaseLossAfterReadConn) ReadMessage(ctx context.Context) ([]byt
 	message, err := c.openAIWSCaptureConn.ReadMessage(ctx)
 	if err == nil {
 		c.once.Do(func() {
-			c.cancel(ErrOpenAIWSIngressLeaseLost)
+			c.cancel(scheduler.ErrOpenAIWSIngressLeaseLost)
 		})
 	}
 	return message, err
 }
 
 type openAIWSSingleConnDialer struct {
-	conn openAIWSClientConn
+	conn openai.WSClientConn
 }
 
 func (d *openAIWSSingleConnDialer) Dial(
@@ -46,7 +58,7 @@ func (d *openAIWSSingleConnDialer) Dial(
 	headers http.Header,
 	proxyURL string,
 	tlsProfile *tlsfingerprint.Profile,
-) (openAIWSClientConn, int, http.Header, error) {
+) (openai.WSClientConn, int, http.Header, error) {
 	return d.conn, 0, nil, nil
 }
 
@@ -64,11 +76,11 @@ func TestOpenAIWSDownstreamWriteContext_CancellationOwnership(t *testing.T) {
 	t.Run("租约丢失时当前写入继续", func(t *testing.T) {
 		lifecycleCtx, cancelLifecycle := context.WithCancelCause(context.Background())
 		controlCtx, cancelControl := context.WithCancelCause(lifecycleCtx)
-		hooks := &OpenAIWSIngressHooks{ClientLifecycleContext: lifecycleCtx}
+		hooks := &gatewayws.OpenAIIngressHooks{ClientLifecycleContext: lifecycleCtx}
 		writeCtx, cancelWrite := newOpenAIWSDownstreamWriteContext(controlCtx, hooks, time.Second)
 		defer cancelWrite()
 
-		cancelControl(ErrOpenAIWSIngressLeaseLost)
+		cancelControl(scheduler.ErrOpenAIWSIngressLeaseLost)
 		select {
 		case <-writeCtx.Done():
 			t.Fatalf("租约丢失不应取消当前下行写入: %v", writeCtx.Err())
@@ -85,7 +97,7 @@ func TestOpenAIWSDownstreamWriteContext_CancellationOwnership(t *testing.T) {
 		lifecycleCtx, cancelLifecycle := context.WithCancelCause(context.Background())
 		controlCtx, cancelControl := context.WithCancelCause(lifecycleCtx)
 		defer cancelControl(context.Canceled)
-		hooks := &OpenAIWSIngressHooks{ClientLifecycleContext: lifecycleCtx}
+		hooks := &gatewayws.OpenAIIngressHooks{ClientLifecycleContext: lifecycleCtx}
 		writeCtx, cancelWrite := newOpenAIWSDownstreamWriteContext(controlCtx, hooks, time.Second)
 		defer cancelWrite()
 
@@ -112,7 +124,7 @@ func TestOpenAIWSImageIntentForRoutingModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			body := []byte(`{"model":"` + tt.upstreamModel + `","input":"draw"}`)
-			intentBody, imageIntent, explicitImageIntent := openAIWSImageIntentForRoutingModel(tt.routingModel, tt.upstreamModel, body, PlatformOpenAI)
+			intentBody, imageIntent, explicitImageIntent := openAIWSImageIntentForRoutingModel(tt.routingModel, tt.upstreamModel, body, capability.PlatformOpenAI)
 
 			require.Equal(t, tt.routingModel, gjson.GetBytes(intentBody, "model").String())
 			require.Equal(t, tt.wantIntent, imageIntent)
@@ -129,14 +141,13 @@ func TestOpenAIWSImageIntentForRoutingModel_PassiveNamespaceIsNotExplicit(t *tes
 		"tool_choice":"auto"
 	}`)
 
-	_, imageIntent, explicitImageIntent := openAIWSImageIntentForRoutingModel("gpt-5.5", "gpt-5.5", body, PlatformOpenAI)
+	_, imageIntent, explicitImageIntent := openAIWSImageIntentForRoutingModel("gpt-5.5", "gpt-5.5", body, capability.PlatformOpenAI)
 
 	require.True(t, imageIntent)
 	require.False(t, explicitImageIntent)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossTurns(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -165,20 +176,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          114,
 		Name:        "openai-ingress-session-lease",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -198,7 +209,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	turnTerminalCh := make(chan string, 2)
 	turnEffortCh := make(chan string, 1)
 	routingCalls := make([]string, 0, 2)
-	hooks := &OpenAIWSIngressHooks{
+	hooks := &gatewayws.OpenAIIngressHooks{
 		ResolveRoutingModel: func(turn int, requestedModel string, _ []byte) (string, error) {
 			routingCalls = append(routingCalls, fmt.Sprintf("%d:%s", turn, requestedModel))
 			switch requestedModel {
@@ -210,7 +221,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 				return "", fmt.Errorf("unexpected requested model: %s", requestedModel)
 			}
 		},
-		AfterTurn: func(capture OpenAIWSTurnCapture) {
+		AfterTurn: func(capture gatewayws.OpenAITurnCapture) {
 			result := capture.Result
 			turnErr := capture.Err
 			if turnErr == nil && result != nil {
@@ -318,7 +329,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 // TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRetryClose
 // 验证租约丢失发生在上游终态读取后时，客户端先收到终态事件，再收到 1013 关闭帧。
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRetryClose(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -348,19 +358,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRe
 	defer pool.Close()
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 	account := &Account{
 		ID:          118,
 		Name:        "openai-ingress-lease-loss",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
@@ -402,7 +412,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRe
 			account,
 			"sk-test",
 			firstMessage,
-			&OpenAIWSIngressHooks{ClientLifecycleContext: lifecycleCtx},
+			&gatewayws.OpenAIIngressHooks{ClientLifecycleContext: lifecycleCtx},
 		)
 	}))
 	defer wsServer.Close()
@@ -435,17 +445,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRe
 
 	select {
 	case serverErr := <-serverErrCh:
-		var clientCloseErr *OpenAIWSClientCloseError
+		var clientCloseErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, serverErr, &clientCloseErr)
 		require.Equal(t, coderws.StatusTryAgainLater, clientCloseErr.StatusCode())
-		require.ErrorIs(t, serverErr, ErrOpenAIWSIngressLeaseLost)
+		require.ErrorIs(t, serverErr, scheduler.ErrOpenAIWSIngressLeaseLost)
 	case <-time.After(3 * time.Second):
 		t.Fatal("等待 ingress 租约丢失读协程退出超时")
 	}
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutReleasesStoreDisabledSession(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -470,19 +479,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutRelea
 	pool.SetClientDialerForTest(captureDialer)
 	defer pool.Close()
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 	account := &Account{
 		ID:          116,
 		Name:        "openai-ingress-idle-timeout",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
@@ -539,7 +548,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutRelea
 
 	select {
 	case proxyErr := <-serverErrCh:
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, proxyErr, &closeErr)
 		require.Equal(t, coderws.StatusNormalClosure, closeErr.StatusCode())
 		require.Equal(t, "websocket idle timeout", closeErr.Reason())
@@ -554,7 +563,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutRelea
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCanOmitModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -581,19 +589,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCa
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 	account := &Account{
 		ID:          115,
 		Name:        "openai-ingress-omit-model",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -688,10 +696,10 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCa
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowupUserPrompt(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	userPromptReplacementCache.Store((*compiledUserPromptReplacementConfig)(nil))
+
+	promptpolicy.SharedCache().Store((*promptpolicy.CompiledConfig)(nil))
 	t.Cleanup(func() {
-		userPromptReplacementCache.Store((*compiledUserPromptReplacementConfig)(nil))
+		promptpolicy.SharedCache().Store((*promptpolicy.CompiledConfig)(nil))
 	})
 
 	cfg := &config.Config{}
@@ -710,8 +718,8 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowup
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
 	replacementConfig := `{"enabled":true,"rules":[{"id":"replace-shanghai-timezone","name":"替换上海时区","enabled":true,"pattern":"(Asia/Shanghai)","target_group":1,"replacement_type":"static","static_text":"Asia/Tokyo"}]}`
-	settingService := NewSettingService(&gatewayTTLSettingRepo{data: map[string]string{
-		SettingKeyUserPromptReplacementConfig: replacementConfig,
+	settingService := newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{
+		promptpolicy.SettingKeyUserPromptReplacementConfig: replacementConfig,
 	}}, cfg)
 
 	captureConn := &openAIWSCaptureConn{
@@ -724,20 +732,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowup
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		settingService:   settingService,
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:            cfg,
+		httpUpstream:   &httpUpstreamRecorder{},
+		cache:          &stubGatewayCache{},
+		settingService: settingService,
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 	account := &Account{
 		ID:          116,
 		Name:        "openai-ingress-user-prompt-replacement",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -830,7 +838,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowup
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridgeRespectsResponsesLite(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -859,20 +866,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	groupID := int64(3)
-	apiKey := &APIKey{
+	apiKey := &apikey.APIKey{
 		ID:      1,
 		UserID:  1,
 		GroupID: &groupID,
-		Group: &Group{
+		Group: &routing.Group{
 			ID:                   groupID,
 			AllowImageGeneration: true,
 		},
@@ -880,9 +887,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 	account := &Account{
 		ID:          31,
 		Name:        "openai-codex-image-ws",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -1009,7 +1016,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 
 	select {
 	case serverErr := <-serverErrCh:
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, serverErr, &closeErr)
 		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
 		require.Contains(t, closeErr.Reason(), "parallel_tool_calls to be a boolean")
@@ -1048,11 +1055,10 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 	require.True(t, gjson.Get(functionPayload, `tools.#(name=="image_gen.imagegen")`).Exists())
 	require.False(t, gjson.Get(functionPayload, `tools.#(type=="image_generation")`).Exists())
 	require.False(t, gjson.Get(functionPayload, "tool_choice").Exists())
-	require.NotContains(t, gjson.Get(functionPayload, "instructions").String(), codexImageGenerationBridgeMarker)
+	require.NotContains(t, gjson.Get(functionPayload, "instructions").String(), openai.CodexImageGenerationBridgeMarker)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoesNotReuseConnAcrossSessions(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -1062,7 +1068,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoe
 	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-	cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeShared
+	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeShared
 	cfg.Gateway.OpenAIWS.MaxConnsPerAccount = 1
 	cfg.Gateway.OpenAIWS.MinIdlePerAccount = 0
 	cfg.Gateway.OpenAIWS.MaxIdlePerAccount = 1
@@ -1082,33 +1088,33 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoe
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{upstreamConn1, upstreamConn2},
+		conns: []openai.WSClientConn{upstreamConn1, upstreamConn2},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          441,
 		Name:        "openai-ingress-dedicated",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
 		},
 		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModeDedicated,
+			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeDedicated,
 		},
 	}
 
@@ -1186,7 +1192,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoe
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeRelaysByCaddyAdapter(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -1196,7 +1201,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-	cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 	cfg.Gateway.OpenAIWS.DialTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
@@ -1212,20 +1217,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: upstreamConn}
 	svc := &OpenAIGatewayService{
-		cfg:                       cfg,
-		httpUpstream:              &httpUpstreamRecorder{},
-		cache:                     &stubGatewayCache{},
-		openaiWSResolver:          NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:             NewCodexToolCorrector(),
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector:             openai.NewCodexToolCorrector(),
 		openaiWSPassthroughDialer: captureDialer,
 	}
 
 	account := &Account{
 		ID:          452,
 		Name:        "openai-ingress-passthrough",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -1236,15 +1241,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 			},
 		},
 		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough,
+			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
 		},
 	}
 
 	serverErrCh := make(chan error, 1)
-	resultCh := make(chan *OpenAIForwardResult, 2)
+	resultCh := make(chan *forwardcore.OpenAIResult, 2)
 	routingCalls := make(chan string, 3)
 	beforeTurnCalls := make(chan int, 1)
-	hooks := &OpenAIWSIngressHooks{
+	hooks := &gatewayws.OpenAIIngressHooks{
 		ResolveRoutingModel: func(turn int, requestedModel string, _ []byte) (string, error) {
 			routingCalls <- fmt.Sprintf("%d:%s", turn, requestedModel)
 			switch requestedModel {
@@ -1260,7 +1265,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 			beforeTurnCalls <- turn
 			return nil
 		},
-		AfterTurn: func(capture OpenAIWSTurnCapture) {
+		AfterTurn: func(capture gatewayws.OpenAITurnCapture) {
 			result := capture.Result
 			turnErr := capture.Err
 			if turnErr == nil && result != nil {
@@ -1405,7 +1410,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRelaysHTTPStream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -1415,7 +1419,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-	cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
@@ -1431,19 +1435,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 		},
 	}
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     upstream,
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
+		cfg:          cfg,
+		httpUpstream: upstream,
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
 	}
 
 	account := &Account{
 		ID:          552,
 		Name:        "openai-ingress-http-bridge",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -1453,14 +1457,14 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 			},
 		},
 		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModeHTTPBridge,
+			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeHTTPBridge,
 		},
 	}
 
 	serverErrCh := make(chan error, 1)
-	resultCh := make(chan *OpenAIForwardResult, 1)
+	resultCh := make(chan *forwardcore.OpenAIResult, 1)
 	routingCallCh := make(chan string, 1)
-	hooks := &OpenAIWSIngressHooks{
+	hooks := &gatewayws.OpenAIIngressHooks{
 		ResolveRoutingModel: func(turn int, requestedModel string, _ []byte) (string, error) {
 			routingCallCh <- fmt.Sprintf("%d:%s", turn, requestedModel)
 			if turn != 1 || requestedModel != "client-bridge-model" {
@@ -1468,7 +1472,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 			}
 			return "channel-bridge-model", nil
 		},
-		AfterTurn: func(capture OpenAIWSTurnCapture) {
+		AfterTurn: func(capture gatewayws.OpenAITurnCapture) {
 			if capture.Err == nil && capture.Result != nil {
 				resultCh <- capture.Result
 			}
@@ -1619,7 +1623,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridg
 			if tt.name == "other event type" {
 				t.Skip("fork relay fixture does not provide a response for non-response.create events")
 			}
-			gin.SetMode(gin.TestMode)
+
 			cfg := &config.Config{}
 			cfg.Security.URLAllowlist.Enabled = false
 			cfg.Security.URLAllowlist.AllowInsecureHTTP = true
@@ -1627,7 +1631,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridg
 			cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 			cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 			cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-			cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+			cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 			cfg.Gateway.OpenAIWS.HTTPBridgeEnabled = true
 			cfg.Gateway.OpenAIWS.HTTPBridgeThresholdBytes = tt.threshold
 
@@ -1637,23 +1641,23 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridg
 			dialer := &openAIWSCaptureDialer{conn: upstreamConn}
 			httpUpstream := &httpUpstreamRecorder{}
 			svc := &OpenAIGatewayService{
-				cfg:                       cfg,
-				httpUpstream:              httpUpstream,
-				cache:                     &stubGatewayCache{},
-				openaiWSResolver:          NewOpenAIWSProtocolResolver(cfg),
-				toolCorrector:             NewCodexToolCorrector(),
+				cfg:          cfg,
+				httpUpstream: httpUpstream,
+				cache:        &stubGatewayCache{},
+
+				toolCorrector:             openai.NewCodexToolCorrector(),
 				openaiWSPassthroughDialer: dialer,
 			}
 			account := &Account{
 				ID:          453,
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test"},
 				Extra: map[string]any{
-					"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough,
+					"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
 				},
 			}
 
@@ -1713,7 +1717,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridg
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeadersUsePromptCacheAndTurnState(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -1723,7 +1726,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-	cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 	cfg.Gateway.OpenAIWS.DialTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
@@ -1735,26 +1738,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: upstreamConn}
 	svc := &OpenAIGatewayService{
-		cfg:                       cfg,
-		httpUpstream:              &httpUpstreamRecorder{},
-		cache:                     &stubGatewayCache{},
-		openaiWSResolver:          NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:             NewCodexToolCorrector(),
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector:             openai.NewCodexToolCorrector(),
 		openaiWSPassthroughDialer: captureDialer,
 	}
 	account := &Account{
 		ID:          453,
 		Name:        "openai-ingress-passthrough-headers",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "oauth-token",
 		},
 		Extra: map[string]any{
-			"openai_oauth_responses_websockets_v2_mode": OpenAIWSIngressModePassthrough,
+			"openai_oauth_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
 		},
 	}
 
@@ -1777,7 +1780,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 		req.Header = req.Header.Clone()
 		req.Header.Set("User-Agent", "codex_cli_rs/0.98.0")
 		req.Header.Set(openAIWSTurnStateHeader, "turn-state-1")
-		req.Header.Set(openAIWSTurnMetadataHeader, "turn-meta-1")
+		req.Header.Set(openai.WSTurnMetadataHeader, "turn-meta-1")
 		ginCtx.Request = req
 
 		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
@@ -1838,7 +1841,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 
 	require.Equal(t, isolateOpenAIUpstreamSessionID(0, account, "pcache_passthrough"), captureDialer.lastHeaders.Get("session_id"))
 	require.Equal(t, "turn-state-1", captureDialer.lastHeaders.Get(openAIWSTurnStateHeader))
-	require.Equal(t, "turn-meta-1", captureDialer.lastHeaders.Get(openAIWSTurnMetadataHeader))
+	require.Equal(t, "turn-meta-1", captureDialer.lastHeaders.Get(openai.WSTurnMetadataHeader))
 	require.Len(t, upstreamConn.writes, 1)
 	forwarded := requestToJSONString(upstreamConn.writes[0])
 	require.True(t, gjson.Get(forwarded, "parallel_tool_calls").Exists())
@@ -1852,7 +1855,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPolicyViolation(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -1862,30 +1864,30 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPo
 	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-	cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeShared
+	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeShared
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     newOpenAIWSConnPool(cfg),
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  newOpenAIWSConnPool(cfg),
 	}
 
 	account := &Account{
 		ID:          442,
 		Name:        "openai-ingress-off",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
 		},
 		Extra: map[string]any{
-			"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModeOff,
+			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeOff,
 		},
 	}
 
@@ -1940,7 +1942,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPo
 
 	select {
 	case serverErr := <-serverErrCh:
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, serverErr, &closeErr)
 		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
 		require.Equal(t, "websocket mode is disabled for this account", closeErr.Reason())
@@ -1950,7 +1952,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPo
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPrevResponseStrictDropToFullCreate(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -1978,20 +1979,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          140,
 		Name:        "openai-ingress-prev-preflight-rewrite",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -2086,7 +2087,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPrevResponseStrictDropBeforePreflightPingFailReconnects(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -2119,26 +2120,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          142,
 		Name:        "openai-ingress-prev-strict-drop-before-ping",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -2238,7 +2239,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreEnabledSkipsStrictPrevResponseEval(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -2266,20 +2266,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreEnabledSkip
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          143,
 		Name:        "openai-ingress-store-enabled-skip-strict",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -2370,7 +2370,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreEnabledSkip
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPrevResponsePreflightSkipForFunctionCallOutput(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -2398,20 +2397,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          141,
 		Name:        "openai-ingress-prev-preflight-skip-fco",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -2502,7 +2501,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFunctionCallOutputAutoAttachPreviousResponseID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -2530,20 +2528,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          143,
 		Name:        "openai-ingress-fco-auto-prev",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -2634,7 +2632,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledToolSearchOutputAutoAttachesPreviousResponseID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -2662,20 +2659,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledToo
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          145,
 		Name:        "openai-ingress-tool-search-output-auto-prev",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -2769,7 +2766,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledToo
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFunctionCallOutputSkipsAutoAttachWhenLastResponseIDMissing(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -2797,20 +2793,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          144,
 		Name:        "openai-ingress-fco-auto-prev-skip",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -2902,7 +2898,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFunctionCallOutputSkipsAutoAttachWhenToolCallContextPresent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -2926,26 +2921,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 		},
 	}
 	captureDialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{captureConn},
+		conns: []openai.WSClientConn{captureConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          114,
 		Name:        "openai-ingress-tool-context",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -3036,7 +3031,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFunctionCallOutputAutoAttachWhenOnlyItemReferencesPresent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -3060,26 +3054,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 		},
 	}
 	captureDialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{captureConn},
+		conns: []openai.WSClientConn{captureConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          115,
 		Name:        "openai-ingress-item-reference",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -3170,7 +3164,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFailReconnectsBeforeTurn(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3203,26 +3197,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          116,
 		Name:        "openai-ingress-preflight-ping",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -3312,7 +3306,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStrictAffinityPreflightPingFailAutoRecoveryReconnects(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3345,26 +3339,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          121,
 		Name:        "openai-ingress-preflight-ping-strict-affinity",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -3464,7 +3458,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPreflightPingFailReplaysFunctionCallOutputWithContext(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3497,26 +3491,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          128,
 		Name:        "openai-ingress-preflight-replay-function-output-with-context",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -3619,7 +3613,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPreflightPingFailClosesWhenFunctionCallOutputNeedsPreviousResponseID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3652,26 +3646,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          129,
 		Name:        "openai-ingress-preflight-replay-function-output",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -3749,7 +3743,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	select {
 	case serverErr := <-serverErrCh:
 		require.Error(t, serverErr)
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, serverErr, &closeErr)
 		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
 		require.Contains(t, closeErr.Reason(), "upstream continuation connection is unavailable")
@@ -3765,7 +3759,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPreflightPingFailClosesWhenReplayHasFunctionCallOutput(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	prevPreflightPingIdle := openAIWSIngressPreflightPingIdle
 	openAIWSIngressPreflightPingIdle = 0
 	defer func() {
@@ -3798,26 +3792,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          130,
 		Name:        "openai-ingress-preflight-replay-only-function-output",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -3895,7 +3889,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	select {
 	case serverErr := <-serverErrCh:
 		require.Error(t, serverErr)
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, serverErr, &closeErr)
 		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
 		require.Contains(t, closeErr.Reason(), "upstream continuation connection is unavailable")
@@ -3911,7 +3905,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeDownstreamRetriesOnce(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -3939,26 +3932,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          117,
 		Name:        "openai-ingress-write-retry",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -3972,14 +3965,14 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 	beforeTurnCalls := make(map[int]int)
 	afterTurnCalls := make(map[int]int)
 	afterTurnRequestBodies := make(map[int][]byte)
-	hooks := &OpenAIWSIngressHooks{
+	hooks := &gatewayws.OpenAIIngressHooks{
 		BeforeTurn: func(turn int) error {
 			hooksMu.Lock()
 			beforeTurnCalls[turn]++
 			hooksMu.Unlock()
 			return nil
 		},
-		AfterTurn: func(capture OpenAIWSTurnCapture) {
+		AfterTurn: func(capture gatewayws.OpenAITurnCapture) {
 			hooksMu.Lock()
 			afterTurnCalls[capture.Turn]++
 			afterTurnRequestBodies[capture.Turn] = append([]byte(nil), capture.RequestBody...)
@@ -4078,7 +4071,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponseNotFoundRecoversByDroppingPrevID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -4108,26 +4100,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          118,
 		Name:        "openai-ingress-prev-recovery",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -4229,7 +4221,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStrictAffinityPreviousResponseNotFoundLayer2Recovery(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -4259,26 +4250,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          122,
 		Name:        "openai-ingress-prev-strict-layer2",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -4385,7 +4376,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponseNotFoundRecoveryRemovesDuplicatePrevID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -4415,26 +4405,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{firstConn, secondConn},
+		conns: []openai.WSClientConn{firstConn, secondConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          120,
 		Name:        "openai-ingress-prev-recovery-once",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -4536,7 +4526,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageIDAsPreviousResponseID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -4547,19 +4536,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageID
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
 	}
 
 	account := &Account{
 		ID:          119,
 		Name:        "openai-ingress-prev-validation",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -4622,7 +4611,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageID
 	select {
 	case serverErr := <-serverErrCh:
 		require.Error(t, serverErr)
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.ErrorAs(t, serverErr, &closeErr)
 		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
 		require.Contains(t, closeErr.Reason(), "previous_response_id must be a response.id")
@@ -4633,7 +4622,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageID
 
 type openAIWSQueueDialer struct {
 	mu        sync.Mutex
-	conns     []openAIWSClientConn
+	conns     []openai.WSClientConn
 	dialCount int
 }
 
@@ -4643,7 +4632,7 @@ func (d *openAIWSQueueDialer) Dial(
 	headers http.Header,
 	proxyURL string,
 	profile *tlsfingerprint.Profile,
-) (openAIWSClientConn, int, http.Header, error) {
+) (openai.WSClientConn, int, http.Header, error) {
 	_ = ctx
 	_ = wsURL
 	_ = headers
@@ -4761,7 +4750,6 @@ func (c *openAIWSWriteFailAfterFirstTurnConn) Close() error {
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnectStillDrainsUpstream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -4793,20 +4781,20 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnect
 	pool.SetClientDialerForTest(captureDialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          115,
 		Name:        "openai-ingress-client-disconnect",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -4821,9 +4809,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnect
 	}
 
 	serverErrCh := make(chan error, 1)
-	resultCh := make(chan *OpenAIForwardResult, 1)
-	hooks := &OpenAIWSIngressHooks{
-		AfterTurn: func(capture OpenAIWSTurnCapture) {
+	resultCh := make(chan *forwardcore.OpenAIResult, 1)
+	hooks := &gatewayws.OpenAIIngressHooks{
+		AfterTurn: func(capture gatewayws.OpenAITurnCapture) {
 			result := capture.Result
 			turnErr := capture.Err
 			if turnErr == nil && result != nil {
@@ -4898,7 +4886,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnect
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErrorEvent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -4922,19 +4909,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 	account := &Account{
 		ID:          119,
 		Name:        "openai-ingress-cyber-error",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -4954,7 +4941,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 		message    string
 	}
 	upstreamErrCh := make(chan upstreamErrorRecord, 1)
-	hooks := &OpenAIWSIngressHooks{
+	hooks := &gatewayws.OpenAIIngressHooks{
 		OnUpstreamError: func(turn int, originalModel string, statusCode int, responseBody []byte, message string) {
 			upstreamErrCh <- upstreamErrorRecord{
 				turn:       turn,
@@ -5032,7 +5019,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFailedEvent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -5056,19 +5042,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 	account := &Account{
 		ID:          120,
 		Name:        "openai-ingress-cyber-failed",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -5085,7 +5071,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 		statusCode int
 	}
 	upstreamErrCh := make(chan failedUpstreamErrorRecord, 1)
-	hooks := &OpenAIWSIngressHooks{
+	hooks := &gatewayws.OpenAIIngressHooks{
 		OnUpstreamError: func(_ int, originalModel string, statusCode int, responseBody []byte, message string) {
 			require.JSONEq(t, string(failedEvent), string(responseBody))
 			require.Contains(t, message, "cybersecurity risk")
@@ -5160,7 +5146,6 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_InvalidEncryptedContentLineageStripsNextTurn(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -5185,26 +5170,26 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_InvalidEncrypted
 		},
 	}
 	dialer := &openAIWSQueueDialer{
-		conns: []openAIWSClientConn{upstreamConn},
+		conns: []openai.WSClientConn{upstreamConn},
 	}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector: openai.NewCodexToolCorrector(),
+		openaiWSPool:  pool,
 	}
 
 	account := &Account{
 		ID:          119,
 		Name:        "openai-ingress-enc-lineage",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{

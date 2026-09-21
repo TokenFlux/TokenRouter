@@ -5,18 +5,19 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"go.uber.org/zap"
-
 	"time"
 
-	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"go.uber.org/zap"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,15 +28,11 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	c *gin.Context,
 	account *Account,
 	body []byte,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
-) (*OpenAIForwardResult, error) {
+	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
+) (*forwardcore.OpenAIResult, error) {
 	adapter := &openAIRawFallbackAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch}, kind: forward.NativeResponses}
 	result, err := forward.ResponsesViaRawChat(ctx, body, adapter)
 	return openAIForwardResultFromHTTP(result), err
-}
-
-func chatChunkStartsResponsesOutput(chunk *protocolopenai.ChatCompletionsChunk) bool {
-	return protocolopenai.ChatChunkStartsResponsesOutput(chunk)
 }
 
 const responsesReasoningCacheTTL = 7 * 24 * time.Hour
@@ -46,7 +43,7 @@ func (s *OpenAIGatewayService) reasoningContentByID(itemID string) string {
 	if s == nil || s.cache == nil {
 		return ""
 	}
-	cache, ok := s.cache.(ReasoningContentCache)
+	cache, ok := s.cache.(session.ReasoningContentCache)
 	if !ok {
 		return ""
 	}
@@ -65,7 +62,7 @@ func (s *OpenAIGatewayService) recacheReasoningItemsFromInput(inputRaw json.RawM
 	if s == nil || s.cache == nil {
 		return
 	}
-	if _, ok := s.cache.(ReasoningContentCache); !ok {
+	if _, ok := s.cache.(session.ReasoningContentCache); !ok {
 		return
 	}
 	inputRaw = bytes.TrimSpace(inputRaw)
@@ -77,7 +74,7 @@ func (s *OpenAIGatewayService) recacheReasoningItemsFromInput(inputRaw json.RawM
 		return
 	}
 	for _, raw := range items {
-		id, text, ok := apicompat.ExtractResponsesReasoningItem(raw)
+		id, text, ok := bridge.ExtractResponsesReasoningItem(raw)
 		if ok && id != "" && text != "" {
 			s.setReasoningContent(id, text)
 		}
@@ -121,14 +118,14 @@ func (s *OpenAIGatewayService) setReasoningContent(itemID, content string) {
 	if s == nil || s.cache == nil {
 		return
 	}
-	cache, ok := s.cache.(ReasoningContentCache)
+	cache, ok := s.cache.(session.ReasoningContentCache)
 	if !ok {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if err := cache.SetReasoningContent(ctx, itemID, content, responsesReasoningCacheTTL); err != nil {
-		logger.L().Warn("openai responses chat fallback: cache reasoning content failed",
+		logging.L().Warn("openai responses chat fallback: cache reasoning content failed",
 			zap.Error(err),
 			zap.String("item_id", itemID),
 		)

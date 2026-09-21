@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +31,7 @@ func TestSyncBillingHeaderVersion(t *testing.T) {
 			name:      "replaces cc_version and recomputes message-derived suffix",
 			body:      `{"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.81.df2; cc_entrypoint=cli; cch=00000;"},{"type":"text","text":"You are Claude Code.","cache_control":{"type":"ephemeral"}}],"messages":[]}`,
 			userAgent: "claude-cli/2.1.22 (external, cli)",
-			wantSub:   "cc_version=2.1.22." + computeClaudeCodeFingerprint([]byte(`{"messages":[]}`), "2.1.22"),
+			wantSub:   "cc_version=2.1.22." + claude.ComputeClaudeCodeFingerprint([]byte(`{"messages":[]}`), "2.1.22"),
 		},
 		{
 			name:      "no billing header in system",
@@ -65,7 +67,7 @@ func TestSyncBillingHeaderVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := syncBillingHeaderVersion([]byte(tt.body), tt.userAgent)
+			result := claude.SyncBillingHeaderVersion([]byte(tt.body), tt.userAgent)
 			if tt.unchanged {
 				assert.Equal(t, tt.body, string(result), "body should remain unchanged")
 			} else {
@@ -81,16 +83,16 @@ func TestSyncBillingHeaderVersion(t *testing.T) {
 func TestSyncBillingHeaderVersion_RecomputesSuffixAndIsIdempotent(t *testing.T) {
 	body := []byte(`{"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.81.df2; cc_entrypoint=cli;"}],"messages":[{"role":"user","content":"hello world"}]}`)
 	version := "2.1.22"
-	result := syncBillingHeaderVersion(body, "claude-cli/"+version)
+	result := claude.SyncBillingHeaderVersion(body, "claude-cli/"+version)
 	require.Contains(t, gjson.GetBytes(result, "system.0.text").String(),
-		"cc_version="+version+"."+computeClaudeCodeFingerprint(body, version)+";")
-	require.Equal(t, string(result), string(syncBillingHeaderVersion(result, "claude-cli/"+version)))
+		"cc_version="+version+"."+claude.ComputeClaudeCodeFingerprint(body, version)+";")
+	require.Equal(t, string(result), string(claude.SyncBillingHeaderVersion(result, "claude-cli/"+version)))
 	require.JSONEq(t, gjson.GetBytes(body, "messages").Raw, gjson.GetBytes(result, "messages").Raw)
 }
 
 // 两个 OAuth 出站入口都须使计费标记与真正发送的 User-Agent 一致。
 func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	for _, endpoint := range []string{"messages", "count_tokens"} {
 		for _, tc := range []struct {
 			name      string
@@ -107,7 +109,7 @@ func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
 				c, _ := gin.CreateTestContext(httptest.NewRecorder())
 				c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 				body := []byte(`{"model":"claude-haiku-4-5","system":[{"type":"text","text":""}],"messages":[{"role":"user","content":"hello world"}]}`)
-				billing, err := buildBillingAttributionText(body, "2.1.81")
+				billing, err := claude.BuildBillingAttributionText(body, "2.1.81")
 				require.NoError(t, err)
 				body, err = sjson.SetBytes(body, "system.0.text", billing)
 				require.NoError(t, err)
@@ -116,16 +118,16 @@ func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
 				svc := &GatewayService{cfg: cfg}
 				cachedUA := "claude-cli/2.9.0 (external, cli)"
 				if tc.identity {
-					svc.identityService = NewIdentityService(&stubIdentityCache{fingerprint: &Fingerprint{
+					svc.identityService = claude.NewRequestFingerprint(&stubIdentityCache{fingerprint: &claude.Fingerprint{
 						UserAgent: cachedUA, ClientID: "test-client", UpdatedAt: time.Now().Unix(),
 					}})
 				}
 				if tc.disableFP {
-					svc.settingService = NewSettingService(&gatewayTTLSettingRepo{data: map[string]string{
-						SettingKeyEnableFingerprintUnification: "false",
+					svc.settingService = newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{
+						gateway.SettingKeyEnableFingerprintUnification: "false",
 					}}, cfg)
 				}
-				account := &Account{ID: 1, Platform: PlatformAnthropic, Type: AccountTypeOAuth}
+				account := &Account{ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}
 				var req *http.Request
 				var wireBody []byte
 				if endpoint == "messages" {
@@ -141,10 +143,10 @@ func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
 				if tc.mimic {
 					wantUA = claude.DefaultHeaders["User-Agent"]
 				}
-				require.Equal(t, wantUA, getHeaderRaw(req.Header, "User-Agent"))
-				version := ExtractCLIVersion(wantUA)
+				require.Equal(t, wantUA, claude.GetHeaderRaw(req.Header, "User-Agent"))
+				version := claude.ExtractCLIVersion(wantUA)
 				require.Contains(t, gjson.GetBytes(wireBody, "system.0.text").String(),
-					"cc_version="+version+"."+computeClaudeCodeFingerprint(wireBody, version)+";")
+					"cc_version="+version+"."+claude.ComputeClaudeCodeFingerprint(wireBody, version)+";")
 				actualBody, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				require.Equal(t, wireBody, actualBody)

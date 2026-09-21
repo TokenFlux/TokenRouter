@@ -11,7 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
+	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -25,20 +28,20 @@ func TestAdaptResponsesClientToolsForAnthropic_FlattensNamespace(t *testing.T) {
 		"tools":[{"type":"namespace","name":"codex_app","tools":[{"type":"function","name":"read_thread","description":"Read a task","parameters":{"type":"object","properties":{}}}]}]
 	}`)
 
-	adapted, mapping, err := adaptResponsesClientToolsForAnthropic(body)
+	adapted, mapping, err := forward.AdaptResponsesClientToolsForAnthropic(body)
 	require.NoError(t, err)
-	require.Equal(t, apicompat.ResponsesNamespaceName{Namespace: "codex_app", Name: "read_thread"}, mapping.NamespaceTools["codex_app__read_thread"])
+	require.Equal(t, bridge.ResponsesNamespaceName{Namespace: "codex_app", Name: "read_thread"}, mapping.NamespaceTools["codex_app__read_thread"])
 
 	var request map[string]any
 	require.NoError(t, json.Unmarshal(adapted, &request))
-	tools := request["tools"].([]any)
+	tools := testassert.MustType[[]any](request["tools"])
 	require.Len(t, tools, 1)
-	tool := tools[0].(map[string]any)
+	tool := testassert.MustType[map[string]any](tools[0])
 	require.Equal(t, "function", tool["type"])
 	require.Equal(t, "codex_app__read_thread", tool["name"])
 
-	input := request["input"].([]any)
-	call := input[0].(map[string]any)
+	input := testassert.MustType[[]any](request["input"])
+	call := testassert.MustType[map[string]any](input[0])
 	require.Equal(t, "codex_app__read_thread", call["name"])
 	require.NotContains(t, call, "namespace")
 }
@@ -57,21 +60,21 @@ func TestAdaptResponsesClientToolsForAnthropic_LiftsAdditionalTools(t *testing.T
 		]
 	}`)
 
-	adapted, mapping, err := adaptResponsesClientToolsForAnthropic(body)
+	adapted, mapping, err := forward.AdaptResponsesClientToolsForAnthropic(body)
 	require.NoError(t, err)
 	require.True(t, mapping.CustomTools["exec"])
-	require.Equal(t, apicompat.ResponsesNamespaceName{Namespace: "codex_app", Name: "read_thread"}, mapping.NamespaceTools["codex_app__read_thread"])
+	require.Equal(t, bridge.ResponsesNamespaceName{Namespace: "codex_app", Name: "read_thread"}, mapping.NamespaceTools["codex_app__read_thread"])
 
 	var request map[string]any
 	require.NoError(t, json.Unmarshal(adapted, &request))
-	tools := request["tools"].([]any)
+	tools := testassert.MustType[[]any](request["tools"])
 	require.Len(t, tools, 2)
-	require.Equal(t, "function", tools[0].(map[string]any)["type"])
-	require.Equal(t, "codex_app__read_thread", tools[1].(map[string]any)["name"])
+	require.Equal(t, "function", testassert.MustType[map[string]any](tools[0])["type"])
+	require.Equal(t, "codex_app__read_thread", testassert.MustType[map[string]any](tools[1])["name"])
 
-	input := request["input"].([]any)
+	input := testassert.MustType[[]any](request["input"])
 	require.Len(t, input, 1)
-	require.Equal(t, "message", input[0].(map[string]any)["type"])
+	require.Equal(t, "message", testassert.MustType[map[string]any](input[0])["type"])
 }
 
 func namespaceToolAnthropicStream() string {
@@ -94,15 +97,14 @@ func namespaceToolAnthropicStream() string {
 	}, "\n")
 }
 
-func namespaceToolMapping() apicompat.ResponsesClientToolMapping {
-	return apicompat.ResponsesClientToolMapping{NamespaceTools: map[string]apicompat.ResponsesNamespaceName{
+func namespaceToolMapping() bridge.ResponsesClientToolMapping {
+	return bridge.ResponsesClientToolMapping{NamespaceTools: map[string]bridge.ResponsesNamespaceName{
 		"codex_app__read_thread": {Namespace: "codex_app", Name: "read_thread"},
 	}}
 }
 
 func TestHandleResponsesBufferedStreamingResponse_RestoresNamespaceTool(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -119,13 +121,12 @@ func TestHandleResponsesBufferedStreamingResponse_RestoresNamespaceTool(t *testi
 
 func TestHandleResponsesBufferedStreamingResponse_ToolArgumentsAreValidJSON(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	resp := &http.Response{Body: io.NopCloser(strings.NewReader(toolAnthropicSSEStream()))}
 
-	_, err := (&GatewayService{}).handleResponsesBufferedStreamingResponse(resp, c, "claude-fable-5", "claude-fable-5", nil, time.Now(), apicompat.ResponsesClientToolMapping{})
+	_, err := (&GatewayService{}).handleResponsesBufferedStreamingResponse(resp, c, "claude-fable-5", "claude-fable-5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 
 	var body struct {
@@ -150,7 +151,6 @@ func TestAppendRawJSON_EmptyObjectPlaceholder(t *testing.T) {
 
 func TestHandleResponsesStreamingResponse_RestoresNamespaceTool(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -189,7 +189,6 @@ func TestExtractResponsesReasoningEffortFromBody(t *testing.T) {
 
 func TestHandleResponsesBufferedStreamingResponse_PreservesMessageStartCacheUsage(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -210,7 +209,7 @@ func TestHandleResponsesBufferedStreamingResponse_PreservesMessageStartCacheUsag
 	}
 
 	svc := &GatewayService{}
-	result, err := svc.handleResponsesBufferedStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), apicompat.ResponsesClientToolMapping{})
+	result, err := svc.handleResponsesBufferedStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 12, result.Usage.InputTokens)
@@ -222,7 +221,6 @@ func TestHandleResponsesBufferedStreamingResponse_PreservesMessageStartCacheUsag
 
 func TestHandleResponsesStreamingResponse_PreservesMessageStartCacheUsage(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -246,7 +244,7 @@ func TestHandleResponsesStreamingResponse_PreservesMessageStartCacheUsage(t *tes
 	}
 
 	svc := &GatewayService{}
-	result, err := svc.handleResponsesStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), apicompat.ResponsesClientToolMapping{})
+	result, err := svc.handleResponsesStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 20, result.Usage.InputTokens)
@@ -258,7 +256,6 @@ func TestHandleResponsesStreamingResponse_PreservesMessageStartCacheUsage(t *tes
 
 func TestHandleResponsesBufferedStreamingResponse_CompactSSEFormat(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -280,7 +277,7 @@ func TestHandleResponsesBufferedStreamingResponse_CompactSSEFormat(t *testing.T)
 	}
 
 	svc := &GatewayService{}
-	result, err := svc.handleResponsesBufferedStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), apicompat.ResponsesClientToolMapping{})
+	result, err := svc.handleResponsesBufferedStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 10, result.Usage.InputTokens)
@@ -290,7 +287,6 @@ func TestHandleResponsesBufferedStreamingResponse_CompactSSEFormat(t *testing.T)
 
 func TestHandleResponsesStreamingResponse_CompactSSEFormat(t *testing.T) {
 	t.Parallel()
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -315,7 +311,7 @@ func TestHandleResponsesStreamingResponse_CompactSSEFormat(t *testing.T) {
 	}
 
 	svc := &GatewayService{}
-	result, err := svc.handleResponsesStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), apicompat.ResponsesClientToolMapping{})
+	result, err := svc.handleResponsesStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, 15, result.Usage.InputTokens)

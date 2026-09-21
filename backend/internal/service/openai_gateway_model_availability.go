@@ -3,6 +3,7 @@ package service
 
 import (
 	context "context"
+
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
@@ -12,7 +13,7 @@ func (s *OpenAIGatewayService) DiagnoseModelAvailabilityForPlatform(
 	groupID *int64,
 	requestedModel string,
 	platform string,
-) ModelAvailabilityDiagnosis {
+) routing.ModelAvailabilityDiagnosis {
 	return s.modelAvailability().DiagnoseCompatible(ctx, groupID, requestedModel, platform)
 }
 
@@ -21,7 +22,7 @@ func (s *OpenAIGatewayService) DiagnoseRoutingModelAvailabilityForPlatform(
 	groupID *int64,
 	routingModel string,
 	platform string,
-) ModelAvailabilityDiagnosis {
+) routing.ModelAvailabilityDiagnosis {
 	return s.modelAvailability().DiagnoseCompatibleRouting(ctx, groupID, routingModel, platform)
 }
 

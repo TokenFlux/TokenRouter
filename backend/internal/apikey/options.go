@@ -3,13 +3,16 @@ package apikey
 
 import (
 	context "context"
+	"time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	team "github.com/TokenFlux/TokenRouter/internal/team"
-	"time"
 )
 
 // APIKeyAuthCacheConfig API Key 认证缓存配置
@@ -35,6 +38,7 @@ type InvalidAuthAbuseConfig struct {
 // Options 是认证缓存、Key 生成及团队开关的启动快照。
 type Options struct {
 	Now             func() time.Time
+	Calendar        timezone.Calendar
 	APIKeyAuth      APIKeyAuthCacheConfig
 	Default         struct{ APIKeyPrefix string }
 	Team            struct{ Enabled bool }
@@ -54,10 +58,10 @@ type UserRepository interface {
 	GetByID(context.Context, int64) (*User, error)
 }
 type GroupRepository interface {
-	GetByID(context.Context, int64) (*Group, error)
-	GetByIDLite(context.Context, int64) (*Group, error)
-	ListActive(context.Context) ([]Group, error)
-	FindDefault(context.Context, string) (*Group, error)
+	GetByID(context.Context, int64) (*routing.Group, error)
+	GetByIDLite(context.Context, int64) (*routing.Group, error)
+	ListActive(context.Context) ([]routing.Group, error)
+	FindDefault(context.Context, string) (*routing.Group, error)
 }
 type TeamRepository interface {
 	GetContextByUserID(context.Context, int64) (*team.TeamContext, error)
@@ -104,7 +108,7 @@ func subscriptionPlanIncludesGroup(plan *billing.SubscriptionPlan, id int64) boo
 func (s *APIKeyService) SetGroupFastPolicy(policy func(string, bool) string) {
 	s.groupFastPolicy = policy
 }
-func (s *APIKeyService) groupPolicy(g *Group) string {
+func (s *APIKeyService) groupPolicy(g *routing.Group) string {
 	if s.groupFastPolicy != nil {
 		return s.groupFastPolicy(g.OpenAIFastPolicy, g.ForceOpenAIFast)
 	}

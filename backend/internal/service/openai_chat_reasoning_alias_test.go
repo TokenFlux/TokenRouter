@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/stretchr/testify/require"
 )
@@ -15,9 +16,9 @@ func TestOpenAIChatReasoningAliasForkConsumers(t *testing.T) {
 	var chunk protocolopenai.ChatCompletionsChunk
 	require.NoError(t, json.Unmarshal([]byte(payload), &chunk))
 
-	require.True(t, chatChunkStartsResponsesOutput(&chunk))
+	require.True(t, protocolopenai.ChatChunkStartsResponsesOutput(&chunk))
 
-	detector := newOpenAIChatSilentRefusalDetector(openAISilentRefusalMinRequestBodyBytes)
+	detector := openai.NewChatSilentRefusalDetector(openai.SilentRefusalMinRequestBodyBytes)
 	detector.ObserveChatChunk(chunk)
 	require.False(t, detector.IsSilentRefusal())
 	require.True(t, detector.ShouldReleaseClientOutput())

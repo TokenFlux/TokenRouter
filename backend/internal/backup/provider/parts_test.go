@@ -26,7 +26,8 @@ func TestSpoolNextBackupPart_ReassemblesExactBytes(t *testing.T) {
 		require.Equal(t, fmt.Sprintf("%x", sha256.Sum256(data)), part.SHA256)
 		require.Equal(t, int64(len(data)), part.SizeBytes)
 		require.NoError(t, cleanupBackupFiles(part.Path))
-		got.Write(data)
+		_, err = got.Write(data)
+		require.NoError(t, err)
 		if !hasMore {
 			break
 		}

@@ -1,29 +1,28 @@
 package service
 
-// 本文件保留 API Key 直通的兼容入口和原生平台参数装配。
-// 网关响应与恢复解释由 gateway/forward 唯一执行；平台流读取和交换仍复用 upstream。
-
 import (
 	"context"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+
+	// 本文件保留 API Key 直通的兼容入口和原生平台参数装配。
+	// 网关响应与恢复解释由 gateway/forward 唯一执行；平台流读取和交换仍复用 upstream。
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
-
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
-	"github.com/tidwall/gjson"
-
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
-
-type anthropicPassthroughForwardInput = forwardcore.APIKeyInput
 
 func (s *GatewayService) forwardAnthropicAPIKeyPassthrough(
 	ctx context.Context,
@@ -34,8 +33,8 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthrough(
 	originalModel string,
 	reqStream bool,
 	startTime time.Time,
-) (*ForwardResult, error) {
-	return s.forwardAnthropicAPIKeyPassthroughWithInput(ctx, c, account, anthropicPassthroughForwardInput{
+) (*forwardcore.MessagesResult, error) {
+	return s.forwardAnthropicAPIKeyPassthroughWithInput(ctx, c, account, forwardcore.APIKeyInput{
 		Body:          body,
 		RequestModel:  reqModel,
 		OriginalModel: originalModel,
@@ -48,8 +47,8 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	ctx context.Context,
 	c *gin.Context,
 	account *Account,
-	input anthropicPassthroughForwardInput,
-) (*ForwardResult, error) {
+	input forwardcore.APIKeyInput,
+) (*forwardcore.MessagesResult, error) {
 	adapter := &anthropicPassthroughAdapter{messageExecutionAdapter: newMessageExecutionAdapter(s, c, account)}
 	result, err := forwardcore.APIKeyPassthrough(ctx, adapter, adapter.input(), input)
 	return legacyForwardExecutionResult(result), err
@@ -72,7 +71,7 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 			}
 			return url + "/v1/messages?beta=true", nil
 		}
-		return claudeAPIURL, nil
+		return claude.ClaudeAPIURL, nil
 	}
 	o.OriginalPolicy = func(ctx context.Context, header, model string) (map[string]struct{}, error) {
 		policy := s.evaluateBetaPolicy(ctx, header, account, model)
@@ -96,22 +95,14 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	if s.rateLimitService == nil {
 		options.UpdateWindow = nil
 	}
-	options.WriteHeaders = func(dst, src http.Header) { writeAnthropicPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) }
+	options.WriteHeaders = func(dst, src http.Header) {
+		gatewayhttp.WriteAnthropicPassthroughHeaders(dst, src, s.responseHeaderFilter)
+	}
 	result, err := claude.StreamResponsePassthrough(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), options, startTime, model)
 	if result == nil {
 		return nil, err
 	}
 	return &streamingResult{usage: result.Usage, firstTokenMs: result.FirstTokenMs, clientDisconnect: result.ClientDisconnect}, err
-}
-
-func extractAnthropicSSEDataLine(line string) (string, bool) { return claude.ExtractSSEDataLine(line) }
-
-func parseSSEUsagePassthrough(data string, usage *ClaudeUsage) {
-	protocolanthropic.ParseSSEUsagePassthrough(data, usage)
-}
-
-func parseClaudeUsageFromResponseBody(body []byte) *ClaudeUsage {
-	return protocolanthropic.ParseClaudeUsageFromResponseBody(body)
 }
 
 // invalidNonStreamingJSONFailoverError 把"上游 2xx 返回非 JSON body"归一为
@@ -139,20 +130,12 @@ func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(
 	resp *http.Response,
 	c *gin.Context,
 	account *Account,
-) (*ClaudeUsage, error) {
+) (*upstream.TokenUsage, error) {
 	options := s.anthropicResponseOptions(ctx, c, account, "", true)
 	return claude.NonStreamResponsePassthrough(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), options)
 }
 
-func classifyAnthropicResponseInputAsCacheRead(body []byte, usage *ClaudeUsage) ([]byte, error) {
-	return claude.ClassifyResponseInputAsCacheRead(body, usage)
-}
-
-func writeAnthropicPassthroughResponseHeaders(dst http.Header, src http.Header, filter *responseheaders.CompiledHeaderFilter) {
-	gatewayhttp.WriteAnthropicPassthroughHeaders(dst, src, filter)
-}
-
-func (s *GatewayService) anthropicPassthroughExchangeOptions(ctx context.Context, c *gin.Context, account *Account, token, proxyURL string, input *anthropicPassthroughForwardInput) claude.ExchangeOptions {
+func (s *GatewayService) anthropicPassthroughExchangeOptions(ctx context.Context, c *gin.Context, account *Account, token, proxyURL string, input *forwardcore.APIKeyInput) claude.ExchangeOptions {
 	options := s.anthropicExchangeOptions(ctx, c, account, token, "apikey", input.RequestModel, input.RequestStream, false, proxyURL, nil, func(body []byte) error {
 		if input.Parsed != nil {
 			if err := input.Parsed.ReplaceBody(body); err != nil {
@@ -167,13 +150,13 @@ func (s *GatewayService) anthropicPassthroughExchangeOptions(ctx context.Context
 		return s.buildUpstreamRequestAnthropicAPIKeyPassthrough(ctx, c, account, body, token)
 	}
 	options.Do = func(req *http.Request) (*http.Response, error) {
-		return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+		return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(account, nil)))
 	}
 	options.TransportError = func(ctx context.Context, err error, url string) error {
-		return s.handleUpstreamTransportError(ctx, c, account, err, OpsUpstreamErrorEvent{UpstreamURL: safeUpstreamURL(url), Passthrough: true})
+		return s.handleUpstreamTransportError(ctx, c, account, err, ops.OpsUpstreamErrorEvent{UpstreamURL: logredact.SafeUpstreamURL(url), Passthrough: true})
 	}
 	options.Observe = func(e claude.ExchangeNotice) {
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{Platform: e.Platform, AccountID: e.AccountID, AccountName: e.AccountName, UpstreamStatusCode: e.UpstreamStatusCode, UpstreamRequestID: e.UpstreamRequestID, UpstreamURL: e.UpstreamURL, Kind: e.Kind, Message: e.Message, Detail: e.Detail, Passthrough: e.Passthrough})
+		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: e.Platform, AccountID: e.AccountID, AccountName: e.AccountName, UpstreamStatusCode: e.UpstreamStatusCode, UpstreamRequestID: e.UpstreamRequestID, UpstreamURL: e.UpstreamURL, Kind: e.Kind, Message: e.Message, Detail: e.Detail, Passthrough: e.Passthrough})
 	}
 	return options
 }

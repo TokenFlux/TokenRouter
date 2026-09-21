@@ -7,11 +7,12 @@ import (
 	subtle "crypto/subtle"
 	hex "encoding/hex"
 	fmt "fmt"
+	slog "log/slog"
+	time "time"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	otp "github.com/pquerna/otp"
 	totp "github.com/pquerna/otp/totp"
-	slog "log/slog"
-	time "time"
 )
 
 var (

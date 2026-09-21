@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
@@ -20,7 +20,7 @@ func TestApplyDefaultGrokUpstreamHeadersUsesCLIUserAgent(t *testing.T) {
 	req.Header.Set("User-Agent", "claude-code/1.2.3")
 	req.Header.Set("x-grok-client-version", "none")
 
-	applyDefaultGrokUpstreamHeaders(req)
+	xai.ApplyDefaultGrokUpstreamHeaders(req)
 
 	require.Equal(t, xai.CLIUserAgent(xai.CLIClientVersion), req.Header.Get("User-Agent"))
 	require.Equal(t, xai.CLIClientVersion, req.Header.Get("x-grok-client-version"))
@@ -34,7 +34,7 @@ func TestApplyDefaultGrokUpstreamHeadersHonorsCLIVersionOverride(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("User-Agent", "codex_cli_rs/0.144.0")
 
-	applyDefaultGrokUpstreamHeaders(req)
+	xai.ApplyDefaultGrokUpstreamHeaders(req)
 
 	require.Equal(t, "0.2.95", req.Header.Get("x-grok-client-version"))
 	require.Equal(t, xai.CLIUserAgent("0.2.95"), req.Header.Get("User-Agent"))
@@ -43,7 +43,6 @@ func TestApplyDefaultGrokUpstreamHeadersHonorsCLIVersionOverride(t *testing.T) {
 
 func TestResolveGrokUpstreamUserAgentNeverPassthrough(t *testing.T) {
 	t.Setenv(xai.CLIVersionEnv, "")
-	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)

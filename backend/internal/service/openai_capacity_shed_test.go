@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +32,7 @@ func (r *capacityShedAccountRepoStub) SetTempUnschedulable(_ context.Context, _ 
 }
 
 func (r *capacityShedAccountRepoStub) GetByID(_ context.Context, id int64) (*Account, error) {
-	return &Account{ID: id, Platform: PlatformOpenAI, Type: AccountTypeOAuth}, nil
+	return &Account{ID: id, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}, nil
 }
 
 // 上游容量降载是请求级信号：故障因素（客户端身份、模型容量）与账号无关，
@@ -40,7 +43,7 @@ func TestTempUnscheduleRetryableErrorSkipsRequestScopedTransient(t *testing.T) {
 		repo := &capacityShedAccountRepoStub{}
 		svc := &GatewayService{accountRepo: repo}
 
-		svc.TempUnscheduleRetryableError(context.Background(), 1, &UpstreamFailoverError{
+		svc.TempUnscheduleRetryableError(context.Background(), 1, &forwardcore.UpstreamFailoverError{
 			StatusCode:             http.StatusBadGateway,
 			RetryableOnSameAccount: true,
 			RequestScopedTransient: true,
@@ -55,7 +58,7 @@ func TestTempUnscheduleRetryableErrorSkipsRequestScopedTransient(t *testing.T) {
 		repo := &capacityShedAccountRepoStub{}
 		svc := &GatewayService{accountRepo: repo}
 
-		svc.TempUnscheduleRetryableError(context.Background(), 1, &UpstreamFailoverError{
+		svc.TempUnscheduleRetryableError(context.Background(), 1, &forwardcore.UpstreamFailoverError{
 			StatusCode:             http.StatusBadGateway,
 			RetryableOnSameAccount: true,
 		})
@@ -66,11 +69,11 @@ func TestTempUnscheduleRetryableErrorSkipsRequestScopedTransient(t *testing.T) {
 
 // 非池模式账号同样要先在同账号重试：换号不改变降载因素。
 func TestStreamFailedEventCapacityShedRetriesOnSameAccount(t *testing.T) {
-	nonPool := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	nonPool := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 
 	for _, code := range []string{"server_is_overloaded", "slow_down"} {
 		payload := []byte(`{"type":"response.failed","response":{"error":{"code":"` + code + `"}}}`)
-		require.True(t, isOpenAIUpstreamCapacityShedEvent(payload), code)
+		require.True(t, openai.IsOpenAIUpstreamCapacityShedEvent(payload), code)
 		require.True(t, openAIStreamFailedEventRetryableOnSameAccount(
 			UpstreamErrorDecision{}, nonPool, http.StatusBadGateway, payload, "overloaded",
 		), code)
@@ -78,7 +81,7 @@ func TestStreamFailedEventCapacityShedRetriesOnSameAccount(t *testing.T) {
 
 	// 非降载的 failed 事件在非池模式下仍不做同账号重试，避免放大改动面。
 	other := []byte(`{"type":"response.failed","response":{"error":{"code":"server_error"}}}`)
-	require.False(t, isOpenAIUpstreamCapacityShedEvent(other))
+	require.False(t, openai.IsOpenAIUpstreamCapacityShedEvent(other))
 	require.False(t, openAIStreamFailedEventRetryableOnSameAccount(
 		UpstreamErrorDecision{}, nonPool, http.StatusBadGateway, other, "boom",
 	))
@@ -103,7 +106,7 @@ func TestOpenAIHTTPCapacityShedIsRequestScopedForOAuthAccounts(t *testing.T) {
 
 	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
 	gateway := &OpenAIGatewayService{rateLimitService: rateLimitService}
-	account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	account := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	require.False(t, gateway.handleOpenAIAccountUpstreamError(
 		context.Background(),
 		account,
@@ -141,12 +144,12 @@ func TestOpenAIStreamErrorFrameDoesNotStartClientOutput(t *testing.T) {
 		{`[DONE]`, "", true},
 	}
 	for _, tc := range cases {
-		require.Equal(t, tc.want, openAIStreamDataStartsClientOutput(tc.data, tc.eventType), "data=%s type=%s", tc.data, tc.eventType)
+		require.Equal(t, tc.want, openai.OpenAIStreamDataStartsClientOutput(tc.data, tc.eventType), "data=%s type=%s", tc.data, tc.eventType)
 	}
 }
 
 func TestOpenAIStreamMetadataPreambleAndMessageOnlyOverloadFailOver(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	largeMetadata := strings.Repeat("x", 16*1024)
 	stream := strings.Join([]string{
 		"event: response.created",
@@ -194,11 +197,11 @@ func TestOpenAIStreamMetadataPreambleAndMessageOnlyOverloadFailOver(t *testing.T
 				Body:       io.NopCloser(strings.NewReader(stream)),
 				Header:     http.Header{"X-Request-Id": []string{"rid-message-only-overload"}},
 			}
-			account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "acc"}
+			account := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acc"}
 
 			err := tt.run(svc, c, resp, account)
 			require.Error(t, err)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.True(t, failoverErr.RetryableOnSameAccount)
 			require.True(t, failoverErr.RequestScopedTransient)
@@ -213,7 +216,7 @@ func TestOpenAIStreamMetadataPreambleAndMessageOnlyOverloadFailOver(t *testing.T
 // 回归用例（真实上游降载序列）：created → in_progress → error 帧 → response.failed。
 // 期望仍然走 pre-output failover（同账号重试 + 请求级瞬时标记），且不向客户端写出任何字节。
 func TestOpenAIStreamCapacityShedErrorFramePrecedingFailedStillFailsOver(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	cfg := &config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	}
@@ -242,9 +245,9 @@ func TestOpenAIStreamCapacityShedErrorFramePrecedingFailedStillFailsOver(t *test
 		Header: http.Header{"X-Request-Id": []string{"rid-shed-error-then-failed"}},
 	}
 
-	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "acc"}, time.Now(), "model", "model")
+	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acc"}, time.Now(), "model", "model")
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.True(t, failoverErr.RetryableOnSameAccount)
 	require.True(t, failoverErr.RequestScopedTransient)
@@ -256,7 +259,7 @@ func TestOpenAIStreamCapacityShedErrorFramePrecedingFailedStillFailsOver(t *test
 // 可重试的 server_error 再通过唯一 response.failed 终态转发——Codex 对
 // server_is_overloaded/slow_down 判致命并终止会话，对其余错误码执行内置退避重试。
 func TestOpenAIStreamCapacityShedAfterOutputRewritesCodeForClient(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 	cfg := &config.Config{
@@ -287,9 +290,9 @@ func TestOpenAIStreamCapacityShedAfterOutputRewritesCodeForClient(t *testing.T) 
 		Header: http.Header{"X-Request-Id": []string{"rid-shed-after-output"}},
 	}
 
-	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Name: "acc"}, time.Now(), "model", "model")
+	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acc"}, time.Now(), "model", "model")
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 
 	body := rec.Body.String()
@@ -359,7 +362,7 @@ func TestSanitizeOpenAICapacityShedErrorCodeForClient(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			out, changed := sanitizeOpenAICapacityShedErrorCodeForClient([]byte(tc.payload))
+			out, changed := openai.SanitizeOpenAICapacityShedErrorCodeForClient([]byte(tc.payload))
 			require.Equal(t, tc.wantChanged, changed)
 			require.Contains(t, string(out), tc.wantContain)
 			if changed {

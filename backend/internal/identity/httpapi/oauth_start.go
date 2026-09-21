@@ -2,12 +2,13 @@
 package httpapi
 
 import (
+	http "net/http"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	http "net/http"
-	strings "strings"
 )
 
 type OAuthStartCaptchaRequest struct {

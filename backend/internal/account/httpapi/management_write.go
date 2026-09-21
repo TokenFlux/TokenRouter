@@ -4,14 +4,15 @@ package httpapi
 import (
 	context "context"
 	errors "errors"
+	slog "log/slog"
+	strconv "strconv"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	slog "log/slog"
-	strconv "strconv"
 )
 
 // CreateAccountRequest 保留创建账号的 HTTP 输入。

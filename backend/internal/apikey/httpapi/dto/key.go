@@ -2,8 +2,10 @@
 package dto
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	time "time"
+
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 type APIKey[G any] struct {
@@ -62,7 +64,7 @@ type APIKeyCompositeGroup[G any] struct {
 	Group   *G     `json:"group,omitempty"`
 }
 
-func APIKeyFromKey[G any](k *apikey.APIKey, group func(*apikey.Group) *G) *APIKey[G] {
+func APIKeyFromKey[G any](k *apikey.APIKey, group func(*routing.Group) *G) *APIKey[G] {
 	if k == nil {
 		return nil
 	}

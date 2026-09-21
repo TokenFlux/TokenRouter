@@ -9,10 +9,11 @@ import (
 	hex "encoding/hex"
 	errors "errors"
 	fmt "fmt"
-	jwt "github.com/golang-jwt/jwt/v5"
-	bcrypt "golang.org/x/crypto/bcrypt"
 	strings "strings"
 	time "time"
+
+	jwt "github.com/golang-jwt/jwt/v5"
+	bcrypt "golang.org/x/crypto/bcrypt"
 )
 
 // MaxTokenLength 限制 token 大小，避免超长 header 触发解析时的异常内存分配。

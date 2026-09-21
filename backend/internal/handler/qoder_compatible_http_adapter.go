@@ -8,10 +8,16 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	usage "github.com/TokenFlux/TokenRouter/internal/usage"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -34,32 +40,32 @@ func (p qoderCompatibleHTTPBackend) Access(c *gin.Context) (*apikey.APIKey, bool
 		return key, true
 	}
 	key, ok := middleware.GetAPIKeyFromContext(c)
-	return service.APIKeyView(key), ok
+	return apikey.CopyAPIKey(key), ok
 }
 func (p qoderCompatibleHTTPBackend) BindErrors(c *gin.Context) {
 	if p.h.errorPassthroughService != nil {
-		service.BindErrorPassthroughService(c, p.h.errorPassthroughService)
+		gatewayhttp.BindErrorPassthroughService(c, p.h.errorPassthroughService)
 	}
 }
 func (p qoderCompatibleHTTPBackend) PrepareClient(c *gin.Context, body []byte, endpoint gatewayhttp.QoderEndpoint) {
 	prepareQoderRequestContext(c, body, qoderEndpoint(endpoint))
 }
 func (p qoderCompatibleHTTPBackend) ObserveRequest(c *gin.Context, model string, stream bool) {
-	setOpsRequestContext(c, model, stream)
+	gatewayhttp.SetOpsRequestContext(c, model, stream)
 }
 func (p qoderCompatibleHTTPBackend) ObserveEndpoint(c *gin.Context, stream bool) {
-	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(stream, false)))
+	gatewayhttp.SetOpsEndpointContext(c, "", int16(usage.RequestTypeFromLegacy(stream, false)))
 }
 func (p qoderCompatibleHTTPBackend) ObserveAuthLatency(c *gin.Context, d time.Duration) {
-	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, d.Milliseconds())
+	gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsAuthLatencyMsKey, d.Milliseconds())
 }
 func (p qoderCompatibleHTTPBackend) Plan(c *gin.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 	if p.h.gatewayService == nil {
 		return routing.RoutePlan{}
 	}
-	old := service.APIKeyFromView(key)
+	old := apikey.CopyAPIKey(key)
 	plan := p.h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(old), old.GroupID, model)
-	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), plan))
+	c.Request = c.Request.WithContext(requeststate.WithRoutePlan(c.Request.Context(), plan))
 	return plan
 }
 func (p qoderCompatibleHTTPBackend) AttemptBody(body []byte, plan routing.RoutePlan) []byte {
@@ -73,8 +79,8 @@ func (p qoderCompatibleHTTPBackend) Eligibility(ctx context.Context, key *apikey
 	if p.h.billingCacheService == nil {
 		return nil
 	}
-	old := service.APIKeyFromView(key)
-	return p.h.billingCacheService.CheckBillingEligibility(ctx, old.User, old, old.Group, sub, service.QuotaPlatform(ctx, old))
+	old := apikey.CopyAPIKey(key)
+	return p.h.billingCacheService.CheckKey(ctx, old, sub, service.QuotaPlatform(ctx, old), false)
 }
 func (p qoderCompatibleHTTPBackend) SessionHash(c *gin.Context, endpoint gatewayhttp.QoderEndpoint, body []byte, id int64) string {
 	return p.h.qoderSessionHash(c, qoderEndpoint(endpoint), body, id)
@@ -87,7 +93,7 @@ func (p qoderCompatibleHTTPBackend) ConcurrencyError(c *gin.Context, err error, 
 }
 func (p qoderCompatibleHTTPBackend) Execution(c *gin.Context, call gatewayhttp.QoderCompatibleCall) textflow.QoderCompatiblePorts {
 	h := p.h
-	apiKey := service.APIKeyFromView(call.Key)
+	apiKey := apikey.CopyAPIKey(call.Key)
 	subscription := call.Subscription
 	body := call.Body
 	reqModel := call.Model
@@ -95,15 +101,15 @@ func (p qoderCompatibleHTTPBackend) Execution(c *gin.Context, call gatewayhttp.Q
 	endpoint := qoderEndpoint(call.Endpoint)
 	channelMapping := service.ChannelMappingFromRoutePlan(call.Plan)
 
-	recordUsage := func(account *service.Account, result *service.ForwardResult) {
+	recordUsage := func(account *service.Account, result *forwardcore.MessagesResult) {
 		userAgent := c.GetHeader("User-Agent")
-		clientIP := ip.GetClientIP(c)
-		requestPayloadHash := service.HashUsageRequestPayload(body)
-		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		clientIP := clientip.GetClientIP(c)
+		requestPayloadHash := billing.HashUsageRequestPayload(body)
+		inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
+		upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 		// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-		completionInput := service.CompletionForwardInput(usageRecordContextFromGin(c), &service.RecordUsageInput{
+		completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(c), &service.RecordUsageInput{
 			Result:             result,
 			QuotaPlatform:      quotaPlatform,
 			APIKey:             apiKey,
@@ -128,7 +134,7 @@ func (p qoderCompatibleHTTPBackend) Execution(c *gin.Context, call gatewayhttp.Q
 	}
 
 	// finishPartial 不把服务失败当成成功，也不允许已有服务的请求进入下一次推理。
-	finishPartial := func(account *service.Account, result *service.ForwardResult, forwardErr error) bool {
+	finishPartial := func(account *service.Account, result *forwardcore.MessagesResult, forwardErr error) bool {
 		if forwardErr == nil || result == nil {
 			return false
 		}
@@ -142,7 +148,7 @@ func (p qoderCompatibleHTTPBackend) Execution(c *gin.Context, call gatewayhttp.Q
 			kind = "upstream_error"
 			message = "Upstream request failed"
 		}
-		service.SetOpsUpstreamError(c, upstreamStatusFromError(forwardErr), message, "")
+		gatewayhttp.SetOpsUpstreamError(c, upstreamStatusFromError(forwardErr), message, "")
 		h.streamingAwareError(c, status, kind, message, true, endpoint)
 		return true
 	}

@@ -5,20 +5,15 @@ import (
 	"errors"
 	"strings"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
 	"github.com/gin-gonic/gin"
 )
-
-var errOpenAIWSSessionPreempted = gatewayws.ErrSessionPreempted
-
-type OpenAIWSSessionPreemptionCache = session.OpenAIWSSessionPreemptionCache
-
-func NewOpenAIWSSessionPreemptedError() error {
-	return errOpenAIWSSessionPreempted
-}
 
 type openAIWSSessionPreemptKey struct {
 	groupID     int64
@@ -44,21 +39,19 @@ func (s *OpenAIGatewayService) BeginOpenAIWSIngressSessionPreemption(
 		return ctx, func() {}, true
 	}
 	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.ModeRouterV2Enabled &&
-		account != nil && account.ResolveOpenAIResponsesWebSocketV2Mode(s.cfg.Gateway.OpenAIWS.IngressModeDefault) == OpenAIWSIngressModePassthrough {
+		account != nil && account.ResolveOpenAIResponsesWebSocketV2Mode(s.cfg.Gateway.OpenAIWS.IngressModeDefault) == accountcore.OpenAIWSIngressModePassthrough {
 		return ctx, func() {}, false
 	}
 
 	preemptSessionHash := ""
 	preemptGroupID := getOpenAIGroupIDFromContext(c)
-	if account != nil && account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth {
+	if account != nil && account.Platform == capability.PlatformOpenAI && account.Type == capability.AccountTypeOAuth {
 		preemptSessionHash = s.GenerateSessionHash(c, firstClientMessage)
 	}
 	preemptCtx, cleanup, armed, preemptedPrevious := s.beginOpenAIWSSessionPreemptContext(
 		ctx,
 		account,
-		preemptGroupID,
-		getAPIKeyIDFromContext(c),
-		preemptSessionHash,
+		preemptGroupID, gatewayhttp.APIKeyIDFromContext(c), preemptSessionHash,
 		false,
 	)
 	if !armed {
@@ -101,7 +94,7 @@ func (s *OpenAIGatewayService) beginOpenAIWSSessionPreemptContext(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if s == nil || account == nil || account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth || httpIngressWSOneShot {
+	if s == nil || account == nil || account.Platform != capability.PlatformOpenAI || account.Type != capability.AccountTypeOAuth || httpIngressWSOneShot {
 		return ctx, func() {}, false, false
 	}
 	key, ok := newOpenAIWSSessionPreemptKey(groupID, apiKeyID, sessionHash)
@@ -112,22 +105,19 @@ func (s *OpenAIGatewayService) beginOpenAIWSSessionPreemptContext(
 	return s.wsPreemption().Begin(ctx, gatewayws.PreemptKey{GroupID: key.groupID, APIKeyID: key.apiKeyID, SessionHash: key.sessionHash})
 }
 
-func (s *OpenAIGatewayService) openAIWSSessionPreemptionCache() OpenAIWSSessionPreemptionCache {
+func (s *OpenAIGatewayService) openAIWSSessionPreemptionCache() session.OpenAIWSSessionPreemptionCache {
 	if s == nil || s.cache == nil {
 		return nil
 	}
-	cache, _ := s.cache.(OpenAIWSSessionPreemptionCache)
+	cache, _ := s.cache.(session.OpenAIWSSessionPreemptionCache)
 	return cache
 }
 
 // wsPreemption 只投影既有应用实例中的会话依赖。
 func (s *OpenAIGatewayService) wsPreemption() *gatewayws.Preemption {
-	return &gatewayws.Preemption{Registry: &s.openaiWSSessionPreemptions.PreemptRegistry, Cache: s.openAIWSSessionPreemptionCache(), State: s.getOpenAIWSStateStore(), RedisTimeout: openAIWSStateStoreRedisTimeout}
+	return &gatewayws.Preemption{Registry: &s.openaiWSSessionPreemptions.PreemptRegistry, Cache: s.openAIWSSessionPreemptionCache(), State: s.getOpenAIWSStateStore(), RedisTimeout: session.StateStoreRedisTimeout}
 }
 
 func isOpenAIWSSessionPreempted(ctx context.Context) bool {
-	return ctx != nil && errors.Is(context.Cause(ctx), errOpenAIWSSessionPreempted)
+	return ctx != nil && errors.Is(context.Cause(ctx), gatewayws.ErrSessionPreempted)
 }
-
-// IsOpenAIWSSessionPreemptedError 委托唯一的会话抢占错误判断。
-func IsOpenAIWSSessionPreemptedError(err error) bool { return gatewayws.IsSessionPreemptedError(err) }

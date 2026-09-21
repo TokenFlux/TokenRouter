@@ -3,9 +3,6 @@ package schema
 import (
 	"encoding/json"
 
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -13,6 +10,12 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 // Group holds the schema definition for the Group entity.
@@ -70,7 +73,7 @@ func (Group) Fields() []ent.Field {
 			Comment("是否为当前平台的默认分组"),
 		field.String("status").
 			MaxLen(20).
-			Default(domain.StatusActive),
+			Default(routing.StatusActive),
 		field.String("duplicate_operation_id").
 			MaxLen(64).
 			Optional().
@@ -80,14 +83,14 @@ func (Group) Fields() []ent.Field {
 
 		field.String("platform").
 			MaxLen(50).
-			Default(domain.PlatformAnthropic),
+			Default(capability.PlatformAnthropic),
 		// scheduler_type 由分组决定基础或高级调度器，默认保持历史基础调度行为。
 		field.String("scheduler_type").
 			MaxLen(16).
 			Default("basic").
 			Comment("分组调度器类型：basic 或 advanced"),
-		field.JSON("advanced_scheduler_overrides", domain.GroupAdvancedSchedulerOverrides{}).
-			Default(domain.GroupAdvancedSchedulerOverrides{}).
+		field.JSON("advanced_scheduler_overrides", policy.GroupAdvancedSchedulerOverrides{}).
+			Default(policy.GroupAdvancedSchedulerOverrides{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("分组高级调度器稀疏覆盖；未设置字段继承网关通用设置"),
 		field.String("display_brand").
@@ -199,13 +202,13 @@ func (Group) Fields() []ent.Field {
 		field.Bool("allow_messages_dispatch").
 			Default(false).
 			Comment("是否允许 /v1/messages 调度到此 OpenAI 分组"),
-		field.JSON("allowed_protocols", []domain.ProtocolID{}).
-			Default([]domain.ProtocolID{}).
+		field.JSON("allowed_protocols", []protocol.ProtocolID{}).
+			Default([]protocol.ProtocolID{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("允许客户端调用分组的协议与业务入口完整集合"),
 		// 协议转换与 Responses 图片策略是独立的分组控制项。
-		field.JSON("protocol_fallbacks", map[domain.ProtocolID]domain.ProtocolID{}).
-			Default(map[domain.ProtocolID]domain.ProtocolID{}).
+		field.JSON("protocol_fallbacks", map[protocol.ProtocolID]protocol.ProtocolID{}).
+			Default(map[protocol.ProtocolID]protocol.ProtocolID{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 		field.String("responses_image_policy").Default("inherit"),
 		field.Bool("allow_live").
@@ -230,16 +233,16 @@ func (Group) Fields() []ent.Field {
 			MaxLen(100).
 			Default("").
 			Comment("默认映射模型 ID，当账号级映射找不到时使用此值"),
-		field.JSON("messages_dispatch_model_config", domain.OpenAIMessagesDispatchModelConfig{}).
-			Default(domain.OpenAIMessagesDispatchModelConfig{}).
+		field.JSON("messages_dispatch_model_config", accessview.OpenAIMessagesDispatchModelConfig{}).
+			Default(accessview.OpenAIMessagesDispatchModelConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("OpenAI Messages 调度模型配置：按 Claude 系列/精确模型映射到目标 GPT 模型"),
-		field.JSON("models_list_config", domain.GroupModelsListConfig{}).
-			Default(domain.GroupModelsListConfig{}).
+		field.JSON("models_list_config", accessview.GroupModelsListConfig{}).
+			Default(accessview.GroupModelsListConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("自定义 /v1/models 展示列表配置；仅影响模型列表响应，不影响调度"),
-		field.JSON("availability_probe_config", domain.GroupAvailabilityProbeConfig{}).
-			Default(domain.GroupAvailabilityProbeConfig{}).
+		field.JSON("availability_probe_config", accessview.GroupAvailabilityProbeConfig{}).
+			Default(accessview.GroupAvailabilityProbeConfig{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("分组主动可用性探测配置"),
 
@@ -257,8 +260,8 @@ func (Group) Fields() []ent.Field {
 			MaxLen(20).
 			Default("downgrade").
 			Comment("超过推理强度上限时的访问控制：downgrade 自动降档，deny 拒绝访问"),
-		field.JSON("reasoning_effort_mappings", []domain.ReasoningEffortMapping{}).
-			Default([]domain.ReasoningEffortMapping{}).
+		field.JSON("reasoning_effort_mappings", []routing.ReasoningEffortMapping{}).
+			Default([]routing.ReasoningEffortMapping{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("OpenAI reasoning effort 自定义映射；可按模型精确名、前缀或后缀限定，先映射再应用上限"),
 

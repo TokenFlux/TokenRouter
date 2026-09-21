@@ -4,6 +4,8 @@ package repository
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache/codec"
+
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	schedulerredis "github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -13,10 +15,10 @@ import (
 type schedulerCache struct{ *schedulerredis.SnapshotCache }
 
 func NewSchedulerCache(rdb *redis.Client) service.SchedulerCache {
-	return &schedulerCache{schedulerredis.NewSnapshotCache(rdb, service.LegacySchedulerCodec{})}
+	return &schedulerCache{schedulerredis.NewSnapshotCache(rdb, codec.AccountCodec{})}
 }
 func (c *schedulerCache) SnapshotCoreCache() scheduler.SnapshotCache { return c.SnapshotCache }
-func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket service.SchedulerBucket) ([]*service.Account, bool, error) {
+func (c *schedulerCache) GetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket) ([]*service.Account, bool, error) {
 	values, hit, err := c.SnapshotCache.GetSnapshot(ctx, bucket)
 	if err != nil {
 		return nil, hit, err
@@ -43,10 +45,10 @@ func (c *schedulerCache) GetAccount(ctx context.Context, id int64) (*service.Acc
 func (c *schedulerCache) SetAccount(ctx context.Context, v *service.Account) error {
 	return c.SnapshotCache.SetAccount(ctx, service.LegacySnapshotWrap(v))
 }
-func (c *schedulerCache) SetSnapshot(ctx context.Context, bucket service.SchedulerBucket, token service.SchedulerBucketWriteToken, values []service.Account) error {
+func (c *schedulerCache) SetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket, token scheduler.SchedulerBucketWriteToken, values []service.Account) error {
 	return c.SnapshotCache.SetSnapshot(ctx, bucket, token, service.LegacySnapshotWrapValues(values))
 }
-func (c *schedulerCache) SetSnapshotAndReturnAccountIDs(ctx context.Context, bucket service.SchedulerBucket, token service.SchedulerBucketWriteToken, values []service.Account) ([]int64, error) {
+func (c *schedulerCache) SetSnapshotAndReturnAccountIDs(ctx context.Context, bucket scheduler.SchedulerBucket, token scheduler.SchedulerBucketWriteToken, values []service.Account) ([]int64, error) {
 	return c.SnapshotCache.SetSnapshotAndReturnAccountIDs(ctx, bucket, token, service.LegacySnapshotWrapValues(values))
 }
 

@@ -17,11 +17,12 @@ import (
 type AffiliateHandler struct {
 	affiliateService *promotion.AffiliateService
 	lookupUsers      func(context.Context, string) ([]AffiliateUserSummary, error)
+	calendar         timezone.Calendar
 }
 
 // NewAffiliateHandler 创建管理端邀请返利处理器。
-func NewAffiliateHandler(affiliate *promotion.AffiliateService, lookup func(context.Context, string) ([]AffiliateUserSummary, error)) *AffiliateHandler {
-	return &AffiliateHandler{affiliateService: affiliate, lookupUsers: lookup}
+func NewAffiliateHandler(affiliate *promotion.AffiliateService, lookup func(context.Context, string) ([]AffiliateUserSummary, error), calendar timezone.Calendar) *AffiliateHandler {
+	return &AffiliateHandler{affiliateService: affiliate, lookupUsers: lookup, calendar: calendar}
 }
 
 // ListUsers 返回带专属邀请返利配置的用户分页列表。
@@ -192,7 +193,7 @@ func (h *AffiliateHandler) GetUserOverview(c *gin.Context) {
 // GET /api/v1/admin/affiliates/invites
 func (h *AffiliateHandler) ListInviteRecords(c *gin.Context) {
 	page, pageSize := httpx.ParsePagination(c)
-	filter := parseAffiliateRecordFilter(c, page, pageSize)
+	filter := parseAffiliateRecordFilter(c, page, pageSize, h.calendar)
 	items, total, err := h.affiliateService.AdminListInviteRecords(c.Request.Context(), filter)
 	if err != nil {
 		httpx.ErrorFrom(c, err)
@@ -205,7 +206,7 @@ func (h *AffiliateHandler) ListInviteRecords(c *gin.Context) {
 // GET /api/v1/admin/affiliates/rebates
 func (h *AffiliateHandler) ListRebateRecords(c *gin.Context) {
 	page, pageSize := httpx.ParsePagination(c)
-	filter := parseAffiliateRecordFilter(c, page, pageSize)
+	filter := parseAffiliateRecordFilter(c, page, pageSize, h.calendar)
 	items, total, err := h.affiliateService.AdminListRebateRecords(c.Request.Context(), filter)
 	if err != nil {
 		httpx.ErrorFrom(c, err)
@@ -218,7 +219,7 @@ func (h *AffiliateHandler) ListRebateRecords(c *gin.Context) {
 // GET /api/v1/admin/affiliates/transfers
 func (h *AffiliateHandler) ListTransferRecords(c *gin.Context) {
 	page, pageSize := httpx.ParsePagination(c)
-	filter := parseAffiliateRecordFilter(c, page, pageSize)
+	filter := parseAffiliateRecordFilter(c, page, pageSize, h.calendar)
 	items, total, err := h.affiliateService.AdminListTransferRecords(c.Request.Context(), filter)
 	if err != nil {
 		httpx.ErrorFrom(c, err)
@@ -227,7 +228,7 @@ func (h *AffiliateHandler) ListTransferRecords(c *gin.Context) {
 	httpx.Paginated(c, items, total, filter.Page, filter.PageSize)
 }
 
-func parseAffiliateRecordFilter(c *gin.Context, page, pageSize int) promotion.AffiliateRecordFilter {
+func parseAffiliateRecordFilter(c *gin.Context, page, pageSize int, calendar timezone.Calendar) promotion.AffiliateRecordFilter {
 	filter := promotion.AffiliateRecordFilter{
 		Search:   c.Query("search"),
 		Page:     page,
@@ -239,16 +240,16 @@ func parseAffiliateRecordFilter(c *gin.Context, page, pageSize int) promotion.Af
 		filter.PageSize = 100
 	}
 	userTZ := c.Query("timezone")
-	if t := parseAffiliateRecordStartTime(c.Query("start_at"), userTZ); t != nil {
+	if t := parseAffiliateRecordStartTime(c.Query("start_at"), userTZ, calendar); t != nil {
 		filter.StartAt = t
 	}
-	if t := parseAffiliateRecordEndTime(c.Query("end_at"), userTZ); t != nil {
+	if t := parseAffiliateRecordEndTime(c.Query("end_at"), userTZ, calendar); t != nil {
 		filter.EndAt = t
 	}
 	return filter
 }
 
-func parseAffiliateRecordStartTime(raw string, userTZ string) *time.Time {
+func parseAffiliateRecordStartTime(raw string, userTZ string, calendar timezone.Calendar) *time.Time {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil
@@ -256,13 +257,13 @@ func parseAffiliateRecordStartTime(raw string, userTZ string) *time.Time {
 	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
 		return &parsed
 	}
-	if parsed, err := timezone.ParseInUserLocation("2006-01-02", raw, userTZ); err == nil {
+	if parsed, err := calendar.ParseInUserLocation("2006-01-02", raw, userTZ); err == nil {
 		return &parsed
 	}
 	return nil
 }
 
-func parseAffiliateRecordEndTime(raw string, userTZ string) *time.Time {
+func parseAffiliateRecordEndTime(raw string, userTZ string, calendar timezone.Calendar) *time.Time {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil
@@ -270,7 +271,7 @@ func parseAffiliateRecordEndTime(raw string, userTZ string) *time.Time {
 	if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
 		return &parsed
 	}
-	if parsed, err := timezone.ParseInUserLocation("2006-01-02", raw, userTZ); err == nil {
+	if parsed, err := calendar.ParseInUserLocation("2006-01-02", raw, userTZ); err == nil {
 		end := parsed.AddDate(0, 0, 1).Add(-time.Nanosecond)
 		return &end
 	}

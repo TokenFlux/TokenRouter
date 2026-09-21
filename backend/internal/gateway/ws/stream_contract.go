@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
@@ -78,7 +79,7 @@ type StreamPort interface {
 	GenericError(int) error
 	RawFailure(int, map[string][]string, []byte, bool) error
 	Failure(int, map[string][]string, []byte, string, bool) error
-	Warning(string, []byte) *UpstreamWarning
+	Warning(string, []byte) *forwardcore.UpstreamWarning
 	IsToken(string) bool
 	IsTerminal(string) bool
 	NormalizeTerminal(string) string

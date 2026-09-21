@@ -9,30 +9,29 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	notificationcore "github.com/TokenFlux/TokenRouter/internal/notification"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	"github.com/TokenFlux/TokenRouter/internal/promotion"
 
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
+
 	paymentpostgres "github.com/TokenFlux/TokenRouter/internal/payment/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/payment/provider"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-func providePaymentService(client *dbent.Client, registry *payment.Registry, balancer payment.LoadBalancer, redeem *billing.RedeemService, subscriptions *billing.SubscriptionService, configuration *service.PaymentConfigService, users service.UserRepository, groups service.GroupRepository, affiliate *service.AffiliateService, notification *service.NotificationEmailService, instances *paymentpostgres.InstanceStore, routingGroups *routingpostgres.GroupStore, identityUsers *identitypostgres.UserStore, coreConfig *payment.ConfigService, key payment.EncryptionKey, settings *service.SettingService, tasks *lifecycle.Tasks) *service.PaymentService {
-	old := service.NewPaymentService(client, registry, balancer, redeem, subscriptions, configuration, users, groups, affiliate)
-	old.SetNotificationEmailService(notification)
-
+func providePaymentRuntime(client *dbent.Client, registry *payment.Registry, balancer payment.LoadBalancer, redeem *billing.RedeemService, subscriptions *billing.SubscriptionService, affiliate *promotion.AffiliateService, notification *notificationcore.NotificationEmailService, instances *paymentpostgres.InstanceStore, routingGroups *routingpostgres.GroupStore, identityUsers *identitypostgres.UserStore, coreConfig *payment.ConfigService, key payment.EncryptionKey, settings *identity.OAuthSettings, tasks *lifecycle.Tasks, calendar timezone.Calendar) *payment.Runtime {
 	bindings := payment.NewProviderBindings(instances, registry, balancer, payment.BindingRuntime{Factory: provider.CreateProvider, RegistryFactory: provider.CreateProvider, Warn: slog.Warn}, false)
-	old.BindProviderBindings(bindings)
-	calendar := timezone.NewCalendar(timezone.Location())
 	store := paymentpostgres.NewRefundStore(client, func(tx *dbent.Tx) payment.RefundRights {
 		return paymentRefundRights{balances: billingpostgres.BalanceInTx(tx), subscriptions: billingpostgres.SubscriptionsInTx(tx, billingGroups{Repository: routingGroups}, billing.DateRuntime{Now: time.Now, Calendar: &calendar})}
 	})
@@ -42,7 +41,7 @@ func providePaymentService(client *dbent.Client, registry *payment.Registry, bal
 		}
 	}
 	orders := paymentpostgres.NewOrderStore(client, paymentpostgres.OrderStoreRuntime{Rebates: func(*dbent.Tx) paymentpostgres.OrderRebates { return affiliate }, Audit: audit})
-	old.BindOrderQueries(payment.NewOrderQueries(orders, time.Now, bindings.GetOrderProvider))
+	queries := payment.NewOrderQueries(orders, time.Now, bindings.GetOrderProvider)
 
 	workflow := payment.NewRefundWorkflow(store, payment.RefundRuntime{Instance: bindings.GetRefundOrderProviderInstance, User: func(ctx context.Context, id int64) (*payment.RefundUser, error) {
 		u, e := identityUsers.GetByID(ctx, id)
@@ -62,10 +61,8 @@ func providePaymentService(client *dbent.Client, registry *payment.Registry, bal
 			slog.Error("audit log failed", "orderID", id, "action", action, "error", err)
 		}
 	}})
-	old.BindRefundWorkflow(store, workflow)
 	signing, fallbacks := payment.ResolvePaymentResumeSigningKeys(os.Getenv("PAYMENT_RESUME_SIGNING_KEY"), []byte(key))
 	resume := payment.NewPaymentResumeService(signing, fallbacks...)
-	old.BindPaymentResume(resume)
 	checkout := payment.NewCheckout(orders, coreConfig, payment.NewVisibleMethodLoadBalancer(balancer, coreConfig), resume, payment.CheckoutRuntime{
 		User: func(ctx context.Context, id int64) (*payment.Buyer, error) {
 			u, e := identityUsers.GetByID(ctx, id)
@@ -90,7 +87,6 @@ func providePaymentService(client *dbent.Client, registry *payment.Registry, bal
 			}
 		},
 	})
-	old.BindCheckout(checkout)
 
 	fulfillment := payment.NewFulfillment(orders, bindings, registry, redeem, subscriptions, payment.FulfillmentRuntime{
 		Audit: audit, Now: time.Now, RebateEnabled: affiliate.IsEnabled,
@@ -113,13 +109,11 @@ func providePaymentService(client *dbent.Client, registry *payment.Registry, bal
 			return &payment.RefundUser{Balance: u.Balance}, e
 		},
 		Notify: func(ctx context.Context, n payment.PaymentNotice) error {
-			return notification.Send(ctx, service.NotificationEmailSendInput{Event: n.Event, RecipientEmail: n.RecipientEmail, RecipientName: n.RecipientName, UserID: n.UserID, SourceType: n.SourceType, SourceID: n.SourceID, Variables: n.Variables})
+			return notification.Send(ctx, notificationcore.NotificationEmailSendInput{Event: n.Event, RecipientEmail: n.RecipientEmail, RecipientName: n.RecipientName, UserID: n.UserID, SourceType: n.SourceType, SourceID: n.SourceID, Variables: n.Variables})
 		},
 	})
-	old.BindFulfillment(fulfillment)
-	old.BindOrderLifecycle(payment.NewOrderLifecycle(fulfillment, resume, func(ctx context.Context) func() { return timing.ObserveDependency(ctx, "payment") }))
-
-	return old
+	orderLifecycle := payment.NewOrderLifecycle(fulfillment, resume, func(ctx context.Context) func() { return timing.ObserveDependency(ctx, "payment") })
+	return &payment.Runtime{Checkout: checkout, OrderQueries: queries, RefundWorkflow: workflow, OrderLifecycle: orderLifecycle, ProviderBindings: bindings}
 }
 
 type paymentRefundRights struct {

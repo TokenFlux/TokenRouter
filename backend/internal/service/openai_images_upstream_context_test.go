@@ -13,11 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 func newOpenAIImagesTestContext(t *testing.T, body []byte) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -26,7 +28,7 @@ func newOpenAIImagesTestContext(t *testing.T, body []byte) (*gin.Context, *httpt
 	return c, rec
 }
 
-func newOpenAIImagesTestService(upstream HTTPUpstream) *OpenAIGatewayService {
+func newOpenAIImagesTestService(upstream httpclient.UpstreamTransport) *OpenAIGatewayService {
 	return &OpenAIGatewayService{
 		httpUpstream: upstream,
 		cfg: &config.Config{
@@ -41,8 +43,8 @@ func newOpenAIImagesAPIKeyAccount() *Account {
 	return &Account{
 		ID:       31,
 		Name:     "openai-apikey-images",
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.openai.com/v1",

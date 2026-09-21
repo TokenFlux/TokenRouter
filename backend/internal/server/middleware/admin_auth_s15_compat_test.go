@@ -3,27 +3,30 @@
 package middleware
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/audit"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	gin "github.com/gin-gonic/gin"
 )
 
 // NewAdminAuthMiddleware 创建管理员认证中间件
 func NewAdminAuthMiddleware(
-	authService *service.AuthService,
-	userService *service.UserService,
-	settingService *service.SettingService,
-	auditService *service.AuditLogService,
+	authService *identity.SessionService,
+	userService *identity.UserService,
+	settingService *identity.RuntimeSettings,
+	auditService *audit.AuditLogService,
 ) AdminAuthMiddleware {
 	return AdminAuthMiddleware(adminAuth(authService, userService, settingService, auditService))
 }
 
 // adminAuth 委托身份 HTTP 适配，保留旧调用签名。
 func adminAuth(
-	authService *service.AuthService,
-	userService *service.UserService,
-	settingService *service.SettingService,
-	auditService *service.AuditLogService,
+	authService *identity.SessionService,
+	userService *identity.UserService,
+	settingService *identity.RuntimeSettings,
+	auditService *audit.AuditLogService,
 ) gin.HandlerFunc {
 	return identityhttp.AdminAuth(identityAuth(authService), identityHTTPAdmin{userService}, identitySettings(settingService), identityAudit(auditService))
 }

@@ -3,10 +3,10 @@ package middleware
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/servertiming"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -33,20 +33,20 @@ func Logger() gin.HandlerFunc {
 
 		method := c.Request.Method
 		statusCode := c.Writer.Status()
-		clientIP := ip.GetClientIP(c)
+		clientIP := clientip.GetClientIP(c)
 		protocol := c.Request.Proto
-		accountID, hasAccountID := c.Request.Context().Value(ctxkey.AccountID).(int64)
-		platform, _ := c.Request.Context().Value(ctxkey.Platform).(string)
-		model, _ := c.Request.Context().Value(ctxkey.Model).(string)
+		accountID, hasAccountID := c.Request.Context().Value(telemetry.AccountID).(int64)
+		platform, _ := c.Request.Context().Value(telemetry.Platform).(string)
+		model, _ := c.Request.Context().Value(telemetry.Model).(string)
 		reason, rejected := GetIngressRejectReason(c)
 		if rejected {
 			recordIngressReject(c, reason)
 			allowed, droppedSummary := globalIngressRejectAccessSampler.allow(endTime)
 			if droppedSummary > 0 {
-				logger.FromContext(c.Request.Context()).Info("ingress rejection access logs dropped",
+				logging.FromContext(c.Request.Context()).Info("ingress rejection access logs dropped",
 					zap.String("component", "http.access"),
 					zap.Uint64("dropped_count", droppedSummary),
-					zap.Bool(logger.OpsSystemLogSkipField, true),
+					zap.Bool(logging.OpsSystemLogSkipField, true),
 				)
 			}
 			if !allowed {
@@ -66,7 +66,7 @@ func Logger() gin.HandlerFunc {
 		if rejected {
 			fields = append(fields,
 				zap.String("ingress_reject_reason", string(reason)),
-				zap.Bool(logger.OpsSystemLogSkipField, true),
+				zap.Bool(logging.OpsSystemLogSkipField, true),
 			)
 		}
 		if hasAccountID && accountID > 0 {
@@ -83,7 +83,7 @@ func Logger() gin.HandlerFunc {
 		}
 		fields = appendRequestStageFields(fields, c)
 
-		l := logger.FromContext(c.Request.Context()).With(fields...)
+		l := logging.FromContext(c.Request.Context()).With(fields...)
 		l.Info("http request completed", zap.Time("completed_at", endTime))
 
 		if len(c.Errors) > 0 {
@@ -99,30 +99,30 @@ func appendRequestStageFields(fields []zap.Field, c *gin.Context) []zap.Field {
 		return fields
 	}
 	ctx := c.Request.Context()
-	startedAt, _ := ctx.Value(ctxkey.RequestStartedAt).(time.Time)
-	appendTimestamp := func(key ctxkey.Key, name string) {
+	startedAt, _ := ctx.Value(telemetry.RequestStartedAt).(time.Time)
+	appendTimestamp := func(key telemetry.ContextKey, name string) {
 		at, ok := ctx.Value(key).(time.Time)
 		if !ok || startedAt.IsZero() || at.Before(startedAt) {
 			return
 		}
 		fields = append(fields, zap.Int64(name, at.Sub(startedAt).Milliseconds()))
 	}
-	appendTimestamp(ctxkey.AccountSlotAcquiredAt, "account_slot_acquired_ms")
-	appendTimestamp(ctxkey.FirstSSEDataAt, "upstream_first_sse_data_ms")
-	appendTimestamp(ctxkey.FirstVisibleOutputAt, "first_visible_output_ms")
-	appendTimestamp(ctxkey.FirstDownstreamFlushAt, "first_downstream_flush_ms")
+	appendTimestamp(telemetry.AccountSlotAcquiredAt, "account_slot_acquired_ms")
+	appendTimestamp(telemetry.FirstSSEDataAt, "upstream_first_sse_data_ms")
+	appendTimestamp(telemetry.FirstVisibleOutputAt, "first_visible_output_ms")
+	appendTimestamp(telemetry.FirstDownstreamFlushAt, "first_downstream_flush_ms")
 
-	if snapshot, ok := servertiming.HTTPTraceSnapshotFromContext(ctx); ok {
-		if elapsed, valid := servertiming.HTTPTraceElapsedMs(snapshot, snapshot.GetConnAt); valid {
+	if snapshot, ok := timing.HTTPTraceSnapshotFromContext(ctx); ok {
+		if elapsed, valid := timing.HTTPTraceElapsedMs(snapshot, snapshot.GetConnAt); valid {
 			fields = append(fields, zap.Int64("upstream_get_conn_ms", elapsed))
 		}
-		if elapsed, valid := servertiming.HTTPTraceElapsedMs(snapshot, snapshot.GotConnAt); valid {
+		if elapsed, valid := timing.HTTPTraceElapsedMs(snapshot, snapshot.GotConnAt); valid {
 			fields = append(fields, zap.Int64("upstream_got_conn_ms", elapsed))
 		}
-		if elapsed, valid := servertiming.HTTPTraceElapsedMs(snapshot, snapshot.WroteRequestAt); valid {
+		if elapsed, valid := timing.HTTPTraceElapsedMs(snapshot, snapshot.WroteRequestAt); valid {
 			fields = append(fields, zap.Int64("upstream_wrote_request_ms", elapsed))
 		}
-		if elapsed, valid := servertiming.HTTPTraceElapsedMs(snapshot, snapshot.GotFirstResponseByteAt); valid {
+		if elapsed, valid := timing.HTTPTraceElapsedMs(snapshot, snapshot.GotFirstResponseByteAt); valid {
 			fields = append(fields, zap.Int64("upstream_first_response_byte_ms", elapsed))
 		}
 		if snapshot.GotConnCount > 0 {

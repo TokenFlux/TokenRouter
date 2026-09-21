@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -18,12 +20,12 @@ import (
 )
 
 func TestForwardGrokChatViaResponsesDropsRedundantViewImage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := grokInlineImageChatRequest()
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
-	c.Set("api_key", &APIKey{ID: 7991})
+	c.Set("api_key", &apikey.APIKey{ID: 7991})
 
 	account := grokChatBridgeTestAccount(799)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
@@ -32,7 +34,7 @@ func TestForwardGrokChatViaResponsesDropsRedundantViewImage(t *testing.T) {
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_chat_image", 0)}
 	svc := &OpenAIGatewayService{
 		httpUpstream:      upstream,
-		grokTokenProvider: NewGrokTokenProvider(repo, nil),
+		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
 	}
 
@@ -45,14 +47,14 @@ func TestForwardGrokChatViaResponsesDropsRedundantViewImage(t *testing.T) {
 }
 
 func TestForwardGrokRawChatDropsRedundantViewImage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := grokInlineImageChatRequest()
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 
 	account := &Account{
-		ID: 800, Platform: PlatformGrok, Type: AccountTypeAPIKey, Concurrency: 1,
+		ID: 800, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "test-key", "base_url": "https://grok.example.test/v1"},
 	}
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
@@ -73,7 +75,7 @@ func TestForwardGrokRawChatDropsRedundantViewImage(t *testing.T) {
 }
 
 func TestForwardGrokMessagesDropsRedundantViewImage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{
 		"model":"grok-4.6","max_tokens":32,"stream":false,
 		"messages":[{"role":"user","content":[
@@ -89,7 +91,7 @@ func TestForwardGrokMessagesDropsRedundantViewImage(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
-	c.Set("api_key", &APIKey{ID: 7992})
+	c.Set("api_key", &apikey.APIKey{ID: 7992})
 
 	account := healthyGrokOAuthGatewayTestAccount(801, "access-token")
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
@@ -98,7 +100,7 @@ func TestForwardGrokMessagesDropsRedundantViewImage(t *testing.T) {
 	upstream := &httpUpstreamRecorder{resp: grokMessagesSSECompletedResponse("resp_messages_image", 0)}
 	svc := &OpenAIGatewayService{
 		httpUpstream:      upstream,
-		grokTokenProvider: NewGrokTokenProvider(repo, nil),
+		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
 	}
 
@@ -138,7 +140,7 @@ func TestStripRedundantGrokChatViewImageToolLeavesNonTargetRequestsByteExact(t *
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			body := []byte(tt.body)
-			patched, err := stripRedundantGrokChatViewImageTool(body)
+			patched, err := xai.StripRedundantGrokChatViewImageTool(body)
 			require.NoError(t, err)
 			require.Equal(t, body, patched)
 		})
@@ -154,7 +156,7 @@ func TestStripRedundantGrokChatViewImageToolDropsOnlyToolMetadata(t *testing.T) 
 		"parallel_tool_calls":true
 	}`)
 
-	patched, err := stripRedundantGrokChatViewImageTool(body)
+	patched, err := xai.StripRedundantGrokChatViewImageTool(body)
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(patched, "tools").Exists())
 	require.False(t, gjson.GetBytes(patched, "tool_choice").Exists())

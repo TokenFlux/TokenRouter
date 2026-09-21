@@ -12,6 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // issue #5281：stream=false 时上游仍可能回 SSE（其他 sub2api 实例、部分 OpenAI 兼容
@@ -22,7 +26,7 @@ import (
 
 func newNonStreamingFailoverContext(t *testing.T) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -36,8 +40,8 @@ func newNonStreamingFailoverService() *OpenAIGatewayService {
 func newNonStreamingFailoverAccount() *Account {
 	return &Account{
 		ID:       1,
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeAPIKey,
 		Name:     "pool-account",
 		Credentials: map[string]any{
 			"pool_mode": true,
@@ -75,7 +79,7 @@ func TestNonStreamingSSEToJSON_CapacityFailedEventFailsOver(t *testing.T) {
 	result, err := svc.handleSSEToJSON(context.Background(), newNonStreamingSSEResponse(), c, newNonStreamingFailoverAccount(), body, "model", "model")
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	// fork 的语义分类保留 invalid_request_error 的 400 状态，而不是 upstream
 	// 原测试固定的 502；切号判定与流式路径仍保持一致。
@@ -97,12 +101,12 @@ func TestNonStreamingSSEToJSON_UnclassifiedFailedEventFailsOver(t *testing.T) {
 	body := sseTerminalBody("response.failed", string(payload))
 
 	// 前提：流式分类器对同一帧的裁决就是「换号」。翻转不是新政策，是补齐。
-	require.True(t, openAIStreamFailedEventShouldFailover(payload, "upstream rejected request"))
+	require.True(t, openai.OpenAIStreamFailedEventShouldFailover(payload, "upstream rejected request"))
 
 	result, err := svc.handleSSEToJSON(context.Background(), newNonStreamingSSEResponse(), c, newNonStreamingFailoverAccount(), body, "model", "model")
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.False(t, c.Writer.Written())
 	require.Empty(t, rec.Body.String())
@@ -142,7 +146,7 @@ func TestNonStreamingSSEToJSON_NonRetryableFailedEventStillWritesProtocolError(t
 
 			require.Nil(t, result)
 			require.Error(t, err)
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.False(t, errors.As(err, &failoverErr), "不可重试的上游错误不得换号")
 			require.Equal(t, http.StatusBadGateway, rec.Code)
 			require.Contains(t, rec.Body.String(), tc.wantMsg)
@@ -160,15 +164,15 @@ func TestNonStreamingSSEToJSON_BareErrorEventUsesConservativeClassifier(t *testi
 		data := `{"type":"error","error":{"message":"upstream rejected request"}}`
 
 		// 同一条文案：failed 判换号，error 判不换号——差异就在分派。
-		require.True(t, openAIStreamFailedEventShouldFailover([]byte(data), "upstream rejected request"))
-		require.False(t, openAIStreamErrorEventShouldFailover([]byte(data), "upstream rejected request"))
+		require.True(t, openai.OpenAIStreamFailedEventShouldFailover([]byte(data), "upstream rejected request"))
+		require.False(t, openai.OpenAIStreamErrorEventShouldFailover([]byte(data), "upstream rejected request"))
 
 		result, err := svc.handleSSEToJSON(context.Background(), newNonStreamingSSEResponse(), c,
 			newNonStreamingFailoverAccount(), sseTerminalBody("error", data), "model", "model")
 
 		require.Nil(t, result)
 		require.Error(t, err)
-		var failoverErr *UpstreamFailoverError
+		var failoverErr *forwardcore.UpstreamFailoverError
 		require.False(t, errors.As(err, &failoverErr))
 		require.Equal(t, http.StatusBadGateway, rec.Code)
 	})
@@ -182,7 +186,7 @@ func TestNonStreamingSSEToJSON_BareErrorEventUsesConservativeClassifier(t *testi
 			newNonStreamingFailoverAccount(), sseTerminalBody("error", data), "model", "model")
 
 		require.Nil(t, result)
-		var failoverErr *UpstreamFailoverError
+		var failoverErr *forwardcore.UpstreamFailoverError
 		require.ErrorAs(t, err, &failoverErr)
 		require.False(t, c.Writer.Written())
 	})
@@ -198,7 +202,7 @@ func TestNonStreamingPassthroughSSEToJSON_CapacityFailedEventFailsOver(t *testin
 	result, err := svc.handlePassthroughSSEToJSON(newNonStreamingSSEResponse(), c, newNonStreamingFailoverAccount(), body, "model", "model")
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Contains(t, string(failoverErr.ResponseBody), "Selected model is at capacity")
 	require.False(t, c.Writer.Written())
@@ -218,14 +222,14 @@ func TestNonStreamingSSEToJSON_MatchesStreamingClassifierVerdict(t *testing.T) {
 	for _, data := range payloads {
 		t.Run(data[:min(len(data), 60)], func(t *testing.T) {
 			payload := []byte(data)
-			want := openAIStreamFailedEventShouldFailover(payload, extractOpenAISSEErrorMessage(payload))
+			want := openai.OpenAIStreamFailedEventShouldFailover(payload, openai.ExtractOpenAISSEErrorMessage(payload))
 
 			c, _ := newNonStreamingFailoverContext(t)
 			svc := newNonStreamingFailoverService()
 			_, err := svc.handleSSEToJSON(context.Background(), newNonStreamingSSEResponse(), c,
 				newNonStreamingFailoverAccount(), sseTerminalBody("response.failed", data), "model", "model")
 
-			var failoverErr *UpstreamFailoverError
+			var failoverErr *forwardcore.UpstreamFailoverError
 			require.Equal(t, want, errors.As(err, &failoverErr),
 				"非流式裁决与流式分类器不一致：%s", data)
 		})
@@ -237,7 +241,7 @@ func TestNonStreamingSSEToJSON_MatchesStreamingClassifierVerdict(t *testing.T) {
 func TestNonStreamingSSEToJSON_CommittedResponseKeepsProtocolError(t *testing.T) {
 	c, rec := newNonStreamingFailoverContext(t)
 	svc := newNonStreamingFailoverService()
-	MarkResponseCommitted(c)
+	gatewayhttp.MarkResponseCommitted(c)
 	body := sseTerminalBody("response.failed",
 		`{"type":"response.failed","error":{"message":"Selected model is at capacity. Please try a different model.","type":"invalid_request_error"}}`)
 
@@ -245,7 +249,7 @@ func TestNonStreamingSSEToJSON_CommittedResponseKeepsProtocolError(t *testing.T)
 
 	require.Nil(t, result)
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 }

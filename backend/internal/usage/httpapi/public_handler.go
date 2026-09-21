@@ -39,10 +39,11 @@ type PublicUsageHandler struct {
 	userService    PublicBalanceReader
 	settingService BalanceUnitReader
 	request        PublicUsageContext
+	calendar       timezone.Calendar
 }
 
-func NewPublicUsageHandler(u *usage.UsageService, keys PublicWindowReader, users PublicBalanceReader, settings BalanceUnitReader, request PublicUsageContext) *PublicUsageHandler {
-	return &PublicUsageHandler{u, keys, users, settings, request}
+func NewPublicUsageHandler(u *usage.UsageService, keys PublicWindowReader, users PublicBalanceReader, settings BalanceUnitReader, request PublicUsageContext, calendar timezone.Calendar) *PublicUsageHandler {
+	return &PublicUsageHandler{usageService: u, apiKeyService: keys, userService: users, settingService: settings, request: request, calendar: calendar}
 }
 func (h *PublicUsageHandler) errorResponse(c *gin.Context, status int, errType, message string) {
 	c.JSON(status, gin.H{"type": "error", "error": gin.H{"type": errType, "message": message}})
@@ -314,7 +315,7 @@ func (h *PublicUsageHandler) buildAPIKeyDailyUsage(c *gin.Context, apiKeyID int6
 	if h.usageService == nil {
 		return nil
 	}
-	startTime, endTime := APIKeyDailyUsageRange(days, c.Query("timezone"))
+	startTime, endTime := apiKeyDailyUsageRange(days, c.Query("timezone"), h.calendar)
 	stats, err := h.usageService.GetAPIKeyDailyUsageByKey(c.Request.Context(), apiKeyID, startTime, endTime)
 	if err != nil {
 		return nil
@@ -360,18 +361,18 @@ func (h *PublicUsageHandler) buildUsageData(ctx context.Context, apiKeyID int64)
 
 // parseUsageDateRange 解析 start_date / end_date query params，默认返回近 30 天范围。
 func (h *PublicUsageHandler) parseUsageDateRange(c *gin.Context) (time.Time, time.Time) {
-	now := timezone.Now()
+	now := h.calendar.Now()
 	endTime := now
 	startTime := now.AddDate(0, 0, -30)
 	userTZ := c.Query("timezone")
 
 	if s := c.Query("start_date"); s != "" {
-		if t, _, err := timezone.ParseDateTimeInUserLocation(s, userTZ); err == nil {
+		if t, _, err := h.calendar.ParseDateTimeInUserLocation(s, userTZ); err == nil {
 			startTime = t
 		}
 	}
 	if s := c.Query("end_date"); s != "" {
-		if t, dateOnly, err := timezone.ParseDateTimeInUserLocation(s, userTZ); err == nil {
+		if t, dateOnly, err := h.calendar.ParseDateTimeInUserLocation(s, userTZ); err == nil {
 			if dateOnly {
 				t = t.AddDate(0, 0, 1)
 			}

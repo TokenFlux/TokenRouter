@@ -2,37 +2,28 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"go.uber.org/zap"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
-
-const openAIAPIKeyHealthBreakerReason = "openai_apikey_health_breaker"
-
-func isOpenAIAPIKeyHealthBreakerAccount(account *Account) bool {
-	return account != nil && account.Platform == PlatformOpenAI && account.Type == AccountTypeAPIKey && account.IsPoolMode()
-}
 
 func classifyOpenAIAPIKeyHealthFailure(err error) (int, []byte, bool) {
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return 0, nil, false
 	}
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	if errors.As(err, &failoverErr) {
 		// These failures already have dedicated recovery/state handling or are not
 		// attributable to the selected account.
 		if failoverErr.IsCredentialFailure() ||
 			failoverErr.RequestScopedTransient ||
 			failoverErr.RetryableOnSameAccount ||
-			failoverErr.Scope == GatewayFailureScopeRequest ||
-			failoverErr.Scope == GatewayFailureScopeProvider {
+			failoverErr.Scope == forwardcore.GatewayFailureScopeRequest ||
+			failoverErr.Scope == forwardcore.GatewayFailureScopeProvider {
 			return failoverErr.StatusCode, failoverErr.ResponseBody, false
 		}
 		if failoverErr.StatusCode == http.StatusTooManyRequests || failoverErr.StatusCode >= http.StatusInternalServerError {
@@ -41,7 +32,7 @@ func classifyOpenAIAPIKeyHealthFailure(err error) (int, []byte, bool) {
 		return failoverErr.StatusCode, failoverErr.ResponseBody, false
 	}
 
-	var imageErr *OpenAIImagesUpstreamError
+	var imageErr *openai.OpenAIImagesUpstreamError
 	if errors.As(err, &imageErr) {
 		if imageErr.StatusCode == http.StatusTooManyRequests || imageErr.StatusCode >= http.StatusInternalServerError {
 			return imageErr.StatusCode, []byte(strings.TrimSpace(imageErr.Message)), true
@@ -50,81 +41,20 @@ func classifyOpenAIAPIKeyHealthFailure(err error) (int, []byte, bool) {
 	return 0, nil, false
 }
 
-func (s *RateLimitService) ObserveOpenAIAPIKeyHealthFailure(ctx context.Context, account *Account, upstreamErr error) bool {
-	if s == nil || s.openAIAPIKeyHealth == nil || s.settingService == nil || s.accountRepo == nil || !isOpenAIAPIKeyHealthBreakerAccount(account) {
+// 网关错误归因暂留调用侧，窗口计数和健康状态只由 account 持有。
+func (s *RateLimitService) ObserveOpenAIAPIKeyHealthFailure(ctx context.Context, value *Account, err error) bool {
+	if s == nil {
 		return false
 	}
-	statusCode, responseBody, eligible := classifyOpenAIAPIKeyHealthFailure(upstreamErr)
-	if !eligible {
-		return false
+	status, body, eligible := classifyOpenAIAPIKeyHealthFailure(err)
+	record := AccountRecordView(value)
+	handled := s.HealthCore().ApplyAPIKeyHealthFailure(ctx, record, status, body, eligible)
+	if value != nil && record != nil {
+		value.TempUnschedulableUntil = record.TempUnschedulableUntil
+		value.TempUnschedulableReason = record.TempUnschedulableReason
 	}
-	settings, err := s.settingService.GetOpenAIAPIKeyHealthBreakerSettings(ctx)
-	if err != nil {
-		logger.L().Warn("openai.apikey_health_breaker_settings_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-		return false
-	}
-	if settings == nil || !settings.Enabled {
-		return false
-	}
-
-	count, tripped, err := s.openAIAPIKeyHealth.RecordOpenAIAPIKeyHealthFailure(ctx, account.ID, settings.WindowMinutes, settings.FailureThreshold)
-	if err != nil {
-		logger.L().Warn("openai.apikey_health_breaker_record_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-		return false
-	}
-	if !tripped {
-		return false
-	}
-
-	now := time.Now()
-	until := now.Add(time.Duration(settings.CooldownMinutes) * time.Minute)
-	state := &TempUnschedState{
-		UntilUnix:            until.Unix(),
-		TriggeredAtUnix:      now.Unix(),
-		StatusCode:           statusCode,
-		MatchedKeyword:       openAIAPIKeyHealthBreakerReason,
-		RuleIndex:            -1,
-		ErrorMessage:         truncateTempUnschedMessage(responseBody, tempUnschedMessageMaxBytes),
-		TriggerCount:         count,
-		TriggerThreshold:     settings.FailureThreshold,
-		TriggerWindowMinutes: settings.WindowMinutes,
-	}
-	reasonBytes, _ := json.Marshal(state)
-	reason := string(reasonBytes)
-	if reason == "" {
-		reason = fmt.Sprintf("%s: %d failures in %d minute(s)", openAIAPIKeyHealthBreakerReason, count, settings.WindowMinutes)
-	}
-
-	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
-	defer cancel()
-	if err := s.accountRepo.SetTempUnschedulable(persistCtx, account.ID, until, reason); err != nil {
-		logger.L().Warn("openai.apikey_health_breaker_persist_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-		return false
-	}
-
-	if account.TempUnschedulableUntil == nil || account.TempUnschedulableUntil.Before(until) {
-		account.TempUnschedulableUntil = &until
-		account.TempUnschedulableReason = reason
-	}
-	s.notifyAccountSchedulingBlocked(account, until, openAIAPIKeyHealthBreakerReason)
-	if s.tempUnschedCache != nil {
-		if err := s.tempUnschedCache.SetTempUnsched(persistCtx, account.ID, state); err != nil {
-			logger.L().Warn("openai.apikey_health_breaker_cache_failed", zap.Int64("account_id", account.ID), zap.Error(err))
-		}
-	}
-	logger.L().Warn("openai.apikey_health_breaker_tripped",
-		zap.Int64("account_id", account.ID),
-		zap.Int64("failure_count", count),
-		zap.Int("failure_threshold", settings.FailureThreshold),
-		zap.Int("window_minutes", settings.WindowMinutes),
-		zap.Int("cooldown_minutes", settings.CooldownMinutes),
-		zap.Int("upstream_status", statusCode),
-		zap.Time("until", until),
-	)
-	return true
+	return handled
 }
-
-func (s *RateLimitService) ObserveOpenAIAPIKeyHealthSuccess(context.Context, *Account) {
-	// Health failures are accumulated in a rolling time window. A success does
-	// not reset that window and must not add a Redis round trip to the hot path.
+func (s *RateLimitService) ObserveOpenAIAPIKeyHealthSuccess(ctx context.Context, value *Account) {
+	// 保留成功路径不读设置、不碰 Redis；原生用例同样不重置滚动计数。
 }

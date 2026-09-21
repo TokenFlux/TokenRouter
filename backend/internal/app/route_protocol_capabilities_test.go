@@ -1,17 +1,21 @@
 package app
 
 import (
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/gin-gonic/gin"
-
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
+
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,12 +34,12 @@ func TestProtocolAllPublicRoutesDeniedBeforeUpstream(t *testing.T) {
 	}
 	for _, tc := range paths {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
-			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{ID: 1, Platform: tc.platform, AllowedProtocols: []domain.ProtocolID{}})
+			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{ID: 1, Platform: tc.platform, AllowedProtocols: []protocol.ProtocolID{}})
 			if strings.HasPrefix(tc.path, "/v1beta/") {
 				// Gemini 鉴权使用单独中间件；此处在鉴权后注入分组，独立验证动作分派。
 				router = gin.New()
 				router.Use(func(c *gin.Context) {
-					c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{Platform: "gemini", AllowedProtocols: []domain.ProtocolID{}}})
+					c.Set(string(middleware.ContextKeyAPIKey), &apikey.APIKey{Group: &routing.Group{Platform: "gemini", AllowedProtocols: []protocol.ProtocolID{}}})
 				})
 				router.POST("/v1beta/models/*modelAction", requireGeminiGenerateContentProtocol, func(c *gin.Context) { t.Fatal("disabled protocol reached handler") })
 			}
@@ -54,34 +58,34 @@ func TestProtocolAuxiliaryAndExistingJobs(t *testing.T) {
 		require.Empty(t, extendedRouteProtocol(http.MethodPost, path), path)
 		require.Empty(t, extendedRouteProtocol(http.MethodDelete, path), path)
 	}
-	require.Equal(t, domain.ProtocolCustomVoices, extendedRouteProtocol(http.MethodDelete, "/v1/custom-voices/id"))
+	require.Equal(t, protocol.ProtocolCustomVoices, extendedRouteProtocol(http.MethodDelete, "/v1/custom-voices/id"))
 }
 
 // 别名复用相同协议；相似前缀和错误方法不能命中合法入口。
 func TestProtocolRouteAliases(t *testing.T) {
 	for _, tc := range []struct {
 		method, path string
-		want         domain.ProtocolID
+		want         protocol.ProtocolID
 	}{
-		{http.MethodPost, "/embeddings", domain.ProtocolEmbeddings},
-		{http.MethodPost, "/images/generations", domain.ProtocolImagesGenerations},
-		{http.MethodPost, "/images/edits", domain.ProtocolImagesEdits},
-		{http.MethodPost, "/images/batches", domain.ProtocolImageBatches},
-		{http.MethodPost, "/videos", domain.ProtocolVideosGenerations},
-		{http.MethodPost, "/videos/generations", domain.ProtocolVideosGenerations},
-		{http.MethodPost, "/videos/edits", domain.ProtocolVideosEdits},
-		{http.MethodPost, "/videos/extensions", domain.ProtocolVideosExtensions},
-		{http.MethodPost, "/tts", domain.ProtocolTTS},
-		{http.MethodPost, "/stt", domain.ProtocolSTT},
-		{http.MethodPost, "/custom-voices", domain.ProtocolCustomVoices},
-		{http.MethodGet, "/realtime", domain.ProtocolVoiceRealtime},
-		{http.MethodGet, "/responses", domain.ProtocolResponsesWebSocket},
-		{http.MethodPost, "/live", domain.ProtocolLive},
-		{http.MethodPost, "/realtime/calls", domain.ProtocolLive},
-		{http.MethodPost, "/responses/compact", domain.ProtocolResponsesCompact},
-		{http.MethodPost, "/alpha/search", domain.ProtocolAlphaSearch},
-		{http.MethodPost, "/web_search", domain.ProtocolWebSearch},
-		{http.MethodPost, "/x_search", domain.ProtocolXSearch},
+		{http.MethodPost, "/embeddings", protocol.ProtocolEmbeddings},
+		{http.MethodPost, "/images/generations", protocol.ProtocolImagesGenerations},
+		{http.MethodPost, "/images/edits", protocol.ProtocolImagesEdits},
+		{http.MethodPost, "/images/batches", protocol.ProtocolImageBatches},
+		{http.MethodPost, "/videos", protocol.ProtocolVideosGenerations},
+		{http.MethodPost, "/videos/generations", protocol.ProtocolVideosGenerations},
+		{http.MethodPost, "/videos/edits", protocol.ProtocolVideosEdits},
+		{http.MethodPost, "/videos/extensions", protocol.ProtocolVideosExtensions},
+		{http.MethodPost, "/tts", protocol.ProtocolTTS},
+		{http.MethodPost, "/stt", protocol.ProtocolSTT},
+		{http.MethodPost, "/custom-voices", protocol.ProtocolCustomVoices},
+		{http.MethodGet, "/realtime", protocol.ProtocolVoiceRealtime},
+		{http.MethodGet, "/responses", protocol.ProtocolResponsesWebSocket},
+		{http.MethodPost, "/live", protocol.ProtocolLive},
+		{http.MethodPost, "/realtime/calls", protocol.ProtocolLive},
+		{http.MethodPost, "/responses/compact", protocol.ProtocolResponsesCompact},
+		{http.MethodPost, "/alpha/search", protocol.ProtocolAlphaSearch},
+		{http.MethodPost, "/web_search", protocol.ProtocolWebSearch},
+		{http.MethodPost, "/x_search", protocol.ProtocolXSearch},
 	} {
 		for _, prefix := range []string{"", "/v1", "/backend-api/codex"} {
 			t.Run(tc.method+prefix+tc.path, func(t *testing.T) {

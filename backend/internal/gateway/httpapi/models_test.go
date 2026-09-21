@@ -68,7 +68,7 @@ func (p *modelsCatalogStub) GeminiModel(name string, _ bool) GeminiModel {
 }
 func (p *modelsCatalogStub) HasGeminiFallback(name string) bool { return name == "known" }
 func modelsContext() (*gin.Context, *httptest.ResponseRecorder) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)

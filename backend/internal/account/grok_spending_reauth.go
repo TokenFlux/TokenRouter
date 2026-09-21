@@ -2,9 +2,33 @@
 package account
 
 import (
+	"context"
 	"strings"
 	"time"
 )
+
+// GrokReauthWriter 仅写入原有软性重新认证标记。
+type GrokReauthWriter interface {
+	UpdateExtra(context.Context, int64, map[string]any) error
+}
+
+// ClearGrokNeedsReauth 保留独立五秒写入预算和尽力失败语义。
+func ClearGrokNeedsReauth(ctx context.Context, writer GrokReauthWriter, id int64) {
+	if writer == nil || id <= 0 {
+		return
+	}
+	base := context.Background()
+	if ctx != nil {
+		base = context.WithoutCancel(ctx)
+	}
+	stateCtx, cancel := context.WithTimeout(base, 5*time.Second)
+	defer cancel()
+	_ = writer.UpdateExtra(stateCtx, id, map[string]any{
+		"grok_needs_reauth":        false,
+		"grok_needs_reauth_reason": "",
+		"grok_needs_reauth_at":     "",
+	})
+}
 
 const grokSpendingLimitProbeCooldown = 10 * time.Minute
 

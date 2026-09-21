@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/TokenFlux/TokenRouter/ent/announcement"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 )
 
 // Announcement is the model entity for the Announcement schema.
@@ -28,7 +28,7 @@ type Announcement struct {
 	// 通知模式: silent(仅铃铛), popup(弹窗提醒)
 	NotifyMode string `json:"notify_mode,omitempty"`
 	// 展示条件（JSON 规则）
-	Targeting domain.AnnouncementTargeting `json:"targeting,omitempty"`
+	Targeting site.AnnouncementTargeting `json:"targeting,omitempty"`
 	// 开始展示时间（为空表示立即生效）
 	StartsAt *time.Time `json:"starts_at,omitempty"`
 	// 结束展示时间（为空表示永久生效）

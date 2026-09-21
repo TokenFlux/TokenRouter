@@ -6,7 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,10 +41,10 @@ func TestAdvancedSchedulerRuntimeStatsUsesIndependentEWMAFactors(t *testing.T) {
 
 func TestAdvancedSchedulerCoreUsesRuntimeFeedbackAndNeutralOptionalSignals(t *testing.T) {
 	accounts := []*Account{
-		{ID: 11, Priority: 1, Platform: PlatformGemini},
-		{ID: 12, Priority: 1, Platform: PlatformGemini},
+		{ID: 11, Priority: 1, Platform: capability.PlatformGemini},
+		{ID: 12, Priority: 1, Platform: capability.PlatformGemini},
 	}
-	loadMap := map[int64]*AccountLoadInfo{
+	loadMap := map[int64]*scheduler.AccountLoadInfo{
 		11: {AccountID: 11, LoadRate: 20, WaitingCount: 0},
 		12: {AccountID: 12, LoadRate: 20, WaitingCount: 0},
 	}
@@ -66,8 +70,8 @@ func TestAdvancedSchedulerCoreUsesRuntimeFeedbackAndNeutralOptionalSignals(t *te
 
 func TestAdvancedSchedulerCoreTreatsMissingErrorRateAsZero(t *testing.T) {
 	accounts := []*Account{
-		{ID: 21, Priority: 1, Platform: PlatformGemini},
-		{ID: 22, Priority: 1, Platform: PlatformGemini},
+		{ID: 21, Priority: 1, Platform: capability.PlatformGemini},
+		{ID: 22, Priority: 1, Platform: capability.PlatformGemini},
 	}
 	weights := GatewayAdvancedSchedulerScoreWeightsView{
 		Load:      1,
@@ -80,7 +84,7 @@ func TestAdvancedSchedulerCoreTreatsMissingErrorRateAsZero(t *testing.T) {
 	// 错误反馈、TTFT 或窗口信息，因此错误率都按 0% 处理且最终分数一致。
 	candidates, skew := scoreAdvancedSchedulerCandidates(
 		accounts,
-		map[int64]*AccountLoadInfo{22: {AccountID: 22, LoadRate: 50}},
+		map[int64]*scheduler.AccountLoadInfo{22: {AccountID: 22, LoadRate: 50}},
 		nil,
 		weights,
 		advancedSchedulerSelectionInput{},
@@ -104,7 +108,7 @@ func TestAdvancedSchedulerCoreTopKUsesStableOrderForMixedKnownAndUnknownLoads(t 
 			{ID: 3, Priority: 5},
 			{ID: 4, Priority: 5},
 		},
-		map[int64]*AccountLoadInfo{
+		map[int64]*scheduler.AccountLoadInfo{
 			1: {AccountID: 1, LoadRate: 99, WaitingCount: 9},
 			3: {AccountID: 3, LoadRate: 1, WaitingCount: 0},
 		},
@@ -143,8 +147,8 @@ func TestAdvancedSchedulerCoreTopKUsesStableOrderForMixedKnownAndUnknownLoads(t 
 }
 
 func TestAdvancedSchedulerCoreRanksFirstFailureBelowUnknownAccount(t *testing.T) {
-	failed := &Account{ID: 31, Priority: 1, Platform: PlatformGemini}
-	unknown := &Account{ID: 32, Priority: 1, Platform: PlatformGemini}
+	failed := &Account{ID: 31, Priority: 1, Platform: capability.PlatformGemini}
+	unknown := &Account{ID: 32, Priority: 1, Platform: capability.PlatformGemini}
 	stats := newAdvancedAccountRuntimeStats()
 	stats.report(failed.ID, false, nil)
 
@@ -164,14 +168,14 @@ func TestAdvancedSchedulerCoreRanksFirstFailureBelowUnknownAccount(t *testing.T)
 
 func TestAdvancedSchedulerCoreSelectsNonOpenAIGroupAndMarksResult(t *testing.T) {
 	groupID := int64(42)
-	group := &Group{ID: groupID, Platform: PlatformGemini, SchedulerType: GroupSchedulerTypeAdvanced}
-	ctx := context.WithValue(context.Background(), ctxkey.Group, group)
+	group := &routing.Group{ID: groupID, Platform: capability.PlatformGemini, SchedulerType: routing.GroupSchedulerTypeAdvanced}
+	ctx := requeststate.WithGroup(context.Background(), group)
 	service := &GatewayService{}
 
 	selection, selected, err := service.tryAcquireByAdvancedScheduler(ctx, &groupID, "session", []accountWithLoad{
 		{
-			account:  &Account{ID: 101, Platform: PlatformGemini, Priority: 1, Schedulable: true, Status: StatusActive},
-			loadInfo: &AccountLoadInfo{AccountID: 101, LoadRate: 0},
+			account:  &Account{ID: 101, Platform: capability.PlatformGemini, Priority: 1, Schedulable: true, Status: billing.StatusActive},
+			loadInfo: &scheduler.AccountLoadInfo{AccountID: 101, LoadRate: 0},
 		},
 	})
 
@@ -181,7 +185,7 @@ func TestAdvancedSchedulerCoreSelectsNonOpenAIGroupAndMarksResult(t *testing.T) 
 	require.Equal(t, int64(101), selection.Account.ID)
 	require.True(t, selection.AdvancedScheduler)
 
-	basicCtx := context.WithValue(context.Background(), ctxkey.Group, &Group{ID: 43, Platform: PlatformGemini, SchedulerType: GroupSchedulerTypeBasic})
+	basicCtx := requeststate.WithGroup(context.Background(), &routing.Group{ID: 43, Platform: capability.PlatformGemini, SchedulerType: routing.GroupSchedulerTypeBasic})
 	basicSelection, err := service.newSelectionResult(basicCtx, &Account{ID: 102}, true, func() {}, nil)
 	require.NoError(t, err)
 	require.False(t, basicSelection.AdvancedScheduler)
@@ -189,9 +193,9 @@ func TestAdvancedSchedulerCoreSelectsNonOpenAIGroupAndMarksResult(t *testing.T) 
 
 func TestAdvancedSchedulerCoreUsesWeightedSamplingForStickyCandidate(t *testing.T) {
 	candidates := []advancedSchedulerCandidateScore{
-		{account: &Account{ID: 1, Priority: 1}, loadInfo: &AccountLoadInfo{}, score: 10},
-		{account: &Account{ID: 2, Priority: 1}, loadInfo: &AccountLoadInfo{}, score: 9},
-		{account: &Account{ID: 3, Priority: 1}, loadInfo: &AccountLoadInfo{}, score: 1},
+		{account: &Account{ID: 1, Priority: 1}, loadInfo: &scheduler.AccountLoadInfo{}, score: 10},
+		{account: &Account{ID: 2, Priority: 1}, loadInfo: &scheduler.AccountLoadInfo{}, score: 9},
+		{account: &Account{ID: 3, Priority: 1}, loadInfo: &scheduler.AccountLoadInfo{}, score: 1},
 	}
 
 	var observedSticky, observedNonSticky bool

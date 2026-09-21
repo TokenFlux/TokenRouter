@@ -4,23 +4,19 @@ package service
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-)
-
-var (
-	ErrSchedulerCacheNotReady           = scheduler.ErrSchedulerCacheNotReady
-	ErrSchedulerFallbackLimited         = scheduler.ErrSchedulerFallbackLimited
-	ErrSchedulerGroupLifecycleLeaseBusy = scheduler.ErrSchedulerGroupLifecycleLeaseBusy
-	ErrSchedulerBucketRebuildBusy       = scheduler.ErrSchedulerBucketRebuildBusy
 )
 
 type SchedulerSnapshotService struct {
 	core   *scheduler.SnapshotService
-	groups GroupRepository
+	groups routing.GroupRepository
 }
 
-func NewSchedulerSnapshotService(cache SchedulerCache, outbox SchedulerOutboxRepository, accounts AccountRepository, groups GroupRepository, cfg *config.Config) *SchedulerSnapshotService {
+func NewSchedulerSnapshotService(cache SchedulerCache, outbox scheduler.SchedulerOutboxRepository, accounts AccountRepository, groups routing.GroupRepository, cfg *config.Config) *SchedulerSnapshotService {
 	cachePort := LegacySnapshotCachePort(cache)
 	var accountsPort scheduler.SnapshotAccountSource
 	if accounts != nil {
@@ -36,7 +32,7 @@ func NewSchedulerSnapshotService(cache SchedulerCache, outbox SchedulerOutboxRep
 			groupsPort = legacySnapshotGroupsWithIDs{legacySnapshotGroups: base, list: reader.ListActiveIDs}
 		}
 	}
-	return &SchedulerSnapshotService{core: scheduler.NewSnapshotService(cachePort, outbox, accountsPort, groupsPort, LegacySnapshotOptions(cfg), scheduler.SnapshotBindings{AccountNotFound: ErrAccountNotFound, GroupNotFound: ErrGroupNotFound, Diagnostics: LegacySchedulerDiagnostics()}), groups: groups}
+	return &SchedulerSnapshotService{core: scheduler.NewSnapshotService(cachePort, outbox, accountsPort, groupsPort, LegacySnapshotOptions(cfg), scheduler.SnapshotBindings{AccountNotFound: account.ErrAccountNotFound, GroupNotFound: routing.ErrGroupNotFound, Diagnostics: scheduler.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event}}), groups: groups}
 }
 func LegacySnapshotOptions(cfg *config.Config) *scheduler.SnapshotOptions {
 	if cfg == nil {
@@ -78,7 +74,7 @@ func (s *SchedulerSnapshotService) GetAccount(ctx context.Context, id int64) (*A
 }
 
 // 旧完整分组形状仅供尚未迁出的网关读取，保持原一次仓储调用。
-func (s *SchedulerSnapshotService) GetGroupByID(ctx context.Context, id int64) (*Group, error) {
+func (s *SchedulerSnapshotService) GetGroupByID(ctx context.Context, id int64) (*routing.Group, error) {
 	if s.groups == nil {
 		return nil, nil
 	}
@@ -89,7 +85,7 @@ func (s *SchedulerSnapshotService) UpdateAccountInCache(ctx context.Context, val
 }
 
 // WrapSchedulerSnapshot 将 app 唯一核心实例暴露给旧网关；不创建第二个运行时。
-func WrapSchedulerSnapshot(core *scheduler.SnapshotService, groups GroupRepository) *SchedulerSnapshotService {
+func WrapSchedulerSnapshot(core *scheduler.SnapshotService, groups routing.GroupRepository) *SchedulerSnapshotService {
 	return &SchedulerSnapshotService{core: core, groups: groups}
 }
 

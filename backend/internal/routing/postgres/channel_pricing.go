@@ -7,9 +7,10 @@ import (
 	json "encoding/json"
 	errors "errors"
 	fmt "fmt"
+	strings "strings"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	pq "github.com/lib/pq"
-	strings "strings"
 )
 
 func (r *ChannelStore) ListModelPricing(ctx context.Context, channelID int64) ([]routing.ChannelModelPricing, error) {

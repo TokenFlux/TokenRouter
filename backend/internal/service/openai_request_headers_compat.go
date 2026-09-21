@@ -5,12 +5,14 @@ import (
 	"context"
 	"net/http"
 
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context, c *gin.Context, account *Account, token, targetURL string, isCodexCLI bool, routerMatch ...TLSFingerprintRouterMatchResult) native.ResponsesRequestOptions {
-	return native.ResponsesRequestOptions{
+func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context, c *gin.Context, account *Account, token, targetURL string, isCodexCLI bool, routerMatch ...egress.TLSFingerprintRouterMatchResult) openai.ResponsesRequestOptions {
+	return openai.ResponsesRequestOptions{
 		URL: targetURL, ForwardHeaders: func() http.Header { return c.Request.Header },
 		Authenticate: func(ctx context.Context) (http.Header, error) {
 			return s.buildOpenAIAuthenticationHeaders(ctx, account, token)
@@ -28,13 +30,13 @@ func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context
 		},
 		Originator:     func() string { return resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...) },
 		CompactSession: func() string { return resolveOpenAICompactSessionID(c) },
-		APIKeyID:       func() int64 { return getAPIKeyIDFromContext(c) },
+		APIKeyID:       func() int64 { return gatewayhttp.APIKeyIDFromContext(c) },
 		IsolateSession: func(keyID int64, raw string) string {
 			return isolateOpenAIUpstreamSessionID(keyID, codexAccountIdentitySource(c, account), raw)
 		},
 		ApplyUserAgent: func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, false, routerMatch...) },
 		ApplyAccountIdentity: func(headers http.Header) {
-			applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c))
+			applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), gatewayhttp.APIKeyIDFromContext(c))
 		},
 		ApplyFingerprint: func(headers http.Header) { applyStagedCodexFingerprintHeaders(c, account, headers) },
 		OverrideHeaders:  account.ApplyHeaderOverrides,

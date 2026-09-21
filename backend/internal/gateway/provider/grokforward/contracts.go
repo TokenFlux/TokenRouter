@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // Input 仅带已选账号和本次请求投影，不携带凭据或旧业务实体。
@@ -26,7 +27,7 @@ type Input struct {
 
 // Options 复用唯一平台编解码器及应用的原生 attempt 生命周期屏障。
 type Options struct {
-	Codec       nativegrok.BodyCodec
+	Codec       grok.BodyCodec
 	MaxLineSize int
 	Enter       func() (func(), error)
 }
@@ -50,17 +51,13 @@ type Result struct {
 	ImageSize, ImageInputSize, ImageOutputSize, ImageSizeSource                       string
 	ImageOutputSizes                                                                  []string
 	ImageSizeBreakdown                                                                map[string]int
-	UpstreamWarning                                                                   *Warning
+	UpstreamWarning                                                                   *forwardcore.UpstreamWarning
 	VideoCount                                                                        int
 	VideoResolution                                                                   string
 	VideoDurationSeconds, WebSearchCalls, SearchCount                                 int
 	AudioUsage                                                                        *protocol.AudioUsage
 }
-type Warning struct {
-	StatusCode   int
-	ResponseBody []byte
-	Message      string
-}
+
 type Decision struct{ Generic, Failover, RetrySameAccount bool }
 type Retry struct {
 	Retryable bool

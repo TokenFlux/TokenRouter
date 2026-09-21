@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // CompletionCyberInput 在请求提交时投影并冻结，异步任务不再持有旧实体。
@@ -12,10 +14,10 @@ func CompletionCyberInput(ctx context.Context, in CyberPolicyUsageInput) *comple
 	if in.APIKey == nil || in.APIKey.User == nil || in.Account == nil || strings.TrimSpace(in.Model) == "" {
 		return nil
 	}
-	result := &OpenAIForwardResult{
+	result := &forwardcore.OpenAIResult{
 		RequestID: in.RequestID,
 		Model:     strings.TrimSpace(in.Model),
-		Usage: OpenAIUsage{
+		Usage: openai.ForwardUsage{
 			InputTokens:  in.InputTokens,
 			OutputTokens: in.OutputTokens,
 		},

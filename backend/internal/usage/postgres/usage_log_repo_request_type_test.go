@@ -9,12 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/usage"
-
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,8 +32,8 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 		OutputTokens:   20,
 		TotalCost:      1,
 		ActualCost:     1,
-		BillingType:    service.BillingTypeBalance,
-		RequestType:    service.RequestTypeWSV2,
+		BillingType:    usage.BillingTypeBalance,
+		RequestType:    usage.RequestTypeWSV2,
 		Stream:         false,
 		OpenAIWSMode:   false,
 		CreatedAt:      createdAt,
@@ -76,7 +74,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.RateMultiplier,
 			log.AccountRateMultiplier,
 			log.BillingType,
-			int16(service.RequestTypeWSV2),
+			int16(usage.RequestTypeWSV2),
 			true,
 			true,
 			sqlmock.AnyArg(), // duration_ms
@@ -116,7 +114,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 	require.True(t, inserted)
 	require.Equal(t, int64(99), log.ID)
 	require.Nil(t, log.ServiceTier)
-	require.Equal(t, service.RequestTypeWSV2, log.RequestType)
+	require.Equal(t, usage.RequestTypeWSV2, log.RequestType)
 	require.True(t, log.Stream)
 	require.True(t, log.OpenAIWSMode)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -174,7 +172,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			log.RateMultiplier,
 			log.AccountRateMultiplier,
 			log.BillingType,
-			int16(service.RequestTypeSync),
+			int16(usage.RequestTypeSync),
 			false,
 			false,
 			sqlmock.AnyArg(),
@@ -314,22 +312,22 @@ func TestAppendUsageLogBillingModeWhereCondition(t *testing.T) {
 	}{
 		{
 			name:          "image includes explicit image and legacy image rows",
-			billingMode:   string(service.BillingModeImage),
+			billingMode:   string(routing.BillingModeImage),
 			wantCondition: "(billing_mode = $1 OR ((billing_mode IS NULL OR billing_mode = '') AND COALESCE(video_duration_seconds, 0) <= 0 AND COALESCE(image_count, 0) > 0))",
 		},
 		{
 			name:          "video includes explicit video and legacy video rows",
-			billingMode:   string(service.BillingModeVideo),
+			billingMode:   string(routing.BillingModeVideo),
 			wantCondition: "(billing_mode = $1 OR ((billing_mode IS NULL OR billing_mode = '') AND COALESCE(video_duration_seconds, 0) > 0))",
 		},
 		{
 			name:          "token includes legacy non-media rows",
-			billingMode:   string(service.BillingModeToken),
+			billingMode:   string(routing.BillingModeToken),
 			wantCondition: "(billing_mode = $1 OR ((billing_mode IS NULL OR billing_mode = '') AND COALESCE(video_duration_seconds, 0) <= 0 AND COALESCE(image_count, 0) <= 0))",
 		},
 		{
 			name:          "per request remains exact",
-			billingMode:   string(service.BillingModePerRequest),
+			billingMode:   string(routing.BillingModePerRequest),
 			wantCondition: "billing_mode = $1",
 		},
 	}
@@ -344,17 +342,17 @@ func TestAppendUsageLogBillingModeWhereCondition(t *testing.T) {
 }
 
 func TestAppendUsageLogBillingModeWhereConditionWithAlias(t *testing.T) {
-	conditions, args := appendUsageLogBillingModeWhereConditionWithAlias(nil, nil, string(service.BillingModeImage), "ul")
+	conditions, args := appendUsageLogBillingModeWhereConditionWithAlias(nil, nil, string(routing.BillingModeImage), "ul")
 
 	require.Equal(t, []string{"(ul.billing_mode = $1 OR ((ul.billing_mode IS NULL OR ul.billing_mode = '') AND COALESCE(ul.video_duration_seconds, 0) <= 0 AND COALESCE(ul.image_count, 0) > 0))"}, conditions)
-	require.Equal(t, []any{string(service.BillingModeImage)}, args)
+	require.Equal(t, []any{string(routing.BillingModeImage)}, args)
 }
 
 func TestAppendUsageLogBillingModeQueryFilter(t *testing.T) {
-	query, args := appendUsageLogBillingModeQueryFilter("SELECT * FROM usage_logs WHERE user_id = $1", []any{int64(42)}, string(service.BillingModeToken), "")
+	query, args := appendUsageLogBillingModeQueryFilter("SELECT * FROM usage_logs WHERE user_id = $1", []any{int64(42)}, string(routing.BillingModeToken), "")
 
 	require.Equal(t, "SELECT * FROM usage_logs WHERE user_id = $1 AND (billing_mode = $2 OR ((billing_mode IS NULL OR billing_mode = '') AND COALESCE(video_duration_seconds, 0) <= 0 AND COALESCE(image_count, 0) <= 0))", query)
-	require.Equal(t, []any{int64(42), string(service.BillingModeToken)}, args)
+	require.Equal(t, []any{int64(42), string(routing.BillingModeToken)}, args)
 }
 
 func anySliceToDriverValues(values []any) []driver.Value {
@@ -369,9 +367,9 @@ func TestUsageLogRepositoryListWithFiltersRequestTypePriority(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &Store{sql: db}
 
-	requestType := int16(service.RequestTypeWSV2)
+	requestType := int16(usage.RequestTypeWSV2)
 	stream := false
-	filters := usagestats.UsageLogFilters{
+	filters := usage.UsageLogFilters{
 		RequestType: &requestType,
 		Stream:      &stream,
 		ExactTotal:  true,
@@ -397,7 +395,7 @@ func TestUsageLogRepositoryListWithFiltersRequestID(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &Store{sql: db}
 
-	filters := usagestats.UsageLogFilters{RequestID: " req-0123 "}
+	filters := usage.UsageLogFilters{RequestID: " req-0123 "}
 
 	mock.ExpectQuery("SELECT .* FROM usage_logs WHERE request_id = \\$1 ORDER BY id DESC LIMIT \\$2 OFFSET \\$3").
 		WithArgs("req-0123", 21, 0).
@@ -414,9 +412,9 @@ func TestUsageLogRepositoryListWithFiltersInternalModelSource(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &Store{sql: db}
 
-	filters := usagestats.UsageLogFilters{
+	filters := usage.UsageLogFilters{
 		Model:             "gpt-5",
-		ModelFilterSource: usagestats.ModelSourceRequested,
+		ModelFilterSource: usage.ModelSourceRequested,
 	}
 
 	mock.ExpectQuery("SELECT .* FROM usage_logs WHERE COALESCE\\(NULLIF\\(TRIM\\(model\\), ''\\), NULLIF\\(TRIM\\(requested_model\\), ''\\), ''\\) = \\$1 ORDER BY id DESC LIMIT \\$2 OFFSET \\$3").
@@ -436,7 +434,7 @@ func TestUsageLogRepositoryGetUsageTrendWithFiltersRequestTypePriority(t *testin
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	requestType := int16(service.RequestTypeStream)
+	requestType := int16(usage.RequestTypeStream)
 	stream := true
 
 	mock.ExpectQuery("AND \\(request_type = \\$3 OR \\(request_type = 0 AND stream = TRUE AND openai_ws_mode = FALSE\\)\\)").
@@ -455,9 +453,9 @@ func TestUsageLogRepositoryGetUsageTrendWithUsageFiltersRequestedModelSource(t *
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	filters := usagestats.UsageLogFilters{
+	filters := usage.UsageLogFilters{
 		Model:             "gpt-5",
-		ModelFilterSource: usagestats.ModelSourceRequested,
+		ModelFilterSource: usage.ModelSourceRequested,
 	}
 
 	mock.ExpectQuery("AND COALESCE\\(NULLIF\\(TRIM\\(model\\), ''\\), NULLIF\\(TRIM\\(requested_model\\), ''\\), ''\\) = \\$3").
@@ -476,7 +474,7 @@ func TestUsageLogRepositoryGetModelStatsWithFiltersRequestTypePriority(t *testin
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	requestType := int16(service.RequestTypeWSV2)
+	requestType := int16(usage.RequestTypeWSV2)
 	stream := false
 
 	mock.ExpectQuery("AND \\(request_type = \\$3 OR \\(request_type = 0 AND openai_ws_mode = TRUE\\)\\)").
@@ -518,9 +516,9 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestedModelSource(t *testing.T)
 	db, mock := newSQLMock(t)
 	repo := &Store{sql: db}
 
-	filters := usagestats.UsageLogFilters{
+	filters := usage.UsageLogFilters{
 		Model:             "gpt-5",
-		ModelFilterSource: usagestats.ModelSourceRequested,
+		ModelFilterSource: usage.ModelSourceRequested,
 	}
 
 	mock.ExpectQuery("FROM usage_logs\\s+WHERE COALESCE\\(NULLIF\\(TRIM\\(model\\), ''\\), NULLIF\\(TRIM\\(requested_model\\), ''\\), ''\\) = \\$1").
@@ -564,7 +562,7 @@ func TestUsageLogRepositoryListPersonalOnlyExcludesTeamUsage(t *testing.T) {
 		WithArgs(int64(7), 20, 0).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
-	logs, page, err := repo.ListWithFilters(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20}, usagestats.UsageLogFilters{
+	logs, page, err := repo.ListWithFilters(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 20}, usage.UsageLogFilters{
 		UserID:       7,
 		PersonalOnly: true,
 	})
@@ -596,9 +594,9 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestTypePriority(t *testing.T) 
 	db, mock := newSQLMock(t)
 	repo := &Store{sql: db}
 
-	requestType := int16(service.RequestTypeSync)
+	requestType := int16(usage.RequestTypeSync)
 	stream := true
-	filters := usagestats.UsageLogFilters{
+	filters := usage.UsageLogFilters{
 		RequestType: &requestType,
 		Stream:      &stream,
 	}
@@ -708,7 +706,7 @@ func TestUsageLogRepositoryGetModelStatsWithUsageFiltersAppliesInternalModelFilt
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	filters := usagestats.UsageLogFilters{Model: "gpt-5"}
+	filters := usage.UsageLogFilters{Model: "gpt-5"}
 
 	mock.ExpectQuery("AND COALESCE\\(NULLIF\\(TRIM\\(model\\), ''\\), NULLIF\\(TRIM\\(requested_model\\), ''\\), ''\\) = \\$3").
 		WithArgs(start, end, "gpt-5").
@@ -718,7 +716,7 @@ func TestUsageLogRepositoryGetModelStatsWithUsageFiltersAppliesInternalModelFilt
 			"cost", "actual_cost", "account_cost",
 		}).AddRow("gpt-5", int64(1), int64(10), int64(20), int64(0), int64(0), int64(30), 0.1, 0.08, 0.07))
 
-	results, err := repo.GetModelStatsWithUsageFiltersBySource(context.Background(), start, end, filters, usagestats.ModelSourceRequested)
+	results, err := repo.GetModelStatsWithUsageFiltersBySource(context.Background(), start, end, filters, usage.ModelSourceRequested)
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, "gpt-5", results[0].Model)
@@ -760,7 +758,7 @@ func TestUsageLogRepositoryGetGroupStatsWithUsageFiltersAppliesRequestedModelFil
 
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	filters := usagestats.UsageLogFilters{Model: "gpt-5"}
+	filters := usage.UsageLogFilters{Model: "gpt-5"}
 
 	mock.ExpectQuery("AND COALESCE\\(NULLIF\\(TRIM\\(ul.model\\), ''\\), NULLIF\\(TRIM\\(ul.requested_model\\), ''\\), ''\\) = \\$3").
 		WithArgs(start, end, "gpt-5").
@@ -781,7 +779,7 @@ func TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost(t *testin
 	repo := &Store{sql: db}
 
 	// No AccountID filter set - TotalAccountCost should still be returned
-	filters := usagestats.UsageLogFilters{}
+	filters := usage.UsageLogFilters{}
 
 	mock.ExpectQuery("FROM usage_logs").
 		WillReturnRows(sqlmock.NewRows([]string{
@@ -823,8 +821,8 @@ func TestUsageLogRepositoryGetUserSpendingRanking(t *testing.T) {
 
 	got, err := repo.GetUserSpendingRanking(context.Background(), start, end, 12)
 	require.NoError(t, err)
-	require.Equal(t, &usagestats.UserSpendingRankingResponse{
-		Ranking: []usagestats.UserSpendingRankingItem{
+	require.Equal(t, &usage.UserSpendingRankingResponse{
+		Ranking: []usage.UserSpendingRankingItem{
 			{UserID: 2, Email: "beta@example.com", Username: "beta", ActualCost: 12.5, Requests: 9, Tokens: 900},
 			{UserID: 1, Email: "alpha@example.com", Username: "alpha", ActualCost: 12.5, Requests: 8, Tokens: 800},
 			{UserID: 3, Email: "gamma@example.com", ActualCost: 4.25, Requests: 5, Tokens: 300},
@@ -851,7 +849,7 @@ func TestUsageLogRepositoryGetUserUsageTrendGroupsByBillingUser(t *testing.T) {
 
 	got, err := repo.GetUserUsageTrend(context.Background(), start, end, "day", 12)
 	require.NoError(t, err)
-	require.Equal(t, []usagestats.UserUsageTrendPoint{
+	require.Equal(t, []usage.UserUsageTrendPoint{
 		{Date: "2025-01-03", UserID: 9, Email: "owner@example.com", Username: "owner", Requests: 3, Tokens: 120, Cost: 2.5, ActualCost: 2.5},
 	}, got)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -888,12 +886,12 @@ func TestUsageLogRepositoryGetUsageRankingMasksEmail(t *testing.T) {
 		WithArgs(start, end, 20).
 		WillReturnRows(rows)
 
-	got, err := repo.GetUsageRanking(context.Background(), start, end, 20, service.UsageRankingSortByTotalTokens)
+	got, err := repo.GetUsageRanking(context.Background(), start, end, 20, usage.UsageRankingSortByTotalTokens)
 	require.NoError(t, err)
 	require.Equal(t, int64(17), got.TotalRequests)
 	require.Equal(t, int64(1700), got.TotalTokens)
 	require.Equal(t, 2.0, got.TotalActualCost)
-	require.Equal(t, []usagestats.UsageRankingItem{
+	require.Equal(t, []usage.UsageRankingItem{
 		{Rank: 1, UserID: 2, DisplayName: "beta", AvatarURL: "https://cdn.example/beta.png", Requests: 9, InputTokens: 400, OutputTokens: 300, CacheCreationTokens: 100, CacheReadTokens: 100, TotalTokens: 900, ActualCost: 1.25},
 		{Rank: 2, UserID: 1, DisplayName: "a***a@example.com", Requests: 8, InputTokens: 300, OutputTokens: 300, CacheCreationTokens: 100, CacheReadTokens: 100, TotalTokens: 800, ActualCost: 0.75},
 	}, got.Ranking)
@@ -909,33 +907,33 @@ func TestBuildRequestTypeFilterConditionLegacyFallback(t *testing.T) {
 	}{
 		{
 			name:      "sync_with_legacy_fallback",
-			request:   int16(service.RequestTypeSync),
+			request:   int16(usage.RequestTypeSync),
 			wantWhere: "(request_type = $3 OR (request_type = 0 AND stream = FALSE AND openai_ws_mode = FALSE))",
-			wantArg:   int16(service.RequestTypeSync),
+			wantArg:   int16(usage.RequestTypeSync),
 		},
 		{
 			name:      "stream_with_legacy_fallback",
-			request:   int16(service.RequestTypeStream),
+			request:   int16(usage.RequestTypeStream),
 			wantWhere: "(request_type = $3 OR (request_type = 0 AND stream = TRUE AND openai_ws_mode = FALSE))",
-			wantArg:   int16(service.RequestTypeStream),
+			wantArg:   int16(usage.RequestTypeStream),
 		},
 		{
 			name:      "ws_v2_with_legacy_fallback",
-			request:   int16(service.RequestTypeWSV2),
+			request:   int16(usage.RequestTypeWSV2),
 			wantWhere: "(request_type = $3 OR (request_type = 0 AND openai_ws_mode = TRUE))",
-			wantArg:   int16(service.RequestTypeWSV2),
+			wantArg:   int16(usage.RequestTypeWSV2),
 		},
 		{
 			name:      "cyber_without_legacy_fallback",
-			request:   int16(service.RequestTypeCyberBlocked),
+			request:   int16(usage.RequestTypeCyberBlocked),
 			wantWhere: "request_type = $3",
-			wantArg:   int16(service.RequestTypeCyberBlocked),
+			wantArg:   int16(usage.RequestTypeCyberBlocked),
 		},
 		{
 			name:      "invalid_request_type_normalized_to_unknown",
 			request:   int16(99),
 			wantWhere: "request_type = $3",
-			wantArg:   int16(service.RequestTypeUnknown),
+			wantArg:   int16(usage.RequestTypeUnknown),
 		},
 	}
 
@@ -989,8 +987,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0.0, 0.0, []byte("[]"),
 			1.0,
 			sql.NullFloat64{},
-			int16(service.BillingTypeBalance),
-			int16(service.RequestTypeSync),
+			int16(usage.BillingTypeBalance),
+			int16(usage.RequestTypeSync),
 			false,
 			false,
 			sql.NullInt64{},
@@ -1072,8 +1070,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			[]byte("[]"),      // billing_allocations
 			1.0,               // rate_multiplier
 			sql.NullFloat64{}, // account_rate_multiplier
-			int16(service.BillingTypeBalance),
-			int16(service.RequestTypeWSV2),
+			int16(usage.BillingTypeBalance),
+			int16(usage.RequestTypeWSV2),
 			false, // legacy stream
 			false, // legacy openai ws
 			sql.NullInt64{},
@@ -1109,7 +1107,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
 		require.Equal(t, "priority", *log.ServiceTier)
-		require.Equal(t, service.RequestTypeWSV2, log.RequestType)
+		require.Equal(t, usage.RequestTypeWSV2, log.RequestType)
 		require.True(t, log.Stream)
 		require.True(t, log.OpenAIWSMode)
 	})
@@ -1136,8 +1134,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0.0, 0.0, []byte("[]"),
 			1.0,
 			sql.NullFloat64{},
-			int16(service.BillingTypeBalance),
-			int16(service.RequestTypeUnknown),
+			int16(usage.BillingTypeBalance),
+			int16(usage.RequestTypeUnknown),
 			true,
 			false,
 			sql.NullInt64{},
@@ -1173,7 +1171,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
 		require.Equal(t, "flex", *log.ServiceTier)
-		require.Equal(t, service.RequestTypeStream, log.RequestType)
+		require.Equal(t, usage.RequestTypeStream, log.RequestType)
 		require.True(t, log.Stream)
 		require.False(t, log.OpenAIWSMode)
 	})
@@ -1200,8 +1198,8 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			0.0, 0.0, []byte("[]"),
 			1.0,
 			sql.NullFloat64{},
-			int16(service.BillingTypeBalance),
-			int16(service.RequestTypeSync),
+			int16(usage.BillingTypeBalance),
+			int16(usage.RequestTypeSync),
 			false,
 			false,
 			sql.NullInt64{},

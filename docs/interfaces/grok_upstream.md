@@ -39,12 +39,14 @@ Responses WebSocket 是 Grok/OpenAI 的原生传输能力，不由兼容 Respons
 <a id="grok_account_contract"></a>
 ## 账号配置
 
-S09 当前已将供应商 OAuth/SSO 交换、模型与额度解析迁入 `upstream/grok`，账号授权和令牌读取分别由 `account.GrokAuthorization`、`GrokTokenSource` 与 `GrokTokenRefresher` 执行。账号通过 `protocol/grok` 报文与注入端口调用供应商，不持有其具体客户端。`account/rediscache` 使用原 Redis 会话技术实现；原 service/repository 构造入口保留投影和委托。管理员 Grok 授权和 SSO 导入 HTTP 已由 `account/httpapi` 接入；导入队列、配额探测与模型观测共用账号运行时。Responses（包括 Chat 桥接和 Composer 图片辅助请求）、媒体与 Voice 的单次执行由原生执行器持有响应关闭，Realtime 和视频内容分别通过独立连接/流式资源接口释放。共享 OpenAI 客户端响应适配、完整入站重试和资金完成仍由原调用链提供，不能把单次 Execute 当作第二套全局重试。
+供应商 OAuth/SSO 交换、模型与额度解析位于 `upstream/grok`，账号授权和令牌读取分别由 `account.GrokAuthorization`、`GrokTokenSource` 与 `GrokTokenRefresher` 执行。账号通过 `protocol/grok` 报文与注入端口调用供应商，不持有其具体客户端。app 直接构造唯一授权实例，`account/provider` 投影代理读取及密码授权开关，`account/rediscache` 使用原 Redis 会话技术实现；旧 Grok 授权服务已删除。管理员 Grok 授权和 SSO 导入 HTTP 已由 `account/httpapi` 接入；导入队列、配额探测与模型观测共用账号运行时。Responses（包括 Chat 桥接和 Composer 图片辅助请求）、媒体与 Voice 的单次执行由原生执行器持有响应关闭，Realtime 和视频内容分别通过独立连接/流式资源接口释放。共享 OpenAI 客户端响应适配、完整入站重试和资金完成仍由原调用链提供，不能把单次 Execute 当作第二套全局重试。
 
 
 管理员可在控制台选择 OAuth 或 API Key 创建账号。OAuth 账号可通过浏览器授权、refresh token 或 SSO cookie 创建和重新授权；创建 Grok 分组并绑定账号后，用户即可生成分组 API Key。OAuth state 和 PKCE 会话优先保存在 Redis，并通过一次性消费标记阻止多实例重复兑换；Redis 写入失败时才使用进程内短期回退。SSO cookie、邮箱密码等临时输入只能用于兑换 Build OAuth token，不能写入账号凭据、响应或日志。
 
 邮箱密码授权由进程配置 `gateway.grok.password_auth_enabled` 控制，默认关闭且管理端不展示入口。即使显式开启，服务也只接受密码到 SSO、再到 OAuth token 的临时转换。成功重新授权会清除 Grok 的软性消费上限重新授权标记，并以凭据快照/CAS 规则更新账号，避免旧请求覆盖新 token。
+
+`account/provider` 统一投影文本与媒体端点：保留显式自定义地址，OAuth 的官方 CLI 主机在媒体请求中转为官方媒体 API。实际请求仍执行原 URL 信任检查；该选择不影响官方授权与刷新端点。
 
 账号未保存显式 base URL 时，数据库运行时设置 `grok_default_base_url_mode` 决定文本请求使用 CLI 代理、公共 API 或三个区域 API；账号显式端点始终优先。`grok_default_text_model` 作为需要默认文本模型的请求及 Claude Messages 映射的目标；`grok_cross_client_model_map_enabled` 开启后，Grok 分组的 Anthropic Messages 派发会将 Claude 模型 ID 映射到该目标，不影响 Responses 或 Chat Completions 中的其他模型。三项设置热更新运行时映射快照，不能把媒体模型继承为文本价格或文本默认模型。
 
@@ -82,7 +84,7 @@ Voice HTTP 入口包括 TTS、STT 和自定义 Voice 的创建、读取、修改
 
 模型重定向、渠道映射和响应模型恢复遵守共同模型链，媒体专用路由模型只用于能力选择，不能覆盖用户账单中的 requested/upstream model。视频单价统一按分组模型价卡、渠道模型价卡、内置每秒默认价解析。`video` 价卡按分辨率选择每秒单价，按次价卡按输出数量计算；媒体使用普通分组、用户及订阅倍率。
 
-OAuth 凭据失效、账号资格变化和上游限流使用带凭据快照的分类与 CAS 更新，避免旧请求把刚刷新的账号再次封禁。内容策略 403 与凭据 401/403、付费资格拒绝和可切换上游错误要分别处理；只有可切换且响应未开始的错误进入下一账号。实际 Grok 非流 Chat 响应必须包含至少一个为正的聚合输入、输出、缓存写入或缓存读取 token 桶；缺失、全零或只有图片/文本明细的成功响应会在 HTTP 200 提交前返回稳定的 `grok_missing_usage` 故障转移错误。识别同时依据 Grok 平台账号、最终计费模型、映射后上游模型和响应模型，通用 OpenAI 兼容账号不能绕过，客户端 Grok 命名别名映射到非 Grok 上游时也不会误拒。
+OAuth 凭据失效、账号资格变化和上游限流使用带凭据快照的分类与 CAS 更新，避免旧请求把刚刷新的账号再次封禁。凭据获取的分类结果及 reason 常量归 `gateway/forward`，分类只读取错误链和代理存在性；持久化比较快照保持私有且不参与 JSON。账号写入与请求重试仍由各自用例执行。内容策略 403 与凭据 401/403、付费资格拒绝和可切换上游错误要分别处理；只有可切换且响应未开始的错误进入下一账号。实际 Grok 非流 Chat 响应必须包含至少一个为正的聚合输入、输出、缓存写入或缓存读取 token 桶；缺失、全零或只有图片/文本明细的成功响应会在 HTTP 200 提交前返回稳定的 `grok_missing_usage` 故障转移错误。识别同时依据 Grok 平台账号、最终计费模型、映射后上游模型和响应模型，通用 OpenAI 兼容账号不能绕过，客户端 Grok 命名别名映射到非 Grok 上游时也不会误拒。
 
 ## 客户端配置
 

@@ -2,19 +2,29 @@
 package handler
 
 import (
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	"context"
 	"errors"
 	"net/http"
 	"strconv"
 
-	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -27,10 +37,10 @@ type messageAttemptBridge struct {
 	fixed                                          *messageExecutionDependencies
 	h                                              *GatewayHandler
 	c                                              *gin.Context
-	apiKey, currentAPIKey                          *service.APIKey
+	apiKey, currentAPIKey                          *apikey.APIKey
 	subject                                        middleware2.AuthSubject
-	subscription, currentSubscription              *service.UserSubscription
-	parsedReq, attemptParsedReq                    *service.ParsedRequest
+	subscription, currentSubscription              *billing.UserSubscription
+	parsedReq, attemptParsedReq                    *requeststate.ParsedRequest
 	body                                           []byte
 	reqModel, platform, sessionKey                 string
 	reqStream, isClaudeCodeClient, hasBoundSession bool
@@ -42,9 +52,9 @@ type messageAttemptBridge struct {
 	selection                                      *service.AccountSelectionResult
 	account                                        *service.Account
 	accountReleaseFunc                             func()
-	attemptChannelMapping                          service.ChannelMappingResult
+	attemptChannelMapping                          routing.ChannelMappingResult
 	writerSizeBeforeForward                        int
-	result                                         *service.ForwardResult
+	result                                         *forwardcore.MessagesResult
 }
 
 // PrepareAttempt 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
@@ -76,7 +86,7 @@ func (b *messageAttemptBridge) Select(excluded map[int64]struct{}) (textflow.Sel
 		return textflow.Selection{}, err
 	}
 	b.account = b.selection.Account
-	setOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
 	if b.sessionKey != "" {
 		b.binding().trackSession(b.sessionAttempts, b.account, b.sessionKey)
 	}
@@ -104,7 +114,7 @@ func (b *messageAttemptBridge) FirstSelectionFailure(err error, fallbackUsed boo
 	}
 	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.currentAPIKey, b.reqModel, b.reqModel, b.platform)
 	if !cls.ModelNotFound {
-		markOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
+		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 	}
 	b.reqLog.Warn("gateway.select_account_no_available",
 		zap.String("model", b.reqModel),
@@ -147,7 +157,7 @@ func (b *messageAttemptBridge) Acquire() bool {
 	b.accountReleaseFunc = b.selection.ReleaseFunc
 	if !b.selection.Acquired {
 		if b.selection.WaitPlan == nil {
-			markOpsRoutingCapacityLimited(b.c)
+			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 			b.reqLog.Warn("gateway.select_account_no_slot_no_wait_plan",
 				zap.Int64("account_id", b.account.ID),
 				zap.String("model", b.reqModel),
@@ -166,7 +176,7 @@ func (b *messageAttemptBridge) Acquire() bool {
 				zap.Int64("account_id", b.account.ID),
 				zap.Int("max_waiting", b.selection.WaitPlan.MaxWaiting),
 			)
-			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayQueueFullCode, "Too many pending requests, please retry later", (*b.streamStarted))
+			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayhttp.GatewayQueueFullCode, "Too many pending requests, please retry later", (*b.streamStarted))
 			return false
 		}
 		if err == nil && canWait {
@@ -204,7 +214,7 @@ func (b *messageAttemptBridge) Acquire() bool {
 		}
 	}
 	// 账号槽位/等待计数需要在超时或断开时安全回收
-	b.accountReleaseFunc = wrapReleaseOnDone(b.c.Request.Context(), b.accountReleaseFunc)
+	b.accountReleaseFunc = scheduler.WrapRelease(b.c.Request.Context(), scheduler.ReleaseOnCancel, b.accountReleaseFunc)
 	b.sessionAttempts.Own(b.account.ID, b.accountReleaseFunc)
 
 	return true
@@ -260,7 +270,7 @@ func (b *messageAttemptBridge) Forward(state textflow.AttemptState) textflow.Out
 	}
 
 	// 用 wrapReleaseOnDone 确保 context 取消时自动释放（仅 serialize 模式有 queueRelease）
-	queueRelease = wrapReleaseOnDone(b.c.Request.Context(), queueRelease)
+	queueRelease = scheduler.WrapRelease(b.c.Request.Context(), scheduler.ReleaseOnCancel, queueRelease)
 	b.sessionAttempts.Own(b.account.ID, queueRelease)
 	// 注入回调到 ParsedRequest：使用外层 wrapper 以便提前清理 AfterFunc
 	b.attemptParsedReq.OnUpstreamAccepted = queueRelease
@@ -278,7 +288,7 @@ func (b *messageAttemptBridge) Forward(state textflow.AttemptState) textflow.Out
 
 	requestCtx := b.c.Request.Context()
 	if state.SwitchCount > 0 {
-		requestCtx = service.WithAccountSwitchCount(requestCtx, state.SwitchCount, b.binding().bridgeEnabled)
+		requestCtx = requeststate.WithAccountSwitchCount(requestCtx, state.SwitchCount)
 	}
 	if state.ForceCacheBilling {
 		// 将故障转移后的缓存计费语义传给同步响应改写逻辑。
@@ -286,7 +296,7 @@ func (b *messageAttemptBridge) Forward(state textflow.AttemptState) textflow.Out
 	}
 	// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 	b.writerSizeBeforeForward = b.c.Writer.Size()
-	if b.account.Platform == service.PlatformAntigravity && b.account.Type != service.AccountTypeAPIKey {
+	if b.account.Platform == capability.PlatformAntigravity && b.account.Type != capability.AccountTypeAPIKey {
 		b.result, err = b.binding().forwardAntigravity(requestCtx, b.c, b.account, attemptBody, b.hasBoundSession)
 	} else {
 		b.result, err = b.binding().forwardMessages(requestCtx, b.c, b.account, b.attemptParsedReq)
@@ -307,9 +317,9 @@ func (b *messageAttemptBridge) Forward(state textflow.AttemptState) textflow.Out
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil, OutputChanged: b.c.Writer.Size() != b.writerSizeBeforeForward}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
 	out.Attempt.RetryCommitted = out.OutputChanged
-	var policy *service.BetaBlockedError
-	var prompt *service.PromptTooLongError
-	var retry *service.UpstreamFailoverError
+	var policy *anthropic.BetaBlockedError
+	var prompt *antigravity.PromptTooLongError
+	var retry *forwardcore.UpstreamFailoverError
 	switch {
 	case errors.As(err, &policy):
 		out.Kind = textflow.FailurePolicy
@@ -331,13 +341,13 @@ func (b *messageAttemptBridge) Complete(state textflow.AttemptState) {
 	}
 	stampForwardRequestedReasoningEffort(usageResult, b.c)
 	userAgent := b.c.GetHeader("User-Agent")
-	clientIP := ip.GetClientIP(b.c)
-	requestPayloadHash := service.HashUsageRequestPayload(b.attemptParsedReq.Body.Bytes())
-	inboundEndpoint := GetInboundEndpoint(b.c)
-	upstreamEndpoint := GetUpstreamEndpoint(b.c, b.account.Platform)
+	clientIP := clientip.GetClientIP(b.c)
+	requestPayloadHash := billing.HashUsageRequestPayload(b.attemptParsedReq.Body.Bytes())
+	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Platform)
 
 	if usageResult.ReasoningEffort == nil {
-		usageResult.ReasoningEffort = service.NormalizeClaudeOutputEffort(b.attemptParsedReq.OutputEffort)
+		usageResult.ReasoningEffort = protocol.NormalizeClaudeOutputEffort(b.attemptParsedReq.OutputEffort)
 	}
 	if usageResult.ReasoningEffort == nil && b.attemptParsedReq.ThinkingEnabled {
 		protocolModel := usageResult.UpstreamModel
@@ -352,7 +362,7 @@ func (b *messageAttemptBridge) Complete(state textflow.AttemptState) {
 	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.currentAPIKey)
 	clientSessionID := service.ExtractClientSessionID(b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionForwardInput(usageRecordContextFromGin(b.c), &service.RecordUsageInput{
+	completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(b.c), &service.RecordUsageInput{
 		Result:             usageResult,
 		QuotaPlatform:      quotaPlatform,
 		APIKey:             b.currentAPIKey,
@@ -375,7 +385,7 @@ func (b *messageAttemptBridge) Complete(state textflow.AttemptState) {
 	completionRuntime := b.binding().recorder
 	b.binding().submitUsageRecordTask(b.c, func(ctx context.Context) {
 		if err := completionRuntime.Record(ctx, completionInput, false); err != nil {
-			logger.L().With(
+			logging.L().With(
 				zap.String("component", "handler.gateway.messages"),
 				zap.Int64("user_id", completionUserID),
 				zap.Int64("api_key_id", completionInput.APIKey.ID),
@@ -389,7 +399,7 @@ func (b *messageAttemptBridge) Complete(state textflow.AttemptState) {
 
 // Fallback 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
 func (b *messageAttemptBridge) Fallback(err error, fallbackUsed bool) bool {
-	var promptTooLongErr *service.PromptTooLongError
+	var promptTooLongErr *antigravity.PromptTooLongError
 	if errors.As(err, &promptTooLongErr) {
 		b.reqLog.Warn("gateway.prompt_too_long_from_antigravity",
 			zap.Any("current_group_id", b.currentAPIKey.GroupID),
@@ -403,7 +413,7 @@ func (b *messageAttemptBridge) Fallback(err error, fallbackUsed bool) bool {
 				_ = b.binding().writeMappedClaudeError(b.c, b.account, promptTooLongErr.StatusCode, promptTooLongErr.RequestID, promptTooLongErr.Body)
 				return false
 			}
-			if fallbackGroup.Platform != service.PlatformAnthropic ||
+			if fallbackGroup.Platform != capability.PlatformAnthropic ||
 				fallbackGroup.FallbackGroupIDOnInvalidRequest != nil {
 				b.reqLog.Warn("gateway.fallback_group_invalid",
 					zap.Int64("fallback_group_id", fallbackGroup.ID),
@@ -413,13 +423,13 @@ func (b *messageAttemptBridge) Fallback(err error, fallbackUsed bool) bool {
 				return false
 			}
 			fallbackAPIKey := cloneAPIKeyWithGroup(b.apiKey, fallbackGroup)
-			fallbackSubscription := (*service.UserSubscription)(nil)
-			if service.APIKeyEffectiveBillingMode(fallbackAPIKey) == service.APIKeyBillingModeSubscription {
+			fallbackSubscription := (*billing.UserSubscription)(nil)
+			if apikey.APIKeyEffectiveBillingMode(fallbackAPIKey) == apikey.APIKeyBillingModeSubscription {
 				// 指定订阅的回退分组必须继续使用同一订阅，由资格检查再次验证套餐分组范围。
 				fallbackSubscription = b.currentSubscription
 			}
-			if err := b.binding().billingCheck(b.c.Request.Context(), fallbackAPIKey.User, fallbackAPIKey, fallbackGroup, fallbackSubscription, service.PlatformFromAPIKey(fallbackAPIKey)); err != nil {
-				status, code, message, retryAfter := billingErrorDetails(err)
+			if err := b.binding().billingCheck(b.c.Request.Context(), fallbackAPIKey, fallbackSubscription, service.PlatformFromAPIKey(fallbackAPIKey), false); err != nil {
+				status, code, message, retryAfter := gatewayhttp.BillingErrorDetails(err)
 				if retryAfter > 0 {
 					b.c.Header("Retry-After", strconv.Itoa(retryAfter))
 				}
@@ -427,9 +437,9 @@ func (b *messageAttemptBridge) Fallback(err error, fallbackUsed bool) bool {
 				return false
 			}
 			// 兜底重试按"直接请求兜底分组"处理：清除强制平台，允许按分组平台调度
-			ctx := context.WithValue(b.c.Request.Context(), ctxkey.ForcePlatform, "")
+			ctx := apikey.WithForcePlatform(b.c.Request.Context(), "")
 			// 后续转发和用量计算必须读取兜底分组，而不是中间件写入的原分组。
-			ctx = context.WithValue(ctx, ctxkey.Group, fallbackGroup)
+			ctx = requeststate.WithGroup(ctx, fallbackGroup)
 			b.c.Request = b.c.Request.WithContext(ctx)
 			b.currentAPIKey = fallbackAPIKey
 			b.currentSubscription = fallbackSubscription
@@ -513,9 +523,9 @@ func (b *messageAttemptBridge) Finish(served bool) {
 	}
 }
 func (b *messageAttemptBridge) SingleAccountRetry() {
-	b.c.Request = b.c.Request.WithContext(service.WithSingleAccountRetry(b.Context(), true, b.binding().bridgeEnabled))
+	b.c.Request = b.c.Request.WithContext(requeststate.WithSingleAccountRetry(b.Context(), true))
 }
-func (b *messageAttemptBridge) Canceled() { failoverClientGone(b.c) }
+func (b *messageAttemptBridge) Canceled() { gatewayhttp.FailoverClientGone(b.c) }
 func (b *messageAttemptBridge) Exhausted(err *textflow.AttemptFailure, platform string, forceStream bool) {
 	if platform == "" {
 		platform = b.platform
@@ -524,15 +534,15 @@ func (b *messageAttemptBridge) Exhausted(err *textflow.AttemptFailure, platform 
 		b.binding().handleFailoverExhaustedSimple(b.c, 502, *b.streamStarted)
 		return
 	}
-	var original *service.UpstreamFailoverError
+	var original *forwardcore.UpstreamFailoverError
 	if errors.As(err.Cause, &original) {
 		b.binding().handleFailoverExhausted(b.c, original, platform, forceStream || *b.streamStarted)
 	}
 }
 func (b *messageAttemptBridge) PolicyFailure(err error) {
-	var original *service.BetaBlockedError
+	var original *anthropic.BetaBlockedError
 	if errors.As(err, &original) {
-		service.MarkOpsClientBusinessLimited(b.c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+		gatewayhttp.MarkOpsClientBusinessLimited(b.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		b.binding().errorResponse(b.c, http.StatusBadRequest, "invalid_request_error", original.Message)
 	}
 }
@@ -541,7 +551,7 @@ func (b *messageAttemptBridge) Switched() {
 }
 func (b *messageAttemptBridge) Abandon(id int64) { b.sessionAttempts.Abandon(id) }
 func (b *messageAttemptBridge) TempUnscheduleRetryableError(ctx context.Context, id int64, err *textflow.AttemptFailure) {
-	var original *service.UpstreamFailoverError
+	var original *forwardcore.UpstreamFailoverError
 	if errors.As(err.Cause, &original) {
 		b.binding().tempUnschedule(ctx, id, original)
 	}

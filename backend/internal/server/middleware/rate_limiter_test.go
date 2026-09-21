@@ -51,7 +51,6 @@ func TestRateLimiterFailureModes(t *testing.T) {
 	}
 }
 func TestRateLimiterDifferentIPsIndependent(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	callCounts := make(map[string]int64)
 	limiter := NewRateLimiter(&fakeFixedWindow{counts: callCounts})
@@ -85,7 +84,6 @@ func TestRateLimiterDifferentIPsIndependent(t *testing.T) {
 }
 
 func TestRateLimiterHonorsForwardedIPSnapshot(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	callCounts := make(map[string]int64)
 	limiter := NewRateLimiter(&fakeFixedWindow{counts: callCounts})

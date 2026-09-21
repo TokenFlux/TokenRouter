@@ -4,16 +4,11 @@ package service
 import (
 	"strings"
 
+	modelidentity "github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
-	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	antigravity "github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
-
-	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
-
-func StripEmptyTextBlocks(body []byte) []byte { return protocolanthropic.StripEmptyTextBlocks(body) }
 
 // FilterThinkingBlocks 从请求体中移除不适合直发的 thinking block。
 // 过滤失败时返回原 body，避免整流逻辑影响主请求。
@@ -35,32 +30,14 @@ func FilterThinkingBlocksForRetry(body []byte, mappedModel ...string) []byte {
 	return requeststate.FilterThinkingBlocksForRetry(body, thinkingRequestOptions(mappedModel...))
 }
 
-func sanitizeAnthropicBodyForBetaTokens(body []byte, anthropicBetaHeader string) ([]byte, bool) {
-	return claude.SanitizeAnthropicBodyForBetaTokens(body, anthropicBetaHeader)
-}
-
-func anthropicBetaTokensContains(header, token string) bool {
-	return claude.AnthropicBetaTokensContains(header, token)
-}
-
 func FilterSignatureSensitiveBlocksForRetry(body []byte, mappedModel ...string) []byte {
 	return requeststate.FilterSignatureSensitiveBlocksForRetry(body, thinkingRequestOptions(mappedModel...))
-}
-
-// NormalizeClaudeOutputEffort 委托 wire 档位解析，字段读取时机保持在旧网关。
-func NormalizeClaudeOutputEffort(raw string) *string {
-	return protocol.NormalizeClaudeOutputEffort(raw)
 }
 
 // DefaultEffortForThinkingEnabled 给"开启 thinking 但协议层没有 effort 档位概念"
 // 的国产模型族返回默认 effort，用于 usage_log.reasoning_effort 展示。
 func DefaultEffortForThinkingEnabled(mappedModel string) *string {
 	return requeststate.DefaultEffortForThinkingEnabled(thinkingRequestOptions(mappedModel))
-}
-
-// OpenAIBodyHasThinkingEnabled 检测 OpenAI 协议请求体是否开启 thinking。
-func OpenAIBodyHasThinkingEnabled(body []byte) bool {
-	return requeststate.OpenAIBodyHasThinkingEnabled(body)
 }
 
 // ApplyThinkingEnabledFallback 在调用方尚未解析出 effort 时，为启用 thinking 的
@@ -90,16 +67,6 @@ func NormalizeGLM53AnthropicThinking(body []byte, mappedModel string) ([]byte, b
 // Thinking Budget Rectifier
 // =========================
 
-const BudgetRectifyBudgetTokens = claude.BudgetRectifyBudgetTokens
-const BudgetRectifyMaxTokens = claude.BudgetRectifyMaxTokens
-const BudgetRectifyMinMaxTokens = claude.BudgetRectifyMinMaxTokens
-
-func isThinkingBudgetConstraintError(errMsg string) bool {
-	return claude.IsThinkingBudgetConstraintError(errMsg)
-}
-
-func RectifyThinkingBudget(body []byte) ([]byte, bool) { return claude.RectifyThinkingBudget(body) }
-
 // NormalizeChineseLLMThinking 修正国产 Anthropic 兼容上游的 thinking.type 差异。
 // 当前仅 MiniMax M 系列需要把 Anthropic SDK 默认的 enabled 改成 adaptive。
 func NormalizeChineseLLMThinking(body []byte, mappedModel string) ([]byte, bool) {
@@ -107,16 +74,6 @@ func NormalizeChineseLLMThinking(body []byte, mappedModel string) ([]byte, bool)
 }
 
 // 请求体、raw range 和会话上下文只由 requeststate 实现。
-type SessionContext = requeststate.SessionContext
-type RequestBodyRef = requeststate.RequestBodyRef
-type ParsedRequest = requeststate.ParsedRequest
-
-func NewRequestBodyRef(data []byte) *RequestBodyRef { return requeststate.NewRequestBodyRef(data) }
-func ParseGatewayRequest(body *RequestBodyRef, protocol string) (*ParsedRequest, error) {
-	return requeststate.ParseGatewayRequest(body, protocol)
-}
-func DescribeInvalidJSON(body []byte) error       { return requeststate.DescribeInvalidJSON(body) }
-func NormalizeSessionUserAgent(raw string) string { return requeststate.NormalizeSessionUserAgent(raw) }
 
 // thinkingRequestOptions 只按原协议分类选择开关；报文算法由 requeststate 唯一实现。
 func thinkingRequestOptions(models ...string) requeststate.ThinkingRequestOptions {
@@ -125,9 +82,9 @@ func thinkingRequestOptions(models ...string) requeststate.ThinkingRequestOption
 		return options
 	}
 	model := models[0]
-	options.PreFilter = ShouldPreFilterThinkingBlocks(model)
-	options.RetryFilters = ShouldApplyRetryFilters(model)
-	options.PassbackRequired = ResolveThinkingProtocol(model) == ThinkingProtocolPassbackRequired
+	options.PreFilter = modelidentity.ShouldPreFilterThinkingBlocks(model)
+	options.RetryFilters = modelidentity.ShouldApplyRetryFilters(model)
+	options.PassbackRequired = modelidentity.ResolveThinkingProtocol(model) == modelidentity.ThinkingProtocolPassbackRequired
 	normalized := strings.ToLower(strings.TrimSpace(model))
 	options.NativeReasoningEffort = strings.HasPrefix(normalized, "deepseek-")
 	options.GLM = strings.HasPrefix(normalized, "glm-")

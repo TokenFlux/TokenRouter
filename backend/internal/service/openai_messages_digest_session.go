@@ -7,6 +7,8 @@ import (
 	"time"
 
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
 
 type openAICompatAnthropicDigestBinding struct {
@@ -21,7 +23,7 @@ func buildOpenAICompatAnthropicDigestChain(req *protocolanthropic.AnthropicReque
 
 	parts := make([]string, 0, len(req.Messages)+1)
 	if len(req.System) > 0 && strings.TrimSpace(string(req.System)) != "" && strings.TrimSpace(string(req.System)) != "null" {
-		parts = append(parts, "s:"+shortHash(req.System))
+		parts = append(parts, "s:"+upstream.ShortHash(req.System))
 	}
 	for _, msg := range req.Messages {
 		content := msg.Content
@@ -32,7 +34,7 @@ func buildOpenAICompatAnthropicDigestChain(req *protocolanthropic.AnthropicReque
 		if strings.TrimSpace(msg.Role) == "assistant" {
 			prefix = "a"
 		}
-		parts = append(parts, prefix+":"+shortHash(content))
+		parts = append(parts, prefix+":"+upstream.ShortHash(content))
 	}
 	return strings.Join(parts, "-")
 }
@@ -94,7 +96,7 @@ func promptCacheKeyFromAnthropicDigest(digestChain string) string {
 	if strings.TrimSpace(digestChain) == "" {
 		return ""
 	}
-	return "anthropic-digest-" + hashSensitiveValueForLog(digestChain)
+	return "anthropic-digest-" + upstream.HashSensitiveValueForLog(digestChain)
 }
 
 func promptCacheKeyFromAnthropicMetadataSession(req *protocolanthropic.AnthropicRequest) string {
@@ -107,7 +109,7 @@ func promptCacheKeyFromAnthropicMetadataSession(req *protocolanthropic.Anthropic
 	if err := json.Unmarshal(req.Metadata, &metadata); err != nil {
 		return ""
 	}
-	parsed := ParseMetadataUserID(metadata.UserID)
+	parsed := anthropic.ParseMetadataUserID(metadata.UserID)
 	if parsed == nil || strings.TrimSpace(parsed.SessionID) == "" {
 		return ""
 	}
@@ -117,7 +119,7 @@ func promptCacheKeyFromAnthropicMetadataSession(req *protocolanthropic.Anthropic
 		strings.TrimSpace(parsed.AccountUUID),
 		strings.TrimSpace(parsed.SessionID),
 	}, "|")
-	return "anthropic-metadata-" + hashSensitiveValueForLog(seed)
+	return "anthropic-metadata-" + upstream.HashSensitiveValueForLog(seed)
 }
 
 func cloneAnthropicRequestForDigest(req *protocolanthropic.AnthropicRequest) *protocolanthropic.AnthropicRequest {

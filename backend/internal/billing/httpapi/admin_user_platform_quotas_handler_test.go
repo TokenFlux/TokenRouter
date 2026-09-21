@@ -40,7 +40,7 @@ func TestAdminGetUserPlatformQuotas_IncludesWindowStart(t *testing.T) {
 		DailyUsageUSD: 1.0, DailyWindowStart: &start,
 	}}}
 	h := newTestQuotaHandler(repo, nil, newStubAdminService())
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c := newAdminQuotaTestContext(w)
 	c.Params = []gin.Param{{Key: "id", Value: "99"}}
@@ -56,7 +56,7 @@ func TestAdminGetUserPlatformQuotas_IncludesWindowStart(t *testing.T) {
 
 func TestAdminGetUserPlatformQuotas_InvalidIDReturns400(t *testing.T) {
 	h := newTestQuotaHandler(&fakeQuotaRepoForAdmin{}, nil, nil)
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c := newAdminQuotaTestContext(w)
 	c.Params = []gin.Param{{Key: "id", Value: "abc"}}
@@ -69,7 +69,7 @@ func TestAdminGetUserPlatformQuotas_InvalidIDReturns400(t *testing.T) {
 func TestAdminGetUserPlatformQuotas_EmptyReturnsEmptyArray(t *testing.T) {
 	repo := &fakeQuotaRepoForAdmin{records: nil}
 	h := newTestQuotaHandler(repo, nil, newStubAdminService())
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c := newAdminQuotaTestContext(w)
 	c.Params = []gin.Param{{Key: "id", Value: "99"}}
@@ -96,7 +96,7 @@ func TestAdminGetUserPlatformQuotas_EmptyReturnsEmptyArray(t *testing.T) {
 
 func TestAdminGetUserPlatformQuotas_NilRepoReturnsEmpty(t *testing.T) {
 	h := newTestQuotaHandler(nil, nil, nil)
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c := newAdminQuotaTestContext(w)
 	c.Params = []gin.Param{{Key: "id", Value: "1"}}
@@ -113,7 +113,7 @@ func TestAdminGetUserPlatformQuotas_UserNotFoundReturns404(t *testing.T) {
 	adminSvc.getUserErr = infraerrors.NotFound("USER_NOT_FOUND", "user not found")
 	repo := &fakeQuotaRepoForAdmin{records: nil}
 	h := newTestQuotaHandler(repo, nil, adminSvc)
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c := newAdminQuotaTestContext(w)
 	c.Params = []gin.Param{{Key: "id", Value: "999"}}

@@ -10,11 +10,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/google/uuid"
 )
 
-func providePaymentExpiry(runtime *payment.Runtime, cache service.LeaderLockCache, db *sql.DB) *service.PaymentOrderExpiryService {
+func providePaymentExpiry(runtime *payment.Runtime, cache account.CNMonitorLeader, db *sql.DB) *payment.OrderExpiry {
 	owner := uuid.NewString()
 	var advisory func(context.Context, string) (func(), bool)
 	if db != nil {
@@ -25,7 +24,7 @@ func providePaymentExpiry(runtime *payment.Runtime, cache service.LeaderLockCach
 	runner := payment.NewOrderExpiry(runtime.OrderLifecycle, time.Minute, payment.ExpiryRuntime{Acquire: func(ctx context.Context) (func(), bool) {
 		return account.AcquireSingletonLease(ctx, cache, advisory, payment.OrderExpiryLeaderKey, owner, payment.OrderExpiryLeaderTTL)
 	}, Observe: observePaymentExpiryRuntime})
-	return service.WrapPaymentOrderExpiryService(runner)
+	return runner
 }
 
 // 日志保持原名称和级别，后续完整支付装配时移入 app。

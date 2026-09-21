@@ -2,11 +2,12 @@
 package service
 
 import (
+	"slices"
+	time "time"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
-	"slices"
-	time "time"
 )
 
 // AccountRecordView 把旧兼容实体投影为账号记录，保留执行副本的私有状态在旧入口。
@@ -61,13 +62,13 @@ func accountRecordView(value *Account, seen map[*Account]*accountcore.Record) *a
 	if value.Groups != nil {
 		out.Groups = make([]*accessview.GroupConfig, len(value.Groups))
 		for i, g := range value.Groups {
-			out.Groups[i] = (*accessview.GroupConfig)(RoutingGroupView(g))
+			out.Groups[i] = (*accessview.GroupConfig)(routing.CloneGroup(g))
 		}
 	}
 	if value.AccountGroups != nil {
 		out.AccountGroups = make([]accountcore.GroupMembership, len(value.AccountGroups))
 		for i, g := range value.AccountGroups {
-			out.AccountGroups[i] = accountcore.GroupMembership{AccountID: g.AccountID, GroupID: g.GroupID, CreatedAt: g.CreatedAt, Group: (*accessview.GroupConfig)(RoutingGroupView(g.Group)), Account: accountRecordView(g.Account, seen)}
+			out.AccountGroups[i] = accountcore.GroupMembership{AccountID: g.AccountID, GroupID: g.GroupID, CreatedAt: g.CreatedAt, Group: (*accessview.GroupConfig)(routing.CloneGroup(g.Group)), Account: accountRecordView(g.Account, seen)}
 		}
 	}
 	return out
@@ -125,15 +126,15 @@ func fillAccountRecord(out *Account, value *accountcore.Record, seen map[*accoun
 
 	out.Proxy = value.Proxy
 	if value.Groups != nil {
-		out.Groups = make([]*Group, len(value.Groups))
+		out.Groups = make([]*routing.Group, len(value.Groups))
 		for i, g := range value.Groups {
-			out.Groups[i] = GroupFromRouting((*routing.Group)(g))
+			out.Groups[i] = routing.CloneGroup((*routing.Group)(g))
 		}
 	}
 	if value.AccountGroups != nil {
 		out.AccountGroups = make([]AccountGroup, len(value.AccountGroups))
 		for i, g := range value.AccountGroups {
-			out.AccountGroups[i] = AccountGroup{AccountID: g.AccountID, GroupID: g.GroupID, CreatedAt: g.CreatedAt, Group: GroupFromRouting((*routing.Group)(g.Group)), Account: accountFromRecord(g.Account, seen)}
+			out.AccountGroups[i] = AccountGroup{AccountID: g.AccountID, GroupID: g.GroupID, CreatedAt: g.CreatedAt, Group: routing.CloneGroup((*routing.Group)(g.Group)), Account: accountFromRecord(g.Account, seen)}
 		}
 	}
 }
@@ -166,7 +167,7 @@ func AccountMembershipsForRecord(groups []AccountGroup, owner *Account, record *
 	seen := map[*Account]*accountcore.Record{owner: record}
 	out := make([]accountcore.GroupMembership, len(groups))
 	for i, g := range groups {
-		out[i] = accountcore.GroupMembership{AccountID: g.AccountID, GroupID: g.GroupID, CreatedAt: g.CreatedAt, Account: accountRecordView(g.Account, seen), Group: (*accessview.GroupConfig)(RoutingGroupView(g.Group))}
+		out[i] = accountcore.GroupMembership{AccountID: g.AccountID, GroupID: g.GroupID, CreatedAt: g.CreatedAt, Account: accountRecordView(g.Account, seen), Group: (*accessview.GroupConfig)(routing.CloneGroup(g.Group))}
 	}
 	return out
 }
@@ -197,4 +198,16 @@ func AccountSnapshotView(value *Account) accountcore.AccountSnapshot {
 	snapshot := v.RoutingSnapshot()
 	snapshot.EnabledProtocols = slices.Clone(value.UpstreamProtocols())
 	return snapshot
+}
+
+// accountRecordPointers 供剩余健康观测入口投影账号列表，不持有共享状态。
+func accountRecordPointers(values []*Account) []*accountcore.Record {
+	if values == nil {
+		return nil
+	}
+	out := make([]*accountcore.Record, len(values))
+	for i, v := range values {
+		out[i] = AccountRecordView(v)
+	}
+	return out
 }

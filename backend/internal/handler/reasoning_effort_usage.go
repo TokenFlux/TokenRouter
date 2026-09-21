@@ -3,6 +3,7 @@ package handler
 import (
 	"strings"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -20,7 +21,7 @@ func bindRequestedReasoningEffort(c *gin.Context, body []byte, model string) {
 }
 
 // stampOpenAIRequestedReasoningEffort 将请求 context 中的档位写入转发结果。
-func stampOpenAIRequestedReasoningEffort(result *service.OpenAIForwardResult, c *gin.Context) {
+func stampOpenAIRequestedReasoningEffort(result *forwardcore.OpenAIResult, c *gin.Context) {
 	if result == nil || result.RequestedReasoningEffort != nil || c == nil || c.Request == nil {
 		return
 	}
@@ -28,7 +29,7 @@ func stampOpenAIRequestedReasoningEffort(result *service.OpenAIForwardResult, c 
 }
 
 // stampForwardRequestedReasoningEffort 将兼容桥的客户端档位写入转发结果。
-func stampForwardRequestedReasoningEffort(result *service.ForwardResult, c *gin.Context) {
+func stampForwardRequestedReasoningEffort(result *forwardcore.MessagesResult, c *gin.Context) {
 	if result == nil || result.RequestedReasoningEffort != nil || c == nil || c.Request == nil {
 		return
 	}

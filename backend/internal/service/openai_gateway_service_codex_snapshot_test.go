@@ -3,27 +3,30 @@ package service
 import (
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 func TestCodexSnapshotBaseTime(t *testing.T) {
 	fallback := time.Date(2026, 2, 20, 9, 0, 0, 0, time.UTC)
 
 	t.Run("nil snapshot uses fallback", func(t *testing.T) {
-		got := codexSnapshotBaseTime(nil, fallback)
+		got := account.CodexSnapshotBaseTime(nil, fallback)
 		if !got.Equal(fallback) {
 			t.Fatalf("got %v, want fallback %v", got, fallback)
 		}
 	})
 
 	t.Run("empty updatedAt uses fallback", func(t *testing.T) {
-		got := codexSnapshotBaseTime(&OpenAICodexUsageSnapshot{}, fallback)
+		got := account.CodexSnapshotBaseTime(&openai.OpenAICodexUsageSnapshot{}, fallback)
 		if !got.Equal(fallback) {
 			t.Fatalf("got %v, want fallback %v", got, fallback)
 		}
 	})
 
 	t.Run("valid updatedAt wins", func(t *testing.T) {
-		got := codexSnapshotBaseTime(&OpenAICodexUsageSnapshot{UpdatedAt: "2026-02-16T10:00:00Z"}, fallback)
+		got := account.CodexSnapshotBaseTime(&openai.OpenAICodexUsageSnapshot{UpdatedAt: "2026-02-16T10:00:00Z"}, fallback)
 		want := time.Date(2026, 2, 16, 10, 0, 0, 0, time.UTC)
 		if !got.Equal(want) {
 			t.Fatalf("got %v, want %v", got, want)
@@ -31,7 +34,7 @@ func TestCodexSnapshotBaseTime(t *testing.T) {
 	})
 
 	t.Run("invalid updatedAt uses fallback", func(t *testing.T) {
-		got := codexSnapshotBaseTime(&OpenAICodexUsageSnapshot{UpdatedAt: "invalid"}, fallback)
+		got := account.CodexSnapshotBaseTime(&openai.OpenAICodexUsageSnapshot{UpdatedAt: "invalid"}, fallback)
 		if !got.Equal(fallback) {
 			t.Fatalf("got %v, want fallback %v", got, fallback)
 		}
@@ -42,14 +45,14 @@ func TestCodexResetAtRFC3339(t *testing.T) {
 	base := time.Date(2026, 2, 16, 10, 0, 0, 0, time.UTC)
 
 	t.Run("nil reset returns nil", func(t *testing.T) {
-		if got := codexResetAtRFC3339(base, nil); got != nil {
+		if got := account.CodexResetAtRFC3339(base, nil); got != nil {
 			t.Fatalf("expected nil, got %v", *got)
 		}
 	})
 
 	t.Run("positive seconds", func(t *testing.T) {
 		sec := 90
-		got := codexResetAtRFC3339(base, &sec)
+		got := account.CodexResetAtRFC3339(base, &sec)
 		if got == nil {
 			t.Fatal("expected non-nil")
 			return
@@ -61,7 +64,7 @@ func TestCodexResetAtRFC3339(t *testing.T) {
 
 	t.Run("negative seconds clamp to base", func(t *testing.T) {
 		sec := -3
-		got := codexResetAtRFC3339(base, &sec)
+		got := account.CodexResetAtRFC3339(base, &sec)
 		if got == nil {
 			t.Fatal("expected non-nil")
 			return
@@ -80,7 +83,7 @@ func TestBuildCodexUsageExtraUpdates_UsesSnapshotUpdatedAt(t *testing.T) {
 	secondaryReset := 3600
 	secondaryWindow := 300
 
-	snapshot := &OpenAICodexUsageSnapshot{
+	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         &primaryUsed,
 		PrimaryResetAfterSeconds:   &primaryReset,
 		PrimaryWindowMinutes:       &primaryWindow,
@@ -90,7 +93,7 @@ func TestBuildCodexUsageExtraUpdates_UsesSnapshotUpdatedAt(t *testing.T) {
 		UpdatedAt:                  "2026-02-16T10:00:00Z",
 	}
 
-	updates := buildCodexUsageExtraUpdates(snapshot, time.Date(2026, 2, 20, 8, 0, 0, 0, time.UTC))
+	updates := account.BuildCodexUsageExtraUpdates(snapshot, time.Date(2026, 2, 20, 8, 0, 0, 0, time.UTC))
 	if updates == nil {
 		t.Fatal("expected non-nil updates")
 	}
@@ -116,7 +119,7 @@ func TestBuildCodexUsageExtraUpdates_FreshAccountUsedPercentNotInverted_Issue299
 	primaryUsed := 2.0 // 7d 窗口：几乎未使用
 	primaryWindow := 10080
 
-	snapshot := &OpenAICodexUsageSnapshot{
+	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:     &primaryUsed,
 		PrimaryWindowMinutes:   &primaryWindow,
 		SecondaryUsedPercent:   &secondaryUsed,
@@ -124,7 +127,7 @@ func TestBuildCodexUsageExtraUpdates_FreshAccountUsedPercentNotInverted_Issue299
 		UpdatedAt:              "2026-02-16T10:00:00Z",
 	}
 
-	updates := buildCodexUsageExtraUpdates(snapshot, time.Date(2026, 2, 16, 10, 0, 0, 0, time.UTC))
+	updates := account.BuildCodexUsageExtraUpdates(snapshot, time.Date(2026, 2, 16, 10, 0, 0, 0, time.UTC))
 	if updates == nil {
 		t.Fatal("expected non-nil updates")
 	}
@@ -143,14 +146,14 @@ func TestBuildCodexUsageExtraUpdates_FallbackToNowWhenUpdatedAtInvalid(t *testin
 	primaryWindow := 300
 
 	fallbackNow := time.Date(2026, 2, 20, 8, 30, 0, 0, time.UTC)
-	snapshot := &OpenAICodexUsageSnapshot{
+	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:       &primaryUsed,
 		PrimaryResetAfterSeconds: &primaryReset,
 		PrimaryWindowMinutes:     &primaryWindow,
 		UpdatedAt:                "invalid-time",
 	}
 
-	updates := buildCodexUsageExtraUpdates(snapshot, fallbackNow)
+	updates := account.BuildCodexUsageExtraUpdates(snapshot, fallbackNow)
 	if updates == nil {
 		t.Fatal("expected non-nil updates")
 	}
@@ -171,7 +174,7 @@ func TestBuildCodexUsageExtraUpdates_ClampNegativeResetSeconds(t *testing.T) {
 	secondaryReset := -15
 	secondaryWindow := 300
 
-	snapshot := &OpenAICodexUsageSnapshot{
+	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         &primaryUsed,
 		PrimaryResetAfterSeconds:   &primaryReset,
 		PrimaryWindowMinutes:       &primaryWindow,
@@ -181,7 +184,7 @@ func TestBuildCodexUsageExtraUpdates_ClampNegativeResetSeconds(t *testing.T) {
 		UpdatedAt:                  "2026-02-16T10:00:00Z",
 	}
 
-	updates := buildCodexUsageExtraUpdates(snapshot, time.Time{})
+	updates := account.BuildCodexUsageExtraUpdates(snapshot, time.Time{})
 	if updates == nil {
 		t.Fatal("expected non-nil updates")
 	}
@@ -195,7 +198,7 @@ func TestBuildCodexUsageExtraUpdates_ClampNegativeResetSeconds(t *testing.T) {
 }
 
 func TestBuildCodexUsageExtraUpdates_NilSnapshot(t *testing.T) {
-	if got := buildCodexUsageExtraUpdates(nil, time.Now()); got != nil {
+	if got := account.BuildCodexUsageExtraUpdates(nil, time.Now()); got != nil {
 		t.Fatalf("expected nil updates, got %v", got)
 	}
 }
@@ -203,12 +206,12 @@ func TestBuildCodexUsageExtraUpdates_NilSnapshot(t *testing.T) {
 func TestBuildCodexUsageExtraUpdates_WithoutNormalizedWindowFields(t *testing.T) {
 	primaryUsed := 42.0
 	fallbackNow := time.Date(2026, 2, 20, 9, 15, 0, 0, time.UTC)
-	snapshot := &OpenAICodexUsageSnapshot{
+	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent: &primaryUsed,
 		UpdatedAt:          "",
 	}
 
-	updates := buildCodexUsageExtraUpdates(snapshot, fallbackNow)
+	updates := account.BuildCodexUsageExtraUpdates(snapshot, fallbackNow)
 	if updates == nil {
 		t.Fatal("expected non-nil updates")
 	}

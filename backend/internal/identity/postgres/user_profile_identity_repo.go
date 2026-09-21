@@ -4,16 +4,7 @@ package postgres
 import (
 	context "context"
 	sql "database/sql"
-	dialect "entgo.io/ent/dialect"
-	entsql "entgo.io/ent/dialect/sql"
 	fmt "fmt"
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	authidentity "github.com/TokenFlux/TokenRouter/ent/authidentity"
-	authidentitychannel "github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
-	identityadoptiondecision "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
-	dbpredicate "github.com/TokenFlux/TokenRouter/ent/predicate"
-	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	fnv "hash/fnv"
 	reflect "reflect"
 	sort "sort"
@@ -21,6 +12,16 @@ import (
 	sync "sync"
 	time "time"
 	unsafe "unsafe"
+
+	dialect "entgo.io/ent/dialect"
+	entsql "entgo.io/ent/dialect/sql"
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	authidentity "github.com/TokenFlux/TokenRouter/ent/authidentity"
+	authidentitychannel "github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
+	identityadoptiondecision "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
+	dbpredicate "github.com/TokenFlux/TokenRouter/ent/predicate"
+	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 var (

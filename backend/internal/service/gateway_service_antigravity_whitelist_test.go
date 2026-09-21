@@ -6,7 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,7 +16,7 @@ func TestGatewayService_isModelSupportedByAccount_AntigravityModelMapping(t *tes
 
 	// 使用 model_mapping 作为白名单（通配符匹配）
 	account := &Account{
-		Platform: PlatformAntigravity,
+		Platform: capability.PlatformAntigravity,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"claude-*":   "claude-sonnet-4-5",
@@ -50,7 +51,7 @@ func TestGatewayService_isModelSupportedByAccount_AntigravityNoMapping(t *testin
 	// 未配置 model_mapping 时，使用默认映射（domain.DefaultAntigravityModelMapping）
 	// 只有默认映射中的模型才被支持
 	account := &Account{
-		Platform:    PlatformAntigravity,
+		Platform:    capability.PlatformAntigravity,
 		Credentials: map[string]any{},
 	}
 
@@ -161,13 +162,13 @@ func TestGatewayService_isModelSupportedByAccountWithContext_ThinkingMode(t *tes
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			account := &Account{
-				Platform: PlatformAntigravity,
+				Platform: capability.PlatformAntigravity,
 				Credentials: map[string]any{
 					"model_mapping": tt.modelMapping,
 				},
 			}
 
-			ctx := context.WithValue(context.Background(), ctxkey.ThinkingEnabled, tt.thinkingEnabled)
+			ctx := requeststate.WithThinkingEnabled(context.Background(), tt.thinkingEnabled)
 			result := svc.isModelSupportedByAccountWithContext(ctx, account, tt.requestedModel)
 
 			require.Equal(t, tt.expected, result,
@@ -184,7 +185,7 @@ func TestGatewayService_isModelSupportedByAccount_CustomMappingNotInDefault(t *t
 
 	// 自定义映射中包含不在默认映射中的模型
 	account := &Account{
-		Platform: PlatformAntigravity,
+		Platform: capability.PlatformAntigravity,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"my-custom-model":   "actual-upstream-model",
@@ -216,7 +217,7 @@ func TestGatewayService_isModelSupportedByAccountWithContext_CustomMappingThinki
 
 	// 自定义映射同时配置基础模型和 thinking 变体
 	account := &Account{
-		Platform: PlatformAntigravity,
+		Platform: capability.PlatformAntigravity,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"claude-sonnet-4-5":          "claude-sonnet-4-5",
@@ -227,14 +228,14 @@ func TestGatewayService_isModelSupportedByAccountWithContext_CustomMappingThinki
 	}
 
 	// thinking=true: claude-sonnet-4-5 → mapped=claude-sonnet-4-5 → +thinking → check IsModelSupported(claude-sonnet-4-5-thinking)=true
-	ctx := context.WithValue(context.Background(), ctxkey.ThinkingEnabled, true)
+	ctx := requeststate.WithThinkingEnabled(context.Background(), true)
 	require.True(t, svc.isModelSupportedByAccountWithContext(ctx, account, "claude-sonnet-4-5"))
 
 	// thinking=false: claude-sonnet-4-5 → mapped=claude-sonnet-4-5 → check IsModelSupported(claude-sonnet-4-5)=true
-	ctx = context.WithValue(context.Background(), ctxkey.ThinkingEnabled, false)
+	ctx = requeststate.WithThinkingEnabled(context.Background(), false)
 	require.True(t, svc.isModelSupportedByAccountWithContext(ctx, account, "claude-sonnet-4-5"))
 
 	// 自定义模型（非 claude）不受 thinking 后缀影响，mapped 成功即通过
-	ctx = context.WithValue(context.Background(), ctxkey.ThinkingEnabled, true)
+	ctx = requeststate.WithThinkingEnabled(context.Background(), true)
 	require.True(t, svc.isModelSupportedByAccountWithContext(ctx, account, "my-custom-model"))
 }

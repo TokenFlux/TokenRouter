@@ -5,20 +5,22 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWriteOpenAIFastPolicyBlockedResponseMarksBusinessLimited(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	writeOpenAIFastPolicyBlockedResponse(c, &OpenAIFastBlockedError{Message: "custom fast policy block"})
+	writeOpenAIFastPolicyBlockedResponse(c, &tierpolicy.BlockedError{Message: "custom fast policy block"})
 
 	require.Equal(t, http.StatusForbidden, rec.Code)
-	require.True(t, HasOpsClientBusinessLimited(c))
-	reason, ok := c.Get(OpsClientBusinessLimitedReasonKey)
+	require.True(t, gatewayhttp.HasOpsClientBusinessLimited(c))
+	reason, ok := c.Get(gatewayhttp.OpsClientBusinessLimitedReasonKey)
 	require.True(t, ok)
-	require.Equal(t, OpsClientBusinessLimitedReasonLocalPolicyDenied, reason)
+	require.Equal(t, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied, reason)
 }

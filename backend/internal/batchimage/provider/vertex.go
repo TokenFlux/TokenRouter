@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
 	core "github.com/TokenFlux/TokenRouter/internal/batchimage"
 
 	vertex "github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
@@ -87,7 +89,7 @@ func (p *VertexBatchImageProvider) SupportsAccount(account *Account) bool {
 	if account == nil || account.Platform != PlatformGemini || account.Type != AccountTypeServiceAccount {
 		return false
 	}
-	_, err := parseVertexServiceAccountKey(account)
+	_, err := accountprovider.ParseVertexServiceAccountKey(account)
 	return err == nil
 }
 
@@ -271,14 +273,14 @@ func (p *VertexBatchImageProvider) ValidateAccount(account *Account) error {
 	if account == nil || account.Platform != PlatformGemini || account.Type != AccountTypeServiceAccount {
 		return core.ErrBatchImageProviderUnsupportedAccount
 	}
-	if _, err := parseVertexServiceAccountKey(account); err != nil {
+	if _, err := accountprovider.ParseVertexServiceAccountKey(account); err != nil {
 		return core.ErrBatchImageProviderMissingServiceAccount
 	}
 	return nil
 }
 
 func (p *VertexBatchImageProvider) AccessToken(ctx context.Context, account *Account) (string, error) {
-	return getVertexServiceAccountAccessToken(ctx, p.tokenCache, account)
+	return accountprovider.VertexServiceAccountAccessToken(ctx, p.tokenCache, account)
 }
 
 func (p *VertexBatchImageProvider) DeleteManagedInput(ctx context.Context, AccessToken string, job *core.BatchImageJob, uri string) error {

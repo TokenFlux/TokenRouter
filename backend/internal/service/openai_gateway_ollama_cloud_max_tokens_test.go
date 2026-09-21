@@ -6,14 +6,15 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	upstreamollama "github.com/TokenFlux/TokenRouter/internal/upstream/ollama"
 	"github.com/stretchr/testify/require"
 )
 
 // ollamaMaxTokensCapTestAccount 构造带自定义 cap 的 Ollama Cloud usage 账号。
 func ollamaMaxTokensCapTestAccount(id int64, cap any) *Account {
 	account := ollamaUsageAccount(id)
-	account.Extra[OllamaCloudMaxTokensCapExtraKey] = cap
+	account.Extra[upstreamollama.MaxTokensCapExtraKey] = cap
 	return account
 }
 
@@ -145,7 +146,7 @@ func TestApplyOllamaCloudRawChatCompletionsRequestClampsMaxTokens(t *testing.T) 
 	official := rawChatCompletionsTestAccount()
 	official.Credentials["base_url"] = "https://api.deepseek.com"
 	official.Extra = map[string]any{
-		openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
+		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 	}
 	require.Equal(t, body, applyOllamaCloudRawChatCompletionsRequest(official, body))
 

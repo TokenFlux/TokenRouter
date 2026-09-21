@@ -2,17 +2,21 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -23,22 +27,10 @@ const (
 	openAIWSBetaV1Value = "responses_websockets=2026-02-04"
 	openAIWSBetaV2Value = "responses_websockets=2026-02-06"
 
-	openAIWSTurnStateHeader    = "x-codex-turn-state"
-	openAIWSTurnMetadataHeader = nativeopenai.WSTurnMetadataHeader
+	openAIWSTurnStateHeader = "x-codex-turn-state"
 
-	openAIWSLogValueMaxLen      = 160
-	openAIWSHeaderValueMaxLen   = 120
-	openAIWSIDValueMaxLen       = 64
-	openAIWSEventLogHeadLimit   = 20
-	openAIWSEventLogEveryN      = 50
-	openAIWSBufferLogHeadLimit  = 8
-	openAIWSBufferLogEveryN     = 20
 	openAIWSPrewarmEventLogHead = 10
 	openAIWSPayloadKeySizeTopN  = 6
-
-	openAIWSPayloadSizeEstimateDepth    = 3
-	openAIWSPayloadSizeEstimateMaxBytes = 64 * 1024
-	openAIWSPayloadSizeEstimateMaxItems = 16
 
 	openAIWSEventFlushBatchSizeDefault    = 4
 	openAIWSEventFlushIntervalDefault     = 25 * time.Millisecond
@@ -48,129 +40,14 @@ const (
 	openAIWSStoreDisabledConnModeStrict   = "strict"
 	openAIWSStoreDisabledConnModeAdaptive = "adaptive"
 	openAIWSStoreDisabledConnModeOff      = "off"
-
-	openAIWSIngressStagePreviousResponseNotFound = gatewayws.IngressStagePreviousResponseNotFound
-	openAIWSMaxPrevResponseIDDeletePasses        = nativeopenai.WSMaxPrevResponseIDDeletePasses
-)
-
-var openAIWSLogValueReplacer = strings.NewReplacer(
-	"error", "err",
-	"fallback", "fb",
-	"warning", "warnx",
-	"failed", "fail",
 )
 
 var openAIWSIngressPreflightPingIdle = 20 * time.Second
 
 // WS 重试资格与当前轮重放载荷由 gateway/ws 唯一持有。
-type openAIWSFallbackError = gatewayws.FallbackError
-
-func wrapOpenAIWSFallback(reason string, err error) error { return gatewayws.WrapFallback(reason, err) }
-
-// OpenAIWSClientCloseError 表示应以指定 WebSocket close code 主动关闭客户端连接的错误。
-type OpenAIWSClientCloseError struct {
-	statusCode coderws.StatusCode
-	reason     string
-	err        error
-}
-
-func OpenAIWSCurrentTurnRetryPayload(err error) ([]byte, bool) {
-	return gatewayws.CurrentTurnRetryPayload(err)
-}
-
-// openAIWSGenericPolicyError 表示自定义错误码已开启但当前状态未命中。
-// HTTP 入站路径据此返回统一 500，避免把不可信的握手或事件错误透传给客户端。
-type openAIWSGenericPolicyError struct {
-	upstreamStatus int
-}
-
-func (e *openAIWSGenericPolicyError) Error() string {
-	if e == nil || e.upstreamStatus == 0 {
-		return "upstream websocket error not in custom error codes"
-	}
-	return fmt.Sprintf("upstream websocket status %d not in custom error codes", e.upstreamStatus)
-}
-
-func wrapOpenAIWSIngressTurnError(stage string, cause error, wrote bool) error {
-	return gatewayws.WrapIngressTurnError(stage, cause, wrote)
-}
-
-func isOpenAIWSIngressPreviousResponseNotFound(err error) bool {
-	return gatewayws.IsPreviousResponseNotFound(err)
-}
-
-// NewOpenAIWSClientCloseError 创建一个客户端 WS 关闭错误。
-func NewOpenAIWSClientCloseError(statusCode coderws.StatusCode, reason string, err error) error {
-	return &OpenAIWSClientCloseError{
-		statusCode: statusCode,
-		reason:     strings.TrimSpace(reason),
-		err:        err,
-	}
-}
-
-func (e *OpenAIWSClientCloseError) Error() string {
-	if e == nil {
-		return ""
-	}
-	if e.err == nil {
-		return fmt.Sprintf("openai ws client close: %d %s", int(e.statusCode), strings.TrimSpace(e.reason))
-	}
-	return fmt.Sprintf("openai ws client close: %d %s: %v", int(e.statusCode), strings.TrimSpace(e.reason), e.err)
-}
-
-func (e *OpenAIWSClientCloseError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.err
-}
-
-func (e *OpenAIWSClientCloseError) StatusCode() coderws.StatusCode {
-	if e == nil {
-		return coderws.StatusInternalError
-	}
-	return e.statusCode
-}
-
-func (e *OpenAIWSClientCloseError) Reason() string {
-	if e == nil {
-		return ""
-	}
-	return strings.TrimSpace(e.reason)
-}
-
-// OpenAIWSIngressHooks 定义入站 WS 每个 turn 的生命周期回调。
-type OpenAIWSIngressHooks struct {
-	// ClientLifecycleContext 是叠加 ingress 租约取消信号前的客户端请求上下文。
-	// 下行写使用它保留客户端断连和服务关闭信号，同时避免租约丢失中断当前帧。
-	ClientLifecycleContext context.Context
-	// InitialRequestModel 是首帧渠道映射前的请求模型，只用于 usage metadata
-	// 的 reasoning effort 后缀推导，禁止用于上游请求或计费模型。
-	InitialRequestModel string
-	// InitialTurnStartedAt 是首轮 response.create 被接受时的时间快照。
-	InitialTurnStartedAt time.Time
-	// MaxReasoningEffort 限制当前 WS 会话中显式指定的推理强度。
-	MaxReasoningEffort string
-	// MaxReasoningEffortOverLimit 控制显式推理强度超限时降档或拒绝。
-	MaxReasoningEffortOverLimit string
-	// ReasoningEffortMappings 在当前 WS 会话中改写显式指定的推理强度。
-	ReasoningEffortMappings []ReasoningEffortMapping
-	// ResolveRoutingModel 在账号映射前逐轮把客户端模型 R 解析为渠道模型 C。
-	// payload 用于按渠道映射后的完整请求判断该轮能力；返回错误时当前帧不得发送上游。
-	ResolveRoutingModel func(turn int, requestedModel string, payload []byte) (string, error)
-	// ResolveFastModePolicy 逐轮刷新 API Key Fast 策略，避免长连接永久沿用握手快照。
-	ResolveFastModePolicy func(turn int) string
-	// TurnStarted 报告每轮 response.create 的开始时刻；时间值应在策略处理前捕获。
-	TurnStarted   func(turn int, startedAt time.Time)
-	BeforeTurn    func(turn int) error
-	BeforeRequest func(turn int, payload []byte, originalModel, previousResponseID string) ([]byte, error)
-	// OnUpstreamError 在上游 WS 返回 error/failed 类事件时触发，用于记录 OpenAI cyber 等上游风控信号。
-	OnUpstreamError func(turn int, originalModel string, statusCode int, responseBody []byte, message string)
-	AfterTurn       func(capture OpenAIWSTurnCapture)
-}
 
 // openAIWSFastModePolicyContext 为当前 turn 生成带最新单 Key Fast 策略的上下文。
-func openAIWSFastModePolicyContext(ctx context.Context, hooks *OpenAIWSIngressHooks, turn int) context.Context {
+func openAIWSFastModePolicyContext(ctx context.Context, hooks *gatewayws.OpenAIIngressHooks, turn int) context.Context {
 	if hooks == nil || hooks.ResolveFastModePolicy == nil {
 		return ctx
 	}
@@ -179,7 +56,7 @@ func openAIWSFastModePolicyContext(ctx context.Context, hooks *OpenAIWSIngressHo
 
 // resolveOpenAIWSTurnModels 按 R -> C -> U 顺序解析单个 WebSocket turn 的模型。
 // originalModel 始终由调用方另行保留，返回值只用于账号能力判断后的上游请求。
-func resolveOpenAIWSTurnModels(account *Account, hooks *OpenAIWSIngressHooks, turn int, requestedModel string, payload []byte) (string, string, error) {
+func resolveOpenAIWSTurnModels(account *Account, hooks *gatewayws.OpenAIIngressHooks, turn int, requestedModel string, payload []byte) (string, string, error) {
 	routingModel := strings.TrimSpace(requestedModel)
 	if hooks != nil && hooks.ResolveRoutingModel != nil {
 		resolved, err := hooks.ResolveRoutingModel(turn, routingModel, payload)
@@ -189,7 +66,7 @@ func resolveOpenAIWSTurnModels(account *Account, hooks *OpenAIWSIngressHooks, tu
 		routingModel = strings.TrimSpace(resolved)
 	}
 	if routingModel == "" {
-		return "", "", NewOpenAIWSClientCloseError(
+		return "", "", gatewayhttp.NewOpenAIWSClientCloseError(
 			coderws.StatusPolicyViolation,
 			"model is required in response.create payload",
 			nil,
@@ -203,7 +80,7 @@ func resolveOpenAIWSTurnModels(account *Account, hooks *OpenAIWSIngressHooks, tu
 	return routingModel, upstreamModel, nil
 }
 
-func (s *OpenAIGatewayService) getOpenAIWSConnPool() *openAIWSConnPool {
+func (s *OpenAIGatewayService) getOpenAIWSConnPool() *openai.WSConnPool {
 	if s == nil {
 		return nil
 	}
@@ -221,30 +98,30 @@ func (s *OpenAIGatewayService) getOpenAIWSConnPool() *openAIWSConnPool {
 	return s.openaiWSPool
 }
 
-func (s *OpenAIGatewayService) getOpenAIWSPassthroughDialer() openAIWSClientDialer {
+func (s *OpenAIGatewayService) getOpenAIWSPassthroughDialer() openai.WSClientDialer {
 	if s == nil {
 		return nil
 	}
 	s.openaiWSPassthroughDialerOnce.Do(func() {
 		if s.openaiWSPassthroughDialer == nil {
-			s.openaiWSPassthroughDialer = newDefaultOpenAIWSClientDialer()
+			s.openaiWSPassthroughDialer = openai.NewDefaultWSClientDialer()
 		}
 	})
 	return s.openaiWSPassthroughDialer
 }
 
-func (s *OpenAIGatewayService) SnapshotOpenAIWSPoolMetrics() OpenAIWSPoolMetricsSnapshot {
+func (s *OpenAIGatewayService) SnapshotOpenAIWSPoolMetrics() openai.WSPoolMetricsSnapshot {
 	pool := s.getOpenAIWSConnPool()
 	if pool == nil {
-		return OpenAIWSPoolMetricsSnapshot{}
+		return openai.WSPoolMetricsSnapshot{}
 	}
 	return pool.SnapshotMetrics()
 }
 
 type OpenAIWSPerformanceMetricsSnapshot struct {
-	Pool      OpenAIWSPoolMetricsSnapshot      `json:"pool"`
-	Retry     OpenAIWSRetryMetricsSnapshot     `json:"retry"`
-	Transport OpenAIWSTransportMetricsSnapshot `json:"transport"`
+	Pool      openai.WSPoolMetricsSnapshot      `json:"pool"`
+	Retry     OpenAIWSRetryMetricsSnapshot      `json:"retry"`
+	Transport openai.WSTransportMetricsSnapshot `json:"transport"`
 }
 
 func (s *OpenAIGatewayService) SnapshotOpenAIWSPerformanceMetrics() OpenAIWSPerformanceMetricsSnapshot {
@@ -260,13 +137,13 @@ func (s *OpenAIGatewayService) SnapshotOpenAIWSPerformanceMetrics() OpenAIWSPerf
 	return snapshot
 }
 
-func (s *OpenAIGatewayService) getOpenAIWSStateStore() OpenAIWSStateStore {
+func (s *OpenAIGatewayService) getOpenAIWSStateStore() session.OpenAIWSStateStore {
 	if s == nil {
 		return nil
 	}
 	s.openaiWSStateStoreOnce.Do(func() {
 		if s.openaiWSStateStore == nil {
-			s.openaiWSStateStore = NewOpenAIWSStateStore(s.cache)
+			s.openaiWSStateStore = session.NewOpenAIWSStateStore(s.cache, gatewayprovider.LogOpenAIWSModeInfo)
 		}
 	})
 	return s.openaiWSStateStore
@@ -360,7 +237,7 @@ func (s *OpenAIGatewayService) shouldEmitOpenAIWSPayloadSchema(attempt int) bool
 	if !s.shouldLogOpenAIWSPayloadSchema(attempt) {
 		return false
 	}
-	return logger.L().Core().Enabled(zap.DebugLevel)
+	return logging.L().Core().Enabled(zap.DebugLevel)
 }
 
 func (s *OpenAIGatewayService) openAIWSDialTimeout() time.Duration {
@@ -394,7 +271,7 @@ func (s *OpenAIGatewayService) bindOpenAIWSResponseSessionOwner(ctx context.Cont
 	if responseHash == "" {
 		return
 	}
-	_ = s.EnsureSessionIsolation(ctx, apiKey, apiKey.UserID, SessionIsolationSourceOpenAIPreviousResponse, responseHash)
+	_ = s.EnsureSessionIsolation(ctx, apiKey, apiKey.UserID, session.SessionIsolationSourceOpenAIPreviousResponse, responseHash)
 }
 
 func (e *openAIWSUpstreamWarningError) Error() string {
@@ -404,7 +281,7 @@ func (e *openAIWSUpstreamWarningError) Error() string {
 	return e.err.Error()
 }
 
-func (e *openAIWSUpstreamWarningError) OpenAIUpstreamWarning() *OpenAIUpstreamWarning {
+func (e *openAIWSUpstreamWarningError) OpenAIUpstreamWarning() *forwardcore.UpstreamWarning {
 	if e == nil {
 		return nil
 	}
@@ -418,15 +295,15 @@ func (e *openAIWSUpstreamWarningError) Unwrap() error {
 	return e.err
 }
 
-func buildOpenAIWSUpstreamWarning(eventType string, message []byte) *OpenAIUpstreamWarning {
+func buildOpenAIWSUpstreamWarning(eventType string, message []byte) *forwardcore.UpstreamWarning {
 	if !openAIWSEventMayCarryUpstreamWarning(eventType) || len(message) == 0 {
 		return nil
 	}
 	statusCode := http.StatusBadGateway
 	if strings.TrimSpace(eventType) == "error" {
-		statusCode = openAIWSErrorHTTPStatus(message)
+		statusCode = openai.WSErrorHTTPStatus(message)
 	}
-	return &OpenAIUpstreamWarning{
+	return &forwardcore.UpstreamWarning{
 		StatusCode:   statusCode,
 		ResponseBody: append([]byte(nil), message...),
 		Message:      extractOpenAIWSUpstreamWarningMessage(message),
@@ -460,20 +337,8 @@ func openAIWSEventMayCarryUpstreamWarning(eventType string) bool {
 	}
 }
 
-// OpenAIWSTurnCapture 描述一次 WS turn 完成后用于用量结算和错误处理的上下文。
-type OpenAIWSTurnCapture struct {
-	Turn               int
-	StartedAt          time.Time
-	RequestBody        []byte
-	OriginalModel      string
-	PreviousResponseID string
-	Result             *OpenAIForwardResult
-	Err                error
-	PayloadSource      string
-}
-
 // openAIWSUpstreamWarningError 在 WS 错误路径中保留上游原始风控 warning。
 type openAIWSUpstreamWarningError struct {
-	warning *OpenAIUpstreamWarning
+	warning *forwardcore.UpstreamWarning
 	err     error
 }

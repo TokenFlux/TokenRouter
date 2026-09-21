@@ -19,7 +19,7 @@ func ClaudeCodeSessionIDFromHeader(c *gin.Context) string {
 	if c == nil || c.Request == nil {
 		return ""
 	}
-	return sanitizeSessionID(c.GetHeader(claudeCodeSessionHeader))
+	return gatewaysession.SanitizeClientSessionID(c.GetHeader(claudeCodeSessionHeader))
 }
 
 func ExtractClientSessionID(c *gin.Context) string {
@@ -28,5 +28,3 @@ func ExtractClientSessionID(c *gin.Context) string {
 	}
 	return gatewaysession.ExtractClientSessionID(c.GetHeader, clientSessionIDHeaders, isGrokRequestContext(c))
 }
-
-func sanitizeSessionID(raw string) string { return gatewaysession.SanitizeClientSessionID(raw) }

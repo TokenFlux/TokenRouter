@@ -4,9 +4,10 @@ package egress
 import (
 	context "context"
 	fmt "fmt"
+	time "time"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	time "time"
 )
 
 type ProxyTasks interface{ Go(string, func()) bool }

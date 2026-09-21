@@ -3,8 +3,9 @@
 package routing
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 缓存副本中的任意 JSON 数组/对象修改都不能污染已发布快照。

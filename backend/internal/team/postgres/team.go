@@ -533,7 +533,7 @@ func (r *TeamRepository) ResolveOwnershipTransfer(ctx context.Context, tokenHash
 		}
 		return r.GetContextByUserID(ctx, actorUserID)
 	}
-	if err = TransferTeamOwnership(ctx, tx, teamID, fromUserID, toUserID, now); err != nil {
+	if err = transferTeamOwnership(ctx, tx, teamID, fromUserID, toUserID, now); err != nil {
 		return nil, err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE team_ownership_transfers SET status = 'accepted', resolved_at = $2, updated_at = $2 WHERE id = $1`, id, now); err != nil {
@@ -637,7 +637,7 @@ func (r *TeamRepository) ForceTransfer(ctx context.Context, teamID, toUserID int
 	if !targetAvailable {
 		return nil, team.ErrTeamTransferInvalid
 	}
-	if err = TransferTeamOwnership(ctx, tx, teamID, fromUserID, toUserID, now); err != nil {
+	if err = transferTeamOwnership(ctx, tx, teamID, fromUserID, toUserID, now); err != nil {
 		return nil, err
 	}
 	_, _ = tx.ExecContext(ctx, `UPDATE team_ownership_transfers SET status = 'cancelled', resolved_at = $2, updated_at = $2 WHERE team_id = $1 AND status = 'pending'`, teamID, now)
@@ -647,8 +647,8 @@ func (r *TeamRepository) ForceTransfer(ctx context.Context, teamID, toUserID int
 	return r.GetContextByTeamID(ctx, teamID)
 }
 
-// TransferTeamOwnership 分两步交换角色，避免部分唯一索引在单条 UPDATE 中看到两个 Owner。
-func TransferTeamOwnership(ctx context.Context, tx *sql.Tx, teamID, fromUserID, toUserID int64, now time.Time) error {
+// transferTeamOwnership 分两步交换角色，避免部分唯一索引在单条 UPDATE 中看到两个 Owner。
+func transferTeamOwnership(ctx context.Context, tx *sql.Tx, teamID, fromUserID, toUserID int64, now time.Time) error {
 	demoted, err := tx.ExecContext(ctx, `
 		UPDATE team_memberships SET role = 'member', daily_limit_usd = 0, weekly_limit_usd = 0, monthly_limit_usd = 0, updated_at = $4
 		WHERE team_id = $1 AND user_id = $2 AND user_id <> $3 AND left_at IS NULL AND role = 'owner'`, teamID, fromUserID, toUserID, now)
@@ -710,11 +710,11 @@ func TeamUsageWhere(teamID int64, query team.TeamUsageQuery) (string, []any) {
 }
 
 func (r *TeamRepository) GetUsageSummary(ctx context.Context, teamID int64, query team.TeamUsageQuery) (*team.TeamUsageSummary, error) {
-	return usagequery.GetUsageSummary(ctx, r.db, teamID, query)
+	return usagequery.GetUsageSummary(ctx, r.db, teamID, query, r.dateCalendar())
 }
 
 func (r *TeamRepository) ListMemberUsageSeries(ctx context.Context, teamID int64, query team.TeamUsageQuery) ([]team.TeamMemberUsageSeries, error) {
-	return usagequery.ListMemberUsageSeries(ctx, r.db, teamID, query)
+	return usagequery.ListMemberUsageSeries(ctx, r.db, teamID, query, r.dateCalendar())
 }
 
 func (r *TeamRepository) ListUsageLogs(ctx context.Context, teamID int64, query team.TeamUsageQuery) ([]team.TeamUsageLogItem, int64, error) {
@@ -739,7 +739,7 @@ func (r *TeamRepository) DeleteTeamKey(ctx context.Context, teamID, keyID int64,
 
 // NormalizeTeamMembershipWindows 为旧存储入口保留系统日期对象，规则只有 billing 一份。
 func NormalizeTeamMembershipWindows(member *team.TeamMembership, now time.Time) {
-	normalizeMemberQuotaWindows(member, now, timezone.NewCalendar(timezone.Location()))
+	normalizeMemberQuotaWindows(member, now, timezone.NewCalendar(time.Local))
 }
 func normalizeMemberQuotaWindows(member *team.TeamMembership, now time.Time, calendar timezone.Calendar) {
 	if member == nil {
@@ -754,11 +754,15 @@ func normalizeMemberQuotaWindows(member *team.TeamMembership, now time.Time, cal
 	member.MonthlyWindowStart = projected.MonthlyWindowStart
 }
 func (r *TeamRepository) normalizeMemberWindows(member *team.TeamMembership, now time.Time) {
-	calendar := timezone.NewCalendar(timezone.Location())
+	normalizeMemberQuotaWindows(member, now, r.dateCalendar())
+}
+
+// dateCalendar 让团队消费窗口与只读统计使用相同的装配时区。
+func (r *TeamRepository) dateCalendar() timezone.Calendar {
 	if r.calendar != nil {
-		calendar = *r.calendar
+		return *r.calendar
 	}
-	normalizeMemberQuotaWindows(member, now, calendar)
+	return timezone.NewCalendar(time.Local)
 }
 
 type TeamRowScanner interface {

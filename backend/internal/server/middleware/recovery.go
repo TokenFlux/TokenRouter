@@ -7,7 +7,8 @@ import (
 	"os"
 	"strings"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/gin-gonic/gin"
 )
@@ -36,8 +37,8 @@ func Recovery() gin.HandlerFunc {
 		response.ErrorWithDetails(
 			c,
 			http.StatusInternalServerError,
-			infraerrors.UnknownMessage,
-			infraerrors.UnknownReason,
+			apperror.UnknownMessage,
+			apperror.UnknownReason,
 			nil,
 		)
 		c.Abort()

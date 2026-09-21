@@ -70,3 +70,18 @@ func stringFromCredentialValue(value any) string {
 func qoderOldRefreshToken(v map[string]any) string {
 	return stringFromCredentialValue(v["refresh_token"])
 }
+
+// NeedsRefreshQoderAfterFailure 使用失败时的凭据身份判断请求期刷新。
+// 已轮换凭据不重复消费刷新令牌；同一失败身份不受临近过期窗口限制。
+func NeedsRefreshQoderAfterFailure(value *Record, failedCredentials string, ttl time.Duration) bool {
+	if !CanRefreshQoder(value) {
+		return false
+	}
+	if strings.TrimSpace(value.GetCredential("refresh_token")) == "" {
+		return false
+	}
+	if failedCredentials != "" {
+		return QoderRefreshCredentialsHash(value.Credentials) == failedCredentials
+	}
+	return NeedsRefreshQoder(value, ttl)
+}

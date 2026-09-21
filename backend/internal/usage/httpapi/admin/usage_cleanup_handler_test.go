@@ -12,11 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	dto "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -24,14 +26,14 @@ import (
 
 type cleanupRepoStub struct {
 	mu         sync.Mutex
-	created    []*service.UsageCleanupTask
-	listTasks  []service.UsageCleanupTask
+	created    []*usage.UsageCleanupTask
+	listTasks  []usage.UsageCleanupTask
 	listResult *pagination.PaginationResult
 	listErr    error
 	statusByID map[int64]string
 }
 
-func (s *cleanupRepoStub) CreateTask(ctx context.Context, task *service.UsageCleanupTask) error {
+func (s *cleanupRepoStub) CreateTask(ctx context.Context, task *usage.UsageCleanupTask) error {
 	if task == nil {
 		return nil
 	}
@@ -49,13 +51,13 @@ func (s *cleanupRepoStub) CreateTask(ctx context.Context, task *service.UsageCle
 	return nil
 }
 
-func (s *cleanupRepoStub) ListTasks(ctx context.Context, params pagination.PaginationParams) ([]service.UsageCleanupTask, *pagination.PaginationResult, error) {
+func (s *cleanupRepoStub) ListTasks(ctx context.Context, params pagination.PaginationParams) ([]usage.UsageCleanupTask, *pagination.PaginationResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.listTasks, s.listResult, s.listErr
 }
 
-func (s *cleanupRepoStub) ClaimNextPendingTask(ctx context.Context, staleRunningAfterSeconds int64) (*service.UsageCleanupTask, error) {
+func (s *cleanupRepoStub) ClaimNextPendingTask(ctx context.Context, staleRunningAfterSeconds int64) (*usage.UsageCleanupTask, error) {
 	return nil, nil
 }
 
@@ -63,11 +65,11 @@ func (s *cleanupRepoStub) GetTaskStatus(ctx context.Context, taskID int64) (stri
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.statusByID == nil {
-		return "", sql.ErrNoRows
+		return "", errors.Join(usage.ErrCleanupTaskNotFound, sql.ErrNoRows)
 	}
 	status, ok := s.statusByID[taskID]
 	if !ok {
-		return "", sql.ErrNoRows
+		return "", errors.Join(usage.ErrCleanupTaskNotFound, sql.ErrNoRows)
 	}
 	return status, nil
 }
@@ -83,10 +85,10 @@ func (s *cleanupRepoStub) CancelTask(ctx context.Context, taskID int64, canceled
 		s.statusByID = map[int64]string{}
 	}
 	status := s.statusByID[taskID]
-	if status != service.UsageCleanupStatusPending && status != service.UsageCleanupStatusRunning {
+	if status != usage.UsageCleanupStatusPending && status != usage.UsageCleanupStatusRunning {
 		return false, nil
 	}
-	s.statusByID[taskID] = service.UsageCleanupStatusCanceled
+	s.statusByID[taskID] = usage.UsageCleanupStatusCanceled
 	return true, nil
 }
 
@@ -98,14 +100,14 @@ func (s *cleanupRepoStub) MarkTaskFailed(ctx context.Context, taskID int64, dele
 	return nil
 }
 
-func (s *cleanupRepoStub) DeleteUsageLogsBatch(ctx context.Context, filters service.UsageCleanupFilters, limit int) (int64, error) {
+func (s *cleanupRepoStub) DeleteUsageLogsBatch(ctx context.Context, filters usage.UsageCleanupFilters, limit int) (int64, error) {
 	return 0, nil
 }
 
-var _ service.UsageCleanupRepository = (*cleanupRepoStub)(nil)
+var _ usage.UsageCleanupRepository = (*cleanupRepoStub)(nil)
 
-func setupCleanupRouter(cleanupService *service.UsageCleanupService, userID int64) *gin.Engine {
-	gin.SetMode(gin.TestMode)
+func setupCleanupRouter(cleanupService *usage.UsageCleanupService, userID int64) *gin.Engine {
+
 	router := gin.New()
 	if userID > 0 {
 		router.Use(func(c *gin.Context) {
@@ -114,7 +116,7 @@ func setupCleanupRouter(cleanupService *service.UsageCleanupService, userID int6
 		})
 	}
 
-	handler := newLegacyUsageHandlerFixture(nil, nil, nil, cleanupService, nil)
+	handler := NewUsageHandler(nil, nil, nil, cleanupService, nil, timezone.NewCalendar(time.Local))
 	router.POST("/api/v1/admin/usage/cleanup-tasks", handler.CreateCleanupTask)
 	router.GET("/api/v1/admin/usage/cleanup-tasks", handler.ListCleanupTasks)
 	router.POST("/api/v1/admin/usage/cleanup-tasks/:id/cancel", handler.CancelCleanupTask)
@@ -123,8 +125,8 @@ func setupCleanupRouter(cleanupService *service.UsageCleanupService, userID int6
 
 func TestUsageHandlerCreateCleanupTaskUnauthorized(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 0)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks", bytes.NewBufferString(`{}`))
@@ -148,8 +150,8 @@ func TestUsageHandlerCreateCleanupTaskUnavailable(t *testing.T) {
 
 func TestUsageHandlerCreateCleanupTaskBindError(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 88)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks", bytes.NewBufferString("{bad-json"))
@@ -162,8 +164,8 @@ func TestUsageHandlerCreateCleanupTaskBindError(t *testing.T) {
 
 func TestUsageHandlerCreateCleanupTaskMissingRange(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 88)
 
 	payload := map[string]any{
@@ -183,8 +185,8 @@ func TestUsageHandlerCreateCleanupTaskMissingRange(t *testing.T) {
 
 func TestUsageHandlerCreateCleanupTaskInvalidDate(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 88)
 
 	payload := map[string]any{
@@ -205,8 +207,8 @@ func TestUsageHandlerCreateCleanupTaskInvalidDate(t *testing.T) {
 
 func TestUsageHandlerCreateCleanupTaskInvalidEndDate(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 88)
 
 	payload := map[string]any{
@@ -227,8 +229,8 @@ func TestUsageHandlerCreateCleanupTaskInvalidEndDate(t *testing.T) {
 
 func TestUsageHandlerCreateCleanupTaskInvalidRequestType(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 88)
 
 	payload := map[string]any{
@@ -250,8 +252,8 @@ func TestUsageHandlerCreateCleanupTaskInvalidRequestType(t *testing.T) {
 
 func TestUsageHandlerCreateCleanupTaskRequestTypePriority(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 99)
 
 	payload := map[string]any{
@@ -276,14 +278,14 @@ func TestUsageHandlerCreateCleanupTaskRequestTypePriority(t *testing.T) {
 	require.Len(t, repo.created, 1)
 	created := repo.created[0]
 	require.NotNil(t, created.Filters.RequestType)
-	require.Equal(t, int16(service.RequestTypeWSV2), *created.Filters.RequestType)
+	require.Equal(t, int16(usage.RequestTypeWSV2), *created.Filters.RequestType)
 	require.Nil(t, created.Filters.Stream)
 }
 
 func TestUsageHandlerCreateCleanupTaskWithLegacyStream(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 99)
 
 	payload := map[string]any{
@@ -313,8 +315,8 @@ func TestUsageHandlerCreateCleanupTaskWithLegacyStream(t *testing.T) {
 
 func TestUsageHandlerCreateCleanupTaskSuccess(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 99)
 
 	payload := map[string]any{
@@ -363,16 +365,16 @@ func TestUsageHandlerListCleanupTasksUnavailable(t *testing.T) {
 
 func TestUsageHandlerListCleanupTasksSuccess(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	repo.listTasks = []service.UsageCleanupTask{
+	repo.listTasks = []usage.UsageCleanupTask{
 		{
 			ID:        7,
-			Status:    service.UsageCleanupStatusSucceeded,
+			Status:    usage.UsageCleanupStatusSucceeded,
 			CreatedBy: 4,
 		},
 	}
 	repo.listResult = &pagination.PaginationResult{Total: 1, Page: 1, PageSize: 20, Pages: 1}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/usage/cleanup-tasks", nil)
@@ -399,8 +401,8 @@ func TestUsageHandlerListCleanupTasksSuccess(t *testing.T) {
 
 func TestUsageHandlerListCleanupTasksError(t *testing.T) {
 	repo := &cleanupRepoStub{listErr: errors.New("boom")}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true, MaxRangeDays: 31}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/usage/cleanup-tasks", nil)
@@ -412,8 +414,8 @@ func TestUsageHandlerListCleanupTasksError(t *testing.T) {
 
 func TestUsageHandlerCancelCleanupTaskUnauthorized(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 0)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks/1/cancel", nil)
@@ -425,8 +427,8 @@ func TestUsageHandlerCancelCleanupTaskUnauthorized(t *testing.T) {
 
 func TestUsageHandlerCancelCleanupTaskNotFound(t *testing.T) {
 	repo := &cleanupRepoStub{}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks/999/cancel", nil)
@@ -437,9 +439,9 @@ func TestUsageHandlerCancelCleanupTaskNotFound(t *testing.T) {
 }
 
 func TestUsageHandlerCancelCleanupTaskConflict(t *testing.T) {
-	repo := &cleanupRepoStub{statusByID: map[int64]string{2: service.UsageCleanupStatusSucceeded}}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	repo := &cleanupRepoStub{statusByID: map[int64]string{2: usage.UsageCleanupStatusSucceeded}}
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks/2/cancel", nil)
@@ -450,9 +452,9 @@ func TestUsageHandlerCancelCleanupTaskConflict(t *testing.T) {
 }
 
 func TestUsageHandlerCancelCleanupTaskSuccess(t *testing.T) {
-	repo := &cleanupRepoStub{statusByID: map[int64]string{3: service.UsageCleanupStatusPending}}
-	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true}}
-	cleanupService := service.NewUsageCleanupService(repo, nil, nil, cfg)
+	repo := &cleanupRepoStub{statusByID: map[int64]string{3: usage.UsageCleanupStatusPending}}
+	cfg := &usage.Options{UsageCleanup: usage.UsageCleanupConfig{Enabled: true}}
+	cleanupService := usage.NewUsageCleanupService(repo, nil, nil, cfg)
 	router := setupCleanupRouter(cleanupService, 1)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/usage/cleanup-tasks/3/cancel", nil)

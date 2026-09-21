@@ -8,7 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // DescribeImage 保留单张辅助请求、错误资格和描述用量，不绑定主会话缓存身份。
@@ -28,12 +28,12 @@ func DescribeImage(ctx context.Context, p Ports, o Options, in Input, imageURL s
 	p.ResolveProxy()
 	var description string
 	var usage protocolopenai.ForwardUsage
-	target := &nativegrok.ResponsesTarget{
+	target := &grok.ResponsesTarget{
 		AccountID:     in.AccountID,
 		Model:         ComposerVisionModel,
 		Enter:         o.Enter,
 		PassRawStream: true,
-		Exchange: nativegrok.ResponsesExchange{
+		Exchange: grok.ResponsesExchange{
 			SingleExchange: true,
 			Build:          func([]byte) (*http.Request, error) { return upstreamReq, nil },
 			Do: func(req *http.Request) (*http.Response, error) {
@@ -95,11 +95,11 @@ func DescribeImage(ctx context.Context, p Ports, o Options, in Input, imageURL s
 				return upstream.ResponsesObservation{}, fmt.Errorf("read grok composer image bridge response: %w", readErr)
 			}
 			var decodeErr error
-			description, usage, decodeErr = nativegrok.DecodeComposerDescription(data)
+			description, usage, decodeErr = grok.DecodeComposerDescription(data)
 			return upstream.ResponsesObservation{Usage: &usage, HasUsage: p.HasTokens(&usage), Served: description != ""}, decodeErr
 		},
 	}
-	_, err = (nativegrok.ResponsesExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{
+	_, err = (grok.ResponsesExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{
 		Protocol: protocol.ProtocolOpenAIResponses,
 		Body:     body,
 		Target:   target,

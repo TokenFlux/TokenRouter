@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
 )
@@ -47,33 +49,33 @@ func codexAccountIdentityNamespace(account *Account) string {
 	}
 	upstreamAccountID := strings.TrimSpace(account.GetChatGPTAccountID())
 	if upstreamAccountID != "" {
-		return native.CodexAccountNamespace(native.AccountIdentityInput{ChatGPTAccountID: upstreamAccountID, ChatGPTUserID: strings.TrimSpace(account.GetCredential("chatgpt_user_id"))})
+		return openai.CodexAccountNamespace(openai.AccountIdentityInput{ChatGPTAccountID: upstreamAccountID, ChatGPTUserID: strings.TrimSpace(account.GetCredential("chatgpt_user_id"))})
 	}
-	if seed, ok := codexFingerprintSeed(account.Extra); ok {
-		return native.CodexAccountNamespace(native.AccountIdentityInput{Seed: seed, HasSeed: true})
+	if seed, ok := accountcore.CodexFingerprintSeed(account.Extra); ok {
+		return openai.CodexAccountNamespace(openai.AccountIdentityInput{Seed: seed, HasSeed: true})
 	}
-	if account.Type == AccountTypeSetupToken {
-		return native.CodexAccountNamespace(native.AccountIdentityInput{SetupToken: strings.TrimSpace(account.GetOpenAIAccessToken())})
+	if account.Type == capability.AccountTypeSetupToken {
+		return openai.CodexAccountNamespace(openai.AccountIdentityInput{SetupToken: strings.TrimSpace(account.GetOpenAIAccessToken())})
 	}
 	return ""
 }
 
 func isolateOpenAIUpstreamSessionID(apiKeyID int64, account *Account, raw string) string {
-	return native.IsolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentityNamespace(account), raw)
+	return openai.IsolateOpenAIUpstreamSessionID(apiKeyID, codexAccountIdentityNamespace(account), raw)
 }
 
 func scopeCodexAccountIdentityValue(account *Account, apiKeyID int64, kind, raw string) string {
-	return native.ScopeCodexAccountIdentityValue(codexAccountIdentityNamespace(account), apiKeyID, kind, raw)
+	return openai.ScopeCodexAccountIdentityValue(codexAccountIdentityNamespace(account), apiKeyID, kind, raw)
 }
 
 func applyCodexAccountIdentityClientMetadataMap(requestBody map[string]any, account *Account, apiKeyID int64) bool {
-	return native.ApplyCodexAccountIdentityClientMetadataMap(requestBody, codexAccountIdentityNamespace(account), apiKeyID)
+	return openai.ApplyCodexAccountIdentityClientMetadataMap(requestBody, codexAccountIdentityNamespace(account), apiKeyID)
 }
 
 func applyCodexAccountIdentityClientMetadataRaw(body []byte, account *Account, apiKeyID int64) ([]byte, bool, error) {
-	return native.ApplyCodexAccountIdentityClientMetadataRaw(body, codexAccountIdentityNamespace(account), apiKeyID)
+	return openai.ApplyCodexAccountIdentityClientMetadataRaw(body, codexAccountIdentityNamespace(account), apiKeyID)
 }
 
 func applyCodexAccountIdentityHeaders(headers http.Header, account *Account, apiKeyID int64) {
-	native.ApplyCodexAccountIdentityHeaders(headers, codexAccountIdentityNamespace(account), apiKeyID)
+	openai.ApplyCodexAccountIdentityHeaders(headers, codexAccountIdentityNamespace(account), apiKeyID)
 }

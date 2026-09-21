@@ -11,8 +11,11 @@ import (
 	"strings"
 	"testing"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -20,10 +23,10 @@ import (
 
 func TestOpenAIResponsesRejectedFieldRetryStateRejectsDuplicateBodyAndCap(t *testing.T) {
 	initialBody := []byte(`{"model":"gpt-5.5"}`)
-	state := newOpenAIResponsesRejectedFieldRetryState(initialBody)
+	state := openai.NewOpenAIResponsesRejectedFieldRetryState(initialBody)
 
 	require.False(t, state.Allow(initialBody))
-	for attempt := 0; attempt < maxOpenAIResponsesRejectedFieldRetries; attempt++ {
+	for attempt := 0; attempt < openai.MaxResponsesRejectedFieldRetries; attempt++ {
 		nextBody := []byte(fmt.Sprintf(`{"model":"gpt-5.5","variant":%d}`, attempt))
 		require.True(t, state.Allow(nextBody))
 		require.False(t, state.Allow(nextBody))
@@ -32,7 +35,7 @@ func TestOpenAIResponsesRejectedFieldRetryStateRejectsDuplicateBodyAndCap(t *tes
 }
 
 func TestOpenAIResponsesRejectedFieldRetryStateForRequestAllowsSameTransformAcrossAccounts(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	initialBody := []byte(`{"model":"gpt-5.5","truncation":"auto"}`)
 	retryBody := []byte(`{"model":"gpt-5.5"}`)
@@ -48,9 +51,9 @@ func TestOpenAIResponsesRejectedFieldRetryStateForRequestAllowsSameTransformAcro
 }
 
 func TestOpenAIResponsesRejectedFieldRetryStateForRequestSharesBoundedBudgetAcrossAccounts(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	for attempt := 0; attempt < maxOpenAIResponsesRejectedFieldRetries; attempt++ {
+	for attempt := 0; attempt < openai.MaxResponsesRejectedFieldRetries; attempt++ {
 		state := openAIResponsesRejectedFieldRetryStateForRequest(c, []byte(fmt.Sprintf(`{"account":%d}`, attempt)))
 		require.True(t, state.Allow([]byte(`{"same":"retry"}`)))
 	}
@@ -93,7 +96,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRejectsAmbiguousErrors(t 
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, tt.responseBody)
+			retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, tt.responseBody)
 			require.NoError(t, err)
 			require.False(t, changed)
 			require.Nil(t, retryBody)
@@ -105,7 +108,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRepairsAutomationMissingR
 	body := []byte(`{"tools":[{"type":"function","name":"automation_update","parameters":{"oneOf":[{"type":"object"},{"type":"object","properties":{}}]}}]}`)
 	responseBody := []byte(`{"error":{"code":"invalid_function_parameters","message":"Invalid schema for function 'automation_update': got 'type: \"None\"'.","param":"tools[0].parameters"}}`)
 
-	retryBody, reason, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, reason, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -121,7 +124,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyDoesNotGuessAutomationRoo
 		`{"error":{"code":"invalid_function_parameters","message":"expected an object","param":"tools[0].parameters"}}`,
 	}
 	for _, response := range tests {
-		retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, []byte(response))
+		retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, []byte(response))
 		require.NoError(t, err)
 		require.False(t, changed)
 		require.Nil(t, retryBody)
@@ -132,7 +135,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyFindsNamespacePathInMessa
 	body := []byte(`{"input":[{"type":"function_call","namespace":"keep","arguments":"{}"},{"type":"function_call","namespace":"remove","arguments":"{}"}]}`)
 	responseBody := []byte(`{"error":{"code":"unknown_parameter","message":"input[0] was accepted; Unknown parameter: 'input[1].namespace'."}}`)
 
-	retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -144,7 +147,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyBindsNamespacePathToRejec
 	body := []byte(`{"input":[{"type":"function_call","namespace":"keep","arguments":"{}"},{"type":"function_call","namespace":"remove","arguments":"{}"}]}`)
 	responseBody := []byte(`{"error":{"code":"unknown_parameter","message":"input[0].namespace is supported; Unknown parameter: input[1].namespace."}}`)
 
-	retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -156,7 +159,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyDoesNotTreatMaxOutputToke
 	body := []byte(`{"max_tokens":4096,"max_output_tokens":2048}`)
 	responseBody := []byte(`{"error":{"code":"unknown_parameter","message":"Unknown parameter: max_tokens. Use max_output_tokens instead."}}`)
 
-	retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 
 	require.NoError(t, err)
 	require.False(t, changed)
@@ -167,7 +170,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyBindsMaxOutputTokensToRej
 	body := []byte(`{"max_output_tokens":2048}`)
 	responseBody := []byte(`{"error":{"code":"unsupported_parameter","message":"Unsupported parameter: max_output_tokens."}}`)
 
-	retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -191,7 +194,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRemovesExactIndexedStatus
 	}
 	for _, tt := range responses {
 		t.Run(tt.name, func(t *testing.T) {
-			retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, tt.body)
+			retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, tt.body)
 			require.NoError(t, err)
 			require.True(t, changed)
 			require.Equal(t, "keep", gjson.GetBytes(retryBody, "input.0.status").String())
@@ -235,7 +238,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyNormalizesExactNullConten
 	responseBody := []byte(`{"error":{"code":"invalid_type","message":"Invalid type for 'input[0].content': expected one of a string or a list of input items, but got null instead.","param":"input[0].content"}}`)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, responseBody)
+			retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, responseBody)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantChange, changed)
 			if !tt.wantChange {
@@ -256,7 +259,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRemovesExactReasoningCont
 	body := []byte(`{"input":[{"type":"reasoning","content":[{"type":"reasoning_text","text":"remove"}],"summary":[]},{"type":"message","content":[{"type":"input_text","text":"keep"}]}]}`)
 	responseBody := []byte(`{"error":{"code":"array_above_max_length","message":"Invalid 'input[0].content': array too long. Expected an array with maximum length 0, but got an array with length 1 instead.","param":"input[0].content","type":"invalid_request_error"}}`)
 
-	retryBody, reason, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, reason, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -289,7 +292,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRejectsUnsafeReasoningMax
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, tt.responseBody)
+			retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, tt.responseBody)
 			require.NoError(t, err)
 			require.False(t, changed)
 			require.Nil(t, retryBody)
@@ -304,7 +307,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRemovesExplicitlyRejected
 		[]byte(`{"error":{"code":"unknown_parameter","message":"Unknown parameter: truncation."}}`),
 	}
 	for _, responseBody := range responses {
-		retryBody, reason, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+		retryBody, reason, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.Equal(t, "truncation parameter rejection", reason)
@@ -366,7 +369,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRejectsUnsafeIndexedMutat
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, tt.responseBody)
+			retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, tt.responseBody)
 			require.NoError(t, err)
 			require.False(t, changed)
 			require.Nil(t, retryBody)
@@ -441,7 +444,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRemovesModelRejectedPromp
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			retryBody, reason, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, tt.responseBody)
+			retryBody, reason, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, tt.body, tt.responseBody)
 
 			require.NoError(t, err)
 			require.True(t, changed)
@@ -470,7 +473,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyRejectsAmbiguousPromptCac
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, tt.responseBody)
+			retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, tt.responseBody)
 
 			require.NoError(t, err)
 			require.False(t, changed)
@@ -496,7 +499,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyAcceptsEitherCacheModelRe
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, []byte(`{"prompt_cache_breakpoint":true,"input":"keep"}`), tt.responseBody)
+			retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, []byte(`{"prompt_cache_breakpoint":true,"input":"keep"}`), tt.responseBody)
 
 			require.NoError(t, err)
 			require.True(t, changed)
@@ -509,9 +512,9 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyAcceptsEitherCacheModelRe
 func TestOpenAIResponsesRejectedFieldRetryStateAllowsPromptCacheBreakpointVariantOnce(t *testing.T) {
 	body := []byte(`{"input":[{"prompt_cache_breakpoint":{"type":"message_start"}}]}`)
 	responseBody := []byte(`{"error":{"code":"invalid_parameter","message":"input[0].prompt_cache_breakpoint is not supported on this model","param":"input[0].prompt_cache_breakpoint"}}`)
-	state := newOpenAIResponsesRejectedFieldRetryState(body)
+	state := openai.NewOpenAIResponsesRejectedFieldRetryState(body)
 
-	retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.True(t, state.Allow(retryBody))
@@ -658,7 +661,7 @@ func newOpenAIRejectedFieldTestService(upstream *httpUpstreamRecorder) *OpenAIGa
 }
 
 func newOpenAIRejectedFieldTestContext(body []byte) *gin.Context {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
@@ -671,17 +674,17 @@ func newOpenAIRejectedFieldTestAccount() *Account {
 	return &Account{
 		ID:          5107,
 		Name:        "responses-compatible",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://compat.example",
 		},
 		Extra: map[string]any{
-			openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModePreserveClientProtocol),
+			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModePreserveClientProtocol),
 		},
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 	}
 }
@@ -690,14 +693,14 @@ func newOpenAIOAuthNamespaceTestAccount() *Account {
 	return &Account{
 		ID:          5108,
 		Name:        "openai-oauth-namespace",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeOAuth,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
 			"chatgpt_account_id": "chatgpt-account",
 		},
-		Status:      StatusActive,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 	}
 }
@@ -721,7 +724,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyClearsStatusForWholeType(
 	body := []byte(`{"input":[` + strings.Join(input, ",") + `]}`)
 
 	responseBody := []byte(`{"error":{"code":"unknown_parameter","message":"Unknown parameter: 'input[7].status'.","param":"input[7].status"}}`)
-	retryBody, reason, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, reason, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.NotEmpty(t, reason)
@@ -741,7 +744,7 @@ func TestNormalizeOpenAIResponsesRejectedFieldRetryBodyClearsUntypedStatusAtInde
 	body := []byte(`{"input":[{"status":"keep_a"},{"status":"remove"}]}`)
 	responseBody := []byte(`{"error":{"code":"unknown_parameter","message":"Unknown parameter: 'input[1].status'.","param":"input[1].status"}}`)
 
-	retryBody, _, changed, err := normalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
+	retryBody, _, changed, err := openai.NormalizeOpenAIResponsesRejectedFieldRetryBody(http.StatusBadRequest, body, responseBody)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Equal(t, "keep_a", gjson.GetBytes(retryBody, "input.0.status").String())

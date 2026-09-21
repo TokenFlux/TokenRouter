@@ -7,7 +7,10 @@ import (
 	"testing"
 	"time"
 
+	account "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,14 +40,14 @@ func (r *thresholdSelectionAccountRepoStub) ListSchedulableUngroupedByPlatform(c
 func TestGatewayService_ListSchedulableAccounts_DoesNotFilterUnsupportedThresholdPlatforms(t *testing.T) {
 
 	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
+	settingsRepo.data[account.SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
 
 	accountRepo := &thresholdSelectionAccountRepoStub{
 		accounts: []Account{
 			{
 				ID:          3101,
 				Platform:    "kiro",
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{
 					"account_scheduling_threshold": 1,
@@ -57,7 +60,7 @@ func TestGatewayService_ListSchedulableAccounts_DoesNotFilterUnsupportedThreshol
 			{
 				ID:          3102,
 				Platform:    "kiro",
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Extra: map[string]any{
 					"kiro_sched_utilization": 42.0,
@@ -68,7 +71,7 @@ func TestGatewayService_ListSchedulableAccounts_DoesNotFilterUnsupportedThreshol
 	}
 
 	rateLimitService := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
-	rateLimitService.SetSettingService(NewSettingService(settingsRepo, &config.Config{}))
+	rateLimitService.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 	svc := &GatewayService{
 		accountRepo:      accountRepo,
 		cfg:              &config.Config{},
@@ -88,14 +91,14 @@ func TestGatewayService_ListSchedulableAccounts_DoesNotFilterUnsupportedThreshol
 func TestOpenAIGatewayService_ListSchedulableAccounts_FiltersThresholdBlockedAccounts(t *testing.T) {
 
 	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[SettingKeyAccountSchedulingThresholds] = `{"openai":85}`
+	settingsRepo.data[account.SettingKeyAccountSchedulingThresholds] = `{"openai":85}`
 
 	accountRepo := &thresholdSelectionAccountRepoStub{
 		accounts: []Account{
 			{
 				ID:          4101,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Extra: map[string]any{
 					"codex_7d_used_percent": 91.0,
@@ -104,8 +107,8 @@ func TestOpenAIGatewayService_ListSchedulableAccounts_FiltersThresholdBlockedAcc
 			},
 			{
 				ID:          4102,
-				Platform:    PlatformOpenAI,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Extra: map[string]any{
 					"codex_7d_used_percent": 40.0,
@@ -116,14 +119,14 @@ func TestOpenAIGatewayService_ListSchedulableAccounts_FiltersThresholdBlockedAcc
 	}
 
 	rateLimitService := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
-	rateLimitService.SetSettingService(NewSettingService(settingsRepo, &config.Config{}))
+	rateLimitService.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 	svc := &OpenAIGatewayService{
 		accountRepo:      accountRepo,
 		cfg:              &config.Config{},
 		rateLimitService: rateLimitService,
 	}
 
-	accounts, err := svc.listSchedulableAccounts(context.Background(), nil, PlatformOpenAI)
+	accounts, err := svc.listSchedulableAccounts(context.Background(), nil, capability.PlatformOpenAI)
 
 	require.NoError(t, err)
 	require.Len(t, accounts, 1)

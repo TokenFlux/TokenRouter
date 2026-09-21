@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,20 +29,20 @@ func TestResolveCredentialAccount(t *testing.T) {
 	pid := int64(100)
 
 	// 普通账号（非影子）→ 返回自身
-	parent := &Account{ID: 100, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive}
+	parent := &Account{ID: 100, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive}
 	repo := newStubCredRepo(parent)
 	got, err := resolveCredentialAccount(ctx, repo, parent)
 	require.NoError(t, err)
 	require.Equal(t, int64(100), got.ID)
 
 	// 影子账号 + 合法 OpenAI OAuth 母账号 → 返回母账号
-	shadow := &Account{ID: 200, ParentAccountID: &pid, Platform: PlatformOpenAI, Type: AccountTypeOAuth}
+	shadow := &Account{ID: 200, ParentAccountID: &pid, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
 	got, err = resolveCredentialAccount(ctx, repo, shadow)
 	require.NoError(t, err)
 	require.Equal(t, int64(100), got.ID)
 
 	// 影子账号 + 母账号非 OpenAI OAuth（API Key 类型）→ 返回 error
-	badRepo := newStubCredRepo(&Account{ID: 100, Platform: PlatformOpenAI, Type: AccountTypeAPIKey})
+	badRepo := newStubCredRepo(&Account{ID: 100, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey})
 	_, err = resolveCredentialAccount(ctx, badRepo, shadow)
 	require.Error(t, err)
 }

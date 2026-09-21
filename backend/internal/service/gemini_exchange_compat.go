@@ -6,6 +6,10 @@ import (
 	"net/http"
 	"strings"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/gin-gonic/gin"
 )
@@ -18,14 +22,14 @@ const (
 	geminiExchangeOpenAI
 )
 
-func (s *GeminiMessagesCompatService) geminiExchangeOptions(c *gin.Context, ctx context.Context, account *Account, model string, mode geminiExchangeMode, protocol geminiOpenAICompatProtocol) gemininative.ExchangeOptions {
-	options := gemininative.ExchangeOptions{AccountID: account.ID, AccountName: account.Name, Platform: account.Platform, MaxRetries: geminiMaxRetries, ReadError: s.readUpstreamErrorBody, Sanitize: sanitizeUpstreamErrorMessage, Message: extractUpstreamErrorMessage, CheckPolicy: func(ctx context.Context, resp *http.Response) (bool, *http.Response) {
+func (s *GeminiMessagesCompatService) geminiExchangeOptions(c *gin.Context, ctx context.Context, account *Account, model string, mode geminiExchangeMode, protocol gemininative.OpenAICompatProtocol) gemininative.ExchangeOptions {
+	options := gemininative.ExchangeOptions{AccountID: account.ID, AccountName: account.Name, Platform: account.Platform, MaxRetries: geminiMaxRetries, ReadError: s.readUpstreamErrorBody, Sanitize: logredact.SanitizeUpstreamQueries, Message: upstream.ExtractErrorMessage, CheckPolicy: func(ctx context.Context, resp *http.Response) (bool, *http.Response) {
 		return s.checkErrorPolicyInLoop(ctx, account, resp, model)
 	}, ShouldRetry: func(code int) bool { return s.shouldRetryGeminiUpstreamError(account, code) }, OnStatus: func(ctx context.Context, status int, header http.Header, body []byte) {
 		s.handleGeminiUpstreamError(ctx, account, status, header, body)
 	}, Observe: func(value gemininative.ExchangeNotice) {
-		appendOpsUpstreamError(c, OpsUpstreamErrorEvent{Platform: value.Platform, AccountID: value.AccountID, AccountName: value.AccountName, UpstreamStatusCode: value.UpstreamStatusCode, UpstreamRequestID: value.UpstreamRequestID, Kind: value.Kind, Message: value.Message, Detail: value.Detail})
-	}, SetError: func(code int, message, detail string) { setOpsUpstreamError(c, code, message, detail) }, Detail: s.upstreamErrorDetail}
+		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: value.Platform, AccountID: value.AccountID, AccountName: value.AccountName, UpstreamStatusCode: value.UpstreamStatusCode, UpstreamRequestID: value.UpstreamRequestID, Kind: value.Kind, Message: value.Message, Detail: value.Detail})
+	}, SetError: func(code int, message, detail string) { gatewayhttp.SetOpsUpstreamError(c, code, message, detail) }, Detail: s.upstreamErrorDetail}
 	options.BuildError = func(err error) error {
 		if mode == geminiExchangeOpenAI {
 			return s.writeGeminiOpenAICompatError(c, protocol, http.StatusBadGateway, "upstream_error", err.Error())

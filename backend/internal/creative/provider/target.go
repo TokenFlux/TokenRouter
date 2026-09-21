@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 type OpenAIOptions struct {
@@ -20,7 +20,7 @@ type OpenAIOptions struct {
 type GrokOptions struct {
 	OAuth        bool
 	Token        func(context.Context) (string, error)
-	URL          func(nativegrok.GrokMediaEndpoint) (string, error)
+	URL          func(grok.GrokMediaEndpoint) (string, error)
 	Prepare      func(*http.Request) *http.Request
 	ApplyHeaders func(http.Header)
 	Do           func(*http.Request) (*http.Response, error)

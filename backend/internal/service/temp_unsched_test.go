@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -86,7 +88,7 @@ func TestAccountIsSchedulable_TempUnschedulable(t *testing.T) {
 		{
 			name: "temp_unschedulable_active",
 			account: &Account{
-				Status:                 StatusActive,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				TempUnschedulableUntil: &future,
 			},
@@ -95,7 +97,7 @@ func TestAccountIsSchedulable_TempUnschedulable(t *testing.T) {
 		{
 			name: "temp_unschedulable_expired",
 			account: &Account{
-				Status:                 StatusActive,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				TempUnschedulableUntil: &past,
 			},
@@ -104,7 +106,7 @@ func TestAccountIsSchedulable_TempUnschedulable(t *testing.T) {
 		{
 			name: "no_temp_unschedulable",
 			account: &Account{
-				Status:                 StatusActive,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				TempUnschedulableUntil: nil,
 			},
@@ -113,7 +115,7 @@ func TestAccountIsSchedulable_TempUnschedulable(t *testing.T) {
 		{
 			name: "temp_unschedulable_with_rate_limit",
 			account: &Account{
-				Status:                 StatusActive,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				TempUnschedulableUntil: &future,
 				RateLimitResetAt:       &past, // 过期的限流不影响
@@ -301,7 +303,7 @@ func TestTruncateTempUnschedMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := truncateTempUnschedMessage(tt.body, tt.maxBytes)
+			got := accountcore.TruncateTempUnschedMessage(tt.body, tt.maxBytes)
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -312,7 +314,7 @@ func TestTempUnschedState(t *testing.T) {
 	now := time.Now()
 	until := now.Add(5 * time.Minute)
 
-	state := &TempUnschedState{
+	state := &accountcore.TempUnschedState{
 		UntilUnix:       until.Unix(),
 		TriggeredAtUnix: now.Unix(),
 		StatusCode:      503,
@@ -343,7 +345,7 @@ func TestAccount_TempUnschedulableUntil(t *testing.T) {
 		{
 			name: "active_temp_unsched_not_schedulable",
 			account: &Account{
-				Status:                 StatusActive,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				TempUnschedulableUntil: &future,
 			},
@@ -352,7 +354,7 @@ func TestAccount_TempUnschedulableUntil(t *testing.T) {
 		{
 			name: "expired_temp_unsched_is_schedulable",
 			account: &Account{
-				Status:                 StatusActive,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				TempUnschedulableUntil: &past,
 			},
@@ -361,7 +363,7 @@ func TestAccount_TempUnschedulableUntil(t *testing.T) {
 		{
 			name: "nil_temp_unsched_is_schedulable",
 			account: &Account{
-				Status:                 StatusActive,
+				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				TempUnschedulableUntil: nil,
 			},

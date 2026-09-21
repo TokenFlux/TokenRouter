@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	gatewayredis "github.com/TokenFlux/TokenRouter/internal/gateway/rediscache"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -17,12 +19,12 @@ import (
 
 type GatewayCacheSuite struct {
 	IntegrationRedisSuite
-	cache service.GatewayCache
+	cache session.GatewayCache
 }
 
 func (s *GatewayCacheSuite) SetupTest() {
 	s.IntegrationRedisSuite.SetupTest()
-	s.cache = NewGatewayCache(s.rdb)
+	s.cache = gatewayredis.NewGatewayCache(s.rdb)
 }
 
 func (s *GatewayCacheSuite) TestGetSessionAccountID_Missing() {
@@ -109,15 +111,15 @@ func (s *GatewayCacheSuite) TestGetSessionAccountID_CorruptedValue() {
 func (s *GatewayCacheSuite) TestSessionOwnerGroupID_SetNXAndGet() {
 	sessionTTL := 1 * time.Minute
 
-	written, err := s.cache.SetSessionOwnerGroupID(s.ctx, 7, service.SessionIsolationSourceGateway, "session-owner", 11, sessionTTL)
+	written, err := s.cache.SetSessionOwnerGroupID(s.ctx, 7, session.SessionIsolationSourceGateway, "session-owner", 11, sessionTTL)
 	require.NoError(s.T(), err)
 	require.True(s.T(), written)
 
-	written, err = s.cache.SetSessionOwnerGroupID(s.ctx, 7, service.SessionIsolationSourceGateway, "session-owner", 22, sessionTTL)
+	written, err = s.cache.SetSessionOwnerGroupID(s.ctx, 7, session.SessionIsolationSourceGateway, "session-owner", 22, sessionTTL)
 	require.NoError(s.T(), err)
 	require.False(s.T(), written)
 
-	ownerID, err := s.cache.GetSessionOwnerGroupID(s.ctx, 7, service.SessionIsolationSourceGateway, "session-owner")
+	ownerID, err := s.cache.GetSessionOwnerGroupID(s.ctx, 7, session.SessionIsolationSourceGateway, "session-owner")
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), int64(11), ownerID)
 }
@@ -125,9 +127,9 @@ func (s *GatewayCacheSuite) TestSessionOwnerGroupID_SetNXAndGet() {
 func (s *GatewayCacheSuite) TestSessionOwnerGroupID_TTLAndRefresh() {
 	initialTTL := 1 * time.Minute
 	refreshTTL := 3 * time.Minute
-	key := buildSessionOwnerKey(7, service.SessionIsolationSourceOpenAI, "session-owner-ttl")
+	key := buildSessionOwnerKey(7, session.SessionIsolationSourceOpenAI, "session-owner-ttl")
 
-	written, err := s.cache.SetSessionOwnerGroupID(s.ctx, 7, service.SessionIsolationSourceOpenAI, "session-owner-ttl", 11, initialTTL)
+	written, err := s.cache.SetSessionOwnerGroupID(s.ctx, 7, session.SessionIsolationSourceOpenAI, "session-owner-ttl", 11, initialTTL)
 	require.NoError(s.T(), err)
 	require.True(s.T(), written)
 
@@ -135,7 +137,7 @@ func (s *GatewayCacheSuite) TestSessionOwnerGroupID_TTLAndRefresh() {
 	require.NoError(s.T(), err)
 	s.AssertTTLWithin(ttl, 1*time.Second, initialTTL)
 
-	require.NoError(s.T(), s.cache.RefreshSessionOwnerTTL(s.ctx, 7, service.SessionIsolationSourceOpenAI, "session-owner-ttl", refreshTTL))
+	require.NoError(s.T(), s.cache.RefreshSessionOwnerTTL(s.ctx, 7, session.SessionIsolationSourceOpenAI, "session-owner-ttl", refreshTTL))
 	ttl, err = s.rdb.TTL(s.ctx, key).Result()
 	require.NoError(s.T(), err)
 	s.AssertTTLWithin(ttl, 1*time.Second, refreshTTL)
@@ -153,7 +155,7 @@ func (s *GatewayCacheSuite) TestSessionOwnerGroupID_ConcurrentFirstBindAllowsSin
 		go func() {
 			defer wg.Done()
 			<-start
-			written, err := s.cache.SetSessionOwnerGroupID(s.ctx, 7, service.SessionIsolationSourceGemini, "session-owner-race", groupID, time.Minute)
+			written, err := s.cache.SetSessionOwnerGroupID(s.ctx, 7, session.SessionIsolationSourceGemini, "session-owner-race", groupID, time.Minute)
 			if err != nil {
 				errCh <- err
 				return
@@ -173,7 +175,7 @@ func (s *GatewayCacheSuite) TestSessionOwnerGroupID_ConcurrentFirstBindAllowsSin
 	}
 
 	require.Equal(s.T(), int32(1), atomic.LoadInt32(&writtenCount))
-	ownerID, err := s.cache.GetSessionOwnerGroupID(s.ctx, 7, service.SessionIsolationSourceGemini, "session-owner-race")
+	ownerID, err := s.cache.GetSessionOwnerGroupID(s.ctx, 7, session.SessionIsolationSourceGemini, "session-owner-race")
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), atomic.LoadInt64(&winner), ownerID)
 }

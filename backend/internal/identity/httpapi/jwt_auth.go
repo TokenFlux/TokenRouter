@@ -3,9 +3,10 @@ package httpapi
 
 import (
 	errors "errors"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	gin "github.com/gin-gonic/gin"
-	strings "strings"
 )
 
 // JWTAuth JWT认证中间件实现

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -34,7 +35,7 @@ type ForwardResult struct {
 	WebSearchCalls       int
 	SearchCount          int
 	AudioUsage           *protocol.AudioUsage
-	UpstreamWarning      *UpstreamWarning
+	UpstreamWarning      *forwardcore.UpstreamWarning
 
 	RequestID                    string
 	ResponseID                   string
@@ -188,13 +189,6 @@ type IngressSession struct {
 	Hooks   *IngressHooks
 	Codec   ReplayCodec
 	Port    IngressPort
-}
-
-// UpstreamWarning 是原始风控观察投影，不包含用户或凭据。
-type UpstreamWarning struct {
-	StatusCode   int
-	ResponseBody []byte
-	Message      string
 }
 
 // AcquireRecoveryError 仅标记允许进行一次账号身份恢复的拨号失败。

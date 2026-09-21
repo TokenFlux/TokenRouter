@@ -5,12 +5,21 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"io"
 	"net/http"
 	"strings"
 
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
 )
@@ -32,7 +41,7 @@ func (s *OpenAIGatewayService) newUpstreamSSEScanner(r io.Reader) *bufio.Scanner
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 		maxLineSize = s.cfg.Gateway.MaxLineSize
 	}
-	return nativeopenai.NewCompatSSEScanner(r, maxLineSize)
+	return openai.NewCompatSSEScanner(r, maxLineSize)
 }
 
 // readOpenAIUpstreamError 读取上游错误体并把 resp.Body 回卷为可重读的副本
@@ -43,8 +52,8 @@ func (s *OpenAIGatewayService) readOpenAIUpstreamError(resp *http.Response) ([]b
 	_ = resp.Body.Close()
 	resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
-	upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
-	upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
+	upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(respBody))
+	upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
 	return respBody, upstreamMsg
 }
 
@@ -59,26 +68,25 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 	respBody []byte,
 	upstreamMsg string,
 	upstreamModel string,
-) *UpstreamFailoverError {
+) *forwardcore.UpstreamFailoverError {
 	shouldFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
-	if account != nil && account.Platform == PlatformGrok {
+	if account != nil && account.Platform == capability.PlatformGrok {
 		shouldFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
 	}
 	// 请求级拒绝不能触发账号策略或池模式重试。
-	if detectHit, _, _ := detectOpenAICyberPolicy(respBody); detectHit ||
-		IsOpenAICyberWarningPayload(respBody, upstreamMsg) ||
-		isOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) ||
-		isOpenAIContextWindowError(upstreamMsg, respBody) ||
-		(account != nil && account.Platform == PlatformGrok && isGrokContentPolicyRejection(resp.StatusCode, respBody)) {
+	if detectHit, _, _ := openai.DetectOpenAICyberPolicy(respBody); detectHit || gatewayprovider.IsOpenAICyberWarningPayload(respBody, upstreamMsg) ||
+		openai.IsOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) ||
+		openai.IsOpenAIContextWindowError(upstreamMsg, respBody) ||
+		(account != nil && account.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(resp.StatusCode, respBody)) {
 		return nil
 	}
 	// 没有 gin 上下文时无法安全评估请求级临时规则；保持上游语义，
 	// 仅让默认已判定为可故障转移的错误继续进入账号策略管线。
-	if c == nil && !shouldFailover && (account == nil || account.Platform != PlatformGrok) {
+	if c == nil && !shouldFailover && (account == nil || account.Platform != capability.PlatformGrok) {
 		return nil
 	}
 	var decision UpstreamErrorDecision
-	if account != nil && account.Platform == PlatformGrok {
+	if account != nil && account.Platform == capability.PlatformGrok {
 		decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 	} else {
 		decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
@@ -92,9 +100,9 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 		if maxBytes <= 0 {
 			maxBytes = 2048
 		}
-		upstreamDetail = truncateString(string(respBody), maxBytes)
+		upstreamDetail = logredact.TruncateUTF8(string(respBody), maxBytes)
 	}
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 		Platform:           account.Platform,
 		AccountID:          account.ID,
 		AccountName:        account.Name,
@@ -158,28 +166,28 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	bearerToken string,
 	userAgent string,
 	grokCacheIdentity string,
-	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
+	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
 ) (*http.Response, error) {
-	return nativeopenai.SendChatRequest(ctx, body, nativeopenai.CCRequestOptions{
+	return openai.SendChatRequest(ctx, body, openai.CCRequestOptions{
 		URL: targetURL, Token: bearerToken, Stream: stream, Headers: c.Request.Header,
 		RequestContext:  detachUpstreamContext,
-		ObserveEndpoint: func() { SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions") },
+		ObserveEndpoint: func() { gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, "/v1/chat/completions") },
 		AllowHeader:     func(name string) bool { return openaiCCRawAllowedHeaders[name] },
 		PrepareTransport: func(upstreamReq *http.Request) {
 			if len(tlsRouterMatch) == 0 {
-				tlsRouterMatch = []TLSFingerprintRouterMatchResult{s.matchTLSFingerprintRouter(c, account)}
+				tlsRouterMatch = []egress.TLSFingerprintRouterMatchResult{s.matchTLSFingerprintRouter(c, account)}
 			}
-			if account.Platform == PlatformGrok && userAgent != "" {
+			if account.Platform == capability.PlatformGrok && userAgent != "" {
 				upstreamReq.Header.Set("user-agent", userAgent)
-			} else if account.Platform != PlatformGrok {
+			} else if account.Platform != capability.PlatformGrok {
 				s.applyOpenAIUpstreamUserAgent(c.Request.Context(), c, account, upstreamReq, false, tlsRouterMatch[0])
 			}
 
-			if account.Platform == PlatformGrok {
+			if account.Platform == capability.PlatformGrok {
 				if account.IsGrokOAuth() {
-					applyGrokCLIHeaders(upstreamReq.Header)
+					grok.ApplyCLIHeaders(upstreamReq.Header)
 				}
-				applyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
+				grok.ApplyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
 			}
 		},
 		FinalizeHeaders: func(headers http.Header) {
@@ -195,9 +203,4 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 		},
 		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false) },
 	})
-}
-
-// writeOpenAIResponsesFallbackError 委托 HTTP Adapter，保留旧调用入口。
-func writeOpenAIResponsesFallbackError(c *gin.Context, statusCode int, errType, message string) {
-	gatewayhttp.WriteForwardResponsesFallbackError(c, statusCode, errType, message)
 }

@@ -4,13 +4,13 @@
 package service
 
 import (
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
-func openAIImagesTextFallbackError(body []byte) *OpenAIImagesUpstreamError {
-	return nativeopenai.OpenAIImagesTextFallbackError(body)
+func openAIImagesTextFallbackError(body []byte) *openai.OpenAIImagesUpstreamError {
+	return openai.OpenAIImagesTextFallbackError(body)
 }
 
-func openAIImagesTextFallbackErrorForText(text string) *OpenAIImagesUpstreamError {
-	return nativeopenai.OpenAIImagesTextFallbackErrorForText(text)
+func openAIImagesTextFallbackErrorForText(text string) *openai.OpenAIImagesUpstreamError {
+	return openai.OpenAIImagesTextFallbackErrorForText(text)
 }

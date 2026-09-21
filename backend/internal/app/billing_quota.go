@@ -2,12 +2,13 @@
 package app
 
 import (
+	slog "log/slog"
+	time "time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	slog "log/slog"
-	time "time"
 )
 
 // observePlatformQuota 保留额度管理日志字段、顺序与故障等级。
@@ -76,6 +77,6 @@ func observePlatformQuota(event billing.QuotaEvent) {
 func providePlatformQuotas(repo billing.UserPlatformQuotaRepository, cache billing.BillingCache, users *identitypostgres.UserStore, coordinator *billing.QuotaCoordinator) *billing.PlatformQuotas {
 	return billing.NewPlatformQuotas(repo, cache, billingIdentityUsers{Repository: users}, coordinator, time.Now, observePlatformQuota)
 }
-func provideQuotaHTTP(quotas *billing.PlatformQuotas) *billinghttpapi.QuotaHandler {
-	return billinghttpapi.NewQuotaHandler(quotas, timezone.NewCalendar(timezone.Location()), time.Now)
+func provideQuotaHTTP(quotas *billing.PlatformQuotas, calendar timezone.Calendar) *billinghttpapi.QuotaHandler {
+	return billinghttpapi.NewQuotaHandler(quotas, calendar, time.Now)
 }

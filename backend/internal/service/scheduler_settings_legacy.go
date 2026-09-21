@@ -3,6 +3,7 @@ package service
 import (
 	"sync/atomic"
 
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
@@ -14,7 +15,10 @@ func SchedulerSettingsRuntime() *scheduler.SettingsRuntime {
 	if value := schedulerSettingsRuntime.Load(); value != nil {
 		return value
 	}
-	candidate := scheduler.NewSettingsRuntime(LegacySchedulerDiagnostics())
+	candidate := scheduler.NewSettingsRuntime(scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+
+		Event: logging.Event},
+	)
 	if schedulerSettingsRuntime.CompareAndSwap(nil, candidate) {
 		return candidate
 	}

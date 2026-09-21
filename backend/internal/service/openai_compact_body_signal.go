@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -28,7 +31,7 @@ func NormalizeCompactionTriggerInputOrder(body []byte) ([]byte, bool, error) {
 		return body, false, nil
 	}
 	var payload map[string]any
-	if err := decodeOpenAIJSONUseNumber(body, &payload); err != nil {
+	if err := wirejson.DecodeUseNumber(body, &payload); err != nil {
 		return body, false, err
 	}
 	input, ok := payload["input"].([]any)
@@ -55,7 +58,7 @@ func NormalizeCompactionTriggerInputOrder(body []byte) ([]byte, bool, error) {
 	}
 	normalized = append(normalized, map[string]any{"type": "compaction_trigger"})
 	payload["input"] = normalized
-	encoded, err := marshalOpenAIUpstreamJSON(payload)
+	encoded, err := wirejson.Marshal(payload)
 	if err != nil {
 		return body, false, err
 	}
@@ -69,29 +72,6 @@ func isOpenAINativeCompactionV2(c *gin.Context) bool {
 // IsOpenAINativeCompactionV2 返回当前请求是否被识别为原生远程 compaction v2。
 func IsOpenAINativeCompactionV2(c *gin.Context) bool {
 	return isOpenAINativeCompactionV2(c)
-}
-
-// ensureOpenAIRemoteCompactionV2BetaFeature 确保协商头包含 V2 能力，同时保留
-// 客户端已声明的其它能力，避免把多行头压缩时丢失 token。
-func ensureOpenAIRemoteCompactionV2BetaFeature(h http.Header) {
-	if h == nil {
-		return
-	}
-	tokens := make([]string, 0, 4)
-	for _, value := range h.Values("x-codex-beta-features") {
-		for _, token := range strings.Split(value, ",") {
-			token = strings.TrimSpace(token)
-			if token == "" {
-				continue
-			}
-			if token == openAIRemoteCompactionV2Feature {
-				return
-			}
-			tokens = append(tokens, token)
-		}
-	}
-	tokens = append(tokens, openAIRemoteCompactionV2Feature)
-	h.Set("x-codex-beta-features", strings.Join(tokens, ","))
 }
 
 func hasOpenAICodexBetaFeaturesHeader(h http.Header) bool {
@@ -146,4 +126,8 @@ func HasCompactionTriggerInInput(body []byte) bool {
 		return true
 	})
 	return found
+}
+
+func ensureOpenAIRemoteCompactionV2BetaFeature(h http.Header) {
+	openai.EnsureRemoteCompactionV2Header(h)
 }

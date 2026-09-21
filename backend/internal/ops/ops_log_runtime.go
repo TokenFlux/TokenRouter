@@ -249,18 +249,3 @@ func (s *OpsService) auditRuntimeLogConfigFailure(id int64, old, next *OpsRuntim
 		s.logging.Failed(id, old, next, reason)
 	}
 }
-
-// CompatDefaultOpsRuntimeLogConfig 为旧入口提供过渡委托。
-func CompatDefaultOpsRuntimeLogConfig(cfg *Options) *OpsRuntimeLogConfig {
-	return defaultOpsRuntimeLogConfig(cfg)
-}
-
-// CompatNormalizeOpsRuntimeLogConfig 为旧入口提供过渡委托。
-func CompatNormalizeOpsRuntimeLogConfig(cfg *OpsRuntimeLogConfig, defaults *OpsRuntimeLogConfig) {
-	normalizeOpsRuntimeLogConfig(cfg, defaults)
-}
-
-// CompatValidateOpsRuntimeLogConfig 为旧入口提供过渡委托。
-func CompatValidateOpsRuntimeLogConfig(cfg *OpsRuntimeLogConfig) error {
-	return validateOpsRuntimeLogConfig(cfg)
-}

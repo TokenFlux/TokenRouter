@@ -9,7 +9,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	failover "github.com/TokenFlux/TokenRouter/internal/gateway/failover"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
 	"github.com/gin-gonic/gin"
@@ -73,15 +86,15 @@ func TestQoderGatewayErrorDetailsMapsAgentLimitToRateLimit(t *testing.T) {
 func TestQoderGatewayErrorDetailsAppliesPassthroughRule(t *testing.T) {
 	customMessage := "Use another Qoder account"
 	responseCode := http.StatusTeapot
-	svc := service.NewErrorPassthroughService(&qoderErrorPassthroughRepoStub{
-		rules: []*model.ErrorPassthroughRule{
+	svc := errorpolicy.NewErrorPassthroughService(&qoderErrorPassthroughRepoStub{
+		rules: []*errorpolicy.ErrorPassthroughRule{
 			{
 				Name:            "qoder custom",
 				Enabled:         true,
 				Priority:        1,
 				ErrorCodes:      []int{http.StatusUnprocessableEntity},
-				MatchMode:       model.MatchModeAny,
-				Platforms:       []string{service.PlatformQoder},
+				MatchMode:       errorpolicy.MatchModeAny,
+				Platforms:       []string{capability.PlatformQoder},
 				PassthroughCode: false,
 				ResponseCode:    &responseCode,
 				PassthroughBody: false,
@@ -89,12 +102,12 @@ func TestQoderGatewayErrorDetailsAppliesPassthroughRule(t *testing.T) {
 				SkipMonitoring:  true,
 			},
 		},
-	}, nil)
+	}, nil, gatewaytelemetry.ErrorRules,
+	)
 	svc.Start()
 	t.Cleanup(svc.Stop)
 	h := &QoderGatewayHandler{errorPassthroughService: svc}
 
-	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	status, errType, message, ok := h.qoderGatewayErrorDetails(c, &qoder.APIError{
@@ -107,13 +120,13 @@ func TestQoderGatewayErrorDetailsAppliesPassthroughRule(t *testing.T) {
 	require.Equal(t, responseCode, status)
 	require.Equal(t, "upstream_error", errType)
 	require.Equal(t, customMessage, message)
-	skip, exists := c.Get(service.OpsSkipPassthroughKey)
+	skip, exists := c.Get(gatewayhttp.OpsSkipPassthroughKey)
 	require.True(t, exists)
 	require.Equal(t, true, skip)
 }
 
 func TestQoderGatewaySessionHashUsesPreviousResponseID(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
@@ -125,7 +138,7 @@ func TestQoderGatewaySessionHashUsesPreviousResponseID(t *testing.T) {
 }
 
 func TestQoderGatewaySessionHashHeaderPrecedence(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
@@ -144,7 +157,7 @@ func TestQoderBindStickySessionsUsesDetachedContextAfterCancel(t *testing.T) {
 	h := &QoderGatewayHandler{gatewayService: newQoderGatewayServiceWithCache(cache)}
 	groupID := int64(12)
 
-	h.bindQoderStickySessions(parent, &groupID, "request-session-hash", 99, qoderEndpointResponses, &service.ForwardResult{
+	h.bindQoderStickySessions(parent, &groupID, "request-session-hash", 99, qoderEndpointResponses, &forwardcore.MessagesResult{
 		RequestID: "resp_qoder_bind",
 	}, nil)
 
@@ -157,7 +170,7 @@ func TestQoderBindStickySessionsUsesDetachedContextAfterCancel(t *testing.T) {
 
 func TestQoderGatewayShouldRefreshAccountOnlyForUnwrittenAuthErrors(t *testing.T) {
 	handler := &QoderGatewayHandler{
-		qoderGatewayService: &service.QoderGatewayService{},
+		qoderGatewayService: &gatewayprovider.QoderRuntime{},
 	}
 
 	require.True(t, handler.shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusUnauthorized}, false))
@@ -180,7 +193,7 @@ func TestQoderGatewayShouldFailoverRetryableUpstreamErrors(t *testing.T) {
 }
 
 func TestQoderGatewayRefreshInProgressMarksAccountForFailoverUntilBudgetExhausted(t *testing.T) {
-	fs := NewFailoverState(3, false)
+	fs := failover.NewFailoverState[*forwardcore.UpstreamFailoverError](3, false, gatewaytelemetry.Failover)
 
 	require.True(t, qoderMarkRefreshInProgressAccountFailed(fs, 101, 3))
 	require.Contains(t, fs.FailedAccountIDs, int64(101))
@@ -192,7 +205,7 @@ func TestQoderGatewayRefreshInProgressMarksAccountForFailoverUntilBudgetExhauste
 }
 
 func TestQoderGatewayFailoverExhaustedUsesLastQoderError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/qoder/v1/chat/completions", nil)
@@ -209,32 +222,12 @@ func TestQoderGatewayFailoverExhaustedUsesLastQoderError(t *testing.T) {
 	require.Contains(t, w.Body.String(), `"message":"agent busy"`)
 }
 
-func TestQoderGatewayStreamingAwareError_ResponsesStreamingEmitsResponseFailed(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	setOpsRequestContext(c, "deepseek-v4-pro", true)
-
-	h := &QoderGatewayHandler{}
-	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointResponses)
-
-	body := w.Body.String()
-	assert.Contains(t, body, "event: response.failed\n")
-	assert.NotContains(t, body, `"type":"error"`)
-	resp, errObj := parseResponsesFailedSSE(t, body)
-	assert.Equal(t, "failed", resp["status"])
-	assert.Equal(t, "deepseek-v4-pro", resp["model"])
-	assert.Equal(t, "upstream_error", errObj["code"])
-	assert.Equal(t, "Upstream request failed", errObj["message"])
-}
-
 func TestQoderGatewayStreamingAwareError_MessagesKeepsGenericSSEError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
-	setOpsRequestContext(c, "claude-opus-4-6", true)
+	gatewayhttp.SetOpsRequestContext(c, "claude-opus-4-6", true)
 
 	h := &QoderGatewayHandler{}
 	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointMessages)
@@ -246,11 +239,11 @@ func TestQoderGatewayStreamingAwareError_MessagesKeepsGenericSSEError(t *testing
 }
 
 func TestQoderGatewayStreamingAwareError_ChatCompletionsStreamingEmitsOpenAIErrorAndDone(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	setOpsRequestContext(c, "qwen3.7-plus", true)
+	gatewayhttp.SetOpsRequestContext(c, "qwen3.7-plus", true)
 
 	h := &QoderGatewayHandler{}
 	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointChatCompletions)
@@ -263,11 +256,11 @@ func TestQoderGatewayStreamingAwareError_ChatCompletionsStreamingEmitsOpenAIErro
 }
 
 func TestQoderGatewayStreamingAwareError_NonStreamingAfterKeepaliveKeepsJSON(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-	setOpsRequestContext(c, "qwen3.7-plus", false)
+	gatewayhttp.SetOpsRequestContext(c, "qwen3.7-plus", false)
 	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_, err := c.Writer.WriteString("\n")
 	require.NoError(t, err)
@@ -283,7 +276,7 @@ func TestQoderGatewayStreamingAwareError_NonStreamingAfterKeepaliveKeepsJSON(t *
 }
 
 func TestQoderGatewaySubmitUsageRecordIgnoresRequestCancellation(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	reqCtx, cancel := context.WithCancel(context.Background())
@@ -367,7 +360,7 @@ func TestQoderNonStreamReleaseStillFiresOnClientCancel(t *testing.T) {
 }
 
 func TestQoderGatewayAccountSlotWaitQueueFullReturnsRateLimitBeforePollingSlot(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/qoder/v1/chat/completions", nil)
@@ -377,11 +370,13 @@ func TestQoderGatewayAccountSlotWaitQueueFullReturnsRateLimitBeforePollingSlot(t
 		accountWaitAllowed:         false,
 	}
 	h := &QoderGatewayHandler{
-		concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, 0),
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event},
+		), gatewayhttp.SSEPingFormatNone, 0),
 	}
 	streamStarted := false
 
-	release, err := h.acquireQoderAccountSlotWithWait(c, &service.Account{ID: 77, Concurrency: 1}, &service.AccountWaitPlan{
+	release, err := h.acquireQoderAccountSlotWithWait(c, &service.Account{ID: 77, Concurrency: 1}, &scheduler.AccountWaitPlan{
 		AccountID:      77,
 		MaxConcurrency: 1,
 		Timeout:        time.Millisecond,
@@ -389,7 +384,7 @@ func TestQoderGatewayAccountSlotWaitQueueFullReturnsRateLimitBeforePollingSlot(t
 	}, false, &streamStarted, nil)
 
 	require.Nil(t, release)
-	var waitErr *WaitQueueFullError
+	var waitErr *gatewayhttp.WaitQueueFullError
 	require.ErrorAs(t, err, &waitErr)
 	require.Equal(t, "account", waitErr.SlotType)
 	require.Equal(t, 1, cache.accountWaitIncrementCalls)
@@ -399,7 +394,7 @@ func TestQoderGatewayAccountSlotWaitQueueFullReturnsRateLimitBeforePollingSlot(t
 }
 
 func TestQoderGatewayAccountSlotWaitCountDecrementsWhenWaitTimesOut(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/qoder/v1/chat/completions", nil)
@@ -409,11 +404,13 @@ func TestQoderGatewayAccountSlotWaitCountDecrementsWhenWaitTimesOut(t *testing.T
 		accountWaitAllowed:         true,
 	}
 	h := &QoderGatewayHandler{
-		concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, 0),
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event},
+		), gatewayhttp.SSEPingFormatNone, 0),
 	}
 	streamStarted := false
 
-	release, err := h.acquireQoderAccountSlotWithWait(c, &service.Account{ID: 78, Concurrency: 1}, &service.AccountWaitPlan{
+	release, err := h.acquireQoderAccountSlotWithWait(c, &service.Account{ID: 78, Concurrency: 1}, &scheduler.AccountWaitPlan{
 		AccountID:      78,
 		MaxConcurrency: 1,
 		Timeout:        time.Millisecond,
@@ -421,7 +418,7 @@ func TestQoderGatewayAccountSlotWaitCountDecrementsWhenWaitTimesOut(t *testing.T
 	}, false, &streamStarted, nil)
 
 	require.Nil(t, release)
-	var concurrencyErr *ConcurrencyError
+	var concurrencyErr *gatewayhttp.ConcurrencyError
 	require.ErrorAs(t, err, &concurrencyErr)
 	require.Equal(t, "account", concurrencyErr.SlotType)
 	require.Equal(t, 1, cache.accountWaitIncrementCalls)
@@ -431,7 +428,7 @@ func TestQoderGatewayAccountSlotWaitCountDecrementsWhenWaitTimesOut(t *testing.T
 }
 
 func TestQoderGatewayAccountSlotWaitCountDecrementsAfterAcquire(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/qoder/v1/chat/completions", nil)
@@ -441,11 +438,13 @@ func TestQoderGatewayAccountSlotWaitCountDecrementsAfterAcquire(t *testing.T) {
 		accountWaitAllowed:         true,
 	}
 	h := &QoderGatewayHandler{
-		concurrencyHelper: NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, 0),
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event},
+		), gatewayhttp.SSEPingFormatNone, 0),
 	}
 	streamStarted := false
 
-	release, err := h.acquireQoderAccountSlotWithWait(c, &service.Account{ID: 79, Concurrency: 1}, &service.AccountWaitPlan{
+	release, err := h.acquireQoderAccountSlotWithWait(c, &service.Account{ID: 79, Concurrency: 1}, &scheduler.AccountWaitPlan{
 		AccountID:      79,
 		MaxConcurrency: 1,
 		Timeout:        time.Second,
@@ -534,31 +533,31 @@ func (s *qoderStickyBindCacheStub) RefreshSessionOwnerTTL(context.Context, int64
 	return nil
 }
 
-func newQoderGatewayServiceWithCache(cache service.GatewayCache) *service.GatewayService {
+func newQoderGatewayServiceWithCache(cache session.GatewayCache) *service.GatewayService {
 	return service.NewGatewayService(
 		nil, nil, nil, nil, nil, nil, nil,
 		cache,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
 	)
 }
 
 type qoderErrorPassthroughRepoStub struct {
-	rules []*model.ErrorPassthroughRule
+	rules []*errorpolicy.ErrorPassthroughRule
 }
 
-func (r *qoderErrorPassthroughRepoStub) List(context.Context) ([]*model.ErrorPassthroughRule, error) {
+func (r *qoderErrorPassthroughRepoStub) List(context.Context) ([]*errorpolicy.ErrorPassthroughRule, error) {
 	return r.rules, nil
 }
 
-func (r *qoderErrorPassthroughRepoStub) GetByID(context.Context, int64) (*model.ErrorPassthroughRule, error) {
+func (r *qoderErrorPassthroughRepoStub) GetByID(context.Context, int64) (*errorpolicy.ErrorPassthroughRule, error) {
 	return nil, nil
 }
 
-func (r *qoderErrorPassthroughRepoStub) Create(context.Context, *model.ErrorPassthroughRule) (*model.ErrorPassthroughRule, error) {
+func (r *qoderErrorPassthroughRepoStub) Create(context.Context, *errorpolicy.ErrorPassthroughRule) (*errorpolicy.ErrorPassthroughRule, error) {
 	return nil, nil
 }
 
-func (r *qoderErrorPassthroughRepoStub) Update(context.Context, *model.ErrorPassthroughRule) (*model.ErrorPassthroughRule, error) {
+func (r *qoderErrorPassthroughRepoStub) Update(context.Context, *errorpolicy.ErrorPassthroughRule) (*errorpolicy.ErrorPassthroughRule, error) {
 	return nil, nil
 }
 

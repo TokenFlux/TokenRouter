@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
@@ -23,20 +24,12 @@ func (r *tokenRefreshAccountRepo) ApplyOAuthRefreshFailure(ctx context.Context, 
 	}
 	if err == nil && failure.Kind == account.RefreshFailurePermanent && r.accountsByID != nil {
 		if value := r.accountsByID[version.ID]; value != nil {
-			value.Status = StatusError
+			value.Status = account.StatusError
 			value.Schedulable = false
 			value.ErrorMessage = failure.Message
 		}
 	}
 	return err == nil, err
-}
-
-// 旧观察替身复用相同计数，覆盖新凭据作用域发布入口，避免零调用断言因缺失端口而空通过。
-func (b *s06FailureBlocker) PrepareRefreshFailure(int64) func(account.RefreshFailureNotice) {
-	return func(account.RefreshFailureNotice) { b.calls++ }
-}
-func (b *tokenRefreshRuntimeBlocker) PrepareRefreshFailure(int64) func(account.RefreshFailureNotice) {
-	return func(account.RefreshFailureNotice) { b.blockCalls++ }
 }
 
 func (r *tokenRefreshAccountRepo) ClearAntigravityRefreshRequest(ctx context.Context, version account.CredentialVersion) (bool, error) {

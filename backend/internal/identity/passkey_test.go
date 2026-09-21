@@ -2,9 +2,10 @@
 package identity
 
 import (
-	require "github.com/stretchr/testify/require"
 	strings "strings"
 	testing "testing"
+
+	require "github.com/stretchr/testify/require"
 )
 
 func TestNormalizePasskeyName(t *testing.T) {

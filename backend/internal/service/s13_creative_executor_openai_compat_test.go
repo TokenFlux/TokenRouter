@@ -4,12 +4,13 @@
 package service
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/creative"
 	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
 )
 
-func buildCreativeOpenAIRequestBody(run CreativeRun, payload CreativeRunPayload, upstreamModel string) ([]byte, string, error) {
+func buildCreativeOpenAIRequestBody(run creative.CreativeRun, payload creative.CreativeRunPayload, upstreamModel string) ([]byte, string, error) {
 	return creativeprovider.BuildCreativeOpenAIRequestBody(run, payload, upstreamModel)
 }
-func parseCreativeOpenAIImageOutputs(body []byte) ([]CreativeOutput, error) {
+func parseCreativeOpenAIImageOutputs(body []byte) ([]creative.CreativeOutput, error) {
 	return creativeprovider.ParseCreativeOpenAIImageOutputs(body)
 }

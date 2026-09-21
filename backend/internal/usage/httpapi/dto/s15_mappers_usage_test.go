@@ -4,28 +4,30 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+	"github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUsageLogFromService_IncludesOpenAIWSMode(t *testing.T) {
 	t.Parallel()
 
-	wsLog := &service.UsageLog{
+	wsLog := &usage.UsageLog{
 		RequestID:    "req_1",
 		Model:        "gpt-5.3-codex",
 		OpenAIWSMode: true,
 	}
-	httpLog := &service.UsageLog{
+	httpLog := &usage.UsageLog{
 		RequestID:    "resp_1",
 		Model:        "gpt-5.3-codex",
 		OpenAIWSMode: false,
 	}
 
-	require.True(t, UsageLogFromService(wsLog).OpenAIWSMode)
-	require.False(t, UsageLogFromService(httpLog).OpenAIWSMode)
-	require.True(t, UsageLogFromServiceAdmin(wsLog).OpenAIWSMode)
-	require.False(t, UsageLogFromServiceAdmin(httpLog).OpenAIWSMode)
+	require.True(t, dto.FromUsage(wsLog).OpenAIWSMode)
+	require.False(t, dto.FromUsage(httpLog).OpenAIWSMode)
+	require.True(t, dto.FromUsageAdmin(wsLog).OpenAIWSMode)
+	require.False(t, dto.FromUsageAdmin(httpLog).OpenAIWSMode)
 }
 
 func TestUsageLogTimingFromService_MapsStages(t *testing.T) {
@@ -33,7 +35,7 @@ func TestUsageLogTimingFromService_MapsStages(t *testing.T) {
 
 	firstByte := int64(1200)
 	attempts := int64(2)
-	got := UsageLogTimingFromService(&service.OpsRequestTiming{
+	got := dto.TimingFromOps(&ops.OpsRequestTiming{
 		UpstreamFirstResponseByteMs: &firstByte,
 		UpstreamAttemptCount:        &attempts,
 		UpstreamConnectionReused:    true,
@@ -47,16 +49,16 @@ func TestUsageLogTimingFromService_MapsStages(t *testing.T) {
 func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
 	t.Parallel()
 
-	log := &service.UsageLog{
+	log := &usage.UsageLog{
 		RequestID:    "req_2",
 		Model:        "gpt-5.3-codex",
-		RequestType:  service.RequestTypeWSV2,
+		RequestType:  usage.RequestTypeWSV2,
 		Stream:       false,
 		OpenAIWSMode: false,
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := dto.FromUsage(log)
+	adminDTO := dto.FromUsageAdmin(log)
 
 	require.Equal(t, "ws_v2", userDTO.RequestType)
 	require.True(t, userDTO.Stream)
@@ -69,16 +71,16 @@ func TestUsageLogFromService_PrefersRequestTypeForLegacyFields(t *testing.T) {
 func TestUsageCleanupTaskFromService_RequestTypeMapping(t *testing.T) {
 	t.Parallel()
 
-	requestType := int16(service.RequestTypeStream)
-	task := &service.UsageCleanupTask{
+	requestType := int16(usage.RequestTypeStream)
+	task := &usage.UsageCleanupTask{
 		ID:     1,
-		Status: service.UsageCleanupStatusPending,
-		Filters: service.UsageCleanupFilters{
+		Status: usage.UsageCleanupStatusPending,
+		Filters: usage.UsageCleanupFilters{
 			RequestType: &requestType,
 		},
 	}
 
-	dtoTask := UsageCleanupTaskFromService(task)
+	dtoTask := dto.CleanupFromUsage(task)
 	require.NotNil(t, dtoTask)
 	require.NotNil(t, dtoTask.Filters.RequestType)
 	require.Equal(t, "stream", *dtoTask.Filters.RequestType)
@@ -95,7 +97,7 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 	serviceTier := "priority"
 	inboundEndpoint := "/v1/chat/completions"
 	upstreamEndpoint := "/v1/responses"
-	log := &service.UsageLog{
+	log := &usage.UsageLog{
 		RequestID:             "req_3",
 		Model:                 "gpt-5.4",
 		ServiceTier:           &serviceTier,
@@ -104,8 +106,8 @@ func TestUsageLogFromService_IncludesServiceTierForUserAndAdmin(t *testing.T) {
 		AccountRateMultiplier: f64Ptr(1.5),
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := dto.FromUsage(log)
+	adminDTO := dto.FromUsageAdmin(log)
 
 	require.NotNil(t, userDTO.ServiceTier)
 	require.Equal(t, serviceTier, *userDTO.ServiceTier)
@@ -127,15 +129,15 @@ func TestUsageLogFromService_IncludesRequestedEffort(t *testing.T) {
 	t.Parallel()
 	requested := "max"
 	forwarded := "xhigh"
-	log := &service.UsageLog{
+	log := &usage.UsageLog{
 		RequestID:                "req_reasoning_mapping",
 		Model:                    "gpt-5.4",
 		RequestedReasoningEffort: &requested,
 		ReasoningEffort:          &forwarded,
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := dto.FromUsage(log)
+	adminDTO := dto.FromUsageAdmin(log)
 	require.Equal(t, forwarded, *userDTO.ReasoningEffort)
 	require.Equal(t, requested, *userDTO.RequestedReasoningEffort)
 	require.Equal(t, forwarded, *adminDTO.ReasoningEffort)
@@ -150,8 +152,8 @@ func TestUsageLogFromService_IncludesRequestedEffort(t *testing.T) {
 func TestUsageLogFromService_PreservesEquivalentRequestedEffort(t *testing.T) {
 	t.Parallel()
 	effort := "x-high"
-	log := &service.UsageLog{RequestedReasoningEffort: &effort, ReasoningEffort: &effort}
-	adminDTO := UsageLogFromServiceAdmin(log)
+	log := &usage.UsageLog{RequestedReasoningEffort: &effort, ReasoningEffort: &effort}
+	adminDTO := dto.FromUsageAdmin(log)
 	require.NotNil(t, adminDTO.RequestedReasoningEffort)
 	require.Equal(t, effort, *adminDTO.RequestedReasoningEffort)
 }
@@ -160,15 +162,15 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 	t.Parallel()
 
 	upstreamModel := "claude-sonnet-4-20250514"
-	log := &service.UsageLog{
+	log := &usage.UsageLog{
 		RequestID:      "req_4",
 		Model:          upstreamModel,
 		RequestedModel: "claude-sonnet-4",
 		UpstreamModel:  &upstreamModel,
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := dto.FromUsage(log)
+	adminDTO := dto.FromUsageAdmin(log)
 
 	require.Equal(t, "claude-sonnet-4", userDTO.Model)
 	require.Equal(t, "claude-sonnet-4", adminDTO.Model)
@@ -188,7 +190,7 @@ func TestUsageLogFromService_KeepsUserBillingAndIPWithoutAdminCostFields(t *test
 	ipAddress := "203.0.113.10"
 	accountRateMultiplier := 1.5
 	accountStatsCost := 0.21
-	log := &service.UsageLog{
+	log := &usage.UsageLog{
 		RequestID:             "req_user_visible_billing",
 		Model:                 "gpt-5.4",
 		InputCost:             0.01,
@@ -203,7 +205,7 @@ func TestUsageLogFromService_KeepsUserBillingAndIPWithoutAdminCostFields(t *test
 		AccountStatsCost:      &accountStatsCost,
 	}
 
-	userDTO := UsageLogFromService(log)
+	userDTO := dto.FromUsage(log)
 	require.Equal(t, 0.01, userDTO.InputCost)
 	require.Equal(t, 0.02, userDTO.OutputCost)
 	require.Equal(t, 0.03, userDTO.CacheCreationCost)
@@ -224,13 +226,13 @@ func TestUsageLogFromService_KeepsUserBillingAndIPWithoutAdminCostFields(t *test
 func TestUsageLogFromService_FallsBackToLegacyModelWhenRequestedModelMissing(t *testing.T) {
 	t.Parallel()
 
-	log := &service.UsageLog{
+	log := &usage.UsageLog{
 		RequestID: "req_legacy",
 		Model:     "claude-3",
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := dto.FromUsage(log)
+	adminDTO := dto.FromUsageAdmin(log)
 
 	require.Equal(t, "claude-3", userDTO.Model)
 	require.Equal(t, "claude-3", adminDTO.Model)
@@ -243,7 +245,7 @@ func TestUsageLogFromService_IncludesImageBillingMetadataForUserAndAdmin(t *test
 	inputSize := "1024x1024"
 	outputSize := "3840x2160"
 	source := "output"
-	log := &service.UsageLog{
+	log := &usage.UsageLog{
 		RequestID:          "req_image_metadata",
 		Model:              "gpt-image-2",
 		ImageCount:         2,
@@ -254,10 +256,10 @@ func TestUsageLogFromService_IncludesImageBillingMetadataForUserAndAdmin(t *test
 		ImageSizeBreakdown: map[string]int{"4K": 2},
 	}
 
-	userDTO := UsageLogFromService(log)
-	adminDTO := UsageLogFromServiceAdmin(log)
+	userDTO := dto.FromUsage(log)
+	adminDTO := dto.FromUsageAdmin(log)
 
-	for _, got := range []*UsageLog{userDTO, &adminDTO.UsageLog} {
+	for _, got := range []*dto.UsageLog{userDTO, &adminDTO.UsageLog} {
 		require.Equal(t, 2, got.ImageCount)
 		require.NotNil(t, got.ImageSize)
 		require.Equal(t, imageSize, *got.ImageSize)
@@ -274,14 +276,14 @@ func TestUsageLogFromService_IncludesImageBillingMetadataForUserAndAdmin(t *test
 func TestUsageLogFromService_PreservesHistoricalMissingImageSize(t *testing.T) {
 	t.Parallel()
 
-	log := &service.UsageLog{
+	log := &usage.UsageLog{
 		RequestID:  "req_legacy_image_missing_size",
 		Model:      "gpt-image-2",
 		ImageCount: 1,
 		ImageSize:  nil,
 	}
 
-	dto := UsageLogFromService(log)
+	dto := dto.FromUsage(log)
 	require.Equal(t, 1, dto.ImageCount)
 	require.Nil(t, dto.ImageSize)
 	require.Nil(t, dto.ImageInputSize)

@@ -7,16 +7,21 @@ import (
 	"strings"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	modelidentity "github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,18 +37,18 @@ func isClaudeCodeClient(userAgent string, metadataUserID string) bool {
 	if !claudeCliUserAgentRe.MatchString(userAgent) {
 		return false
 	}
-	return ParseMetadataUserID(metadataUserID) != nil
+	return claude.ParseMetadataUserID(metadataUserID) != nil
 }
 
 // shouldRectifySignatureError 统一判断是否应触发签名整流（strip thinking blocks 并重试）。
 // 根据账号类型检查对应的开关和匹配模式。
 func (s *GatewayService) shouldRectifySignatureError(ctx context.Context, account *Account, respBody []byte, mappedModel ...string) bool {
-	if len(mappedModel) > 0 && !ShouldRectifyThinkingSignatureError(mappedModel[0]) {
+	if len(mappedModel) > 0 && !modelidentity.ShouldRectifyThinkingSignatureError(mappedModel[0]) {
 		return false
 	}
-	if account.Type == AccountTypeAPIKey {
+	if account.Type == capability.AccountTypeAPIKey {
 		// API Key 账号：独立开关，一次读取配置
-		settings, err := s.settingService.GetRectifierSettings(ctx)
+		settings, err := s.settingService.Gateway.GetRectifierSettings(ctx)
 		if err != nil || !settings.Enabled || !settings.APIKeySignatureEnabled {
 			return false
 		}
@@ -51,10 +56,10 @@ func (s *GatewayService) shouldRectifySignatureError(ctx context.Context, accoun
 		if s.isThinkingBlockSignatureError(respBody) {
 			return true
 		}
-		return matchSignaturePatterns(respBody, settings.APIKeySignaturePatterns)
+		return claude.MatchSignaturePatterns(respBody, settings.APIKeySignaturePatterns)
 	}
 	// OAuth/SetupToken/Upstream/Bedrock 等：保持原有行为（内置模式 + 原开关）
-	return s.isThinkingBlockSignatureError(respBody) && s.settingService.IsSignatureRectifierEnabled(ctx)
+	return s.isThinkingBlockSignatureError(respBody) && s.settingService.Gateway.IsSignatureRectifierEnabled(ctx)
 }
 
 // isSignatureErrorPattern 仅做模式匹配，不检查开关。
@@ -63,24 +68,20 @@ func (s *GatewayService) isSignatureErrorPattern(ctx context.Context, account *A
 	if s.isThinkingBlockSignatureError(respBody) {
 		return true
 	}
-	if account.Type == AccountTypeAPIKey {
-		settings, err := s.settingService.GetRectifierSettings(ctx)
+	if account.Type == capability.AccountTypeAPIKey {
+		settings, err := s.settingService.Gateway.GetRectifierSettings(ctx)
 		if err != nil {
 			return false
 		}
-		return matchSignaturePatterns(respBody, settings.APIKeySignaturePatterns)
+		return claude.MatchSignaturePatterns(respBody, settings.APIKeySignaturePatterns)
 	}
 	return false
 }
 
-func matchSignaturePatterns(respBody []byte, patterns []string) bool {
-	return claude.MatchSignaturePatterns(respBody, patterns)
-}
-
 func (s *GatewayService) isThinkingBlockSignatureError(respBody []byte) bool {
-	matched, diagnostic := claude.IsThinkingBlockSignatureError(extractUpstreamErrorMessage(respBody))
+	matched, diagnostic := claude.IsThinkingBlockSignatureError(upstream.ExtractErrorMessage(respBody))
 	if diagnostic != "" {
-		logger.LegacyPrintf("service.gateway", "%s", diagnostic)
+		logging.LegacyPrintf("service.gateway", "%s", diagnostic)
 	}
 	return matched
 }
@@ -88,7 +89,7 @@ func (s *GatewayService) isThinkingBlockSignatureError(respBody []byte) bool {
 func (s *GatewayService) shouldFailoverOn400(respBody []byte) bool {
 	// 只对"可能是兼容性差异导致"的 400 允许切换，避免无意义重试。
 	// 默认保守：无法识别则不切换。
-	msg := strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(respBody)))
+	msg := strings.ToLower(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 	if msg == "" {
 		return false
 	}
@@ -112,23 +113,11 @@ func (s *GatewayService) shouldFailoverOn400(respBody []byte) bool {
 	return false
 }
 
-// ExtractUpstreamErrorMessage 从上游响应体中提取错误消息
-// 支持 Claude 风格的错误格式：{"type":"error","error":{"type":"...","message":"..."}}
-func ExtractUpstreamErrorMessage(body []byte) string {
-	return extractUpstreamErrorMessage(body)
-}
-
-func extractUpstreamErrorMessage(body []byte) string {
-	return upstream.ExtractErrorMessage(body)
-}
-
-func extractUpstreamErrorCode(body []byte) string { return upstream.ExtractErrorCode(body) }
-
 func isCountTokensUnsupported404(statusCode int, body []byte) bool {
 	if statusCode != http.StatusNotFound {
 		return false
 	}
-	msg := strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(body)))
+	msg := strings.ToLower(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
 	if msg == "" {
 		return false
 	}
@@ -149,7 +138,7 @@ func (s *GatewayService) readUpstreamErrorBody(resp *http.Response) ([]byte, err
 	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }
 
-func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, requestedModel ...string) (*ForwardResult, error) {
+func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, requestedModel ...string) (*forwardcore.MessagesResult, error) {
 	adapter := &anthropicErrorAdapter{s: s, c: c, account: account, resp: resp}
 	result, err := forwardcore.AnthropicError(ctx, adapter, adapter.input(requestedModel))
 	return legacyForwardExecutionResult(result), err
@@ -164,20 +153,20 @@ func (s *GatewayService) handleRetryExhaustedSideEffects(ctx context.Context, re
 	policy := s.rateLimitService.ApplyExplicitErrorPolicy(ctx, account, statusCode, body, requestedModel...)
 	decision := UpstreamErrorDecision{Policy: policy}
 	switch policy {
-	case ErrorPolicyCustomMatched, ErrorPolicyTempUnscheduled:
+	case accountcore.ErrorPolicyCustomMatched, accountcore.ErrorPolicyTempUnscheduled:
 		decision.StopScheduling = true
 		return decision
-	case ErrorPolicyCustomSkipped, ErrorPolicyPoolBypassed:
+	case accountcore.ErrorPolicyCustomSkipped, accountcore.ErrorPolicyPoolBypassed:
 		return decision
 	}
 
 	// OAuth/Setup Token 账号的 403：按上游错误策略处理账号状态。
 	if account.IsOAuth() && statusCode == 403 {
 		decision = s.rateLimitService.ApplyUpstreamError(ctx, account, statusCode, resp.Header, body, requestedModel...)
-		logger.LegacyPrintf("service.gateway", "Account %d: applied upstream error policy after %d retries for status %d", account.ID, maxRetryAttempts, statusCode)
+		logging.LegacyPrintf("service.gateway", "Account %d: applied upstream error policy after %d retries for status %d", account.ID, maxRetryAttempts, statusCode)
 	} else {
 		// API Key 未配置错误码：不标记账号状态
-		logger.LegacyPrintf("service.gateway", "Account %d: upstream error %d after %d retries (not marking account)", account.ID, statusCode, maxRetryAttempts)
+		logging.LegacyPrintf("service.gateway", "Account %d: upstream error %d after %d retries (not marking account)", account.ID, statusCode, maxRetryAttempts)
 	}
 	return decision
 }
@@ -196,7 +185,7 @@ func (s *GatewayService) handleFailoverSideEffects(ctx context.Context, resp *ht
 // handleRetryExhaustedError 处理重试耗尽后的错误
 // OAuth 403：按错误策略处理账号状态
 // API Key 未配置错误码：仅返回错误，不标记账号
-func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, requestedModel ...string) (*ForwardResult, error) {
+func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, requestedModel ...string) (*forwardcore.MessagesResult, error) {
 	adapter := &anthropicErrorAdapter{s: s, c: c, account: account, resp: resp}
 	result, err := forwardcore.AnthropicRetryError(ctx, adapter, adapter.input(requestedModel))
 	return legacyForwardExecutionResult(result), err
@@ -204,7 +193,7 @@ func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *ht
 
 // streamingResult 流式响应结果
 type streamingResult struct {
-	usage            *ClaudeUsage
+	usage            *upstream.TokenUsage
 	firstTokenMs     *int
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
 }
@@ -218,7 +207,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	return &streamingResult{usage: result.Usage, firstTokenMs: result.FirstTokenMs, clientDisconnect: result.ClientDisconnect}, err
 }
 
-func (s *GatewayService) parseSSEUsage(data string, usage *ClaudeUsage) {
+func (s *GatewayService) parseSSEUsage(data string, usage *upstream.TokenUsage) {
 	protocolanthropic.ParseSSEUsage(data, usage)
 }
 
@@ -229,23 +218,21 @@ func (s *GatewayService) resolveCacheTTLUsageOverrideTarget(ctx context.Context,
 	if account.IsCacheTTLOverrideEnabled() {
 		return account.GetCacheTTLOverrideTarget(), true
 	}
-	if account.IsAnthropicOAuthOrSetupToken() && s != nil && s.settingService != nil && s.settingService.IsAnthropicCacheTTL1hInjectionEnabled(ctx) {
+	if account.IsAnthropicOAuthOrSetupToken() && s != nil && s.settingService != nil && s.settingService.Gateway.IsAnthropicCacheTTL1hInjectionEnabled(ctx) {
 		return cacheTTLTarget5m, true
 	}
 	return "", false
 }
 
-func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*ClaudeUsage, error) {
+func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*upstream.TokenUsage, error) {
 	options := s.anthropicResponseOptions(ctx, c, account, mappedModel, false)
 	return claude.NonStreamResponse(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), options, originalModel, mappedModel)
 }
 
-func reconcileCachedTokens(usage map[string]any) bool { return claude.ReconcileCachedTokens(usage) }
-
 // anthropicStreamOptions 保留逐事件动态设置读取和旧账号观测的时机。
 func (s *GatewayService) anthropicStreamOptions(c *gin.Context, account *Account) claude.StreamOptions {
 	o := claude.StreamOptions{AccountID: account.ID, ToolNames: toolNameRewriteFromContext(c), UpdateWindow: func(ctx context.Context, h http.Header) { s.rateLimitService.UpdateSessionWindow(ctx, account, h) }, OverrideCache: func(ctx context.Context) (string, bool) { return s.resolveCacheTTLUsageOverrideTarget(ctx, account) }, Failover: func(body []byte) error {
-		return &UpstreamFailoverError{StatusCode: 502, ResponseBody: body, RetryableOnSameAccount: true}
+		return &forwardcore.UpstreamFailoverError{StatusCode: 502, ResponseBody: body, RetryableOnSameAccount: true}
 	}}
 	if c != nil && c.Request != nil {
 		o.UserAgent = c.GetHeader("User-Agent")
@@ -260,7 +247,7 @@ func (s *GatewayService) anthropicStreamOptions(c *gin.Context, account *Account
 		}
 	}
 	if s.responseHeaderFilter != nil {
-		o.WriteHeaders = func(dst, src http.Header) { responseheaders.WriteFilteredHeaders(dst, src, s.responseHeaderFilter) }
+		o.WriteHeaders = func(dst, src http.Header) { provider.WriteFilteredHeaders(dst, src, s.responseHeaderFilter) }
 	}
 	if s.rateLimitService != nil {
 		o.OnTimeout = func(ctx context.Context, model string) { s.rateLimitService.HandleStreamTimeout(ctx, account, model) }
@@ -279,12 +266,14 @@ func (s *GatewayService) anthropicResponseOptions(ctx context.Context, c *gin.Co
 		}
 		return invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err, model)
 	}
-	o.WriteHeaders = func(dst, src http.Header) { responseheaders.WriteFilteredHeaders(dst, src, s.responseHeaderFilter) }
+	o.WriteHeaders = func(dst, src http.Header) { provider.WriteFilteredHeaders(dst, src, s.responseHeaderFilter) }
 	if passthrough {
 		if s.rateLimitService == nil {
 			o.UpdateWindow = nil
 		}
-		o.WriteHeaders = func(dst, src http.Header) { writeAnthropicPassthroughResponseHeaders(dst, src, s.responseHeaderFilter) }
+		o.WriteHeaders = func(dst, src http.Header) {
+			gatewayhttp.WriteAnthropicPassthroughHeaders(dst, src, s.responseHeaderFilter)
+		}
 	}
 	return o
 }

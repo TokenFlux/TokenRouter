@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,7 +80,7 @@ func TestAccountIsModelSupported_QoderMappingWhitelistSemantics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			account := &Account{
-				Platform:    PlatformQoder,
+				Platform:    capability.PlatformQoder,
 				Credentials: tt.credentials,
 			}
 
@@ -90,7 +91,7 @@ func TestAccountIsModelSupported_QoderMappingWhitelistSemantics(t *testing.T) {
 
 func TestAccountGetConfiguredRequestModels_QoderMappingWhitelistSemantics(t *testing.T) {
 	mappingOnly := &Account{
-		Platform: PlatformQoder,
+		Platform: capability.PlatformQoder,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"claude-opus-4-6": "ultimate",
@@ -100,7 +101,7 @@ func TestAccountGetConfiguredRequestModels_QoderMappingWhitelistSemantics(t *tes
 	require.Equal(t, []string{"claude-opus-4-6"}, mappingOnly.GetConfiguredRequestModels())
 
 	withWhitelist := &Account{
-		Platform: PlatformQoder,
+		Platform: capability.PlatformQoder,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"claude-opus-4-6": "ultimate",
@@ -111,7 +112,7 @@ func TestAccountGetConfiguredRequestModels_QoderMappingWhitelistSemantics(t *tes
 	require.Equal(t, []string{"claude-opus-4-6"}, withWhitelist.GetConfiguredRequestModels())
 
 	whitelistOnly := &Account{
-		Platform: PlatformQoder,
+		Platform: capability.PlatformQoder,
 		Credentials: map[string]any{
 			"model_whitelist": []any{"claude-opus-4-6", "glm-5.2"},
 		},
@@ -120,8 +121,8 @@ func TestAccountGetConfiguredRequestModels_QoderMappingWhitelistSemantics(t *tes
 }
 
 func TestAccountIsModelSupported_QoderSiteCompatibility(t *testing.T) {
-	global := &Account{Platform: PlatformQoder, Credentials: map[string]any{"site": "global"}}
-	cn := &Account{Platform: PlatformQoder, Credentials: map[string]any{"site": "cn"}}
+	global := &Account{Platform: capability.PlatformQoder, Credentials: map[string]any{"site": "global"}}
+	cn := &Account{Platform: capability.PlatformQoder, Credentials: map[string]any{"site": "cn"}}
 
 	require.True(t, global.IsModelSupported("claude-opus-4-6"))
 	require.False(t, cn.IsModelSupported("claude-opus-4-6"))

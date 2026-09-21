@@ -11,13 +11,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestOpenAIGatewayService_APIKeyPassthrough_StripsInvalidInputItemIDs(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -72,9 +72,8 @@ func TestOpenAIGatewayService_APIKeyPassthrough_StripsInvalidInputItemIDs(t *tes
 }
 
 func TestOpenAIGatewayService_OAuthPassthrough_SanitizesNativeToolItemIDs(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
-	for _, accountType := range []string{AccountTypeOAuth, AccountTypeSetupToken} {
+	for _, accountType := range []string{capability.AccountTypeOAuth, capability.AccountTypeSetupToken} {
 		t.Run(accountType, func(t *testing.T) {
 			upstreamSSE := "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_test\",\"model\":\"gpt-5.6-sol\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\ndata: [DONE]\n\n"
 			upstream := &httpUpstreamRecorder{resp: &http.Response{
@@ -118,7 +117,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_SanitizesNativeToolItemIDs(t *tes
 }
 
 func TestOpenAIGatewayService_SetupTokenLegacy_SanitizesAndTransforms(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	upstreamSSE := "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_test\",\"model\":\"gpt-5.6-sol\",\"output\":[],\"usage\":{\"input_tokens\":1,\"output_tokens\":1,\"total_tokens\":2}}}\n\ndata: [DONE]\n\n"
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -128,7 +127,7 @@ func TestOpenAIGatewayService_SetupTokenLegacy_SanitizesAndTransforms(t *testing
 	svc := newOpenAIImageGenerationControlTestService(upstream)
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 	account := newOpenAIImageGenerationControlTestAccount()
-	account.Type = AccountTypeSetupToken
+	account.Type = capability.AccountTypeSetupToken
 	account.Credentials = map[string]any{
 		"access_token":       "setup-token",
 		"chatgpt_account_id": "chatgpt-account",
@@ -159,7 +158,6 @@ func TestOpenAIGatewayService_SetupTokenLegacy_SanitizesAndTransforms(t *testing
 }
 
 func TestOpenAIGatewayService_APIKeyPassthrough_StripsInvalidReasoningItemIDs(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -218,7 +216,7 @@ func TestShouldStripOpenAIResponsesInputItemID_Reasoning(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, shouldStripOpenAIResponsesInputItemID(tc.itemType, tc.id))
+			require.Equal(t, tc.want, openai.ShouldStripOpenAIResponsesInputItemID(tc.itemType, tc.id))
 		})
 	}
 }
@@ -257,10 +255,10 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBodyPreservesOpaqueRefere
 		{"type":"future_item","id":"item_future","payload":"keep"}
 	]}`)
 
-	for _, accountType := range []string{AccountTypeAPIKey, AccountTypeOAuth} {
+	for _, accountType := range []string{capability.AccountTypeAPIKey, capability.AccountTypeOAuth} {
 		t.Run(accountType, func(t *testing.T) {
 			normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{
-				Platform: PlatformOpenAI,
+				Platform: capability.PlatformOpenAI,
 				Type:     accountType,
 			}, false)
 
@@ -274,7 +272,7 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBodyPreservesOpaqueRefere
 			require.Equal(t, "item_future", gjson.GetBytes(normalized, "input.3.id").String())
 
 			second, changedAgain, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(normalized, &Account{
-				Platform: PlatformOpenAI,
+				Platform: capability.PlatformOpenAI,
 				Type:     accountType,
 			}, false)
 			require.NoError(t, err)

@@ -99,10 +99,14 @@ Antigravity 同时提供 Claude 与 Gemini 模型族。Gemini 3.6 Flash 的基�
 <a id="antigravity_native_execution"></a>
 ## 原生执行与账号拥有者
 
-`upstream/antigravity.Executor` 接入 Claude、Gemini、Chat、Responses 和历史静态 upstream 五条生产链，闭合单次平台交换、恢复、输出及最终响应体关闭。账号内普通重试、智能重试、credits 请求和共享模型容量去重只有一份实现；全局账号切换、付款主体和资金完成由旧入站编排持有，等待 S11。`Probe` 复用同一平台重试，只测试指定账号，不取得用户或账号的请求槽。
+`upstream/antigravity.Executor` 接入 Claude、Gemini、Chat、Responses 和历史静态 upstream 五条生产链，闭合单次平台交换、恢复、输出及最终响应体关闭。账号内普通重试、智能重试、credits 请求和共享模型容量去重只有一份实现；全局账号切换、付款主体和资金完成由网关编排持有；S16 继续清理旧入口投影。`Probe` 复用同一平台重试，只测试指定账号，不取得用户或账号的请求槽。
 
 流通过同步 `OutputSink` 输出，保留原来每种协议的前导缓冲、非流收集、心跳、首 token 与断开后的尾部读取规则。结果区分已观测 usage、是否服务和错误；HTTP 提交及重试关闭与语义输出分开，不用新观测改变 Antigravity 旧失败结算规则。平台用量归一化、外层冻结的 QuotaPlatform 与后台完成输入保持原链：强制平台路由优先，否则按分组平台；后台不能用缺少原路由上下文的 context 重新计算。
 
 OAuth 会话、交换后的一次性删除、项目与套餐发现、隐私设置及验证由 `account.AntigravityAuthorization` 编排。原生客户端只执行供应商协议，wire 变体由 `protocol/google` 保留。token provider 的 project 回填冷却、缓存键、八秒请求刷新预算、后台十五分钟刷新资格与原 CAS 不变。额度展示、credits/模型窗口及 INTERNAL 500 惩罚归账号；共享缓存、计数器和发布端口复用原实例。
 
-app 统一登记已进入的原生尝试和授权活动。构造不启动清理；停止取消运行操作并等待，仍保留原有限重试的收尾行为。预算耗尽报告未完成项，不视作排空成功。管理授权 URL、DTO、错误响应及旧常量/私有测试入口通过兼容层衔接；只供 unit 使用的私有转接不进入生产构建。
+app 直接构造 `account.AntigravityAuthorization` 并登记授权活动，provider 组合原生协议客户端与代理读取端口。管理、刷新和恢复消费者使用同一授权实例。构造不启动清理；停止取消运行操作并等待，仍保留原有限重试的收尾行为。预算耗尽报告未完成项，不视作排空成功。管理授权 URL、DTO 和错误响应保持原 HTTP 契约。
+
+指定账号的管理与后台测试由 `account/provider.AntigravityProbe` 闭合执行，复用同一 `AntigravityRetry` 和原生平台循环。探针 UA 是显式请求字段，不通过专用 Context 键传递；测试不记录 Ops 错误或操作粘性会话。app 绑定唯一健康、计数器与发布端口，并使探测与转发共用尝试关闭屏障。令牌、模型映射、最小提示词、错误正文上限和响应体关闭顺序保持原行为。
+
+错误观测由 `account/provider.AntigravityErrorObserver` 组合原生账号健康端口。模型窗口先于一般错误处理，503 共享容量不足不升级为账号冷却；429 缺少模型信息时沿用原最终模型和账号级兜底。app 注入同一健康、发布与平台观测实例，旧转发只传入本次 thinking、错误报文和粘性清除动作。

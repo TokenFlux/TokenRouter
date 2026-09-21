@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,7 +16,7 @@ const openCodeSessionHeader = "X-OpenCode-Session"
 // header overrides so a per-conversation value cannot be replaced by a fixed
 // account-wide override.
 func applyOpenCodeSessionHeader(c *gin.Context, account *Account, targetURL string, headers http.Header) {
-	if c == nil || c.Request == nil || account == nil || account.Type != AccountTypeAPIKey || headers == nil {
+	if c == nil || c.Request == nil || account == nil || account.Type != capability.AccountTypeAPIKey || headers == nil {
 		return
 	}
 

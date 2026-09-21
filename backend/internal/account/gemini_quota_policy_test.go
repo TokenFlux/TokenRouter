@@ -2,11 +2,12 @@ package account
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 静态参数、JSON 策略、动态设置依次覆盖；缓存到期前后保持原取值时机。

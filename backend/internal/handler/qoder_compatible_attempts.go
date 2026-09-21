@@ -6,7 +6,15 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
+
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -16,18 +24,18 @@ type qoderCompatibleAttemptBridge struct {
 	h             *QoderGatewayHandler
 	c             *gin.Context
 	endpoint      qoderEndpoint
-	key           *service.APIKey
+	key           *apikey.APIKey
 	subjectID     int64
 	hash, model   string
 	stream        bool
 	streamStarted *bool
 	body          []byte
 	log           *zap.Logger
-	record        func(*service.Account, *service.ForwardResult)
-	partial       func(*service.Account, *service.ForwardResult, error) bool
+	record        func(*service.Account, *forwardcore.MessagesResult)
+	partial       func(*service.Account, *forwardcore.MessagesResult, error) bool
 	selection     *service.AccountSelectionResult
 	account       *service.Account
-	result        *service.ForwardResult
+	result        *forwardcore.MessagesResult
 	release       func()
 	writerSize    int
 }
@@ -40,7 +48,7 @@ func (b *qoderCompatibleAttemptBridge) Select(excluded map[int64]struct{}) (text
 	}
 	b.selection = selected
 	b.account = selected.Account
-	setOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
 	return textflow.Selection{Account: service.AccountSnapshotView(b.account)}, nil
 }
 func (b *qoderCompatibleAttemptBridge) SelectionFailed(err error, pending, first bool, last error) {
@@ -49,7 +57,7 @@ func (b *qoderCompatibleAttemptBridge) SelectionFailed(err error, pending, first
 		return
 	}
 	if first {
-		markOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
+		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 		if handleGroupSelectionBusinessError(b.c, err, *b.streamStarted, func(status int, kind, message string, started bool) {
 			b.h.streamingAwareError(b.c, status, kind, message, started, b.endpoint)
 		}) {
@@ -77,7 +85,7 @@ func (b *qoderCompatibleAttemptBridge) Acquire(retry bool) bool {
 		b.release = b.selection.ReleaseFunc
 		if !b.selection.Acquired {
 			if b.selection.WaitPlan == nil {
-				markOpsRoutingCapacityLimited(b.c)
+				gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 				b.h.errorResponse(b.c, http.StatusServiceUnavailable, "api_error", "No available accounts", b.endpoint)
 				return false
 			}
@@ -103,11 +111,11 @@ func (b *qoderCompatibleAttemptBridge) Forward() textflow.QoderCompatibleOutcome
 	var err error
 	switch b.endpoint {
 	case qoderEndpointChatCompletions:
-		b.result, err = b.h.qoderGatewayService.ForwardChatCompletions(b.Context(), b.c, b.account, b.body, b.model)
+		b.result, err = gatewayhttp.ForwardQoderAttempt(b.Context(), b.c, b.h.qoderGatewayService, service.AccountRecordView(b.account), b.body, protocol.ProtocolOpenAIChatCompletions, b.model)
 	case qoderEndpointResponses:
-		b.result, err = b.h.qoderGatewayService.ForwardResponses(b.Context(), b.c, b.account, b.body, b.model)
+		b.result, err = gatewayhttp.ForwardQoderAttempt(b.Context(), b.c, b.h.qoderGatewayService, service.AccountRecordView(b.account), b.body, protocol.ProtocolOpenAIResponses, b.model)
 	default:
-		b.result, err = b.h.qoderGatewayService.ForwardMessages(b.Context(), b.c, b.account, b.body, b.model)
+		b.result, err = gatewayhttp.ForwardQoderAttempt(b.Context(), b.c, b.h.qoderGatewayService, service.AccountRecordView(b.account), b.body, protocol.ProtocolAnthropicMessages, b.model)
 	}
 	if b.release != nil {
 		b.release()
@@ -121,10 +129,10 @@ func (b *qoderCompatibleAttemptBridge) Refresh() textflow.QoderRefreshResult {
 	if err == nil && account != nil {
 		b.log.Info("qoder.account_refreshed_after_auth_error", zap.Int64("account_id", b.account.ID))
 		b.account = account
-		setOpsSelectedAccount(b.c, account.ID, account.Platform)
+		gatewayhttp.SetOpsSelectedAccount(b.c, account.ID, account.Platform)
 		return textflow.QoderRefreshResult{Ready: true}
 	}
-	if errors.Is(err, service.ErrQoderRefreshInProgress) {
+	if errors.Is(err, accountcore.ErrQoderRefreshInProgress) {
 		b.log.Info("qoder.account_refresh_after_auth_error_in_progress", zap.Int64("account_id", b.account.ID))
 		return textflow.QoderRefreshResult{Pending: true}
 	}
@@ -149,7 +157,7 @@ func (b *qoderCompatibleAttemptBridge) Canceled(retry bool, err error) {
 }
 func (b *qoderCompatibleAttemptBridge) Failure(out textflow.QoderCompatibleOutcome) bool {
 	if status, kind, message, ok := b.h.qoderGatewayErrorDetails(b.c, out.Err); ok {
-		service.SetOpsUpstreamError(b.c, upstreamStatusFromError(out.Err), message, "")
+		gatewayhttp.SetOpsUpstreamError(b.c, upstreamStatusFromError(out.Err), message, "")
 		b.h.streamingAwareError(b.c, status, kind, message, out.OutputChanged, b.endpoint)
 		return true
 	}

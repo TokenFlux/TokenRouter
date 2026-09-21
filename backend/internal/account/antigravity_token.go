@@ -11,6 +11,17 @@ import (
 )
 
 type AntigravityTokenState struct{ backfillCooldown sync.Map }
+
+// AntigravityTokenSource 独占原 project 回填冷却，消费者共享同一实例。
+type AntigravityTokenSource struct {
+	state   AntigravityTokenState
+	Options AntigravityTokenOptions
+}
+
+func (s *AntigravityTokenSource) GetAccessToken(ctx context.Context, value *Record) (string, error) {
+	return s.state.GetAccessToken(ctx, value, s.Options)
+}
+
 type AntigravityTokenOptions struct {
 	Cache                AccessTokenCache
 	Repository           RefreshRepository

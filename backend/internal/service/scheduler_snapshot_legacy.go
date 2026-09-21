@@ -3,22 +3,15 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"slices"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache/codec"
+
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
-type legacySnapshotAccount struct{ value *Account }
-
-func (a legacySnapshotAccount) SnapshotMetadata() scheduler.SnapshotMetadata {
-	return scheduler.SnapshotMetadata{ID: a.value.ID, Name: a.value.Name, Platform: a.value.Platform, GroupIDs: slices.Clone(a.value.GroupIDs), MixedScheduling: a.value.IsMixedSchedulingEnabled()}
-}
 func LegacySnapshotWrap(value *Account) scheduler.SnapshotAccount {
-	if value == nil {
-		return nil
-	}
-	return legacySnapshotAccount{value: value}
+	return codec.WrapRecord(AccountRecordView(value))
 }
 func LegacySnapshotWrapValues(values []Account) []scheduler.SnapshotAccount {
 	if values == nil {
@@ -42,14 +35,8 @@ func LegacySnapshotWrapPointers(values []*Account) []scheduler.SnapshotAccount {
 	return out
 }
 func LegacySnapshotValue(value scheduler.SnapshotAccount) (*Account, error) {
-	if value == nil {
-		return nil, nil
-	}
-	v, ok := value.(legacySnapshotAccount)
-	if !ok {
-		return nil, fmt.Errorf("unexpected legacy scheduler snapshot data %T", value)
-	}
-	return v.value, nil
+	record, err := codec.RecordValue(value)
+	return AccountFromRecord(record), err
 }
 func LegacySnapshotValues(values []scheduler.SnapshotAccount) ([]Account, error) {
 	if values == nil {
@@ -70,7 +57,7 @@ func LegacySnapshotValues(values []scheduler.SnapshotAccount) ([]Account, error)
 
 type legacySnapshotCache struct{ SchedulerCache }
 
-func (c legacySnapshotCache) GetSnapshot(ctx context.Context, bucket SchedulerBucket) ([]scheduler.SnapshotAccount, bool, error) {
+func (c legacySnapshotCache) GetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket) ([]scheduler.SnapshotAccount, bool, error) {
 	values, hit, err := c.SchedulerCache.GetSnapshot(ctx, bucket)
 	return LegacySnapshotWrapPointers(values), hit, err
 }
@@ -85,7 +72,7 @@ func (c legacySnapshotCache) SetAccount(ctx context.Context, v scheduler.Snapsho
 	}
 	return c.SchedulerCache.SetAccount(ctx, value)
 }
-func (c legacySnapshotCache) SetSnapshot(ctx context.Context, bucket SchedulerBucket, token SchedulerBucketWriteToken, values []scheduler.SnapshotAccount) error {
+func (c legacySnapshotCache) SetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket, token scheduler.SchedulerBucketWriteToken, values []scheduler.SnapshotAccount) error {
 	rows, err := LegacySnapshotValues(values)
 	if err != nil {
 		return err
@@ -94,22 +81,22 @@ func (c legacySnapshotCache) SetSnapshot(ctx context.Context, bucket SchedulerBu
 }
 
 type legacySnapshotAccountIDWriter interface {
-	SetSnapshotAndReturnAccountIDs(context.Context, SchedulerBucket, SchedulerBucketWriteToken, []Account) ([]int64, error)
-	SetSnapshotByAccountIDs(context.Context, SchedulerBucket, SchedulerBucketWriteToken, []int64) error
+	SetSnapshotAndReturnAccountIDs(context.Context, scheduler.SchedulerBucket, scheduler.SchedulerBucketWriteToken, []Account) ([]int64, error)
+	SetSnapshotByAccountIDs(context.Context, scheduler.SchedulerBucket, scheduler.SchedulerBucketWriteToken, []int64) error
 }
 type legacySnapshotCacheWithIDs struct {
 	legacySnapshotCache
 	writer legacySnapshotAccountIDWriter
 }
 
-func (c legacySnapshotCacheWithIDs) SetSnapshotAndReturnAccountIDs(ctx context.Context, bucket SchedulerBucket, token SchedulerBucketWriteToken, values []scheduler.SnapshotAccount) ([]int64, error) {
+func (c legacySnapshotCacheWithIDs) SetSnapshotAndReturnAccountIDs(ctx context.Context, bucket scheduler.SchedulerBucket, token scheduler.SchedulerBucketWriteToken, values []scheduler.SnapshotAccount) ([]int64, error) {
 	rows, err := LegacySnapshotValues(values)
 	if err != nil {
 		return nil, err
 	}
 	return c.writer.SetSnapshotAndReturnAccountIDs(ctx, bucket, token, rows)
 }
-func (c legacySnapshotCacheWithIDs) SetSnapshotByAccountIDs(ctx context.Context, bucket SchedulerBucket, token SchedulerBucketWriteToken, ids []int64) error {
+func (c legacySnapshotCacheWithIDs) SetSnapshotByAccountIDs(ctx context.Context, bucket scheduler.SchedulerBucket, token scheduler.SchedulerBucketWriteToken, ids []int64) error {
 	return c.writer.SetSnapshotByAccountIDs(ctx, bucket, token, ids)
 }
 
@@ -148,14 +135,14 @@ func (r legacySnapshotAccounts) ListSchedulableByGroupIDAndPlatforms(ctx context
 	return LegacySnapshotWrapValues(v), err
 }
 
-func legacySnapshotGroup(v *Group) *scheduler.SnapshotGroup {
+func legacySnapshotGroup(v *routing.Group) *scheduler.SnapshotGroup {
 	if v == nil {
 		return nil
 	}
 	return &scheduler.SnapshotGroup{ID: v.ID, Name: v.Name, Platform: v.Platform, Status: v.Status, Hydrated: v.Hydrated}
 }
 
-type legacySnapshotGroups struct{ GroupRepository }
+type legacySnapshotGroups struct{ routing.GroupRepository }
 
 func (r legacySnapshotGroups) GetByID(ctx context.Context, id int64) (*scheduler.SnapshotGroup, error) {
 	v, err := r.GroupRepository.GetByID(ctx, id)

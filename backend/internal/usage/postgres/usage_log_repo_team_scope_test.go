@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +20,7 @@ func TestGetUserDashboardStatsUsesIndexableOwnedTeamScope(t *testing.T) {
 		WithArgs(int64(7)).
 		WillReturnRows(sqlmock.NewRows([]string{"team_id"}).AddRow(int64(42)))
 	mock.ExpectQuery("(?s)WITH scoped AS.*FROM api_keys.*user_id = \\$1.*UNION ALL.*team_id = \\$2 AND user_id <> \\$1.*COUNT\\(\\*\\) FILTER").
-		WithArgs(int64(7), int64(42), service.StatusActive).
+		WithArgs(int64(7), int64(42), billing.StatusActive).
 		WillReturnRows(sqlmock.NewRows([]string{"total", "active"}).AddRow(int64(3), int64(2)))
 	mock.ExpectQuery("(?s)WITH scoped AS.*FROM usage_logs WHERE user_id = \\$1.*UNION ALL.*team_id = \\$2 AND user_id <> \\$1.*COUNT\\(\\*\\) FILTER").
 		WithArgs(int64(7), int64(42), sqlmock.AnyArg()).

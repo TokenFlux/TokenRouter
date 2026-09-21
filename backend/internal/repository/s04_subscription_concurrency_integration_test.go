@@ -4,21 +4,24 @@ package repository
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
 	"time"
+
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/stretchr/testify/require"
 )
 
 // 只暂停真实仓储的首次读取，让另一个管理员同时延长同一条时间链。
 type s04PausedSubscriptionRead struct {
-	service.UserSubscriptionRepository
+	billing.UserSubscriptionRepository
 	read, release chan struct{}
 	once          sync.Once
 }
 
-func (r *s04PausedSubscriptionRead) GetByID(ctx context.Context, id int64) (*service.UserSubscription, error) {
+func (r *s04PausedSubscriptionRead) GetByID(ctx context.Context, id int64) (*billing.UserSubscription, error) {
 	sub, err := r.UserSubscriptionRepository.GetByID(ctx, id)
 	r.once.Do(func() {
 		close(r.read)
@@ -39,12 +42,12 @@ func TestS04ConcurrentSubscriptionExtensionsUseLockedState(t *testing.T) {
 	require.NoError(t, err)
 	now := time.Now().UTC().Truncate(time.Second)
 	expires := now.Add(48 * time.Hour)
-	sub, err := client.UserSubscription.Create().SetUserID(user.ID).SetPlanID(plan.ID).SetStartsAt(now).SetExpiresAt(expires).SetStatus(service.SubscriptionStatusActive).SetAssignedAt(now).Save(ctx)
+	sub, err := client.UserSubscription.Create().SetUserID(user.ID).SetPlanID(plan.ID).SetStartsAt(now).SetExpiresAt(expires).SetStatus(billing.SubscriptionStatusActive).SetAssignedAt(now).Save(ctx)
 	require.NoError(t, err)
-	repo := NewUserSubscriptionRepository(client)
+	repo := billingpostgres.NewUserSubscriptionRepository(client)
 	paused := &s04PausedSubscriptionRead{UserSubscriptionRepository: repo, read: make(chan struct{}), release: make(chan struct{})}
-	first := service.NewSubscriptionService(nil, paused, nil, client, nil)
-	second := service.NewSubscriptionService(nil, repo, nil, client, nil)
+	first := billing.NewSubscriptionService(subscriptionContractEmptyGroups{}, paused, billingpostgres.NewSubscriptionMutations(client))
+	second := billing.NewSubscriptionService(subscriptionContractEmptyGroups{}, repo, billingpostgres.NewSubscriptionMutations(client))
 	result1, result2 := make(chan error, 1), make(chan error, 1)
 	go func() { _, e := first.ExtendSubscription(ctx, sub.ID, 7); result1 <- e }()
 	select {

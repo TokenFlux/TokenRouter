@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/account/rediscache"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ func TestGeminiTokenCache_DeleteAccessToken_RedisError(t *testing.T) {
 		_ = rdb.Close()
 	})
 
-	cache := NewGeminiTokenCache(rdb)
+	cache := rediscache.NewOAuthTokenCache(rdb)
 	err := cache.DeleteAccessToken(context.Background(), "broken")
 	require.Error(t, err)
 }

@@ -6,10 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
-
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ import (
 
 // 固定生产适配只复用构造期依赖，不把旧聚合 handler 放进请求会话。
 func TestFixedMessagesOpenUsesBoundDependenciesAndExplicitState(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	dependencies := &messageExecutionDependencies{}
 	runtime := &fixedMessagesRuntime{dependencies: dependencies}
 	var previous *messageAttemptBridge
@@ -48,10 +49,10 @@ func TestFixedMessagesOpenUsesBoundDependenciesAndExplicitState(t *testing.T) {
 // 失败与已观测结果可同时返回，返回值不共享后续完成处理会修改的集合。
 func TestMessageObservedAttemptRetainsPartialUsageAndCopiesMetadata(t *testing.T) {
 	first := 12
-	result := &service.ForwardResult{Model: "model", Usage: service.ClaudeUsage{OutputTokens: 2}, UpstreamHeaders: http.Header{"X-Request-Id": []string{"upstream"}}, FirstTokenMs: &first, ImageOutputSizes: []string{"1K"}}
+	result := &forwardcore.MessagesResult{Model: "model", Usage: upstream.TokenUsage{OutputTokens: 2}, UpstreamHeaders: http.Header{"X-Request-Id": []string{"upstream"}}, FirstTokenMs: &first, ImageOutputSizes: []string{"1K"}}
 	observed := messageObservedAttempt(result, context.Canceled)
 	first = 99
-	result.UpstreamHeaders.Set("X-Request-Id", "changed")
+	http.Header(result.UpstreamHeaders).Set("X-Request-Id", "changed")
 	result.ImageOutputSizes[0] = "4K"
 	require.True(t, observed.Cancelled)
 	require.True(t, observed.HasUsage)

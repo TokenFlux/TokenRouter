@@ -13,7 +13,7 @@ import (
 
 func TestResolveUpstreamResponseReadLimit(t *testing.T) {
 	t.Run("use default when config missing", func(t *testing.T) {
-		require.Equal(t, defaultUpstreamResponseReadMaxBytes, resolveUpstreamResponseReadLimit(nil))
+		require.Equal(t, config.DefaultUpstreamResponseReadMaxBytes, resolveUpstreamResponseReadLimit(nil))
 	})
 
 	t.Run("use configured value", func(t *testing.T) {

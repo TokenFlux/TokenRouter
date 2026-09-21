@@ -5,10 +5,8 @@ package handler
 
 import (
 	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
-
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-func (h *GatewayHandler) calculateSubscriptionRemaining(sub *service.UserSubscription) float64 {
+func (h *GatewayHandler) calculateSubscriptionRemaining(sub *billingcore.UserSubscription) float64 {
 	return billingcore.SubscriptionRemainingForDisplay(sub)
 }

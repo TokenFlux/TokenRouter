@@ -9,7 +9,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -73,7 +77,7 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 	if err == nil {
 		return nil
 	}
-	safeErr := sanitizeUpstreamErrorMessage(err.Error())
+	safeErr := logredact.SanitizeUpstreamQueries(err.Error())
 	platform, accountName := "", ""
 	var accountID int64
 	if account != nil {
@@ -81,8 +85,8 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 		accountID = account.ID
 		accountName = account.Name
 	}
-	setOpsUpstreamError(c, 0, safeErr, "")
-	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+	gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
+	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 		Platform:           platform,
 		AccountID:          accountID,
 		AccountName:        accountName,
@@ -105,7 +109,7 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 	if classifyOpenAITransportError(err).Persistent {
 		s.tempUnscheduleOpenAITransportError(ctx, account, safeErr)
 	}
-	return &UpstreamFailoverError{
+	return &forwardcore.UpstreamFailoverError{
 		StatusCode:   http.StatusBadGateway,
 		ResponseBody: openAITransportFailoverBody,
 	}
@@ -123,7 +127,7 @@ func (s *OpenAIGatewayService) tempUnscheduleOpenAITransportError(ctx context.Co
 	s.BlockAccountScheduling(account, until, "transport_error")
 
 	if s.accountRepo == nil {
-		logger.L().With(zap.String("component", "service.openai_gateway")).Warn(
+		logging.L().With(zap.String("component", "service.openai_gateway")).Warn(
 			"openai.account_temp_unscheduled_transport_memory_only",
 			zap.Int64("account_id", account.ID),
 			zap.String("account_name", account.Name),
@@ -137,14 +141,14 @@ func (s *OpenAIGatewayService) tempUnscheduleOpenAITransportError(ctx context.Co
 	bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAIAccountStateUpdateTimeout)
 	defer cancel()
 	if err := s.accountRepo.SetTempUnschedulable(bgCtx, account.ID, until, reason); err != nil {
-		logger.L().With(zap.String("component", "service.openai_gateway")).Warn(
+		logging.L().With(zap.String("component", "service.openai_gateway")).Warn(
 			"openai.account_temp_unscheduled_transport_failed",
 			zap.Int64("account_id", account.ID),
 			zap.Error(err),
 		)
 		return
 	}
-	logger.L().With(zap.String("component", "service.openai_gateway")).Warn(
+	logging.L().With(zap.String("component", "service.openai_gateway")).Warn(
 		"openai.account_temp_unscheduled_transport",
 		zap.Int64("account_id", account.ID),
 		zap.String("account_name", account.Name),

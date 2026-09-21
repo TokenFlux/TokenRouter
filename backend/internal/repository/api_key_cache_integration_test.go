@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	keyredis "github.com/TokenFlux/TokenRouter/internal/apikey/rediscache"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -20,11 +21,11 @@ type ApiKeyCacheSuite struct {
 func (s *ApiKeyCacheSuite) TestCreateAttemptCount() {
 	tests := []struct {
 		name string
-		fn   func(ctx context.Context, rdb *redis.Client, cache *apiKeyCache)
+		fn   func(ctx context.Context, rdb *redis.Client, cache *keyredis.ApiKeyCache)
 	}{
 		{
 			name: "missing_key_returns_zero_nil",
-			fn: func(ctx context.Context, rdb *redis.Client, cache *apiKeyCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache *keyredis.ApiKeyCache) {
 				userID := int64(1)
 
 				count, err := cache.GetCreateAttemptCount(ctx, userID)
@@ -35,9 +36,9 @@ func (s *ApiKeyCacheSuite) TestCreateAttemptCount() {
 		},
 		{
 			name: "increment_increases_count_and_sets_ttl",
-			fn: func(ctx context.Context, rdb *redis.Client, cache *apiKeyCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache *keyredis.ApiKeyCache) {
 				userID := int64(1)
-				key := fmt.Sprintf("%s%d", apiKeyRateLimitKeyPrefix, userID)
+				key := fmt.Sprintf("%s%d", keyredis.ApiKeyRateLimitKeyPrefix, userID)
 
 				require.NoError(s.T(), cache.IncrementCreateAttemptCount(ctx, userID), "IncrementCreateAttemptCount")
 				require.NoError(s.T(), cache.IncrementCreateAttemptCount(ctx, userID), "IncrementCreateAttemptCount 2")
@@ -48,12 +49,12 @@ func (s *ApiKeyCacheSuite) TestCreateAttemptCount() {
 
 				ttl, err := rdb.TTL(ctx, key).Result()
 				require.NoError(s.T(), err, "TTL")
-				s.AssertTTLWithin(ttl, 1*time.Second, apiKeyRateLimitDuration)
+				s.AssertTTLWithin(ttl, 1*time.Second, keyredis.ApiKeyRateLimitDuration)
 			},
 		},
 		{
 			name: "delete_removes_key",
-			fn: func(ctx context.Context, rdb *redis.Client, cache *apiKeyCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache *keyredis.ApiKeyCache) {
 				userID := int64(1)
 
 				require.NoError(s.T(), cache.IncrementCreateAttemptCount(ctx, userID))
@@ -70,7 +71,7 @@ func (s *ApiKeyCacheSuite) TestCreateAttemptCount() {
 		s.Run(tt.name, func() {
 			// 每个 case 重新获取隔离资源
 			rdb := testRedis(s.T())
-			cache, ok := NewAPIKeyCache(rdb).(*apiKeyCache)
+			cache, ok := keyredis.NewAPIKeyCache(rdb).(*keyredis.ApiKeyCache)
 			require.True(s.T(), ok, "Key Redis adapter type")
 			ctx := context.Background()
 
@@ -82,11 +83,11 @@ func (s *ApiKeyCacheSuite) TestCreateAttemptCount() {
 func (s *ApiKeyCacheSuite) TestDailyUsage() {
 	tests := []struct {
 		name string
-		fn   func(ctx context.Context, rdb *redis.Client, cache *apiKeyCache)
+		fn   func(ctx context.Context, rdb *redis.Client, cache *keyredis.ApiKeyCache)
 	}{
 		{
 			name: "increment_increases_count",
-			fn: func(ctx context.Context, rdb *redis.Client, cache *apiKeyCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache *keyredis.ApiKeyCache) {
 				dailyKey := "daily:sk-test"
 
 				require.NoError(s.T(), cache.IncrementDailyUsage(ctx, dailyKey), "IncrementDailyUsage")
@@ -99,7 +100,7 @@ func (s *ApiKeyCacheSuite) TestDailyUsage() {
 		},
 		{
 			name: "set_expiry_sets_ttl",
-			fn: func(ctx context.Context, rdb *redis.Client, cache *apiKeyCache) {
+			fn: func(ctx context.Context, rdb *redis.Client, cache *keyredis.ApiKeyCache) {
 				dailyKey := "daily:sk-test-expiry"
 
 				require.NoError(s.T(), cache.IncrementDailyUsage(ctx, dailyKey))
@@ -115,7 +116,7 @@ func (s *ApiKeyCacheSuite) TestDailyUsage() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			rdb := testRedis(s.T())
-			cache, ok := NewAPIKeyCache(rdb).(*apiKeyCache)
+			cache, ok := keyredis.NewAPIKeyCache(rdb).(*keyredis.ApiKeyCache)
 			require.True(s.T(), ok, "Key Redis adapter type")
 			ctx := context.Background()
 

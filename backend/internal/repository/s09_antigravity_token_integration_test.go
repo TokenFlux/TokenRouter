@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,7 +18,12 @@ import (
 	"testing"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"
@@ -43,7 +50,7 @@ func TestS09AntigravityNativeRefreshUsesOriginalCAS(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			client := testEntClient(t)
-			row, err := client.Account.Create().SetName(fmt.Sprintf("s09-antigravity-%d", time.Now().UnixNano())).SetPlatform(service.PlatformAntigravity).SetType(service.AccountTypeOAuth).SetCredentials(map[string]any{"access_token": "expired", "refresh_token": "original", "expires_at": time.Now().Add(-time.Hour).Unix(), "project_id": "fixture-project", "email": "fixture@example.invalid"}).Save(ctx)
+			row, err := client.Account.Create().SetName(fmt.Sprintf("s09-antigravity-%d", time.Now().UnixNano())).SetPlatform(capability.PlatformAntigravity).SetType(capability.AccountTypeOAuth).SetCredentials(map[string]any{"access_token": "expired", "refresh_token": "original", "expires_at": time.Now().Add(-time.Hour).Unix(), "project_id": "fixture-project", "email": "fixture@example.invalid"}).Save(ctx)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, client.Account.DeleteOneID(row.ID).Exec(context.Background())) })
 			repo := &accountRepository{client: client, sql: integrationDB}
@@ -83,20 +90,38 @@ func TestS09AntigravityNativeRefreshUsesOriginalCAS(t *testing.T) {
 			localURL, err := url.Parse(server.URL)
 			require.NoError(t, err)
 			localClient := &http.Client{Transport: antigravityFixtureTransport{target: localURL, transport: server.Client().Transport}, Timeout: 10 * time.Second}
-			oauth := service.NewAntigravityOAuthService(nil)
-			defer oauth.Stop()
+			oauth := accountcore.NewAntigravityAuthorization(accountprovider.AntigravityAuthorizationOptions(nil))
+			defer func() { require.NoError(t, oauth.StopContext(context.Background())) }()
 			oauth.Options.NewClient = func(proxy string) (accountcore.AntigravityAuthorizationClient, error) {
 				return antigravity.NewClientWithOptions(proxy, antigravity.ClientOptions{HTTPClient: localClient})
 			}
-			cache := NewGeminiTokenCache(testRedis(t))
-			provider := service.NewAntigravityTokenProvider(repo, cache, oauth)
-			provider.SetRefreshAPI(service.NewOAuthRefreshAPI(repo, cache), service.NewAntigravityTokenRefresher(oauth))
+			cache := rediscache.NewOAuthTokenCache(testRedis(t))
+			store := repo.accountData()
+			refresh := accountcore.NewOAuthRefreshAPI(store, cache, accountcore.RefreshOptions{
+				Now: time.Now, Warn: slog.Warn, Info: slog.Info, Error: slog.Error,
+				Platform: accountcore.AccountRefreshPlatformPolicy(),
+			})
+			t.Cleanup(func() { require.NoError(t, refresh.StopContext(context.Background())) })
+			executor := &accountcore.AntigravityRefreshRules{
+				RefreshAccountToken: oauth.RefreshAccountToken, BuildAccountCredentials: oauth.BuildAccountCredentials,
+				Printf: func(format string, args ...any) { _, _ = fmt.Printf(format, args...) }, Logf: log.Printf,
+			}
+			provider := &accountcore.AntigravityTokenSource{Options: accountcore.AntigravityTokenOptions{
+				Repository: store, Cache: cache, Policy: accountcore.AntigravityProviderRefreshPolicy(),
+				Debug: slog.Debug, Warn: slog.Warn,
+				Refresh: func(ctx context.Context, record *accountcore.Record, window time.Duration) (*accountcore.OAuthRefreshResult, error) {
+					return refresh.RefreshIfNeeded(ctx, record, executor, window)
+				},
+			}}
 			type result struct {
 				token string
 				err   error
 			}
 			done := make(chan result, 1)
-			go func() { token, err := provider.GetAccessToken(ctx, value); done <- result{token, err} }()
+			go func() {
+				token, err := provider.GetAccessToken(ctx, service.AccountRecordView(value))
+				done <- result{token, err}
+			}()
 			select {
 			case <-entered:
 			case <-ctx.Done():

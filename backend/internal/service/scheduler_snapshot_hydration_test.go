@@ -7,6 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -17,31 +21,31 @@ type snapshotHydrationCache struct {
 	accounts map[int64]*Account
 }
 
-func (c *snapshotHydrationCache) GetSnapshot(ctx context.Context, bucket SchedulerBucket) ([]*Account, bool, error) {
+func (c *snapshotHydrationCache) GetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket) ([]*Account, bool, error) {
 	return c.snapshot, true, nil
 }
 
-func (c *snapshotHydrationCache) CaptureBucketWriteToken(ctx context.Context, bucket SchedulerBucket) (SchedulerBucketWriteToken, error) {
-	return SchedulerBucketWriteToken{Bucket: bucket, Epoch: 1}, nil
+func (c *snapshotHydrationCache) CaptureBucketWriteToken(ctx context.Context, bucket scheduler.SchedulerBucket) (scheduler.SchedulerBucketWriteToken, error) {
+	return scheduler.SchedulerBucketWriteToken{Bucket: bucket, Epoch: 1}, nil
 }
 
-func (c *snapshotHydrationCache) SetSnapshot(ctx context.Context, bucket SchedulerBucket, token SchedulerBucketWriteToken, accounts []Account) error {
+func (c *snapshotHydrationCache) SetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket, token scheduler.SchedulerBucketWriteToken, accounts []Account) error {
 	return nil
 }
 
-func (c *snapshotHydrationCache) RetireBucket(ctx context.Context, bucket SchedulerBucket) error {
+func (c *snapshotHydrationCache) RetireBucket(ctx context.Context, bucket scheduler.SchedulerBucket) error {
 	return nil
 }
 
-func (c *snapshotHydrationCache) ReopenBucket(ctx context.Context, bucket SchedulerBucket) (SchedulerBucketWriteToken, error) {
-	return SchedulerBucketWriteToken{Bucket: bucket, Epoch: 1}, nil
+func (c *snapshotHydrationCache) ReopenBucket(ctx context.Context, bucket scheduler.SchedulerBucket) (scheduler.SchedulerBucketWriteToken, error) {
+	return scheduler.SchedulerBucketWriteToken{Bucket: bucket, Epoch: 1}, nil
 }
 
-func (c *snapshotHydrationCache) TryAcquireGroupLifecycleLease(context.Context, int64, time.Duration) (SchedulerGroupLifecycleLease, bool, error) {
-	return SchedulerGroupLifecycleLease{}, false, nil
+func (c *snapshotHydrationCache) TryAcquireGroupLifecycleLease(context.Context, int64, time.Duration) (scheduler.SchedulerGroupLifecycleLease, bool, error) {
+	return scheduler.SchedulerGroupLifecycleLease{}, false, nil
 }
 
-func (c *snapshotHydrationCache) ReleaseGroupLifecycleLease(context.Context, SchedulerGroupLifecycleLease) error {
+func (c *snapshotHydrationCache) ReleaseGroupLifecycleLease(context.Context, scheduler.SchedulerGroupLifecycleLease) error {
 	return nil
 }
 
@@ -64,15 +68,15 @@ func (c *snapshotHydrationCache) UpdateLastUsed(ctx context.Context, updates map
 	return nil
 }
 
-func (c *snapshotHydrationCache) TryLockBucket(ctx context.Context, bucket SchedulerBucket, ttl time.Duration) (bool, error) {
+func (c *snapshotHydrationCache) TryLockBucket(ctx context.Context, bucket scheduler.SchedulerBucket, ttl time.Duration) (bool, error) {
 	return true, nil
 }
 
-func (c *snapshotHydrationCache) UnlockBucket(ctx context.Context, bucket SchedulerBucket) error {
+func (c *snapshotHydrationCache) UnlockBucket(ctx context.Context, bucket scheduler.SchedulerBucket) error {
 	return nil
 }
 
-func (c *snapshotHydrationCache) ListBuckets(ctx context.Context) ([]SchedulerBucket, error) {
+func (c *snapshotHydrationCache) ListBuckets(ctx context.Context) ([]scheduler.SchedulerBucket, error) {
 	return nil, nil
 }
 
@@ -89,9 +93,9 @@ func TestOpenAISelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedul
 		snapshot: []*Account{
 			{
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Priority:    1,
@@ -105,9 +109,9 @@ func TestOpenAISelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedul
 		accounts: map[int64]*Account{
 			1: {
 				ID:          1,
-				Platform:    PlatformOpenAI,
-				Type:        AccountTypeAPIKey,
-				Status:      StatusActive,
+				Platform:    capability.PlatformOpenAI,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Priority:    1,
@@ -168,9 +172,9 @@ func TestGatewaySelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedu
 		snapshot: []*Account{
 			{
 				ID:          9,
-				Platform:    PlatformAnthropic,
-				Type:        AccountTypeAPIKey,
-				Status:      StatusActive,
+				Platform:    capability.PlatformAnthropic,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Priority:    1,
@@ -179,9 +183,9 @@ func TestGatewaySelectAccountWithLoadAwareness_HydratesSelectedAccountFromSchedu
 		accounts: map[int64]*Account{
 			9: {
 				ID:          9,
-				Platform:    PlatformAnthropic,
-				Type:        AccountTypeAPIKey,
-				Status:      StatusActive,
+				Platform:    capability.PlatformAnthropic,
+				Type:        capability.AccountTypeAPIKey,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Priority:    1,
@@ -217,9 +221,9 @@ func TestGatewaySelectAccountWithLoadAwareness_SkipsAntigravityGeminiFamilyRateL
 		snapshot: []*Account{
 			{
 				ID:          1,
-				Platform:    PlatformAntigravity,
-				Type:        AccountTypeOAuth,
-				Status:      StatusActive,
+				Platform:    capability.PlatformAntigravity,
+				Type:        capability.AccountTypeOAuth,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Priority:    1,
@@ -238,9 +242,9 @@ func TestGatewaySelectAccountWithLoadAwareness_SkipsAntigravityGeminiFamilyRateL
 			},
 			{
 				ID:          2,
-				Platform:    PlatformAntigravity,
-				Type:        AccountTypeOAuth,
-				Status:      StatusActive,
+				Platform:    capability.PlatformAntigravity,
+				Type:        capability.AccountTypeOAuth,
+				Status:      billing.StatusActive,
 				Schedulable: true,
 				Concurrency: 1,
 				Priority:    2,
@@ -254,24 +258,27 @@ func TestGatewaySelectAccountWithLoadAwareness_SkipsAntigravityGeminiFamilyRateL
 			},
 		},
 		accounts: map[int64]*Account{
-			1: {ID: 1, Platform: PlatformAntigravity, Type: AccountTypeOAuth},
-			2: {ID: 2, Platform: PlatformAntigravity, Type: AccountTypeOAuth},
+			1: {ID: 1, Platform: capability.PlatformAntigravity, Type: capability.AccountTypeOAuth},
+			2: {ID: 2, Platform: capability.PlatformAntigravity, Type: capability.AccountTypeOAuth},
 		},
 	}
 	groupID := int64(22)
 	svc := &GatewayService{
 		schedulerSnapshot: NewSchedulerSnapshotService(cache, nil, nil, nil, nil),
 		groupRepo: &mockGroupRepoForGateway{
-			groups: map[int64]*Group{
+			groups: map[int64]*routing.Group{
 				groupID: {
 					ID:       groupID,
-					Platform: PlatformGemini,
-					Status:   StatusActive,
+					Platform: capability.PlatformGemini,
+					Status:   billing.StatusActive,
 					Hydrated: true,
 				},
 			},
 		},
-		concurrencyService: NewConcurrencyService(&mockConcurrencyCache{}),
+		concurrencyService: scheduler.NewConcurrencyService(&mockConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event,
+		},
+		),
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				Scheduling: config.GatewaySchedulingConfig{
@@ -313,7 +320,7 @@ func TestGatewayNewSelectionResultReleasesSlotWhenHydrationFails(t *testing.T) {
 }
 
 // 夹具适配本次持有者句柄，继续沿用原锁失败/等待控制和断言。
-func (c *snapshotHydrationCache) AcquireBucketLease(ctx context.Context, bucket SchedulerBucket, ttl time.Duration) (*scheduler.BucketLease, bool, error) {
+func (c *snapshotHydrationCache) AcquireBucketLease(ctx context.Context, bucket scheduler.SchedulerBucket, ttl time.Duration) (*scheduler.BucketLease, bool, error) {
 	ok, err := c.TryLockBucket(ctx, bucket, ttl)
 	if err != nil || !ok {
 		return nil, ok, err

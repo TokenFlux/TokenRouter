@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
@@ -17,18 +21,18 @@ import (
 func TestSchedulerCacheUpdateLastUsedUsesSideKeyWithoutRewritingPayloads(t *testing.T) {
 	ctx := context.Background()
 	cache := newSchedulerCacheUnit(t)
-	bucket := service.SchedulerBucket{
+	bucket := scheduler.SchedulerBucket{
 		GroupID:  9,
-		Platform: service.PlatformGrok,
-		Mode:     service.SchedulerModeSingle,
+		Platform: capability.PlatformGrok,
+		Mode:     scheduler.SchedulerModeSingle,
 	}
 	initial := time.Now().UTC().Truncate(time.Millisecond).Add(-time.Hour)
-	account := service.Account{
+	account := accountcore.Record{
 		ID:          9201,
 		Name:        "grok-large-oauth",
-		Platform:    service.PlatformGrok,
-		Type:        service.AccountTypeOAuth,
-		Status:      service.StatusActive,
+		Platform:    capability.PlatformGrok,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		LastUsedAt:  &initial,
 		Credentials: map[string]any{
@@ -39,7 +43,7 @@ func TestSchedulerCacheUpdateLastUsedUsesSideKeyWithoutRewritingPayloads(t *test
 	}
 	token, err := cache.CaptureBucketWriteToken(ctx, bucket)
 	require.NoError(t, err)
-	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []service.Account{account}))
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []accountcore.Record{account}))
 
 	id := strconv.FormatInt(account.ID, 10)
 	fullBefore, err := cache.rdb.Get(ctx, schedulerAccountKey(id)).Bytes()
@@ -75,7 +79,7 @@ func TestSchedulerCacheUpdateLastUsedUsesSideKeyWithoutRewritingPayloads(t *test
 func TestSchedulerCacheLastUsedSideKeyIsMonotonicAndRequiresAccount(t *testing.T) {
 	ctx := context.Background()
 	cache := newSchedulerCacheUnit(t)
-	account := service.Account{ID: 9202, Platform: service.PlatformGrok, Type: service.AccountTypeOAuth}
+	account := accountcore.Record{ID: 9202, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
 	require.NoError(t, cache.SetAccount(ctx, &account))
 
 	newer := time.Now().UTC().Truncate(time.Millisecond)
@@ -104,10 +108,10 @@ func TestSchedulerCacheLastUsedSideKeyFallsBackToNewerEmbeddedValue(t *testing.T
 	ctx := context.Background()
 	cache := newSchedulerCacheUnit(t)
 	embedded := time.Now().UTC().Truncate(time.Millisecond)
-	account := service.Account{
+	account := accountcore.Record{
 		ID:         9203,
-		Platform:   service.PlatformGrok,
-		Type:       service.AccountTypeOAuth,
+		Platform:   capability.PlatformGrok,
+		Type:       capability.AccountTypeOAuth,
 		LastUsedAt: &embedded,
 	}
 	require.NoError(t, cache.SetAccount(ctx, &account))
@@ -123,17 +127,17 @@ func TestSchedulerCacheLastUsedSideKeyFallsBackToNewerEmbeddedValue(t *testing.T
 func TestSchedulerCacheLastUsedSideKeySurvivesStaleAccountAndSnapshotWrites(t *testing.T) {
 	ctx := context.Background()
 	cache := newSchedulerCacheUnit(t)
-	bucket := service.SchedulerBucket{
+	bucket := scheduler.SchedulerBucket{
 		GroupID:  10,
-		Platform: service.PlatformGrok,
-		Mode:     service.SchedulerModeSingle,
+		Platform: capability.PlatformGrok,
+		Mode:     scheduler.SchedulerModeSingle,
 	}
 	embedded := time.Now().UTC().Truncate(time.Millisecond).Add(-time.Minute)
 	latest := embedded.Add(30 * time.Second)
-	account := service.Account{
+	account := accountcore.Record{
 		ID:          9204,
-		Platform:    service.PlatformGrok,
-		Type:        service.AccountTypeOAuth,
+		Platform:    capability.PlatformGrok,
+		Type:        capability.AccountTypeOAuth,
 		Schedulable: true,
 		LastUsedAt:  &embedded,
 	}
@@ -143,7 +147,7 @@ func TestSchedulerCacheLastUsedSideKeySurvivesStaleAccountAndSnapshotWrites(t *t
 	require.NoError(t, cache.SetAccount(ctx, &account))
 	token, err := cache.CaptureBucketWriteToken(ctx, bucket)
 	require.NoError(t, err)
-	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []service.Account{account}))
+	require.NoError(t, cache.SetSnapshot(ctx, bucket, token, []accountcore.Record{account}))
 
 	id := strconv.FormatInt(account.ID, 10)
 	require.Equal(t, strconv.FormatInt(latest.UnixMilli(), 10), cache.rdb.Get(ctx, schedulerLastUsedKey(id)).Val())
@@ -162,12 +166,12 @@ func TestSchedulerCacheUpdateLastUsedChunksLargeBatches(t *testing.T) {
 	ctx := context.Background()
 	cache := newSchedulerCacheUnit(t)
 	total := schedulerLastUsedUpdateChunkSize + 1
-	accounts := make([]service.Account, 0, total)
+	accounts := make([]accountcore.Record, 0, total)
 	updates := make(map[int64]time.Time, total)
 	base := time.Now().UTC().Truncate(time.Millisecond)
 	for i := 0; i < total; i++ {
 		id := int64(9300 + i)
-		accounts = append(accounts, service.Account{ID: id, Platform: service.PlatformGrok})
+		accounts = append(accounts, accountcore.Record{ID: id, Platform: capability.PlatformGrok})
 		updates[id] = base.Add(time.Duration(i) * time.Millisecond)
 	}
 

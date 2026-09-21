@@ -1,38 +1,45 @@
 package handler
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
+
+import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenAICompatibleRequestPlatformPreservesCNPlatform(t *testing.T) {
 	for _, platform := range []string{
-		service.PlatformGrok,
-		service.PlatformKimi,
-		service.PlatformZhipu,
-		service.PlatformDeepseek,
+		capability.PlatformGrok,
+		capability.PlatformKimi,
+		capability.PlatformZhipu,
+		capability.PlatformDeepseek,
 	} {
-		apiKey := &service.APIKey{Group: &service.Group{Platform: platform}}
+		apiKey := &apikey.APIKey{Group: &routing.Group{Platform: platform}}
 		require.Equal(t, platform, openAICompatibleRequestPlatform(apiKey))
 	}
-	require.Equal(t, service.PlatformOpenAI, openAICompatibleRequestPlatform(nil))
-	require.Equal(t, service.PlatformOpenAI, openAICompatibleRequestPlatform(
-		&service.APIKey{Group: &service.Group{Platform: service.PlatformAnthropic}},
+	require.Equal(t, capability.PlatformOpenAI, openAICompatibleRequestPlatform(nil))
+	require.Equal(t, capability.PlatformOpenAI, openAICompatibleRequestPlatform(
+		&apikey.APIKey{Group: &routing.Group{Platform: capability.PlatformAnthropic}},
 	))
 }
 
 func TestAllowOpenAICompatibleMessagesDispatchUsesProtocolCollectionForCN(t *testing.T) {
 	require.True(t, allowOpenAICompatibleMessagesDispatch(nil))
-	for _, platform := range []string{service.PlatformKimi, service.PlatformZhipu, service.PlatformDeepseek} {
-		disabled := &service.APIKey{Group: &service.Group{Platform: platform}}
+	for _, platform := range []string{capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
+		disabled := &apikey.APIKey{Group: &routing.Group{Platform: platform}}
 		require.False(t, allowOpenAICompatibleMessagesDispatch(disabled), platform)
 
-		enabled := &service.APIKey{Group: &service.Group{
+		enabled := &apikey.APIKey{Group: &routing.Group{
 			Platform:         platform,
-			AllowedProtocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages},
+			AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages},
 		}}
 		require.True(t, allowOpenAICompatibleMessagesDispatch(enabled), platform)
 	}

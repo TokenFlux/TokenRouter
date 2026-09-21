@@ -3,10 +3,11 @@ package routing
 import (
 	"context"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // 可控调度器避免测试依赖真实分钟边界，只记录实际启停及回调绑定。

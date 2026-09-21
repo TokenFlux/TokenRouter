@@ -10,7 +10,7 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // PaymentOrder holds the schema definition for the PaymentOrder entity.
@@ -115,7 +115,7 @@ func (PaymentOrder) Fields() []ent.Field {
 		field.Int64("plan_id").
 			Optional().
 			Nillable(),
-		field.JSON("plan_snapshot", domain.SubscriptionPlanSnapshot{}).
+		field.JSON("plan_snapshot", billing.SubscriptionPlanSnapshot{}).
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 		field.String("provider_instance_id").

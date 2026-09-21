@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -120,7 +120,7 @@ func TestOpenAIGatewayService_OAuthFlattenFlagRestoresLegacyBehavior(t *testing.
 	require.False(t, gjson.GetBytes(forwarded, `tools.#(type=="namespace")`).Exists())
 	require.True(t, gjson.GetBytes(forwarded, `tools.#(name=="collaboration__spawn_agent")`).Exists())
 	require.False(t, gjson.GetBytes(forwarded, "input.0.namespace").Exists())
-	require.Equal(t, apicompat.ResponsesNamespaceName{
+	require.Equal(t, bridge.ResponsesNamespaceName{
 		Namespace: "collaboration",
 		Name:      "spawn_agent",
 	}, openAIResponsesNamespaceNames(c)["collaboration__spawn_agent"])
@@ -133,7 +133,7 @@ func TestOpenAIGatewayService_ForwardClearsStaleNamespaceNames(t *testing.T) {
 		newOpenAIRejectedFieldTestResponse(http.StatusOK, namespaceForwardOKResponse),
 	}}
 	c := newOpenAIRejectedFieldTestContext(body)
-	setOpenAIResponsesNamespaceNames(c, map[string]apicompat.ResponsesNamespaceName{
+	setOpenAIResponsesNamespaceNames(c, map[string]bridge.ResponsesNamespaceName{
 		"stale__tool": {Namespace: "stale", Name: "tool"},
 	})
 

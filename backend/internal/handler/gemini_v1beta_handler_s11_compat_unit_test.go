@@ -4,9 +4,13 @@
 package handler
 
 import (
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+)
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+import (
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	gemini "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 
 	"github.com/gin-gonic/gin"
@@ -16,8 +20,8 @@ import (
 // 匹配格式: /Users/xxx/.gemini/tmp/[64位十六进制哈希]
 var geminiCLITmpDirRegex = gatewayhttp.GeminiCLITmpDirRegex
 
-func customGeminiModelsList(group *service.Group) (gemini.ModelsListResponse, bool) {
-	value, ok := newModelDisplayHandler().CustomGeminiModelsList(service.APIKeyGroupView(group))
+func customGeminiModelsList(group *routing.Group) (gemini.ModelsListResponse, bool) {
+	value, ok := newModelDisplayHandler().CustomGeminiModelsList(apikey.GroupFromRouting(group))
 	var out []gemini.Model
 	if value.Models != nil {
 		out = make([]gemini.Model, len(value.Models))
@@ -27,7 +31,7 @@ func customGeminiModelsList(group *service.Group) (gemini.ModelsListResponse, bo
 	}
 	return gemini.ModelsListResponse{Models: out}, ok
 }
-func shouldFallbackGeminiModel(modelName string, res *service.UpstreamHTTPResult) bool {
+func shouldFallbackGeminiModel(modelName string, res *gemini.HTTPResult) bool {
 	return newModelDisplayHandler().ShouldFallbackGeminiModel(modelName, modelHTTPResponse(res))
 }
 

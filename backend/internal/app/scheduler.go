@@ -4,13 +4,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache/codec"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
-	billingredis "github.com/TokenFlux/TokenRouter/internal/billing/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/repository"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	schedulerredis "github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache"
@@ -24,7 +25,7 @@ func provideSchedulerCache(rdb *redis.Client, cfg *config.Config) *schedulerredi
 		options.MGetChunkSize = cfg.Gateway.Scheduling.SnapshotMGetChunkSize
 		options.WriteChunkSize = cfg.Gateway.Scheduling.SnapshotWriteChunkSize
 	}
-	return schedulerredis.NewSnapshotCache(rdb, service.LegacySchedulerCodec{}, options)
+	return schedulerredis.NewSnapshotCache(rdb, codec.AccountCodec{}, options)
 }
 func provideLegacySchedulerCache(cache *schedulerredis.SnapshotCache) service.SchedulerCache {
 	return repository.WrapSchedulerCache(cache)
@@ -38,10 +39,14 @@ func provideSchedulerSnapshot(cache scheduler.SnapshotCache, outbox scheduler.Sc
 			OutboxPollIntervalSeconds: v.OutboxPollIntervalSeconds, FullRebuildIntervalSeconds: v.FullRebuildIntervalSeconds, OutboxLagWarnSeconds: v.OutboxLagWarnSeconds,
 			OutboxLagRebuildSeconds: v.OutboxLagRebuildSeconds, OutboxLagRebuildFailures: v.OutboxLagRebuildFailures, OutboxBacklogRebuildRows: v.OutboxBacklogRebuildRows}
 	}
-	return scheduler.NewSnapshotService(cache, outbox, legacybridge.SchedulerAccountSource{AccountStore: accounts}, legacybridge.SchedulerGroupSource{GroupStore: groups}, options,
-		scheduler.SnapshotBindings{AccountNotFound: service.ErrAccountNotFound, GroupNotFound: service.ErrGroupNotFound, Diagnostics: service.LegacySchedulerDiagnostics()})
+	return scheduler.NewSnapshotService(cache, outbox, schedulerAccountSource{AccountStore: accounts}, schedulerGroupSource{GroupStore: groups}, options,
+		scheduler.SnapshotBindings{AccountNotFound: account.ErrAccountNotFound, GroupNotFound: routing.ErrGroupNotFound, Diagnostics: scheduler.Diagnostics{
+			Logf: logging.LegacyPrintf,
+
+			Event: logging.Event},
+		})
 }
-func provideLegacySchedulerSnapshot(core *scheduler.SnapshotService, groups service.GroupRepository) *service.SchedulerSnapshotService {
+func provideLegacySchedulerSnapshot(core *scheduler.SnapshotService, groups routing.GroupRepository) *service.SchedulerSnapshotService {
 	return service.WrapSchedulerSnapshot(core, groups)
 }
 func provideConcurrencyCache(rdb *redis.Client, cfg *config.Config) scheduler.ConcurrencyCache {
@@ -55,7 +60,11 @@ func provideConcurrencyCache(rdb *redis.Client, cfg *config.Config) scheduler.Co
 	return schedulerredis.NewConcurrencyCache(rdb, cfg.Gateway.ConcurrencySlotTTLMinutes, ttl)
 }
 func provideConcurrency(cache scheduler.ConcurrencyCache, cfg *config.Config) *scheduler.ConcurrencyService {
-	core := scheduler.NewConcurrencyService(cache, service.LegacySchedulerDiagnostics())
+	core := scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{
+		Logf: logging.LegacyPrintf,
+
+		Event: logging.Event},
+	)
 	// 保留启动旧进程槽清理的必要 I/O，与后台周期启动分开。
 	if err := core.CleanupStaleProcessSlots(context.Background()); err != nil {
 		logging.LegacyPrintf("service.concurrency", "Warning: startup cleanup stale process slots failed: %v", err)
@@ -66,19 +75,18 @@ func provideConcurrency(cache scheduler.ConcurrencyCache, cfg *config.Config) *s
 	return core
 }
 
-type legacySessionCache struct {
-	scheduler.SessionLimitCache
-	billing.WindowCostCache
-}
-
-func provideSessionCache(rdb *redis.Client, cfg *config.Config) service.SessionLimitCache {
+func provideSessionCache(rdb *redis.Client, cfg *config.Config) scheduler.SessionLimitCache {
 	minutes := 5
 	if cfg != nil && cfg.Gateway.SessionIdleTimeoutMinutes > 0 {
 		minutes = cfg.Gateway.SessionIdleTimeoutMinutes
 	}
-	return legacySessionCache{schedulerredis.NewSessionLimitCache(rdb, minutes), billingredis.NewWindowCostCache(rdb)}
+	return schedulerredis.NewSessionLimitCache(rdb, minutes)
 }
 func provideMessageQueue(cache scheduler.UserMsgQueueCache, rpm scheduler.RPMCache, cfg *config.Config) *scheduler.UserMessageQueueService {
 	v := cfg.Gateway.UserMessageQueue
-	return scheduler.NewUserMessageQueueService(cache, rpm, &scheduler.MessageQueueOptions{LockTTLMs: v.LockTTLMs, MinDelayMs: v.MinDelayMs, MaxDelayMs: v.MaxDelayMs}, service.LegacySchedulerDiagnostics())
+	return scheduler.NewUserMessageQueueService(cache, rpm, &scheduler.MessageQueueOptions{LockTTLMs: v.LockTTLMs, MinDelayMs: v.MinDelayMs, MaxDelayMs: v.MaxDelayMs}, scheduler.Diagnostics{
+		Logf: logging.LegacyPrintf,
+
+		Event: logging.Event},
+	)
 }

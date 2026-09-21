@@ -7,6 +7,10 @@ import (
 	"fmt"
 	"testing"
 
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	promotionpostgres "github.com/TokenFlux/TokenRouter/internal/promotion/postgres"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +20,7 @@ func TestAffiliateTransferLedgerFailureRollsBackFunds(t *testing.T) {
 	client := testEntClient(t)
 	user, err := client.User.Create().SetEmail("s12-transfer@example.com").SetPasswordHash("hash").SetBalance(3).SetTotalRecharged(7).Save(ctx)
 	require.NoError(t, err)
-	repo := NewAffiliateRepository(client, integrationDB)
+	repo := promotionpostgres.NewAffiliateRepository(client, func(tx *dbent.Tx) promotionpostgres.TransferBalance { return billingpostgres.BalanceInTx(tx) })
 	_, err = repo.EnsureUserAffiliate(ctx, user.ID)
 	require.NoError(t, err)
 	_, err = integrationDB.ExecContext(ctx, "UPDATE user_affiliates SET aff_quota=10, aff_history_quota=10 WHERE user_id=$1", user.ID)

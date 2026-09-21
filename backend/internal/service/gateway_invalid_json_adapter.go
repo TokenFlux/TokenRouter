@@ -4,8 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 )
 
 // invalidJSONAdapter 只接入现有健康命令和错误构造，不保存第二份策略。
@@ -16,7 +17,7 @@ type invalidJSONAdapter struct {
 }
 
 func (a invalidJSONAdapter) Log(message string) {
-	logger.LegacyPrintf("service.gateway", "%s", message)
+	logging.LegacyPrintf("service.gateway", "%s", message)
 }
 func (a invalidJSONAdapter) Health(ctx context.Context, status int, body []byte, models []string) forwardcore.ErrorDecision {
 	d := upstreamErrorDecisionWithoutPersistence(a.account, status)
@@ -30,5 +31,5 @@ func (a invalidJSONAdapter) Health(ctx context.Context, status int, body []byte,
 	return forwardcore.ErrorDecision{Generic: d.ShouldReturnGenericError(), RetrySameAccount: d.RetryableOnSameAccount(a.account, status)}
 }
 func (a invalidJSONAdapter) Failover(status int, headers map[string][]string, body []byte, retry bool) error {
-	return &UpstreamFailoverError{StatusCode: status, ResponseBody: body, ResponseHeaders: headers, RetryableOnSameAccount: retry}
+	return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseBody: body, ResponseHeaders: headers, RetryableOnSameAccount: retry}
 }

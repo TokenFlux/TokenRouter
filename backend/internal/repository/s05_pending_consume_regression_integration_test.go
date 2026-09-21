@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +82,7 @@ func TestS05PendingTransactionConsumesOnce(t *testing.T) {
 	for e := range results {
 		if e == nil {
 			success++
-		} else if errors.Is(e, service.ErrPendingAuthSessionConsumed) {
+		} else if errors.Is(e, identity.ErrPendingAuthSessionConsumed) {
 			consumed++
 		} else {
 			t.Errorf("非预期事务错误: %v", e)

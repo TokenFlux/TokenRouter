@@ -3,6 +3,8 @@ package service
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 func TestGetBaseRPM(t *testing.T) {
@@ -60,23 +62,23 @@ func TestCheckRPMSchedulability(t *testing.T) {
 		name       string
 		extra      map[string]any
 		currentRPM int
-		expected   WindowCostSchedulability
+		expected   account.WindowCostSchedulability
 	}{
-		{"disabled", map[string]any{}, 100, WindowCostSchedulable},
-		{"green zone", map[string]any{"base_rpm": 15}, 10, WindowCostSchedulable},
-		{"yellow zone tiered", map[string]any{"base_rpm": 15}, 15, WindowCostStickyOnly},
-		{"red zone tiered", map[string]any{"base_rpm": 15}, 18, WindowCostNotSchedulable},
-		{"sticky_exempt at limit", map[string]any{"base_rpm": 15, "rpm_strategy": "sticky_exempt"}, 15, WindowCostStickyOnly},
-		{"sticky_exempt over limit", map[string]any{"base_rpm": 15, "rpm_strategy": "sticky_exempt"}, 100, WindowCostStickyOnly},
-		{"custom buffer", map[string]any{"base_rpm": 10, "rpm_sticky_buffer": 5}, 14, WindowCostStickyOnly},
-		{"custom buffer red", map[string]any{"base_rpm": 10, "rpm_sticky_buffer": 5}, 15, WindowCostNotSchedulable},
-		{"base_rpm=1 green", map[string]any{"base_rpm": 1}, 0, WindowCostSchedulable},
-		{"base_rpm=1 yellow (at limit)", map[string]any{"base_rpm": 1}, 1, WindowCostStickyOnly},
-		{"base_rpm=1 red (at limit+buffer)", map[string]any{"base_rpm": 1}, 2, WindowCostNotSchedulable},
-		{"negative currentRPM", map[string]any{"base_rpm": 15}, -1, WindowCostSchedulable},
-		{"base_rpm negative disabled", map[string]any{"base_rpm": -5}, 10, WindowCostSchedulable},
-		{"very high currentRPM", map[string]any{"base_rpm": 10}, 9999, WindowCostNotSchedulable},
-		{"sticky_exempt very high currentRPM", map[string]any{"base_rpm": 10, "rpm_strategy": "sticky_exempt"}, 9999, WindowCostStickyOnly},
+		{"disabled", map[string]any{}, 100, account.WindowCostSchedulable},
+		{"green zone", map[string]any{"base_rpm": 15}, 10, account.WindowCostSchedulable},
+		{"yellow zone tiered", map[string]any{"base_rpm": 15}, 15, account.WindowCostStickyOnly},
+		{"red zone tiered", map[string]any{"base_rpm": 15}, 18, account.WindowCostNotSchedulable},
+		{"sticky_exempt at limit", map[string]any{"base_rpm": 15, "rpm_strategy": "sticky_exempt"}, 15, account.WindowCostStickyOnly},
+		{"sticky_exempt over limit", map[string]any{"base_rpm": 15, "rpm_strategy": "sticky_exempt"}, 100, account.WindowCostStickyOnly},
+		{"custom buffer", map[string]any{"base_rpm": 10, "rpm_sticky_buffer": 5}, 14, account.WindowCostStickyOnly},
+		{"custom buffer red", map[string]any{"base_rpm": 10, "rpm_sticky_buffer": 5}, 15, account.WindowCostNotSchedulable},
+		{"base_rpm=1 green", map[string]any{"base_rpm": 1}, 0, account.WindowCostSchedulable},
+		{"base_rpm=1 yellow (at limit)", map[string]any{"base_rpm": 1}, 1, account.WindowCostStickyOnly},
+		{"base_rpm=1 red (at limit+buffer)", map[string]any{"base_rpm": 1}, 2, account.WindowCostNotSchedulable},
+		{"negative currentRPM", map[string]any{"base_rpm": 15}, -1, account.WindowCostSchedulable},
+		{"base_rpm negative disabled", map[string]any{"base_rpm": -5}, 10, account.WindowCostSchedulable},
+		{"very high currentRPM", map[string]any{"base_rpm": 10}, 9999, account.WindowCostNotSchedulable},
+		{"sticky_exempt very high currentRPM", map[string]any{"base_rpm": 10, "rpm_strategy": "sticky_exempt"}, 9999, account.WindowCostStickyOnly},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

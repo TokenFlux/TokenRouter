@@ -14,7 +14,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/predicate"
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 // TLSFingerprintRouterUpdate is the builder for updating TLSFingerprintRouter entities.
@@ -167,13 +167,13 @@ func (_u *TLSFingerprintRouterUpdate) ClearCodexInviteResetTLSFingerprintProfile
 }
 
 // SetRules sets the "rules" field.
-func (_u *TLSFingerprintRouterUpdate) SetRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterUpdate {
+func (_u *TLSFingerprintRouterUpdate) SetRules(v []egress.TLSFingerprintRouterRule) *TLSFingerprintRouterUpdate {
 	_u.mutation.SetRules(v)
 	return _u
 }
 
 // AppendRules appends value to the "rules" field.
-func (_u *TLSFingerprintRouterUpdate) AppendRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterUpdate {
+func (_u *TLSFingerprintRouterUpdate) AppendRules(v []egress.TLSFingerprintRouterRule) *TLSFingerprintRouterUpdate {
 	_u.mutation.AppendRules(v)
 	return _u
 }
@@ -464,13 +464,13 @@ func (_u *TLSFingerprintRouterUpdateOne) ClearCodexInviteResetTLSFingerprintProf
 }
 
 // SetRules sets the "rules" field.
-func (_u *TLSFingerprintRouterUpdateOne) SetRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterUpdateOne {
+func (_u *TLSFingerprintRouterUpdateOne) SetRules(v []egress.TLSFingerprintRouterRule) *TLSFingerprintRouterUpdateOne {
 	_u.mutation.SetRules(v)
 	return _u
 }
 
 // AppendRules appends value to the "rules" field.
-func (_u *TLSFingerprintRouterUpdateOne) AppendRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterUpdateOne {
+func (_u *TLSFingerprintRouterUpdateOne) AppendRules(v []egress.TLSFingerprintRouterRule) *TLSFingerprintRouterUpdateOne {
 	_u.mutation.AppendRules(v)
 	return _u
 }

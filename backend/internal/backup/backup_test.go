@@ -496,7 +496,8 @@ func TestBackupService_CreateBackup_SplitsSpooledPutArchive(t *testing.T) {
 		require.LessOrEqual(t, int64(len(data)), int64(32))
 		require.Equal(t, int64(len(data)), part.SizeBytes)
 		require.Equal(t, fmt.Sprintf("%x", sha256.Sum256(data)), part.SHA256)
-		compressed.Write(data)
+		_, err := compressed.Write(data)
+		require.NoError(t, err)
 	}
 	store.mu.Unlock()
 

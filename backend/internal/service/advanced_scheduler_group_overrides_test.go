@@ -4,6 +4,9 @@ import (
 	"math"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,7 +51,7 @@ func TestResolveAdvancedSchedulerEffectiveSettingsPrefersGroupOverrides(t *testi
 				"session_sticky":    20,
 			},
 		},
-		GroupAdvancedSchedulerOverrides{
+		routing.GroupAdvancedSchedulerOverrides{
 			StickyWeightedEnabled:       groupAdvancedSchedulerOverrideTestPointer(false),
 			SubscriptionPriorityEnabled: groupAdvancedSchedulerOverrideTestPointer(true),
 			EWMAErrorRateAlpha:          groupAdvancedSchedulerOverrideTestPointer(0.8),
@@ -89,7 +92,7 @@ func TestResolveAdvancedSchedulerEffectiveSettingsKeepsExplicitZeroWeights(t *te
 			Priority: 1,
 		},
 		advancedSchedulerRuntimeSettings{},
-		GroupAdvancedSchedulerOverrides{
+		routing.GroupAdvancedSchedulerOverrides{
 			WeightPriority: groupAdvancedSchedulerOverrideTestPointer(0.0),
 		},
 	)
@@ -108,7 +111,7 @@ func TestResolveAdvancedSchedulerEffectiveSettingsRejectsOverflowingMergedWeight
 		7,
 		globalWeights,
 		advancedSchedulerRuntimeSettings{},
-		GroupAdvancedSchedulerOverrides{
+		routing.GroupAdvancedSchedulerOverrides{
 			WeightPriority: groupAdvancedSchedulerOverrideTestPointer(math.MaxFloat64),
 			WeightLoad:     groupAdvancedSchedulerOverrideTestPointer(math.MaxFloat64),
 		},
@@ -133,33 +136,33 @@ func TestValidateAdvancedSchedulerEffectiveWeightsAllowsZeroBaseAndRejectsOverfl
 func TestValidateGroupAdvancedSchedulerOverrides(t *testing.T) {
 	tests := []struct {
 		name      string
-		overrides GroupAdvancedSchedulerOverrides
+		overrides routing.GroupAdvancedSchedulerOverrides
 		wantError bool
 	}{
 		{
 			name: "sparse explicit zero is valid",
-			overrides: GroupAdvancedSchedulerOverrides{
+			overrides: routing.GroupAdvancedSchedulerOverrides{
 				StickyWeightedEnabled: groupAdvancedSchedulerOverrideTestPointer(false),
 				WeightQueue:           groupAdvancedSchedulerOverrideTestPointer(0.0),
 			},
 		},
 		{
 			name: "top k must be positive",
-			overrides: GroupAdvancedSchedulerOverrides{
+			overrides: routing.GroupAdvancedSchedulerOverrides{
 				LBTopK: groupAdvancedSchedulerOverrideTestPointer(0),
 			},
 			wantError: true,
 		},
 		{
 			name: "ewma alpha must be within range",
-			overrides: GroupAdvancedSchedulerOverrides{
+			overrides: routing.GroupAdvancedSchedulerOverrides{
 				EWMAErrorRateAlpha: groupAdvancedSchedulerOverrideTestPointer(0.0),
 			},
 			wantError: true,
 		},
 		{
 			name: "sticky escape thresholds are validated",
-			overrides: GroupAdvancedSchedulerOverrides{
+			overrides: routing.GroupAdvancedSchedulerOverrides{
 				StickyEscapeTTFTMs:    groupAdvancedSchedulerOverrideTestPointer(0),
 				StickyEscapeErrorRate: groupAdvancedSchedulerOverrideTestPointer(1.1),
 			},
@@ -167,21 +170,21 @@ func TestValidateGroupAdvancedSchedulerOverrides(t *testing.T) {
 		},
 		{
 			name: "negative weight is rejected",
-			overrides: GroupAdvancedSchedulerOverrides{
+			overrides: routing.GroupAdvancedSchedulerOverrides{
 				WeightLoad: groupAdvancedSchedulerOverrideTestPointer(-0.1),
 			},
 			wantError: true,
 		},
 		{
 			name: "non finite weight is rejected",
-			overrides: GroupAdvancedSchedulerOverrides{
+			overrides: routing.GroupAdvancedSchedulerOverrides{
 				WeightTTFT: groupAdvancedSchedulerOverrideTestPointer(math.Inf(1)),
 			},
 			wantError: true,
 		},
 		{
 			name: "all explicit base weights can be zero",
-			overrides: GroupAdvancedSchedulerOverrides{
+			overrides: routing.GroupAdvancedSchedulerOverrides{
 				WeightPriority:      groupAdvancedSchedulerOverrideTestPointer(0.0),
 				WeightLoad:          groupAdvancedSchedulerOverrideTestPointer(0.0),
 				WeightQueue:         groupAdvancedSchedulerOverrideTestPointer(0.0),
@@ -195,7 +198,7 @@ func TestValidateGroupAdvancedSchedulerOverrides(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateGroupAdvancedSchedulerOverrides(tt.overrides)
+			err := policy.ValidateGroupOverrides(tt.overrides)
 			if tt.wantError {
 				require.Error(t, err)
 				return
@@ -206,14 +209,14 @@ func TestValidateGroupAdvancedSchedulerOverrides(t *testing.T) {
 }
 
 func TestCloneGroupAdvancedSchedulerOverridesDeepCopiesPointers(t *testing.T) {
-	overrides := GroupAdvancedSchedulerOverrides{
+	overrides := routing.GroupAdvancedSchedulerOverrides{
 		StickyWeightedEnabled:       groupAdvancedSchedulerOverrideTestPointer(false),
 		LBTopK:                      groupAdvancedSchedulerOverrideTestPointer(3),
 		WeightPreviousResponse:      groupAdvancedSchedulerOverrideTestPointer(5.0),
 		SubscriptionPriorityEnabled: groupAdvancedSchedulerOverrideTestPointer(true),
 	}
 
-	cloned := CloneGroupAdvancedSchedulerOverrides(overrides)
+	cloned := accessview.CloneGroupAdvancedSchedulerOverrides(overrides)
 	require.NotSame(t, overrides.StickyWeightedEnabled, cloned.StickyWeightedEnabled)
 	require.NotSame(t, overrides.LBTopK, cloned.LBTopK)
 	require.NotSame(t, overrides.WeightPreviousResponse, cloned.WeightPreviousResponse)

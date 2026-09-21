@@ -2,13 +2,14 @@
 package httpapi
 
 import (
+	http "net/http"
+	url "net/url"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	http "net/http"
-	url "net/url"
-	strings "strings"
 )
 
 // OAuthBindHandler 负责临时绑定 cookie 的 HTTP 传递，安全身份仍来自会话验证。

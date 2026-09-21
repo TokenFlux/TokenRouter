@@ -54,7 +54,6 @@ func newContextWithQuery(query string) (*httptest.ResponseRecorder, *gin.Context
 // ---------- 现有测试 ----------
 
 func TestErrorWithDetails(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name       string
@@ -105,7 +104,6 @@ func TestErrorWithDetails(t *testing.T) {
 }
 
 func TestErrorFrom(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string
@@ -212,7 +210,6 @@ func TestErrorFrom(t *testing.T) {
 // ---------- 新增测试 ----------
 
 func TestSuccess(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name     string
@@ -264,7 +261,6 @@ func TestSuccess(t *testing.T) {
 }
 
 func TestCreated(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name     string
@@ -300,7 +296,6 @@ func TestCreated(t *testing.T) {
 }
 
 func TestError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name       string
@@ -344,7 +339,6 @@ func TestError(t *testing.T) {
 }
 
 func TestBadRequest(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -358,7 +352,6 @@ func TestBadRequest(t *testing.T) {
 }
 
 func TestUnauthorized(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -372,7 +365,6 @@ func TestUnauthorized(t *testing.T) {
 }
 
 func TestForbidden(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -386,7 +378,6 @@ func TestForbidden(t *testing.T) {
 }
 
 func TestNotFound(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -400,7 +391,6 @@ func TestNotFound(t *testing.T) {
 }
 
 func TestInternalError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -414,7 +404,6 @@ func TestInternalError(t *testing.T) {
 }
 
 func TestPaginated(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string
@@ -505,7 +494,6 @@ func TestPaginated(t *testing.T) {
 }
 
 func TestPaginatedWithResult(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string
@@ -576,7 +564,6 @@ func TestPaginatedWithResult(t *testing.T) {
 }
 
 func TestParsePagination(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name         string

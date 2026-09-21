@@ -128,6 +128,7 @@ func projectUsageRankingResponse(ranking *usage.UsageRankingResponse, settings u
 
 // UsageHandler 处理用户侧用量相关请求。
 type UsageHandler struct {
+	calendar       timezone.Calendar
 	usageService   *usage.UsageService
 	apiKeyService  ports.KeyReader
 	opsService     ports.UserErrors
@@ -140,8 +141,10 @@ func NewUsageHandler(
 	apiKeyService ports.KeyReader,
 	opsService ports.UserErrors,
 	settingService ports.Settings,
+	calendar timezone.Calendar,
 ) *UsageHandler {
 	return &UsageHandler{
+		calendar:       calendar,
 		usageService:   usageService,
 		apiKeyService:  apiKeyService,
 		opsService:     opsService,
@@ -232,14 +235,14 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 	}
 
 	userTZ := c.Query("timezone")
-	now := timezone.NowInUserLocation(userTZ)
+	now := h.calendar.NowInUserLocation(userTZ)
 	var startTime, endTime time.Time
 	var startPtr, endPtr *time.Time
 	startDateStr := strings.TrimSpace(c.Query("start_date"))
 	endDateStr := strings.TrimSpace(c.Query("end_date"))
 
 	if startDateStr != "" {
-		t, _, err := timezone.ParseDateTimeInUserLocation(startDateStr, userTZ)
+		t, _, err := h.calendar.ParseDateTimeInUserLocation(startDateStr, userTZ)
 		if err != nil {
 			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 			return nil, false
@@ -248,7 +251,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 		startPtr = &startTime
 	}
 	if endDateStr != "" {
-		t, dateOnly, err := timezone.ParseDateTimeInUserLocation(endDateStr, userTZ)
+		t, dateOnly, err := h.calendar.ParseDateTimeInUserLocation(endDateStr, userTZ)
 		if err != nil {
 			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 			return nil, false
@@ -265,13 +268,13 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 		if startPtr == nil {
 			switch c.DefaultQuery("period", "") {
 			case "today":
-				startTime = timezone.StartOfDayInUserLocation(now, userTZ)
+				startTime = h.calendar.StartOfDayInUserLocation(now, userTZ)
 			case "week":
 				startTime = now.AddDate(0, 0, -7)
 			case "month":
 				startTime = now.AddDate(0, -1, 0)
 			default:
-				startTime = timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -7), userTZ)
+				startTime = h.calendar.StartOfDayInUserLocation(now.AddDate(0, 0, -7), userTZ)
 			}
 			startPtr = &startTime
 		}
@@ -279,7 +282,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 			if strings.TrimSpace(c.Query("period")) != "" {
 				endTime = now
 			} else {
-				endTime = timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
+				endTime = h.calendar.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
 			}
 			endPtr = &endTime
 		}
@@ -371,7 +374,7 @@ func (h *UsageHandler) ListErrors(c *gin.Context) {
 	// 日期范围使用半开区间 [start, end)，与用量列表语义一致。
 	userTZ := c.Query("timezone")
 	if startDateStr := c.Query("start_date"); startDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
+		t, err := h.calendar.ParseInUserLocation("2006-01-02", startDateStr, userTZ)
 		if err != nil {
 			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
 			return
@@ -379,7 +382,7 @@ func (h *UsageHandler) ListErrors(c *gin.Context) {
 		filter.StartTime = &t
 	}
 	if endDateStr := c.Query("end_date"); endDateStr != "" {
-		t, err := timezone.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
+		t, err := h.calendar.ParseInUserLocation("2006-01-02", endDateStr, userTZ)
 		if err != nil {
 			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
 			return
@@ -505,8 +508,8 @@ func (h *UsageHandler) Ranking(c *gin.Context) {
 	}
 
 	userTZ := c.Query("timezone")
-	now := timezone.NowInUserLocation(userTZ)
-	startTime, endTime, err := parseUsageRankingTimeRange(c, now, userTZ)
+	now := h.calendar.NowInUserLocation(userTZ)
+	startTime, endTime, err := parseUsageRankingTimeRange(c, now, userTZ, h.calendar)
 	if err != nil {
 		response.BadRequest(c, err.Error())
 		return
@@ -527,10 +530,10 @@ func (h *UsageHandler) Ranking(c *gin.Context) {
 }
 
 // parseUsageRankingTimeRange 解析排行时间范围，未传参数时默认使用用户时区的今天。
-func parseUsageRankingTimeRange(c *gin.Context, now time.Time, userTZ string) (time.Time, time.Time, error) {
+func parseUsageRankingTimeRange(c *gin.Context, now time.Time, userTZ string, calendar timezone.Calendar) (time.Time, time.Time, error) {
 	startDateStr := c.Query("start_date")
 	endDateStr := c.Query("end_date")
-	defaultStart := timezone.StartOfDayInUserLocation(now, userTZ)
+	defaultStart := calendar.StartOfDayInUserLocation(now, userTZ)
 	defaultEnd := defaultStart.AddDate(0, 0, 1)
 	if startDateStr == "" && endDateStr == "" {
 		return defaultStart, defaultEnd, nil
@@ -539,14 +542,14 @@ func parseUsageRankingTimeRange(c *gin.Context, now time.Time, userTZ string) (t
 	startTime := defaultStart
 	endTime := defaultEnd
 	if startDateStr != "" {
-		parsed, _, err := timezone.ParseDateTimeInUserLocation(startDateStr, userTZ)
+		parsed, _, err := calendar.ParseDateTimeInUserLocation(startDateStr, userTZ)
 		if err != nil {
 			return time.Time{}, time.Time{}, errors.New("invalid start_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 		}
 		startTime = parsed
 	}
 	if endDateStr != "" {
-		parsed, dateOnly, err := timezone.ParseDateTimeInUserLocation(endDateStr, userTZ)
+		parsed, dateOnly, err := calendar.ParseDateTimeInUserLocation(endDateStr, userTZ)
 		if err != nil {
 			return time.Time{}, time.Time{}, errors.New("invalid end_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 		}
@@ -603,10 +606,10 @@ func parseAPIKeyDailyUsageDays(raw string) (int, bool) {
 	return days, true
 }
 
-func apiKeyDailyUsageRange(days int, userTZ string) (time.Time, time.Time) {
-	now := timezone.NowInUserLocation(userTZ)
-	startTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, -(days-1)), userTZ)
-	endTime := timezone.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
+func apiKeyDailyUsageRange(days int, userTZ string, calendar timezone.Calendar) (time.Time, time.Time) {
+	now := calendar.NowInUserLocation(userTZ)
+	startTime := calendar.StartOfDayInUserLocation(now.AddDate(0, 0, -(days-1)), userTZ)
+	endTime := calendar.StartOfDayInUserLocation(now.AddDate(0, 0, 1), userTZ)
 	return startTime, endTime
 }
 
@@ -880,7 +883,7 @@ func (h *UsageHandler) GetMyAPIKeyDailyUsage(c *gin.Context) {
 	}
 
 	userTZ := c.Query("timezone")
-	startTime, endTime := apiKeyDailyUsageRange(days, userTZ)
+	startTime, endTime := apiKeyDailyUsageRange(days, userTZ, h.calendar)
 	items, err := h.usageService.GetAPIKeyDailyUsage(c.Request.Context(), subject.UserID, apiKeyID, startTime, endTime)
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -897,6 +900,3 @@ func (h *UsageHandler) GetMyAPIKeyDailyUsage(c *gin.Context) {
 
 // ParseAPIKeyDailyUsageDays 供仍在旧网关中的公开查询复用原解析规则。
 func ParseAPIKeyDailyUsageDays(raw string) (int, bool) { return parseAPIKeyDailyUsageDays(raw) }
-func APIKeyDailyUsageRange(days int, zone string) (time.Time, time.Time) {
-	return apiKeyDailyUsageRange(days, zone)
-}

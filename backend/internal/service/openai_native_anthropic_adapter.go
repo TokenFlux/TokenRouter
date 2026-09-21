@@ -3,14 +3,24 @@ package service
 
 import (
 	"context"
+
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
+	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
+	"net/http"
+
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 type openAINativeAnthropicAdapter struct {
@@ -25,7 +35,7 @@ func (p *openAINativeAnthropicAdapter) errorWriter() func(*gin.Context, int, str
 	case forward.NativeChat:
 		return writeChatCompletionsError
 	default:
-		return writeAnthropicError
+		return httpapi.WriteForwardAnthropicError
 	}
 }
 func (p *openAINativeAnthropicAdapter) Profile() forward.MessagesProfile {
@@ -41,16 +51,16 @@ func (p *openAINativeAnthropicAdapter) ThinkingFallback(effort *string, body []b
 	return ApplyThinkingEnabledFallback(effort, body, model)
 }
 func (p *openAINativeAnthropicAdapter) StripEmpty(body []byte) []byte {
-	return StripEmptyTextBlocks(body)
+	return protocolanthropic.StripEmptyTextBlocks(body)
 }
 func (p *openAINativeAnthropicAdapter) FilterSearch(body []byte, model string) []byte {
-	return FilterWebSearchHistoryBlocks(body, model)
+	return searchtools.FilterWebSearchHistoryBlocks(body, modelidentity.ResolveThinkingProtocol(model) == modelidentity.ThinkingProtocolPassbackRequired)
 }
 func (p *openAINativeAnthropicAdapter) CacheLimit(body []byte) []byte {
-	return enforceCacheControlLimit(body)
+	return anthropic.EnforceCacheControlLimit(body)
 }
 func (p *openAINativeAnthropicAdapter) Log(format string, args ...any) {
-	logger.LegacyPrintf("service.gateway", format, args...)
+	logging.LegacyPrintf("service.gateway", format, args...)
 }
 func (p *openAINativeAnthropicAdapter) ProtocolAPIKey() string {
 	return p.account.GetOpenAIProtocolAPIKey()
@@ -75,13 +85,13 @@ func (p *openAINativeAnthropicAdapter) DirectOptions() forward.NativeAnthropicOp
 	return p.s.nativeAnthropicDirectOptions(p.c, p.account)
 }
 func (p *openAINativeAnthropicAdapter) AdaptResponsesTools(body []byte) ([]byte, bridge.ResponsesClientToolMapping, error) {
-	return adaptResponsesClientToolsForAnthropic(body)
+	return protocolforward.AdaptResponsesClientToolsForAnthropic(body)
 }
 func (p *openAINativeAnthropicAdapter) ResponsesToAnthropic(r *protocolopenai.ResponsesRequest) (*protocolanthropic.AnthropicRequest, error) {
-	return apicompat.ResponsesToAnthropicRequest(r)
+	return bridge.ResponsesToAnthropicRequest(r)
 }
 func (p *openAINativeAnthropicAdapter) ChatToResponses(r *protocolopenai.ChatCompletionsRequest) (*protocolopenai.ResponsesRequest, error) {
-	return apicompat.ChatCompletionsToResponses(r)
+	return bridge.ChatCompletionsToResponses(r, protocolforward.ConversionOptionsForModel(r.Model))
 }
 func (p *openAINativeAnthropicAdapter) ResponsesEffort(body []byte, models ...string) *string {
 	return ExtractResponsesReasoningEffortFromBody(body, models...)
@@ -90,7 +100,7 @@ func (p *openAINativeAnthropicAdapter) ChatEffort(body []byte, models ...string)
 	return extractCCReasoningEffortFromBody(body, models...)
 }
 func (p *openAINativeAnthropicAdapter) MapStatus(status int) int {
-	return mapUpstreamStatusCode(status)
+	return protocolforward.MapStatus(status)
 }
 func (p *openAINativeAnthropicAdapter) OutputOptions() forward.AnthropicOutputOptions {
 	return p.s.nativeAnthropicOutputOptions(p.c, p.errorWriter())

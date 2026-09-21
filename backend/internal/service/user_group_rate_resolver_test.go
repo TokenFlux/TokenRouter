@@ -2,13 +2,16 @@ package service
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/stretchr/testify/require"
 )
 
 type userGroupRateResolverRepoStub struct {
-	UserGroupRateRepository
+	billing.UserGroupRateRepository
 	rate  *float64
 	calls int
 }
@@ -23,7 +26,7 @@ func TestGatewayServiceGetUserGroupRateMultiplier_FallbacksAndUsesExistingResolv
 
 	rate := 1.9
 	repo := &userGroupRateResolverRepoStub{rate: &rate}
-	resolver := newUserGroupRateResolver(repo, nil, time.Minute, nil, "service.gateway")
+	resolver := billing.NewGroupRateResolver(repo, nil, time.Minute, nil, "service.gateway", logging.LegacyPrintf)
 	svc := &GatewayService{userGroupRateResolver: resolver}
 
 	got := svc.getUserGroupRateMultiplier(context.Background(), 101, 202, 1.2)

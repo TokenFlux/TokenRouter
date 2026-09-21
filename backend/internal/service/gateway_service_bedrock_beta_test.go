@@ -6,13 +6,17 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
 
 type betaPolicySettingRepoStub struct {
 	values map[string]string
 }
 
-func (s *betaPolicySettingRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
+func (s *betaPolicySettingRepoStub) Get(ctx context.Context, key string) (*settingscore.Setting, error) {
 	panic("unexpected Get call")
 }
 
@@ -20,7 +24,7 @@ func (s *betaPolicySettingRepoStub) GetValue(ctx context.Context, key string) (s
 	if v, ok := s.values[key]; ok {
 		return v, nil
 	}
-	return "", ErrSettingNotFound
+	return "", settingscore.ErrSettingNotFound
 }
 
 func (s *betaPolicySettingRepoStub) Set(ctx context.Context, key, value string) error {
@@ -44,12 +48,12 @@ func (s *betaPolicySettingRepoStub) Delete(ctx context.Context, key string) erro
 }
 
 func TestResolveBedrockBetaTokensForRequest_BlocksOnOriginalAnthropicToken(t *testing.T) {
-	settings := &BetaPolicySettings{
-		Rules: []BetaPolicyRule{
+	settings := &anthropic.BetaPolicySettings{
+		Rules: []anthropic.BetaPolicyRule{
 			{
 				BetaToken:    "advanced-tool-use-2025-11-20",
-				Action:       BetaPolicyActionBlock,
-				Scope:        BetaPolicyScopeAll,
+				Action:       anthropic.BetaPolicyActionBlock,
+				Scope:        anthropic.BetaPolicyScopeAll,
 				ErrorMessage: "advanced tool use is blocked",
 			},
 		},
@@ -60,14 +64,14 @@ func TestResolveBedrockBetaTokensForRequest_BlocksOnOriginalAnthropicToken(t *te
 	}
 
 	svc := &GatewayService{
-		settingService: NewSettingService(
+		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
-				SettingKeyBetaPolicySettings: string(raw),
+				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
 	}
-	account := &Account{Platform: PlatformAnthropic, Type: AccountTypeBedrock}
+	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
 
 	_, err = svc.resolveBedrockBetaTokensForRequest(
 		context.Background(),
@@ -85,12 +89,12 @@ func TestResolveBedrockBetaTokensForRequest_BlocksOnOriginalAnthropicToken(t *te
 }
 
 func TestResolveBedrockBetaTokensForRequest_FiltersAfterBedrockTransform(t *testing.T) {
-	settings := &BetaPolicySettings{
-		Rules: []BetaPolicyRule{
+	settings := &anthropic.BetaPolicySettings{
+		Rules: []anthropic.BetaPolicyRule{
 			{
 				BetaToken: "tool-search-tool-2025-10-19",
-				Action:    BetaPolicyActionFilter,
-				Scope:     BetaPolicyScopeAll,
+				Action:    anthropic.BetaPolicyActionFilter,
+				Scope:     anthropic.BetaPolicyScopeAll,
 			},
 		},
 	}
@@ -100,14 +104,14 @@ func TestResolveBedrockBetaTokensForRequest_FiltersAfterBedrockTransform(t *test
 	}
 
 	svc := &GatewayService{
-		settingService: NewSettingService(
+		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
-				SettingKeyBetaPolicySettings: string(raw),
+				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
 	}
-	account := &Account{Platform: PlatformAnthropic, Type: AccountTypeBedrock}
+	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
 
 	betaTokens, err := svc.resolveBedrockBetaTokensForRequest(
 		context.Background(),
@@ -130,12 +134,12 @@ func TestResolveBedrockBetaTokensForRequest_FiltersAfterBedrockTransform(t *test
 // 管理员 block 了 computer-use，客户端不在 header 中带该 token，
 // 但请求体包含 computer_use 工具 → 自动注入后应被 block。
 func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedComputerUse(t *testing.T) {
-	settings := &BetaPolicySettings{
-		Rules: []BetaPolicyRule{
+	settings := &anthropic.BetaPolicySettings{
+		Rules: []anthropic.BetaPolicyRule{
 			{
 				BetaToken:    "computer-use-2025-11-24",
-				Action:       BetaPolicyActionBlock,
-				Scope:        BetaPolicyScopeAll,
+				Action:       anthropic.BetaPolicyActionBlock,
+				Scope:        anthropic.BetaPolicyScopeAll,
 				ErrorMessage: "computer use is blocked",
 			},
 		},
@@ -146,14 +150,14 @@ func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedComputerUse(t 
 	}
 
 	svc := &GatewayService{
-		settingService: NewSettingService(
+		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
-				SettingKeyBetaPolicySettings: string(raw),
+				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
 	}
-	account := &Account{Platform: PlatformAnthropic, Type: AccountTypeBedrock}
+	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
 
 	// header 中不带 beta token，但 body 中有 computer_use 工具
 	_, err = svc.resolveBedrockBetaTokensForRequest(
@@ -175,12 +179,12 @@ func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedComputerUse(t 
 // 管理员 block 了 tool-search-tool，客户端不在 header 中带 beta token，
 // 但请求体包含 tool search 工具 → 自动注入后应被 block。
 func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedToolSearch(t *testing.T) {
-	settings := &BetaPolicySettings{
-		Rules: []BetaPolicyRule{
+	settings := &anthropic.BetaPolicySettings{
+		Rules: []anthropic.BetaPolicyRule{
 			{
 				BetaToken:    "tool-search-tool-2025-10-19",
-				Action:       BetaPolicyActionBlock,
-				Scope:        BetaPolicyScopeAll,
+				Action:       anthropic.BetaPolicyActionBlock,
+				Scope:        anthropic.BetaPolicyScopeAll,
 				ErrorMessage: "tool search is blocked",
 			},
 		},
@@ -191,14 +195,14 @@ func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedToolSearch(t *
 	}
 
 	svc := &GatewayService{
-		settingService: NewSettingService(
+		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
-				SettingKeyBetaPolicySettings: string(raw),
+				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
 	}
-	account := &Account{Platform: PlatformAnthropic, Type: AccountTypeBedrock}
+	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
 
 	// header 中不带 beta token，但 body 中有 tool_search_tool 工具
 	_, err = svc.resolveBedrockBetaTokensForRequest(
@@ -219,12 +223,12 @@ func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedToolSearch(t *
 // TestResolveBedrockBetaTokensForRequest_PassesWhenNoBlockRuleMatches 验证：
 // body 自动注入的 token 如果没有对应的 block 规则，应正常通过。
 func TestResolveBedrockBetaTokensForRequest_PassesWhenNoBlockRuleMatches(t *testing.T) {
-	settings := &BetaPolicySettings{
-		Rules: []BetaPolicyRule{
+	settings := &anthropic.BetaPolicySettings{
+		Rules: []anthropic.BetaPolicyRule{
 			{
 				BetaToken:    "context-1m-2025-08-07",
-				Action:       BetaPolicyActionBlock,
-				Scope:        BetaPolicyScopeAll,
+				Action:       anthropic.BetaPolicyActionBlock,
+				Scope:        anthropic.BetaPolicyScopeAll,
 				ErrorMessage: "context is blocked",
 			},
 		},
@@ -235,14 +239,14 @@ func TestResolveBedrockBetaTokensForRequest_PassesWhenNoBlockRuleMatches(t *test
 	}
 
 	svc := &GatewayService{
-		settingService: NewSettingService(
+		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
-				SettingKeyBetaPolicySettings: string(raw),
+				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
 	}
-	account := &Account{Platform: PlatformAnthropic, Type: AccountTypeBedrock}
+	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
 
 	// body 中有 computer_use 工具（会注入 computer-use token），但 block 规则只针对 context-1m
 	tokens, err := svc.resolveBedrockBetaTokensForRequest(

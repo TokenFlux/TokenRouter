@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,11 +28,11 @@ func openAICodexTurnStateSeed(c *gin.Context) string {
 	if c == nil || c.Request == nil {
 		return ""
 	}
-	sessionID := extractClientSessionID(c.Request.Header)
+	sessionID := openai.ExtractClientSessionID(c.Request.Header)
 	if sessionID == "" {
 		return ""
 	}
-	return strconv.FormatInt(getAPIKeyIDFromContext(c), 10) + "\x00" + sessionID
+	return strconv.FormatInt(gatewayhttp.APIKeyIDFromContext(c), 10) + "\x00" + sessionID
 }
 
 // relayOpenAICodexTurnState 将上游状态显式写回客户端，并只在响应真正会送达

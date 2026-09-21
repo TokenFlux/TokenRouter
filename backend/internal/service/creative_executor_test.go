@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +40,7 @@ func TestParseCreativeOpenAIImageOutputs(t *testing.T) {
 	// 空 data 报 502 可重试上游错误。
 	_, err = parseCreativeOpenAIImageOutputs([]byte(`{"data":[]}`))
 	require.Error(t, err)
-	var upstreamErr *CreativeUpstreamError
+	var upstreamErr *creative.CreativeUpstreamError
 	require.True(t, errors.As(err, &upstreamErr))
 	require.Equal(t, 502, upstreamErr.StatusCode)
 	require.True(t, upstreamErr.Retryable)
@@ -64,7 +66,7 @@ func TestParseCreativeGeminiImageOutputs(t *testing.T) {
 	// 无候选内容时报可重试错误。
 	_, err = parseCreativeGeminiImageOutputs([]byte(`{"candidates":[]}`))
 	require.Error(t, err)
-	var upstreamErr *CreativeUpstreamError
+	var upstreamErr *creative.CreativeUpstreamError
 	require.True(t, errors.As(err, &upstreamErr))
 	require.True(t, upstreamErr.Retryable)
 }
@@ -72,7 +74,7 @@ func TestParseCreativeGeminiImageOutputs(t *testing.T) {
 // TestNormalizeCreativeOutputs 校验大小上限、去重并固定只保留一张。
 func TestNormalizeCreativeOutputs(t *testing.T) {
 	// sha256 去重：相同字节只保留一张。
-	outputs, err := normalizeCreativeOutputs([]CreativeOutput{
+	outputs, err := normalizeCreativeOutputs([]creative.CreativeOutput{
 		{Index: 0, Bytes: []byte("same"), Mime: "image/png"},
 		{Index: 1, Bytes: []byte("same"), Mime: "image/png"},
 		{Index: 2, Bytes: []byte("other"), Mime: "image/png"},
@@ -82,7 +84,7 @@ func TestNormalizeCreativeOutputs(t *testing.T) {
 	require.Equal(t, []byte("same"), outputs[0].Bytes)
 
 	// 上游返回多张时固定截断为一张并重排行号。
-	outputs, err = normalizeCreativeOutputs([]CreativeOutput{
+	outputs, err = normalizeCreativeOutputs([]creative.CreativeOutput{
 		{Index: 0, Bytes: []byte("a"), Mime: "image/png"},
 		{Index: 1, Bytes: []byte("b"), Mime: "image/png"},
 		{Index: 2, Bytes: []byte("c"), Mime: "image/png"},
@@ -93,9 +95,9 @@ func TestNormalizeCreativeOutputs(t *testing.T) {
 
 	// 单张超限（>32MiB）视为失败。
 	big := make([]byte, creativeMaxOutputBytes+1)
-	_, err = normalizeCreativeOutputs([]CreativeOutput{{Index: 0, Bytes: big, Mime: "image/png"}})
+	_, err = normalizeCreativeOutputs([]creative.CreativeOutput{{Index: 0, Bytes: big, Mime: "image/png"}})
 	require.Error(t, err)
-	require.False(t, IsRetryableCreativeError(err))
+	require.False(t, creative.IsRetryableCreativeError(err))
 
 	// 空输出视为失败。
 	_, err = normalizeCreativeOutputs(nil)
@@ -117,12 +119,12 @@ func TestCreativeOpenAIImageSize(t *testing.T) {
 // TestCreativeGrokOperationMatrix grok 平台支持 generate 与 edit，但不支持 inpaint。
 func TestCreativeGrokOperationMatrix(t *testing.T) {
 	executor := &CreativeExecutor{}
-	for _, operation := range []string{CreativeOperationInpaint} {
-		run := CreativeRun{RunID: "crun_x", Operation: operation, RequestedOutputCount: 1}
-		payload := CreativeRunPayload{Prompt: "p"}
+	for _, operation := range []string{creative.CreativeOperationInpaint} {
+		run := creative.CreativeRun{RunID: "crun_x", Operation: operation, RequestedOutputCount: 1}
+		payload := creative.CreativeRunPayload{Prompt: "p"}
 		_, err := executor.executeGrok(context.Background(), run, payload, &Account{ID: 1}, "grok-imagine")
 		require.Error(t, err)
-		require.False(t, IsRetryableCreativeError(err), "grok %s 应当不可重试", operation)
+		require.False(t, creative.IsRetryableCreativeError(err), "grok %s 应当不可重试", operation)
 	}
 }
 
@@ -130,94 +132,23 @@ func TestCreativeGrokOperationMatrix(t *testing.T) {
 func TestCreativeErrorRetryableMatrix(t *testing.T) {
 	retryable := []int{0, 429, 500, 502, 503}
 	for _, status := range retryable {
-		err := creativeHTTPStatusError(status, "boom")
-		require.True(t, IsRetryableCreativeError(err), "status %d 应当可重试", status)
+		err := creative.CreativeHTTPStatusError(status, "boom")
+		require.True(t, creative.IsRetryableCreativeError(err), "status %d 应当可重试", status)
 	}
 	nonRetryable := []int{400, 401, 403, 404, 422}
 	for _, status := range nonRetryable {
-		err := creativeHTTPStatusError(status, "bad request")
-		require.False(t, IsRetryableCreativeError(err), "status %d 应当不可重试", status)
+		err := creative.CreativeHTTPStatusError(status, "bad request")
+		require.False(t, creative.IsRetryableCreativeError(err), "status %d 应当不可重试", status)
 	}
-	require.False(t, IsRetryableCreativeError(nil))
-	require.True(t, IsRetryableCreativeError(errors.New("network down")))
-	require.True(t, IsRetryableCreativeError(creativeNonRetryableError("x")) == false)
-}
-
-// TestCreativeOperationsForPlatform 平台能力矩阵。
-func TestCreativeOperationsForPlatform(t *testing.T) {
-	require.Equal(t, []string{"generate", "edit"}, creativeOperationsForPlatform(PlatformGemini))
-	require.Equal(t, []string{"generate", "edit", "inpaint"}, creativeOperationsForPlatform(PlatformOpenAI))
-	require.Equal(t, []string{"generate", "edit"}, creativeOperationsForPlatform(PlatformGrok))
-	require.Nil(t, creativeOperationsForPlatform(PlatformAnthropic))
-}
-
-// TestCreativeGrokDefaultImageCandidates 校验无映射账号包含 Grok Imagine 图片候选，尤其是画质模型。
-func TestCreativeGrokDefaultImageCandidates(t *testing.T) {
-	account := &Account{Platform: PlatformGrok, Credentials: map[string]any{}}
-	models := creativeExpandAccountModels(account, defaultCreativeGrokModelCandidates(), isGrokImageGenerationModel)
-	require.Contains(t, models, "grok-imagine-image")
-	require.Contains(t, models, "grok-imagine-image-quality")
-	require.Contains(t, models, "grok-imagine-image-2.0")
-}
-
-// TestCreativeGrokDefaultImageCandidatesWithQualityWhitelist 校验精确白名单不会漏掉画质模型。
-func TestCreativeGrokDefaultImageCandidatesWithQualityWhitelist(t *testing.T) {
-	account := &Account{
-		Platform: PlatformGrok,
-		Credentials: map[string]any{
-			"model_whitelist": []string{"grok-imagine-image-quality"},
-		},
-	}
-	models := creativeExpandAccountModels(account, defaultCreativeGrokModelCandidates(), isGrokImageGenerationModel)
-	require.Equal(t, []string{"grok-imagine-image-quality"}, models)
-}
-
-// TestCreativeMappedFinalModelCapability 确保文本请求别名映射到图片模型时按最终模型校验。
-func TestCreativeMappedFinalModelCapability(t *testing.T) {
-	account := &Account{
-		Platform: PlatformOpenAI,
-		Credentials: map[string]any{
-			"model_mapping":   map[string]any{"draw-alias": "gpt-image-2", "text-alias": "gpt-5.4"},
-			"model_whitelist": []string{"gpt-image-2", "gpt-5.4"},
-		},
-	}
-	models := creativeExpandAccountModels(account, []string{"draw-alias", "text-alias"}, IsGPTImageGenerationModel)
-	// 候选集合没有映射 key 时仍应纳入显式映射的 requested alias。
-	require.NotContains(t, models, "text-alias")
-	// 反向映射目标为图片模型的别名必须被保留。
-	account.Credentials["model_mapping"] = map[string]any{"draw-alias": "gpt-image-2"}
-	models = creativeExpandAccountModels(account, []string{"draw-alias"}, IsGPTImageGenerationModel)
-	require.Equal(t, []string{"draw-alias"}, models)
-}
-
-// TestCreativeGrokConfiguredImageWhitelistCandidates 校验代理侧图片模型变体能从显式白名单进入候选。
-func TestCreativeGrokConfiguredImageWhitelistCandidates(t *testing.T) {
-	account := &Account{
-		Platform: PlatformGrok,
-		Credentials: map[string]any{
-			"model_whitelist": []string{"grok-imagine-image-lite"},
-		},
-	}
-	models := creativeExpandAccountModels(account, defaultCreativeGrokModelCandidates(), isGrokImageGenerationModel)
-	require.Equal(t, []string{"grok-imagine-image-lite"}, models)
-}
-
-// TestCreativeGeminiConfiguredImageWhitelistCandidates 校验 Gemini 无映射账号不会漏掉图片模型变体。
-func TestCreativeGeminiConfiguredImageWhitelistCandidates(t *testing.T) {
-	account := &Account{
-		Platform: PlatformGemini,
-		Credentials: map[string]any{
-			"model_whitelist": []string{"gemini-3-pro-image-quality", "gemini-2.5-flash"},
-		},
-	}
-	models := creativeGeminiModelsForAccount(account)
-	require.Equal(t, []string{"gemini-3-pro-image-quality"}, models)
+	require.False(t, creative.IsRetryableCreativeError(nil))
+	require.True(t, creative.IsRetryableCreativeError(errors.New("network down")))
+	require.True(t, creative.IsRetryableCreativeError(creative.CreativeNonRetryableError("x")) == false)
 }
 
 // TestBuildCreativeGrokRequest 校验 grok 请求体构造。
 func TestBuildCreativeGrokRequest(t *testing.T) {
-	run := CreativeRun{ImageSize: "2K", AspectRatio: "16:9", RequestedOutputCount: 2}
-	payload := CreativeRunPayload{Prompt: "画猫", Quality: "low"}
+	run := creative.CreativeRun{ImageSize: "2K", AspectRatio: "16:9", RequestedOutputCount: 2}
+	payload := creative.CreativeRunPayload{Prompt: "画猫", Quality: "low"}
 	request := buildCreativeGrokRequest(run, payload, "grok-imagine")
 	require.Equal(t, "grok-imagine", request["model"])
 	require.Equal(t, "画猫", request["prompt"])
@@ -228,7 +159,7 @@ func TestBuildCreativeGrokRequest(t *testing.T) {
 	require.Equal(t, "low", request["quality"])
 
 	// 不支持的 aspect_ratio 不落字段；1K 映射 1k。
-	run = CreativeRun{ImageSize: "1K", AspectRatio: "21:99"}
+	run = creative.CreativeRun{ImageSize: "1K", AspectRatio: "21:99"}
 	request = buildCreativeGrokRequest(run, payload, "grok-imagine")
 	require.Equal(t, "1k", request["resolution"])
 	_, ok := request["aspect_ratio"]
@@ -237,11 +168,11 @@ func TestBuildCreativeGrokRequest(t *testing.T) {
 
 // TestBuildCreativeGrokEditRequest 校验 Grok 单图与多图编辑 JSON 结构。
 func TestBuildCreativeGrokEditRequest(t *testing.T) {
-	run := CreativeRun{ImageSize: "2K", AspectRatio: "16:9", RequestedOutputCount: 2}
-	payload := CreativeRunPayload{
+	run := creative.CreativeRun{ImageSize: "2K", AspectRatio: "16:9", RequestedOutputCount: 2}
+	payload := creative.CreativeRunPayload{
 		Prompt:  "edit image",
 		Quality: "medium",
-		Sources: []CreativeInputImage{
+		Sources: []creative.CreativeInputImage{
 			{Bytes: []byte("first"), Mime: "image/png"},
 			{Bytes: []byte("second"), Mime: "image/jpeg"},
 		},
@@ -262,9 +193,9 @@ func TestBuildCreativeGrokEditRequest(t *testing.T) {
 	require.Equal(t, "data:image/png;base64,Zmlyc3Q=", images[0]["url"])
 	require.Equal(t, "data:image/jpeg;base64,c2Vjb25k", images[1]["url"])
 
-	one := buildCreativeGrokEditRequest(run, CreativeRunPayload{
+	one := buildCreativeGrokEditRequest(run, creative.CreativeRunPayload{
 		Prompt:  "edit image",
-		Sources: []CreativeInputImage{{Bytes: []byte("one"), Mime: "image/png"}},
+		Sources: []creative.CreativeInputImage{{Bytes: []byte("one"), Mime: "image/png"}},
 	}, "grok-imagine-image-2.0")
 	require.Contains(t, one, "image")
 	require.NotContains(t, one, "images")
@@ -277,18 +208,18 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 		{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, encoded)))},
 		{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(fmt.Sprintf(`{"data":[{"b64_json":%q}]}`, encoded)))},
 	}}
-	executor := NewCreativeExecutor(nil, nil, nil, &OpenAIGatewayService{httpUpstream: upstream}, nil, nil, nil)
+	executor := NewCreativeExecutor(nil, nil, &OpenAIGatewayService{httpUpstream: upstream}, nil, nil)
 	account := &Account{
 		ID:       41,
-		Platform: PlatformGrok,
-		Type:     AccountTypeAPIKey,
+		Platform: capability.PlatformGrok,
+		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "grok-test-key",
 			"base_url": "https://xai.test/v1",
 		},
 	}
-	run := CreativeRun{Operation: CreativeOperationEdit, RequestedOutputCount: 1, ImageSize: "2K", AspectRatio: "16:9"}
-	payload := CreativeRunPayload{Prompt: "edit this", Sources: []CreativeInputImage{{Bytes: []byte("source"), Mime: "image/png"}}}
+	run := creative.CreativeRun{Operation: creative.CreativeOperationEdit, RequestedOutputCount: 1, ImageSize: "2K", AspectRatio: "16:9"}
+	payload := creative.CreativeRunPayload{Prompt: "edit this", Sources: []creative.CreativeInputImage{{Bytes: []byte("source"), Mime: "image/png"}}}
 	outputs, err := executor.executeGrok(context.Background(), run, payload, account, "grok-imagine-image-2.0")
 	require.NoError(t, err)
 	require.Len(t, outputs, 1)
@@ -307,8 +238,8 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 	require.Equal(t, "image_url", image["type"])
 	require.Equal(t, "data:image/png;base64,c291cmNl", image["url"])
 
-	generateRun := CreativeRun{Operation: CreativeOperationGenerate, RequestedOutputCount: 1, ImageSize: "1K"}
-	_, err = executor.executeGrok(context.Background(), generateRun, CreativeRunPayload{Prompt: "generate"}, account, "grok-imagine-image-2.0")
+	generateRun := creative.CreativeRun{Operation: creative.CreativeOperationGenerate, RequestedOutputCount: 1, ImageSize: "1K"}
+	_, err = executor.executeGrok(context.Background(), generateRun, creative.CreativeRunPayload{Prompt: "generate"}, account, "grok-imagine-image-2.0")
 	require.NoError(t, err)
 	require.Equal(t, "https://xai.test/v1/images/generations", upstream.lastReq.URL.String())
 }
@@ -316,8 +247,8 @@ func TestExecuteCreativeGrokEditUsesJSONEditEndpoint(t *testing.T) {
 // TestBuildCreativeOpenAIRequestBody 校验 OpenAI JSON/multipart 请求体。
 func TestBuildCreativeOpenAIRequestBody(t *testing.T) {
 	// generate：JSON。
-	run := CreativeRun{Operation: CreativeOperationGenerate, ImageSize: "1K", RequestedOutputCount: 2}
-	payload := CreativeRunPayload{
+	run := creative.CreativeRun{Operation: creative.CreativeOperationGenerate, ImageSize: "1K", RequestedOutputCount: 2}
+	payload := creative.CreativeRunPayload{
 		Prompt:     "hello",
 		Quality:    "high",
 		Background: "opaque",
@@ -342,18 +273,18 @@ func TestBuildCreativeOpenAIRequestBody(t *testing.T) {
 	require.Equal(t, "b64_json", dalleJSON["response_format"])
 
 	// GPT Image 2 的 4K 横向尺寸使用真实的 3840x2160 像素值。
-	run = CreativeRun{Operation: CreativeOperationGenerate, ImageSize: "4K", AspectRatio: "16:9", RequestedOutputCount: 1}
+	run = creative.CreativeRun{Operation: creative.CreativeOperationGenerate, ImageSize: "4K", AspectRatio: "16:9", RequestedOutputCount: 1}
 	body, contentType, err = buildCreativeOpenAIRequestBody(run, payload, "gpt-image-2")
 	require.NoError(t, err)
 	require.Equal(t, "application/json", contentType)
 	require.Contains(t, string(body), `"size":"3840x2160"`)
 
 	// inpaint：multipart，含 image/mask/model/prompt 字段。
-	run = CreativeRun{Operation: CreativeOperationInpaint, ImageSize: "1K", AspectRatio: "1:1", RequestedOutputCount: 2}
-	payload = CreativeRunPayload{
+	run = creative.CreativeRun{Operation: creative.CreativeOperationInpaint, ImageSize: "1K", AspectRatio: "1:1", RequestedOutputCount: 2}
+	payload = creative.CreativeRunPayload{
 		Prompt:     "inpaint me",
-		Sources:    []CreativeInputImage{{Bytes: []byte("img"), Mime: "image/png"}},
-		Mask:       &CreativeInputImage{Bytes: []byte("mask"), Mime: "image/png"},
+		Sources:    []creative.CreativeInputImage{{Bytes: []byte("img"), Mime: "image/png"}},
+		Mask:       &creative.CreativeInputImage{Bytes: []byte("mask"), Mime: "image/png"},
 		Quality:    "high",
 		Background: "opaque",
 	}
@@ -374,11 +305,11 @@ func TestBuildCreativeOpenAIRequestBody(t *testing.T) {
 
 // TestBuildCreativeGeminiRequest 校验 Gemini edit 请求体构造，且不附加独立 mask。
 func TestBuildCreativeGeminiRequest(t *testing.T) {
-	run := CreativeRun{Operation: CreativeOperationEdit, ImageSize: "2K", AspectRatio: "16:9"}
-	payload := CreativeRunPayload{
+	run := creative.CreativeRun{Operation: creative.CreativeOperationEdit, ImageSize: "2K", AspectRatio: "16:9"}
+	payload := creative.CreativeRunPayload{
 		Prompt:        "重绘",
 		ThinkingLevel: "high",
-		Sources:       []CreativeInputImage{{Bytes: []byte("src"), Mime: "image/jpeg"}},
+		Sources:       []creative.CreativeInputImage{{Bytes: []byte("src"), Mime: "image/jpeg"}},
 	}
 	request := buildCreativeGeminiRequest(run, payload, "gemini-3.1-flash-image")
 	require.Len(t, request.Contents, 1)
@@ -403,10 +334,10 @@ func TestBuildCreativeGeminiRequest(t *testing.T) {
 // TestCreativeGeminiInpaintIsRejectedBeforeUpstream 校验历史 Gemini inpaint 任务不会触发上游请求。
 func TestCreativeGeminiInpaintIsRejectedBeforeUpstream(t *testing.T) {
 	upstream := &httpUpstreamRecorder{}
-	executor := NewCreativeExecutor(nil, nil, nil, &OpenAIGatewayService{httpUpstream: upstream}, nil, nil, nil)
-	_, err := executor.executeGemini(context.Background(), CreativeRun{Operation: CreativeOperationInpaint}, CreativeRunPayload{}, &Account{ID: 1}, "gemini-3.1-flash-image")
+	executor := NewCreativeExecutor(nil, nil, &OpenAIGatewayService{httpUpstream: upstream}, nil, nil)
+	_, err := executor.executeGemini(context.Background(), creative.CreativeRun{Operation: creative.CreativeOperationInpaint}, creative.CreativeRunPayload{}, &Account{ID: 1}, "gemini-3.1-flash-image")
 	require.Error(t, err)
-	require.False(t, IsRetryableCreativeError(err))
+	require.False(t, creative.IsRetryableCreativeError(err))
 	require.Empty(t, upstream.requests)
 }
 

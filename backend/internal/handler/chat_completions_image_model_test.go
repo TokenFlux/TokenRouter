@@ -9,6 +9,17 @@ import (
 	"testing"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -17,7 +28,6 @@ import (
 )
 
 func TestChatCompletionsRejectsGPTImageModelsBeforeScheduling(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	for _, model := range []string{"gpt-image-1", "gpt-image-1.5", "gpt-image-2"} {
 		for _, tc := range []struct {
@@ -45,7 +55,7 @@ func TestChatCompletionsRejectsGPTImageModelsBeforeScheduling(t *testing.T) {
 				require.Equal(t, http.StatusBadRequest, recorder.Code)
 				require.Equal(t, "invalid_request_error", gjson.Get(recorder.Body.String(), "error.type").String())
 				require.Contains(t, gjson.Get(recorder.Body.String(), "error.message").String(), "Chat Completions")
-				_, selected := c.Get(opsAccountIDKey)
+				_, selected := c.Get(gatewayhttp.OpsAccountIDKey)
 				require.False(t, selected, "rejection must happen before account selection")
 			})
 		}
@@ -54,13 +64,13 @@ func TestChatCompletionsRejectsGPTImageModelsBeforeScheduling(t *testing.T) {
 
 // TestChatCompletionsRejectsChannelMappedImageModel 验证两个 Chat Completions 入口都按渠道模型 C 校验端点能力。
 func TestChatCompletionsRejectsChannelMappedImageModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	groupID := int64(4349)
-	channelService := newGatewayModelsChannelServiceForTest(groupID, service.PlatformOpenAI, service.Channel{
+	channelService := newGatewayModelsChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
 		ID:     4349,
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 		ModelMapping: map[string]map[string]string{
-			service.PlatformOpenAI: {"draw-alias": "gpt-image-1"},
+			capability.PlatformOpenAI: {"draw-alias": "gpt-image-1"},
 		},
 	})
 
@@ -90,7 +100,7 @@ func TestChatCompletionsRejectsChannelMappedImageModel(t *testing.T) {
 
 			require.Equal(t, http.StatusBadRequest, recorder.Code)
 			require.Contains(t, gjson.Get(recorder.Body.String(), "error.message").String(), "Chat Completions")
-			_, selected := c.Get(opsAccountIDKey)
+			_, selected := c.Get(gatewayhttp.OpsAccountIDKey)
 			require.False(t, selected, "渠道映射后的端点拒绝必须发生在账号选择之前")
 		})
 	}
@@ -130,7 +140,7 @@ func newOpenAIImageChatRejectionHandlerWithCache(t *testing.T, cache *concurrenc
 }
 
 // newOpenAIImageChatRejectionHandlerWithChannel 构造带渠道映射的 OpenAI Chat 测试处理器。
-func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService *service.ChannelService) *OpenAIGatewayHandler {
+func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService *routing.ChannelService) *OpenAIGatewayHandler {
 	t.Helper()
 	gatewayService := service.NewOpenAIGatewayService(
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
@@ -144,9 +154,11 @@ func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *concurre
 	t.Helper()
 	return &OpenAIGatewayHandler{
 		gatewayService:      gatewayService,
-		billingCacheService: &service.BillingCacheService{},
-		apiKeyService:       &service.APIKeyService{},
-		concurrencyHelper:   NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, time.Second),
+		billingCacheService: &admission.FundingAdmission{},
+		apiKeyService:       &apikey.APIKeyService{},
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+			Event: logging.Event},
+		), gatewayhttp.SSEPingFormatNone, time.Second),
 	}
 }
 
@@ -156,10 +168,10 @@ func setImageChatTestAuth(c *gin.Context) {
 
 // setImageChatTestAuthForGroup 注入带可选分组的图片端点测试身份。
 func setImageChatTestAuthForGroup(c *gin.Context, groupID int64) {
-	apiKey := &service.APIKey{ID: 4348, UserID: 4348, User: &service.User{ID: 4348}}
+	apiKey := &apikey.APIKey{ID: 4348, UserID: 4348, User: &identity.User{ID: 4348}}
 	if groupID > 0 {
 		apiKey.GroupID = &groupID
-		apiKey.Group = &service.Group{ID: groupID, Platform: service.PlatformOpenAI}
+		apiKey.Group = &routing.Group{ID: groupID, Platform: capability.PlatformOpenAI}
 	}
 	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
 	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.UserID, Concurrency: 1})

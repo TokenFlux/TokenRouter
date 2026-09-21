@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,8 +22,8 @@ func TestS06AccountUsageParticipantKeepsOuterTransaction(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	until := now.Add(time.Hour)
 	row, err := client.Account.Create().SetName(fmt.Sprintf("s06-usage-%d", time.Now().UnixNano())).
-		SetPlatform(service.PlatformOpenAI).SetType(service.AccountTypeAPIKey).
-		SetStatus(service.StatusError).SetErrorMessage("preserve-health").SetSchedulable(false).
+		SetPlatform(capability.PlatformOpenAI).SetType(capability.AccountTypeAPIKey).
+		SetStatus(account.StatusError).SetErrorMessage("preserve-health").SetSchedulable(false).
 		SetRateLimitedAt(now).SetRateLimitResetAt(until).SetOverloadUntil(until).
 		SetExtra(map[string]any{"quota_used": 5, "quota_limit": 6, "quota_daily_used": 2, "quota_weekly_used": 3, "quota_daily_start": now.Format(time.RFC3339), "quota_weekly_start": now.Format(time.RFC3339), "custom": "preserve"}).Save(ctx)
 	require.NoError(t, err)
@@ -51,7 +53,7 @@ func TestS06AccountUsageParticipantKeepsOuterTransaction(t *testing.T) {
 	require.Equal(t, "preserve", inside.Extra["custom"])
 	require.Nil(t, inside.RateLimitedAt)
 	require.Nil(t, inside.RateLimitResetAt)
-	require.Equal(t, service.StatusError, inside.Status)
+	require.Equal(t, account.StatusError, inside.Status)
 	require.NotNil(t, inside.ErrorMessage)
 	require.Equal(t, "preserve-health", *inside.ErrorMessage)
 	require.False(t, inside.Schedulable)

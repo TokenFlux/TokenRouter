@@ -2,11 +2,16 @@
 package httpapi
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+
 	context "context"
-	usagestats "github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	gin "github.com/gin-gonic/gin"
+
 	strconv "strconv"
+
 	time "time"
 )
 
@@ -14,7 +19,7 @@ import (
 type AccountReportOptions struct {
 	Now        func() time.Time
 	StartOfDay func(time.Time) time.Time
-	Query      func(context.Context, int64, time.Time, time.Time) (*usagestats.AccountUsageStatsResponse, error)
+	Query      func(context.Context, int64, time.Time, time.Time) (*usage.AccountUsageStatsResponse, error)
 }
 
 // GetStats handles getting account statistics

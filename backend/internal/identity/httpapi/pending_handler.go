@@ -5,17 +5,18 @@ import (
 	context "context"
 	base64 "encoding/base64"
 	errors "errors"
+	io "io"
+	slog "log/slog"
+	http "net/http"
+	url "net/url"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	io "io"
-	slog "log/slog"
-	http "net/http"
-	url "net/url"
-	strings "strings"
 )
 
 // PendingHTTPOptions 只保留 HTTP 与测试观察，不承载注册事务。

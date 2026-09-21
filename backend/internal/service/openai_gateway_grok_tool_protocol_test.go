@@ -15,7 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -86,8 +93,8 @@ func TestPatchGrokResponsesBodyWithClientToolsLowersDiscoveredToolsOutput(t *tes
 	patched, mapping, err := patchGrokResponsesBodyWithClientTools(body, "grok-4.5")
 	require.NoError(t, err)
 	require.True(t, mapping.ToolSearch)
-	require.Equal(t, apicompat.ResponsesNamespaceName{Namespace: "multi_agent_v1", Name: "spawn_agent"}, mapping.NamespaceTools["multi_agent_v1__spawn_agent"])
-	require.Equal(t, apicompat.ResponsesNamespaceName{Namespace: "multi_agent_v1", Name: "wait_agent"}, mapping.NamespaceTools["multi_agent_v1__wait_agent"])
+	require.Equal(t, bridge.ResponsesNamespaceName{Namespace: "multi_agent_v1", Name: "spawn_agent"}, mapping.NamespaceTools["multi_agent_v1__spawn_agent"])
+	require.Equal(t, bridge.ResponsesNamespaceName{Namespace: "multi_agent_v1", Name: "wait_agent"}, mapping.NamespaceTools["multi_agent_v1__wait_agent"])
 	output := gjson.GetBytes(patched, "input.1.output").String()
 	require.JSONEq(t, `[
 		{"type":"namespace","name":"codex_app","tools":[{"type":"function","name":"load_workspace_dependencies","parameters":{"type":"object","properties":{},"additionalProperties":false}}]},
@@ -189,7 +196,7 @@ func TestPatchGrokResponsesBodyWithClientToolsRejectsTrailingJSONDocument(t *tes
 func TestClearGrokResponsesClientToolMappingRemovesStaleContextState(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
-	setGrokResponsesClientToolMapping(c, apicompat.ResponsesClientToolMapping{
+	setGrokResponsesClientToolMapping(c, bridge.ResponsesClientToolMapping{
 		CustomTools: map[string]bool{"stale_tool": true},
 	})
 
@@ -201,7 +208,6 @@ func TestClearGrokResponsesClientToolMappingRemovesStaleContextState(t *testing.
 }
 
 func TestForwardGrokResponsesClientToolNameConflictReturns400(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{
 		"model":"grok","stream":false,"input":"hello",
@@ -229,7 +235,6 @@ func TestForwardGrokResponsesClientToolNameConflictReturns400(t *testing.T) {
 }
 
 func TestForwardGrokResponsesMalformedToolSearchOutputReturns400BeforeUpstream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{
 		"model":"grok","stream":false,
@@ -255,14 +260,13 @@ func TestForwardGrokResponsesMalformedToolSearchOutputReturns400BeforeUpstream(t
 }
 
 func TestForwardGrokResponsesOAuthRestoresClientToolsNonStreaming(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := grokClientToolProtocolRequest(false)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	c.Set("api_key", &APIKey{ID: 7102})
+	c.Set("api_key", &apikey.APIKey{ID: 7102})
 
 	account := grokProtocolOAuthAccount(7102)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
@@ -286,7 +290,7 @@ func TestForwardGrokResponsesOAuthRestoresClientToolsNonStreaming(t *testing.T) 
 	}}
 	svc := &OpenAIGatewayService{
 		httpUpstream:      upstream,
-		grokTokenProvider: NewGrokTokenProvider(repo, nil),
+		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
 	}
 
@@ -315,7 +319,6 @@ func TestForwardGrokResponsesOAuthRestoresClientToolsNonStreaming(t *testing.T) 
 }
 
 func TestForwardGrokResponsesAPIKeyRestoresClientToolsFromSSEForNonStreamingRequest(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := grokClientToolProtocolRequest(false)
 	recorder := httptest.NewRecorder()
@@ -353,7 +356,6 @@ func TestForwardGrokResponsesAPIKeyRestoresClientToolsFromSSEForNonStreamingRequ
 }
 
 func TestForwardGrokResponsesAPIKeyRestoresClientToolsStreaming(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	body := grokClientToolProtocolRequest(true)
 	recorder := httptest.NewRecorder()
@@ -427,7 +429,7 @@ func TestForwardGrokResponsesAPIKeyRestoresClientToolsStreaming(t *testing.T) {
 
 func TestGrokResponsesClientToolStreamBodyFlushesFrameBeforeEOF(t *testing.T) {
 	sourceReader, sourceWriter := io.Pipe()
-	body := newGrokResponsesClientToolStreamBody(sourceReader, apicompat.ResponsesClientToolMapping{
+	body := upstreamcore.NewResponsesClientToolStreamBody(sourceReader, bridge.ResponsesClientToolMapping{
 		CustomTools: map[string]bool{"apply_patch": true},
 	}, defaultMaxLineSize)
 	defer func() { _ = body.Close() }()
@@ -447,7 +449,10 @@ func TestGrokResponsesClientToolStreamBodyFlushesFrameBeforeEOF(t *testing.T) {
 				read <- readResult{err: err}
 				return
 			}
-			frame.WriteString(line)
+			if _, err := frame.WriteString(line); err != nil {
+				read <- readResult{err: err}
+				return
+			}
 			if strings.TrimSpace(line) == "" {
 				read <- readResult{frame: frame.String()}
 				return
@@ -498,11 +503,11 @@ func grokClientToolProtocolRequest(stream bool) []byte {
 
 func grokProtocolOAuthAccount(id int64) *Account {
 	return &Account{
-		ID: id, Name: "grok-oauth-protocol", Platform: PlatformGrok, Type: AccountTypeOAuth,
-		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		ID: id, Name: "grok-oauth-protocol", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+		Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "oauth-protocol-token", "refresh_token": "refresh-token",
-			"expires_at": time.Now().Add(2 * grokTokenRefreshSkew).UTC().Format(time.RFC3339),
+			"expires_at": time.Now().Add(2 * accountcore.GrokTokenRefreshSkew).UTC().Format(time.RFC3339),
 			"base_url":   xai.DefaultCLIBaseURL, "subscription_tier": "supergrok",
 		},
 	}
@@ -510,8 +515,8 @@ func grokProtocolOAuthAccount(id int64) *Account {
 
 func grokProtocolAPIKeyAccount(id int64) *Account {
 	return &Account{
-		ID: id, Name: "grok-api-key-protocol", Platform: PlatformGrok, Type: AccountTypeAPIKey,
-		Status: StatusActive, Schedulable: true, Concurrency: 1,
+		ID: id, Name: "grok-api-key-protocol", Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey,
+		Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "xai-protocol-key", "base_url": "https://api.x.ai/v1"},
 	}
 }
@@ -567,11 +572,11 @@ func parseGrokProtocolSSEFrames(t *testing.T, body string) []grokProtocolSSEFram
 	event := ""
 	for _, rawLine := range strings.Split(body, "\n") {
 		line := strings.TrimSuffix(rawLine, "\r")
-		if value, ok := extractOpenAISSEEventLine(line); ok {
+		if value, ok := openai.ExtractSSEEventLine(line); ok {
 			event = strings.TrimSpace(value)
 			continue
 		}
-		data, ok := extractOpenAISSEDataLine(line)
+		data, ok := openai.ExtractSSEDataLine(line)
 		if !ok || strings.TrimSpace(data) == "[DONE]" {
 			continue
 		}

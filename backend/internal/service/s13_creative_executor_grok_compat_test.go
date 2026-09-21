@@ -6,15 +6,16 @@ package service
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/creative"
 	creativeprovider "github.com/TokenFlux/TokenRouter/internal/creative/provider"
 )
 
-func (e *CreativeExecutor) executeGrok(ctx context.Context, run CreativeRun, payload CreativeRunPayload, account *Account, upstreamModel string) ([]CreativeOutput, error) {
+func (e *CreativeExecutor) executeGrok(ctx context.Context, run creative.CreativeRun, payload creative.CreativeRunPayload, account *Account, upstreamModel string) ([]creative.CreativeOutput, error) {
 	return e.nativeTarget(account).ExecuteGrok(ctx, run, payload, upstreamModel)
 }
-func buildCreativeGrokRequest(run CreativeRun, payload CreativeRunPayload, upstreamModel string) map[string]any {
+func buildCreativeGrokRequest(run creative.CreativeRun, payload creative.CreativeRunPayload, upstreamModel string) map[string]any {
 	return creativeprovider.BuildCreativeGrokRequest(run, payload, upstreamModel)
 }
-func buildCreativeGrokEditRequest(run CreativeRun, payload CreativeRunPayload, upstreamModel string) map[string]any {
+func buildCreativeGrokEditRequest(run creative.CreativeRun, payload creative.CreativeRunPayload, upstreamModel string) map[string]any {
 	return creativeprovider.BuildCreativeGrokEditRequest(run, payload, upstreamModel)
 }

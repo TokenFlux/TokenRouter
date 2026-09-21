@@ -8,15 +8,17 @@ import (
 	"testing"
 	"time"
 
+	mailtest "github.com/TokenFlux/TokenRouter/internal/notification/testkit"
+
 	"github.com/TokenFlux/TokenRouter/internal/notification/smtp"
 	"github.com/stretchr/testify/require"
 )
 
 // 这些行为断言来自规划阶段的原实现失败；并发夹具不依赖错误的双读屏障。
 func TestS10ConcurrentNotificationDelivery(t *testing.T) {
-	repo := newNotificationEmailMemorySettingRepo()
-	server := startNotificationEmailTestSMTPServer(t)
-	require.NoError(t, repo.SetMultiple(context.Background(), server.settings()))
+	repo := mailtest.NewMemorySettings()
+	server := mailtest.StartSMTPServer(t)
+	require.NoError(t, repo.SetMultiple(context.Background(), server.Settings()))
 	n := NewNotificationEmailService(repo, NewMailer(repo, smtp.New()))
 	input := SendRequest{Event: NotificationEmailEventSubscriptionExpiryReminder, RecipientEmail: "fixture@example.com", SourceType: "subscription", SourceID: "1", ReminderKey: "7d"}
 	start := make(chan struct{})
@@ -28,11 +30,11 @@ func TestS10ConcurrentNotificationDelivery(t *testing.T) {
 	for range 16 {
 		require.NoError(t, <-errs)
 	}
-	require.Equal(t, int64(1), server.messageCount())
+	require.Equal(t, int64(1), server.MessageCount())
 	require.Empty(t, n.locks.entries)
 }
 func TestS10ConcurrentFirstUnsubscribeSecret(t *testing.T) {
-	n := NewNotificationEmailService(newNotificationEmailMemorySettingRepo(), nil)
+	n := NewNotificationEmailService(mailtest.NewMemorySettings(), nil)
 	start := make(chan struct{})
 	tokens := make(chan string, 16)
 	errs := make(chan error, 16)
@@ -72,13 +74,13 @@ func TestS10NotificationLockCancellationAndIsolation(t *testing.T) {
 }
 func TestS10SMTPContextCancellation(t *testing.T) {
 	t.Run("before-send", func(t *testing.T) {
-		repo := newNotificationEmailMemorySettingRepo()
-		server := startNotificationEmailTestSMTPServer(t)
-		require.NoError(t, repo.SetMultiple(context.Background(), server.settings()))
+		repo := mailtest.NewMemorySettings()
+		server := mailtest.StartSMTPServer(t)
+		require.NoError(t, repo.SetMultiple(context.Background(), server.Settings()))
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		require.ErrorIs(t, NewMailer(repo, smtp.New()).SendEmail(ctx, "fixture@example.com", "fixture", "fixture"), context.Canceled)
-		require.Zero(t, server.messageCount())
+		require.Zero(t, server.MessageCount())
 	})
 	t.Run("in-flight", func(t *testing.T) {
 		ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -91,7 +93,7 @@ func TestS10SMTPContextCancellation(t *testing.T) {
 				accepted <- conn
 			}
 		}()
-		repo := newNotificationEmailMemorySettingRepo()
+		repo := mailtest.NewMemorySettings()
 		address, ok := ln.Addr().(*net.TCPAddr)
 		require.True(t, ok)
 		require.NoError(t, repo.SetMultiple(context.Background(), map[string]string{SettingKeySMTPHost: "127.0.0.1", SettingKeySMTPPort: fmt.Sprint(address.Port), SettingKeySMTPFrom: "sender@example.com", SettingKeySMTPUsername: "fixture", SettingKeySMTPPassword: "fixture"}))

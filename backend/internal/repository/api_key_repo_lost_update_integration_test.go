@@ -3,7 +3,9 @@
 package repository
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 )
 
 // api_keys 上的用量列由计费热路径原子递增（IncrementQuotaUsed /
@@ -12,11 +14,11 @@ import (
 
 func (s *APIKeyRepoSuite) TestUpdate_DoesNotRevertConcurrentQuotaUsage() {
 	user := s.mustCreateUser("apikey-lost-update-quota@example.com")
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-lost-update-quota",
 		Name:   "before",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 		Quota:  100,
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, key), "Create")
@@ -31,7 +33,7 @@ func (s *APIKeyRepoSuite) TestUpdate_DoesNotRevertConcurrentQuotaUsage() {
 
 	stale.Name = "after"
 	s.Require().NoError(
-		s.repo.Update(s.ctx, stale, service.APIKeyUpdateFields{Name: true}),
+		s.repo.Update(s.ctx, stale, apikey.APIKeyUpdateFields{Name: true}),
 		"Update",
 	)
 
@@ -43,11 +45,11 @@ func (s *APIKeyRepoSuite) TestUpdate_DoesNotRevertConcurrentQuotaUsage() {
 
 func (s *APIKeyRepoSuite) TestUpdate_DoesNotRevertConcurrentRateLimitUsage() {
 	user := s.mustCreateUser("apikey-lost-update-ratelimit@example.com")
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID:      user.ID,
 		Key:         "sk-lost-update-ratelimit",
 		Name:        "before",
-		Status:      service.StatusActive,
+		Status:      billing.StatusActive,
 		RateLimit5h: 100,
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, key), "Create")
@@ -60,7 +62,7 @@ func (s *APIKeyRepoSuite) TestUpdate_DoesNotRevertConcurrentRateLimitUsage() {
 
 	stale.Name = "after"
 	s.Require().NoError(
-		s.repo.Update(s.ctx, stale, service.APIKeyUpdateFields{Name: true}),
+		s.repo.Update(s.ctx, stale, apikey.APIKeyUpdateFields{Name: true}),
 		"Update",
 	)
 
@@ -74,11 +76,11 @@ func (s *APIKeyRepoSuite) TestUpdate_DoesNotRevertConcurrentRateLimitUsage() {
 // 显式重置仍然必须生效，避免收窄写入列时把功能改坏。
 func (s *APIKeyRepoSuite) TestUpdate_StillResetsUsageWhenDeclared() {
 	user := s.mustCreateUser("apikey-reset-usage@example.com")
-	key := &service.APIKey{
+	key := &apikey.APIKey{
 		UserID: user.ID,
 		Key:    "sk-reset-usage",
 		Name:   "reset",
-		Status: service.StatusActive,
+		Status: billing.StatusActive,
 		Quota:  100,
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, key), "Create")
@@ -97,7 +99,7 @@ func (s *APIKeyRepoSuite) TestUpdate_StillResetsUsageWhenDeclared() {
 	current.Window1dStart = nil
 	current.Window7dStart = nil
 	s.Require().NoError(
-		s.repo.Update(s.ctx, current, service.APIKeyUpdateFields{QuotaUsed: true, RateLimitUsage: true}),
+		s.repo.Update(s.ctx, current, apikey.APIKeyUpdateFields{QuotaUsed: true, RateLimitUsage: true}),
 		"Update",
 	)
 

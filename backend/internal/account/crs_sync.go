@@ -4,12 +4,13 @@ package account
 import (
 	context "context"
 	fmt "fmt"
-	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	reflect "reflect"
 	strconv "strconv"
 	strings "strings"
 	time "time"
+
+	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 // CRSAccountStore 保留原同步配置、影子关系及凭据专用写入能力。

@@ -4,15 +4,16 @@ package httpapi
 import (
 	context "context"
 	errors "errors"
+	slog "log/slog"
+	http "net/http"
+	url "net/url"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	slog "log/slog"
-	http "net/http"
-	url "net/url"
-	strings "strings"
 )
 
 // DingTalkHTTPOptions 保持配置热读取与注册开关的读取顺序。

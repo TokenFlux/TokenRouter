@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 )
@@ -216,7 +217,7 @@ func (h *ModelsHandler) AppendAPIKeyAliasesToGeminiModelsJSON(body []byte, mappi
 	return updated
 }
 
-func (h *ModelsHandler) CustomGeminiModelsList(group *apikey.Group) (GeminiModelsList, bool) {
+func (h *ModelsHandler) CustomGeminiModelsList(group *routing.Group) (GeminiModelsList, bool) {
 	if group == nil || !customListEnabled(group) {
 		return GeminiModelsList{}, false
 	}

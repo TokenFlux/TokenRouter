@@ -2,9 +2,10 @@
 package billing
 
 import (
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	math "math"
 	time "time"
+
+	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 const (
@@ -163,19 +164,13 @@ func (s *UserSubscription) WindowActivationAt(now time.Time) SubscriptionWindowA
 	return activation
 }
 
-func (s *UserSubscription) NeedsDailyReset() bool {
-	return s.NeedsDailyResetAt(time.Now())
+func (s *UserSubscription) NeedsDailyReset(calendar timezone.Calendar) bool {
+	return s.NeedsDailyResetAt(time.Now(), calendar)
 }
 
-func (s *UserSubscription) NeedsDailyResetAt(now time.Time) bool {
-	_, ok := s.AutomaticDailyWindowStartAt(now)
+func (s *UserSubscription) NeedsDailyResetAt(now time.Time, calendar timezone.Calendar) bool {
+	_, ok := s.AutomaticDailyWindowStartWithCalendar(now, calendar)
 	return ok
-}
-
-// AutomaticDailyWindowStartAt 计算按项目时区日历日对齐的日窗口起点。
-// 历史非零点锚点会在下一个零点自愈，1 日卡和到期尾段规则仍保持原语义。
-func (s *UserSubscription) AutomaticDailyWindowStartAt(now time.Time) (time.Time, bool) {
-	return s.AutomaticDailyWindowStartWithCalendar(now, timezone.NewCalendar(timezone.Location()))
 }
 
 // AutomaticDailyWindowStartWithCalendar 使用显式日历，保留一次性日额度与尾段保护。
@@ -256,7 +251,7 @@ func (s *UserSubscription) HasFiniteOuterQuotaLimit(duration time.Duration) bool
 	}
 }
 
-func (s *UserSubscription) DailyResetTime() *time.Time {
+func (s *UserSubscription) DailyResetTime(calendar timezone.Calendar) *time.Time {
 	if s.DailyWindowStart == nil {
 		return nil
 	}
@@ -265,7 +260,7 @@ func (s *UserSubscription) DailyResetTime() *time.Time {
 		return &t
 	}
 	// 日额度按日历日刷新，旧的非零点锚点也应展示其所在日的下一个零点。
-	t := timezone.StartOfDay(*s.DailyWindowStart).AddDate(0, 0, 1)
+	t := calendar.StartOfDay(*s.DailyWindowStart).AddDate(0, 0, 1)
 	if !s.CanStartQuotaWindow(t, SubscriptionDailyWindow) {
 		t = s.ExpiresAt
 	}

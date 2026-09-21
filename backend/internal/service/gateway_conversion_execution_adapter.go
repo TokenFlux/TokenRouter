@@ -8,8 +8,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -41,13 +47,13 @@ func (a *conversionExecutionAdapter) ThinkingFallback(effort *string, body []byt
 	return ApplyThinkingEnabledFallback(effort, body, model)
 }
 func (a *conversionExecutionAdapter) ModelNotice(message, original, mapped string, stream bool) {
-	logger.L().Debug(message, zap.Int64("account_id", a.account.ID), zap.String("original_model", original), zap.String("mapped_model", mapped), zap.Bool("client_stream", stream))
+	logging.L().Debug(message, zap.Int64("account_id", a.account.ID), zap.String("original_model", original), zap.String("mapped_model", mapped), zap.Bool("client_stream", stream))
 }
 func (a *conversionExecutionAdapter) Mimic(ctx context.Context, body []byte, system json.RawMessage, model string) []byte {
 	return a.s.applyClaudeCodeOAuthMimicryToBody(ctx, a.c, a.account, body, system, model)
 }
 func (a *conversionExecutionAdapter) CacheLimit(body []byte) []byte {
-	return enforceCacheControlLimit(body)
+	return anthropic.EnforceCacheControlLimit(body)
 }
 func (a *conversionExecutionAdapter) Credential(ctx context.Context) error {
 	token, kind, err := a.s.GetAccessToken(ctx, a.account)
@@ -67,12 +73,12 @@ func (a *conversionExecutionAdapter) Build(ctx context.Context, body []byte, mod
 	return wire, err
 }
 func (a *conversionExecutionAdapter) Send(ctx context.Context) (forwardcore.Response, error) {
-	resp, err := a.s.httpUpstream.DoWithTLS(a.request, a.proxyURL, a.account.ID, a.account.Concurrency, a.s.tlsFPProfileService.ResolveTLSProfile(a.account))
+	resp, err := a.s.httpUpstream.DoWithTLS(a.request, a.proxyURL, a.account.ID, a.account.Concurrency, a.s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(a.account, nil)))
 	if err != nil {
 		if resp != nil && resp.Body != nil {
 			_ = resp.Body.Close()
 		}
-		return forwardcore.Response{}, a.s.handleUpstreamTransportError(ctx, a.c, a.account, err, OpsUpstreamErrorEvent{UpstreamURL: safeUpstreamURL(a.request.URL.String())})
+		return forwardcore.Response{}, a.s.handleUpstreamTransportError(ctx, a.c, a.account, err, ops.OpsUpstreamErrorEvent{UpstreamURL: logredact.SafeUpstreamURL(a.request.URL.String())})
 	}
 	a.response = resp
 	return a.s.forwardResponse(resp), nil
@@ -84,7 +90,7 @@ func (a *conversionExecutionAdapter) ReadErrorBody() ([]byte, error) {
 	return body, err
 }
 func (a *conversionExecutionAdapter) ErrorMessage(body []byte) string {
-	return sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(body)))
+	return logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
 }
 func (a *conversionExecutionAdapter) Health(ctx context.Context, status int, body []byte, model string) forwardcore.ErrorDecision {
 	decision := upstreamErrorDecisionWithoutPersistence(a.account, status)
@@ -98,12 +104,12 @@ func (a *conversionExecutionAdapter) Health(ctx context.Context, status int, bod
 	}
 }
 func (a *conversionExecutionAdapter) FailoverNotice(status int, message string) {
-	appendOpsUpstreamError(a.c, OpsUpstreamErrorEvent{
+	gatewayhttp.AppendOpsUpstreamError(a.c, ops.OpsUpstreamErrorEvent{
 		Platform: a.account.Platform, AccountID: a.account.ID, AccountName: a.account.Name, UpstreamStatusCode: status, UpstreamRequestID: a.response.Header.Get("x-request-id"), Kind: "failover", Message: message,
 	})
 }
 func (a *conversionExecutionAdapter) FailoverError(status int, body []byte, retry bool) error {
-	return &UpstreamFailoverError{StatusCode: status, ResponseBody: body, RetryableOnSameAccount: retry}
+	return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseBody: body, RetryableOnSameAccount: retry}
 }
 func (a *conversionExecutionAdapter) Output() forwardcore.Output {
 	return a.s.forwardOutput(a.c, a.responses)

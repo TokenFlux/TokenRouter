@@ -4,6 +4,7 @@ package postgres
 import (
 	sql "database/sql"
 	errors "errors"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"

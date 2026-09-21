@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,9 +22,9 @@ func TestAccountIsSchedulable_QuotaExceeded(t *testing.T) {
 		{
 			name: "apikey daily quota exceeded",
 			account: &Account{
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
-				Type:        AccountTypeAPIKey,
+				Type:        capability.AccountTypeAPIKey,
 				Extra: map[string]any{
 					"quota_daily_limit": 10.0,
 					"quota_daily_used":  10.0,
@@ -34,9 +36,9 @@ func TestAccountIsSchedulable_QuotaExceeded(t *testing.T) {
 		{
 			name: "apikey weekly quota exceeded",
 			account: &Account{
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
-				Type:        AccountTypeAPIKey,
+				Type:        capability.AccountTypeAPIKey,
 				Extra: map[string]any{
 					"quota_weekly_limit": 50.0,
 					"quota_weekly_used":  50.0,
@@ -48,9 +50,9 @@ func TestAccountIsSchedulable_QuotaExceeded(t *testing.T) {
 		{
 			name: "apikey total quota exceeded",
 			account: &Account{
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
-				Type:        AccountTypeAPIKey,
+				Type:        capability.AccountTypeAPIKey,
 				Extra: map[string]any{
 					"quota_limit": 100.0,
 					"quota_used":  100.0,
@@ -61,9 +63,9 @@ func TestAccountIsSchedulable_QuotaExceeded(t *testing.T) {
 		{
 			name: "apikey quota not exceeded",
 			account: &Account{
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
-				Type:        AccountTypeAPIKey,
+				Type:        capability.AccountTypeAPIKey,
 				Extra: map[string]any{
 					"quota_daily_limit": 10.0,
 					"quota_daily_used":  5.0,
@@ -75,9 +77,9 @@ func TestAccountIsSchedulable_QuotaExceeded(t *testing.T) {
 		{
 			name: "apikey expired daily period restores schedulable",
 			account: &Account{
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
-				Type:        AccountTypeAPIKey,
+				Type:        capability.AccountTypeAPIKey,
 				Extra: map[string]any{
 					"quota_daily_limit": 10.0,
 					"quota_daily_used":  10.0,
@@ -89,9 +91,9 @@ func TestAccountIsSchedulable_QuotaExceeded(t *testing.T) {
 		{
 			name: "oauth ignores quota exceeded",
 			account: &Account{
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
-				Type:        AccountTypeOAuth,
+				Type:        capability.AccountTypeOAuth,
 				Extra: map[string]any{
 					"quota_daily_limit": 10.0,
 					"quota_daily_used":  10.0,
@@ -103,9 +105,9 @@ func TestAccountIsSchedulable_QuotaExceeded(t *testing.T) {
 		{
 			name: "bedrock quota exceeded",
 			account: &Account{
-				Status:      StatusActive,
+				Status:      billing.StatusActive,
 				Schedulable: true,
-				Type:        AccountTypeBedrock,
+				Type:        capability.AccountTypeBedrock,
 				Extra: map[string]any{
 					"quota_limit": 200.0,
 					"quota_used":  200.0,

@@ -4,6 +4,8 @@ import (
 	"context"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	capability "github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,12 +15,12 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	c *gin.Context,
 	account *Account,
 	body []byte,
-	parsed *ParsedRequest,
-) (*ForwardResult, error) {
+	parsed *requeststate.ParsedRequest,
+) (*forwardcore.MessagesResult, error) {
 	result, err := forwardcore.AsChat(ctx, &conversionExecutionAdapter{s: s, c: c, account: account, responses: false}, forwardcore.ConversionInput{OAuth: account.IsOAuth()}, body)
 	return legacyForwardExecutionResult(result), err
 }
 
 func extractCCReasoningEffortFromBody(body []byte, modelCandidates ...string) *string {
-	return forwardcore.ExtractEffort(body, true, normalizeOpenAIReasoningEffortForModel, modelCandidates...)
+	return forwardcore.ExtractEffort(body, true, capability.NormalizeRecordedOpenAIEffortForModel, modelCandidates...)
 }

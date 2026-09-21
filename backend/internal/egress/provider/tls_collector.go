@@ -14,14 +14,15 @@ import (
 	pem "encoding/pem"
 	errors "errors"
 	fmt "fmt"
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	tlsfingerprint "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	big "math/big"
 	net "net"
 	http "net/http"
 	strings "strings"
 	sync "sync"
 	time "time"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	tlsfingerprint "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 )
 
 type TLSFingerprintCollectorStatus = egress.TLSFingerprintCollectorStatus

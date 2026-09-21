@@ -2,15 +2,9 @@
 package service
 
 import (
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
-
-const maxOpenAIResponsesRejectedFieldRetries = native.MaxResponsesRejectedFieldRetries
-
-type openAIResponsesRejectedFieldRetryState = native.ResponsesRejectedFieldRetryState
-
-type openAIResponsesRejectedFieldRetryBudget = native.ResponsesRejectedFieldRetryBudget
 
 const openAIResponsesRejectedFieldRetryBudgetContextKey = "openai_responses_rejected_field_retry_budget"
 
@@ -18,30 +12,18 @@ const openAIResponsesRejectedFieldRetryBudgetContextKey = "openai_responses_reje
 // for one account attempt backed by the inbound request's shared retry budget.
 // A later account may apply the same compatibility transform, while all account
 // attempts together remain bounded.
-func openAIResponsesRejectedFieldRetryStateForRequest(c *gin.Context, initialBody []byte) *openAIResponsesRejectedFieldRetryState {
-	var budget *openAIResponsesRejectedFieldRetryBudget
+func openAIResponsesRejectedFieldRetryStateForRequest(c *gin.Context, initialBody []byte) *openai.ResponsesRejectedFieldRetryState {
+	var budget *openai.ResponsesRejectedFieldRetryBudget
 	if c != nil {
 		if existing, ok := c.Get(openAIResponsesRejectedFieldRetryBudgetContextKey); ok {
-			budget, _ = existing.(*openAIResponsesRejectedFieldRetryBudget)
+			budget, _ = existing.(*openai.ResponsesRejectedFieldRetryBudget)
 		}
 	}
 	if budget == nil {
-		budget = &openAIResponsesRejectedFieldRetryBudget{}
+		budget = &openai.ResponsesRejectedFieldRetryBudget{}
 		if c != nil {
 			c.Set(openAIResponsesRejectedFieldRetryBudgetContextKey, budget)
 		}
 	}
-	return newOpenAIResponsesRejectedFieldRetryStateWithBudget(initialBody, budget)
-}
-
-func newOpenAIResponsesRejectedFieldRetryState(initialBody []byte) *openAIResponsesRejectedFieldRetryState {
-	return native.NewOpenAIResponsesRejectedFieldRetryState(initialBody)
-}
-
-func newOpenAIResponsesRejectedFieldRetryStateWithBudget(initialBody []byte, budget *openAIResponsesRejectedFieldRetryBudget) *openAIResponsesRejectedFieldRetryState {
-	return native.NewOpenAIResponsesRejectedFieldRetryStateWithBudget(initialBody, budget)
-}
-
-func normalizeOpenAIResponsesRejectedFieldRetryBody(statusCode int, body, responseBody []byte) ([]byte, string, bool, error) {
-	return native.NormalizeOpenAIResponsesRejectedFieldRetryBody(statusCode, body, responseBody)
+	return openai.NewOpenAIResponsesRejectedFieldRetryStateWithBudget(initialBody, budget)
 }

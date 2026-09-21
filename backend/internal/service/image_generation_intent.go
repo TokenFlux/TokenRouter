@@ -3,18 +3,12 @@ package service
 import (
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	nativeopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-)
-
-const (
-	openAIResponsesEndpoint          = gatewaymedia.OpenAIResponsesEndpoint
-	openAIResponsesCompactEndpoint   = gatewaymedia.OpenAIResponsesCompactEndpoint
-	responsesLiteHeader              = gatewaymedia.ResponsesLiteHeader
-	responsesLiteHeaderKey           = gatewaymedia.ResponsesLiteHeaderKey
-	responsesLiteWSMetadataKey       = gatewaymedia.ResponsesLiteWSMetadataKey
-	imageGenerationPermissionMessage = gatewaymedia.ImageGenerationPermissionMessage
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // isOpenAIResponsesLiteHeader 判断请求是否来自 Codex Responses Lite 通道。
@@ -33,7 +27,7 @@ func ImageGenerationPermissionMessage() string {
 }
 
 // GroupAllowsImageGeneration preserves ungrouped-key behavior and enforces the flag when a group is present.
-func GroupAllowsImageGeneration(group *Group) bool {
+func GroupAllowsImageGeneration(group *routing.Group) bool {
 	if group == nil {
 		return gatewaymedia.GroupImagePermission(false, false)
 	}
@@ -59,7 +53,7 @@ func IsExplicitImageGenerationIntent(endpoint string, requestedModel string, bod
 // 这些被动声明时不能把所有 Codex 请求都判为生图请求。原生 image_generation
 // 工具、显式生图选择和生图模型仍属于生图意图；其他平台保持原有声明语义。
 func IsImageGenerationIntentForPlatform(endpoint string, requestedModel string, body []byte, platform string) bool {
-	return imageIntentPolicy().IsImageGenerationIntentForPlatform(endpoint, requestedModel, body, strings.EqualFold(strings.TrimSpace(platform), PlatformGrok))
+	return imageIntentPolicy().IsImageGenerationIntentForPlatform(endpoint, requestedModel, body, strings.EqualFold(strings.TrimSpace(platform), capability.PlatformGrok))
 }
 
 // IsImageGenerationIntentMap 在服务层修改请求后，使用 map 结构判断宽泛生图意图。
@@ -85,7 +79,7 @@ func openAIRequestBodyImageGenerationToolNeedsNormalization(body []byte) bool {
 	return imageIntentPolicy().OpenAIRequestBodyImageGenerationToolNeedsNormalization(body)
 }
 
-func getAPIKeyFromContext(c interface{ Get(string) (any, bool) }) *APIKey {
+func getAPIKeyFromContext(c interface{ Get(string) (any, bool) }) *apikey.APIKey {
 	if c == nil {
 		return nil
 	}
@@ -93,20 +87,18 @@ func getAPIKeyFromContext(c interface{ Get(string) (any, bool) }) *APIKey {
 	if !exists {
 		return nil
 	}
-	apiKey, _ := v.(*APIKey)
+	apiKey, _ := v.(*apikey.APIKey)
 	return apiKey
 }
 
-func apiKeyGroup(apiKey *APIKey) *Group {
+func apiKeyGroup(apiKey *apikey.APIKey) *routing.Group {
 	if apiKey == nil {
 		return nil
 	}
 	return apiKey.Group
 }
 
-type OpenAIResponsesImageBillingConfig = gatewaymedia.OpenAIResponsesImageBillingConfig
-
-func resolveOpenAIResponsesImageBillingConfigDetailed(reqBody map[string]any, fallbackModel string) (OpenAIResponsesImageBillingConfig, error) {
+func resolveOpenAIResponsesImageBillingConfigDetailed(reqBody map[string]any, fallbackModel string) (gatewaymedia.OpenAIResponsesImageBillingConfig, error) {
 	return imageIntentPolicy().ResolveOpenAIResponsesImageBillingConfigDetailed(reqBody, fallbackModel)
 }
 
@@ -114,17 +106,17 @@ func resolveOpenAIResponsesImageBillingConfigFromBody(body []byte, fallbackModel
 	return imageIntentPolicy().ResolveOpenAIResponsesImageBillingConfigFromBody(body, fallbackModel)
 }
 
-func resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body []byte, fallbackModel string) (OpenAIResponsesImageBillingConfig, error) {
+func resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body []byte, fallbackModel string) (gatewaymedia.OpenAIResponsesImageBillingConfig, error) {
 	return imageIntentPolicy().ResolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, fallbackModel)
 }
 
 // imageIntentPolicy 仅绑定现有平台纯工具解析，主体与资格不进入目标策略。
 func imageIntentPolicy() gatewaymedia.ImageIntentPolicy {
 	return gatewaymedia.NewImageIntentPolicy(gatewaymedia.ImageToolRules{
-		IsImageType:     nativeopenai.IsOpenAIImageGenerationType,
-		IsNamespaceName: nativeopenai.IsOpenAIImageGenNamespaceName,
-		HasTool:         nativeopenai.HasOpenAIImageGenerationTool,
-		ToolChoice:      nativeopenai.OpenAIAnyToolChoiceSelectsImageGeneration,
-		FirstString:     nativeopenai.FirstNonEmptyString,
+		IsImageType:     openai.IsOpenAIImageGenerationType,
+		IsNamespaceName: openai.IsOpenAIImageGenNamespaceName,
+		HasTool:         openai.HasOpenAIImageGenerationTool,
+		ToolChoice:      openai.OpenAIAnyToolChoiceSelectsImageGeneration,
+		FirstString:     openai.FirstNonEmptyString,
 	})
 }

@@ -11,7 +11,6 @@ import (
 )
 
 func TestGetTrustedClientIPUsesGinClientIP(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies(nil))
@@ -33,7 +32,6 @@ func TestGetTrustedClientIPUsesGinClientIP(t *testing.T) {
 }
 
 func TestGetClientIPPreservesLegacyDockerForwardedHeaders(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies(nil))
@@ -53,7 +51,6 @@ func TestGetClientIPPreservesLegacyDockerForwardedHeaders(t *testing.T) {
 }
 
 func TestGetSecurityClientIPSwitchEnabledUsesLegacyHeaders(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies(nil))
@@ -72,7 +69,6 @@ func TestGetSecurityClientIPSwitchEnabledUsesLegacyHeaders(t *testing.T) {
 }
 
 func TestGetSecurityClientIPCustomHeaderPrecedenceAndFallback(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name           string
@@ -187,7 +183,7 @@ func TestGetSecurityClientIPCustomHeaderPrecedenceAndFallback(t *testing.T) {
 }
 
 func TestGetSecurityClientIPSwitchDisabledUsesConfiguredTrustedProxy(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies([]string{"9.9.9.9"}))
 	r.GET("/t", func(c *gin.Context) {
@@ -204,7 +200,7 @@ func TestGetSecurityClientIPSwitchDisabledUsesConfiguredTrustedProxy(t *testing.
 }
 
 func TestGetClientIPSwitchDisabledUsesTrustedProxyChain(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies(nil))
 	r.GET("/t", func(c *gin.Context) {
@@ -222,7 +218,6 @@ func TestGetClientIPSwitchDisabledUsesTrustedProxyChain(t *testing.T) {
 }
 
 func TestGetSecurityClientIPRequestSnapshotCopiesCustomHeaders(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	r := gin.New()
 	require.NoError(t, r.SetTrustedProxies(nil))
@@ -244,7 +239,6 @@ func TestGetSecurityClientIPRequestSnapshotCopiesCustomHeaders(t *testing.T) {
 }
 
 func TestGetSecurityClientIPRequestSnapshotOverridesLiveFallback(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	tests := []struct {
 		name          string

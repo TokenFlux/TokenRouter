@@ -12,7 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
 // TLSFingerprintRouterCreate is the builder for creating a TLSFingerprintRouter entity.
@@ -142,7 +142,7 @@ func (_c *TLSFingerprintRouterCreate) SetNillableCodexInviteResetTLSFingerprintP
 }
 
 // SetRules sets the "rules" field.
-func (_c *TLSFingerprintRouterCreate) SetRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterCreate {
+func (_c *TLSFingerprintRouterCreate) SetRules(v []egress.TLSFingerprintRouterRule) *TLSFingerprintRouterCreate {
 	_c.mutation.SetRules(v)
 	return _c
 }
@@ -485,7 +485,7 @@ func (u *TLSFingerprintRouterUpsert) ClearCodexInviteResetTLSFingerprintProfileI
 }
 
 // SetRules sets the "rules" field.
-func (u *TLSFingerprintRouterUpsert) SetRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterUpsert {
+func (u *TLSFingerprintRouterUpsert) SetRules(v []egress.TLSFingerprintRouterRule) *TLSFingerprintRouterUpsert {
 	u.Set(tlsfingerprintrouter.FieldRules, v)
 	return u
 }
@@ -695,7 +695,7 @@ func (u *TLSFingerprintRouterUpsertOne) ClearCodexInviteResetTLSFingerprintProfi
 }
 
 // SetRules sets the "rules" field.
-func (u *TLSFingerprintRouterUpsertOne) SetRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterUpsertOne {
+func (u *TLSFingerprintRouterUpsertOne) SetRules(v []egress.TLSFingerprintRouterRule) *TLSFingerprintRouterUpsertOne {
 	return u.Update(func(s *TLSFingerprintRouterUpsert) {
 		s.SetRules(v)
 	})
@@ -1074,7 +1074,7 @@ func (u *TLSFingerprintRouterUpsertBulk) ClearCodexInviteResetTLSFingerprintProf
 }
 
 // SetRules sets the "rules" field.
-func (u *TLSFingerprintRouterUpsertBulk) SetRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterUpsertBulk {
+func (u *TLSFingerprintRouterUpsertBulk) SetRules(v []egress.TLSFingerprintRouterRule) *TLSFingerprintRouterUpsertBulk {
 	return u.Update(func(s *TLSFingerprintRouterUpsert) {
 		s.SetRules(v)
 	})

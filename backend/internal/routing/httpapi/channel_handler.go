@@ -3,13 +3,14 @@ package httpapi
 
 import (
 	fmt "fmt"
+	strconv "strconv"
+	strings "strings"
+
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
-	strings "strings"
 )
 
 func NewChannelHandler(channels *routing.ChannelService, catalog *routing.ChannelCatalog) *ChannelHandler {

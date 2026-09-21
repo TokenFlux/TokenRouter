@@ -11,7 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	nativegrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // Forward 拥有 Grok 请求准备和响应决定，网络恢复只复用原生 ResponsesExecutor。
@@ -49,12 +49,12 @@ func Forward(ctx context.Context, p Ports, o Options, in Input) (*Result, error)
 	// 成为稳定工具前缀的一部分。若 Claude Code session 只存在于 metadata.user_id，
 	// 则在 metadata 被剥离前使用原始请求保留该身份。
 	cacheIdentityBody := patchedBody
-	if nativegrok.ExtractClaudeCodeSessionIDFromPayload(body) != "" {
+	if grok.ExtractClaudeCodeSessionIDFromPayload(body) != "" {
 		cacheIdentityBody = body
 	}
 	cacheIdentity := p.CacheIdentity(cacheIdentityBody, upstreamModel)
 	mixedCacheIntentBody := append([]byte(nil), patchedBody...)
-	patchedBody, err = nativegrok.ApplyGrokResponsesCacheIdentity(patchedBody, body, cacheIdentity, in.OAuth)
+	patchedBody, err = grok.ApplyGrokResponsesCacheIdentity(patchedBody, body, cacheIdentity, in.OAuth)
 	if err != nil {
 		return nil, fmt.Errorf("apply grok prompt cache identity: %w", err)
 	}
@@ -75,11 +75,11 @@ func Forward(ctx context.Context, p Ports, o Options, in Input) (*Result, error)
 	var handled bool
 	var handledResult *Result
 	var handleErr error
-	target := &nativegrok.ResponsesTarget{
+	target := &grok.ResponsesTarget{
 		AccountID: in.AccountID,
 		Model:     upstreamModel,
 		Enter:     o.Enter,
-		Exchange: nativegrok.ResponsesExchange{
+		Exchange: grok.ResponsesExchange{
 			Build: func(body []byte) (*http.Request, error) {
 				return p.Build(upstreamCtx, body, cacheIdentity, true)
 			},
@@ -159,7 +159,7 @@ func Forward(ctx context.Context, p Ports, o Options, in Input) (*Result, error)
 		},
 	}
 	sink := p.Sink()
-	nativeResult, err := (nativegrok.ResponsesExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{Protocol: protocol.ProtocolOpenAIResponses,
+	nativeResult, err := (grok.ResponsesExecutor{}).Execute(upstreamCtx, upstream.AttemptInput{Protocol: protocol.ProtocolOpenAIResponses,
 		Body:          patchedBody,
 		ResponseModel: originalModel,
 		Stream:        reqStream,

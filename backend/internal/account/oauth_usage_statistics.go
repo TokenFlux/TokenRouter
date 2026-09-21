@@ -4,9 +4,10 @@ package account
 import (
 	context "context"
 	fmt "fmt"
-	errgroup "golang.org/x/sync/errgroup"
 	sync "sync"
 	time "time"
+
+	errgroup "golang.org/x/sync/errgroup"
 )
 
 // LocalUsageStats 只读取账号展示所需五个累计值；原 SQL 查询仍归 S08 用量适配。

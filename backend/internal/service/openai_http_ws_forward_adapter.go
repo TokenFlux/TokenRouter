@@ -4,9 +4,14 @@ package service
 import (
 	"context"
 	"errors"
-	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
-	"github.com/gin-gonic/gin"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/gin-gonic/gin"
 )
 
 type openAIHTTPWSForwardAdapter struct {
@@ -14,11 +19,11 @@ type openAIHTTPWSForwardAdapter struct {
 	c                            *gin.Context
 	account                      *Account
 	clientPromptCacheKey, token  string
-	decision                     OpenAIWSProtocolDecision
+	decision                     egress.OpenAIWSProtocolDecision
 	isCodexCLI, stream           bool
 	originalModel, upstreamModel string
 	startedAt                    time.Time
-	tls                          TLSFingerprintRouterMatchResult
+	tls                          egress.TLSFingerprintRouterMatchResult
 	lineageGroupID               int64
 	lineageSessionHash           string
 }
@@ -38,10 +43,10 @@ func (p *openAIHTTPWSForwardAdapter) ClassifyError(err error) (string, bool) {
 	return classifyOpenAIWSReconnectReason(err)
 }
 func (p *openAIHTTPWSForwardAdapter) PayloadString(body map[string]any, key string) string {
-	return openAIWSPayloadString(body, key)
+	return protocolopenai.WSPayloadString(body, key)
 }
 func (p *openAIHTTPWSForwardAdapter) EncryptedDigests(body []byte) []string {
-	return collectOpenAIEncryptedContentDigestsRaw(body)
+	return openai.CollectOpenAIEncryptedContentDigestsRaw(body)
 }
 func (p *openAIHTTPWSForwardAdapter) MarkEncrypted(entry []byte, digests []string) {
 	if p.lineageSessionHash == "" {
@@ -50,10 +55,10 @@ func (p *openAIHTTPWSForwardAdapter) MarkEncrypted(entry []byte, digests []strin
 	p.s.markOpenAIWSInvalidEncryptedContentLineage(p.lineageGroupID, p.lineageSessionHash, digests)
 }
 func (p *openAIHTTPWSForwardAdapter) TruncateID(v string, limit int) string {
-	return truncateOpenAIWSLogValue(v, limit)
+	return gatewayprovider.TruncateOpenAIWSLogValue(v, limit)
 }
 func (p *openAIHTTPWSForwardAdapter) NormalizeLog(v string) string {
-	return normalizeOpenAIWSLogValue(v)
+	return gatewayprovider.NormalizeOpenAIWSLogValue(v)
 }
 func (p *openAIHTTPWSForwardAdapter) ClassifyPrevious(v string) string {
 	return ClassifyOpenAIPreviousResponseIDKind(v)
@@ -72,10 +77,12 @@ func (p *openAIHTTPWSForwardAdapter) RecordNonRetryable() {
 	p.s.recordOpenAIWSNonRetryableFastFallback()
 }
 func (p *openAIHTTPWSForwardAdapter) FallbackError(reason string, err error) error {
-	return wrapOpenAIWSFallback(reason, err)
+	return gatewayws.WrapFallback(reason, err)
 }
 func (p *openAIHTTPWSForwardAdapter) WriteFailure(err error) {
 	p.s.writeOpenAIWSFallbackErrorResponse(p.c, p.account, err)
 }
-func (p *openAIHTTPWSForwardAdapter) Debug(msg string) { logOpenAIWSModeDebug("%s", msg) }
-func (p *openAIHTTPWSForwardAdapter) Info(msg string)  { logOpenAIWSModeInfo("%s", msg) }
+func (p *openAIHTTPWSForwardAdapter) Debug(msg string) {
+	gatewayprovider.LogOpenAIWSModeDebug("%s", msg)
+}
+func (p *openAIHTTPWSForwardAdapter) Info(msg string) { gatewayprovider.LogOpenAIWSModeInfo("%s", msg) }

@@ -42,7 +42,3 @@ func filterGrokTeamModelRateLimitedAccounts(accounts []Account, model string, no
 	}
 	return out
 }
-
-func resolveGrokTeamRateLimitUntil(resetAt, now time.Time) time.Time {
-	return accountcore.ResolveGrokTeamRateLimitUntil(resetAt, now)
-}

@@ -2,11 +2,12 @@
 package identity
 
 import (
+	"strings"
+	time "time"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
 	bcrypt "golang.org/x/crypto/bcrypt"
-	"strings"
-	time "time"
 )
 
 type User struct {

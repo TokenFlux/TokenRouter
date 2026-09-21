@@ -3,9 +3,10 @@ package postgres
 
 import (
 	context "context"
+	"time"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	"time"
 )
 
 // PendingRepository 实现身份用例的持久化边界。

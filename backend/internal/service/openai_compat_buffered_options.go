@@ -4,18 +4,20 @@ package service
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-func (s *OpenAIGatewayService) nativeCompatBufferedOptions(c *gin.Context, logPrefix, requestID string) native.CompatBufferedOptions {
+func (s *OpenAIGatewayService) nativeCompatBufferedOptions(c *gin.Context, logPrefix, requestID string) openai.CompatBufferedOptions {
 	maxLineSize := defaultMaxLineSize
 	if s.cfg != nil && s.cfg.Gateway.MaxLineSize > 0 {
 		maxLineSize = s.cfg.Gateway.MaxLineSize
 	}
-	return native.CompatBufferedOptions{
+	return openai.CompatBufferedOptions{
 		MaxLineSize: maxLineSize,
 		StreamInterval: func() time.Duration {
 			if s.cfg != nil && s.cfg.Gateway.StreamDataIntervalTimeout > 0 {
@@ -24,13 +26,13 @@ func (s *OpenAIGatewayService) nativeCompatBufferedOptions(c *gin.Context, logPr
 			return 0
 		},
 		RestoreToolNames: func(body []byte) []byte { return restoreCodexToolNamesFromContext(c, body) },
-		Observe:          func(body []byte, event string) { observeOpenAIServiceTierInContext(c, body, event) },
+		Observe:          func(body []byte, event string) { gatewayhttp.ObserveOpenAIServiceTierInContext(c, body, event) },
 		Log: func(message string, err error, interval time.Duration) {
 			if err != nil {
-				logger.L().Warn(logPrefix+": "+message, zap.Error(err), zap.String("request_id", requestID))
+				logging.L().Warn(logPrefix+": "+message, zap.Error(err), zap.String("request_id", requestID))
 				return
 			}
-			logger.L().Warn(logPrefix+": "+message, zap.String("request_id", requestID), zap.Duration("interval", interval))
+			logging.L().Warn(logPrefix+": "+message, zap.String("request_id", requestID), zap.Duration("interval", interval))
 		},
 	}
 }

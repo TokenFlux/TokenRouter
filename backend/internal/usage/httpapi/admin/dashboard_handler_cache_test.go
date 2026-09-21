@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 type dashboardUsageRepoCacheProbe struct {
-	service.UsageLogRepository
+	usage.UsageLogRepository
 	trendCalls      atomic.Int32
 	usersTrendCalls atomic.Int32
 }
@@ -29,9 +29,9 @@ func (r *dashboardUsageRepoCacheProbe) GetUsageTrendWithFilters(
 	requestType *int16,
 	stream *bool,
 	billingType *int8,
-) ([]usagestats.TrendDataPoint, error) {
+) ([]usage.TrendDataPoint, error) {
 	r.trendCalls.Add(1)
-	return []usagestats.TrendDataPoint{{
+	return []usage.TrendDataPoint{{
 		Date:        "2026-03-11",
 		Requests:    1,
 		TotalTokens: 2,
@@ -45,9 +45,9 @@ func (r *dashboardUsageRepoCacheProbe) GetUserUsageTrend(
 	startTime, endTime time.Time,
 	granularity string,
 	limit int,
-) ([]usagestats.UserUsageTrendPoint, error) {
+) ([]usage.UserUsageTrendPoint, error) {
 	r.usersTrendCalls.Add(1)
-	return []usagestats.UserUsageTrendPoint{{
+	return []usage.UserUsageTrendPoint{{
 		Date:       "2026-03-11",
 		UserID:     1,
 		Email:      "cache@test.dev",
@@ -67,10 +67,9 @@ func TestDashboardHandler_GetUsageTrend_UsesCache(t *testing.T) {
 	t.Cleanup(resetDashboardReadCachesForTest)
 	resetDashboardReadCachesForTest()
 
-	gin.SetMode(gin.TestMode)
 	repo := &dashboardUsageRepoCacheProbe{}
-	dashboardSvc := service.NewDashboardService(repo, nil, nil, nil)
-	handler := NewDashboardHandler(dashboardSvc)
+	dashboardSvc := usage.NewDashboardService(repo, nil, nil, nil)
+	handler := NewDashboardHandler(dashboardSvc, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.GET("/admin/dashboard/trend", handler.GetUsageTrend)
 
@@ -93,10 +92,9 @@ func TestDashboardHandler_GetUsageTrend_SeparatesTeams(t *testing.T) {
 	t.Cleanup(resetDashboardReadCachesForTest)
 	resetDashboardReadCachesForTest()
 
-	gin.SetMode(gin.TestMode)
 	repo := &dashboardUsageRepoCacheProbe{}
-	dashboardSvc := service.NewDashboardService(repo, nil, nil, nil)
-	handler := NewDashboardHandler(dashboardSvc)
+	dashboardSvc := usage.NewDashboardService(repo, nil, nil, nil)
+	handler := NewDashboardHandler(dashboardSvc, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.GET("/admin/dashboard/trend", handler.GetUsageTrend)
 
@@ -115,10 +113,9 @@ func TestDashboardHandler_GetUserUsageTrend_UsesCache(t *testing.T) {
 	t.Cleanup(resetDashboardReadCachesForTest)
 	resetDashboardReadCachesForTest()
 
-	gin.SetMode(gin.TestMode)
 	repo := &dashboardUsageRepoCacheProbe{}
-	dashboardSvc := service.NewDashboardService(repo, nil, nil, nil)
-	handler := NewDashboardHandler(dashboardSvc)
+	dashboardSvc := usage.NewDashboardService(repo, nil, nil, nil)
+	handler := NewDashboardHandler(dashboardSvc, timezone.NewCalendar(time.Local))
 	router := gin.New()
 	router.GET("/admin/dashboard/users-trend", handler.GetUserUsageTrend)
 

@@ -12,7 +12,8 @@ import (
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
@@ -52,12 +53,12 @@ func (p s05KeyUpdateFailure) Update(ctx context.Context, key *keycore.APIKey, fi
 func TestS05AdminDeleteRollsBackKeyParticipant(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	users := NewUserRepository(client, integrationDB)
+	users := identitypostgres.NewUserStore(client, integrationDB)
 	keys := keypostgres.NewKeyStore(client, integrationDB, nil)
-	user := mustCreateUser(t, client, &service.User{})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "s05-delete-" + uuid.NewString()})
+	user := mustCreateUser(t, client, &identity.User{})
+	key := mustCreateApiKey(t, client, &keycore.APIKey{UserID: user.ID, Key: "s05-delete-" + uuid.NewString()})
 	failure := errors.New("s05 after tombstone write")
-	mutations := &identitypostgres.AdminMutations{Client: client, Users: service.IdentityRepository(users), Keys: keys, KeysInTx: func(tx *dbent.Tx) identity.AdminKeyParticipant {
+	mutations := &identitypostgres.AdminMutations{Client: client, Users: users, Keys: keys, KeysInTx: func(tx *dbent.Tx) identity.AdminKeyParticipant {
 		return s05AdminFailure{keys.LifecycleInTx(tx), failure}
 	}}
 	before := s05OutboxCount(t, ctx, key.Key)
@@ -78,14 +79,14 @@ func TestS05AdminDeleteRollsBackKeyParticipant(t *testing.T) {
 func TestS05GroupReplacementRollsBackKeyParticipant(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	users := NewUserRepository(client, integrationDB)
+	users := identitypostgres.NewUserStore(client, integrationDB)
 	keys := keypostgres.NewKeyStore(client, integrationDB, nil)
-	old := mustCreateGroup(t, client, &service.Group{Name: "s05-old-" + uuid.NewString(), IsExclusive: true})
-	next := mustCreateGroup(t, client, &service.Group{Name: "s05-new-" + uuid.NewString(), IsExclusive: true})
-	user := mustCreateUser(t, client, &service.User{AllowedGroups: []int64{old.ID}})
-	key := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, GroupID: &old.ID, Key: "s05-replace-" + uuid.NewString()})
+	old := mustCreateGroup(t, client, &routing.Group{Name: "s05-old-" + uuid.NewString(), IsExclusive: true})
+	next := mustCreateGroup(t, client, &routing.Group{Name: "s05-new-" + uuid.NewString(), IsExclusive: true})
+	user := mustCreateUser(t, client, &identity.User{AllowedGroups: []int64{old.ID}})
+	key := mustCreateApiKey(t, client, &keycore.APIKey{UserID: user.ID, GroupID: &old.ID, Key: "s05-replace-" + uuid.NewString()})
 	failure := errors.New("s05 after group migration")
-	mutations := &identitypostgres.AdminMutations{Client: client, Users: service.IdentityRepository(users), Keys: keys, KeysInTx: func(tx *dbent.Tx) identity.AdminKeyParticipant {
+	mutations := &identitypostgres.AdminMutations{Client: client, Users: users, Keys: keys, KeysInTx: func(tx *dbent.Tx) identity.AdminKeyParticipant {
 		return s05AdminFailure{keys.LifecycleInTx(tx), failure}
 	}}
 	before := s05OutboxCount(t, ctx, key.Key)
@@ -112,11 +113,11 @@ func TestS05GroupReplacementRollsBackKeyParticipant(t *testing.T) {
 func TestS05AdminKeyGrantRollsBackIdentityParticipant(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	users := NewUserRepository(client, integrationDB)
+	users := identitypostgres.NewUserStore(client, integrationDB)
 	keys := keypostgres.NewKeyStore(client, integrationDB, nil)
-	group := mustCreateGroup(t, client, &service.Group{Name: "s05-grant-" + uuid.NewString(), IsExclusive: true})
-	user := mustCreateUser(t, client, &service.User{})
-	old := mustCreateApiKey(t, client, &service.APIKey{UserID: user.ID, Key: "s05-grant-" + uuid.NewString()})
+	group := mustCreateGroup(t, client, &routing.Group{Name: "s05-grant-" + uuid.NewString(), IsExclusive: true})
+	user := mustCreateUser(t, client, &identity.User{})
+	old := mustCreateApiKey(t, client, &keycore.APIKey{UserID: user.ID, Key: "s05-grant-" + uuid.NewString()})
 	key, err := keys.GetByID(ctx, old.ID)
 	require.NoError(t, err)
 	key.GroupID = &group.ID

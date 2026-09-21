@@ -6,13 +6,6 @@ import (
 	rand "crypto/rand"
 	hex "encoding/hex"
 	fmt "fmt"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	ipmatch "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch"
-	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	ristretto "github.com/dgraph-io/ristretto"
-	singleflight "golang.org/x/sync/singleflight"
 	html "html"
 	math "math"
 	sort "sort"
@@ -21,6 +14,15 @@ import (
 	sync "sync"
 	atomic "sync/atomic"
 	time "time"
+
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	ipmatch "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch"
+	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	ristretto "github.com/dgraph-io/ristretto"
+	singleflight "golang.org/x/sync/singleflight"
 )
 
 var (
@@ -355,6 +357,7 @@ type RateLimitCacheInvalidator interface {
 }
 
 type APIKeyService struct {
+	calendar                  timezone.Calendar
 	groupFastPolicy           func(string, bool) string
 	runtimeStart              sync.Once
 	runtimeStop               sync.Once
@@ -421,7 +424,12 @@ func NewAPIKeyService(
 	cache APIKeyCache,
 	cfg *Options,
 ) *APIKeyService {
+	calendar := timezone.NewCalendar(time.Local)
+	if cfg != nil {
+		calendar = timezone.NewCalendar(cfg.Calendar.Location())
+	}
 	svc := &APIKeyService{
+		calendar:          calendar,
 		apiKeyRepo:        apiKeyRepo,
 		userRepo:          userRepo,
 		groupRepo:         groupRepo,
@@ -539,7 +547,7 @@ func (s *APIKeyService) KeyIncrementAPIKeyErrorCount(ctx context.Context, userID
 
 // KeyCanUserBindGroup 检查用户是否可以绑定指定分组。
 // group 仅控制路由/访问权限，不再承载订阅语义。
-func (s *APIKeyService) KeyCanUserBindGroup(ctx context.Context, user *User, group *Group) bool {
+func (s *APIKeyService) KeyCanUserBindGroup(ctx context.Context, user *User, group *routing.Group) bool {
 	return user.CanBindGroup(group.ID, group.IsExclusive)
 }
 
@@ -570,7 +578,7 @@ func (s *APIKeyService) KeyResolveAPIKeyBillingConfiguration(ctx context.Context
 
 // KeyValidatePreferredSubscriptionGroups 确保指定订阅没有被普通或复合 Key 的映射绕过。
 // 套餐未设置分组时代表所有分组可用，保留用户原有的分组授权范围。
-func KeyValidatePreferredSubscriptionGroups(subscription *UserSubscription, group *Group, compositeGroups []APIKeyCompositeGroup) error {
+func KeyValidatePreferredSubscriptionGroups(subscription *UserSubscription, group *routing.Group, compositeGroups []APIKeyCompositeGroup) error {
 	if subscription == nil || subscription.Plan == nil {
 		return ErrPreferredSubscriptionInvalid
 	}
@@ -757,7 +765,7 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		}
 	}
 	if billingMode == APIKeyBillingModeSubscription {
-		var group *Group
+		var group *routing.Group
 		if req.GroupID != nil {
 			group, err = s.groupRepo.GetByID(ctx, *req.GroupID)
 			if err != nil {
@@ -1166,7 +1174,7 @@ func (s *APIKeyService) KeyApplyUnavailableFallbackGroup(ctx context.Context, ap
 
 // KeyFallbackPlatformFromBoundGroup 返回停用绑定分组所属平台。
 // deleted/缺失分组不兜底，保留调用方现有的不可用分组报错语义。
-func KeyFallbackPlatformFromBoundGroup(group *Group) (string, bool) {
+func KeyFallbackPlatformFromBoundGroup(group *routing.Group) (string, bool) {
 	if group == nil {
 		return "", false
 	}
@@ -1727,7 +1735,7 @@ func (s *APIKeyService) TouchLastUsed(ctx context.Context, keyID int64) error {
 func (s *APIKeyService) IncrementUsage(ctx context.Context, keyID int64) error {
 	// 使用Redis计数器
 	if s.cache != nil {
-		cacheKey := fmt.Sprintf("apikey:usage:%d:%s", keyID, timezone.Now().Format("2006-01-02"))
+		cacheKey := fmt.Sprintf("apikey:usage:%d:%s", keyID, s.calendar.Now().Format("2006-01-02"))
 		if err := s.cache.IncrementDailyUsage(ctx, cacheKey); err != nil {
 			return fmt.Errorf("increment usage: %w", err)
 		}
@@ -1739,7 +1747,7 @@ func (s *APIKeyService) IncrementUsage(ctx context.Context, keyID int64) error {
 
 // GetAvailableGroups 获取用户有权限绑定的分组列表。
 // group 仅负责路由/账号集合，不再承载订阅语义。
-func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([]Group, error) {
+func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([]routing.Group, error) {
 	// 获取用户信息
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -1753,7 +1761,7 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 	}
 
 	// 过滤出用户有权限的分组
-	availableGroups := make([]Group, 0)
+	availableGroups := make([]routing.Group, 0)
 	for _, group := range allGroups {
 		if s.KeyCanUserBindGroupInternal(user, &group) {
 			availableGroups = append(availableGroups, group)
@@ -1764,13 +1772,13 @@ func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([
 }
 
 // GetAvailableGroupsForScope 让团队 Key 使用 Owner 的分组授权。
-func (s *APIKeyService) GetAvailableGroupsForScope(ctx context.Context, userID int64, scope string) ([]Group, error) {
+func (s *APIKeyService) GetAvailableGroupsForScope(ctx context.Context, userID int64, scope string) ([]routing.Group, error) {
 	return s.GetAvailableGroupsForScopeWithSubscription(ctx, userID, scope, nil)
 }
 
 // GetAvailableGroupsForScopeWithSubscription 返回付款主体原有权限与指定套餐分组的交集。
 // subscriptionID 为 nil 时严格保留历史行为，不会因为用户持有其它受限套餐而收窄分组。
-func (s *APIKeyService) GetAvailableGroupsForScopeWithSubscription(ctx context.Context, userID int64, scope string, subscriptionID *int64) ([]Group, error) {
+func (s *APIKeyService) GetAvailableGroupsForScopeWithSubscription(ctx context.Context, userID int64, scope string, subscriptionID *int64) ([]routing.Group, error) {
 	billingUserID, err := s.KeyBillingUserIDForScope(ctx, userID, scope)
 	if err != nil {
 		return nil, err
@@ -1786,7 +1794,7 @@ func (s *APIKeyService) GetAvailableGroupsForScopeWithSubscription(ctx context.C
 	if subscription.Plan == nil || len(subscription.Plan.GroupIDs) == 0 {
 		return groups, nil
 	}
-	filtered := make([]Group, 0, len(groups))
+	filtered := make([]routing.Group, 0, len(groups))
 	for i := range groups {
 		if subscriptionPlanIncludesGroup(subscription.Plan, groups[i].ID) {
 			filtered = append(filtered, groups[i])
@@ -1827,7 +1835,7 @@ func (s *APIKeyService) ListBillingSubscriptionsForScope(ctx context.Context, us
 }
 
 // KeyCanUserBindGroupInternal 内部方法，检查用户是否可以绑定分组。
-func (s *APIKeyService) KeyCanUserBindGroupInternal(user *User, group *Group) bool {
+func (s *APIKeyService) KeyCanUserBindGroupInternal(user *User, group *routing.Group) bool {
 	return user.CanBindGroup(group.ID, group.IsExclusive)
 }
 

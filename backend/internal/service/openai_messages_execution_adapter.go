@@ -4,20 +4,37 @@ package service
 import (
 	"context"
 	"errors"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
+	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
+
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+
 	"net/http"
 	"strings"
+
+	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type openAIMessagesExecutionAdapter struct {
@@ -25,7 +42,7 @@ type openAIMessagesExecutionAdapter struct {
 	s        *OpenAIGatewayService
 	c        *gin.Context
 	account  *Account
-	tls      []TLSFingerprintRouterMatchResult
+	tls      []egress.TLSFingerprintRouterMatchResult
 }
 
 func (p *openAIMessagesExecutionAdapter) Prepare(ctx context.Context) (forward.MessagesProfile, forward.Dispatch, error) {
@@ -34,26 +51,26 @@ func (p *openAIMessagesExecutionAdapter) Prepare(ctx context.Context) (forward.M
 		return forward.MessagesProfile{}, forward.DispatchResponses, err
 	}
 	p.account = account
-	beginUpstreamResponseModelObservation(p.c)
-	ClearActualOpenAIUpstreamEndpoint(p.c)
+	gatewayhttp.BeginUpstreamResponseModelObservation(p.c)
+	gatewayhttp.ClearActualOpenAIUpstreamEndpoint(p.c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
-		SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
+		gatewayhttp.SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
 	}
 	setCodexToolNameReverse(p.c, nil)
 	if _, err := p.s.prepareCodexAccountIdentitySource(ctx, p.c, account); err != nil {
 		return forward.MessagesProfile{}, forward.DispatchResponses, err
 	}
-	profile := forward.MessagesProfile{Profile: openAIForwardProfile(account), ID: account.ID, GrokOAuth: account.IsGrokOAuth(), Shadow: account.IsShadow(), ContinuationSupported: openai_compat.ResolveResponsesContinuationSupported(account.Extra)}
+	profile := forward.MessagesProfile{Profile: openAIForwardProfile(account), ID: account.ID, GrokOAuth: account.IsGrokOAuth(), Shadow: account.IsShadow(), ContinuationSupported: accountcore.ResolveResponsesContinuationSupported(account.Extra)}
 	route := forward.DispatchResponses
 	if account.IsAnthropicProtocol() || account.IsAdaptiveAPIProtocol() {
 		route = forward.DispatchAnthropic
-	} else if shouldForwardOpenAIResponsesViaRawChatCompletions(account) || (!account.IsCNProvider() && resolveOpenAITextProtocolForAttempt(p.c, account, openai_compat.TextProtocolResponses) == openai_compat.TextProtocolChatCompletions) {
+	} else if shouldForwardOpenAIResponsesViaRawChatCompletions(account) || (!account.IsCNProvider() && resolveOpenAITextProtocolForAttempt(p.c, account, accountcore.TextProtocolResponses) == accountcore.TextProtocolChatCompletions) {
 		route = forward.DispatchRawChat
 	}
 	return profile, route, nil
 }
 func (p *openAIMessagesExecutionAdapter) Dispatch(ctx context.Context, route forward.Dispatch, body []byte, key, model string) (*forward.Result, error) {
-	var r *OpenAIForwardResult
+	var r *protocolforward.OpenAIResult
 	var err error
 	if route == forward.DispatchAnthropic {
 		r, err = p.s.forwardAnthropicViaNativeAnthropicEndpoint(ctx, p.c, p.account, body, model)
@@ -72,7 +89,7 @@ func (p *openAIMessagesExecutionAdapter) CloneDigest(r *protocolanthropic.Anthro
 	return cloneAnthropicRequestForDigest(r)
 }
 func (p *openAIMessagesExecutionAdapter) NormalizeModel(r *protocolanthropic.AnthropicRequest) {
-	applyOpenAICompatModelNormalization(r)
+	gatewayprovider.ApplyOpenAICompatModelNormalization(r)
 }
 func (p *openAIMessagesExecutionAdapter) BillingModel(model, fallback string) string {
 	return resolveOpenAIForwardModel(p.account, model, fallback)
@@ -81,7 +98,7 @@ func (p *openAIMessagesExecutionAdapter) UpstreamModel(model string) string {
 	return normalizeOpenAIModelForUpstream(p.account, model)
 }
 func (p *openAIMessagesExecutionAdapter) APIKeyID() int64 {
-	return getAPIKeyIDFromContext(p.c)
+	return gatewayhttp.APIKeyIDFromContext(p.c)
 }
 func (p *openAIMessagesExecutionAdapter) ClaudeSession(body []byte) string {
 	return extractClaudeCodeSessionID(p.c, body)
@@ -90,10 +107,10 @@ func (p *openAIMessagesExecutionAdapter) MetadataSession(r *protocolanthropic.An
 	return promptCacheKeyFromAnthropicMetadataSession(r)
 }
 func (p *openAIMessagesExecutionAdapter) AutoCacheKey(model string) bool {
-	return shouldAutoInjectPromptCacheKeyForCompat(model)
+	return gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(model)
 }
 func (p *openAIMessagesExecutionAdapter) CacheControlKey(r *protocolanthropic.AnthropicRequest) string {
-	return deriveAnthropicCacheControlPromptCacheKey(r)
+	return gatewayprovider.DeriveAnthropicCacheControlPromptCacheKey(r)
 }
 func (p *openAIMessagesExecutionAdapter) DigestChain(r *protocolanthropic.AnthropicRequest) string {
 	return buildOpenAICompatAnthropicDigestChain(r)
@@ -117,13 +134,13 @@ func (p *openAIMessagesExecutionAdapter) ReplayGuard(r *protocolanthropic.Anthro
 	return applyAnthropicCompatFullReplayGuard(r)
 }
 func (p *openAIMessagesExecutionAdapter) Convert(r *protocolanthropic.AnthropicRequest) (*protocolopenai.ResponsesRequest, error) {
-	return apicompat.AnthropicToResponses(r)
+	return protocolbridge.AnthropicToResponses(r, protocolforward.ConversionOptionsForModel(r.Model))
 }
 func (p *openAIMessagesExecutionAdapter) BetaFast() bool {
-	return containsBetaToken(p.c.GetHeader("anthropic-beta"), claude.BetaFastMode)
+	return claude.ContainsBetaToken(p.c.GetHeader("anthropic-beta"), claude.BetaFastMode)
 }
 func (p *openAIMessagesExecutionAdapter) MessagesEffort(r *protocolanthropic.AnthropicRequest, model, effort string) string {
-	return openAICompatAnthropicReasoningEffort(r, model, effort)
+	return gatewayprovider.OpenAICompatAnthropicReasoningEffort(r, model, effort)
 }
 func (p *openAIMessagesExecutionAdapter) TrimLatestTurn(r *protocolopenai.ResponsesRequest) {
 	trimAnthropicCompatResponsesInputToLatestTurn(r)
@@ -132,21 +149,21 @@ func (p *openAIMessagesExecutionAdapter) TodoGuard(r *protocolopenai.ResponsesRe
 	appendOpenAICompatClaudeCodeTodoGuard(r)
 }
 func (p *openAIMessagesExecutionAdapter) HashForLog(s string) string {
-	return hashSensitiveValueForLog(s)
+	return upstream.HashSensitiveValueForLog(s)
 }
 func (p *openAIMessagesExecutionAdapter) Truncate(s string, limit int) string {
-	return truncateOpenAIWSLogValue(s, limit)
+	return gatewayprovider.TruncateOpenAIWSLogValue(s, limit)
 }
 func (p *openAIMessagesExecutionAdapter) LogIDLimit() int {
-	return openAIWSIDValueMaxLen
+	return gatewayprovider.OpenAIWSIDValueMaxLen
 }
 func (p *openAIMessagesExecutionAdapter) Debug(msg string, fields ...zap.Field) {
-	logger.L().Debug(msg, fields...)
+	logging.L().Debug(msg, fields...)
 }
 func (p *openAIMessagesExecutionAdapter) Info(msg string, fields ...zap.Field) {
-	logger.L().Info(msg, fields...)
+	logging.L().Info(msg, fields...)
 }
-func (p *openAIMessagesExecutionAdapter) CodexTransform(body map[string]any, o native.CodexOAuthTransformOptions) native.CodexTransformResult {
+func (p *openAIMessagesExecutionAdapter) CodexTransform(body map[string]any, o openai.CodexOAuthTransformOptions) openai.CodexTransformResult {
 	return applyCodexOAuthTransformWithOptions(body, o)
 }
 func (p *openAIMessagesExecutionAdapter) ToolNameReverse(value map[string]string) {
@@ -175,18 +192,18 @@ func (p *openAIMessagesExecutionAdapter) TurnState(ctx context.Context, key stri
 }
 func (p *openAIMessagesExecutionAdapter) ApplyEffort(ctx context.Context, body []byte) ([]byte, bool, error) {
 	updated, changed, err := ApplyOpenAIReasoningEffortPolicyFromContext(ctx, body)
-	var limited *ReasoningEffortOverLimitError
+	var limited *routing.ReasoningEffortOverLimitError
 	if errors.As(err, &limited) {
-		MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		p.Error(403, "forbidden_error", limited.Error())
 	}
 	return updated, changed, err
 }
 func (p *openAIMessagesExecutionAdapter) ApplyFast(ctx context.Context, model string, body []byte) ([]byte, error) {
 	updated, err := p.s.applyOpenAIFastPolicyToBody(ctx, p.account, model, body)
-	var blocked *OpenAIFastBlockedError
+	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
-		MarkOpsClientBusinessLimited(p.c, OpsClientBusinessLimitedReasonLocalPolicyDenied)
+		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		p.Error(403, "forbidden_error", blocked.Message)
 	}
 	return updated, err
@@ -195,7 +212,7 @@ func (p *openAIMessagesExecutionAdapter) ServiceTier(body []byte) *string {
 	return extractOpenAIServiceTierFromBody(body)
 }
 func (p *openAIMessagesExecutionAdapter) ResolvedServiceTier(tier *string) *string {
-	return resolvedOpenAIUpstreamServiceTier(p.c, tier)
+	return gatewayhttp.ResolvedOpenAIUpstreamServiceTier(p.c, tier)
 }
 func (p *openAIMessagesExecutionAdapter) GrokCacheIdentity(body []byte, key, model string) string {
 	return resolveGrokCacheIdentity(p.c, body, key, model)
@@ -204,7 +221,7 @@ func (p *openAIMessagesExecutionAdapter) PatchGrokBody(body []byte, model string
 	return patchGrokResponsesBody(body, model)
 }
 func (p *openAIMessagesExecutionAdapter) ApplyGrokCache(body, intent []byte, key string, oauth bool) ([]byte, error) {
-	return applyGrokResponsesCacheIdentity(body, intent, key, oauth)
+	return grok.ApplyGrokResponsesCacheIdentity(body, intent, key, oauth)
 }
 func (p *openAIMessagesExecutionAdapter) GrokFreeToolRoute(body, intent []byte, key string) ([]byte, error) {
 	return applyGrokFreeMessagesFunctionToolCacheRoute(body, intent, p.account, key)
@@ -220,17 +237,17 @@ func (p *openAIMessagesExecutionAdapter) UpstreamContext(ctx context.Context) (c
 	return detachUpstreamContext(ctx)
 }
 func (p *openAIMessagesExecutionAdapter) Build(_ context.Context, ctx context.Context, body []byte, token string, stream bool, key, grokIdentity string) (*http.Request, error) {
-	if p.account.Platform == PlatformGrok {
+	if p.account.Platform == capability.PlatformGrok {
 		return buildGrokResponsesRequest(ctx, p.c, p.account, body, token, grokIdentity, p.s.cfg, p.s.settingService)
 	}
 	return p.s.buildUpstreamRequest(ctx, p.c, p.account, body, token, stream, key, false, p.tls...)
 }
 func (p *openAIMessagesExecutionAdapter) IsolatedSessionID(key int64, cache string) string {
-	return generateSessionUUID(isolateOpenAIUpstreamSessionID(key, codexAccountIdentitySource(p.c, p.account), cache))
+	return upstream.GenerateSessionUUID(isolateOpenAIUpstreamSessionID(key, codexAccountIdentitySource(p.c, p.account), cache))
 }
 func (p *openAIMessagesExecutionAdapter) RestoreIdentity(h http.Header) {
-	ensureCodexIdentityHeaders(h)
-	enforceCodexIdentityHeaders(h)
+	openai.EnsureCodexIdentityHeaders(h)
+	openai.EnforceCodexIdentityHeaders(h)
 }
 func (p *openAIMessagesExecutionAdapter) Header(key string) string {
 	return p.c.GetHeader(key)
@@ -270,7 +287,7 @@ func (p *openAIMessagesExecutionAdapter) IsAgentIdentity(ctx context.Context) bo
 	return p.s.isAgentIdentityAccount(ctx, p.account)
 }
 func (p *openAIMessagesExecutionAdapter) InvalidAgentTask(status int, body []byte) bool {
-	return isAgentIdentityTaskInvalidHTTPResponse(status, body)
+	return openai.IsAgentTaskInvalidHTTPResponse(status, body)
 }
 func (p *openAIMessagesExecutionAdapter) RecoverAgentTask(ctx context.Context) error {
 	return p.s.recoverAgentIdentityTask(ctx, p.account, p.account.GetCredential("task_id"))
@@ -282,7 +299,7 @@ func (p *openAIMessagesExecutionAdapter) RedactErrorBody(ctx context.Context, bo
 	return p.s.redactAgentIdentitySensitiveBody(ctx, p.account, body)
 }
 func (p *openAIMessagesExecutionAdapter) ErrorMessage(body []byte) string {
-	return sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(body)))
+	return logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
 }
 func (p *openAIMessagesExecutionAdapter) PreviousMissing(status int, msg string, body []byte) bool {
 	return isOpenAICompatPreviousResponseNotFound(status, msg, body)
@@ -300,7 +317,7 @@ func (p *openAIMessagesExecutionAdapter) GrokStripRetried(ctx context.Context) b
 	return grokEncryptedContentStripRetried(ctx)
 }
 func (p *openAIMessagesExecutionAdapter) StripThinkingSignatures(body []byte) ([]byte, bool) {
-	return stripAnthropicThinkingSignatures(body)
+	return protocolanthropic.StripThinkingSignaturesJSON(body)
 }
 func (p *openAIMessagesExecutionAdapter) MarkGrokStrip(ctx context.Context) context.Context {
 	return markGrokEncryptedContentStripRetried(ctx)
@@ -325,7 +342,7 @@ func (p *openAIMessagesExecutionAdapter) BindTurnState(ctx context.Context, key,
 func (p *openAIMessagesExecutionAdapter) Sink() upstream.OutputSink {
 	return gatewayhttp.ResponseSink{Writer: p.c.Writer}
 }
-func (p *openAIMessagesExecutionAdapter) ResponseOptions(r *http.Response, original, billing, model string) native.MessagesResponseOptions {
+func (p *openAIMessagesExecutionAdapter) ResponseOptions(r *http.Response, original, billing, model string) openai.MessagesResponseOptions {
 	return p.s.nativeMessagesResponseOptions(p.c, p.account, r, original, billing, model)
 }
 func (p *openAIMessagesExecutionAdapter) CyberPolicy() bool {
@@ -341,7 +358,7 @@ func (p *openAIMessagesExecutionAdapter) BindDigestKey(id int64, chain, key, mat
 	p.s.bindOpenAICompatAnthropicDigestPromptCacheKey(p.account, id, chain, key, matched)
 }
 func (p *openAIMessagesExecutionAdapter) UpdateCodexUsage(ctx context.Context, h http.Header) {
-	if snapshot := ParseCodexRateLimitHeaders(h); snapshot != nil {
+	if snapshot := openai.ParseCodexRateLimitHeaders(h); snapshot != nil {
 		p.s.updateCodexUsageSnapshot(ctx, p.account.ID, snapshot)
 	}
 }

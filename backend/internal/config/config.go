@@ -1153,7 +1153,7 @@ type GatewayOpenAIWSConfig struct {
 	SessionHashReadOldFallback bool `mapstructure:"session_hash_read_old_fallback"`
 	// SessionHashDualWriteOld: 会话哈希迁移期是否双写旧 SHA-256 key（短 TTL）
 	SessionHashDualWriteOld bool `mapstructure:"session_hash_dual_write_old"`
-	// MetadataBridgeEnabled: RequestMetadata 迁移期是否保留旧 ctxkey.* 兼容桥接
+	// MetadataBridgeEnabled 保留旧配置的读取兼容；执行参数已统一为原生快照，不再双写旧 key。
 	MetadataBridgeEnabled bool `mapstructure:"metadata_bridge_enabled"`
 	// StickyResponseIDTTLSeconds: response_id -> account_id 粘连 TTL
 	StickyResponseIDTTLSeconds int `mapstructure:"sticky_response_id_ttl_seconds"`

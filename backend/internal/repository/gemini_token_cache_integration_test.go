@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account/rediscache"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -15,12 +16,12 @@ import (
 
 type GeminiTokenCacheSuite struct {
 	IntegrationRedisSuite
-	cache service.GeminiTokenCache
+	cache account.AccessTokenCache
 }
 
 func (s *GeminiTokenCacheSuite) SetupTest() {
 	s.IntegrationRedisSuite.SetupTest()
-	s.cache = NewGeminiTokenCache(s.rdb)
+	s.cache = rediscache.NewOAuthTokenCache(s.rdb)
 }
 
 func (s *GeminiTokenCacheSuite) TestDeleteAccessToken() {

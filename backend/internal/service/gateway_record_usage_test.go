@@ -10,12 +10,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/qoder"
+
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+	usagecore "github.com/TokenFlux/TokenRouter/internal/usage"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/stretchr/testify/require"
 )
 
-func newGatewayRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo UserRepository, subRepo UserSubscriptionRepository) *GatewayService {
+func newGatewayRecordUsageServiceForTest(usageRepo usagecore.UsageLogRepository, userRepo identity.UserRepository, subRepo billing.UserSubscriptionRepository) *GatewayService {
 	cfg := &config.Config{}
 	cfg.Default.RateMultiplier = 1.1
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -33,12 +48,12 @@ func newGatewayRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo 
 		nil,
 		NewBillingService(cfg, nil),
 		nil,
-		&BillingCacheService{},
 		nil,
 		nil,
-		&DeferredService{},
 		nil,
+		&account.DeferredService{},
 		nil,
+		nil, nil,
 		nil,
 		nil,
 		nil,
@@ -60,7 +75,7 @@ func requireGatewayRecordUsageBillingRepoStub(t *testing.T, svc *GatewayService)
 	return billingRepo
 }
 
-func newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo UsageLogRepository, billingRepo UsageBillingRepository, userRepo UserRepository, subRepo UserSubscriptionRepository) *GatewayService {
+func newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo usagecore.UsageLogRepository, billingRepo completion.Store, userRepo identity.UserRepository, subRepo billing.UserSubscriptionRepository) *GatewayService {
 	cfg := &config.Config{}
 	cfg.Default.RateMultiplier = 1.1
 	return NewGatewayService(
@@ -77,12 +92,12 @@ func newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo UsageLogReposi
 		nil,
 		NewBillingService(cfg, nil),
 		nil,
-		&BillingCacheService{},
 		nil,
 		nil,
-		&DeferredService{},
 		nil,
+		&account.DeferredService{},
 		nil,
+		nil, nil,
 		nil,
 		nil,
 		nil,
@@ -95,24 +110,24 @@ func newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo UsageLogReposi
 }
 
 type openAIRecordUsageBestEffortLogRepoStub struct {
-	UsageLogRepository
+	usagecore.UsageLogRepository
 
 	bestEffortErr   error
 	createErr       error
 	bestEffortCalls int
 	createCalls     int
-	lastLog         *UsageLog
+	lastLog         *usagecore.UsageLog
 	lastCtxErr      error
 }
 
-func (s *openAIRecordUsageBestEffortLogRepoStub) CreateBestEffort(ctx context.Context, log *UsageLog) error {
+func (s *openAIRecordUsageBestEffortLogRepoStub) CreateBestEffort(ctx context.Context, log *usagecore.UsageLog) error {
 	s.bestEffortCalls++
 	s.lastLog = log
 	s.lastCtxErr = ctx.Err()
 	return s.bestEffortErr
 }
 
-func (s *openAIRecordUsageBestEffortLogRepoStub) Create(ctx context.Context, log *UsageLog) (bool, error) {
+func (s *openAIRecordUsageBestEffortLogRepoStub) Create(ctx context.Context, log *usagecore.UsageLog) (bool, error) {
 	s.createCalls++
 	s.lastLog = log
 	s.lastCtxErr = ctx.Err()
@@ -130,20 +145,20 @@ func TestGatewayServiceRecordUsage_BillingUsesDetachedContext(t *testing.T) {
 	cancel()
 
 	err := svc.RecordUsage(reqCtx, &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "gateway_detached_ctx",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:    501,
 			Quota: 100,
 		},
-		User:          &User{ID: 601},
+		User:          &identity.User{ID: 601},
 		Account:       &Account{ID: 701},
 		APIKeyService: quotaSvc,
 	})
@@ -159,22 +174,22 @@ func TestGatewayServiceRecordUsage_BillingUsesDetachedContext(t *testing.T) {
 
 func TestGatewayServiceRecordUsage_BillingFingerprintIncludesRequestPayloadHash(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	payloadHash := HashUsageRequestPayload([]byte(`{"messages":[{"role":"user","content":"hello"}]}`))
+	payloadHash := billing.HashUsageRequestPayload([]byte(`{"messages":[{"role":"user","content":"hello"}]}`))
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "gateway_payload_hash",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey:             &APIKey{ID: 501, Quota: 100},
-		User:               &User{ID: 601},
+		APIKey:             &apikey.APIKey{ID: 501, Quota: 100},
+		User:               &identity.User{ID: 601},
 		Account:            &Account{ID: 701},
 		RequestPayloadHash: payloadHash,
 	})
@@ -185,22 +200,22 @@ func TestGatewayServiceRecordUsage_BillingFingerprintIncludesRequestPayloadHash(
 
 func TestGatewayServiceRecordUsage_BillingFingerprintFallsBackToContextRequestID(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	ctx := context.WithValue(context.Background(), ctxkey.RequestID, "req-local-123")
+	ctx := context.WithValue(context.Background(), telemetry.RequestID, "req-local-123")
 	err := svc.RecordUsage(ctx, &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "gateway_payload_fallback",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey:  &APIKey{ID: 501, Quota: 100},
-		User:    &User{ID: 601},
+		APIKey:  &apikey.APIKey{ID: 501, Quota: 100},
+		User:    &identity.User{ID: 601},
 		Account: &Account{ID: 701},
 	})
 	require.NoError(t, err)
@@ -214,15 +229,15 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	mappedModel := "claude-sonnet-4-20250514"
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "gateway_models_split",
-			Usage:         ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Usage:         upstream.TokenUsage{InputTokens: 10, OutputTokens: 6},
 			Model:         "claude-sonnet-4",
 			UpstreamModel: mappedModel,
 			Duration:      time.Second,
 		},
-		APIKey:  &APIKey{ID: 501, Quota: 100},
-		User:    &User{ID: 601},
+		APIKey:  &apikey.APIKey{ID: 501, Quota: 100},
+		User:    &identity.User{ID: 601},
 		Account: &Account{ID: 701},
 	})
 
@@ -239,17 +254,17 @@ func TestGatewayServiceRecordUsage_PreservesChannelMappedUpstreamModel(t *testin
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "gateway_channel_mapping_models",
-			Usage:         ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Usage:         upstream.TokenUsage{InputTokens: 10, OutputTokens: 6},
 			Model:         "gpt-5.6-terra",
 			UpstreamModel: "gpt-5.6-terra",
 			Duration:      time.Second,
 		},
-		APIKey:  &APIKey{ID: 501, Quota: 100},
-		User:    &User{ID: 601},
+		APIKey:  &apikey.APIKey{ID: 501, Quota: 100},
+		User:    &identity.User{ID: 601},
 		Account: &Account{ID: 701},
-		ChannelUsageFields: ChannelUsageFields{
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "gpt-5.6-sol",
 			ChannelMappedModel: "gpt-5.6-terra",
 		},
@@ -268,17 +283,17 @@ func TestGatewayServiceRecordUsage_PreservesLoopedChannelAndAccountUpstreamModel
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "gateway_looped_mapping_models",
-			Usage:         ClaudeUsage{InputTokens: 10, OutputTokens: 6},
+			Usage:         upstream.TokenUsage{InputTokens: 10, OutputTokens: 6},
 			Model:         "gpt-5.6-terra",
 			UpstreamModel: "gpt-5.6-sol",
 			Duration:      time.Second,
 		},
-		APIKey:  &APIKey{ID: 501, Quota: 100},
-		User:    &User{ID: 601},
+		APIKey:  &apikey.APIKey{ID: 501, Quota: 100},
+		User:    &identity.User{ID: 601},
 		Account: &Account{ID: 701},
-		ChannelUsageFields: ChannelUsageFields{
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "gpt-5.6-sol",
 			ChannelMappedModel: "gpt-5.6-terra",
 		},
@@ -294,31 +309,31 @@ func TestGatewayServiceRecordUsage_PreservesLoopedChannelAndAccountUpstreamModel
 
 func TestGatewayServiceRecordUsage_QoderUsesStandardRequestedModelPricing(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
-	expectedCost, err := svc.billingService.CalculateCost("gpt-5.4", UsageTokens{
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
+	expectedCost, err := svc.billingService.CalculateCost("gpt-5.4", pricing.UsageTokens{
 		InputTokens:  usage.InputTokens,
 		OutputTokens: usage.OutputTokens,
 	}, 1.1)
 	require.NoError(t, err)
 
 	err = svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_standard_requested_model_pricing",
 			Usage:         usage,
 			Model:         "gpt-5.4",
 			UpstreamModel: "ultimate",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:    502,
 			Quota: 100,
-			Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+			Group: &routing.Group{Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
 	})
 
 	require.NoError(t, err)
@@ -341,31 +356,31 @@ func TestGatewayServiceRecordUsage_QoderUsesStandardRequestedModelPricing(t *tes
 
 func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseRequestedStandardPricing(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	groupID := int64(42)
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_channel_mapped_standard_requested_model_pricing",
 			Usage:         usage,
 			Model:         "gpt-5.4",
 			UpstreamModel: "ultimate",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "gpt-5.4",
 			ChannelMappedModel: "ultimate",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -381,31 +396,31 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseRequestedSta
 
 func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallback(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	groupID := int64(43)
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_channel_mapped_standard_requested_image_pricing",
 			Model:         "gpt-image-1",
 			UpstreamModel: "ultimate",
 			ImageCount:    2,
-			ImageSize:     ImageBillingSize1K,
+			ImageSize:     pricing.ImageBillingSize1K,
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      503,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 603},
-		Account: &Account{ID: 703, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 603},
+		Account: &Account{ID: 703, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "gpt-image-1",
 			ChannelMappedModel: "ultimate",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -414,7 +429,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallbac
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 2, usageRepo.lastLog.ImageCount)
 	// 与其他平台一样按所选计费模型使用通用图片回退价。
-	expected := svc.billingService.CalculateImageCost("ultimate", ImageBillingSize1K, 2, 1)
+	expected := svc.billingService.CalculateImageCost("ultimate", pricing.ImageBillingSize1K, 2, 1)
 	require.Positive(t, expected.TotalCost)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
@@ -425,31 +440,31 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallbac
 
 func TestGatewayServiceRecordUsage_QoderChannelMappedImageUsesGlobalFallback(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	groupID := int64(44)
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_channel_mapped_custom_alias_image_unpriced",
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			ImageCount:    1,
-			ImageSize:     ImageBillingSize1K,
+			ImageSize:     pricing.ImageBillingSize1K,
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      504,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 604},
-		Account: &Account{ID: 704, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 604},
+		Account: &Account{ID: 704, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "my-qoder-image",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -458,7 +473,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageUsesGlobalFallback(t *
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 1, usageRepo.lastLog.ImageCount)
 	// 与其他平台一样按所选计费模型使用通用图片回退价。
-	expected := svc.billingService.CalculateImageCost("qmodel", ImageBillingSize1K, 1, 1)
+	expected := svc.billingService.CalculateImageCost("qmodel", pricing.ImageBillingSize1K, 1, 1)
 	require.Positive(t, expected.TotalCost)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
@@ -472,43 +487,43 @@ func TestGatewayServiceRecordUsage_QoderRequestedBasisDoesNotFallBackToChannelMa
 	inputPrice := 0.01
 	outputPrice := 0.02
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qmodel"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 200}
+	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 200}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_requested_source_channel_mapped_manual_pricing",
 			Usage:         usage,
 			Model:         "ultimate",
 			UpstreamModel: "ultimate",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      505,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 605},
-		Account: &Account{ID: 705, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 605},
+		Account: &Account{ID: 705, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "qwen3.7-plus",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceRequested,
+			BillingModelSource: routing.BillingModelSourceRequested,
 		},
 	})
 
@@ -524,31 +539,31 @@ func TestGatewayServiceRecordUsage_QoderRequestedBasisDoesNotFallBackToChannelMa
 
 func TestGatewayServiceRecordUsage_QoderRequestedImageUsesGlobalFallback(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	groupID := int64(46)
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_requested_source_custom_image_unpriced",
 			Model:         "ultimate",
 			UpstreamModel: "ultimate",
 			ImageCount:    1,
-			ImageSize:     ImageBillingSize1K,
+			ImageSize:     pricing.ImageBillingSize1K,
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      506,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 606},
-		Account: &Account{ID: 706, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 606},
+		Account: &Account{ID: 706, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "custom-image-alias",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceRequested,
+			BillingModelSource: routing.BillingModelSourceRequested,
 		},
 	})
 
@@ -557,9 +572,9 @@ func TestGatewayServiceRecordUsage_QoderRequestedImageUsesGlobalFallback(t *test
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 1, usageRepo.lastLog.ImageCount)
 	require.NotNil(t, usageRepo.lastLog.BillingMode)
-	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
+	require.Equal(t, string(routing.BillingModeImage), *usageRepo.lastLog.BillingMode)
 	// 与其他平台一样按所选计费模型使用通用图片回退价。
-	expected := svc.billingService.CalculateImageCost("custom-image-alias", ImageBillingSize1K, 1, 1)
+	expected := svc.billingService.CalculateImageCost("custom-image-alias", pricing.ImageBillingSize1K, 1, 1)
 	require.Positive(t, expected.TotalCost)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
@@ -569,8 +584,8 @@ func TestGatewayServiceRecordUsage_QoderRequestedImageUsesGlobalFallback(t *test
 }
 
 func TestGatewayServiceRecordUsage_QoderAliasesInheritAvailableBuiltinPrices(t *testing.T) {
-	aliases := make([]string, 0, len(defaultQoderModelAliases))
-	for alias := range defaultQoderModelAliases {
+	aliases := make([]string, 0, len(qoder.DefaultQoderModelAliases))
+	for alias := range qoder.DefaultQoderModelAliases {
 		aliases = append(aliases, alias)
 	}
 	sort.Strings(aliases)
@@ -581,22 +596,22 @@ func TestGatewayServiceRecordUsage_QoderAliasesInheritAvailableBuiltinPrices(t *
 			billingRepo := &openAIRecordUsageBillingRepoStub{}
 			svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-			usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
+			usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
 			err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-				Result: &ForwardResult{
+				Result: &forwardcore.MessagesResult{
 					RequestID:     "qoder_alias_" + alias,
 					Usage:         usage,
 					Model:         alias,
 					UpstreamModel: lookupQoderAliasKeyForTest(alias),
 					Duration:      time.Second,
 				},
-				APIKey: &APIKey{
+				APIKey: &apikey.APIKey{
 					ID:    502,
 					Quota: 100,
-					Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+					Group: &routing.Group{Platform: capability.PlatformQoder, RateMultiplier: 1},
 				},
-				User:    &User{ID: 602},
-				Account: &Account{ID: 702, Platform: PlatformQoder},
+				User:    &identity.User{ID: 602},
+				Account: &Account{ID: 702, Platform: capability.PlatformQoder},
 			})
 
 			require.NoError(t, err)
@@ -624,27 +639,27 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedRouteKeyWithoutManualPricin
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_channel_mapped_route_key",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "qwen3.7-plus",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -663,43 +678,43 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseOriginalAlia
 	inputPrice := 0.01
 	outputPrice := 0.02
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qwen3.7-plus"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_channel_mapped_route_key_original_alias_pricing",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "qwen3.7-plus",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -720,49 +735,49 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisUsesRouteKeyPricing(t 
 	routeInputPrice := 0.50
 	routeOutputPrice := 0.75
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qmodel"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &routeInputPrice,
 		OutputPrice: &routeOutputPrice,
 	}
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qwen3.7-plus"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &aliasInputPrice,
 		OutputPrice: &aliasOutputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	expectedCost := float64(usage.InputTokens)*routeInputPrice + float64(usage.OutputTokens)*routeOutputPrice
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_alias_price_over_route_price",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "qwen3.7-plus",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -781,39 +796,39 @@ func TestGatewayServiceRecordUsage_QoderImplicitRequestedBasisDoesNotInferRouteK
 	inputPrice := 0.01
 	outputPrice := 0.02
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qmodel"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_default_alias_route_key_pricing",
 			Usage:         usage,
 			Model:         "qwen3.7-plus",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
 	})
 
 	require.NoError(t, err)
@@ -831,50 +846,50 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBlankRouteKeyDoesNotUseOrig
 	inputPrice := 0.01
 	outputPrice := 0.02
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
-		Platform:    PlatformQoder,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qmodel"}] = &routing.ChannelModelPricing{
+		Platform:    capability.PlatformQoder,
 		Models:      []string{"qmodel"},
-		BillingMode: BillingModeToken,
+		BillingMode: routing.BillingModeToken,
 	}
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qwen3.7-plus"}] = &ChannelModelPricing{
-		Platform:    PlatformQoder,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+		Platform:    capability.PlatformQoder,
 		Models:      []string{"qwen3.7-plus"},
-		BillingMode: BillingModeToken,
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_blank_route_key_original_alias_pricing",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "qwen3.7-plus",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -892,43 +907,43 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedCustom
 	groupID := int64(902)
 	inputPrice := 0.01
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "custom-qoder"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 100000}
+	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 100000}
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_channel_mapped_custom_alias_partial_pricing",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "custom-qoder",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -946,42 +961,42 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedStanda
 	groupID := int64(902)
 	inputPrice := 0.01
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "gpt-5.4"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "gpt-5.4"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 100000}
+	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 100000}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_channel_mapped_standard_model_partial_pricing",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "gpt-5.4",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -999,44 +1014,44 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedCustomAliasPartialManualPri
 	groupID := int64(902)
 	inputPrice := 0.01
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "custom-qoder"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 100000}
+	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 100000}
 	expectedCost := float64(usage.InputTokens) * inputPrice
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_account_mapped_custom_alias_partial_pricing",
 			Usage:         usage,
 			Model:         "custom-qoder",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "custom-qoder",
 			ChannelMappedModel: "custom-qoder",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -1055,22 +1070,22 @@ func TestGatewayServiceRecordUsage_QoderCustomMappedRouteKeyWithoutManualPricing
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_custom_alias_route_key",
 			Usage:         usage,
 			Model:         "custom-qoder-model",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:    502,
 			Quota: 100,
-			Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+			Group: &routing.Group{Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
 	})
 
 	require.NoError(t, err)
@@ -1090,26 +1105,26 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedImageUsesGlobalFallback(t *
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_custom_image_alias_route_key",
-			Usage:         ClaudeUsage{InputTokens: 10, OutputTokens: 5},
+			Usage:         upstream.TokenUsage{InputTokens: 10, OutputTokens: 5},
 			Model:         "custom-qoder-image",
 			UpstreamModel: "qmodel",
 			ImageCount:    2,
 			ImageSize:     "1K",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:    502,
 			Quota: 100,
-			Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+			Group: &routing.Group{Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "custom-qoder-image",
 			ChannelMappedModel: "custom-qoder-image",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -1117,9 +1132,9 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedImageUsesGlobalFallback(t *
 	require.Equal(t, 1, usageRepo.calls)
 	require.NotNil(t, usageRepo.lastLog)
 	require.NotNil(t, usageRepo.lastLog.BillingMode)
-	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
+	require.Equal(t, string(routing.BillingModeImage), *usageRepo.lastLog.BillingMode)
 	// 与其他平台一样按所选计费模型使用通用图片回退价。
-	expected := svc.billingService.CalculateImageCost("custom-qoder-image", ImageBillingSize1K, 2, usageRepo.lastLog.RateMultiplier)
+	expected := svc.billingService.CalculateImageCost("custom-qoder-image", pricing.ImageBillingSize1K, 2, usageRepo.lastLog.RateMultiplier)
 	require.Positive(t, expected.TotalCost)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
@@ -1131,30 +1146,30 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedImageUsesGlobalFallback(t *
 func TestGatewayServiceRecordUsage_QoderUpstreamBasisDoesNotUseRequestedStandardPricing(t *testing.T) {
 	groupID := int64(902)
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_upstream_billing_source_route_key",
 			Usage:         usage,
 			Model:         "gpt-5.4-mini",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "gpt-5.4-mini",
 			ChannelMappedModel: "gpt-5.4-mini",
-			BillingModelSource: BillingModelSourceUpstream,
+			BillingModelSource: routing.BillingModelSourceUpstream,
 		},
 	})
 
@@ -1171,36 +1186,36 @@ func TestGatewayServiceRecordUsage_QoderUpstreamBasisDoesNotUseRequestedStandard
 func TestGatewayServiceRecordUsage_QoderUpstreamBasisUsesStandardUpstreamPricing(t *testing.T) {
 	groupID := int64(902)
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
-	expectedCost, err := svc.billingService.CalculateCost("gpt-5.4-mini", UsageTokens{
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
+	expectedCost, err := svc.billingService.CalculateCost("gpt-5.4-mini", pricing.UsageTokens{
 		InputTokens:  usage.InputTokens,
 		OutputTokens: usage.OutputTokens,
 	}, 1)
 	require.NoError(t, err)
 
 	err = svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_manual_only_requested_standard_upstream",
 			Usage:         usage,
 			Model:         "qwen3.7-plus",
 			UpstreamModel: "gpt-5.4-mini",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "qwen3.7-plus",
 			ChannelMappedModel: "qwen3.7-plus",
-			BillingModelSource: BillingModelSourceUpstream,
+			BillingModelSource: routing.BillingModelSourceUpstream,
 		},
 	})
 
@@ -1219,13 +1234,13 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAli
 	inputPrice := 0.01
 	outputPrice := 0.02
 	cache := newEmptyChannelCache()
-	cache.channelByGroupID[groupID] = &Channel{
+	cache.channelByGroupID[groupID] = &routing.Channel{
 		ID:     groupID,
-		Status: StatusActive,
-		AccountStatsPricingRules: []AccountStatsPricingRule{
+		Status: billing.StatusActive,
+		AccountStatsPricingRules: []routing.AccountStatsPricingRule{
 			{
 				GroupIDs: []int64{groupID},
-				Pricing: []ChannelModelPricing{
+				Pricing: []routing.ChannelModelPricing{
 					{
 						Models:      []string{"qwen3.7-plus"},
 						InputPrice:  &inputPrice,
@@ -1235,37 +1250,37 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAli
 			},
 		},
 	}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.channelService = channelService
 
-	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 50}
+	usage := upstream.TokenUsage{InputTokens: 100, OutputTokens: 50}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_channel_mapped_account_stats_alias",
 			Usage:         usage,
 			Model:         "qmodel",
 			UpstreamModel: "qmodel",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
-		ChannelUsageFields: ChannelUsageFields{
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
+		ChannelUsageFields: routing.ChannelUsageFields{
 			OriginalModel:      "qwen3.7-plus",
 			ChannelMappedModel: "qmodel",
-			BillingModelSource: BillingModelSourceChannelMapped,
+			BillingModelSource: routing.BillingModelSourceChannelMapped,
 		},
 	})
 
@@ -1279,37 +1294,37 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAli
 func TestGatewayServiceRecordUsage_QoderBlankChannelPricingUsesZeroCost(t *testing.T) {
 	groupID := int64(902)
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "auto"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "auto"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_alias_blank_channel_pricing",
 			Usage:         usage,
 			Model:         "auto",
 			UpstreamModel: "auto",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
 	})
 
 	require.NoError(t, err)
@@ -1327,39 +1342,39 @@ func TestGatewayServiceRecordUsage_QoderManualChannelPricingOverridesDefaultAlia
 	inputPrice := 0.01
 	outputPrice := 0.02
 	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "auto"}] = &ChannelModelPricing{
-		BillingMode: BillingModeToken,
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "auto"}] = &routing.ChannelModelPricing{
+		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
-	cache.groupPlatform[groupID] = PlatformQoder
+	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.groupPlatform[groupID] = capability.PlatformQoder
 	cache.loadedAt = time.Now()
-	channelService := &ChannelService{}
-	seedLegacyChannelFixture(channelService, cache)
+
+	channelService := seedChannelFixture(cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
 
-	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	usage := upstream.TokenUsage{InputTokens: 1200, OutputTokens: 300}
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:     "qoder_alias_manual_pricing",
 			Usage:         usage,
 			Model:         "auto",
 			UpstreamModel: "auto",
 			Duration:      time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      502,
 			Quota:   100,
 			GroupID: &groupID,
-			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+			Group:   &routing.Group{ID: groupID, Platform: capability.PlatformQoder, RateMultiplier: 1},
 		},
-		User:    &User{ID: 602},
-		Account: &Account{ID: 702, Platform: PlatformQoder},
+		User:    &identity.User{ID: 602},
+		Account: &Account{ID: 702, Platform: capability.PlatformQoder},
 	})
 
 	require.NoError(t, err)
@@ -1373,7 +1388,7 @@ func TestGatewayServiceRecordUsage_QoderManualChannelPricingOverridesDefaultAlia
 }
 
 func lookupQoderAliasKeyForTest(alias string) string {
-	if info, ok := defaultQoderModelAliases[alias]; ok {
+	if info, ok := qoder.DefaultQoderModelAliases[alias]; ok {
 		return info.Key
 	}
 	return alias
@@ -1391,23 +1406,23 @@ func TestGatewayServiceRecordUsage_EmptyImageSizeDefaultsBeforeBillingAndPersist
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:      "gateway_image_default_size",
 			Model:          "gemini-image",
 			ImageCount:     1,
 			ImageInputSize: "auto",
 			Duration:       time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      801,
 			GroupID: i64p(groupID),
-			Group: &Group{
+			Group: &routing.Group{
 				ID:             groupID,
 				RateMultiplier: 1.0,
 				ModelPricing:   testImageModelPricing(map[string]*float64{"2K": &imagePrice2K}),
 			},
 		},
-		User:    &User{ID: 601},
+		User:    &identity.User{ID: 601},
 		Account: &Account{ID: 701},
 	})
 
@@ -1415,11 +1430,11 @@ func TestGatewayServiceRecordUsage_EmptyImageSizeDefaultsBeforeBillingAndPersist
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 1, usageRepo.lastLog.ImageCount)
 	require.NotNil(t, usageRepo.lastLog.ImageSize)
-	require.Equal(t, ImageBillingSize2K, *usageRepo.lastLog.ImageSize)
+	require.Equal(t, pricing.ImageBillingSize2K, *usageRepo.lastLog.ImageSize)
 	require.NotNil(t, usageRepo.lastLog.ImageInputSize)
 	require.Equal(t, "auto", *usageRepo.lastLog.ImageInputSize)
 	require.NotNil(t, usageRepo.lastLog.ImageSizeSource)
-	require.Equal(t, ImageSizeSourceDefault, *usageRepo.lastLog.ImageSizeSource)
+	require.Equal(t, pricing.ImageSizeSourceDefault, *usageRepo.lastLog.ImageSizeSource)
 	require.InDelta(t, 0.19, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, 0.19, usageRepo.lastLog.ActualCost, 1e-12)
 }
@@ -1436,21 +1451,21 @@ func TestGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputTokens(t *
 	svc.resolver = newOpenAITokenImageChannelPricingResolverForTest(t, groupID, "gemini-image")
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:  "gateway_peak_image_tokens",
 			Model:      "gemini-image",
 			ImageCount: 1,
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:       1000,
 				OutputTokens:      600,
 				ImageOutputTokens: 100,
 			},
 			Duration: time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:      802,
 			GroupID: i64p(groupID),
-			Group: &Group{
+			Group: &routing.Group{
 				ID:                 groupID,
 				RateMultiplier:     1.0,
 				PeakRateEnabled:    true,
@@ -1459,14 +1474,14 @@ func TestGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputTokens(t *
 				PeakRateMultiplier: 3.0,
 			},
 		},
-		User:    &User{ID: 602},
+		User:    &identity.User{ID: 602},
 		Account: &Account{ID: 702},
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, usageRepo.lastLog)
 	require.NotNil(t, usageRepo.lastLog.BillingMode)
-	require.Equal(t, string(BillingModeToken), *usageRepo.lastLog.BillingMode)
+	require.Equal(t, string(routing.BillingModeToken), *usageRepo.lastLog.BillingMode)
 	require.Equal(t, 3.0, usageRepo.lastLog.RateMultiplier)
 
 	textInput := 1000 * 3e-6
@@ -1484,27 +1499,27 @@ func TestGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputTokens(t *
 }
 
 func TestGatewayServiceRecordUsage_UsageLogWriteErrorDoesNotSkipBilling(t *testing.T) {
-	usageRepo := &openAIRecordUsageLogRepoStub{inserted: false, err: MarkUsageLogCreateNotPersisted(context.Canceled)}
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: false, err: usagecore.MarkUsageLogCreateNotPersisted(context.Canceled)}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
 	quotaSvc := &openAIRecordUsageAPIKeyQuotaStub{}
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "gateway_not_persisted",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:    503,
 			Quota: 100,
 		},
-		User:          &User{ID: 603},
+		User:          &identity.User{ID: 603},
 		Account:       &Account{ID: 703},
 		APIKeyService: quotaSvc,
 	})
@@ -1528,20 +1543,20 @@ func TestGatewayServiceRecordUsageWithLongContext_BillingUsesDetachedContext(t *
 	cancel()
 
 	err := svc.RecordUsageWithLongContext(reqCtx, &RecordUsageLongContextInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "gateway_long_context_detached_ctx",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  12,
 				OutputTokens: 8,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey: &APIKey{
+		APIKey: &apikey.APIKey{
 			ID:    502,
 			Quota: 100,
 		},
-		User:                  &User{ID: 602},
+		User:                  &identity.User{ID: 602},
 		Account:               &Account{ID: 702},
 		LongContextThreshold:  200000,
 		LongContextMultiplier: 2,
@@ -1563,19 +1578,19 @@ func TestGatewayServiceRecordUsage_UsesFallbackRequestIDForUsageLog(t *testing.T
 	subRepo := &openAIRecordUsageSubRepoStub{}
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, userRepo, subRepo)
 
-	ctx := context.WithValue(context.Background(), ctxkey.RequestID, "gateway-local-fallback")
+	ctx := context.WithValue(context.Background(), telemetry.RequestID, "gateway-local-fallback")
 	err := svc.RecordUsage(ctx, &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey:  &APIKey{ID: 504},
-		User:    &User{ID: 604},
+		APIKey:  &apikey.APIKey{ID: 504},
+		User:    &identity.User{ID: 604},
 		Account: &Account{ID: 704},
 	})
 
@@ -1586,23 +1601,23 @@ func TestGatewayServiceRecordUsage_UsesFallbackRequestIDForUsageLog(t *testing.T
 
 func TestGatewayServiceRecordUsage_PrefersClientRequestIDOverUpstreamRequestID(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	ctx := context.WithValue(context.Background(), ctxkey.ClientRequestID, "client-stable-123")
-	ctx = context.WithValue(ctx, ctxkey.RequestID, "req-local-ignored")
+	ctx := context.WithValue(context.Background(), telemetry.ClientRequestID, "client-stable-123")
+	ctx = context.WithValue(ctx, telemetry.RequestID, "req-local-ignored")
 	err := svc.RecordUsage(ctx, &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "upstream-volatile-456",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey:  &APIKey{ID: 506},
-		User:    &User{ID: 606},
+		APIKey:  &apikey.APIKey{ID: 506},
+		User:    &identity.User{ID: 606},
 		Account: &Account{ID: 706},
 	})
 
@@ -1615,21 +1630,21 @@ func TestGatewayServiceRecordUsage_PrefersClientRequestIDOverUpstreamRequestID(t
 
 func TestGatewayServiceRecordUsage_GeneratesRequestIDWhenAllSourcesMissing(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey:  &APIKey{ID: 507},
-		User:    &User{ID: 607},
+		APIKey:  &apikey.APIKey{ID: 507},
+		User:    &identity.User{ID: 607},
 		Account: &Account{ID: 707},
 	})
 
@@ -1644,23 +1659,23 @@ func TestGatewayServiceRecordUsage_DroppedUsageLogFallsBackToSyncCreate(t *testi
 	// 计费成功后 best-effort 写入被丢弃（队列超时）时必须同步兜底，
 	// 否则出现“已扣费但无 usage_log”的对账缺口（issue #3656）。
 	usageRepo := &openAIRecordUsageBestEffortLogRepoStub{
-		bestEffortErr: MarkUsageLogCreateDropped(errors.New("usage log best-effort queue full")),
+		bestEffortErr: usagecore.MarkUsageLogCreateDropped(errors.New("usage log best-effort queue full")),
 	}
-	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &billing.UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "gateway_drop_usage_log",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey:  &APIKey{ID: 508},
-		User:    &User{ID: 608},
+		APIKey:  &apikey.APIKey{ID: 508},
+		User:    &identity.User{ID: 608},
 		Account: &Account{ID: 708},
 	})
 
@@ -1680,17 +1695,17 @@ func TestGatewayServiceRecordUsage_BillingErrorWritesUnsettledUsageLog(t *testin
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo)
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "gateway_billing_fail",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 6,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey:  &APIKey{ID: 505},
-		User:    &User{ID: 605},
+		APIKey:  &apikey.APIKey{ID: 505},
+		User:    &identity.User{ID: 605},
 		Account: &Account{ID: 705},
 	})
 
@@ -1712,9 +1727,9 @@ func TestGatewayServiceRecordUsage_ReasoningEffortPersisted(t *testing.T) {
 
 	effort := "max"
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "effort_test",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 5,
 			},
@@ -1722,8 +1737,8 @@ func TestGatewayServiceRecordUsage_ReasoningEffortPersisted(t *testing.T) {
 			Duration:        time.Second,
 			ReasoningEffort: &effort,
 		},
-		APIKey:  &APIKey{ID: 1},
-		User:    &User{ID: 1},
+		APIKey:  &apikey.APIKey{ID: 1},
+		User:    &identity.User{ID: 1},
 		Account: &Account{ID: 1},
 	})
 
@@ -1738,17 +1753,17 @@ func TestGatewayServiceRecordUsage_ReasoningEffortNil(t *testing.T) {
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID: "no_effort_test",
-			Usage: ClaudeUsage{
+			Usage: upstream.TokenUsage{
 				InputTokens:  10,
 				OutputTokens: 5,
 			},
 			Model:    "claude-sonnet-4",
 			Duration: time.Second,
 		},
-		APIKey:  &APIKey{ID: 1},
-		User:    &User{ID: 1},
+		APIKey:  &apikey.APIKey{ID: 1},
+		User:    &identity.User{ID: 1},
 		Account: &Account{ID: 1},
 	})
 
@@ -1759,11 +1774,11 @@ func TestGatewayServiceRecordUsage_ReasoningEffortNil(t *testing.T) {
 
 // newGatewayRecordUsageServiceWithResolverForTest 按生产装配方式构造带解析器的
 // token 计费服务，确保测试走会处理服务档位的统一计费路径。
-func newGatewayRecordUsageServiceWithResolverForTest(usageRepo UsageLogRepository) (*GatewayService, *APIKey) {
+func newGatewayRecordUsageServiceWithResolverForTest(usageRepo usagecore.UsageLogRepository) (*GatewayService, *apikey.APIKey) {
 	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 	svc.resolver = NewModelPricingResolver(nil, svc.billingService)
 	groupID := int64(7)
-	return svc, &APIKey{ID: 1, GroupID: &groupID, Group: &Group{ID: groupID, RateMultiplier: 1.0}}
+	return svc, &apikey.APIKey{ID: 1, GroupID: &groupID, Group: &routing.Group{ID: groupID, RateMultiplier: 1.0}}
 }
 
 func TestGatewayServiceRecordUsage_FastSpeedDowngradedByUpstreamResponse(t *testing.T) {
@@ -1772,17 +1787,17 @@ func TestGatewayServiceRecordUsage_FastSpeedDowngradedByUpstreamResponse(t *test
 
 	tier := "fast"
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:                   "fast_downgraded_test",
-			Usage:                       ClaudeUsage{InputTokens: 100, OutputTokens: 50},
+			Usage:                       upstream.TokenUsage{InputTokens: 100, OutputTokens: 50},
 			Model:                       "claude-opus-5",
 			Duration:                    time.Second,
 			ServiceTier:                 &tier,
 			UpstreamResponseServiceTier: "standard",
 		},
 		APIKey:  apiKey,
-		User:    &User{ID: 1},
-		Account: &Account{ID: 1, Platform: PlatformAnthropic},
+		User:    &identity.User{ID: 1},
+		Account: &Account{ID: 1, Platform: capability.PlatformAnthropic},
 	})
 
 	require.NoError(t, err)
@@ -1790,7 +1805,7 @@ func TestGatewayServiceRecordUsage_FastSpeedDowngradedByUpstreamResponse(t *test
 	require.NotNil(t, usageRepo.lastLog.ServiceTier)
 	require.Equal(t, "standard", *usageRepo.lastLog.ServiceTier)
 
-	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50}
+	tokens := pricing.UsageTokens{InputTokens: 100, OutputTokens: 50}
 	standardCost, err := svc.billingService.CalculateCost("claude-opus-5", tokens, 1.0)
 	require.NoError(t, err)
 	fastCost, err := svc.billingService.CalculateCostWithServiceTier("claude-opus-5", tokens, 1.0, "fast")
@@ -1805,24 +1820,24 @@ func TestGatewayServiceRecordUsage_FastSpeedHonouredKeepsPremium(t *testing.T) {
 
 	tier := "fast"
 	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
+		Result: &forwardcore.MessagesResult{
 			RequestID:                   "fast_honoured_test",
-			Usage:                       ClaudeUsage{InputTokens: 100, OutputTokens: 50},
+			Usage:                       upstream.TokenUsage{InputTokens: 100, OutputTokens: 50},
 			Model:                       "claude-opus-5",
 			Duration:                    time.Second,
 			ServiceTier:                 &tier,
 			UpstreamResponseServiceTier: "fast",
 		},
 		APIKey:  apiKey,
-		User:    &User{ID: 1},
-		Account: &Account{ID: 1, Platform: PlatformAnthropic},
+		User:    &identity.User{ID: 1},
+		Account: &Account{ID: 1, Platform: capability.PlatformAnthropic},
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, "fast", *usageRepo.lastLog.ServiceTier)
 
-	fastCost, err := svc.billingService.CalculateCostWithServiceTier("claude-opus-5", UsageTokens{InputTokens: 100, OutputTokens: 50}, 1.0, "fast")
+	fastCost, err := svc.billingService.CalculateCostWithServiceTier("claude-opus-5", pricing.UsageTokens{InputTokens: 100, OutputTokens: 50}, 1.0, "fast")
 	require.NoError(t, err)
 	require.InDelta(t, fastCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-10)
 }

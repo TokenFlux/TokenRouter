@@ -4,8 +4,9 @@ package account
 import (
 	json "encoding/json"
 	fmt "fmt"
-	usageview "github.com/TokenFlux/TokenRouter/internal/account/usageview"
 	strings "strings"
+
+	usageview "github.com/TokenFlux/TokenRouter/internal/account/usageview"
 )
 
 func ParseGrokBillingSnapshot(extra map[string]any) (*usageview.BillingSummary, error) {

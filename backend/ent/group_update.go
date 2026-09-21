@@ -20,7 +20,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/predicate"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 // GroupUpdate is the builder for updating Group entities.
@@ -251,13 +253,13 @@ func (_u *GroupUpdate) SetNillableSchedulerType(v *string) *GroupUpdate {
 }
 
 // SetAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field.
-func (_u *GroupUpdate) SetAdvancedSchedulerOverrides(v domain.GroupAdvancedSchedulerOverrides) *GroupUpdate {
+func (_u *GroupUpdate) SetAdvancedSchedulerOverrides(v policy.GroupAdvancedSchedulerOverrides) *GroupUpdate {
 	_u.mutation.SetAdvancedSchedulerOverrides(v)
 	return _u
 }
 
 // SetNillableAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableAdvancedSchedulerOverrides(v *domain.GroupAdvancedSchedulerOverrides) *GroupUpdate {
+func (_u *GroupUpdate) SetNillableAdvancedSchedulerOverrides(v *policy.GroupAdvancedSchedulerOverrides) *GroupUpdate {
 	if v != nil {
 		_u.SetAdvancedSchedulerOverrides(*v)
 	}
@@ -698,19 +700,19 @@ func (_u *GroupUpdate) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdate {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (_u *GroupUpdate) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpdate {
+func (_u *GroupUpdate) SetAllowedProtocols(v []protocol.ProtocolID) *GroupUpdate {
 	_u.mutation.SetAllowedProtocols(v)
 	return _u
 }
 
 // AppendAllowedProtocols appends value to the "allowed_protocols" field.
-func (_u *GroupUpdate) AppendAllowedProtocols(v []domain.ProtocolID) *GroupUpdate {
+func (_u *GroupUpdate) AppendAllowedProtocols(v []protocol.ProtocolID) *GroupUpdate {
 	_u.mutation.AppendAllowedProtocols(v)
 	return _u
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (_u *GroupUpdate) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpdate {
+func (_u *GroupUpdate) SetProtocolFallbacks(v map[protocol.ProtocolID]protocol.ProtocolID) *GroupUpdate {
 	_u.mutation.SetProtocolFallbacks(v)
 	return _u
 }
@@ -828,13 +830,13 @@ func (_u *GroupUpdate) SetNillableDefaultMappedModel(v *string) *GroupUpdate {
 }
 
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (_u *GroupUpdate) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
+func (_u *GroupUpdate) SetMessagesDispatchModelConfig(v accessview.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
 	_u.mutation.SetMessagesDispatchModelConfig(v)
 	return _u
 }
 
 // SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
+func (_u *GroupUpdate) SetNillableMessagesDispatchModelConfig(v *accessview.OpenAIMessagesDispatchModelConfig) *GroupUpdate {
 	if v != nil {
 		_u.SetMessagesDispatchModelConfig(*v)
 	}
@@ -842,13 +844,13 @@ func (_u *GroupUpdate) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMe
 }
 
 // SetModelsListConfig sets the "models_list_config" field.
-func (_u *GroupUpdate) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdate {
+func (_u *GroupUpdate) SetModelsListConfig(v accessview.GroupModelsListConfig) *GroupUpdate {
 	_u.mutation.SetModelsListConfig(v)
 	return _u
 }
 
 // SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdate {
+func (_u *GroupUpdate) SetNillableModelsListConfig(v *accessview.GroupModelsListConfig) *GroupUpdate {
 	if v != nil {
 		_u.SetModelsListConfig(*v)
 	}
@@ -856,13 +858,13 @@ func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConf
 }
 
 // SetAvailabilityProbeConfig sets the "availability_probe_config" field.
-func (_u *GroupUpdate) SetAvailabilityProbeConfig(v domain.GroupAvailabilityProbeConfig) *GroupUpdate {
+func (_u *GroupUpdate) SetAvailabilityProbeConfig(v accessview.GroupAvailabilityProbeConfig) *GroupUpdate {
 	_u.mutation.SetAvailabilityProbeConfig(v)
 	return _u
 }
 
 // SetNillableAvailabilityProbeConfig sets the "availability_probe_config" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableAvailabilityProbeConfig(v *domain.GroupAvailabilityProbeConfig) *GroupUpdate {
+func (_u *GroupUpdate) SetNillableAvailabilityProbeConfig(v *accessview.GroupAvailabilityProbeConfig) *GroupUpdate {
 	if v != nil {
 		_u.SetAvailabilityProbeConfig(*v)
 	}
@@ -919,13 +921,13 @@ func (_u *GroupUpdate) SetNillableMaxReasoningEffortOverLimit(v *string) *GroupU
 }
 
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
-func (_u *GroupUpdate) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdate {
+func (_u *GroupUpdate) SetReasoningEffortMappings(v []accessview.ReasoningEffortMapping) *GroupUpdate {
 	_u.mutation.SetReasoningEffortMappings(v)
 	return _u
 }
 
 // AppendReasoningEffortMappings appends value to the "reasoning_effort_mappings" field.
-func (_u *GroupUpdate) AppendReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdate {
+func (_u *GroupUpdate) AppendReasoningEffortMappings(v []accessview.ReasoningEffortMapping) *GroupUpdate {
 	_u.mutation.AppendReasoningEffortMappings(v)
 	return _u
 }
@@ -2101,13 +2103,13 @@ func (_u *GroupUpdateOne) SetNillableSchedulerType(v *string) *GroupUpdateOne {
 }
 
 // SetAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field.
-func (_u *GroupUpdateOne) SetAdvancedSchedulerOverrides(v domain.GroupAdvancedSchedulerOverrides) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetAdvancedSchedulerOverrides(v policy.GroupAdvancedSchedulerOverrides) *GroupUpdateOne {
 	_u.mutation.SetAdvancedSchedulerOverrides(v)
 	return _u
 }
 
 // SetNillableAdvancedSchedulerOverrides sets the "advanced_scheduler_overrides" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableAdvancedSchedulerOverrides(v *domain.GroupAdvancedSchedulerOverrides) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetNillableAdvancedSchedulerOverrides(v *policy.GroupAdvancedSchedulerOverrides) *GroupUpdateOne {
 	if v != nil {
 		_u.SetAdvancedSchedulerOverrides(*v)
 	}
@@ -2548,19 +2550,19 @@ func (_u *GroupUpdateOne) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdate
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (_u *GroupUpdateOne) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetAllowedProtocols(v []protocol.ProtocolID) *GroupUpdateOne {
 	_u.mutation.SetAllowedProtocols(v)
 	return _u
 }
 
 // AppendAllowedProtocols appends value to the "allowed_protocols" field.
-func (_u *GroupUpdateOne) AppendAllowedProtocols(v []domain.ProtocolID) *GroupUpdateOne {
+func (_u *GroupUpdateOne) AppendAllowedProtocols(v []protocol.ProtocolID) *GroupUpdateOne {
 	_u.mutation.AppendAllowedProtocols(v)
 	return _u
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (_u *GroupUpdateOne) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetProtocolFallbacks(v map[protocol.ProtocolID]protocol.ProtocolID) *GroupUpdateOne {
 	_u.mutation.SetProtocolFallbacks(v)
 	return _u
 }
@@ -2678,13 +2680,13 @@ func (_u *GroupUpdateOne) SetNillableDefaultMappedModel(v *string) *GroupUpdateO
 }
 
 // SetMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field.
-func (_u *GroupUpdateOne) SetMessagesDispatchModelConfig(v domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetMessagesDispatchModelConfig(v accessview.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
 	_u.mutation.SetMessagesDispatchModelConfig(v)
 	return _u
 }
 
 // SetNillableMessagesDispatchModelConfig sets the "messages_dispatch_model_config" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableMessagesDispatchModelConfig(v *domain.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetNillableMessagesDispatchModelConfig(v *accessview.OpenAIMessagesDispatchModelConfig) *GroupUpdateOne {
 	if v != nil {
 		_u.SetMessagesDispatchModelConfig(*v)
 	}
@@ -2692,13 +2694,13 @@ func (_u *GroupUpdateOne) SetNillableMessagesDispatchModelConfig(v *domain.OpenA
 }
 
 // SetModelsListConfig sets the "models_list_config" field.
-func (_u *GroupUpdateOne) SetModelsListConfig(v domain.GroupModelsListConfig) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetModelsListConfig(v accessview.GroupModelsListConfig) *GroupUpdateOne {
 	_u.mutation.SetModelsListConfig(v)
 	return _u
 }
 
 // SetNillableModelsListConfig sets the "models_list_config" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListConfig) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *accessview.GroupModelsListConfig) *GroupUpdateOne {
 	if v != nil {
 		_u.SetModelsListConfig(*v)
 	}
@@ -2706,13 +2708,13 @@ func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListC
 }
 
 // SetAvailabilityProbeConfig sets the "availability_probe_config" field.
-func (_u *GroupUpdateOne) SetAvailabilityProbeConfig(v domain.GroupAvailabilityProbeConfig) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetAvailabilityProbeConfig(v accessview.GroupAvailabilityProbeConfig) *GroupUpdateOne {
 	_u.mutation.SetAvailabilityProbeConfig(v)
 	return _u
 }
 
 // SetNillableAvailabilityProbeConfig sets the "availability_probe_config" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableAvailabilityProbeConfig(v *domain.GroupAvailabilityProbeConfig) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetNillableAvailabilityProbeConfig(v *accessview.GroupAvailabilityProbeConfig) *GroupUpdateOne {
 	if v != nil {
 		_u.SetAvailabilityProbeConfig(*v)
 	}
@@ -2769,13 +2771,13 @@ func (_u *GroupUpdateOne) SetNillableMaxReasoningEffortOverLimit(v *string) *Gro
 }
 
 // SetReasoningEffortMappings sets the "reasoning_effort_mappings" field.
-func (_u *GroupUpdateOne) SetReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetReasoningEffortMappings(v []accessview.ReasoningEffortMapping) *GroupUpdateOne {
 	_u.mutation.SetReasoningEffortMappings(v)
 	return _u
 }
 
 // AppendReasoningEffortMappings appends value to the "reasoning_effort_mappings" field.
-func (_u *GroupUpdateOne) AppendReasoningEffortMappings(v []domain.ReasoningEffortMapping) *GroupUpdateOne {
+func (_u *GroupUpdateOne) AppendReasoningEffortMappings(v []accessview.ReasoningEffortMapping) *GroupUpdateOne {
 	_u.mutation.AppendReasoningEffortMappings(v)
 	return _u
 }

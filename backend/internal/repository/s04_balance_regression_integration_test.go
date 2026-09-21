@@ -4,11 +4,17 @@
 package repository
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
 	context "context"
+
 	fmt "fmt"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	require "github.com/stretchr/testify/require"
+
 	testing "testing"
+
 	time "time"
 )
 
@@ -16,15 +22,15 @@ import (
 func TestS04SetBalanceReturnsLockedOldValue(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
-	user := mustCreateUser(t, client, &service.User{Email: fmt.Sprintf("s04-set-%d@example.com", time.Now().UnixNano()), Balance: 100})
-	repo := NewUserRepository(client, integrationDB)
+	user := mustCreateUser(t, client, &identity.User{Email: fmt.Sprintf("s04-set-%d@example.com", time.Now().UnixNano()), Balance: 100})
+	repo := postgres.NewUserStore(client, integrationDB)
 	tx, err := integrationDB.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback() }()
 	_, err = tx.ExecContext(ctx, "UPDATE users SET balance = balance - 20 WHERE id = $1", user.ID)
 	require.NoError(t, err)
 	type outcome struct {
-		change service.BalanceChange
+		change identity.BalanceChange
 		err    error
 	}
 	done := make(chan outcome, 1)

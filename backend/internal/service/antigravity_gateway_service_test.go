@@ -13,10 +13,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
+	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +47,7 @@ func (w *antigravityFailingWriter) Write(p []byte) (int, error) {
 // newAntigravityTestService 创建用于流式测试的 AntigravityGatewayService
 func newAntigravityTestService(cfg *config.Config) *AntigravityGatewayService {
 	return &AntigravityGatewayService{
-		settingService: &SettingService{cfg: cfg},
+		settingService: newExecutionReadersFixture(nil, cfg),
 	}
 }
 
@@ -49,7 +57,7 @@ func TestAntigravityUpstreamErrorBodyReadLimit_RespectsDiagnosticLimit(t *testin
 		LogUpstreamErrorBodyMaxBytes: int(gatewayUpstreamErrorBodyReadLimit) + 1024,
 	}})
 
-	require.Equal(t, int64(svc.settingService.cfg.Gateway.LogUpstreamErrorBodyMaxBytes), svc.upstreamErrorBodyReadLimit())
+	require.Equal(t, int64(svc.settingService.Antigravity.LogUpstreamErrorBodyMaxBytes), svc.upstreamErrorBodyReadLimit())
 }
 
 func TestStripSignatureSensitiveBlocksFromClaudeRequest(t *testing.T) {
@@ -77,7 +85,7 @@ func TestStripSignatureSensitiveBlocksFromClaudeRequest(t *testing.T) {
 		},
 	}
 
-	changed, err := stripSignatureSensitiveBlocksFromClaudeRequest(req)
+	changed, err := protocolanthropic.StripSignatureSensitiveBlocksFromClaudeRequest(req)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Nil(t, req.Thinking)
@@ -113,7 +121,7 @@ func TestStripThinkingFromClaudeRequest_DoesNotDowngradeTools(t *testing.T) {
 		},
 	}
 
-	changed, err := stripThinkingFromClaudeRequest(req)
+	changed, err := protocolanthropic.StripThinkingFromClaudeRequest(req)
 	require.NoError(t, err)
 	require.True(t, changed)
 	require.Nil(t, req.Thinking)
@@ -127,9 +135,9 @@ func TestStripThinkingFromClaudeRequest_DoesNotDowngradeTools(t *testing.T) {
 }
 
 func TestIsPromptTooLongError(t *testing.T) {
-	require.True(t, isPromptTooLongError([]byte(`{"error":{"message":"Prompt is too long"}}`)))
-	require.True(t, isPromptTooLongError([]byte(`{"message":"Prompt is too long"}`)))
-	require.False(t, isPromptTooLongError([]byte(`{"error":{"message":"other"}}`)))
+	require.True(t, antigravity.IsPromptTooLongError([]byte(`{"error":{"message":"Prompt is too long"}}`)))
+	require.True(t, antigravity.IsPromptTooLongError([]byte(`{"message":"Prompt is too long"}`)))
+	require.False(t, antigravity.IsPromptTooLongError([]byte(`{"error":{"message":"other"}}`)))
 }
 
 type httpUpstreamStub struct {
@@ -188,12 +196,12 @@ func (s *queuedHTTPUpstreamStub) DoWithTLS(req *http.Request, proxyURL string, a
 
 type antigravitySettingRepoStub struct{}
 
-func (s *antigravitySettingRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
+func (s *antigravitySettingRepoStub) Get(ctx context.Context, key string) (*settingscore.Setting, error) {
 	panic("unexpected Get call")
 }
 
 func (s *antigravitySettingRepoStub) GetValue(ctx context.Context, key string) (string, error) {
-	return "", ErrSettingNotFound
+	return "", settingscore.ErrSettingNotFound
 }
 
 func (s *antigravitySettingRepoStub) Set(ctx context.Context, key, value string) error {
@@ -256,7 +264,7 @@ func TestResolveAntigravityProjectID(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := resolveAntigravityProjectID(tc.account)
 			if tc.wantErr {
-				require.ErrorIs(t, err, errAntigravityProjectIDRequired)
+				require.ErrorIs(t, err, antigravity.ErrProjectIDRequired)
 				require.Empty(t, got)
 				return
 			}
@@ -267,7 +275,7 @@ func TestResolveAntigravityProjectID(t *testing.T) {
 }
 
 func TestAntigravityGatewayService_ForwardGemini_UsesConfiguredProjectFallback(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -290,17 +298,17 @@ func TestAntigravityGatewayService_ForwardGemini_UsesConfiguredProjectFallback(t
 		},
 	}
 	svc := &AntigravityGatewayService{
-		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
-		tokenProvider:  &AntigravityTokenProvider{},
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   upstream,
 	}
 
 	account := &Account{
 		ID:          101,
 		Name:        "acc-configured-project",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -322,7 +330,7 @@ func TestAntigravityGatewayService_ForwardGemini_UsesConfiguredProjectFallback(t
 }
 
 func TestAntigravityGatewayService_ForwardGemini_ImageUsesDefaultMappingAndOAuth(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"draw a cat"}]}],"generationConfig":{"responseModalities":["TEXT","IMAGE"],"imageConfig":{"aspectRatio":"1:1"}}}`)
@@ -343,16 +351,16 @@ func TestAntigravityGatewayService_ForwardGemini_ImageUsesDefaultMappingAndOAuth
 		},
 	}
 	svc := &AntigravityGatewayService{
-		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
-		tokenProvider:  &AntigravityTokenProvider{},
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   upstream,
 	}
 	account := &Account{
 		ID:          104,
 		Name:        "antigravity-image",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "test-access-token",
@@ -381,7 +389,7 @@ func TestAntigravityGatewayService_ForwardGemini_ImageUsesDefaultMappingAndOAuth
 }
 
 func TestAntigravityGatewayService_ForwardGemini_PreservesServerSideToolInvocationConfig(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	body := []byte(`{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"tools":[{"functionDeclarations":[{"name":"get_weather","parameters":{"type":"object","additionalProperties":false}}]},{"googleSearch":{}}],"toolConfig":{"includeServerSideToolInvocations":true}}`)
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
@@ -394,12 +402,12 @@ func TestAntigravityGatewayService_ForwardGemini_PreservesServerSideToolInvocati
 		Body:       io.NopCloser(strings.NewReader("data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"ok\"}]},\"finishReason\":\"STOP\"}],\"usageMetadata\":{}}}\n\n")),
 	}}}
 	svc := &AntigravityGatewayService{
-		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
-		tokenProvider:  &AntigravityTokenProvider{},
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   upstream,
 	}
 	account := &Account{
-		ID: 103, Name: "native-gemini", Platform: PlatformAntigravity, Type: AccountTypeOAuth, Status: StatusActive, Concurrency: 1,
+		ID: 103, Name: "native-gemini", Platform: capability.PlatformAntigravity, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "token", "project_id": "project-103", "model_mapping": map[string]any{"gemini-2.5-flash": "gemini-2.5-flash"}},
 	}
 
@@ -419,7 +427,7 @@ func TestAntigravityGatewayService_ForwardGemini_PreservesServerSideToolInvocati
 }
 
 func TestAntigravityGatewayService_ForwardGemini_MissingProjectReturnsLocalError(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -433,16 +441,16 @@ func TestAntigravityGatewayService_ForwardGemini_MissingProjectReturnsLocalError
 
 	upstream := &queuedHTTPUpstreamStub{}
 	svc := &AntigravityGatewayService{
-		tokenProvider: &AntigravityTokenProvider{},
+		tokenProvider: newAntigravityTokenSourceForTest(nil),
 		httpUpstream:  upstream,
 	}
 
 	account := &Account{
 		ID:          102,
 		Name:        "acc-missing-project",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -454,7 +462,7 @@ func TestAntigravityGatewayService_ForwardGemini_MissingProjectReturnsLocalError
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, "gemini-2.5-flash", "streamGenerateContent", true, body, false)
 	require.Nil(t, result)
-	require.ErrorIs(t, err, errAntigravityProjectIDRequired)
+	require.ErrorIs(t, err, antigravity.ErrProjectIDRequired)
 	require.Equal(t, http.StatusBadRequest, writer.Code)
 	require.Empty(t, upstream.requestBodies)
 	require.Contains(t, writer.Body.String(), "project_id")
@@ -462,7 +470,7 @@ func TestAntigravityGatewayService_ForwardGemini_MissingProjectReturnsLocalError
 }
 
 func TestAntigravityGatewayService_Forward_PromptTooLong(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -487,17 +495,17 @@ func TestAntigravityGatewayService_Forward_PromptTooLong(t *testing.T) {
 	}
 
 	svc := &AntigravityGatewayService{
-		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
-		tokenProvider:  &AntigravityTokenProvider{},
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   &httpUpstreamStub{resp: resp},
 	}
 
 	account := &Account{
 		ID:          1,
 		Name:        "acc-1",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -508,15 +516,15 @@ func TestAntigravityGatewayService_Forward_PromptTooLong(t *testing.T) {
 	result, err := svc.Forward(context.Background(), c, account, body, false)
 	require.Nil(t, result)
 
-	var promptErr *PromptTooLongError
+	var promptErr *antigravity.PromptTooLongError
 	require.ErrorAs(t, err, &promptErr)
 	require.Equal(t, http.StatusBadRequest, promptErr.StatusCode)
 	require.Equal(t, "req-1", promptErr.RequestID)
 	require.NotEmpty(t, promptErr.Body)
 
-	raw, ok := c.Get(OpsUpstreamErrorsKey)
+	raw, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
 	require.True(t, ok)
-	events, ok := raw.([]*OpsUpstreamErrorEvent)
+	events, ok := raw.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
 	require.Len(t, events, 1)
 	require.Equal(t, "prompt_too_long", events[0].Kind)
@@ -526,7 +534,7 @@ func TestAntigravityGatewayService_Forward_PromptTooLong(t *testing.T) {
 // 验证：当账号存在模型限流且剩余时间 >= antigravityRateLimitThreshold 时，
 // Forward 方法应返回 UpstreamFailoverError，触发 Handler 切换账号
 func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -545,7 +553,7 @@ func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *tes
 
 	// 不需要真正调用上游，因为预检查会直接返回切换信号
 	svc := &AntigravityGatewayService{
-		tokenProvider: &AntigravityTokenProvider{},
+		tokenProvider: newAntigravityTokenSourceForTest(nil),
 		httpUpstream:  &httpUpstreamStub{resp: nil, err: nil},
 	}
 
@@ -554,9 +562,9 @@ func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *tes
 	account := &Account{
 		ID:          1,
 		Name:        "acc-rate-limited",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -576,7 +584,7 @@ func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *tes
 	require.NotNil(t, err, "Forward should return error")
 
 	// 核心验证：错误应该是 UpstreamFailoverError，而不是普通 502 错误
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr, "error should be UpstreamFailoverError to trigger account switch")
 	require.Equal(t, http.StatusServiceUnavailable, failoverErr.StatusCode)
 	// 非粘性会话请求，ForceCacheBilling 应为 false
@@ -586,7 +594,7 @@ func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *tes
 // TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover
 // 验证：ForwardGemini 方法同样能正确将 AntigravityAccountSwitchError 转换为 UpstreamFailoverError
 func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -602,7 +610,7 @@ func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(
 
 	// 不需要真正调用上游，因为预检查会直接返回切换信号
 	svc := &AntigravityGatewayService{
-		tokenProvider: &AntigravityTokenProvider{},
+		tokenProvider: newAntigravityTokenSourceForTest(nil),
 		httpUpstream:  &httpUpstreamStub{resp: nil, err: nil},
 	}
 
@@ -611,9 +619,9 @@ func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(
 	account := &Account{
 		ID:          2,
 		Name:        "acc-gemini-rate-limited",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -633,7 +641,7 @@ func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(
 	require.NotNil(t, err, "ForwardGemini should return error")
 
 	// 核心验证：错误应该是 UpstreamFailoverError，而不是普通 502 错误
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr, "error should be UpstreamFailoverError to trigger account switch")
 	require.Equal(t, http.StatusServiceUnavailable, failoverErr.StatusCode)
 	// 非粘性会话请求，ForceCacheBilling 应为 false
@@ -643,7 +651,7 @@ func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(
 // TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling
 // 验证：粘性会话切换时，UpstreamFailoverError.ForceCacheBilling 应为 true
 func TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -657,7 +665,7 @@ func TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling(t *tes
 	c.Request = req
 
 	svc := &AntigravityGatewayService{
-		tokenProvider: &AntigravityTokenProvider{},
+		tokenProvider: newAntigravityTokenSourceForTest(nil),
 		httpUpstream:  &httpUpstreamStub{resp: nil, err: nil},
 	}
 
@@ -666,9 +674,9 @@ func TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling(t *tes
 	account := &Account{
 		ID:          3,
 		Name:        "acc-sticky-rate-limited",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -689,7 +697,7 @@ func TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling(t *tes
 	require.NotNil(t, err, "Forward should return error")
 
 	// 核心验证：粘性会话切换时，ForceCacheBilling 应为 true
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr, "error should be UpstreamFailoverError to trigger account switch")
 	require.Equal(t, http.StatusServiceUnavailable, failoverErr.StatusCode)
 	require.True(t, failoverErr.ForceCacheBilling, "ForceCacheBilling should be true for sticky session switch")
@@ -698,7 +706,7 @@ func TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling(t *tes
 // TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling verifies
 // that ForwardGemini sets ForceCacheBilling=true for sticky session switch.
 func TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -713,7 +721,7 @@ func TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling(
 	c.Request = req
 
 	svc := &AntigravityGatewayService{
-		tokenProvider: &AntigravityTokenProvider{},
+		tokenProvider: newAntigravityTokenSourceForTest(nil),
 		httpUpstream:  &httpUpstreamStub{resp: nil, err: nil},
 	}
 
@@ -722,9 +730,9 @@ func TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling(
 	account := &Account{
 		ID:          4,
 		Name:        "acc-gemini-sticky-rate-limited",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -745,14 +753,14 @@ func TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling(
 	require.NotNil(t, err, "ForwardGemini should return error")
 
 	// 核心验证：粘性会话切换时，ForceCacheBilling 应为 true
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr, "error should be UpstreamFailoverError to trigger account switch")
 	require.Equal(t, http.StatusServiceUnavailable, failoverErr.StatusCode)
 	require.True(t, failoverErr.ForceCacheBilling, "ForceCacheBilling should be true for sticky session switch")
 }
 
 func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRateLimit(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -783,7 +791,7 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 	repo := &stubAntigravityAccountRepo{}
 	cache := &stubSmartRetryCache{}
 	svc := &AntigravityGatewayService{
-		tokenProvider: &AntigravityTokenProvider{},
+		tokenProvider: newAntigravityTokenSourceForTest(nil),
 		httpUpstream:  upstream,
 		accountRepo:   repo,
 		cache:         cache,
@@ -792,9 +800,9 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 	account := &Account{
 		ID:          44,
 		Name:        "acc-gemini-runtime-rate-limited",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{
@@ -820,7 +828,7 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 	)
 
 	require.Nil(t, result)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.Equal(t, http.StatusServiceUnavailable, failoverErr.StatusCode)
 	require.Len(t, repo.modelRateLimitCalls, 2)
@@ -834,7 +842,7 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 // TestAntigravityGatewayService_Forward_BillsWithMappedModel
 // 验证：Antigravity Claude 转发返回的计费模型使用映射后的模型
 func TestAntigravityGatewayService_Forward_BillsWithMappedModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -859,8 +867,8 @@ func TestAntigravityGatewayService_Forward_BillsWithMappedModel(t *testing.T) {
 	}
 
 	svc := &AntigravityGatewayService{
-		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
-		tokenProvider:  &AntigravityTokenProvider{},
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   &httpUpstreamStub{resp: resp},
 	}
 
@@ -868,9 +876,9 @@ func TestAntigravityGatewayService_Forward_BillsWithMappedModel(t *testing.T) {
 	account := &Account{
 		ID:          5,
 		Name:        "acc-forward-billing",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -891,7 +899,7 @@ func TestAntigravityGatewayService_Forward_BillsWithMappedModel(t *testing.T) {
 // TestAntigravityGatewayService_ForwardGemini_BillsWithMappedModel
 // 验证：Antigravity Gemini 转发返回的计费模型使用映射后的模型
 func TestAntigravityGatewayService_ForwardGemini_BillsWithMappedModel(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -913,8 +921,8 @@ func TestAntigravityGatewayService_ForwardGemini_BillsWithMappedModel(t *testing
 	}
 
 	svc := &AntigravityGatewayService{
-		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
-		tokenProvider:  &AntigravityTokenProvider{},
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   &httpUpstreamStub{resp: resp},
 	}
 
@@ -922,9 +930,9 @@ func TestAntigravityGatewayService_ForwardGemini_BillsWithMappedModel(t *testing
 	account := &Account{
 		ID:          6,
 		Name:        "acc-gemini-billing",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -943,7 +951,7 @@ func TestAntigravityGatewayService_ForwardGemini_BillsWithMappedModel(t *testing
 }
 
 func TestAntigravityGatewayService_ForwardGemini_RetriesCorruptedThoughtSignature(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -984,8 +992,8 @@ func TestAntigravityGatewayService_ForwardGemini_RetriesCorruptedThoughtSignatur
 	}
 
 	svc := &AntigravityGatewayService{
-		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
-		tokenProvider:  &AntigravityTokenProvider{},
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   upstream,
 	}
 
@@ -994,9 +1002,9 @@ func TestAntigravityGatewayService_ForwardGemini_RetriesCorruptedThoughtSignatur
 	account := &Account{
 		ID:          7,
 		Name:        "acc-gemini-signature",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -1022,16 +1030,16 @@ func TestAntigravityGatewayService_ForwardGemini_RetriesCorruptedThoughtSignatur
 	require.NotContains(t, secondReq, `"thoughtSignature":"sig_bad_1"`)
 	require.NotContains(t, secondReq, `"thoughtSignature":"sig_bad_2"`)
 
-	raw, ok := c.Get(OpsUpstreamErrorsKey)
+	raw, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
 	require.True(t, ok)
-	events, ok := raw.([]*OpsUpstreamErrorEvent)
+	events, ok := raw.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
 	require.NotEmpty(t, events)
 	require.Equal(t, "signature_error", events[0].Kind)
 }
 
 func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	writer := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(writer)
 
@@ -1053,9 +1061,9 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 	account := &Account{
 		ID:          8,
 		Name:        "acc-gemini-signature-failover",
-		Platform:    PlatformAntigravity,
-		Type:        AccountTypeOAuth,
-		Status:      StatusActive,
+		Platform:    capability.PlatformAntigravity,
+		Type:        capability.AccountTypeOAuth,
+		Status:      billing.StatusActive,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "token",
@@ -1093,23 +1101,23 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 	}
 
 	svc := &AntigravityGatewayService{
-		settingService: NewSettingService(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
-		tokenProvider:  &AntigravityTokenProvider{},
+		settingService: newExecutionReadersFixture(&antigravitySettingRepoStub{}, &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}),
+		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   upstream,
 	}
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, originalModel, "streamGenerateContent", true, body, true)
 	require.Nil(t, result)
 
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr, "signature retry should propagate failover instead of falling back to the original 400")
 	require.Equal(t, http.StatusServiceUnavailable, failoverErr.StatusCode)
 	require.True(t, failoverErr.ForceCacheBilling)
 	require.Len(t, upstream.requestBodies, 1, "retry should stop at preflight failover and not issue a second upstream request")
 
-	raw, ok := c.Get(OpsUpstreamErrorsKey)
+	raw, ok := c.Get(gatewayhttp.OpsUpstreamErrorsKey)
 	require.True(t, ok)
-	events, ok := raw.([]*OpsUpstreamErrorEvent)
+	events, ok := raw.([]*ops.OpsUpstreamErrorEvent)
 	require.True(t, ok)
 	require.Len(t, events, 2)
 	require.Equal(t, "signature_error", events[0].Kind)
@@ -1119,7 +1127,7 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 // TestStreamUpstreamResponse_UsageAndFirstToken
 // 验证：usage 字段可被累积/覆盖更新，并且能记录首 token 时间
 func TestStreamUpstreamResponse_UsageAndFirstToken(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1159,7 +1167,7 @@ func TestStreamUpstreamResponse_UsageAndFirstToken(t *testing.T) {
 // TestStreamUpstreamResponse_NormalComplete
 // 验证：正常流式转发完成时，数据正确透传、usage 正确收集、clientDisconnect=false
 func TestStreamUpstreamResponse_NormalComplete(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1203,7 +1211,7 @@ func TestStreamUpstreamResponse_NormalComplete(t *testing.T) {
 // TestHandleGeminiStreamingResponse_NormalComplete
 // 验证：正常 Gemini 流式转发，数据正确透传、usage 正确收集
 func TestHandleGeminiStreamingResponse_NormalComplete(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1250,7 +1258,7 @@ func TestHandleGeminiStreamingResponse_NormalComplete(t *testing.T) {
 // TestHandleClaudeStreamingResponse_NormalComplete
 // 验证：正常 Claude 流式转发（Gemini→Claude 转换），数据正确转换并输出
 func TestHandleClaudeStreamingResponse_NormalComplete(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1293,7 +1301,7 @@ func TestHandleClaudeStreamingResponse_NormalComplete(t *testing.T) {
 // TestHandleGeminiStreamingResponse_ThoughtsTokenCount
 // 验证：Gemini 流式转发时 thoughtsTokenCount 被计入 OutputTokens
 func TestHandleGeminiStreamingResponse_ThoughtsTokenCount(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1329,7 +1337,7 @@ func TestHandleGeminiStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 // TestHandleClaudeStreamingResponse_ThoughtsTokenCount
 // 验证：Gemini→Claude 流式转换时 thoughtsTokenCount 被计入 OutputTokens
 func TestHandleClaudeStreamingResponse_ThoughtsTokenCount(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1364,7 +1372,7 @@ func TestHandleClaudeStreamingResponse_ThoughtsTokenCount(t *testing.T) {
 // TestStreamUpstreamResponse_ClientDisconnectDrainsUsage
 // 验证：客户端写入失败后，streamUpstreamResponse 继续读取上游以收集 usage
 func TestStreamUpstreamResponse_ClientDisconnectDrainsUsage(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1399,7 +1407,7 @@ func TestStreamUpstreamResponse_ClientDisconnectDrainsUsage(t *testing.T) {
 // TestStreamUpstreamResponse_ContextCanceled
 // 验证：context 取消时返回 usage 且标记 clientDisconnect
 func TestStreamUpstreamResponse_ContextCanceled(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1422,7 +1430,7 @@ func TestStreamUpstreamResponse_ContextCanceled(t *testing.T) {
 // TestStreamUpstreamResponse_Timeout
 // 验证：上游超时时返回已收集的 usage
 func TestStreamUpstreamResponse_Timeout(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{StreamDataIntervalTimeout: 1, MaxLineSize: defaultMaxLineSize},
 	})
@@ -1445,7 +1453,7 @@ func TestStreamUpstreamResponse_Timeout(t *testing.T) {
 // TestStreamUpstreamResponse_TimeoutAfterClientDisconnect
 // 验证：客户端断开后上游超时，返回 usage 并标记 clientDisconnect
 func TestStreamUpstreamResponse_TimeoutAfterClientDisconnect(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{StreamDataIntervalTimeout: 1, MaxLineSize: defaultMaxLineSize},
 	})
@@ -1475,7 +1483,7 @@ func TestStreamUpstreamResponse_TimeoutAfterClientDisconnect(t *testing.T) {
 // TestHandleGeminiStreamingResponse_ClientDisconnect
 // 验证：Gemini 流式转发中客户端断开后继续 drain 上游
 func TestHandleGeminiStreamingResponse_ClientDisconnect(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1506,7 +1514,7 @@ func TestHandleGeminiStreamingResponse_ClientDisconnect(t *testing.T) {
 // TestHandleGeminiStreamingResponse_ContextCanceled
 // 验证：context 取消时不注入错误事件
 func TestHandleGeminiStreamingResponse_ContextCanceled(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1530,7 +1538,7 @@ func TestHandleGeminiStreamingResponse_ContextCanceled(t *testing.T) {
 // TestHandleClaudeStreamingResponse_ClientDisconnect
 // 验证：Claude 流式转发中客户端断开后继续 drain 上游
 func TestHandleClaudeStreamingResponse_ClientDisconnect(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1561,7 +1569,7 @@ func TestHandleClaudeStreamingResponse_ClientDisconnect(t *testing.T) {
 // TestHandleClaudeStreamingResponse_EmptyStream
 // 验证：上游只返回无法解析的 SSE 行时，触发 UpstreamFailoverError 而不是向客户端发出残缺流
 func TestHandleClaudeStreamingResponse_EmptyStream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1587,7 +1595,7 @@ func TestHandleClaudeStreamingResponse_EmptyStream(t *testing.T) {
 
 	// 应当返回 UpstreamFailoverError 而非 nil，以便上层触发 failover
 	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
+	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
 	require.True(t, failoverErr.RetryableOnSameAccount)
 
@@ -1601,7 +1609,7 @@ func TestHandleClaudeStreamingResponse_EmptyStream(t *testing.T) {
 // TestHandleClaudeStreamingResponse_ContextCanceled
 // 验证：context 取消时不注入错误事件
 func TestHandleClaudeStreamingResponse_ContextCanceled(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	svc := newAntigravityTestService(&config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 	})
@@ -1628,40 +1636,40 @@ func TestExtractSSEUsage(t *testing.T) {
 	tests := []struct {
 		name     string
 		line     string
-		expected ClaudeUsage
+		expected upstreamcore.TokenUsage
 	}{
 		{
 			name:     "message_delta with output_tokens",
 			line:     `data: {"type":"message_delta","usage":{"output_tokens":42}}`,
-			expected: ClaudeUsage{OutputTokens: 42},
+			expected: upstreamcore.TokenUsage{OutputTokens: 42},
 		},
 		{
 			name:     "non-data line ignored",
 			line:     `event: message_start`,
-			expected: ClaudeUsage{},
+			expected: upstreamcore.TokenUsage{},
 		},
 		{
 			name:     "top-level usage with all fields",
 			line:     `data: {"usage":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":5,"cache_creation_input_tokens":3}}`,
-			expected: ClaudeUsage{InputTokens: 10, OutputTokens: 20, CacheReadInputTokens: 5, CacheCreationInputTokens: 3},
+			expected: upstreamcore.TokenUsage{InputTokens: 10, OutputTokens: 20, CacheReadInputTokens: 5, CacheCreationInputTokens: 3},
 		},
 		{
 			// Anthropic message_start 把 usage 嵌套在 message.usage 下，
 			// 必须从这里提取输入侧字段（含 cache_read/cache_creation_input_tokens）。
 			name:     "message_start nested usage with input/cache tokens",
 			line:     `data: {"type":"message_start","message":{"id":"msg_01","usage":{"input_tokens":35576,"cache_creation_input_tokens":0,"cache_read_input_tokens":12000,"output_tokens":1}}}`,
-			expected: ClaudeUsage{InputTokens: 35576, OutputTokens: 1, CacheReadInputTokens: 12000},
+			expected: upstreamcore.TokenUsage{InputTokens: 35576, OutputTokens: 1, CacheReadInputTokens: 12000},
 		},
 		{
 			// message_start.message.usage.cache_creation 内的 5m/1h 明细也要解析。
 			name:     "message_start nested usage with cache_creation breakdown",
 			line:     `data: {"type":"message_start","message":{"usage":{"input_tokens":100,"cache_creation":{"ephemeral_5m_input_tokens":30,"ephemeral_1h_input_tokens":70}}}}`,
-			expected: ClaudeUsage{InputTokens: 100, CacheCreation5mTokens: 30, CacheCreation1hTokens: 70},
+			expected: upstreamcore.TokenUsage{InputTokens: 100, CacheCreation5mTokens: 30, CacheCreation1hTokens: 70},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			usage := &ClaudeUsage{}
+			usage := &upstreamcore.TokenUsage{}
 			svc.extractSSEUsage(tt.line, usage)
 			require.Equal(t, tt.expected, *usage)
 		})
@@ -1673,7 +1681,7 @@ func TestExtractSSEUsage(t *testing.T) {
 // 否则透传账号产出的 usage_logs 会出现 input_tokens=0、仅有 output_tokens 的"残缺"记录。
 func TestExtractSSEUsage_StreamingSequence(t *testing.T) {
 	svc := &AntigravityGatewayService{}
-	usage := &ClaudeUsage{}
+	usage := &upstreamcore.TokenUsage{}
 
 	// 1) message_start：携带完整输入侧 usage（input_tokens + cache_read）
 	svc.extractSSEUsage(
@@ -1694,7 +1702,7 @@ func TestExtractSSEUsage_StreamingSequence(t *testing.T) {
 // TestAntigravityClientWriter 验证 antigravityClientWriter 的断开检测
 func TestAntigravityClientWriter(t *testing.T) {
 	t.Run("normal write succeeds", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		flusher, _ := c.Writer.(http.Flusher)
@@ -1707,7 +1715,7 @@ func TestAntigravityClientWriter(t *testing.T) {
 	})
 
 	t.Run("write failure marks disconnected", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		fw := &antigravityFailingWriter{ResponseWriter: c.Writer, failAfter: 0}
@@ -1720,7 +1728,7 @@ func TestAntigravityClientWriter(t *testing.T) {
 	})
 
 	t.Run("subsequent writes are no-op", func(t *testing.T) {
-		gin.SetMode(gin.TestMode)
+
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		fw := &antigravityFailingWriter{ResponseWriter: c.Writer, failAfter: 0}

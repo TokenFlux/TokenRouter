@@ -4,9 +4,10 @@ package httpapi
 
 import (
 	"context"
+	"time"
+
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"time"
 )
 
 // quotaTestUsers 只替换用户存在性读取，不依赖旧 AdminService。
@@ -21,5 +22,5 @@ func newTestQuotaHandler(repo billing.UserPlatformQuotaRepository, cache billing
 		users = newStubAdminService()
 	}
 	service := billing.NewPlatformQuotas(repo, cache, users, billing.NewQuotaCoordinator(), time.Now, nil)
-	return NewQuotaHandler(service, timezone.NewCalendar(timezone.Location()), time.Now)
+	return NewQuotaHandler(service, timezone.NewCalendar(time.Local), time.Now)
 }

@@ -3,9 +3,10 @@ package openaiforward
 
 import (
 	"context"
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"net/http"
 	"net/url"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 // RequestTargetOptions 只含本次凭据类别和按需目标读取，不持有账号或配置。
@@ -35,7 +36,7 @@ func (o RequestTargetOptions) Resolve() (string, error) {
 }
 
 // BuildResponsesRequest 保留先观察端点、再归一化报文与构造 Header 的顺序。
-func BuildResponsesRequest(ctx context.Context, body []byte, key string, target RequestTargetOptions, observe func(string), normalize func([]byte) []byte, options func(string) native.ResponsesRequestOptions) (*http.Request, error) {
+func BuildResponsesRequest(ctx context.Context, body []byte, key string, target RequestTargetOptions, observe func(string), normalize func([]byte) []byte, options func(string) openai.ResponsesRequestOptions) (*http.Request, error) {
 	address, err := target.Resolve()
 	if err != nil {
 		return nil, err
@@ -44,15 +45,15 @@ func BuildResponsesRequest(ctx context.Context, body []byte, key string, target 
 		observe(parsed.Path)
 	}
 	body = normalize(body)
-	return native.BuildResponsesRequest(ctx, body, key, options(address))
+	return openai.BuildResponsesRequest(ctx, body, key, options(address))
 }
 
 // BuildPassthroughRequest 保留透传入口独有的超时 Header 和 originator 策略。
-func BuildPassthroughRequest(ctx context.Context, body []byte, target RequestTargetOptions, normalize func([]byte) []byte, options func(string) native.PassthroughRequestOptions) (*http.Request, error) {
+func BuildPassthroughRequest(ctx context.Context, body []byte, target RequestTargetOptions, normalize func([]byte) []byte, options func(string) openai.PassthroughRequestOptions) (*http.Request, error) {
 	address, err := target.Resolve()
 	if err != nil {
 		return nil, err
 	}
 	body = normalize(body)
-	return native.BuildPassthroughRequest(ctx, body, options(address))
+	return openai.BuildPassthroughRequest(ctx, body, options(address))
 }

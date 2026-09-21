@@ -3,6 +3,7 @@ package service
 
 import (
 	context "context"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
@@ -26,5 +27,5 @@ func (s *GatewayService) modelListCore() *routing.ModelList {
 	if s.modelsList != nil {
 		return s.modelsList
 	}
-	return &routing.ModelList{Cache: s.modelsListCache, TTL: s.modelsListCacheTTL, Read: LegacyModelListReader(s.accountRepo)}
+	return routing.NewModelList(LegacyModelListReader(s.accountRepo), resolveModelsListCacheTTL(s.cfg))
 }

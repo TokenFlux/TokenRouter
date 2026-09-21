@@ -1,15 +1,20 @@
 package service
 
 import (
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
 
-	native "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -31,18 +36,18 @@ func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *Account) (stri
 	}
 	var targetURL string
 	switch account.Type {
-	case AccountTypeOAuth:
+	case capability.AccountTypeOAuth:
 		targetURL = chatgptCodexURL
-	case AccountTypeSetupToken:
+	case capability.AccountTypeSetupToken:
 		if account.IsOpenAIOAuthLike() {
 			targetURL = chatgptCodexURL
 		} else {
 			targetURL = openaiPlatformAPIURL
 		}
-	case AccountTypeAPIKey:
+	case capability.AccountTypeAPIKey:
 		baseURL := account.GetOpenAIBaseURL()
-		if _, unified := account.Credentials[upstreamProtocolsKey]; account.UsesNativeCNResponses() && (unified || account.IsAdaptiveAPIProtocol()) {
-			baseURL = account.GetCNProtocolBaseURL(APIProtocolResponses)
+		if _, unified := account.Credentials[accountcore.UpstreamProtocolsKey]; account.UsesNativeCNResponses() && (unified || account.IsAdaptiveAPIProtocol()) {
+			baseURL = account.GetCNProtocolBaseURL(accountcore.APIProtocolResponses)
 		}
 		if baseURL == "" {
 			targetURL = openaiPlatformAPIURL
@@ -51,7 +56,7 @@ func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *Account) (stri
 			if err != nil {
 				return "", err
 			}
-			targetURL = buildOpenAIResponsesURLForPlatform(account.Platform, validatedURL)
+			targetURL = forward.ResponsesEndpoint(account.Platform, validatedURL)
 		}
 	default:
 		targetURL = openaiPlatformAPIURL
@@ -79,23 +84,23 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	c *gin.Context,
 	account *Account,
 	token string,
-	decision OpenAIWSProtocolDecision,
+	decision egress.OpenAIWSProtocolDecision,
 	isCodexCLI bool,
 	turnState string,
 	turnMetadata string,
 	promptCacheKey string,
 	routingModel string,
 	routingServiceTier string,
-	routerMatch ...TLSFingerprintRouterMatchResult,
-) (http.Header, openAIWSSessionHeaderResolution, error) {
-	var sessionResolution openAIWSSessionHeaderResolution
-	headers, err := native.BuildWSHeaders(ctx, native.WSHeaderOptions{
+	routerMatch ...egress.TLSFingerprintRouterMatchResult,
+) (http.Header, gatewayhttp.OpenAIWSSessionHeaderResolution, error) {
+	var sessionResolution gatewayhttp.OpenAIWSSessionHeaderResolution
+	headers, err := upstreamopenai.BuildWSHeaders(ctx, upstreamopenai.WSHeaderOptions{
 		AgentIdentity: account != nil && account.IsOpenAIAgentIdentity(), Token: token,
 		TurnState: turnState, TurnMetadata: turnMetadata,
 		BetaV1: openAIWSBetaV1Value, BetaV2: openAIWSBetaV2Value,
-		LegacyWS: decision.Transport == OpenAIUpstreamTransportResponsesWebsocket,
+		LegacyWS: decision.Transport == egress.OpenAIUpstreamTransportResponsesWebsocket,
 		ResolveSession: func() (string, string) {
-			sessionResolution = resolveOpenAIWSSessionHeaders(c, promptCacheKey)
+			sessionResolution = gatewayhttp.ResolveOpenAIWSSessionHeaders(c, promptCacheKey)
 			return sessionResolution.SessionID, sessionResolution.ConversationID
 		},
 		InboundHeaders: func() http.Header {
@@ -117,14 +122,14 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 			}
 			s.applyOpenAIUpstreamUserAgentHeader(reqCtx, c, account, headers, true, routerMatch...)
 		},
-		ResponsesRequestOptions: native.ResponsesRequestOptions{
+		ResponsesRequestOptions: upstreamopenai.ResponsesRequestOptions{
 			UsesCodex: func() bool { return account != nil && account.UsesOpenAICodexProtocol() },
-			APIKeyID:  func() int64 { return getAPIKeyIDFromContext(c) },
+			APIKeyID:  func() int64 { return gatewayhttp.APIKeyIDFromContext(c) },
 			IsolateSession: func(keyID int64, value string) string {
 				return isolateOpenAIUpstreamSessionID(keyID, codexAccountIdentitySource(c, account), value)
 			},
 			ApplyAccountIdentity: func(headers http.Header) {
-				applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), getAPIKeyIDFromContext(c))
+				applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), gatewayhttp.APIKeyIDFromContext(c))
 			},
 			ApplyFingerprint: func(headers http.Header) { applyStagedCodexFingerprintHeaders(c, account, headers) },
 			AccountHeaders: func(ctx context.Context, headers http.Header) error {
@@ -163,10 +168,6 @@ func (s *OpenAIGatewayService) buildOpenAIWSCreatePayload(reqBody map[string]any
 		payload["store"] = false
 	}
 	return payload
-}
-
-func setOpenAIWSTurnMetadata(payload map[string]any, turnMetadata string) {
-	native.SetOpenAIWSTurnMetadata(payload, turnMetadata)
 }
 
 func (s *OpenAIGatewayService) isOpenAIWSStoreRecoveryAllowed(account *Account) bool {
@@ -233,139 +234,7 @@ func (s *OpenAIGatewayService) openAIWSStoreDisabledConnMode() string {
 	}
 }
 
-func shouldForceNewConnOnStoreDisabled(mode, lastFailureReason string) bool {
-	return native.ShouldForceNewConnOnStoreDisabled(mode, lastFailureReason)
-}
-
-func dropPreviousResponseIDFromRawPayload(payload []byte) ([]byte, bool, error) {
-	return native.DropPreviousResponseIDFromRawPayload(payload)
-}
-
-func dropPreviousResponseIDFromRawPayloadWithDeleteFn(
-	payload []byte,
-	deleteFn func([]byte, string) ([]byte, error),
-) ([]byte, bool, error) {
-	return native.DropPreviousResponseIDFromRawPayloadWithDeleteFn(payload, deleteFn)
-}
-
-func setPreviousResponseIDToRawPayload(payload []byte, previousResponseID string) ([]byte, error) {
-	return native.SetPreviousResponseIDToRawPayload(payload, previousResponseID)
-}
-
-func shouldInferIngressFunctionCallOutputPreviousResponseID(
-	storeDisabled bool,
-	turn int,
-	signals ToolContinuationSignals,
-	currentPreviousResponseID string,
-	expectedPreviousResponseID string,
-) bool {
-	return native.ShouldInferIngressFunctionCallOutputPreviousResponseID(storeDisabled, turn, signals, currentPreviousResponseID, expectedPreviousResponseID)
-}
-
-func alignStoreDisabledPreviousResponseID(
-	payload []byte,
-	expectedPreviousResponseID string,
-) ([]byte, bool, error) {
-	return native.AlignStoreDisabledPreviousResponseID(payload, expectedPreviousResponseID)
-}
-
 // Replay 状态所有权不变式：replay 序列中的 json.RawMessage 正文一经放入即视为
 // 不可变，所有持有者共享同一份字节，任何修改都必须整体替换元素或重建 payload。
 // 序列头数组在跨持有者保存时必须新建（combineOpenAIWSReplayItems），禁止通过
 // 共享头 append，否则会写入其他持有者可见的底层数组。
-
-func combineOpenAIWSReplayItems(history, delta []json.RawMessage) []json.RawMessage {
-	return native.CombineOpenAIWSReplayItems(history, delta)
-}
-
-func normalizeOpenAIWSJSONForCompare(raw []byte) ([]byte, error) {
-	return native.NormalizeOpenAIWSJSONForCompare(raw)
-}
-
-func normalizeOpenAIWSJSONForCompareOrRaw(raw []byte) []byte {
-	return native.NormalizeOpenAIWSJSONForCompareOrRaw(raw)
-}
-
-func normalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(payload []byte) ([]byte, error) {
-	return native.NormalizeOpenAIWSPayloadWithoutInputAndPreviousResponseID(payload)
-}
-
-func openAIWSExtractNormalizedInputSequence(payload []byte) ([]json.RawMessage, bool, error) {
-	return native.OpenAIWSExtractNormalizedInputSequence(payload)
-}
-
-func openAIWSInputIsPrefixExtended(previousPayload, currentPayload []byte) (bool, error) {
-	return native.OpenAIWSInputIsPrefixExtended(previousPayload, currentPayload)
-}
-
-func openAIWSRawItemsHasFunctionCallOutput(items []json.RawMessage) bool {
-	return native.OpenAIWSRawItemsHasFunctionCallOutput(items)
-}
-
-func openAIWSRawItemsHaveToolCallContextForOutputs(items []json.RawMessage) bool {
-	return native.OpenAIWSRawItemsHaveToolCallContextForOutputs(items)
-}
-
-func openAIWSRawPayloadHasToolCallOutput(payload []byte) bool {
-	return native.OpenAIWSRawPayloadHasToolCallOutput(payload)
-}
-
-func buildOpenAIWSReplayInputSequenceFromItems(
-	previousFullInput []json.RawMessage,
-	previousFullInputExists bool,
-	currentItems []json.RawMessage,
-	currentExists bool,
-	hasPreviousResponseID bool,
-) ([]json.RawMessage, bool) {
-	return native.BuildOpenAIWSReplayInputSequenceFromItems(previousFullInput, previousFullInputExists, currentItems, currentExists, hasPreviousResponseID)
-}
-
-func buildOpenAIWSReplayInputSequence(
-	previousFullInput []json.RawMessage,
-	previousFullInputExists bool,
-	currentPayload []byte,
-	hasPreviousResponseID bool,
-) ([]json.RawMessage, bool, error) {
-	return native.BuildOpenAIWSReplayInputSequence(previousFullInput, previousFullInputExists, currentPayload, hasPreviousResponseID)
-}
-
-func setOpenAIWSPayloadInputSequence(
-	payload []byte,
-	fullInput []json.RawMessage,
-	fullInputExists bool,
-) ([]byte, error) {
-	return native.SetOpenAIWSPayloadInputSequence(payload, fullInput, fullInputExists)
-}
-
-func buildOpenAIWSCurrentTurnRetryPayload(
-	payload []byte,
-	fullInput []json.RawMessage,
-	fullInputExists bool,
-	originalModel string,
-) ([]byte, bool, error) {
-	return native.BuildOpenAIWSCurrentTurnRetryPayload(payload, fullInput, fullInputExists, originalModel)
-}
-
-func shouldKeepIngressPreviousResponseID(
-	previousPayload []byte,
-	currentPayload []byte,
-	lastTurnResponseID string,
-	hasFunctionCallOutput bool,
-) (bool, string, error) {
-	return native.ShouldKeepIngressPreviousResponseID(previousPayload, currentPayload, lastTurnResponseID, hasFunctionCallOutput)
-}
-
-type openAIWSIngressPreviousTurnStrictState = native.WSPreviousTurnStrictState
-
-func buildOpenAIWSIngressPreviousTurnStrictState(payload []byte) (*openAIWSIngressPreviousTurnStrictState, error) {
-	return native.BuildOpenAIWSIngressPreviousTurnStrictState(payload)
-}
-
-func shouldKeepIngressPreviousResponseIDWithStrictState(
-	previousState *openAIWSIngressPreviousTurnStrictState,
-	currentPayload []byte,
-	lastTurnResponseID string,
-	hasFunctionCallOutput bool,
-) (bool, string, error) {
-	return native.ShouldKeepIngressPreviousResponseIDWithStrictState(previousState, currentPayload, lastTurnResponseID, hasFunctionCallOutput)
-}

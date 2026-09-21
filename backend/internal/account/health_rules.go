@@ -18,19 +18,26 @@ type HealthStore interface {
 	SetModelRateLimit(context.Context, int64, string, time.Time, ...string) error
 }
 type HealthOptions struct {
-	RateLimit429Settings func(context.Context) (*RateLimit429CooldownSettings, error)
-	CNIntervalMinutes    int
-	ForbiddenCounter     OpenAI403CounterCache
-	ForbiddenSettings    func(context.Context) (*OpenAI403CooldownSettings, error)
-	OverloadMinutes      int
-	OverloadSettings     func(context.Context) (*OverloadCooldownSettings, error)
-	HasThresholdSettings func() bool
-	Thresholds           func(context.Context) map[string]int
-	Now                  func() time.Time
-	Warn, Info           func(string, ...any)
-	StreamSettings       func(context.Context) (*StreamTimeoutSettings, error, bool)
-	Block                func(*Record, time.Time, string)
-	TimeoutCounter       TimeoutCounterCache
+	APIKeyHealthCounter         OpenAIAPIKeyHealthCache
+	APIKeyHealthSettings        func(context.Context) (*OpenAIAPIKeyHealthBreakerSettings, error)
+	APIKeyHealthWarn            func(string, ...any)
+	UnauthorizedCooldownMinutes int
+	InvalidateUnauthorizedToken func(context.Context, *Record) error
+	SessionWindows              SessionWindowStore
+	ClearWindowRateLimit        func(context.Context, int64) error
+	RateLimit429Settings        func(context.Context) (*RateLimit429CooldownSettings, error)
+	CNIntervalMinutes           int
+	ForbiddenCounter            OpenAI403CounterCache
+	ForbiddenSettings           func(context.Context) (*OpenAI403CooldownSettings, error)
+	OverloadMinutes             int
+	OverloadSettings            func(context.Context) (*OverloadCooldownSettings, error)
+	HasThresholdSettings        func() bool
+	Thresholds                  func(context.Context) map[string]int
+	Now                         func() time.Time
+	Warn, Info                  func(string, ...any)
+	StreamSettings              func(context.Context) (*StreamTimeoutSettings, error, bool)
+	Block                       func(*Record, time.Time, string)
+	TimeoutCounter              TimeoutCounterCache
 }
 
 // HealthService 拥有通用规则与流超时阈值，供应商报文和模型规范化在外层完成。
@@ -47,6 +54,9 @@ func NewHealthService(store HealthStore, cache TempUnschedCache, options HealthO
 	}
 	if options.Warn == nil {
 		options.Warn = func(string, ...any) {}
+	}
+	if options.APIKeyHealthWarn == nil {
+		options.APIKeyHealthWarn = options.Warn
 	}
 	if options.Info == nil {
 		options.Info = func(string, ...any) {}
@@ -360,4 +370,12 @@ func (s *HealthService) TriggerStreamTimeoutError(ctx context.Context, account *
 
 	s.options.Warn("stream_timeout_account_error", "account_id", account.ID, "model", model)
 	return true
+}
+
+// HandleTempUnschedulable 保留错误码策略与池模式的升级边界，模型由调用方显式提供。
+func (s *HealthService) HandleTempUnschedulable(ctx context.Context, value *Record, status int, body []byte, model string) bool {
+	if value == nil || !value.ShouldHandleErrorCode(status) {
+		return false
+	}
+	return s.TryTempUnschedulable(ctx, value, status, body, !value.IsPoolMode() && value.Platform != PlatformAntigravity, model)
 }

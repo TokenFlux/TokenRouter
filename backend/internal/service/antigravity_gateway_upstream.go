@@ -6,21 +6,22 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-
 	"github.com/gin-gonic/gin"
 )
 
 // ForwardUpstream 仅衔接旧账号/HTTP 错误策略和结果，单次执行由原生模块关闭资源。
-func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.Context, account *Account, body []byte) (*forwardcore.MessagesResult, error) {
 	started := time.Now()
 	prefix := logPrefix(getSessionID(c), account.Name)
-	req, model, stream, err := antigravity.BuildStaticRequest(ctx, body, antigravity.StaticRequestInput{BaseURL: account.GetCredential("base_url"), APIKey: account.GetCredential("api_key"), Version: c.GetHeader("anthropic-version"), Beta: c.GetHeader("anthropic-beta"), Sanitize: sanitizeAnthropicBodyForBetaTokens})
+	req, model, stream, err := antigravity.BuildStaticRequest(ctx, body, antigravity.StaticRequestInput{BaseURL: account.GetCredential("base_url"), APIKey: account.GetCredential("api_key"), Version: c.GetHeader("anthropic-version"), Beta: c.GetHeader("anthropic-beta"), Sanitize: anthropic.SanitizeAnthropicBodyForBetaTokens})
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +34,7 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 		Exchange: func(context.Context) (*http.Response, error) {
 			resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 			if err != nil {
-				logger.LegacyPrintf("service.antigravity_gateway", "%s upstream request failed: %v", prefix, err)
+				logging.LegacyPrintf("service.antigravity_gateway", "%s upstream request failed: %v", prefix, err)
 				return nil, fmt.Errorf("upstream request failed: %w", err)
 			}
 			return resp, nil
@@ -58,8 +59,8 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 		return nil, err
 	}
 	if handled {
-		return &ForwardResult{Model: model}, nil
+		return &forwardcore.MessagesResult{Model: model}, nil
 	}
-	logger.LegacyPrintf("service.antigravity_gateway", "%s status=success duration_ms=%d", prefix, result.Duration.Milliseconds())
-	return &ForwardResult{Model: model, UpstreamHeaders: result.UpstreamHeaders, Stream: stream, Duration: result.Duration, FirstTokenMs: result.FirstTokenMs, ClientDisconnect: result.ClientDisconnect, Usage: ClaudeUsage{InputTokens: result.Usage.InputTokens, OutputTokens: result.Usage.OutputTokens, CacheReadInputTokens: result.Usage.CacheReadInputTokens, CacheCreationInputTokens: result.Usage.CacheCreationInputTokens}}, nil
+	logging.LegacyPrintf("service.antigravity_gateway", "%s status=success duration_ms=%d", prefix, result.Duration.Milliseconds())
+	return &forwardcore.MessagesResult{Model: model, UpstreamHeaders: result.UpstreamHeaders, Stream: stream, Duration: result.Duration, FirstTokenMs: result.FirstTokenMs, ClientDisconnect: result.ClientDisconnect, Usage: upstream.TokenUsage{InputTokens: result.Usage.InputTokens, OutputTokens: result.Usage.OutputTokens, CacheReadInputTokens: result.Usage.CacheReadInputTokens, CacheCreationInputTokens: result.Usage.CacheCreationInputTokens}}, nil
 }

@@ -4,14 +4,15 @@ package httpapi
 import (
 	context "context"
 	fmt "fmt"
+	http "net/http"
+	url "net/url"
+	strings "strings"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	oauthpkce "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	http "net/http"
-	url "net/url"
-	strings "strings"
 )
 
 type WeChatHTTPOptions struct {

@@ -3,92 +3,57 @@ package app
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/creative"
+	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/batchimage"
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+
 	batchhttp "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi"
+	batchimageprovider "github.com/TokenFlux/TokenRouter/internal/batchimage/provider"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	creativehttp "github.com/TokenFlux/TokenRouter/internal/creative/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-func provideS13BatchRegistry(cfg *config.Config) *service.BatchImageProviderRegistry {
-	return service.NewBatchImageProviderRegistryFromConfig(cfg)
+func provideS13BatchRegistry(cfg *config.Config) *batchimage.Registry[batchimageprovider.BatchImageProvider] {
+	return batchimage.NewRegistry[batchimageprovider.BatchImageProvider](batchimageprovider.NewGeminiAPIBatchImageProvider(nil), batchimageprovider.NewVertexBatchImageProvider(batchVertexOptions(cfg), nil, nil, nil))
 }
-func provideS13CreativeHTTP(s *service.CreativePublicService, activity *taskRequestActivity) *handler.CreativeHandler {
-	h := creativehttp.NewCreativeHandler(s.Core)
+func provideS13CreativeHTTP(s *creative.Public, activity *taskRequestActivity) *creativehttp.CreativeHandler {
+	h := creativehttp.NewCreativeHandler(s)
 	h.BindActivity(activity.Enter)
 	return h
 }
-func provideS13BatchHTTP(s *service.BatchImagePublicService, d *service.BatchImageDownloadService, c *service.BatchImageCleanupService, activity *taskRequestActivity) *handler.BatchImageHandler {
-	h := batchhttp.NewBatchImageHandler(s.Core, d.Core, c.Core, handler.BatchImageAccessPorts())
+func provideS13BatchHTTP(s *batchimage.Public, d *batchimage.Download, c *batchimage.Cleanup, activity *taskRequestActivity) *batchhttp.BatchImageHandler {
+	h := batchhttp.NewBatchImageHandler(s, d, c, batchImageAccessPorts())
 	h.BindActivity(activity.Enter)
 	return h
 }
 
-// provideS13CreativePublic 在 app 构造并固定该任务能力的唯一运行实例。
-func provideS13CreativePublic(
-	repo service.CreativeRunRepository,
-	apiKeyRepo service.CreativeManagedKeyRepository,
-	userRepo service.CreativeUserRepository,
-	accountRepo service.CreativeAccountRepository,
-	groupRepo service.CreativeGroupRepository,
-	userGroupRateRepo service.CreativeUserGroupRateRepository,
-	queue service.CreativeRunQueue,
-	transientStore service.CreativeTransientStore,
-	billingRepo service.UsageBillingRepository,
-	usageLogRepo service.UsageLogRepository,
-	pricing *service.BillingService,
-	pricingResolver *service.ModelPricingResolver,
-	moderation *service.ContentModerationService,
-	authCache service.APIKeyAuthCacheInvalidator,
-	settings service.CreativeSettingReader,
-	cfg *config.Config,
-	outboxes ...service.CreativeRunOutboxRepository,
-) *service.CreativePublicService {
-	value := service.NewCreativePublicService(repo, apiKeyRepo, userRepo, accountRepo, groupRepo, userGroupRateRepo, queue, transientStore, billingRepo, usageLogRepo, pricing, pricingResolver, moderation, authCache, settings, cfg, outboxes...)
-	core := value.BindCreativeCore()
-	core.Now = time.Now
-	core.Results.Now = time.Now
-	return value
+// provideS13BatchDownload 直接绑定原生下载与任务账号读取，复用唯一供应商表。
+func provideS13BatchDownload(repo batchimage.BatchImageRepository, accounts *accountpostgres.AccountStore, limiter batchimage.BatchImageDownloadLimiter, cfg *config.Config, registry *batchimage.Registry[batchimageprovider.BatchImageProvider]) *batchimage.Download {
+	core := &batchimage.Download{Repo: repo, Limiter: limiter, ResolveProvider: (batchimageprovider.ResultAccess{Registry: registry, Accounts: accounts}).Download}
+	if cfg != nil {
+		core.Options = batchimage.DownloadOptions{MaxItems: cfg.BatchImage.MaxDownloadItemsZip, MaxBytes: cfg.BatchImage.MaxDownloadBytesPerRequest, Duration: time.Duration(cfg.BatchImage.MaxDownloadDurationSeconds) * time.Second}
+	}
+	return core
 }
 
-// provideS13BatchPublic 在 app 构造并固定该任务能力的唯一运行实例。
-func provideS13BatchPublic(repo service.BatchImageRepository, accountRepo service.AccountRepository, channelService *service.ChannelService, groupRepo service.GroupRepository, userGroupRateRepo service.UserGroupRateRepository, queue service.BatchImageQueue, pricing *service.BatchImageModelPricingResolver, billingRepo service.UsageBillingRepository, authCache service.APIKeyAuthCacheInvalidator, cfg *config.Config, registry *service.BatchImageProviderRegistry) *service.BatchImagePublicService {
-	value := service.NewBatchImagePublicService(repo, accountRepo, channelService, groupRepo, userGroupRateRepo, queue, pricing, billingRepo, authCache, cfg, registry)
-	value.BindBatchCore().Now = time.Now
-	return value
+// provideS13BatchCleanup 保留原清理选项与观测，运行循环由模块持有。
+func provideS13BatchCleanup(repo batchimage.BatchImageRepository, accounts *accountpostgres.AccountStore, cfg *config.Config, registry *batchimage.Registry[batchimageprovider.BatchImageProvider]) *batchimage.Cleanup {
+	core := &batchimage.Cleanup{Repo: repo, Now: time.Now, Observe: creativeObserve, ResolveProvider: (batchimageprovider.ResultAccess{Registry: registry, Accounts: accounts}).Cleanup}
+	if cfg != nil {
+		core.Options = batchimage.CleanupOptions{InputRetention: time.Duration(cfg.BatchImage.InputRetentionAfterTerminalHours) * time.Hour, Interval: time.Duration(cfg.BatchImage.CleanupIntervalMinutes) * time.Minute, BatchSize: cfg.BatchImage.CleanupBatchSize}
+	}
+	return core
 }
 
-// provideS13BatchDownload 在 app 构造并固定该任务能力的唯一运行实例。
-func provideS13BatchDownload(repo service.BatchImageRepository, accountRepo service.AccountRepository, limiter service.BatchImageDownloadLimiter, cfg *config.Config, registry *service.BatchImageProviderRegistry) *service.BatchImageDownloadService {
-	value := service.NewBatchImageDownloadService(repo, accountRepo, limiter, cfg, registry)
-	value.BindDownloadCore()
-	return value
-}
+// batchCleanupRuntime 区分清理循环与任务消费循环的生命周期实例。
+type batchCleanupRuntime struct{ *batchimage.Runtime }
 
-// provideS13BatchCleanup 在 app 构造并固定该任务能力的唯一运行实例。
-func provideS13BatchCleanup(repo service.BatchImageRepository, accountRepo service.AccountRepository, cfg *config.Config, registry *service.BatchImageProviderRegistry) *service.BatchImageCleanupService {
-	value := service.NewBatchImageCleanupService(repo, accountRepo, cfg, registry)
-	value.BindCleanupCore().Now = time.Now
-	return value
-}
-
-// provideS13BatchRuntime 在 app 构造并固定该任务能力的唯一运行实例。
-func provideS13BatchRuntime(
-	repo service.BatchImageRepository,
-	accountRepo service.AccountRepository,
-	queue service.BatchImageQueue,
-	billingRepo service.UsageBillingRepository,
-	usageLogRepo service.UsageLogRepository,
-	pricing *service.BatchImageModelPricingResolver,
-	authCache service.APIKeyAuthCacheInvalidator,
-	cfg *config.Config,
-	registry *service.BatchImageProviderRegistry,
-) *service.BatchImageWorkerRuntime {
-	value := service.ProvideBatchImageWorkerRuntime(repo, accountRepo, queue, billingRepo, usageLogRepo, pricing, authCache, cfg, registry)
-	return value
+func provideBatchCleanupRuntime(core *batchimage.Cleanup, cfg *config.Config) *batchCleanupRuntime {
+	enabled := core != nil && core.Repo != nil && cfg != nil && cfg.BatchImage.Enabled && core.CleanupInterval() > 0
+	return &batchCleanupRuntime{batchimage.NewRuntime("batch image cleanup", enabled, core.Run)}
 }
 
 // taskRequestActivity 等待提交、下载及管理请求结束，再停止 task worker 和共享存储。
@@ -98,9 +63,4 @@ func provideS13TaskActivity(manager *lifecycle.Manager) *taskRequestActivity {
 	activity := &taskRequestActivity{lifecycle.NewOperations("TaskRequestsAndDownloads")}
 	manager.Register(lifecycle.Hook{Name: "TaskRequestsAndDownloads", StopOrder: 16, Stop: activity.StopContext})
 	return activity
-}
-
-// provideCreativeSettingsCore 返回 S13 已构造的同一实例，不重复装配任务状态。
-func provideCreativeSettingsCore(value *service.CreativePublicService) *creative.Public {
-	return value.Core
 }

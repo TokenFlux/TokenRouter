@@ -213,7 +213,7 @@ func (c *HostObserver) TryCgroupCPUPercent(now time.Time) *float64 {
 	if pct > 100 {
 		pct = 100
 	}
-	v := ops.CompatRoundTo1DP(pct)
+	v := ops.RoundTo1DP(pct)
 	return &v
 }
 
@@ -226,7 +226,7 @@ func resolveMemoryStats(cgroupUsed, cgroupTotal uint64, cgroupOK bool, host *mem
 	if cgroupOK && cgroupTotal > 0 {
 		u := int64(cgroupUsed / bytesPerMB)
 		t := int64(cgroupTotal / bytesPerMB)
-		p := ops.CompatRoundTo1DP(float64(cgroupUsed) / float64(cgroupTotal) * 100)
+		p := ops.RoundTo1DP(float64(cgroupUsed) / float64(cgroupTotal) * 100)
 		return &u, &t, &p
 	}
 
@@ -239,11 +239,11 @@ func resolveMemoryStats(cgroupUsed, cgroupTotal uint64, cgroupOK bool, host *mem
 	if host.Total > 0 {
 		t := int64(host.Total / bytesPerMB)
 		totalMB = &t
-		p := ops.CompatRoundTo1DP(float64(host.Used) / float64(host.Total) * 100)
+		p := ops.RoundTo1DP(float64(host.Used) / float64(host.Total) * 100)
 		usagePercent = &p
 	} else {
 		// 异常情况：宿主机没有报告总量时，保留 gopsutil 自身的百分比。
-		p := ops.CompatRoundTo1DP(host.UsedPercent)
+		p := ops.RoundTo1DP(host.UsedPercent)
 		usagePercent = &p
 	}
 	return usedMB, totalMB, usagePercent
@@ -262,7 +262,7 @@ func (c *HostObserver) CollectSystemStats(ctx context.Context) (*ops.CollectedSy
 	}
 	if out.CpuUsagePercent == nil {
 		if cpuPercents, err := cpu.PercentWithContext(ctx, 0, false); err == nil && len(cpuPercents) > 0 {
-			v := ops.CompatRoundTo1DP(cpuPercents[0])
+			v := ops.RoundTo1DP(cpuPercents[0])
 			out.CpuUsagePercent = &v
 		}
 	}
@@ -286,7 +286,7 @@ func (c *HostObserver) CollectSystemStats(ctx context.Context) (*ops.CollectedSy
 		out.DiskUsedMB = &usedMB
 		out.DiskTotalMB = &totalMB
 		if usage.Total > 0 {
-			pct := ops.CompatRoundTo1DP(usage.UsedPercent)
+			pct := ops.RoundTo1DP(usage.UsedPercent)
 			out.DiskUsagePercent = &pct
 		}
 	}

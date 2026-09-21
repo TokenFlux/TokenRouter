@@ -7,7 +7,11 @@ import (
 	"testing"
 	"time"
 
+	schedulerpostgres "github.com/TokenFlux/TokenRouter/internal/scheduler/postgres"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +24,7 @@ func TestSchedulerSnapshotOutboxReplay(t *testing.T) {
 	_, _ = integrationDB.ExecContext(ctx, "TRUNCATE scheduler_outbox")
 
 	accountRepo := newAccountRepositoryWithSQL(client, integrationDB, nil)
-	outboxRepo := NewSchedulerOutboxRepository(integrationDB)
+	outboxRepo := schedulerpostgres.NewSchedulerOutboxRepository(integrationDB)
 	cache := NewSchedulerCache(rdb)
 
 	cfg := &config.Config{
@@ -36,9 +40,9 @@ func TestSchedulerSnapshotOutboxReplay(t *testing.T) {
 
 	account := &service.Account{
 		Name:        "outbox-replay-" + time.Now().Format("150405.000000"),
-		Platform:    service.PlatformOpenAI,
-		Type:        service.AccountTypeAPIKey,
-		Status:      service.StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 3,
 		Priority:    1,

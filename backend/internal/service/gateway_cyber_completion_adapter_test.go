@@ -4,6 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
@@ -11,9 +15,9 @@ import (
 func TestCompletionCyberInputFreezesLegacyProjection(t *testing.T) {
 	group := int64(7)
 	rate := 1.25
-	key := &APIKey{ID: 2, UserID: 1, User: &User{ID: 1, Balance: 12}, GroupID: &group}
-	account := &Account{ID: 3, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, RateMultiplier: &rate}
-	sub := &UserSubscription{ID: 4, Plan: &SubscriptionPlan{GroupIDs: []int64{7}, GroupRateMultipliers: map[int64]float64{7: 1.5}}}
+	key := &apikey.APIKey{ID: 2, UserID: 1, User: &identity.User{ID: 1, Balance: 12}, GroupID: &group}
+	account := &Account{ID: 3, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, RateMultiplier: &rate}
+	sub := &billing.UserSubscription{ID: 4, Plan: &billing.SubscriptionPlan{GroupIDs: []int64{7}, GroupRateMultipliers: map[int64]float64{7: 1.5}}}
 	input := CompletionCyberInput(context.Background(), CyberPolicyUsageInput{APIKey: key, Account: account, Subscription: sub, Model: " model ", RequestID: "request", InputTokens: 5, NativeCompactionV2: true})
 	require.NotNil(t, input)
 	key.User.Balance = 99

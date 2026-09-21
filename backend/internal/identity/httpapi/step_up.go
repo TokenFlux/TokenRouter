@@ -5,8 +5,9 @@ import (
 	sha256 "crypto/sha256"
 	hex "encoding/hex"
 	fmt "fmt"
-	gin "github.com/gin-gonic/gin"
 	strings "strings"
+
+	gin "github.com/gin-gonic/gin"
 )
 
 // StepUpSessionKey 计算 step-up 授权的会话键：

@@ -28,16 +28,21 @@ import (
 )
 
 type processOutput struct {
-	sync.Mutex
-	bytes.Buffer
+	mu     sync.Mutex
+	buffer bytes.Buffer
 }
 
+// 不嵌入 Buffer，避免 io.Copy 调用提升的 ReadFrom 绕过输出互斥。
 func (o *processOutput) Write(p []byte) (int, error) {
-	o.Lock()
-	defer o.Unlock()
-	return o.Buffer.Write(p)
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.buffer.Write(p)
 }
-func (o *processOutput) text() string { o.Lock(); defer o.Unlock(); return o.String() }
+func (o *processOutput) text() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.buffer.String()
+}
 
 type testProcess struct {
 	cmd    *exec.Cmd

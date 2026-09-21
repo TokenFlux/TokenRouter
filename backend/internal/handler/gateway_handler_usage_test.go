@@ -8,20 +8,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
+	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUsageUnrestrictedIncludesWeeklyWindowStart(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
 
 	weeklyWindowStart := time.Date(2026, time.July, 13, 0, 30, 0, 0, time.FixedZone("UTC+8", 8*60*60))
-	c.Set(string(middleware.ContextKeySubscription), &service.UserSubscription{
+	c.Set(string(middleware.ContextKeySubscription), &billingcore.UserSubscription{
 		WeeklyWindowStart: &weeklyWindowStart,
 	})
 
@@ -29,7 +34,7 @@ func TestUsageUnrestrictedIncludesWeeklyWindowStart(t *testing.T) {
 	handler.usageUnrestricted(
 		c,
 		context.Background(),
-		&service.APIKey{Group: &service.Group{
+		&apikey.APIKey{Group: &routing.Group{
 			Name: "Weekly plan",
 		}},
 		middleware.AuthSubject{},
@@ -51,22 +56,22 @@ func TestUsageUnrestrictedIncludesWeeklyWindowStart(t *testing.T) {
 }
 
 func TestUsageUnrestrictedPreferredSubscriptionDoesNotExposeBalance(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
 	preferredID := int64(99)
 	c.Set(string(middleware.ContextKeyAPIKeyBilling), &middleware.APIKeyBillingContext{
-		Mode: service.APIKeyBillingModeSubscription, Source: "subscription", Available: false,
+		Mode: apikey.APIKeyBillingModeSubscription, Source: "subscription", Available: false,
 	})
 
 	(&GatewayHandler{}).usageUnrestricted(
 		c,
 		context.Background(),
-		&service.APIKey{
-			BillingMode:             service.APIKeyBillingModeSubscription,
+		&apikey.APIKey{
+			BillingMode:             apikey.APIKeyBillingModeSubscription,
 			PreferredSubscriptionID: &preferredID,
-			User:                    &service.User{Balance: 123},
+			User:                    &identity.User{Balance: 123},
 		},
 		middleware.AuthSubject{},
 		nil,
@@ -88,18 +93,18 @@ func TestUsageUnrestrictedPreferredSubscriptionDoesNotExposeBalance(t *testing.T
 }
 
 func TestUsageUnrestrictedBalanceModeDoesNotExposeSubscription(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/usage", nil)
 	c.Set(string(middleware.ContextKeyAPIKeyBilling), &middleware.APIKeyBillingContext{
-		Mode: service.APIKeyBillingModeBalance, Source: "balance", Available: true,
+		Mode: apikey.APIKeyBillingModeBalance, Source: "balance", Available: true,
 	})
 
 	(&GatewayHandler{}).usageUnrestricted(
 		c,
 		context.Background(),
-		&service.APIKey{BillingMode: service.APIKeyBillingModeBalance, User: &service.User{Balance: 12.5}},
+		&apikey.APIKey{BillingMode: apikey.APIKeyBillingModeBalance, User: &identity.User{Balance: 12.5}},
 		middleware.AuthSubject{},
 		nil,
 		nil,

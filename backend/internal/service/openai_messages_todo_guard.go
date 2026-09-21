@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
 const (
@@ -80,7 +81,7 @@ func appendOpenAICompatClaudeCodeTodoGuardToRequestBody(reqBody map[string]any) 
 	insertAt := 0
 	for insertAt < len(input) {
 		item, ok := input[insertAt].(map[string]any)
-		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "message" || strings.TrimSpace(firstNonEmptyString(item["role"])) != "developer" {
+		if !ok || strings.TrimSpace(openai.FirstNonEmptyString(item["type"])) != "message" || strings.TrimSpace(openai.FirstNonEmptyString(item["role"])) != "developer" {
 			break
 		}
 		insertAt++

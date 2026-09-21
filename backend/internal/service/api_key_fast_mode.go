@@ -6,7 +6,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
+
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -15,12 +20,13 @@ import (
 // apiKeyFastModePolicyFromContext 只读取鉴权中间件写入的可信策略。
 func apiKeyFastModePolicyFromContext(ctx context.Context) string {
 	if ctx == nil {
-		return APIKeyFastModePolicyFollowRequest
+		return apikey.APIKeyFastModePolicyFollowRequest
 	}
-	raw, _ := ctx.Value(ctxkey.APIKeyFastModePolicy).(string)
-	policy, ok := NormalizeAPIKeyFastModePolicy(strings.TrimSpace(raw))
+	access, _ := apikey.AccessSnapshotFromContext(ctx)
+	raw := access.FastModePolicy()
+	policy, ok := apikey.NormalizeAPIKeyFastModePolicy(strings.TrimSpace(raw))
 	if !ok {
-		return APIKeyFastModePolicyFollowRequest
+		return apikey.APIKeyFastModePolicyFollowRequest
 	}
 	return policy
 }
@@ -30,17 +36,17 @@ func withAPIKeyFastModePolicy(ctx context.Context, policy string) context.Contex
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	normalized, ok := NormalizeAPIKeyFastModePolicy(strings.TrimSpace(policy))
+	normalized, ok := apikey.NormalizeAPIKeyFastModePolicy(strings.TrimSpace(policy))
 	if !ok {
-		normalized = APIKeyFastModePolicyFollowRequest
+		normalized = apikey.APIKeyFastModePolicyFollowRequest
 	}
-	return context.WithValue(ctx, ctxkey.APIKeyFastModePolicy, normalized)
+	return apikey.WithFastModePolicy(ctx, normalized)
 }
 
 // apiKeyFastModePricingModel 优先使用入口记录的用户可见模型，确保能力判断与分组定价一致。
 func apiKeyFastModePricingModel(ctx context.Context, fallback string) string {
 	if ctx != nil {
-		if model, ok := ctx.Value(ctxkey.Model).(string); ok && strings.TrimSpace(model) != "" {
+		if model, ok := ctx.Value(telemetry.Model).(string); ok && strings.TrimSpace(model) != "" {
 			return strings.TrimSpace(model)
 		}
 	}
@@ -49,16 +55,16 @@ func apiKeyFastModePricingModel(ctx context.Context, fallback string) string {
 
 // apiKeyFastModeForceOnSupported 按当前有效分组和模型定价判断 Fast 强制开启能力。
 // 缺少分组、解析器或定价结果时按不支持处理，避免 Key 配置误向上游注入 Fast。
-func apiKeyFastModeForceOnSupported(ctx context.Context, resolver *ModelPricingResolver, model string) bool {
-	if ctx == nil || resolver == nil || resolver.billingService == nil {
+func apiKeyFastModeForceOnSupported(ctx context.Context, resolver *billing.PriceResolver, model string) bool {
+	if ctx == nil || resolver == nil {
 		return false
 	}
-	group, ok := ctx.Value(ctxkey.Group).(*Group)
+	group, ok := requeststate.GroupFromContext(ctx)
 	if !ok || group == nil || group.ID <= 0 {
 		return false
 	}
 	groupID := group.ID
-	resolved := resolver.Resolve(ctx, PricingInput{
+	resolved := resolver.Resolve(ctx, billing.PricingInput{
 		Model:   apiKeyFastModePricingModel(ctx, model),
 		GroupID: &groupID,
 	})
@@ -73,13 +79,13 @@ func (s *OpenAIGatewayService) openAIAPIKeyFastModeForceOnSupported(ctx context.
 // claudeAPIKeyFastModeForceOnSupported 将 Claude Fast 强制开启限制到 Anthropic API Key 直连适配器。
 // Bedrock、Vertex 和 OAuth/Setup Token 路径不会由单 Key 策略注入 Fast。
 func (s *GatewayService) claudeAPIKeyFastModeForceOnSupported(ctx context.Context, account *Account, model string) bool {
-	return account != nil && account.IsAnthropic() && account.Type == AccountTypeAPIKey &&
+	return account != nil && account.IsAnthropic() && account.Type == capability.AccountTypeAPIKey &&
 		apiKeyFastModeForceOnSupported(ctx, s.resolver, model)
 }
 
 // addAnthropicBetaToken 在保留其它 beta 的同时补齐指定 token。
 func addAnthropicBetaToken(header, token string) string {
-	if containsBetaToken(header, token) {
+	if claude.ContainsBetaToken(header, token) {
 		return header
 	}
 	header = strings.TrimSpace(header)
@@ -100,7 +106,7 @@ func (s *GatewayService) applyClaudeAPIKeyFastMode(
 ) ([]byte, http.Header, error) {
 	policy := apiKeyFastModePolicyFromContext(ctx)
 	// 强制关闭只删除客户端已有的 Fast 标记，不能被易滞后的定价能力元数据阻断。
-	if policy == APIKeyFastModePolicyForceOff {
+	if policy == apikey.APIKeyFastModePolicyForceOff {
 		if account == nil || !account.IsAnthropic() {
 			return body, headers, nil
 		}
@@ -117,7 +123,7 @@ func (s *GatewayService) applyClaudeAPIKeyFastMode(
 		}
 		cloned := headers.Clone()
 		fastOnly := map[string]struct{}{claude.BetaFastMode: {}}
-		setHeaderRaw(cloned, "anthropic-beta", stripBetaTokensWithSet(getHeaderRaw(cloned, "anthropic-beta"), fastOnly))
+		claude.SetHeaderRaw(cloned, "anthropic-beta", claude.StripBetaTokensWithSet(claude.GetHeaderRaw(cloned, "anthropic-beta"), fastOnly))
 		return updated, cloned, nil
 	}
 
@@ -129,9 +135,9 @@ func (s *GatewayService) applyClaudeAPIKeyFastMode(
 	}
 
 	fastRequested := strings.EqualFold(strings.TrimSpace(gjson.GetBytes(body, "speed").String()), "fast") ||
-		containsBetaToken(getHeaderRaw(headers, "anthropic-beta"), claude.BetaFastMode)
+		claude.ContainsBetaToken(claude.GetHeaderRaw(headers, "anthropic-beta"), claude.BetaFastMode)
 	shouldFast := fastRequested
-	if policy == APIKeyFastModePolicyForceOn {
+	if policy == apikey.APIKeyFastModePolicyForceOn {
 		shouldFast = true
 	}
 
@@ -141,7 +147,7 @@ func (s *GatewayService) applyClaudeAPIKeyFastMode(
 			return body, headers, fmt.Errorf("set Claude fast speed: %w", err)
 		}
 		cloned := headers.Clone()
-		setHeaderRaw(cloned, "anthropic-beta", addAnthropicBetaToken(getHeaderRaw(cloned, "anthropic-beta"), claude.BetaFastMode))
+		claude.SetHeaderRaw(cloned, "anthropic-beta", addAnthropicBetaToken(claude.GetHeaderRaw(cloned, "anthropic-beta"), claude.BetaFastMode))
 		return updated, cloned, nil
 	}
 

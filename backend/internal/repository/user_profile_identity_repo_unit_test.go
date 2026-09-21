@@ -6,11 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/authidentity"
 	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
 	"github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,12 +21,12 @@ func TestUserRepositoryBindAuthIdentityToUserCanonicalizesLegacyWeChatAlias(t *t
 	repo, client := newUserEntRepo(t)
 	ctx := context.Background()
 
-	user := &service.User{
+	user := &identitycore.User{
 		Email:        "wechat-legacy@example.com",
 		Username:     "wechat-legacy",
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identitycore.RoleUser,
+		Status:       billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, user))
 
@@ -47,14 +50,14 @@ func TestUserRepositoryBindAuthIdentityToUserCanonicalizesLegacyWeChatAlias(t *t
 		Save(ctx)
 	require.NoError(t, err)
 
-	bound, err := repo.BindAuthIdentityToUser(ctx, BindAuthIdentityInput{
+	bound, err := repo.BindAuthIdentityToUser(ctx, postgres.BindAuthIdentityInput{
 		UserID: user.ID,
-		Canonical: AuthIdentityKey{
+		Canonical: postgres.AuthIdentityKey{
 			ProviderType:    "wechat",
 			ProviderKey:     "wechat-main",
 			ProviderSubject: "union-legacy-123",
 		},
-		Channel: &AuthIdentityChannelKey{
+		Channel: &postgres.AuthIdentityChannelKey{
 			ProviderType:   "wechat",
 			ProviderKey:    "wechat-main",
 			Channel:        "oa",
@@ -109,12 +112,12 @@ func TestUserRepositoryUpsertIdentityAdoptionDecisionIsIdempotentUnderConcurrenc
 	repo, client := newUserEntRepo(t)
 	ctx := context.Background()
 
-	user := &service.User{
+	user := &identitycore.User{
 		Email:        "repo-adoption@example.com",
 		Username:     "repo-adoption",
 		PasswordHash: "hash",
-		Role:         service.RoleUser,
-		Status:       service.StatusActive,
+		Role:         identitycore.RoleUser,
+		Status:       billing.StatusActive,
 	}
 	require.NoError(t, repo.Create(ctx, user))
 
@@ -163,7 +166,7 @@ func TestUserRepositoryUpsertIdentityAdoptionDecisionIsIdempotentUnderConcurrenc
 		err      error
 	}
 
-	input := IdentityAdoptionDecisionInput{
+	input := postgres.IdentityAdoptionDecisionInput{
 		PendingAuthSessionID: session.ID,
 		IdentityID:           &identity.ID,
 		AdoptDisplayName:     true,

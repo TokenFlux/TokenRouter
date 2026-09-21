@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 type accountCredentialsUpdater interface {

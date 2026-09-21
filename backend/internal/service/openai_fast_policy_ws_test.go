@@ -11,11 +11,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
@@ -26,8 +33,8 @@ import (
 // --- applyOpenAIFastPolicyToWSResponseCreate 的辅助级单元测试 ---
 
 func TestWSResponseCreate_DefaultPassesPriorityAndNormalizesFast(t *testing.T) {
-	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority","input":[{"type":"input_text","text":"hi"}]}`)
 	updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
@@ -54,8 +61,8 @@ func TestWSResponseCreate_DefaultPassesPriorityAndNormalizesFast(t *testing.T) {
 }
 
 func TestWSResponseCreate_RejectsUltraBeforeUpstream(t *testing.T) {
-	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	frames := [][]byte{
 		[]byte(`{"type":"response.create","model":"gpt-5.6-sol","reasoning":{"effort":"ultra"}}`),
@@ -71,7 +78,7 @@ func TestWSResponseCreate_RejectsUltraBeforeUpstream(t *testing.T) {
 
 func TestWSResponseCreate_ExplicitFilterStripsServiceTier(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority","input":[{"type":"input_text","text":"hi"}]}`)
 	updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
@@ -87,32 +94,32 @@ func TestWSResponseCreate_ExplicitFilterStripsServiceTier(t *testing.T) {
 }
 
 func TestWSResponseCreate_UserScopedRuleOverridesGlobalRule(t *testing.T) {
-	settings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{
+	settings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{
 			{
-				ServiceTier: OpenAIFastTierPriority,
-				Action:      BetaPolicyActionFilter,
-				Scope:       BetaPolicyScopeAll,
+				ServiceTier: tierpolicy.OpenAIFastTierPriority,
+				Action:      claude.BetaPolicyActionFilter,
+				Scope:       claude.BetaPolicyScopeAll,
 			},
 			{
-				ServiceTier: OpenAIFastTierPriority,
-				Action:      BetaPolicyActionPass,
-				Scope:       BetaPolicyScopeAll,
+				ServiceTier: tierpolicy.OpenAIFastTierPriority,
+				Action:      claude.BetaPolicyActionPass,
+				Scope:       claude.BetaPolicyScopeAll,
 				UserIDs:     []int64{42},
 			},
 		},
 	}
 	svc := newOpenAIGatewayServiceWithSettings(t, settings)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`)
 
-	allowedUserCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(42))
+	allowedUserCtx := apikey.WithAccessSnapshot(context.Background(), apikey.AccessSnapshot{PayerUserID: int64(42)})
 	updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(allowedUserCtx, account, "gpt-5.5", frame)
 	require.NoError(t, err)
 	require.Nil(t, blocked)
 	require.Equal(t, "priority", gjson.GetBytes(updated, "service_tier").String())
 
-	otherUserCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(43))
+	otherUserCtx := apikey.WithAccessSnapshot(context.Background(), apikey.AccessSnapshot{PayerUserID: int64(43)})
 	updated, blocked, err = svc.applyOpenAIFastPolicyToWSResponseCreate(otherUserCtx, account, "gpt-5.5", frame)
 	require.NoError(t, err)
 	require.Nil(t, blocked)
@@ -120,29 +127,29 @@ func TestWSResponseCreate_UserScopedRuleOverridesGlobalRule(t *testing.T) {
 }
 
 func TestWSResponseCreate_ForcePriorityRewritesKnownTier(t *testing.T) {
-	settings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier: OpenAIFastTierAny,
-			Action:      OpenAIFastPolicyActionForcePriority,
-			Scope:       BetaPolicyScopeAll,
+	settings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier: tierpolicy.OpenAIFastTierAny,
+			Action:      tierpolicy.OpenAIFastPolicyActionForcePriority,
+			Scope:       claude.BetaPolicyScopeAll,
 		}},
 	}
 	svc := newOpenAIGatewayServiceWithSettings(t, settings)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	for _, tier := range []string{"flex", "auto", "default", "scale", "fast", "priority", "ultrafast"} {
 		frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"` + tier + `"}`)
 		updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
 		require.NoError(t, err)
 		require.Nil(t, blocked)
-		require.Equal(t, OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String(),
+		require.Equal(t, tierpolicy.OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String(),
 			"tier %q should be forced to priority", tier)
 	}
 }
 
 func TestWSResponseCreate_FlexPassThrough(t *testing.T) {
-	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// 默认配置没有规则；flex 应保持原样。
 	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"flex"}`)
@@ -153,18 +160,18 @@ func TestWSResponseCreate_FlexPassThrough(t *testing.T) {
 }
 
 func TestWSResponseCreate_BlockReturnsTypedError(t *testing.T) {
-	settings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier:    OpenAIFastTierPriority,
-			Action:         BetaPolicyActionBlock,
-			Scope:          BetaPolicyScopeAll,
+	settings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier:    tierpolicy.OpenAIFastTierPriority,
+			Action:         claude.BetaPolicyActionBlock,
+			Scope:          claude.BetaPolicyScopeAll,
 			ErrorMessage:   "ws fast blocked",
 			ModelWhitelist: []string{"gpt-5.5"},
-			FallbackAction: BetaPolicyActionPass,
+			FallbackAction: claude.BetaPolicyActionPass,
 		}},
 	}
 	svc := newOpenAIGatewayServiceWithSettings(t, settings)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`)
 	updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
@@ -176,8 +183,8 @@ func TestWSResponseCreate_BlockReturnsTypedError(t *testing.T) {
 }
 
 func TestWSResponseCreate_NoServiceTierUntouched(t *testing.T) {
-	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	frame := []byte(`{"type":"response.create","model":"gpt-5.5","input":[]}`)
 	updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
@@ -187,17 +194,17 @@ func TestWSResponseCreate_NoServiceTierUntouched(t *testing.T) {
 }
 
 func TestWSResponseCreate_NonResponseCreateFrameUntouched(t *testing.T) {
-	settings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier:    OpenAIFastTierPriority,
-			Action:         BetaPolicyActionFilter,
-			Scope:          BetaPolicyScopeAll,
+	settings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier:    tierpolicy.OpenAIFastTierPriority,
+			Action:         claude.BetaPolicyActionFilter,
+			Scope:          claude.BetaPolicyScopeAll,
 			ModelWhitelist: []string{"*"},
-			FallbackAction: BetaPolicyActionFilter,
+			FallbackAction: claude.BetaPolicyActionFilter,
 		}},
 	}
 	svc := newOpenAIGatewayServiceWithSettings(t, settings)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// response.cancel happens to carry a service_tier-shaped field — must not be touched.
 	frame := []byte(`{"type":"response.cancel","service_tier":"priority"}`)
@@ -212,17 +219,17 @@ func TestWSResponseCreate_NonResponseCreateFrameUntouched(t *testing.T) {
 // fields from malformed / unknown client events. After the A1 fix only a
 // strict "response.create" match triggers policy.
 func TestWSResponseCreate_EmptyTypeFrameUntouched(t *testing.T) {
-	settings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier:    OpenAIFastTierPriority,
-			Action:         BetaPolicyActionFilter,
-			Scope:          BetaPolicyScopeAll,
+	settings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier:    tierpolicy.OpenAIFastTierPriority,
+			Action:         claude.BetaPolicyActionFilter,
+			Scope:          claude.BetaPolicyScopeAll,
 			ModelWhitelist: []string{"*"},
-			FallbackAction: BetaPolicyActionFilter,
+			FallbackAction: claude.BetaPolicyActionFilter,
 		}},
 	}
 	svc := newOpenAIGatewayServiceWithSettings(t, settings)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// Frame with no "type" field: must pass through completely unchanged
 	// even with a service_tier-shaped field present.
@@ -246,7 +253,7 @@ func TestWSResponseCreate_EmptyTypeFrameUntouched(t *testing.T) {
 // ("policy_violation"). The HTTP-side equivalent is the 403 permission_error
 // JSON body emitted by writeOpenAIFastPolicyBlockedResponse.
 func TestBuildOpenAIFastPolicyBlockedWSEvent_HasEventIDAndCode(t *testing.T) {
-	bytes := buildOpenAIFastPolicyBlockedWSEvent(&OpenAIFastBlockedError{Message: "blocked because reasons"})
+	bytes := buildOpenAIFastPolicyBlockedWSEvent(&tierpolicy.BlockedError{Message: "blocked because reasons"})
 	require.NotNil(t, bytes)
 
 	require.Equal(t, "error", gjson.GetBytes(bytes, "type").String())
@@ -259,7 +266,7 @@ func TestBuildOpenAIFastPolicyBlockedWSEvent_HasEventIDAndCode(t *testing.T) {
 	require.True(t, strings.HasPrefix(eventID, "evt_"), "event_id should follow the evt_<rand> Realtime convention; got %q", eventID)
 
 	// Sanity check: two consecutive events get distinct IDs.
-	other := buildOpenAIFastPolicyBlockedWSEvent(&OpenAIFastBlockedError{Message: "second"})
+	other := buildOpenAIFastPolicyBlockedWSEvent(&tierpolicy.BlockedError{Message: "second"})
 	otherID := gjson.GetBytes(other, "event_id").String()
 	require.NotEqual(t, eventID, otherID, "event_id must be random per-event")
 }
@@ -285,7 +292,7 @@ type fakePassthroughFrameConn struct {
 
 func (f *fakePassthroughFrameConn) ReadFrame(ctx context.Context) (coderws.MessageType, []byte, error) {
 	if f.idx >= len(f.reads) {
-		return coderws.MessageText, nil, errOpenAIWSConnClosed
+		return coderws.MessageText, nil, openai.ErrWSConnClosed
 	}
 	payload := f.reads[f.idx]
 	f.idx++
@@ -306,14 +313,14 @@ func (f *fakePassthroughFrameConn) Close() error {
 // gpt55WhitelistFastPolicy 返回一份强制带 model whitelist 的策略，用于
 // 验证 capturedSessionModel fallback 的语义（默认配置没有规则，fallback
 // 路径无法被观察到）。
-func gpt55WhitelistFastPolicy() *OpenAIFastPolicySettings {
-	return &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier:    OpenAIFastTierPriority,
-			Action:         BetaPolicyActionFilter,
-			Scope:          BetaPolicyScopeAll,
+func gpt55WhitelistFastPolicy() *tierpolicy.OpenAIFastPolicySettings {
+	return &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier:    tierpolicy.OpenAIFastTierPriority,
+			Action:         claude.BetaPolicyActionFilter,
+			Scope:          claude.BetaPolicyScopeAll,
 			ModelWhitelist: []string{"gpt-5.5", "gpt-5.5*"},
-			FallbackAction: BetaPolicyActionPass,
+			FallbackAction: claude.BetaPolicyActionPass,
 		}},
 	}
 }
@@ -329,7 +336,7 @@ func TestPolicyEnforcingFrameConn_FollowupFrameWithoutModelUsesCapturedModel(t *
 	// fallback 是否生效（默认配置没有规则，fallback 与否结果一致，
 	// 不能用来覆盖此回归）。
 	svc := newOpenAIGatewayServiceWithSettings(t, gpt55WhitelistFastPolicy())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// Simulate the passthrough adapter capturing model from the first frame.
 	firstFrame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`)
@@ -344,7 +351,7 @@ func TestPolicyEnforcingFrameConn_FollowupFrameWithoutModelUsesCapturedModel(t *
 	}
 	wrapper := &openAIWSPolicyEnforcingFrameConn{
 		inner: inner,
-		filter: func(msgType coderws.MessageType, payload []byte) ([]byte, *OpenAIFastBlockedError, error) {
+		filter: func(msgType coderws.MessageType, payload []byte) ([]byte, *tierpolicy.BlockedError, error) {
 			if msgType != coderws.MessageText {
 				return payload, nil, nil
 			}
@@ -368,8 +375,8 @@ func TestPolicyEnforcingFrameConn_FollowupFrameWithoutModelUsesCapturedModel(t *
 
 func TestOpenAIWSPassthroughPolicyModelDoesNotApplyAccountMapping(t *testing.T) {
 	account := &Account{
-		Platform: PlatformOpenAI,
-		Type:     AccountTypeOAuth,
+		Platform: capability.PlatformOpenAI,
+		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"public-model": "private-model"},
 		},
@@ -391,13 +398,13 @@ func TestOpenAIWSPassthroughPolicyModelDoesNotApplyAccountMapping(t *testing.T) 
 func TestPolicyEnforcingFrameConn_WithoutCapturedFallbackPolicyMisses(t *testing.T) {
 	// 同样使用带 whitelist 的策略以观察 leak。
 	svc := newOpenAIGatewayServiceWithSettings(t, gpt55WhitelistFastPolicy())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	followupFrame := []byte(`{"type":"response.create","service_tier":"priority"}`)
 	inner := &fakePassthroughFrameConn{reads: [][]byte{followupFrame}}
 	wrapper := &openAIWSPolicyEnforcingFrameConn{
 		inner: inner,
-		filter: func(msgType coderws.MessageType, payload []byte) ([]byte, *OpenAIFastBlockedError, error) {
+		filter: func(msgType coderws.MessageType, payload []byte) ([]byte, *tierpolicy.BlockedError, error) {
 			// NO fallback — emulate the pre-fix behavior.
 			model := openAIWSPassthroughPolicyModelForFrame(account, payload)
 			return svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, model, payload)
@@ -417,7 +424,6 @@ func TestPolicyEnforcingFrameConn_WithoutCapturedFallbackPolicyMisses(t *testing
 // ProxyResponsesWebSocketFromClient 入口会话管线和 captureConn 上游，验证
 // service_tier=fast 的客户端帧在写入上游前会被管理员显式策略归一化并过滤。
 func TestWSResponseCreate_IngressFiltersServiceTierBeforeUpstream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -446,24 +452,24 @@ func TestWSResponseCreate_IngressFiltersServiceTierBeforeUpstream(t *testing.T) 
 	repo := &openAIFastPolicyRepoStub{values: map[string]string{}}
 	filterPolicyJSON, err := json.Marshal(openAIFastFilterPriorityPolicy())
 	require.NoError(t, err)
-	repo.values[SettingKeyOpenAIFastPolicySettings] = string(filterPolicyJSON)
+	repo.values[gateway.SettingKeyOpenAIFastPolicySettings] = string(filterPolicyJSON)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
-		settingService:   NewSettingService(repo, cfg),
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector:  openai.NewCodexToolCorrector(),
+		openaiWSPool:   pool,
+		settingService: newExecutionReadersFixture(repo, cfg),
 	}
 
 	account := &Account{
 		ID:          901,
 		Name:        "openai-ws-filter",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
@@ -539,7 +545,6 @@ func TestWSResponseCreate_IngressFiltersServiceTierBeforeUpstream(t *testing.T) 
 // asserts that with a custom block rule, the client receives a Realtime-style
 // error event AND the upstream FrameConn never receives the offending frame.
 func TestWSResponseCreate_IngressBlockSendsErrorEventAndSkipsUpstream(t *testing.T) {
-	gin.SetMode(gin.TestMode)
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
@@ -563,37 +568,37 @@ func TestWSResponseCreate_IngressBlockSendsErrorEventAndSkipsUpstream(t *testing
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	blockSettings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier:    OpenAIFastTierPriority,
-			Action:         BetaPolicyActionBlock,
-			Scope:          BetaPolicyScopeAll,
+	blockSettings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier:    tierpolicy.OpenAIFastTierPriority,
+			Action:         claude.BetaPolicyActionBlock,
+			Scope:          claude.BetaPolicyScopeAll,
 			ErrorMessage:   "ws priority blocked for testing",
 			ModelWhitelist: []string{"gpt-5.5"},
-			FallbackAction: BetaPolicyActionPass,
+			FallbackAction: claude.BetaPolicyActionPass,
 		}},
 	}
 	repo := &openAIFastPolicyRepoStub{values: map[string]string{}}
 	raw, err := json.Marshal(blockSettings)
 	require.NoError(t, err)
-	repo.values[SettingKeyOpenAIFastPolicySettings] = string(raw)
+	repo.values[gateway.SettingKeyOpenAIFastPolicySettings] = string(raw)
 
 	svc := &OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
-		toolCorrector:    NewCodexToolCorrector(),
-		openaiWSPool:     pool,
-		settingService:   NewSettingService(repo, cfg),
+		cfg:          cfg,
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
+
+		toolCorrector:  openai.NewCodexToolCorrector(),
+		openaiWSPool:   pool,
+		settingService: newExecutionReadersFixture(repo, cfg),
 	}
 
 	account := &Account{
 		ID:          902,
 		Name:        "openai-ws-block",
-		Platform:    PlatformOpenAI,
-		Type:        AccountTypeAPIKey,
-		Status:      StatusActive,
+		Platform:    capability.PlatformOpenAI,
+		Type:        capability.AccountTypeAPIKey,
+		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
@@ -635,7 +640,7 @@ func TestWSResponseCreate_IngressBlockSendsErrorEventAndSkipsUpstream(t *testing
 		// connection without sending a close frame, and the C3 timing
 		// assertion (next read returns CloseStatus=1008) would see EOF
 		// instead.
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		if errors.As(proxyErr, &closeErr) {
 			_ = conn.Close(closeErr.StatusCode(), closeErr.Reason())
 		}
@@ -685,7 +690,7 @@ func TestWSResponseCreate_IngressBlockSendsErrorEventAndSkipsUpstream(t *testing
 		// Server returns an OpenAIWSClientCloseError — handler closes the WS;
 		// here we just assert it surfaced as the typed close error.
 		require.Error(t, serverErr)
-		var closeErr *OpenAIWSClientCloseError
+		var closeErr *gatewayhttp.OpenAIWSClientCloseError
 		require.True(t, errors.As(serverErr, &closeErr), "block 应返回 OpenAIWSClientCloseError，得到 %T: %v", serverErr, serverErr)
 		require.Equal(t, coderws.StatusPolicyViolation, closeErr.StatusCode())
 	case <-time.After(5 * time.Second):
@@ -708,23 +713,23 @@ func TestWSResponseCreate_IngressBlockSendsErrorEventAndSkipsUpstream(t *testing
 // upstream HTTP call entirely — see openai_gateway_chat_completions.go:175 and
 // openai_gateway_messages.go:149.
 func TestApplyOpenAIFastPolicyToBody_BlockShortCircuitsUpstream(t *testing.T) {
-	settings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier:    OpenAIFastTierPriority,
-			Action:         BetaPolicyActionBlock,
-			Scope:          BetaPolicyScopeAll,
+	settings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier:    tierpolicy.OpenAIFastTierPriority,
+			Action:         claude.BetaPolicyActionBlock,
+			Scope:          claude.BetaPolicyScopeAll,
 			ErrorMessage:   "priority blocked",
 			ModelWhitelist: []string{"gpt-5.5"},
-			FallbackAction: BetaPolicyActionPass,
+			FallbackAction: claude.BetaPolicyActionPass,
 		}},
 	}
 	svc := newOpenAIGatewayServiceWithSettings(t, settings)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	body := []byte(`{"model":"gpt-5.5","service_tier":"priority","input":[]}`)
 	updated, err := svc.applyOpenAIFastPolicyToBody(context.Background(), account, "gpt-5.5", body)
 	require.Error(t, err)
-	var blocked *OpenAIFastBlockedError
+	var blocked *tierpolicy.BlockedError
 	require.True(t, errors.As(err, &blocked), "block must surface as typed error so caller can skip upstream HTTP request")
 	require.Equal(t, "priority blocked", blocked.Message)
 	require.Equal(t, string(body), string(updated), "block must not mutate body")
@@ -736,20 +741,20 @@ func TestApplyOpenAIFastPolicyToBody_BlockShortCircuitsUpstream(t *testing.T) {
 // -> 默认 OpenAI fast 策略透传。这里复用相同内部管线
 // （Anthropic -> Responses + BetaFastMode + policy），不启动真实上游 HTTP 服务。
 func TestForwardAsAnthropicMessages_BetaFastModePassesOpenAIFastPolicyByDefault(t *testing.T) {
-	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// Step 1: parse Anthropic request (mirrors openai_gateway_messages.go:38-50).
 	anthropicBody := []byte(`{"model":"gpt-5.5","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`)
 	var anthropicReq protocolanthropic.AnthropicRequest
 	require.NoError(t, json.Unmarshal(anthropicBody, &anthropicReq))
-	responsesReq, err := apicompat.AnthropicToResponses(&anthropicReq)
+	responsesReq, err := protocolbridge.AnthropicToResponses(&anthropicReq, protocolforward.ConversionOptionsForModel(anthropicReq.Model))
 	require.NoError(t, err)
 
 	// Step 2: BetaFastMode header → service_tier="priority" (mirrors line 58-61).
 	headers := http.Header{}
 	headers.Set("anthropic-beta", claude.BetaFastMode)
-	require.True(t, containsBetaToken(headers.Get("anthropic-beta"), claude.BetaFastMode))
+	require.True(t, claude.ContainsBetaToken(headers.Get("anthropic-beta"), claude.BetaFastMode))
 	responsesReq.ServiceTier = "priority"
 	responsesReq.Model = "gpt-5.5"
 
@@ -777,7 +782,7 @@ func TestForwardAsAnthropicMessages_BetaFastModePassesOpenAIFastPolicyByDefault(
 // resolves to gpt-5.5 and the policy filters service_tier.
 func TestPolicyEnforcingFrameConn_SessionUpdateRotatesCapturedModel(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, gpt55WhitelistFastPolicy())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// Frame 1: response.create with whitelist-miss model — under default
 	// rule fallback=pass, service_tier stays.
@@ -795,7 +800,7 @@ func TestPolicyEnforcingFrameConn_SessionUpdateRotatesCapturedModel(t *testing.T
 	require.Equal(t, "gpt-4o", capturedSessionModel)
 	wrapper := &openAIWSPolicyEnforcingFrameConn{
 		inner: inner,
-		filter: func(msgType coderws.MessageType, payload []byte) ([]byte, *OpenAIFastBlockedError, error) {
+		filter: func(msgType coderws.MessageType, payload []byte) ([]byte, *tierpolicy.BlockedError, error) {
 			if msgType != coderws.MessageText {
 				return payload, nil, nil
 			}
@@ -834,7 +839,7 @@ func TestPolicyEnforcingFrameConn_SessionUpdateRotatesCapturedModel(t *testing.T
 // client→upstream session.update frames rotate the captured model;
 // server→client events (session.created) and unrelated frames must not.
 func TestPolicyModelFromSessionFrame_OnlySessionUpdate(t *testing.T) {
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// session.created is a server→client event in the OpenAI Realtime
 	// protocol — clients never send it, so this filter (which only runs on
@@ -860,17 +865,17 @@ func TestPolicyModelFromSessionFrame_OnlySessionUpdate(t *testing.T) {
 // "fast" → "priority" on pass too.
 func TestApplyOpenAIFastPolicyToBody_PassNormalizesFastAlias(t *testing.T) {
 	// Use a policy that deliberately misses gpt-4 so the action is pass.
-	settings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier:    OpenAIFastTierPriority,
-			Action:         BetaPolicyActionFilter,
-			Scope:          BetaPolicyScopeAll,
+	settings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier:    tierpolicy.OpenAIFastTierPriority,
+			Action:         claude.BetaPolicyActionFilter,
+			Scope:          claude.BetaPolicyScopeAll,
 			ModelWhitelist: []string{"gpt-5.5"},
-			FallbackAction: BetaPolicyActionPass,
+			FallbackAction: claude.BetaPolicyActionPass,
 		}},
 	}
 	svc := newOpenAIGatewayServiceWithSettings(t, settings)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// gpt-4 + "fast" → fallback pass. Body must be rewritten to "priority".
 	body := []byte(`{"model":"gpt-4","service_tier":"fast"}`)
@@ -908,7 +913,7 @@ func TestApplyOpenAIFastPolicyToBody_PassNormalizesFastAlias(t *testing.T) {
 // contract those two helpers must uphold for the adapter's billing path.
 func TestPassthroughBilling_PostFilterServiceTier(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	raw := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`)
 
@@ -949,8 +954,8 @@ func TestPassthroughBilling_PostFilterServiceTier(t *testing.T) {
 // "no usable tier"), forward body unchanged. This mirrors the HTTP entry's
 // type-assertion `reqBody["service_tier"].(string); ok` guard.
 func TestApplyOpenAIFastPolicyToBody_NonStringServiceTier(t *testing.T) {
-	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// Number — gjson .String() coerces to "1" which is not a recognized
 	// tier alias; normalize returns "" → policy no-ops.
@@ -998,13 +1003,13 @@ func TestApplyOpenAIFastPolicyToBody_NonStringServiceTier(t *testing.T) {
 //     也不能覆盖计费指针。
 func TestPassthroughBilling_MultiTurnServiceTierFollowsFilteredFrames(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	// 镜像生产过滤闭包（openai_ws_v2_passthrough_adapter.go 的
 	// proxyResponsesWebSocketV2Passthrough），确保生产代码移除逐帧 Store 时测试会失败。
 	var requestServiceTierPtr atomic.Pointer[string]
 	capturedSessionModel := ""
-	filter := func(msgType coderws.MessageType, payload []byte) ([]byte, *OpenAIFastBlockedError, error) {
+	filter := func(msgType coderws.MessageType, payload []byte) ([]byte, *tierpolicy.BlockedError, error) {
 		if msgType != coderws.MessageText {
 			return payload, nil, nil
 		}
@@ -1069,8 +1074,8 @@ func TestPassthroughBilling_MultiTurnServiceTierFollowsFilteredFrames(t *testing
 }
 
 func TestPassthroughUsageMeta_TracksReasoningEffortAcrossTurns(t *testing.T) {
-	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	svc := newOpenAIGatewayServiceWithSettings(t, tierpolicy.Default())
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	firstFrame := []byte(`{"type":"response.create","model":"gpt-5.5","reasoning":{"effort":"medium"},"service_tier":"priority"}`)
 	meta := newOpenAIWSPassthroughUsageMeta("", firstFrame)
@@ -1082,7 +1087,7 @@ func TestPassthroughUsageMeta_TracksReasoningEffortAcrossTurns(t *testing.T) {
 	require.NotNil(t, meta.reasoningEffort.Load())
 	require.Equal(t, "medium", *meta.reasoningEffort.Load())
 
-	process := func(payload []byte) ([]byte, *OpenAIFastBlockedError, error) {
+	process := func(payload []byte) ([]byte, *tierpolicy.BlockedError, error) {
 		if updated := openAIWSPassthroughPolicyModelFromSessionFrame(account, payload); updated != "" {
 			capturedSessionModel = updated
 		}
@@ -1135,24 +1140,24 @@ func TestPassthroughUsageMeta_TracksReasoningEffortAcrossTurns(t *testing.T) {
 // response.create frame, that frame is never sent upstream, so billing tier
 // must keep the previous turn's value rather than getting silently zeroed.
 func TestPassthroughBilling_BlockedFrameDoesNotMutateServiceTier(t *testing.T) {
-	blockSettings := &OpenAIFastPolicySettings{
-		Rules: []OpenAIFastPolicyRule{{
-			ServiceTier:    OpenAIFastTierPriority,
-			Action:         BetaPolicyActionBlock,
-			Scope:          BetaPolicyScopeAll,
+	blockSettings := &tierpolicy.OpenAIFastPolicySettings{
+		Rules: []tierpolicy.OpenAIFastPolicyRule{{
+			ServiceTier:    tierpolicy.OpenAIFastTierPriority,
+			Action:         claude.BetaPolicyActionBlock,
+			Scope:          claude.BetaPolicyScopeAll,
 			ErrorMessage:   "blocked",
 			ModelWhitelist: []string{"gpt-5.5"},
-			FallbackAction: BetaPolicyActionPass,
+			FallbackAction: claude.BetaPolicyActionPass,
 		}},
 	}
 	svc := newOpenAIGatewayServiceWithSettings(t, blockSettings)
-	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
 
 	var requestServiceTierPtr atomic.Pointer[string]
 	flexValue := "flex"
 	requestServiceTierPtr.Store(&flexValue) // simulate prior turn billed as flex
 
-	filter := func(msgType coderws.MessageType, payload []byte) ([]byte, *OpenAIFastBlockedError, error) {
+	filter := func(msgType coderws.MessageType, payload []byte) ([]byte, *tierpolicy.BlockedError, error) {
 		if msgType != coderws.MessageText {
 			return payload, nil, nil
 		}
