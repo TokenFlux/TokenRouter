@@ -1179,7 +1179,7 @@ git diff --check
 
 ## 9. Roadmap
 
-当前 **16 / 17 个阶段完成**。S15 已完成；下一步编写 S16 子计划。
+当前 **16 / 17 个阶段完成**。S15 已完成；S16 正在实施。
 
 状态使用：未实施、规划中、计划就绪、实施中、待验、已完成。详细决策、执行记录和完成证据保存在子计划；文件创建后再补链接，必要验收通过后才更新为已完成。
 
@@ -1201,4 +1201,4 @@ git diff --check
 | S13 | creative、batchimage | 已完成 | [S13 阶段计划与完成证据](S13-creative-batchimage.md#s13_completion) |
 | S14 | backup、setup、维护入口 | 已完成 | [计划与验收](S14-backup-setup-maintenance.md#s14_completion) |
 | S15 | HTTP、DTO、设置聚合收尾 | 已完成 | [计划与验收](S15-http-settings.md#s15_completion) |
-| S16 | 旧包删除与全量验收 | 未实施 | — |
+| S16 | 旧包删除与全量验收 | 实施中 | [计划与执行记录](S16-final-cleanup.md) |
