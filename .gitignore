@@ -145,3 +145,12 @@ output/
 
 # 仓库根目录的 Vitest 与 Vite 缓存
 .vite/
+
+# S16 原始验证文件保留在本地，版本库保存完整压缩归档与可读索引。
+refactor/baseline/S16/*
+!refactor/baseline/S16/*.md
+!refactor/baseline/S16/s16-evidence.tar.gz
+!refactor/baseline/S16/archive-manifest.json
+!refactor/baseline/S16/commit-verification.json
+!refactor/baseline/S16/commit-*.log.gz
+!refactor/baseline/S16/interim-search-catalogue-check.json
