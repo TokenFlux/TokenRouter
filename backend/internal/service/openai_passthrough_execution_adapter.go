@@ -113,7 +113,7 @@ func (p *openAIPassthroughExecutionAdapter) ApplyFastPass(ctx context.Context, m
 	return updated, err
 }
 func (p *openAIPassthroughExecutionAdapter) ImageIntent(model string, canonical []byte, policy string, body []byte, invalidated bool) bool {
-	return resolveOpenAIPassthroughImageIntent(p.c, model, canonical, policy, body, invalidated, provider.ImageIntent().IsImageGenerationIntent)
+	return gatewayhttp.ResolveOpenAIPassthroughImageIntent(p.c, model, canonical, policy, body, invalidated, provider.ImageIntent().IsImageGenerationIntent)
 }
 func (p *openAIPassthroughExecutionAdapter) ExplicitImageIntent(model string, body []byte) bool {
 	return provider.ImageIntent().IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, model, body)

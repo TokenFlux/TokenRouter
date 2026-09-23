@@ -176,3 +176,6 @@ refactor/baseline/S16/*
 
 # S16 Cyber 会话及固定装配检查点索引。
 !refactor/baseline/S16/progress-20260923-cyber-manifest.json
+
+# S16 OpenAI 文本 HTTP 检查点索引。
+!refactor/baseline/S16/progress-20260923-openai-text-manifest.json

@@ -35,7 +35,7 @@
 <a id="gateway_pipeline"></a>
 ## 共同处理管线
 
-HTTP 入口由 app 固定构造。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。`forward` 组织通用请求准备和转换推进，技术 provider/HTTP Adapter 执行交换、读写与 Flush。平台专有部分仍按 S11 阶段清单逐批从旧单步 Adapter 收敛，不创建第二套账号切换循环。
+HTTP 入口由 app 固定构造。OpenAI Responses、Chat 与 Messages 的 HTTP 绑定直接接收唯一用户/图片槽资源、Cyber、审核、归属读取及资金端口，已不从旧 Handler 构造 HTTP 门面；旧构造器仅供尚未清零的测试与兼容调用，单次尝试执行器另有明确过渡绑定。图片意图提示由 HTTP 按尝试保存，渠道改写后重新判断，不把请求级提示误用于下一账号尝试。`gateway/text` 拥有文本账号循环与计数预检的独立预算，`gateway/requeststate` 拥有报文副本、引导规范化和请求内模型替换缓存；`gateway/modeltrace` 维护响应恢复链。`forward` 组织通用请求准备和转换推进，技术 provider/HTTP Adapter 执行交换、读写与 Flush。平台专有部分仍按 S11 阶段清单逐批从旧单步 Adapter 收敛，不创建第二套账号切换循环。
 
 文本入口把 `requeststate.ExecutionHints` 和 `RoutingState` 显式传给执行器，分别携带客户端识别、图片意图、粘性预取等执行提示，以及原生分组、路由计划和客户端协议。分组在写入和读取边界复制，后续 attempt 重新绑定变更后的分组，不能修改先前请求快照。旧单步 Adapter 暂通过私有类型的 context 读取同一状态；`pkg/ctxkey` 已删除，telemetry 只保留观测关联信息。
 

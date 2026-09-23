@@ -6,7 +6,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
@@ -26,9 +25,8 @@ func NewBoundCompatibleTextHandler(options MessagesHTTPOptions, bindings Message
 }
 func (p compatibleTextHTTPBackend) ImageIntent(key *apikey.APIKey, model string, body []byte, mapping routing.ChannelMappingResult) ([]byte, bool) {
 	projected := apikey.CopyAPIKey(key)
-	target := requeststate.ChannelMappedModel(model, mapping)
-	forwarded := requeststate.ModelMappedBody(body, mapping.Mapped, target, p.replace)
-	return forwarded, provider.ImageIntentForPlatform("/v1/responses", target, forwarded, OpenAICompatibleRequestPlatform(projected))
+	forwarded, _, image := ChannelMappedImageIntent("/v1/responses", model, body, mapping, OpenAICompatibleRequestPlatform(projected), p.replace)
+	return forwarded, image
 }
 func (p compatibleTextHTTPBackend) ImageContext(ctx context.Context) context.Context {
 	return requeststate.WithOpenAIImageGenerationIntent(ctx)

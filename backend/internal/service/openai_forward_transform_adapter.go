@@ -49,7 +49,7 @@ func (p openAIForwardTransformAdapter) BridgeEnabled(ctx context.Context) bool {
 	return p.s.isCodexImageGenerationBridgeEnabled(ctx, p.account, getAPIKeyFromContext(p.c))
 }
 func (p openAIForwardTransformAdapter) ImageIntentHint(model string, body []byte) bool {
-	return resolveOpenAIImageIntentHint(p.c, model, body, provider.ImageIntent().IsImageGenerationIntent)
+	return gatewayhttp.ResolveOpenAIImageIntentHint(p.c, model, body, provider.ImageIntent().IsImageGenerationIntent)
 }
 func (p openAIForwardTransformAdapter) Models(model string, compact bool) (string, string) {
 	return provider.ExecutionModelPolicy(p.account).ForwardMappedModels(model, compact)

@@ -1695,3 +1695,11 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - app 直接构造唯一 CyberBlocks 和 CyberHandler，复用同一 GatewayCache、moderation 设置、ApplicationBackgroundTasks、Recorder 与 Ops 队列；旧 Handler backend 删除，旧服务仅保留实例绑定/无状态测试投影，不保留规则或缓存。真实请求的记录、异步提交与关闭拥有者不变。
 - 原会话测试迁到实际 HTTP/会话链，真实选择调用继续回归；48 条定向 unit race 通过，真实 Redis 组合根合同 1 条 integration race 通过，分别保留内存替身与真实存储证据。初次 app 测试构造参数遗漏已补齐，没有削弱断言或修复范围外问题。
 - 合并全仓普通/unit/integration 为 11,987 / 20,021 / 12,990 条通过，既有跳过 4/8/4，三套完整 lint 均为零；Wire 再生成稳定。9 类门禁在三种标签下共 27/27 通过，夹具已删除。SQL/Ent、原计划及冻结资料未变，验证见 `interim-native-cyber-checks.json` 与 `progress-20260923-cyber-verification.json`。保存本批进度，S16 仍未完成。
+
+
+### OpenAI 文本 HTTP 固定绑定与图片意图（2026-09-23）
+
+- Responses、Chat、Messages 的 HTTP backend 直接由 app 绑定原生资源、审核、Cyber、资金、路由及响应归属端口，生产不再通过旧 Handler 构造 HTTP 门面。选择/转发单次执行器仍是单独登记的过渡端口，本批不把它算作已清零；同一资源与完成器未复制。
+- 图片意图的 true/false/未知、WS 旁路和每 attempt 提示进入 HTTP 所有者；渠道映射、报文替换与判断使用唯一组合函数。保留 Compact 重新判断及调用次数，实际 Forward 测试仍验证生产消费者。原入口合同及图片提示测试同批迁移，原无标签选择保持，删除三处无消费者包装。
+- 编译、Wire 和构建通过；普通定向 674 条、unit race 1,132 条通过，各有一项既有 WS 跳过；真实组合根及路由读取/关闭边界追加 race 42 条通过。三套完整 lint 最终为零。初次测试私有 backend 搬迁遗漏、重复测试助手、旧包装 unused 和精确测试许可诊断分别保留，没有削弱原断言。
+- Wire 再生成摘要相同；其构造顺序变化仅将已有 Cyber/资源取得提前到文本 HTTP 装配，没有提前 Start。原计划、SQL/Ent、前阶段资料及 51 个受保护文件未变，文档同步实际新旧共存结构。本批验证索引为 `progress-20260923-openai-text-verification.json`；S16 仍实施中、16/17。

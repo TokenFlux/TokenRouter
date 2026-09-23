@@ -290,7 +290,7 @@ func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T
 	require.Nil(t, result)
 	require.Nil(t, upstream.lastReq)
 	require.Equal(t, http.StatusForbidden, rec.Code)
-	cached, known := getOpenAIImageIntentHint(c)
+	cached, known := gatewayhttp.GetOpenAIImageIntentHint(c)
 	require.True(t, known)
 	require.False(t, cached)
 
@@ -305,7 +305,7 @@ func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T
 	require.NotNil(t, result)
 	require.NotNil(t, upstream.lastReq)
 	require.Len(t, upstream.bodies, 1)
-	cached, known = getOpenAIImageIntentHint(c)
+	cached, known = gatewayhttp.GetOpenAIImageIntentHint(c)
 	require.True(t, known)
 	require.False(t, cached)
 }

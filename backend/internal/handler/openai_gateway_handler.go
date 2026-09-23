@@ -94,36 +94,18 @@ func openAIAccountScheduleModel(c *gin.Context, account *gatewayprovider.Executi
 
 type openAIModelBodyReplaceFunc func([]byte, string) []byte
 
-func openAIChannelMappedModel(requestedModel string, mapping routing.ChannelMappingResult) string {
-	return requeststate.ChannelMappedModel(requestedModel, routing.ChannelMappingResult(mapping))
-}
-
 func openAIModelMappedBody(body []byte, mapped bool, mappedModel string, replace openAIModelBodyReplaceFunc) []byte {
 	return requeststate.ModelMappedBody(body, mapped, mappedModel, requeststate.ModelBodyReplacer(replace))
 }
 
 // resolveOpenAIChannelMappedImageIntent 先把客户端模型 R 映射为渠道模型 C，
 // 再返回映射后的请求体、渠道模型和宽泛意图，供显式门禁与转发提示分别使用。
-func resolveOpenAIChannelMappedImageIntent(
-	endpoint string,
-	requestedModel string,
-	body []byte,
-	mapping routing.ChannelMappingResult,
-	platform string,
-	replace openAIModelBodyReplaceFunc,
-) ([]byte, string, bool) {
-	routingModel := openAIChannelMappedModel(requestedModel, mapping)
-	mappedBody := openAIModelMappedBody(body, mapping.Mapped, routingModel, replace)
-	imageIntent := gatewayprovider.ImageIntentForPlatform(endpoint, routingModel, mappedBody, platform)
-	return mappedBody, routingModel, imageIntent
+func resolveOpenAIChannelMappedImageIntent(endpoint, model string, body []byte, mapping routing.ChannelMappingResult, platform string, replace openAIModelBodyReplaceFunc) ([]byte, string, bool) {
+	return gatewayhttp.ChannelMappedImageIntent(endpoint, model, body, mapping, platform, requeststate.ModelBodyReplacer(replace))
 }
 
-func seedOpenAIForwardImageIntentHint(c *gin.Context, channelMapped bool, imageIntent bool) {
-	if channelMapped {
-		// 渠道映射改变了规范请求，保持 unknown，由 Forward 按映射后的 model/body 初始化。
-		return
-	}
-	service.SetOpenAIImageIntentHint(c, imageIntent)
+func seedOpenAIForwardImageIntentHint(c *gin.Context, mapped, image bool) {
+	gatewayhttp.SeedOpenAIForwardImageIntentHint(c, mapped, image)
 }
 
 func newOpenAIModelMappedBodyCache(body []byte, replace openAIModelBodyReplaceFunc) func(bool, string) []byte {
@@ -273,16 +255,6 @@ const (
 	openAISlotAcquireFailed
 	openAISlotAcquireProfitVetoed
 )
-
-// 兼容调用只委托客户端报文的唯一纯实现。
-func normalizeCodexDelegationBootstrap(body []byte) ([]byte, bool) {
-	return requeststate.NormalizeCodexDelegationBootstrap(body)
-}
-
-// 兼容调用只委托客户端报文的唯一纯实现。
-func normalizeCodexAutomationBootstrap(body []byte) ([]byte, bool) {
-	return requeststate.NormalizeCodexAutomationBootstrap(body)
-}
 
 func (h *OpenAIGatewayHandler) acquireResponsesAccountSlot(
 	c *gin.Context,

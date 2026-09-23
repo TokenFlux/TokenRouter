@@ -1,5 +1,5 @@
 // 入口迁移契约固定 HTTP 错误优先级、等待后二次权益检查及请求快照取时点。
-package handler
+package httpapi
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
@@ -36,7 +35,7 @@ type openAITextEntryProbe struct {
 	eligibility                     error
 	rewrite                         []byte
 	decision                        *moderation.Decision
-	call                            *gatewayhttp.OpenAITextCall
+	call                            *OpenAITextCall
 }
 
 func (p *openAITextEntryProbe) mark(s string) { p.events = append(p.events, s) }
@@ -107,8 +106,8 @@ func (p *openAITextEntryProbe) Eligibility(context.Context, *apikey.APIKey, *bil
 	p.mark("eligibility")
 	return p.eligibility
 }
-func (p *openAITextEntryProbe) SessionHash(_ *gin.Context, kind gatewayhttp.OpenAISessionInput, _ []byte) string {
-	if kind == gatewayhttp.OpenAIExplicitSession {
+func (p *openAITextEntryProbe) SessionHash(_ *gin.Context, kind OpenAISessionInput, _ []byte) string {
+	if kind == OpenAIExplicitSession {
 		return "explicit"
 	}
 	return "session"
@@ -132,7 +131,7 @@ func (p *openAITextEntryProbe) MappedBodyCache(body []byte) func(bool, string) [
 func (p *openAITextEntryProbe) MessageAccountModel(_ context.Context, _ *apikey.APIKey, model string) string {
 	return model
 }
-func (p *openAITextEntryProbe) Execution(_ *gin.Context, call gatewayhttp.OpenAITextCall) textflow.ResponsePorts {
+func (p *openAITextEntryProbe) Execution(_ *gin.Context, call OpenAITextCall) textflow.ResponsePorts {
 	p.mark("execution")
 	p.call = &call
 	return openAITextNoAttempt{}
@@ -151,7 +150,7 @@ type openAITextReadProbe struct {
 func (b *openAITextReadProbe) Read(p []byte) (int, error) { b.reads++; return b.Reader.Read(p) }
 func (*openAITextReadProbe) Close() error                 { return nil }
 
-func newOpenAITextEntryProbe(t *testing.T, body string) (*openAITextEntryProbe, *gatewayhttp.OpenAITextHandler, *gin.Context, *httptest.ResponseRecorder, *openAITextReadProbe) {
+func newOpenAITextEntryProbe(t *testing.T, body string) (*openAITextEntryProbe, *OpenAITextHandler, *gin.Context, *httptest.ResponseRecorder, *openAITextReadProbe) {
 	t.Helper()
 	c, w := func() (*gin.Context, *httptest.ResponseRecorder) {
 		w := httptest.NewRecorder()
@@ -162,24 +161,11 @@ func newOpenAITextEntryProbe(t *testing.T, body string) (*openAITextEntryProbe, 
 	reader := &openAITextReadProbe{Reader: strings.NewReader(body)}
 	c.Request.Body = reader
 	c.Set(authctx.ContextKeyUser, authctx.AuthSubject{UserID: 7, Concurrency: 2})
-	p := &openAITextEntryProbe{openAITextHTTPBackend: openAITextHTTPBackend{h: &OpenAIGatewayHandler{}}, key: &apikey.APIKey{ID: 9, UserID: 7}, allowed: true, owned: true}
-	h := gatewayhttp.NewOpenAITextHandler(gatewayhttp.OpenAITextOptions{MaxBodyBytes: 1024 * 1024, MaxSwitches: 2}, p, p, p)
+	p := &openAITextEntryProbe{openAITextHTTPBackend: openAITextHTTPBackend{}, key: &apikey.APIKey{ID: 9, UserID: 7}, allowed: true, owned: true}
+	h := NewOpenAITextHandler(OpenAITextOptions{MaxBodyBytes: 1024 * 1024, MaxSwitches: 2}, p, p, p)
 	return p, h, c, w, reader
 }
-func assertOpenAITextEventBefore(t *testing.T, events []string, a, b string) {
-	t.Helper()
-	ai, bi := -1, -1
-	for i, event := range events {
-		if event == a {
-			ai = i
-		}
-		if event == b {
-			bi = i
-		}
-	}
-	require.GreaterOrEqual(t, ai, 0, events)
-	require.Greater(t, bi, ai, events)
-}
+
 func TestOpenAITextHTTPPreludeErrorOrder(t *testing.T) {
 	t.Run("credential rejection does not read body", func(t *testing.T) {
 		p, h, c, w, r := newOpenAITextEntryProbe(t, `broken`)
@@ -294,6 +280,6 @@ func (p *openAITextEntryProbe) Execute(_ context.Context, in execution.Request, 
 	case execution.TextOpenAIMessages:
 		proto = protocol.ProtocolAnthropicMessages
 	}
-	p.call = &gatewayhttp.OpenAITextCall{Protocol: proto, Key: in.Funding.Key, Subscription: in.Funding.Subscription, Body: in.Body, ForwardBody: in.AttemptBody, SessionHashBody: in.Text.SessionHashBody, Model: in.Model, ForwardModel: in.Text.ForwardModel, Stream: in.Stream, Mapping: in.Text.Mapping, SessionHash: in.SessionHash, SelectionContext: in.Text.SelectionContext, PreviousResponseID: in.Text.PreviousResponseID, AccountLayerModel: in.Text.AccountLayerModel, PromptCacheKey: in.Text.PromptCacheKey, NativeCompactionV2: in.Text.NativeCompactionV2, LegacyCompact: in.Text.LegacyCompact}
+	p.call = &OpenAITextCall{Protocol: proto, Key: in.Funding.Key, Subscription: in.Funding.Subscription, Body: in.Body, ForwardBody: in.AttemptBody, SessionHashBody: in.Text.SessionHashBody, Model: in.Model, ForwardModel: in.Text.ForwardModel, Stream: in.Stream, Mapping: in.Text.Mapping, SessionHash: in.SessionHash, SelectionContext: in.Text.SelectionContext, PreviousResponseID: in.Text.PreviousResponseID, AccountLayerModel: in.Text.AccountLayerModel, PromptCacheKey: in.Text.PromptCacheKey, NativeCompactionV2: in.Text.NativeCompactionV2, LegacyCompact: in.Text.LegacyCompact}
 	return execution.ExecutionResult{}, nil
 }
