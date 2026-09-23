@@ -5,6 +5,8 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/TokenFlux/TokenRouter/internal/creative"
+
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
@@ -29,4 +31,18 @@ type Target struct {
 	OpenAI *OpenAIOptions
 	Grok   *GrokOptions
 	Gemini func(string) gemininative.ImageOptions
+}
+
+// ExecutePlatform 保留任务实际账号平台分派，不改变各平台独立协议与错误语义。
+func (t *Target) ExecutePlatform(ctx context.Context, platform string, run creative.CreativeRun, payload creative.CreativeRunPayload, model string) ([]creative.CreativeOutput, error) {
+	switch platform {
+	case creative.PlatformOpenAI:
+		return t.ExecuteOpenAI(ctx, run, payload, model)
+	case creative.PlatformGrok:
+		return t.ExecuteGrok(ctx, run, payload, model)
+	case creative.PlatformGemini:
+		return t.ExecuteGemini(ctx, run, payload, model)
+	default:
+		return nil, creative.CreativeNonRetryableError("creative executor unsupported account platform %s", platform)
+	}
 }

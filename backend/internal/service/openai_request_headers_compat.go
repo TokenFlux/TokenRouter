@@ -5,23 +5,25 @@ import (
 	"context"
 	"net/http"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context, c *gin.Context, account *Account, token, targetURL string, isCodexCLI bool, routerMatch ...egress.TLSFingerprintRouterMatchResult) openai.ResponsesRequestOptions {
+func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, token, targetURL string, isCodexCLI bool, routerMatch ...egress.TLSFingerprintRouterMatchResult) openai.ResponsesRequestOptions {
 	return openai.ResponsesRequestOptions{
 		URL: targetURL, ForwardHeaders: func() http.Header { return c.Request.Header },
 		Authenticate: func(ctx context.Context) (http.Header, error) {
-			return s.buildOpenAIAuthenticationHeaders(ctx, account, token)
+			return s.agentIdentity.Headers(ctx, account, token)
 		},
 		AccountHeaders: func(ctx context.Context, headers http.Header) error {
-			return resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, headers, account)
+			return gatewayprovider.CredentialChatGPTHeaders(ctx, s.accountRepo, headers, account)
 		},
-		UsesCodex:      account.UsesOpenAICodexProtocol,
-		IsCompact:      func() bool { return isOpenAIResponsesCompactPath(c) },
+		UsesCodex:      account.View().UsesOpenAICodexProtocol,
+		IsCompact:      func() bool { return gatewayhttp.IsOpenAIResponsesCompactPath(c) },
 		ForceCodexCLI:  func() bool { return s.cfg != nil && s.cfg.Gateway.ForceCodexCLI },
 		AllowHeader:    func(name string) bool { return openaiAllowedHeaders[name] },
 		GuardTurnState: func(headers http.Header) { s.guardOpenAICodexTurnStateEcho(c, account, headers) },
@@ -29,20 +31,22 @@ func (s *OpenAIGatewayService) nativeResponsesRequestOptions(ctx context.Context
 			return isOpenAICompatMessagesBridgeContext(c) || isOpenAICompatMessagesBridgeBody(body)
 		},
 		Originator:     func() string { return resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...) },
-		CompactSession: func() string { return resolveOpenAICompactSessionID(c) },
+		CompactSession: func() string { return gatewayhttp.ResolveOpenAICompactSessionID(c) },
 		APIKeyID:       func() int64 { return gatewayhttp.APIKeyIDFromContext(c) },
 		IsolateSession: func(keyID int64, raw string) string {
-			return isolateOpenAIUpstreamSessionID(keyID, codexAccountIdentitySource(c, account), raw)
+			return openai.IsolateOpenAIUpstreamSessionID(keyID, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(c, account.View())), raw)
 		},
 		ApplyUserAgent: func(req *http.Request) { s.applyOpenAIUpstreamUserAgent(ctx, c, account, req, false, routerMatch...) },
 		ApplyAccountIdentity: func(headers http.Header) {
-			applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), gatewayhttp.APIKeyIDFromContext(c))
+			openai.ApplyCodexAccountIdentityHeaders(headers, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(c, account.View())), gatewayhttp.APIKeyIDFromContext(c))
 		},
-		ApplyFingerprint: func(headers http.Header) { applyStagedCodexFingerprintHeaders(c, account, headers) },
-		OverrideHeaders:  account.ApplyHeaderOverrides,
+		ApplyFingerprint: func(headers http.Header) { gatewayhttp.ApplyStagedCodexFingerprintHeaders(c, account.View(), headers) },
+		OverrideHeaders:  bindAccountHeaders(account),
 		OpenCodeSession:  func(headers http.Header) { applyOpenCodeSessionHeader(c, account, targetURL, headers) },
-		BetaFeatures:     func(headers http.Header) { applyOpenAICodexBetaFeatures(c, account, headers) },
-		RoutingHint:      func(headers http.Header, body []byte) { setOpenAICodexRoutingHintFromBody(headers, account, body) },
+		BetaFeatures: func(headers http.Header) {
+			gatewayhttp.ApplyOpenAICodexBetaFeatures(c, account != nil && account.View().IsOpenAIOAuthLike(), headers)
+		},
+		RoutingHint: func(headers http.Header, body []byte) { setOpenAICodexRoutingHintFromBody(headers, account, body) },
 		Diagnostics: func(headers http.Header, body []byte) {
 			logOpenAIRoutingDiagnosticsFromBody(ctx, account, "http", headers, body, "not_applicable")
 		},

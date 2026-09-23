@@ -6,10 +6,10 @@ import (
 )
 
 // resolveOpenAIWSTransport 按原时机投影当前账号和启动配置，传输规则只有原生实现。
-func (s *OpenAIGatewayService) resolveOpenAIWSTransport(value *Account) egress.OpenAIWSProtocolDecision {
-	view := protocolRecord(value)
+func (s *OpenAIGatewayService) resolveOpenAIWSTransport(value *gatewayprovider.ExecutionAccount) egress.OpenAIWSProtocolDecision {
+	view := gatewayprovider.ExecutionProtocolRecord(value)
 	if view != nil {
-		view.Concurrency = value.Concurrency
+		view.Concurrency = value.Record.Concurrency
 	}
 	defaultMode := ""
 	var options *egress.OpenAIWSOptions

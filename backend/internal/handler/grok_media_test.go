@@ -8,23 +8,25 @@ import (
 	"mime/multipart"
 	"strings"
 	"testing"
+	time "time"
+
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRecordGrokMediaUsageIgnoresNilResult(t *testing.T) {
 	require.NotPanics(t, func() {
 		recordGrokMediaUsage(
-			nil, nil, nil, nil, middleware2.AuthSubject{}, nil, nil, nil,
+			nil, nil, nil, nil, authctx.AuthSubject{}, nil, nil, nil,
 			"", routing.ChannelMappingResult{}, nil, "",
 		)
 	})
@@ -165,7 +167,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 	t.Run("non oauth account does not probe", func(t *testing.T) {
 		prober := &grokMediaEligibilityProberStub{}
 		h := &OpenAIGatewayHandler{grokMediaEligibilityProber: prober}
-		account := &service.Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}}
 
 		eligible, reason, err := h.ensureGrokMediaAccountEligibility(context.Background(), account)
 
@@ -178,7 +180,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 	t.Run("unobserved oauth is probed before forwarding", func(t *testing.T) {
 		prober := &grokMediaEligibilityProberStub{eligible: true, reason: "eligible"}
 		h := &OpenAIGatewayHandler{grokMediaEligibilityProber: prober}
-		account := &service.Account{ID: 7, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 
 		eligible, reason, err := h.ensureGrokMediaAccountEligibility(context.Background(), account)
 
@@ -190,7 +192,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 
 	t.Run("missing prober fails closed", func(t *testing.T) {
 		h := &OpenAIGatewayHandler{}
-		account := &service.Account{ID: 8, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 
 		eligible, reason, err := h.ensureGrokMediaAccountEligibility(context.Background(), account)
 
@@ -203,7 +205,7 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 		probeErr := errors.New("probe failed")
 		prober := &grokMediaEligibilityProberStub{reason: "billing_unobserved", err: probeErr}
 		h := &OpenAIGatewayHandler{grokMediaEligibilityProber: prober}
-		account := &service.Account{ID: 9, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 
 		eligible, reason, err := h.ensureGrokMediaAccountEligibility(context.Background(), account)
 
@@ -214,14 +216,13 @@ func TestEnsureGrokMediaAccountEligibility(t *testing.T) {
 }
 
 func TestGrokMediaScheduleModelUsesNormalizedMappedUpstream(t *testing.T) {
-	account := &service.Account{
-		Platform: capability.PlatformGrok,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"grok-imagine-video-1.5": "wrong-raw-model",
 				"grok-imagine-video":     "mapped-video-model",
 			},
-		},
+		}},
 	}
 
 	require.Equal(t, "mapped-video-model", grokMediaScheduleModel(account, "grok-imagine-video", nil))

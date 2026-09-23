@@ -7,42 +7,29 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
 // codexModelsRemovalAccountRepo 提供仅含 API Key 账号的分组模型数据。
 type codexModelsRemovalAccountRepo struct {
-	service.AccountRepository
-	accounts []service.Account
+	modelHTTPAccountRows
+	accounts []account.Record
 }
 
-func (r *codexModelsRemovalAccountRepo) ListSchedulableByGroupID(context.Context, int64) ([]service.Account, error) {
-	return append([]service.Account(nil), r.accounts...), nil
-}
-
-// newCodexModelsRemovalGatewayHandler 构造可执行本地模型列表逻辑的测试 handler。
-func newCodexModelsRemovalGatewayHandler(repo service.AccountRepository) *handler.GatewayHandler {
-	gatewayService := service.NewGatewayService(
-		repo,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-	)
-	return handler.NewGatewayHandler(
-		gatewayService,
-		nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		&config.Config{}, nil, nil,
-	)
+func (r *codexModelsRemovalAccountRepo) ListSchedulableByGroupID(context.Context, int64) ([]account.Record, error) {
+	return append([]account.Record(nil), r.accounts...), nil
 }
 
 // 带 client_version 的模型请求应继续返回纯 API Key 分组的本地模型列表。
 func TestGatewayRoutesModelsWithClientVersionUsesLocalList(t *testing.T) {
 	repo := &codexModelsRemovalAccountRepo{
-		accounts: []service.Account{
+		accounts: []account.Record{
 			{
 				ID:       1,
 				Platform: capability.PlatformOpenAI,
@@ -56,10 +43,9 @@ func TestGatewayRoutesModelsWithClientVersionUsesLocalList(t *testing.T) {
 			},
 		},
 	}
-	router := newGatewayRoutesTestRouterWithGatewayHandler(
-		newCodexModelsRemovalGatewayHandler(repo),
-		capability.PlatformOpenAI,
-	)
+	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{
+		ID: 1, Platform: capability.PlatformOpenAI, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages, protocol.ProtocolOpenAIResponses, protocol.ProtocolOpenAIChatCompletions},
+	}, newGatewayModelsHandlerForTest(repo))
 	paths := []string{
 		"/v1/models?client_version=0.144.0",
 		"/models?client_version=0.144.0",

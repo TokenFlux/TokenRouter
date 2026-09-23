@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/gin-gonic/gin"
 )
@@ -26,7 +28,7 @@ func runServerTimingRequest(
 	engine.Use(ServerTiming(enabled))
 	engine.Any("/*path", func(c *gin.Context) {
 		if role != "" {
-			c.Set(string(ContextKeyUserRole), role)
+			c.Set(string(authctx.ContextKeyUserRole), role)
 		}
 		handler(c)
 	})
@@ -244,14 +246,14 @@ func TestServerTimingResponseHeaderForWebSocket(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/admin/ops/ws/qps", nil)
 	collector := timing.New(time.Now())
 	c.Request = c.Request.WithContext(timing.WithCollector(c.Request.Context(), collector))
-	c.Set(string(ContextKeyUserRole), "admin")
+	c.Set(string(authctx.ContextKeyUserRole), "admin")
 
 	header := ServerTimingResponseHeader(c)
 	if header.Get(timing.HeaderName) == "" {
 		t.Fatal("WebSocket response header missing timing value")
 	}
 
-	c.Set(string(ContextKeyUserRole), "user")
+	c.Set(string(authctx.ContextKeyUserRole), "user")
 	if got := ServerTimingResponseHeader(c); got != nil {
 		t.Fatalf("non-admin WebSocket received timing header: %#v", got)
 	}

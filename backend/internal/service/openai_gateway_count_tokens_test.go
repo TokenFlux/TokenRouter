@@ -19,6 +19,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tokenestimate"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -29,7 +30,8 @@ import (
 )
 
 type countTokensRuntimeStateRepo struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	tempUnschedCalls int
 	setErrorCalls    int
 }
@@ -58,15 +60,14 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyUsesResponsesI
 		Body:       io.NopCloser(strings.NewReader(`{"object":"response.input_tokens","input_tokens":42}`)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{
 			Enabled:           false,
 			AllowInsecureHTTP: true,
 		}}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:          101,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -76,7 +77,7 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyUsesResponsesI
 			"base_url": "http://upstream.example",
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "gpt-5.3-codex")
@@ -115,19 +116,18 @@ func TestOpenAIGatewayServiceForwardCountTokensCNProvidersAlwaysEstimateLocally(
 
 			upstream := &httpUpstreamRecorder{}
 			repo := &countTokensRuntimeStateRepo{}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				httpUpstream:     upstream,
 				rateLimitService: &RateLimitService{accountRepo: repo, cfg: &config.Config{}},
-			}
-			account := &Account{
-				ID:       301,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
 				Platform: tt.platform,
 				Type:     capability.AccountTypeAPIKey,
 				Credentials: map[string]any{
 					"api_key":      "sk-test",
 					"account_mode": tt.mode,
 					"api_protocol": tt.protocol,
-				},
+				}},
 			}
 
 			err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "")
@@ -144,8 +144,7 @@ func TestOpenAIGatewayServiceForwardCountTokensCNProvidersAlwaysEstimateLocally(
 func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_OAuthFallsBackWhenPlatformEndpointUnsupported(t *testing.T) {
 
 	body := []byte(`{"model":"claude-opus-4-1","messages":[{"role":"user","content":"hello"}]}`)
-	account := &Account{
-		ID:          202,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 202,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -155,7 +154,7 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_OAuthFallsBackWhenPl
 			"refresh_token": "oauth-refresh-token",
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	prepared, err := prepareOpenAIInputTokensCountRequest(body, account, "gpt-5.4")
@@ -204,11 +203,11 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_OAuthFallsBackWhenPl
 				Body:       io.NopCloser(strings.NewReader(tt.body)),
 			}}
 			repo := &countTokensRuntimeStateRepo{}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:              &config.Config{},
 				httpUpstream:     upstream,
 				rateLimitService: &RateLimitService{accountRepo: repo, cfg: &config.Config{}},
-			}
+			})
 
 			err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "gpt-5.4")
 			require.NoError(t, err)
@@ -236,7 +235,7 @@ func TestOpenAIGatewayService_OpenAIOAuthInputTokensFallbackUsesMinimumWhenEstim
 		UpstreamModel: "gpt-5",
 	}
 
-	writeOpenAIOAuthInputTokensFallback(c, &Account{ID: 303}, prepared, http.StatusUnauthorized)
+	writeOpenAIOAuthInputTokensFallback(c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 303}}, prepared, http.StatusUnauthorized)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.JSONEq(t, `{"input_tokens":1}`, rec.Body.String())
@@ -275,7 +274,7 @@ func TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI(t *testing.T) {
 		},
 	}
 
-	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			prepared, err := prepareOpenAIInputTokensCountRequest(tc.anthropicBody, account, tc.defaultOpenAIModel)

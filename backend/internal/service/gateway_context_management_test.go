@@ -9,9 +9,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
@@ -135,7 +138,7 @@ func TestSanitizeAnthropicBodyForBetaTokens_HaikuRealCCClientPreservesField(t *t
 func newTestGatewayServiceForBeta(injectBetaForAPIKey bool) *GatewayService {
 	cfg := &config.Config{}
 	cfg.Gateway.InjectBetaForAPIKey = injectBetaForAPIKey
-	return &GatewayService{cfg: cfg}
+	return withSchedulerParametersForTest(&GatewayService{cfg: cfg})
 }
 
 func TestComputeFinalAnthropicBeta_OAuthMimic_NonHaiku_IncludesContextManagement(t *testing.T) {
@@ -343,9 +346,9 @@ func TestNormalizeClaudeOAuthRequestBody_HaikuShortModelStillNormalizesToDatedID
 }
 
 func TestApplyClaudeCodeOAuthMimicryToBody_HaikuRewritesSystem(t *testing.T) {
-	account := &Account{ID: 405, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 405, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"model":"claude-haiku-4-5","system":"Pi project instructions","messages":[{"role":"user","content":"hello"}]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 
 	out := svc.applyClaudeCodeOAuthMimicryToBody(
 		context.Background(), nil, account, body, "Pi project instructions", "claude-haiku-4-5",
@@ -360,9 +363,9 @@ func TestApplyClaudeCodeOAuthMimicryToBody_HaikuRewritesSystem(t *testing.T) {
 }
 
 func TestApplyClaudeCodeOAuthMimicryToBody_FableOmitsRefusedExpansion(t *testing.T) {
-	account := &Account{ID: 406, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 406, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"model":"claude-fable-5","system":"Project instructions","messages":[{"role":"user","content":"hello"}]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 
 	out := svc.applyClaudeCodeOAuthMimicryToBody(
 		context.Background(), nil, account, body, "Project instructions", "claude-fable-5",
@@ -386,9 +389,8 @@ func TestApplyClaudeCodeOAuthMimicryToBody_FableOmitsRefusedExpansion(t *testing
 
 // passthrough 集成测试不设 base_url，避开 validateUpstreamBaseURL 对 cfg.Security 的依赖。
 // targetURL 会走默认 claudeAPIURL，sanitize 逻辑与 baseURL 是否存在无关。
-func newAnthropicAPIKeyPassthroughAccountForBetaTest() *Account {
-	return &Account{
-		ID:       501,
+func newAnthropicAPIKeyPassthroughAccountForBetaTest() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 501,
 		Name:     "anthropic-apikey-passthrough-ctxmgmt-test",
 		Platform: capability.PlatformAnthropic,
 		Type:     capability.AccountTypeAPIKey,
@@ -397,7 +399,7 @@ func newAnthropicAPIKeyPassthroughAccountForBetaTest() *Account {
 		},
 		Extra:       map[string]any{"anthropic_passthrough": true},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 }
 
@@ -418,7 +420,7 @@ func TestBuildUpstreamRequestAnthropicAPIKeyPassthrough_StripsContextManagementW
 	c.Request.Header.Set("Anthropic-Beta", "oauth-2025-04-20")
 
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		context.Background(), c, newAnthropicAPIKeyPassthroughAccountForBetaTest(), body, "token",
 	)
@@ -435,7 +437,7 @@ func TestBuildUpstreamRequestAnthropicAPIKeyPassthrough_PreservesContextManageme
 	c.Request.Header.Set("Anthropic-Beta", "oauth-2025-04-20,context-management-2025-06-27")
 
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		context.Background(), c, newAnthropicAPIKeyPassthroughAccountForBetaTest(), body, "token",
 	)
@@ -452,7 +454,7 @@ func TestBuildCountTokensRequestAnthropicAPIKeyPassthrough_StripsContextManageme
 	c.Request.Header.Set("Anthropic-Beta", "oauth-2025-04-20,token-counting-2024-11-01")
 
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, err := svc.buildCountTokensRequestAnthropicAPIKeyPassthrough(
 		context.Background(), c, newAnthropicAPIKeyPassthroughAccountForBetaTest(), body, "token",
 	)
@@ -473,14 +475,14 @@ func TestBuildUpstreamRequest_OAuthMimicHaiku_PreservesContextManagementEndToEnd
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	account := &Account{ID: 401, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 401, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"access_token": "oauth-tok"},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 	// Haiku + mimic CC 使用完整 beta，其中包含 context-management；body 必须对称保留。
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, account, body,
 		"oauth-tok", "oauth", "claude-haiku-4-5", false, true, // mimicClaudeCode=true
@@ -504,10 +506,9 @@ func TestBuildUpstreamRequest_APIKeyHaiku_RemainsUnmimicked(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	account := &Account{
-		ID: 404, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 404, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{"api_key": "sk-ant-xxx"},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	body := []byte(`{"model":"claude-haiku-4-5","system":"API-key client system","thinking":{"type":"enabled"},"messages":[]}`)
 	svc := newTestGatewayServiceForBeta(true)
@@ -530,15 +531,15 @@ func TestBuildUpstreamRequest_OAuthMimicNonHaiku_PreservesContextManagementEndTo
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	account := &Account{ID: 402, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 402, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"access_token": "oauth-tok"},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 	// sonnet + mimic CC → final beta = FullClaudeCodeMimicryBetas（含 context-management）→
 	// body 保留。
 	body := []byte(`{"model":"claude-sonnet-4-6","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, account, body,
 		"oauth-tok", "oauth", "claude-sonnet-4-6", false, true,
@@ -564,12 +565,12 @@ func TestBuildUpstreamRequest_OAuthTransparentHaikuWithRealCCBeta_PreservesField
 	c.Request.Header.Set("Anthropic-Beta",
 		"claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,context-management-2025-06-27")
 
-	account := &Account{ID: 403, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 403, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"access_token": "oauth-tok"},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, account, body,
 		"oauth-tok", "oauth", "claude-haiku-4-5", false, false, // mimicClaudeCode=false（真 CC）
@@ -594,12 +595,12 @@ func TestBuildCountTokensRequest_OAuthMimicHaiku_PreservesContextManagementEndTo
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)
 
-	account := &Account{ID: 411, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 411, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"access_token": "oauth-tok"},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildCountTokensRequest(
 		context.Background(), c, account, body,
 		"oauth-tok", "oauth", "claude-haiku-4-5", true, // mimicClaudeCode=true
@@ -624,9 +625,9 @@ func TestBuildCountTokensRequest_OAuthMimic_DropsInjectedMaxTokens(t *testing.T)
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)
 
-	account := &Account{ID: 413, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 413, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"access_token": "oauth-tok"},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	normalized, _ := claude.NormalizeClaudeOAuthRequestBody(
 		[]byte(`{"model":"claude-sonnet-4-5","messages":[]}`),
@@ -635,7 +636,7 @@ func TestBuildCountTokensRequest_OAuthMimic_DropsInjectedMaxTokens(t *testing.T)
 	require.Equal(t, int64(128000), gjson.GetBytes(normalized, "max_tokens").Int(),
 		"前置条件：OAuth mimic 注入 Claude Code 默认 max_tokens")
 
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildCountTokensRequest(
 		context.Background(), c, account, normalized,
 		"oauth-tok", "oauth", "claude-sonnet-4-5", true,
@@ -653,12 +654,12 @@ func TestBuildCountTokensRequest_APIKeyHaiku_StripsContextManagementEndToEnd(t *
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)
 	c.Request.Header.Set("Anthropic-Beta", "interleaved-thinking-2025-05-14")
 
-	account := &Account{ID: 412, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 412, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{"api_key": "sk-ant-xxx"},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildCountTokensRequest(
 		context.Background(), c, account, body,
 		"sk-ant-xxx", "apikey", "claude-haiku-4-5", false,
@@ -679,7 +680,7 @@ func TestBuildCountTokensRequestAnthropicAPIKeyPassthrough_PreservesContextManag
 	c.Request.Header.Set("Anthropic-Beta", "oauth-2025-04-20,context-management-2025-06-27,token-counting-2024-11-01")
 
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, err := svc.buildCountTokensRequestAnthropicAPIKeyPassthrough(
 		context.Background(), c, newAnthropicAPIKeyPassthroughAccountForBetaTest(), body, "token",
 	)
@@ -697,12 +698,12 @@ func TestBuildUpstreamRequest_APIKeyHaikuWithContextManagement_StripsField(t *te
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	c.Request.Header.Set("Anthropic-Beta", "interleaved-thinking-2025-05-14")
 
-	account := &Account{ID: 404, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 404, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{"api_key": "sk-ant-xxx"},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[]},"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, account, body,
 		"sk-ant-xxx", "apikey", "claude-haiku-4-5", false, false,

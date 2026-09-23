@@ -7,6 +7,8 @@ import (
 	fmt "fmt"
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	gin "github.com/gin-gonic/gin"
 )
 
@@ -14,8 +16,8 @@ import (
 // 优先绑定当前会话（refresh token family）；旧 token 没有会话 ID 时绑定其凭证摘要，
 // 避免同一用户的多个旧会话共享敏感操作授权。
 func StepUpSessionKey(c *gin.Context, userID int64) string {
-	sid := c.GetString(ContextKeySessionID)
-	if principal, ok := GetPrincipal(c); ok {
+	sid := c.GetString(authctx.ContextKeySessionID)
+	if principal, ok := authctx.GetPrincipal(c); ok {
 		sid = principal.SessionID
 	}
 	if sid != "" {
@@ -51,7 +53,7 @@ func EnforceStepUp(c *gin.Context, grantChecker StepUpGrantChecker, userReader U
 	}
 
 	adminAPIKey := c.GetString("auth_method") == "admin_api_key"
-	if principal, ok := GetPrincipal(c); ok {
+	if principal, ok := authctx.GetPrincipal(c); ok {
 		// 已迁入口以验证后的凭据类型为准，旧 context 字段只兼容未迁入口。
 		adminAPIKey = principal.CredentialKind == "admin_api_key"
 	}
@@ -61,7 +63,7 @@ func EnforceStepUp(c *gin.Context, grantChecker StepUpGrantChecker, userReader U
 		return false
 	}
 
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok || subject.UserID <= 0 {
 		AbortWithError(c, 401, "UNAUTHORIZED", "Authorization required")
 		return false

@@ -10,8 +10,13 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
@@ -24,7 +29,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -35,16 +39,16 @@ import (
 // 后端会在转发上游前直接拦截并返回 mock 响应（不依赖上游）。
 
 type fakeSchedulerCache struct {
-	accounts []*service.Account
+	accounts []*gatewayprovider.ExecutionAccount
 }
 
-func (f *fakeSchedulerCache) GetSnapshot(_ context.Context, _ scheduler.SchedulerBucket) ([]*service.Account, bool, error) {
-	return f.accounts, true, nil
+func (f *fakeSchedulerCache) GetSnapshot(_ context.Context, _ scheduler.SchedulerBucket) ([]scheduler.SnapshotAccount, bool, error) {
+	return service.LegacySnapshotWrapPointers(f.accounts), true, nil
 }
 func (f *fakeSchedulerCache) CaptureBucketWriteToken(_ context.Context, bucket scheduler.SchedulerBucket) (scheduler.SchedulerBucketWriteToken, error) {
 	return scheduler.SchedulerBucketWriteToken{Bucket: bucket, Epoch: 1}, nil
 }
-func (f *fakeSchedulerCache) SetSnapshot(_ context.Context, _ scheduler.SchedulerBucket, _ scheduler.SchedulerBucketWriteToken, _ []service.Account) error {
+func (f *fakeSchedulerCache) SetSnapshot(_ context.Context, _ scheduler.SchedulerBucket, _ scheduler.SchedulerBucketWriteToken, _ []scheduler.SnapshotAccount) error {
 	return nil
 }
 func (f *fakeSchedulerCache) RetireBucket(_ context.Context, _ scheduler.SchedulerBucket) error {
@@ -59,16 +63,18 @@ func (f *fakeSchedulerCache) TryAcquireGroupLifecycleLease(_ context.Context, _ 
 func (f *fakeSchedulerCache) ReleaseGroupLifecycleLease(_ context.Context, _ scheduler.SchedulerGroupLifecycleLease) error {
 	return nil
 }
-func (f *fakeSchedulerCache) GetAccount(_ context.Context, id int64) (*service.Account, error) {
+func (f *fakeSchedulerCache) GetAccount(_ context.Context, id int64) (scheduler.SnapshotAccount, error) {
 	for _, account := range f.accounts {
-		if account != nil && account.ID == id {
-			return account, nil
+		if account != nil && account.Record.ID == id {
+			return service.LegacySnapshotWrap(account), nil
 		}
 	}
 	return nil, nil
 }
-func (f *fakeSchedulerCache) SetAccount(_ context.Context, _ *service.Account) error { return nil }
-func (f *fakeSchedulerCache) DeleteAccount(_ context.Context, _ int64) error         { return nil }
+func (f *fakeSchedulerCache) SetAccount(_ context.Context, _ scheduler.SnapshotAccount) error {
+	return nil
+}
+func (f *fakeSchedulerCache) DeleteAccount(_ context.Context, _ int64) error { return nil }
 func (f *fakeSchedulerCache) UpdateLastUsed(_ context.Context, _ map[int64]time.Time) error {
 	return nil
 }
@@ -168,30 +174,29 @@ func (f *fakeConcurrencyCache) CleanupExpiredAccountSlots(context.Context, int64
 func (f *fakeConcurrencyCache) CleanupExpiredAccountSlotKeys(context.Context) error     { return nil }
 func (f *fakeConcurrencyCache) CleanupStaleProcessSlots(context.Context, string) error  { return nil }
 
-func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*service.Account) (*GatewayHandler, func()) {
+func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatewayprovider.ExecutionAccount) (*GatewayHandler, func()) {
 	t.Helper()
 
 	schedulerCache := &fakeSchedulerCache{accounts: accounts}
-	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
+	schedulerSnapshot := scheduler.NewSnapshotService(schedulerCache, nil, nil, nil, nil, scheduler.SnapshotBindings{})
 
 	gwSvc := service.NewGatewayService(
-		nil, // accountRepo (not used: scheduler snapshot hit)
-		&fakeGroupRepo{group: group},
-		nil, // usageLogRepo
-		nil, // usageBillingRepo
-		nil, // userRepo
-		nil, // userSubRepo
-		nil, // userGroupRateRepo
+		nil,                               // accountRepo (not used: scheduler snapshot hit)
+		&fakeGroupRepo{group: group}, nil, // usageLogRepo
+		// usageBillingRepo
+		// userRepo
+		// userSubRepo
+		// userGroupRateRepo
 		nil, // cache (disable sticky)
 		nil, // cfg
 		schedulerSnapshot,
-		nil,      // concurrencyService (disable load-aware; tryAcquire always acquired)
-		nil,      // billingService
-		nil,      // rateLimitService
-		nil,      // billingCacheService
+		nil, // concurrencyService (disable load-aware; tryAcquire always acquired)
+		// billingService
+		nil, // rateLimitService
+		// billingCacheService
 		nil,      // identityService
-		nil,      // httpUpstream
-		nil,      // deferredService
+		nil, nil, // httpUpstream
+		// deferredService
 		nil,      // claudeTokenProvider
 		nil, nil, // sessionLimitCache
 		nil, // rpmCache
@@ -200,11 +205,24 @@ func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*servi
 		nil, // tlsFPProfileService
 		nil, // channelService
 		nil, // resolver
-		nil, // balanceNotifyService
-		nil, // userPlatformQuotaRepo
-	)
+		// balanceNotifyService
+		responseHeaderFilterForTest(nil),
 
-	// RunModeSimple：跳过计费检查，避免引入 repo/cache 依赖。
+		// userPlatformQuotaRepo
+	)
+	gwSvc.
+
+		// RunModeSimple：跳过计费检查，避免引入 repo/cache 依赖。
+		BindCompletionRecorder(newHTTPCompletionFixture(nil, nil,
+
+			nil,
+
+			nil,
+
+			nil,
+
+			nil, nil, false))
+
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	billingCacheSvc := newBillingEligibilityFixture(cfg)
 	billingCacheSvc.Start()
@@ -242,8 +260,7 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_MixedScheduli
 		Status:   billing.StatusActive,
 	}
 
-	account := &service.Account{
-		ID:       accountID,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: accountID,
 		Name:     "ag-1",
 		Platform: capability.PlatformAntigravity,
 		Type:     capability.AccountTypeOAuth,
@@ -258,10 +275,10 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_MixedScheduli
 		Priority:      1,
 		Status:        billing.StatusActive,
 		Schedulable:   true,
-		AccountGroups: []service.AccountGroup{{AccountID: accountID, GroupID: groupID}},
+		AccountGroups: []accountcore.GroupMembership{{AccountID: accountID, GroupID: groupID}}},
 	}
 
-	h, cleanup := newTestGatewayHandler(t, group, []*service.Account{account})
+	h, cleanup := newTestGatewayHandler(t, group, []*gatewayprovider.ExecutionAccount{account})
 	defer cleanup()
 
 	rec := httptest.NewRecorder()
@@ -290,8 +307,8 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_MixedScheduli
 		Group: group,
 	}
 
-	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
-	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.UserID, Concurrency: 10})
+	c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: apiKey.UserID, Concurrency: 10})
 
 	h.Messages(c)
 
@@ -327,8 +344,7 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_ForcePlatform
 		Status:   billing.StatusActive,
 	}
 
-	account := &service.Account{
-		ID:       accountID,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: accountID,
 		Name:     "ag-2",
 		Platform: capability.PlatformAntigravity,
 		Type:     capability.AccountTypeOAuth,
@@ -340,10 +356,10 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_ForcePlatform
 		Priority:      1,
 		Status:        billing.StatusActive,
 		Schedulable:   true,
-		AccountGroups: []service.AccountGroup{{AccountID: accountID, GroupID: groupID}},
+		AccountGroups: []accountcore.GroupMembership{{AccountID: accountID, GroupID: groupID}}},
 	}
 
-	h, cleanup := newTestGatewayHandler(t, group, []*service.Account{account})
+	h, cleanup := newTestGatewayHandler(t, group, []*gatewayprovider.ExecutionAccount{account})
 	defer cleanup()
 
 	rec := httptest.NewRecorder()
@@ -364,7 +380,7 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_ForcePlatform
 	ctx = apikey.WithForcePlatform(ctx, capability.PlatformAntigravity)
 	req = req.WithContext(ctx)
 	c.Request = req
-	c.Set(string(middleware.ContextKeyForcePlatform), capability.PlatformAntigravity)
+	c.Set(string(keyhttp.ContextKeyForcePlatform), capability.PlatformAntigravity)
 
 	apiKey := &apikey.APIKey{
 		ID:      3002,
@@ -379,8 +395,8 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_ForcePlatform
 		Group: group,
 	}
 
-	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
-	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.UserID, Concurrency: 10})
+	c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: apiKey.UserID, Concurrency: 10})
 
 	h.Messages(c)
 

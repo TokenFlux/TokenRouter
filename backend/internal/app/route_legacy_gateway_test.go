@@ -1,10 +1,16 @@
 package app
 
 import (
+	"time"
+
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	opscore "github.com/TokenFlux/TokenRouter/internal/ops"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
+	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 
 	batchhttp "github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -15,14 +21,14 @@ import (
 )
 
 // 历史夹具只在构造边界转换 Key 服务，生产签名使用原生实例。
-func legacyRouteMiddleware(auth middleware.APIKeyAuthMiddleware, keys *apikey.APIKeyService, subscriptions *billing.SubscriptionService, ops *opscore.OpsService, settings *routing.RuntimeSettings, cfg *config.Config) gatewayhttp.RouteMiddleware {
+func legacyRouteMiddleware(auth keyhttp.APIKeyAuthMiddleware, keys *apikey.APIKeyService, subscriptions *billing.SubscriptionService, ops *opscore.OpsService, settings *routing.RuntimeSettings, cfg *config.Config) gatewayhttp.RouteMiddleware {
 	var native *apikey.APIKeyService
 	if keys != nil {
 		native = keys
 	}
 	value := provideGatewayRouteMiddleware(auth, native, subscriptions, ops, settings, cfg, nil)
 	options := gatewayhttp.GroupAssignmentOptions{Access: func(c *gin.Context) gatewayhttp.GroupAssignmentAccess {
-		key, ok := middleware.GetAPIKeyFromContext(c)
+		key, ok := keyhttp.GetAPIKeyFromContext(c)
 		if !ok || key == nil {
 			return gatewayhttp.GroupAssignmentAccess{}
 		}
@@ -32,9 +38,9 @@ func legacyRouteMiddleware(auth middleware.APIKeyAuthMiddleware, keys *apikey.AP
 		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonAPIKeyGroupUnassigned)
 		middleware.MarkIngressRejected(c, middleware.IngressRejectGroupUnassigned)
 	}}
-	options.WriteError = middleware.AnthropicErrorWriter
+	options.WriteError = gatewayhttp.AnthropicErrorWriter
 	value.RequireGroupAnthropic = gatewayhttp.RequireGroupAssignment(settings, options)
-	options.WriteError = middleware.GoogleErrorWriter
+	options.WriteError = gatewayhttp.GoogleErrorWriter
 	value.RequireGroupGoogle = gatewayhttp.RequireGroupAssignment(settings, options)
 	return value
 }
@@ -42,7 +48,7 @@ func legacyRouteMiddleware(auth middleware.APIKeyAuthMiddleware, keys *apikey.AP
 func RegisterGatewayRoutes(
 	r *gin.Engine,
 	h *routeTestHandlers,
-	apiKeyAuth middleware.APIKeyAuthMiddleware,
+	apiKeyAuth keyhttp.APIKeyAuthMiddleware,
 	apiKeyService *apikey.APIKeyService,
 	subscriptionService *billing.SubscriptionService,
 	opsService *opscore.OpsService,
@@ -50,13 +56,17 @@ func RegisterGatewayRoutes(
 	cfg *config.Config,
 ) {
 	// 生产使用 app 已绑定的目标 handler；手工装配的兼容测试仍复用同一实现。
+	openAITokensHTTP := h.OpenAITokensHTTP
+	if openAITokensHTTP == nil {
+		openAITokensHTTP = provideOpenAITokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil)
+	}
 	countTokensHTTP := h.CountTokensHTTP
 	if countTokensHTTP == nil && h.Gateway != nil {
-		countTokensHTTP = h.Gateway.NewCountTokensHTTPHandler()
+		countTokensHTTP = provideCountTokensHTTP(nil, nil, nil, nil, cfg, nil, nil)
 	}
 	qoderCompatibleHTTP := h.QoderCompatibleHTTP
-	if qoderCompatibleHTTP == nil && h.QoderGateway != nil {
-		qoderCompatibleHTTP = h.QoderGateway.NewCompatibleHTTPHandler()
+	if qoderCompatibleHTTP == nil {
+		qoderCompatibleHTTP = provideQoderCompatibleHTTP(nil, nil, nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil)
 	}
 	compatibleTextHTTP := h.CompatibleTextHTTP
 	if compatibleTextHTTP == nil && h.Gateway != nil {
@@ -76,7 +86,7 @@ func RegisterGatewayRoutes(
 	}
 	modelsHTTP := h.ModelsHTTP
 	if modelsHTTP == nil && h.Gateway != nil {
-		modelsHTTP = h.Gateway.NewModelsHTTPHandler()
+		modelsHTTP = provideModelsHTTP(nil, nil, nil)
 	}
 	messagesHTTP := h.MessagesHTTP
 	if messagesHTTP == nil && h.Gateway != nil {
@@ -92,20 +102,26 @@ func RegisterGatewayRoutes(
 			auxiliaryHTTP = h.OpenAIGateway.AuxiliaryHTTPHandler()
 		}
 		if liveHTTP == nil {
-			liveHTTP = h.OpenAIGateway.NewLiveHTTPHandler()
+			liveHTTP = provideLiveHTTP(nil, nil, nil, nil, nil)
 		}
 	}
 	if searchHTTP == nil && h.Gateway != nil {
-		searchHTTP = h.Gateway.SearchHTTPHandler()
+		searchHTTP = gatewayhttp.NewSearchHandler(gatewayhttp.SearchPorts{})
 	}
 
-	qoderChat := gin.HandlerFunc(h.QoderGateway.ChatCompletions)
+	qoderChat := gin.HandlerFunc(qoderCompatibleHTTP.ChatCompletions)
 	if h.QoderChat != nil {
 		qoderChat = h.QoderChat.ChatCompletions
 	}
-	publicUsage := gin.HandlerFunc(h.Gateway.Usage)
+	publicUsage := usagehttp.NewPublicUsageHandler(nil, nil, nil, nil, usagehttp.PublicUsageContext{
+		Key: keyhttp.GetAPIKeyFromContext,
+		Billing: func(c *gin.Context) (*billing.APIKeyBillingContext, bool) {
+			return gatewayhttp.GetAPIKeyBillingContext(c)
+		},
+		Subscription: gatewayhttp.SubscriptionFromContext,
+	}, timezone.NewCalendar(time.Local)).Usage
 	if h.PublicUsage != nil {
 		publicUsage = h.PublicUsage.Usage
 	}
-	gatewayhttp.RegisterGatewayRoutes(r, gatewayhttp.RouteEndpoints{CountTokens: countTokensHTTP, QoderCompatible: qoderCompatibleHTTP, CompatibleText: compatibleTextHTTP, GeminiNative: geminiNativeHTTP, OpenAIText: openAITextHTTP, ResponsesWS: responsesWSHTTP, Models: modelsHTTP, Messages: messagesHTTP, Media: mediaHTTP, Auxiliary: auxiliaryHTTP, Live: liveHTTP, Search: searchHTTP, PublicUsage: publicUsage, QoderChat: qoderChat}, legacyRouteMiddleware(apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg), func(group *gin.RouterGroup) { batchhttp.RegisterGatewayRoutes(group, h.BatchImage) })
+	gatewayhttp.RegisterGatewayRoutes(r, gatewayhttp.RouteEndpoints{CountTokens: countTokensHTTP, QoderCompatible: qoderCompatibleHTTP, CompatibleText: compatibleTextHTTP, GeminiNative: geminiNativeHTTP, OpenAIText: openAITextHTTP, OpenAITokens: openAITokensHTTP, ResponsesWS: responsesWSHTTP, Models: modelsHTTP, Messages: messagesHTTP, Media: mediaHTTP, Auxiliary: auxiliaryHTTP, Live: liveHTTP, Search: searchHTTP, PublicUsage: publicUsage, QoderChat: qoderChat}, legacyRouteMiddleware(apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg), func(group *gin.RouterGroup) { batchhttp.RegisterGatewayRoutes(group, h.BatchImage) })
 }

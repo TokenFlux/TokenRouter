@@ -7,9 +7,14 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
+
+	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
@@ -54,10 +59,11 @@ func TestOpenAIMediaPricingUsesModifierOnlyCards(t *testing.T) {
 					} else {
 						channelCards = []routing.ChannelModelPricing{card}
 					}
-					resolver := newResolverWithBillingService(t, billing, channelCards)
-					svc := &OpenAIGatewayService{billingService: billing, resolver: resolver}
+					resolver := billingtestkit.ResolverWithCards(t, billing, channelCards)
+					svc := completion.NewRecorder(completion.Dependencies{Calculator: billing, Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
+
 					key := &apikey.APIKey{GroupID: &group.ID, Group: group}
-					resolved := svc.resolveOpenAIChannelPricing(context.Background(), model, key)
+					resolved := svc.ResolveOpenAIChannelPricing(context.Background(), model, gatewaycapture.ProjectCompletionKey(key))
 					require.NotNil(t, resolved)
 					require.Equal(t, pricing.PricingSourceLiteLLM, resolved.Source)
 					result := &forwardcore.OpenAIResult{Model: model, ReasoningEffort: &effort, ImageCount: 1}
@@ -65,7 +71,7 @@ func TestOpenAIMediaPricingUsesModifierOnlyCards(t *testing.T) {
 						result.ImageCount, result.VideoCount = 0, 1
 						result.VideoDurationSeconds = 8
 					}
-					cost, err := svc.calculateOpenAIRecordUsageCostAt(context.Background(), result, key, []string{model}, 1.5, 0.7, 0.8, 1,
+					cost, err := svc.CalculateOpenAIRecordUsageCostAt(context.Background(), gatewaycapture.ProjectOpenAICompletionResult(result, nil), gatewaycapture.ProjectCompletionKey(key), []string{model}, 1.5, 0.7, 0.8, 1,
 						pricing.UsageTokens{InputTokens: 100, OutputTokens: 50, ImageOutputTokens: 50}, tier, time.Date(2026, 9, 9, 9, 0, 0, 0, time.UTC))
 					require.NoError(t, err)
 					require.Equal(t, string(routing.BillingModeToken), cost.BillingMode)
@@ -90,11 +96,12 @@ func TestOpenAIMediaModifiersPreserveInheritedRequestBilling(t *testing.T) {
 				wantTotal, rate = 4, 0.8
 			}
 			billing := NewBillingService(nil, nil)
-			resolver := newResolverWithBillingService(t, billing, []routing.ChannelModelPricing{{Platform: platform, Models: []string{model}, BillingMode: mode, PerRequestPrice: testPtrFloat64(0.25)}})
+			resolver := billingtestkit.ResolverWithCards(t, billing, []routing.ChannelModelPricing{{Platform: platform, Models: []string{model}, BillingMode: mode, PerRequestPrice: testPtrFloat64(0.25)}})
 			group := &routing.Group{ID: 100, Platform: platform, ModelPricing: []routing.ChannelModelPricing{{Models: []string{model}, FastMultiplier: testPtrFloat64(3),
 				TimePricing: &routing.ChannelTimePricing{Timezone: "UTC", Periods: []routing.ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}}}}
-			svc := &OpenAIGatewayService{billingService: billing, resolver: resolver}
-			cost, err := svc.calculateOpenAIRecordUsageCostAt(context.Background(), result, &apikey.APIKey{Group: group}, []string{model}, 1.5, 0.7, 0.8, 1,
+			svc := completion.NewRecorder(completion.Dependencies{Calculator: billing, Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
+
+			cost, err := svc.CalculateOpenAIRecordUsageCostAt(context.Background(), gatewaycapture.ProjectOpenAICompletionResult(result, nil), gatewaycapture.ProjectCompletionKey(&apikey.APIKey{Group: group}), []string{model}, 1.5, 0.7, 0.8, 1,
 				pricing.UsageTokens{InputTokens: 100}, "priority", time.Date(2026, 9, 9, 9, 0, 0, 0, time.UTC))
 			require.NoError(t, err)
 			require.Equal(t, string(mode), cost.BillingMode)
@@ -118,14 +125,15 @@ func TestCNProviderPricingModifiersDoNotCountAsExplicitPrices(t *testing.T) {
 				} else {
 					channelCards = []routing.ChannelModelPricing{card}
 				}
-				resolver := newResolverWithBillingService(t, NewBillingService(nil, nil), channelCards)
-				svc := &OpenAIGatewayService{resolver: resolver}
+				resolver := billingtestkit.ResolverWithCards(t, NewBillingService(nil, nil), channelCards)
+				svc := completion.NewRecorder(completion.Dependencies{Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
+
 				key := &apikey.APIKey{Group: group}
-				require.NotNil(t, svc.resolveOpenAIChannelPricing(context.Background(), model, key))
-				require.Empty(t, svc.filterCNProviderBillingModelCandidates(context.Background(), &Account{Platform: platform}, key, []string{model}))
+				require.NotNil(t, svc.ResolveOpenAIChannelPricing(context.Background(), model, gatewaycapture.ProjectCompletionKey(key)))
+				require.Empty(t, svc.FilterCNProviderBillingModelCandidates(context.Background(), gatewaycapture.ProjectCompletionAccount(gatewaycapture.ExecutionCompletionRecord(&gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: platform}})), gatewaycapture.ProjectCompletionKey(key), []string{model}))
 				// 显式零价仍是管理员的定价合同，应允许候选进入结算。
 				group.ModelPricing = []routing.ChannelModelPricing{{Models: []string{model}, InputPrice: testPtrFloat64(0)}}
-				require.Equal(t, []string{model}, svc.filterCNProviderBillingModelCandidates(context.Background(), &Account{Platform: platform}, key, []string{model}))
+				require.Equal(t, []string{model}, svc.FilterCNProviderBillingModelCandidates(context.Background(), gatewaycapture.ProjectCompletionAccount(gatewaycapture.ExecutionCompletionRecord(&gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: platform}})), gatewaycapture.ProjectCompletionKey(key), []string{model}))
 			})
 		}
 	}

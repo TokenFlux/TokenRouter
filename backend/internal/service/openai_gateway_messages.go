@@ -14,6 +14,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -25,7 +26,7 @@ import (
 )
 
 // ForwardAsAnthropic 只保留旧签名，Messages 请求和恢复编排由目标执行器唯一拥有。
-func (s *OpenAIGatewayService) ForwardAsAnthropic(ctx context.Context, c *gin.Context, account *Account, body []byte, promptCacheKey, defaultMappedModel string, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error) {
+func (s *OpenAIGatewayService) ForwardAsAnthropic(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, promptCacheKey, defaultMappedModel string, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error) {
 	result, err := forward.RunMessages(ctx, body, promptCacheKey, defaultMappedModel, &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch})
 	return openAIForwardResultFromHTTP(result), err
 }
@@ -48,7 +49,7 @@ func ensureCodexOAuthInstructionsField(reqBody map[string]any) {
 func (s *OpenAIGatewayService) handleAnthropicErrorResponse(
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	requestedModel ...string,
 ) (*forwardcore.OpenAIResult, error) {
 	return s.handleCompatErrorResponse(resp, c, account, gatewayhttp.WriteForwardAnthropicError, gatewayhttp.WriteForwardAnthropicErrorBody, requestedModel...)
@@ -57,7 +58,7 @@ func (s *OpenAIGatewayService) handleAnthropicErrorResponse(
 func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
@@ -67,7 +68,7 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	return chatForwardResult(result, billingModel), err
 }
 
-func (s *OpenAIGatewayService) recordOpenAIMessagesStreamUpstreamError(c *gin.Context, account *Account, upstreamRequestID, kind, message string) {
+func (s *OpenAIGatewayService) recordOpenAIMessagesStreamUpstreamError(c *gin.Context, account *gatewayprovider.ExecutionAccount, upstreamRequestID, kind, message string) {
 	if c == nil {
 		return
 	}
@@ -81,9 +82,9 @@ func (s *OpenAIGatewayService) recordOpenAIMessagesStreamUpstreamError(c *gin.Co
 		Message:            message,
 	}
 	if account != nil {
-		event.Platform = account.Platform
-		event.AccountID = account.ID
-		event.AccountName = account.Name
+		event.Platform = account.Record.Platform
+		event.AccountID = account.Record.ID
+		event.AccountName = account.Record.Name
 	}
 	gatewayhttp.AppendOpsUpstreamError(c, event)
 }

@@ -3,6 +3,7 @@ package httpapi
 
 import (
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
 )
@@ -29,7 +30,7 @@ type TotpStatusResponse struct {
 // GetStatus returns the TOTP status for the current user
 // GET /api/v1/user/totp/status
 func (h *TotpHandler) GetStatus(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -71,7 +72,7 @@ type TotpSetupResponse struct {
 // InitiateSetup starts the TOTP setup process
 // POST /api/v1/user/totp/setup
 func (h *TotpHandler) InitiateSetup(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -106,7 +107,7 @@ type TotpEnableRequest struct {
 // Enable completes the TOTP setup
 // POST /api/v1/user/totp/enable
 func (h *TotpHandler) Enable(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -135,7 +136,7 @@ type TotpDisableRequest struct {
 // Disable disables TOTP for the current user
 // POST /api/v1/user/totp/disable
 func (h *TotpHandler) Disable(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -158,7 +159,7 @@ func (h *TotpHandler) Disable(c *gin.Context) {
 // GetVerificationMethod 返回当前用户执行 TOTP 操作时所需的身份校验方式。
 // GET /api/v1/user/totp/verification-method
 func (h *TotpHandler) GetVerificationMethod(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -175,7 +176,7 @@ func (h *TotpHandler) GetVerificationMethod(c *gin.Context) {
 // SendVerifyCode sends an email verification code for TOTP operations
 // POST /api/v1/user/totp/send-code
 func (h *TotpHandler) SendVerifyCode(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -203,7 +204,7 @@ type TotpStepUpResponse struct {
 // StepUp 敏感操作二次验证：校验 TOTP 码并为当前会话授予一段时间的 step-up 权限。
 // POST /api/v1/user/totp/step-up
 func (h *TotpHandler) StepUp(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return

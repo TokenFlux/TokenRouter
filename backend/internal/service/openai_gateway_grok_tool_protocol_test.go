@@ -18,6 +18,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -220,7 +221,7 @@ func TestForwardGrokResponsesClientToolNameConflictReturns400(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	upstream := &httpUpstreamRecorder{}
-	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 	account := grokProtocolAPIKeyAccount(7101)
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
@@ -245,7 +246,7 @@ func TestForwardGrokResponsesMalformedToolSearchOutputReturns400BeforeUpstream(t
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	upstream := &httpUpstreamRecorder{}
-	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 	account := grokProtocolAPIKeyAccount(7103)
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
@@ -270,7 +271,7 @@ func TestForwardGrokResponsesOAuthRestoresClientToolsNonStreaming(t *testing.T) 
 
 	account := grokProtocolOAuthAccount(7102)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -288,11 +289,11 @@ func TestForwardGrokResponsesOAuthRestoresClientToolsNonStreaming(t *testing.T) 
 			"usage":{"input_tokens":9,"output_tokens":3,"total_tokens":12}
 		}`)),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
 
@@ -334,7 +335,7 @@ func TestForwardGrokResponsesAPIKeyRestoresClientToolsFromSSEForNonStreamingRequ
 		},
 		Body: io.NopCloser(strings.NewReader(grokProtocolUpstreamSSE())),
 	}}
-	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 	account := grokProtocolAPIKeyAccount(7104)
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
@@ -371,7 +372,7 @@ func TestForwardGrokResponsesAPIKeyRestoresClientToolsStreaming(t *testing.T) {
 		},
 		Body: io.NopCloser(strings.NewReader(grokProtocolUpstreamSSE())),
 	}}
-	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 	account := grokProtocolAPIKeyAccount(7103)
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", true, time.Now())
@@ -501,23 +502,21 @@ func grokClientToolProtocolRequest(stream bool) []byte {
 	}`, stream))
 }
 
-func grokProtocolOAuthAccount(id int64) *Account {
-	return &Account{
-		ID: id, Name: "grok-oauth-protocol", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+func grokProtocolOAuthAccount(id int64) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id, Name: "grok-oauth-protocol", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 		Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "oauth-protocol-token", "refresh_token": "refresh-token",
 			"expires_at": time.Now().Add(2 * accountcore.GrokTokenRefreshSkew).UTC().Format(time.RFC3339),
 			"base_url":   xai.DefaultCLIBaseURL, "subscription_tier": "supergrok",
-		},
+		}},
 	}
 }
 
-func grokProtocolAPIKeyAccount(id int64) *Account {
-	return &Account{
-		ID: id, Name: "grok-api-key-protocol", Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey,
+func grokProtocolAPIKeyAccount(id int64) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id, Name: "grok-api-key-protocol", Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey,
 		Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
-		Credentials: map[string]any{"api_key": "xai-protocol-key", "base_url": "https://api.x.ai/v1"},
+		Credentials: map[string]any{"api_key": "xai-protocol-key", "base_url": "https://api.x.ai/v1"}},
 	}
 }
 

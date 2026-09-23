@@ -14,7 +14,10 @@ import (
 	"context"
 	"net/http"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
@@ -27,7 +30,7 @@ import (
 func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	defaultMappedModel string,
 ) (*forwardcore.OpenAIResult, error) {
@@ -37,20 +40,22 @@ func (s *OpenAIGatewayService) forwardAnthropicViaNativeAnthropicEndpoint(
 }
 
 // nativeAnthropicTargetURL 保留旧入口，目标校验与路径拼接由唯一实现执行。
-func (s *OpenAIGatewayService) nativeAnthropicTargetURL(account *Account) (string, error) {
-	return forward.NativeAnthropicTargetURL(account.ID, account.GetAnthropicProtocolBaseURL(), s.validateUpstreamBaseURL)
+func (s *OpenAIGatewayService) nativeAnthropicTargetURL(account *gatewayprovider.ExecutionAccount) (string, error) {
+	return forward.NativeAnthropicTargetURL(account.Record.ID, gatewayprovider.ExecutionProtocolTarget(account).GetAnthropicProtocolBaseURL(), s.validateUpstreamBaseURL)
 }
 
 // buildNativeAnthropicUpstreamRequest 只投影本次请求 Header 与账号策略。
-func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, apiKey, targetURL string) (*http.Request, []byte, error) {
+func (s *OpenAIGatewayService) buildNativeAnthropicUpstreamRequest(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, apiKey, targetURL string) (*http.Request, []byte, error) {
 	var headers http.Header
 	if c != nil && c.Request != nil {
 		headers = c.Request.Header
 	}
 	return forward.BuildNativeAnthropicRequest(ctx, body, apiKey, targetURL, forward.NativeAnthropicRequestOptions{
-		Headers: headers, GetHeader: anthropic.GetHeaderRaw, OverrideValue: account.HeaderOverrideValue,
+		Headers: headers, GetHeader: anthropic.GetHeaderRaw, OverrideValue: bindAccountHeaderValue(account),
 		Sanitize: anthropic.SanitizeAnthropicBodyForBetaTokens, AllowedHeader: func(key string) bool { return allowedHeaders[key] },
 		WireCasing: anthropic.ResolveWireCasing, AddHeader: anthropic.AddHeaderRaw, SetHeader: anthropic.SetHeaderRaw,
-		AuthHeader: func(h http.Header, key string) { setAnthropicAPIKeyAuthHeader(h, account, key) }, ApplyOverrides: account.ApplyHeaderOverrides,
+		AuthHeader: func(h http.Header, key string) {
+			anthropic.SetAPIKeyAuthHeader(h, gatewayprovider.ExecutionProtocolRecord(account).GetAnthropicAPIKeyAuthScheme() == accountcore.AnthropicAPIKeyAuthSchemeAuthorizationBearer, key)
+		}, ApplyOverrides: bindAccountHeaders(account),
 	})
 }

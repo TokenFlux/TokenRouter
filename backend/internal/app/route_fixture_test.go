@@ -95,6 +95,7 @@ type routeTestHandlers struct {
 	Notification        *notificationhttpapi.Handler
 	OpenAIGateway       *handler.OpenAIGatewayHandler
 	OpenAITextHTTP      *gatewayhttpapi.OpenAITextHandler
+	OpenAITokensHTTP    *gatewayhttpapi.OpenAITokensHandler
 	Passkey             *identityhttpapi.PasskeyHandler
 	Payment             *paymenthttpapi.PaymentHandler
 	PaymentWebhook      *paymenthttpapi.PaymentWebhookHandler
@@ -104,7 +105,6 @@ type routeTestHandlers struct {
 	PublicUsage         *usagehttpapi.PublicUsageHandler
 	QoderChat           *gatewayhttpapi.QoderChatHandler
 	QoderCompatibleHTTP *gatewayhttpapi.QoderCompatibleHandler
-	QoderGateway        *handler.QoderGatewayHandler
 	Redeem              *billinghttpapi.RedeemHandler
 	ResponsesWSHTTP     *gatewayhttpapi.ResponsesWSHandler
 	Search              *searchhttpapi.Handler

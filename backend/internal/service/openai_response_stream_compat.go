@@ -12,6 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -23,20 +24,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, c *gin.Context, account *Account, reasoningEffort string) openai.StreamOptions {
+func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, reasoningEffort string) openai.StreamOptions {
 	observer := gatewayhttp.UpstreamResponseModelObserverFromContext(c)
 	if observer == nil {
 		observer = gatewayhttp.BeginUpstreamResponseModelObservation(c)
 	}
 	options := openai.StreamOptions{
 
-		NativeOpenAI: account != nil && account.Platform == capability.PlatformOpenAI,
+		NativeOpenAI: account != nil && account.Record.Platform == capability.PlatformOpenAI,
 
-		StageFirstOutput: account != nil && account.Platform == capability.PlatformOpenAI,
+		StageFirstOutput: account != nil && account.Record.Platform == capability.PlatformOpenAI,
 
-		CodexFailureTerminal: account != nil && account.IsOpenAIOAuthLike(),
+		CodexFailureTerminal: account != nil && account.View().IsOpenAIOAuthLike(),
 
-		GrokIdlePolicy: account != nil && account.Platform == capability.PlatformGrok,
+		GrokIdlePolicy: account != nil && account.Record.Platform == capability.PlatformGrok,
 
 		MaxLineSize: defaultMaxLineSize,
 
@@ -52,7 +53,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 
 		MarkCommitted: func() { gatewayhttp.MarkResponseCommitted(c) },
 
-		ClientOutputStarted: func(started bool) bool { return openAIStreamClientOutputStarted(c, started) },
+		ClientOutputStarted: func(started bool) bool { return gatewayhttp.OpenAIStreamClientOutputStarted(c, started) },
 
 		StagedHeadersCommitted: func(headers http.Header) { s.noteStagedOpenAICodexTurnStateCommitted(c, account, headers) },
 
@@ -85,7 +86,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 		CompactFallback: func(body []byte, message string) error { return newOpenAICompactFallbackSignal(c, body, message) },
 
 		ErrorRule: func(body []byte, message string) (int, string, string, bool) {
-			return applyOpenAIStreamFailedErrorPassthroughRule(c, account.Platform, body, message)
+			return applyOpenAIStreamFailedErrorPassthroughRule(c, account.Record.Platform, body, message)
 		},
 
 		CapacitySuppressed: func(requestID, eventType string) {
@@ -93,7 +94,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 		},
 
 		MarkCyber: func(value openai.CyberObservation) {
-			MarkOpsCyberPolicy(c, CyberPolicyMark{
+			gatewayhttp.MarkOpsCyberPolicy(c, moderationflow.Mark{
 				Code:           value.Code,
 				Message:        value.Message,
 				Body:           value.Body,
@@ -114,7 +115,7 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 		},
 
 		EmptyCompleted: func(requestID string) error {
-			return newOpenAIResponsesEmptyCompletedFailoverError(c, account, requestID)
+			return gatewayhttp.NewOpenAIResponsesEmptyCompletedFailoverError(c, upstreamErrorAccount(account), requestID)
 		},
 
 		CountSearch: grok.CountGrokNativeSearchCallsInSSEDataDedup,
@@ -133,20 +134,20 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 			return s.newOpenAIFirstOutputTimeoutError(ctx, c, account, start, model, effort, timeout, phase, headers)
 		},
 
-		KeepaliveBytes: func(count int) { recordOpenAIStreamKeepaliveBytes(c, count) },
+		KeepaliveBytes: func(count int) { gatewayhttp.RecordOpenAIStreamKeepaliveBytes(c, count) },
 
-		BuildOpenAIResponseFailedSSE: buildOpenAIResponseFailedSSE,
+		BuildOpenAIResponseFailedSSE: gatewayprovider.BuildOpenAIResponseFailedSSE,
 
 		WrapOpenAIUpstreamWarningIfCyber: gatewayprovider.WrapOpenAIUpstreamWarningIfCyber,
 
 		TruncateString: logredact.TruncateUTF8,
 
-		OpenAIStreamDataStartsTTFT: openAIStreamDataStartsTTFT,
+		OpenAIStreamDataStartsTTFT: gatewayprovider.OpenAIStreamDataStartsTTFT,
 
 		OpenAIStreamEventIsTerminalWithType: openAIStreamEventIsTerminalWithType,
 	}
 	if account != nil {
-		options.AccountID = account.ID
+		options.AccountID = account.Record.ID
 	}
 	if options.NativeOpenAI {
 		options.FirstOutputTimeout = s.openAIFirstOutputTimeout(reasoningEffort)

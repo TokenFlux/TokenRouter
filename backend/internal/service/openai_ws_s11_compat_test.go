@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	upstreamopenai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -97,7 +98,7 @@ func (c *openAIWSClientFrameConn) markTurnCompleted() {
 // passthrough WS frame. Mirrors the HTTP-side normalization
 // (account.GetMappedModel + normalizeOpenAIModelForUpstream) so the WS path
 // matches model whitelists identically.
-func openAIWSPassthroughPolicyModelForFrame(account *Account, payload []byte) string {
+func openAIWSPassthroughPolicyModelForFrame(account *gatewayprovider.ExecutionAccount, payload []byte) string {
 	if account == nil || len(payload) == 0 {
 		return ""
 	}
@@ -105,10 +106,10 @@ func openAIWSPassthroughPolicyModelForFrame(account *Account, payload []byte) st
 	if original == "" {
 		return ""
 	}
-	if account.IsOpenAIPassthroughEnabled() {
+	if account.View().IsOpenAIPassthroughEnabled() {
 		return original
 	}
-	return normalizeOpenAIModelForUpstream(account, account.GetMappedModel(original))
+	return gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(gatewayprovider.ExecutionModelPolicy(account).Mapped(original))
 }
 
 // openAIWSPassthroughPolicyModelFromSessionFrame returns the upstream model
@@ -128,7 +129,7 @@ func openAIWSPassthroughPolicyModelForFrame(account *Account, payload []byte) st
 // session.update to gpt-5.5, then send response.create without "model" so
 // the per-frame resolver returns "" and the stale capturedSessionModel falls
 // back to gpt-4o — defeating the gpt-5.5 fast-policy filter.
-func openAIWSPassthroughPolicyModelFromSessionFrame(account *Account, payload []byte) string {
+func openAIWSPassthroughPolicyModelFromSessionFrame(account *gatewayprovider.ExecutionAccount, payload []byte) string {
 	if account == nil || len(payload) == 0 {
 		return ""
 	}
@@ -140,10 +141,10 @@ func openAIWSPassthroughPolicyModelFromSessionFrame(account *Account, payload []
 	if original == "" {
 		return ""
 	}
-	if account.IsOpenAIPassthroughEnabled() {
+	if account.View().IsOpenAIPassthroughEnabled() {
 		return original
 	}
-	return normalizeOpenAIModelForUpstream(account, account.GetMappedModel(original))
+	return gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(gatewayprovider.ExecutionModelPolicy(account).Mapped(original))
 }
 
 // 旧方法名仅委托原子会话元数据，不保留另一份状态。
@@ -154,7 +155,7 @@ type openAIWSPassthroughUsageMeta struct {
 }
 
 func newOpenAIWSPassthroughUsageMeta(model string, body []byte) *openAIWSPassthroughUsageMeta {
-	meta := gatewayws.NewUsageMeta(model, body, wsUsageDecoder{})
+	meta := gatewayws.NewUsageMeta(model, body, gatewayws.RequestUsageDecoder{})
 	return &openAIWSPassthroughUsageMeta{UsageMeta: meta, reasoningEffort: &meta.ReasoningEffort}
 }
 func (m *openAIWSPassthroughUsageMeta) initFromFirstFrame(body []byte, model string) {

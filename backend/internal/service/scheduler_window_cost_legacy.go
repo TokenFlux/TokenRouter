@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
@@ -57,11 +58,11 @@ func (s *GatewayService) windowCostGuard() *billing.WindowCostGuard {
 	}
 	return billing.NewWindowCostGuard(s.windowCostCache, source, billing.WindowCostGuardOptions{Now: time.Now, Stats: billing.SharedWindowCostMetrics(), Log: func(format string, args ...any) { logging.LegacyPrintf("service.gateway", format, args...) }, Debug: slog.Debug})
 }
-func costWindowInput(a *Account) billing.CostWindowInput {
+func costWindowInput(a *gatewayprovider.ExecutionAccount) billing.CostWindowInput {
 	if a == nil {
 		return billing.CostWindowInput{}
 	}
-	return billing.CostWindowInput{ID: a.ID, Enabled: a.IsAnthropicOAuthOrSetupToken(), Limit: a.GetWindowCostLimit(), Reserve: a.GetWindowCostStickyReserve(), Start: a.SessionWindowStart, End: a.SessionWindowEnd}
+	return billing.CostWindowInput{ID: a.Record.ID, Enabled: a.View().IsAnthropicOAuthOrSetupToken(), Limit: gatewayprovider.ExecutionRuntimeConfig(a).GetWindowCostLimit(), Reserve: gatewayprovider.ExecutionRuntimeConfig(a).GetWindowCostStickyReserve(), Start: a.Record.SessionWindowStart, End: a.Record.SessionWindowEnd}
 }
 
 // BindUsageWindowSource 由 app 绑定新用量查询；窗口规则仍由 billing 拥有。

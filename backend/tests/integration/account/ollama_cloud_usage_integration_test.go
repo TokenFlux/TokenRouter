@@ -90,7 +90,7 @@ func TestListDueOllamaCloudUsageAccountsOrderingLimitAndProxyHydration(t *testin
 //
 // 可在最低支持版本上运行，覆盖与数据库版本相关的路径：
 //
-//	TOKENROUTER_TEST_POSTGRES_IMAGE=postgres:15-alpine go test -tags integration ./internal/repository/
+//	TOKENROUTER_TEST_POSTGRES_IMAGE=postgres:15-alpine go test -tags integration ./tests/integration/account/
 func TestListDueOllamaCloudUsageAccountsParsesAllRFC3339Precisions(t *testing.T) {
 	ctx := context.Background()
 	tx := testEntTx(t)

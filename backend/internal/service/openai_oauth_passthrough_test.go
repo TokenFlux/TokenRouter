@@ -18,6 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
@@ -161,12 +162,11 @@ func TestOpenAIGatewayService_ResponsesUnknownModelDoesNotFallbackToGPT54(t *tes
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"model not found"}}`)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:          123,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:        "acc",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -176,7 +176,7 @@ func TestOpenAIGatewayService_ResponsesUnknownModelDoesNotFallbackToGPT54(t *tes
 			"chatgpt_account_id": "chatgpt-acc",
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -200,9 +200,8 @@ func TestOpenAIGatewayService_OAuthResponsesPromotesSystemMessageWithoutDuplicat
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:          124,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 124,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -212,7 +211,7 @@ func TestOpenAIGatewayService_OAuthResponsesPromotesSystemMessageWithoutDuplicat
 			"chatgpt_account_id": "chatgpt-acc",
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -240,15 +239,14 @@ func TestOpenAIGatewayService_NativeResponsesBodyModificationPreservesHTMLChars(
 		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_native_reencode"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"stop after capture"}}`)),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{
 			Enabled:           false,
 			AllowInsecureHTTP: true,
 		}}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:          456,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 456,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -261,7 +259,7 @@ func TestOpenAIGatewayService_NativeResponsesBodyModificationPreservesHTMLChars(
 			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModePreserveClientProtocol),
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -288,12 +286,11 @@ func TestOpenAIGatewayService_OAuthMessagesBridgeDoesNotInjectDefaultInstruction
 		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_bridge"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"bridge stop"}}`)),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:          123,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:        "acc",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -303,7 +300,7 @@ func TestOpenAIGatewayService_OAuthMessagesBridgeDoesNotInjectDefaultInstruction
 			"chatgpt_account_id": "chatgpt-acc",
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -357,25 +354,24 @@ func TestOpenAIGatewayService_OpenAIOAuthHTTPForwardsTLSProfile(t *testing.T) {
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"stop"}}`)),
 			}}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:                 &config.Config{},
 				httpUpstream:        upstream,
 				tlsFPProfileService: &provider.TLSProfiles{},
-			}
-			account := &Account{
-				ID:          321,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 321,
 				Name:        "acc",
 				Platform:    capability.PlatformOpenAI,
 				Type:        tc.accountType,
 				Concurrency: 1,
 				Extra:       tc.extra,
 				Status:      billing.StatusActive,
-				Schedulable: true,
+				Schedulable: true},
 			}
 			if tc.accountType == capability.AccountTypeAPIKey {
-				account.Credentials = map[string]any{"api_key": "sk-test"}
+				account.Record.Credentials = map[string]any{"api_key": "sk-test"}
 			} else {
-				account.Credentials = map[string]any{
+				account.Record.Credentials = map[string]any{
 					"access_token":       "oauth-token",
 					"chatgpt_account_id": "chatgpt-acc",
 				}
@@ -539,14 +535,13 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamKeepsToolNameAndBodyNormali
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
-		cfg:                 &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
-		httpUpstream:        upstream,
-		openAITokenProvider: newOpenAITokenSourceForTest(nil, nil, nil),
-	}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
+		cfg:                  &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
+		httpUpstream:         upstream,
+		executionCredentials: newOpenAIExecutionCredentialsForTest(nil, newOpenAITokenSourceForTest(nil, nil, nil), nil),
+	}))
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -555,11 +550,11 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamKeepsToolNameAndBodyNormali
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	// Use the gateway method that reads token from credentials when provider is nil.
-	svc.openAITokenProvider = nil
+	svc.executionCredentials.OpenAI = nil
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
 	require.NoError(t, err)
@@ -627,11 +622,10 @@ func TestOpenAIGatewayService_OAuthPassthrough_PreservesNamespaceRequest(t *test
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID: 125, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 125, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
-		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -685,15 +679,14 @@ func TestOpenAIGatewayService_OAuthPassthrough_FlattenEnabledNamespaceRequestAnd
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_namespace"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID: 123, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
 		Extra: map[string]any{
 			"openai_passthrough":                  true,
 			"openai_responses_flatten_namespaces": true,
 		},
-		Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+		Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -744,12 +737,11 @@ func TestOpenAIGatewayService_NativeOAuth_FlattenEnabledNamespaceRequestAndStrea
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_native_namespace"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID: 124, Name: "native", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 124, Name: "native", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
 		Extra:       map[string]any{"openai_responses_flatten_namespaces": true},
-		Status:      billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+		Status:      billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -781,8 +773,8 @@ func TestOpenAIGatewayService_NativeOAuth_NamespaceNonStreamingResponse(t *testi
 		}`)),
 	}
 
-	result, err := (&OpenAIGatewayService{cfg: &config.Config{}}).handleNonStreamingResponse(
-		context.Background(), resp, c, &Account{Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5",
+	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})).handleNonStreamingResponse(
+		context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Type: capability.AccountTypeOAuth}}, "gpt-5.5", "gpt-5.5",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -806,8 +798,8 @@ func TestOpenAIGatewayService_OAuthPassthrough_NamespaceNonStreamingResponse(t *
 	}
 	setOpenAIResponsesNamespaceNames(c, names)
 
-	result, err := (&OpenAIGatewayService{cfg: &config.Config{}}).handleNonStreamingResponsePassthrough(
-		context.Background(), resp, c, &Account{ID: 91}, "gpt-5.5", "",
+	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})).handleNonStreamingResponsePassthrough(
+		context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 91}}, "gpt-5.5", "",
 	)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -831,15 +823,14 @@ func TestOpenAIGatewayService_OAuthPassthrough_FlattenEnabledNamespaceCollisionR
 		],"input":"hi"
 	}`)
 	upstream := &httpUpstreamRecorder{}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID: 123, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
 		Extra: map[string]any{
 			"openai_passthrough":                  true,
 			"openai_responses_flatten_namespaces": true,
 		},
-		Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+		Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -869,13 +860,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_CompactUsesJSONAndKeepsNonStreami
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -884,7 +874,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_CompactUsesJSONAndKeepsNonStreami
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -926,12 +916,11 @@ func TestOpenAIGatewayService_OAuthPassthrough_UpstreamRequestIgnoresClientCance
 		}, "\n"))),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             123,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -940,7 +929,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_UpstreamRequestIgnoresClientCance
 		Extra:          map[string]any{"openai_passthrough": true, "openai_oauth_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeOff},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(reqCtx, c, account, originalBody)
@@ -976,12 +965,11 @@ func TestOpenAIGatewayService_OAuthPassthrough_CodexMissingInstructionsGetsDefau
 				Header:     http.Header{"Content-Type": []string{responseContentType}, "x-request-id": []string{"rid"}},
 				Body:       io.NopCloser(strings.NewReader(responseBody)),
 			}}
-			svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-			account := &Account{
-				ID: 123, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123, Name: "acc", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Concurrency: 1,
 				Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"},
 				Extra:       map[string]any{"openai_passthrough": true, "openai_oauth_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeOff},
-				Status:      billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
+				Status:      billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1)},
 			}
 
 			result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -1015,13 +1003,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_DisabledUsesLegacyTransform(t *te
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -1030,7 +1017,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_DisabledUsesLegacyTransform(t *te
 		Extra:          map[string]any{"openai_passthrough": false},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, inputBody)
@@ -1063,12 +1050,11 @@ func TestOpenAIGatewayService_OAuthLegacy_UpstreamRequestIgnoresClientCancel(t *
 		}, "\n"))),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             123,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -1077,7 +1063,7 @@ func TestOpenAIGatewayService_OAuthLegacy_UpstreamRequestIgnoresClientCancel(t *
 		Extra:          map[string]any{"openai_passthrough": false, "openai_oauth_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeOff},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(reqCtx, c, account, originalBody)
@@ -1104,13 +1090,12 @@ func TestOpenAIGatewayService_OAuthLegacy_CompositeCodexUAUsesCodexOriginator(t 
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -1119,7 +1104,7 @@ func TestOpenAIGatewayService_OAuthLegacy_CompositeCodexUAUsesCodexOriginator(t 
 		Extra:          map[string]any{"openai_passthrough": false},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, inputBody)
@@ -1163,13 +1148,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_ResponseHeadersAllowXCodex(t *tes
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -1178,7 +1162,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_ResponseHeadersAllowXCodex(t *tes
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -1204,13 +1188,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_UpstreamErrorIncludesPassthroughF
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -1219,7 +1202,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_UpstreamErrorIncludesPassthroughF
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -1327,12 +1310,11 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 				},
 				Body: io.NopCloser(strings.NewReader(tt.responseBody)),
 			}}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 				httpUpstream: upstream,
-			}
-			account := &Account{
-				ID:          124,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 124,
 				Name:        "sensitive-upstream",
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
@@ -1343,7 +1325,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_RebuildsUpstreamErrors(t *testin
 				},
 				Extra:       map[string]any{"openai_passthrough": true},
 				Status:      billing.StatusActive,
-				Schedulable: true,
+				Schedulable: true},
 			}
 			requestBody := []byte(`{"model":"gpt-5.2","stream":false,"input":"hello"}`)
 
@@ -1422,18 +1404,17 @@ func TestOpenAIGatewayService_APIKeyPassthrough_CompactErrorBeforeKeepaliveIsSin
 	stop := httpapi.StartOpenAICompactSSEKeepalive(c, time.Hour)
 	defer stop()
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 			StatusCode: http.StatusBadRequest,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"secret-upstream.example invalid request"}}`)),
 		}},
-	}
-	account := &Account{
-		ID: 125, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 125, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://secret-upstream.example"},
-		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true,
+		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
@@ -1457,18 +1438,17 @@ func TestOpenAIGatewayService_APIKeyPassthrough_CompactErrorAfterKeepaliveIsFail
 	defer stop()
 	waitForKeepaliveBeats()
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 			StatusCode: http.StatusBadRequest,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"secret-upstream.example invalid request"}}`)),
 		}},
-	}
-	account := &Account{
-		ID: 126, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 126, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://secret-upstream.example"},
-		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true,
+		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
@@ -1489,9 +1469,8 @@ func TestOpenAIGatewayService_OpenAIPassthrough_429And529TriggerFailover(t *test
 
 	originalBody := []byte(`{"model":"gpt-5.2","stream":false,"instructions":"local-test-instructions","input":[{"type":"text","text":"hi"}]}`)
 
-	newAccount := func(accountType string) *Account {
-		account := &Account{
-			ID:             123,
+	newAccount := func(accountType string) *gatewayprovider.ExecutionAccount {
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 			Name:           "acc",
 			Platform:       capability.PlatformOpenAI,
 			Type:           accountType,
@@ -1499,13 +1478,13 @@ func TestOpenAIGatewayService_OpenAIPassthrough_429And529TriggerFailover(t *test
 			Extra:          map[string]any{"openai_passthrough": true},
 			Status:         billing.StatusActive,
 			Schedulable:    true,
-			RateMultiplier: f64p(1),
+			RateMultiplier: f64p(1)},
 		}
 		switch accountType {
 		case capability.AccountTypeOAuth:
-			account.Credentials = map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"}
+			account.Record.Credentials = map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-acc"}
 		case capability.AccountTypeAPIKey:
-			account.Credentials = map[string]any{"api_key": "sk-test"}
+			account.Record.Credentials = map[string]any{"api_key": "sk-test"}
 		}
 		return account
 	}
@@ -1593,11 +1572,11 @@ func TestOpenAIGatewayService_OpenAIPassthrough_429And529TriggerFailover(t *test
 				},
 			}
 
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:              &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 				httpUpstream:     upstream,
 				rateLimitService: rateSvc,
-			}
+			})
 
 			account := newAccount(tc.accountType)
 			start := time.Now()
@@ -1650,12 +1629,11 @@ func TestOpenAIGatewayService_APIKeyPassthrough_Transient5xxTriggersFailover(t *
 				},
 				Body: body,
 			}}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 				httpUpstream: upstream,
-			}
-			account := &Account{
-				ID:          124,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 124,
 				Name:        "api-key-transient-5xx",
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
@@ -1666,7 +1644,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_Transient5xxTriggersFailover(t *
 				},
 				Extra:       map[string]any{"openai_passthrough": true},
 				Status:      billing.StatusActive,
-				Schedulable: true,
+				Schedulable: true},
 			}
 
 			result, err := svc.Forward(context.Background(), c, account, requestBody)
@@ -1687,7 +1665,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_Transient5xxTriggersFailover(t *
 			require.True(t, ok)
 			require.NotEmpty(t, events)
 			require.Equal(t, "failover", events[len(events)-1].Kind)
-			require.Equal(t, account.ID, events[len(events)-1].AccountID)
+			require.Equal(t, account.Record.ID, events[len(events)-1].AccountID)
 		})
 	}
 }
@@ -1700,18 +1678,17 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ContextWindow502DoesNotFailover(
 
 	const upstreamBody = `{"error":{"message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"upstream_error"}}`
 	body := &passthroughCloseTrackingReadCloser{Reader: strings.NewReader(upstreamBody)}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 			StatusCode: http.StatusBadGateway,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       body,
 		}},
-	}
-	account := &Account{
-		ID: 127, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 127, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://api.example.test"},
-		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true,
+		Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
@@ -1732,23 +1709,22 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PoolModeConfigured5xxRetriesSame
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 			StatusCode: http.StatusBadGateway,
 			Header:     http.Header{"Content-Type": []string{"application/json"}},
 			Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"temporary upstream failure"}}`)),
 		}},
-	}
-	account := &Account{
-		ID: 128, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 128, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{
 			"api_key":                      "sk-test",
 			"base_url":                     "https://api.example.test",
 			"pool_mode":                    true,
 			"pool_mode_retry_status_codes": []any{float64(http.StatusBadGateway)},
 		},
-		Extra: map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true,
+		Extra: map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
@@ -1788,15 +1764,15 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PoolModeAuthErrorsTriggerFailove
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 
 			upstreamBody := `{"error":{"message":"upstream credential rejected"}}`
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:              &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
-				rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil),
+				rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil),
 				httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 					StatusCode: tt.statusCode,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},
 					Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 				}},
-			}
+			})
 			credentials := map[string]any{
 				"api_key":   "sk-test",
 				"base_url":  "https://api.example.test",
@@ -1805,10 +1781,9 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PoolModeAuthErrorsTriggerFailove
 			for key, value := range tt.credentials {
 				credentials[key] = value
 			}
-			account := &Account{
-				ID: 129, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 129, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 				Credentials: credentials,
-				Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true,
+				Extra:       map[string]any{"openai_passthrough": true}, Status: billing.StatusActive, Schedulable: true},
 			}
 
 			_, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.2","input":"hello"}`))
@@ -1855,12 +1830,11 @@ func TestOpenAIGatewayService_OpenAIPassthrough_CompactNetworkErrorsTriggerFailo
 			c.Request.Header.Set("User-Agent", "codex_cli_rs/0.1.0")
 
 			upstream := &httpUpstreamRecorder{resp: tt.resp, err: tt.err}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 				httpUpstream: upstream,
-			}
-			account := &Account{
-				ID:             123,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 				Name:           "acc",
 				Platform:       capability.PlatformOpenAI,
 				Type:           capability.AccountTypeOAuth,
@@ -1869,7 +1843,7 @@ func TestOpenAIGatewayService_OpenAIPassthrough_CompactNetworkErrorsTriggerFailo
 				Extra:          map[string]any{"openai_passthrough": true},
 				Status:         billing.StatusActive,
 				Schedulable:    true,
-				RateMultiplier: f64p(1),
+				RateMultiplier: f64p(1)},
 			}
 			body := []byte(`{"model":"gpt-5.5","instructions":"local-test-instructions","input":[{"type":"text","text":"compact me"}]}`)
 
@@ -1906,13 +1880,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_NonCodexUAFallbackToCodexUA(t *te
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -1921,7 +1894,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_NonCodexUAFallbackToCodexUA(t *te
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, inputBody)
@@ -1949,13 +1922,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA(t 
 		gateway.SettingKeyOpenAICodexUserAgent: "codex-tui/9.9.9 test-terminal",
 	}}, &config.Config{})
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream:   upstream,
 		settingService: settingSvc,
-	}
-	account := &Account{
-		ID:             123,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -1964,7 +1936,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_BrowserUAUsesConfiguredCodexUA(t 
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, inputBody)
@@ -1992,12 +1964,11 @@ func TestOpenAIGatewayService_OAuthPassthrough_CodexTuiIdentityPreservedAndPaire
 		Body:       io.NopCloser(strings.NewReader("data: [DONE]\n\n")),
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             123,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2006,7 +1977,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_CodexTuiIdentityPreservedAndPaire
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, inputBody)
@@ -2047,13 +2018,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_TLSRouterOfficialUAIsPreservedAnd
 		}},
 	})
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:                &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream:       upstream,
 		tlsFPRouterService: routerSvc,
-	}
-	account := &Account{
-		ID:             123,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2062,7 +2032,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_TLSRouterOfficialUAIsPreservedAnd
 		Extra:          map[string]any{"openai_passthrough": true, "tls_fingerprint_router_id": int64(77)},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, inputBody)
@@ -2080,12 +2050,11 @@ func TestOpenAIGatewayService_CodexCLIOnly_RejectsNonCodexClient(t *testing.T) {
 
 	inputBody := []byte(`{"model":"gpt-5.2","stream":false,"store":true,"input":[{"type":"text","text":"hi"}]}`)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2094,7 +2063,7 @@ func TestOpenAIGatewayService_CodexCLIOnly_RejectsNonCodexClient(t *testing.T) {
 		Extra:          map[string]any{"openai_passthrough": true, "codex_cli_only": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, inputBody)
@@ -2135,13 +2104,12 @@ func TestOpenAIGatewayService_CodexCLIOnly_AllowOfficialClientFamilies(t *testin
 			}
 			upstream := &httpUpstreamRecorder{resp: resp}
 
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 				httpUpstream: upstream,
-			}
+			})
 
-			account := &Account{
-				ID:             123,
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 				Name:           "acc",
 				Platform:       capability.PlatformOpenAI,
 				Type:           capability.AccountTypeOAuth,
@@ -2150,7 +2118,7 @@ func TestOpenAIGatewayService_CodexCLIOnly_AllowOfficialClientFamilies(t *testin
 				Extra:          map[string]any{"openai_passthrough": true, "codex_cli_only": true},
 				Status:         billing.StatusActive,
 				Schedulable:    true,
-				RateMultiplier: f64p(1),
+				RateMultiplier: f64p(1)},
 			}
 
 			_, err := svc.Forward(context.Background(), c, account, inputBody)
@@ -2182,13 +2150,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamingSetsFirstTokenMs(t *test
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2197,7 +2164,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamingSetsFirstTokenMs(t *test
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	start := time.Now()
@@ -2237,13 +2204,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamClientDisconnectStillCollec
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2252,7 +2218,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_StreamClientDisconnectStillCollec
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -2282,13 +2248,12 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
+	})
 
-	account := &Account{
-		ID:             456,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 456,
 		Name:           "apikey-acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeAPIKey,
@@ -2297,7 +2262,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PreservesBodyAndUsesResponsesEnd
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -2333,12 +2298,11 @@ func TestOpenAIGatewayService_OAuthPassthrough_WarnOnTimeoutHeadersForStream(t *
 		Body:       io.NopCloser(strings.NewReader("data: [DONE]\n\n")),
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             321,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 321,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2347,7 +2311,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_WarnOnTimeoutHeadersForStream(t *
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -2374,12 +2338,11 @@ func TestOpenAIGatewayService_OAuthPassthrough_InfoWhenStreamEndsWithoutDone(t *
 		Body:       io.NopCloser(strings.NewReader("data: {\"type\":\"response.output_text.delta\",\"delta\":\"h\"}\n\n")),
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             654,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 654,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2388,7 +2351,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_InfoWhenStreamEndsWithoutDone(t *
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -2419,12 +2382,11 @@ func TestOpenAIGatewayService_OAuthPassthrough_DefaultFiltersTimeoutHeaders(t *t
 		}, "\n"))),
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             111,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 111,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2433,7 +2395,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_DefaultFiltersTimeoutHeaders(t *t
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, originalBody)
@@ -2464,15 +2426,14 @@ func TestOpenAIGatewayService_OAuthPassthrough_AllowTimeoutHeadersWhenConfigured
 		}, "\n"))),
 	}
 	upstream := &httpUpstreamRecorder{resp: resp}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{
 			ForceCodexCLI:                        false,
 			OpenAIPassthroughAllowTimeoutHeaders: true,
 		}},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             222,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 222,
 		Name:           "acc",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -2481,7 +2442,7 @@ func TestOpenAIGatewayService_OAuthPassthrough_AllowTimeoutHeadersWhenConfigured
 		Extra:          map[string]any{"openai_passthrough": true},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, originalBody)

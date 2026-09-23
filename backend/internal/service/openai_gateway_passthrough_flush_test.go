@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -85,9 +87,9 @@ func runPassthroughFlushTest(
 		setup(c)
 	}
 
-	svc := &OpenAIGatewayService{cfg: &config.Config{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{
 		Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
-	}}
+	}})
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
@@ -97,7 +99,7 @@ func runPassthroughFlushTest(
 		context.Background(),
 		resp,
 		c,
-		&Account{ID: 1, Platform: capability.PlatformOpenAI, Name: "flush-test"},
+		&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Name: "flush-test"}},
 		time.Now(),
 		"",
 		"",

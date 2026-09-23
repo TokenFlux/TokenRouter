@@ -11,8 +11,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
@@ -37,19 +39,19 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 				source = protocol.ProtocolOpenAIChatCompletions
 			}
 			a := adaptiveProtocolTestAccount(platform, map[string]any{accountcore.APIProtocolChatCompletions: "http://chat.example", accountcore.APIProtocolAnthropic: "http://anthropic.example", accountcore.APIProtocolResponses: "http://responses.example"})
-			for _, target := range a.NativeProtocolOptions() {
+			for _, target := range a.View().NativeProtocolOptions() {
 				if target != protocol.ProtocolAnthropicMessages && target != protocol.ProtocolOpenAIResponses && target != protocol.ProtocolOpenAIChatCompletions {
 					continue
 				}
 				t.Run(platform+"/"+string(source)+"/"+string(target), func(t *testing.T) {
 					account := *a
-					account.Credentials = map[string]any{"api_key": "test", "base_url": "http://grok.example/v1", accountcore.UpstreamProtocolsKey: []protocol.ProtocolID{target}, "api_base_urls": a.Credentials["api_base_urls"]}
+					account.Record.Credentials = map[string]any{"api_key": "test", "base_url": "http://grok.example/v1", accountcore.UpstreamProtocolsKey: []protocol.ProtocolID{target}, "api_base_urls": a.Record.Credentials["api_base_urls"]}
 					group := &routing.Group{Platform: platform, ProtocolFallbacks: map[protocol.ProtocolID]protocol.ProtocolID{source: target}}
 					ctx := requeststate.WithClientProtocol(requeststate.WithGroup(context.Background(), group), source)
 					c := adaptiveProtocolTestContext(ingress.path, ingress.body)
 					c.Request = c.Request.WithContext(ctx)
 					upstream := &httpUpstreamRecorder{err: errors.New("stop after capture")}
-					svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+					svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 					var err error
 					switch source {
 					case protocol.ProtocolAnthropicMessages:
@@ -86,7 +88,7 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 						require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 						require.False(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
 					}
-					require.Empty(t, account.attemptRoute.Protocol())
+					require.Empty(t, account.Route.Protocol())
 				})
 			}
 		}
@@ -104,7 +106,7 @@ func TestProtocolForwardConvertedResponsesRetainsWireContract(t *testing.T) {
 		{"tool", `{"model":"gpt-test","input":"hello","stream":false,"tools":[{"type":"function","name":"lookup","parameters":{"type":"object"}}]}`, `{"id":"chat-1","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","tool_calls":[{"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":3,"completion_tokens":2}}`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			account := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test", "base_url": "http://upstream.example", accountcore.UpstreamProtocolsKey: []string{"openai_chat_completions"}}}
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test", "base_url": "http://upstream.example", accountcore.UpstreamProtocolsKey: []string{"openai_chat_completions"}}}}
 			group := &routing.Group{Platform: capability.PlatformOpenAI, ProtocolFallbacks: map[protocol.ProtocolID]protocol.ProtocolID{protocol.ProtocolOpenAIResponses: protocol.ProtocolOpenAIChatCompletions}}
 			ctx := requeststate.WithClientProtocol(requeststate.WithGroup(context.Background(), group), protocol.ProtocolOpenAIResponses)
 			recorder := httptest.NewRecorder()
@@ -115,7 +117,7 @@ func TestProtocolForwardConvertedResponsesRetainsWireContract(t *testing.T) {
 				contentType = "text/event-stream"
 			}
 			upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{contentType}}, Body: io.NopCloser(strings.NewReader(tc.response))}}
-			svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 			result, err := svc.Forward(ctx, c, account, []byte(tc.body))
 			require.NoError(t, err)
 			require.Equal(t, 3, result.Usage.InputTokens)

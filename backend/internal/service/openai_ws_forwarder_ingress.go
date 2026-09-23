@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
@@ -19,8 +21,8 @@ func openAIWSImageIntentForRoutingModel(routingModel, upstreamModel string, body
 	if routingModel != upstreamModel {
 		imageIntentBody = openaiprotocol.ReplaceModelInBody(body, routingModel)
 	}
-	imageIntent := IsImageGenerationIntentForPlatform(media.OpenAIResponsesEndpoint, routingModel, imageIntentBody, platform)
-	explicitImageIntent := IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, routingModel, imageIntentBody)
+	imageIntent := gatewayprovider.ImageIntentForPlatform(media.OpenAIResponsesEndpoint, routingModel, imageIntentBody, platform)
+	explicitImageIntent := gatewayprovider.ImageIntent().IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, routingModel, imageIntentBody)
 	return imageIntentBody, imageIntent, explicitImageIntent
 }
 
@@ -46,6 +48,6 @@ func newOpenAIWSDownstreamWriteContext(controlCtx context.Context, hooks *gatewa
 }
 
 // ProxyResponsesWebSocketFromClient 保留现有平台适配入口，逐轮编排由 gateway/ws 持有。
-func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(ctx context.Context, c *gin.Context, clientConn *coderws.Conn, account *Account, token string, firstClientMessage []byte, hooks *gatewayws.OpenAIIngressHooks) error {
+func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(ctx context.Context, c *gin.Context, clientConn *coderws.Conn, account *gatewayprovider.ExecutionAccount, token string, firstClientMessage []byte, hooks *gatewayws.OpenAIIngressHooks) error {
 	return s.executeWSIngressAdapter(ctx, c, clientConn, account, token, firstClientMessage, hooks)
 }

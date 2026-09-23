@@ -5,6 +5,14 @@ import (
 	"errors"
 	"strings"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
@@ -25,7 +33,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	coderws "github.com/coder/websocket"
@@ -51,7 +58,7 @@ func (h *OpenAIGatewayHandler) NewResponsesWSHTTPHandler() *gatewayhttp.Response
 type openAIWSHTTPBackend struct{ h *OpenAIGatewayHandler }
 
 func (p openAIWSHTTPBackend) Access(c *gin.Context) (*gatewayws.EntryKey, bool) {
-	key, ok := middleware.GetAPIKeyFromContext(c)
+	key, ok := keyhttp.GetAPIKeyFromContext(c)
 	if !ok {
 		return nil, false
 	}
@@ -89,8 +96,8 @@ func (p openAIWSHTTPBackend) SummarizeRead(err error) (string, string) {
 	return gatewayhttp.SummarizeWSCloseErrorForLog(err)
 }
 func (p openAIWSHTTPBackend) Entry(c *gin.Context, call gatewayhttp.ResponsesWSCall) gatewayws.EntryPorts {
-	key, _ := middleware.GetAPIKeyFromContext(c)
-	subject, _ := middleware.GetAuthSubjectFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
+	subject, _ := authctx.GetAuthSubjectFromContext(c)
 	return &openAIWSEntryAdapter{h: p.h, c: c, call: call, key: key, subject: subject, log: call.Logger}
 }
 
@@ -100,7 +107,7 @@ type openAIWSEntryAdapter struct {
 	c            *gin.Context
 	call         gatewayhttp.ResponsesWSCall
 	key          *apikey.APIKey
-	subject      middleware.AuthSubject
+	subject      authctx.AuthSubject
 	subscription *billing.UserSubscription
 	log          *zap.Logger
 }
@@ -115,14 +122,16 @@ func (p *openAIWSEntryAdapter) SetLogger(log gatewayws.EntryLogger) {
 	p.log = typed.log
 }
 func (p *openAIWSEntryAdapter) ClassifyPrevious(id string) string {
-	return service.ClassifyOpenAIPreviousResponseIDKind(id)
+	return openai.ClassifyOpenAIPreviousResponseIDKind(id)
 }
-func (p *openAIWSEntryAdapter) Platform() string { return openAICompatibleRequestPlatform(p.key) }
+func (p *openAIWSEntryAdapter) Platform() string {
+	return gatewayhttp.OpenAICompatibleRequestPlatform(p.key)
+}
 func (p *openAIWSEntryAdapter) Prompt(ctx context.Context, body []byte) []byte {
-	return p.h.gatewayService.ApplyUserPromptReplacement(ctx, body, "openai_responses")
+	return p.h.prompts.ApplyUserPromptReplacementToBody(ctx, body, "openai_responses")
 }
 func (p *openAIWSEntryAdapter) Redirect(ctx context.Context, model string) (context.Context, string) {
-	return apiKeyModelRedirectContext(ctx, p.key, model)
+	return gatewayhttp.APIKeyModelRedirectContext(ctx, p.key, model)
 }
 func (p *openAIWSEntryAdapter) BindContext(ctx context.Context) {
 	p.c.Request = p.c.Request.WithContext(ctx)
@@ -159,7 +168,7 @@ func (p *openAIWSEntryAdapter) ImageIntent(model string, body []byte, mapping ro
 	return resolveOpenAIChannelMappedImageIntent("/v1/responses", model, body, routing.ChannelMappingResult(mapping), p.Platform(), p.h.gatewayService.ReplaceModelInBody)
 }
 func (p *openAIWSEntryAdapter) ExplicitImage(model string, body []byte) bool {
-	return service.IsExplicitImageGenerationIntent("/v1/responses", model, body)
+	return gatewayprovider.ImageIntent().IsExplicitImageGenerationIntent("/v1/responses", model, body)
 }
 func (p *openAIWSEntryAdapter) ImageContext(ctx context.Context) context.Context {
 	return requeststate.WithOpenAIImageGenerationIntent(ctx)
@@ -168,7 +177,7 @@ func (p *openAIWSEntryAdapter) ImagesAllowed() bool {
 	return service.GroupAllowsResponsesImages(p.key.Group)
 }
 func (p *openAIWSEntryAdapter) ImageDeniedMessage() string {
-	return service.ImageGenerationPermissionMessage()
+	return gatewaymedia.ImageGenerationPermissionMessage
 }
 func (p *openAIWSEntryAdapter) PolicyDenied() {
 	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
@@ -186,16 +195,16 @@ func (p *openAIWSEntryAdapter) WrapRelease(ctx context.Context, release func()) 
 	return scheduler.WrapRelease(ctx, scheduler.ReleaseOnCancel, release)
 }
 func (p *openAIWSEntryAdapter) LoadSubscription() {
-	p.subscription, _ = middleware.GetSubscriptionFromContext(p.c)
+	p.subscription, _ = gatewayhttp.SubscriptionFromContext(p.c)
 }
 func (p *openAIWSEntryAdapter) Eligibility(ctx context.Context) error {
-	return p.h.billingCacheService.CheckKey(ctx, p.key, p.subscription, service.QuotaPlatform(p.c.Request.Context(), p.key), false)
+	return p.h.billingCacheService.CheckKey(ctx, p.key, p.subscription, admission.QuotaPlatform(p.c.Request.Context(), p.key), false)
 }
 func (p *openAIWSEntryAdapter) SessionHash(body []byte, seed string) string {
-	return p.h.gatewayService.GenerateSessionHashWithFallback(p.c, body, seed)
+	return gatewayhttp.GenerateOpenAISessionHashWithFallback(p.c, body, seed)
 }
 func (p *openAIWSEntryAdapter) ExplicitHash(body []byte) string {
-	return p.h.gatewayService.GenerateExplicitSessionHash(p.c, body)
+	return gatewayhttp.GenerateExplicitOpenAISessionHash(p.c, body)
 }
 func (p *openAIWSEntryAdapter) Isolate(ctx context.Context, source, hash string) error {
 	return p.h.ensureOpenAISessionIsolation(ctx, p.key, p.subject.UserID, source, hash)
@@ -222,16 +231,16 @@ func (p *openAIWSEntryAdapter) Select(ctx context.Context, previous, hash, model
 	out := &gatewayws.EntrySelection{Acquired: selection.Acquired, ReleaseFunc: selection.ReleaseFunc, WaitPlan: selection.WaitPlan}
 	if a := selection.Account; a != nil {
 		out.Account = &gatewayws.EntryAccount{
-			AccountSnapshot: account.AccountSnapshot{ID: a.ID, Platform: a.Platform, Type: a.Type, Concurrency: a.Concurrency},
-			Name:            a.Name,
-			Shadow:          a.IsShadow(),
+			AccountSnapshot: account.AccountSnapshot{ID: a.Record.ID, Platform: a.Record.Platform, Type: a.Record.Type, Concurrency: a.Record.Concurrency},
+			Name:            a.Record.Name,
+			Shadow:          a.View().IsShadow(),
 		}
 		out.Target = &openAIWSEntryTarget{root: p, account: a, selection: selection}
 	}
 	return out, d, err
 }
 func (p *openAIWSEntryAdapter) SelectionLogError(err error, platform string) error {
-	return openAICompatibleSelectionErrorForLog(err, platform)
+	return gatewayhttp.OpenAICompatibleSelectionErrorForLog(err, platform)
 }
 func (p *openAIWSEntryAdapter) BindSticky(ctx context.Context, hash string, id int64) error {
 	return p.h.gatewayService.BindStickySession(ctx, p.key.GroupID, hash, id)
@@ -301,16 +310,16 @@ func (p *openAIWSEntryAdapter) SubmitCompletion(result *gatewayws.ForwardResult,
 // openAIWSEntryTarget 将选中账号的单步能力投影给核心，不持有 turn 或 failover 循环。
 type openAIWSEntryTarget struct {
 	root      *openAIWSEntryAdapter
-	account   *service.Account
-	selection *service.AccountSelectionResult
+	account   *gatewayprovider.ExecutionAccount
+	selection *gatewayprovider.SelectionResult
 	token     string
 }
 
 func (t *openAIWSEntryTarget) MappedModel(model string) string {
-	return t.account.GetMappedModel(model)
+	return gatewayprovider.ExecutionModelPolicy(t.account).Mapped(model)
 }
 func (t *openAIWSEntryTarget) Report(model string, ok bool, first *int) {
-	t.root.h.gatewayService.ReportOpenAIAccountScheduleResultForSelection(t.selection, t.account.ID, model, ok, first)
+	t.root.h.gatewayService.ReportOpenAIAccountScheduleResultForSelection(t.selection, t.account.Record.ID, model, ok, first)
 }
 func (t *openAIWSEntryTarget) Switched() {
 	t.root.h.gatewayService.RecordOpenAIAccountSwitchForSelection(t.selection)
@@ -345,17 +354,17 @@ func (t *openAIWSEntryTarget) RecordMarked(_ context.Context, model string, fail
 	return p.h.recordCyberPolicyIfMarked(p.c, p.key, t.account, p.subscription, model, failed, body, mapping, hash)
 }
 func (t *openAIWSEntryTarget) UpdateUsage(ctx context.Context, headers map[string][]string) {
-	t.root.h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, t.account.ID, headers)
+	t.root.h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, t.account.Record.ID, headers)
 }
 func (t *openAIWSEntryTarget) PrepareCompletion(ctx context.Context, result *gatewayws.ForwardResult, capture gatewayws.TurnCapture, model string, mapping routing.ChannelMappingResult, body []byte, cyber bool) *completion.Input {
 	p := t.root
 	legacy := service.LegacyWSForwardResult(result)
 	// 这里只转换已有资金/用量字段；复制发生在提交前，回调不捕获 Gin。
-	return service.CompletionOpenAIInput(gatewayhttp.PropagateAPIKeyModelRedirectTrace(gatewayhttp.CompletionContext(p.c), ctx), &service.OpenAIRecordUsageInput{
-		Result: legacy, APIKey: p.key, User: p.key.User, Account: t.account, Subscription: p.subscription,
+	return gatewayprovider.CaptureOpenAI(gatewayhttp.PropagateAPIKeyModelRedirectTrace(gatewayhttp.CompletionContext(p.c), ctx), &gatewayprovider.OpenAICapture{
+		Result: legacy, APIKey: p.key, User: p.key.User, Account: gatewayprovider.ExecutionCompletionRecord(t.account), Subscription: p.subscription,
 		InboundEndpoint: gatewayhttp.GetInboundEndpoint(p.c), UpstreamEndpoint: resolveOpenAIUpstreamEndpoint(p.c, t.account, legacy), UserAgent: p.call.UserAgent, IPAddress: p.call.ClientIP,
 		RequestPayloadHash: billing.HashUsageRequestPayload(body), RequestBody: append([]byte(nil), body...), PricingAt: capture.StartedAt, APIKeyService: p.h.apiKeyService,
-		QuotaPlatform: service.QuotaPlatform(p.c.Request.Context(), p.key), ClientSessionID: service.ExtractClientSessionID(p.c), ChannelUsageFields: mapping.ToUsageFields(model, result.UpstreamModel), CyberBlocked: cyber,
+		QuotaPlatform: admission.QuotaPlatform(p.c.Request.Context(), p.key), ClientSessionID: gatewayhttp.ExtractClientSessionID(p.c), ChannelUsageFields: mapping.ToUsageFields(model, result.UpstreamModel), CyberBlocked: cyber,
 	})
 }
 func (t *openAIWSEntryTarget) BeginPreemption(ctx context.Context, first []byte) (context.Context, func(), bool) {
@@ -389,7 +398,7 @@ func (t *openAIWSEntryTarget) Run(ctx context.Context, client gatewayws.ClientSo
 }
 func (t *openAIWSEntryTarget) LogFailure(err error) {
 	status, reason := gatewayhttp.SummarizeWSCloseErrorForLog(err)
-	fields := []zap.Field{zap.Int64("account_id", t.account.ID), zap.Error(err), zap.String("close_status", status), zap.String("close_reason", reason)}
+	fields := []zap.Field{zap.Int64("account_id", t.account.Record.ID), zap.Error(err), zap.String("close_status", status), zap.String("close_reason", reason)}
 	fields = appendOpenAIAccountProxyLogFields(fields, t.account)
 	t.root.log.Warn("openai.websocket_proxy_failed", fields...)
 }

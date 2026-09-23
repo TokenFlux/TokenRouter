@@ -2,6 +2,9 @@
 package handler
 
 import (
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	usage "github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"context"
@@ -19,7 +22,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -44,14 +46,14 @@ func mediaAccessView(key *apikey.APIKey) *gatewayhttp.MediaAccess {
 	if key.Group != nil {
 		platform = key.Group.Platform
 	}
-	return &gatewayhttp.MediaAccess{HasGroup: key.Group != nil, Platform: platform, ID: key.ID, GroupID: group, Composite: key.IsComposite, ImagesAllowed: service.GroupAllowsImageGeneration(key.Group)}
+	return &gatewayhttp.MediaAccess{HasGroup: key.Group != nil, Platform: platform, ID: key.ID, GroupID: group, Composite: key.IsComposite, ImagesAllowed: (key.Group == nil || key.Group.AllowImageGeneration)}
 }
 func (p mediaHTTPAdapter) Access(c *gin.Context) (*gatewayhttp.MediaAccess, bool) {
-	key, ok := middleware2.GetAPIKeyFromContext(c)
+	key, ok := keyhttp.GetAPIKeyFromContext(c)
 	return mediaAccessView(key), ok
 }
 func (p mediaHTTPAdapter) Subject(c *gin.Context) (gatewayhttp.MediaSubject, bool) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	return gatewayhttp.MediaSubject{UserID: subject.UserID, Concurrency: subject.Concurrency}, ok
 }
 func (p mediaHTTPAdapter) Logger(c *gin.Context, name string, fields ...zap.Field) *zap.Logger {
@@ -79,7 +81,7 @@ func (p mediaHTTPAdapter) AuthLatency(c *gin.Context, elapsed time.Duration) {
 	gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsAuthLatencyMsKey, elapsed.Milliseconds())
 }
 func (p mediaHTTPAdapter) Plan(c *gin.Context, model string, bind bool) (context.Context, routing.ChannelMappingResult) {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	plan := p.h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(key), key.GroupID, model)
 	ctx := requeststate.WithRoutePlan(c.Request.Context(), plan)
 	if bind {
@@ -88,14 +90,14 @@ func (p mediaHTTPAdapter) Plan(c *gin.Context, model string, bind bool) (context
 	return ctx, plan.Mapping()
 }
 func (p mediaHTTPAdapter) ImagePermissionMessage() string {
-	return service.ImageGenerationPermissionMessage()
+	return media.ImageGenerationPermissionMessage
 }
 func (p mediaHTTPAdapter) ImagePolicyDenied(c *gin.Context) {
 	gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
 func (p mediaHTTPAdapter) Moderate(c *gin.Context, log *zap.Logger, subject gatewayhttp.MediaSubject, model string, body []byte) bool {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
-	oldSubject, _ := middleware2.GetAuthSubjectFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
+	oldSubject, _ := authctx.GetAuthSubjectFromContext(c)
 	decision := p.h.checkContentModeration(c, log, key, oldSubject, moderation.ContentModerationProtocolOpenAIImages, model, body)
 	if decision == nil || !decision.Blocked {
 		return false
@@ -118,9 +120,9 @@ func (p mediaHTTPAdapter) BindErrors(c *gin.Context) {
 	}
 }
 func (p mediaHTTPAdapter) Billing(c *gin.Context) *gatewayhttp.MediaHTTPFailure {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	err := p.h.billingCacheService.CheckKey(c.Request.Context(), key, subscription, service.QuotaPlatform(c.Request.Context(), key), false)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
+	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
+	err := p.h.billingCacheService.CheckKey(c.Request.Context(), key, subscription, admission.QuotaPlatform(c.Request.Context(), key), false)
 	if err == nil {
 		return nil
 	}
@@ -128,10 +130,10 @@ func (p mediaHTTPAdapter) Billing(c *gin.Context) *gatewayhttp.MediaHTTPFailure 
 	return &gatewayhttp.MediaHTTPFailure{Status: status, Code: code, Message: message, RetryAfter: retry, Err: err}
 }
 func (p mediaHTTPAdapter) ExplicitSession(c *gin.Context, body []byte) string {
-	return p.h.gatewayService.GenerateExplicitSessionHash(c, body)
+	return gatewayhttp.GenerateExplicitOpenAISessionHash(c, body)
 }
 func (p mediaHTTPAdapter) Isolate(c *gin.Context, userID int64, hash string, stream bool) bool {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	err := p.h.ensureOpenAISessionIsolation(c.Request.Context(), key, userID, session.SessionIsolationSourceOpenAI, hash)
 	return p.h.handleOpenAISessionIsolationError(c, err, stream)
 }
@@ -139,9 +141,9 @@ func (p mediaHTTPAdapter) ImageContext(c *gin.Context) context.Context {
 	return requeststate.WithOpenAIImagesEndpoint(requeststate.WithOpenAIImageGenerationIntent(c.Request.Context()))
 }
 func (p mediaHTTPAdapter) NewGenerationPorts(c *gin.Context, in gatewayhttp.GenerationHTTPInput, log *zap.Logger, stream *bool) media.GenerationPorts {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
-	subject, _ := middleware2.GetAuthSubjectFromContext(c)
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
+	subject, _ := authctx.GetAuthSubjectFromContext(c)
+	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
 	return &generationRequestAdapter{grok: in.Grok, h: p.h, c: c, apiKey: key, subject: subject, subscription: subscription, reqLog: log, streamStarted: stream, parsed: in.Parsed, body: in.Body, requestModel: in.RequestModel, routingModel: in.RoutingModel, sessionHash: in.SessionHash, channelMapping: routing.ChannelMappingResult(in.Mapping), endpoint: grok.GrokMediaEndpoint(in.Endpoint), requestID: in.RequestID, contentType: in.ContentType, boundAccountID: in.BoundAccountID, videoCreated: in.VideoCreated}
 }
 func (p mediaHTTPAdapter) MaxSwitches() int { return p.h.maxAccountSwitches }
@@ -153,13 +155,13 @@ func (p mediaHTTPAdapter) NormalizeGrok(endpoint, model string, hasImage bool) s
 	return service.NormalizeGrokMediaModelForEndpoint(grok.GrokMediaEndpoint(endpoint), model, hasImage)
 }
 func (p mediaHTTPAdapter) ResolveCompositeVideo(c *gin.Context, requestID string, userID int64) (*gatewayhttp.MediaAccess, int64, error) {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	key, account, err := p.h.resolveCompositeGrokVideoAPIKey(c.Request.Context(), key, requestID, userID)
 	if err != nil || key == nil || account <= 0 {
 		return mediaAccessView(key), account, err
 	}
-	c.Set(string(middleware2.ContextKeyAPIKey), key)
-	middleware2.SetOpsFallbackAPIKey(c, key)
+	c.Set(string(keyhttp.ContextKeyAPIKey), key)
+	keyhttp.SetOpsFallbackAPIKey(c, key)
 	c.Request = c.Request.WithContext(requeststate.WithGroup(c.Request.Context(), key.Group))
 	return mediaAccessView(key), account, nil
 }
@@ -182,23 +184,23 @@ func (p mediaHTTPAdapter) RewriteModel(body []byte, model string) []byte {
 	return p.h.gatewayService.ReplaceModelInBody(body, model)
 }
 func (p mediaHTTPAdapter) FallbackSession(c *gin.Context, id string) string {
-	return p.h.gatewayService.GenerateSessionHashWithFallback(c, nil, id)
+	return gatewayhttp.GenerateOpenAISessionHashWithFallback(c, nil, id)
 }
 func (p mediaHTTPAdapter) NewEmbeddings(c *gin.Context, in gatewayhttp.AuxiliaryHTTPInput, log *zap.Logger, stream *bool) gatewayhttp.EmbeddingHTTPExecution {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
+	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
 	return &embeddingRequestAdapter{h: p.h, c: c, apiKey: key, userID: in.Subject.UserID, subscription: subscription, reqModel: in.Model, channelMapping: routing.ChannelMappingResult(in.Mapping), reqLog: log, streamStarted: stream}
 }
 func (p *embeddingRequestAdapter) EndEmbeddingFailure(f *media.EmbeddingFailure) { p.renderFailure(f) }
 func (p mediaHTTPAdapter) NewAlphaSearch(c *gin.Context, in gatewayhttp.AuxiliaryHTTPInput, log *zap.Logger, stream *bool) gatewayhttp.AlphaHTTPExecution {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
+	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
 	return &alphaRequestAdapter{h: p.h, c: c, apiKey: key, subscription: subscription, channelMapping: routing.ChannelMappingResult(in.Mapping), requestedModel: in.Model, originalBody: in.Body, userID: in.Subject.UserID, sessionHash: in.SessionHash, reqLog: log, streamStarted: stream}
 }
 func (p *alphaRequestAdapter) EndAlphaFailure(f *media.AlphaFailure) { p.renderFailure(f) }
 func (p mediaHTTPAdapter) ModerateVoice(c *gin.Context, log *zap.Logger, _ gatewayhttp.MediaSubject, body []byte) bool {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
-	subject, _ := middleware2.GetAuthSubjectFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
+	subject, _ := authctx.GetAuthSubjectFromContext(c)
 	decision := p.h.checkContentModeration(c, log, key, subject, moderation.ContentModerationProtocolOpenAIChat, "grok-4.5", body)
 	if decision == nil || !decision.Blocked {
 		return false
@@ -207,8 +209,8 @@ func (p mediaHTTPAdapter) ModerateVoice(c *gin.Context, log *zap.Logger, _ gatew
 	return true
 }
 func (p mediaHTTPAdapter) NewVoice(c *gin.Context, _ gatewayhttp.AuxiliaryHTTPInput, log *zap.Logger) media.VoicePorts {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
-	subscription, _ := middleware2.GetSubscriptionFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
+	subscription, _ := gatewayhttp.SubscriptionFromContext(c)
 	return &grokVoiceAdapter{h: p.h, c: c, apiKey: key, subscription: subscription, reqLog: log}
 }
 func (p mediaHTTPAdapter) EndVoice(c *gin.Context, f *media.VoiceFailure) {
@@ -223,7 +225,7 @@ func (p mediaHTTPAdapter) EndVoice(c *gin.Context, f *media.VoiceFailure) {
 	}
 }
 func (p mediaHTTPAdapter) NewRealtime(c *gin.Context, log *zap.Logger) gatewayhttp.RealtimeHTTPExecution {
-	key, _ := middleware2.GetAPIKeyFromContext(c)
+	key, _ := keyhttp.GetAPIKeyFromContext(c)
 	return &grokRealtimeAdapter{h: p.h, c: c, apiKey: key, reqLog: log}
 }
 func (p mediaHTTPAdapter) RealtimeDialTimeout() time.Duration {

@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -34,9 +36,9 @@ func TestGrokNativeObservationRetainsPartialResultWithoutChangingLegacyFailure(t
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-			account := &Account{ID: 470, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 470, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}}
 			response := &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(io.MultiReader(strings.NewReader(payload), grokObservationErrorReader{failure}))}
-			service := &OpenAIGatewayService{}
+			service := withSchedulerParametersForTest(&OpenAIGatewayService{})
 			var result *openaiStreamingResult
 			var err error
 			if native {

@@ -5,6 +5,8 @@ import (
 	"context"
 	"crypto/rand"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/gin-gonic/gin"
@@ -42,21 +45,21 @@ func (s *OpenAIGatewayService) nativeAnthropicOutputOptions(c *gin.Context, writ
 	}
 }
 
-func (s *OpenAIGatewayService) nativeAnthropicDirectOptions(c *gin.Context, account *Account) forward.NativeAnthropicOptions {
+func (s *OpenAIGatewayService) nativeAnthropicDirectOptions(c *gin.Context, account *gatewayprovider.ExecutionAccount) forward.NativeAnthropicOptions {
 	return forward.NativeAnthropicOptions{
-		AccountID: account.ID,
+		AccountID: account.Record.ID,
 		UpdateWindow: func(ctx context.Context, h http.Header) {
 			if s.rateLimitService != nil {
 				s.rateLimitService.UpdateSessionWindow(ctx, account, h)
 			}
 		},
 		ReadBody: func(r io.Reader) ([]byte, error) {
-			return ReadUpstreamResponseBody(r, s.cfg, c, anthropicTooLargeError)
+			return httpapi.ReadUpstreamResponseBody(r, resolveUpstreamResponseReadLimit(s.cfg), c, httpapi.AnthropicResponseTooLarge)
 		},
 		InvalidJSON: func(ctx context.Context, r *http.Response, body []byte, err error, model string) error {
 			return invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, r, account, body, err, model)
 		},
-		ForceCache: IsForceCacheBilling, ClassifyCache: anthropic.ClassifyResponseInputAsCacheRead,
+		ForceCache: requeststate.IsForceCacheBilling, ClassifyCache: anthropic.ClassifyResponseInputAsCacheRead,
 		CopyHeaders:  func(dst, src http.Header) { httpapi.WriteAnthropicPassthroughHeaders(dst, src, s.responseHeaderFilter) },
 		ReverseTools: func(body []byte) []byte { return reverseToolNamesIfPresent(c, body) },
 		MaxLineSize: func() int {

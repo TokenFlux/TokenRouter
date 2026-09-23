@@ -1,11 +1,8 @@
 package handler
 
 import (
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-)
-
-import (
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -21,10 +18,10 @@ type openAIPassthroughFailoverState struct {
 func (h *OpenAIGatewayHandler) deriveOpenAIForwardAttemptBody(
 	reqLog *zap.Logger,
 	canonicalBody []byte,
-	account *service.Account,
+	account *gatewayprovider.ExecutionAccount,
 	state *openAIPassthroughFailoverState,
 ) []byte {
-	currentPassthrough := account.IsOpenAIPassthroughEnabled()
+	currentPassthrough := account.View().IsOpenAIPassthroughEnabled()
 	if currentPassthrough {
 		state.passthroughSeen = true
 		return canonicalBody
@@ -37,7 +34,7 @@ func (h *OpenAIGatewayHandler) deriveOpenAIForwardAttemptBody(
 	if err != nil {
 		if reqLog != nil {
 			reqLog.Warn("openai.failover_cross_mode_reasoning_sanitize_failed",
-				zap.Int64("account_id", account.ID),
+				zap.Int64("account_id", account.Record.ID),
 				zap.Error(err),
 			)
 		}
@@ -48,7 +45,7 @@ func (h *OpenAIGatewayHandler) deriveOpenAIForwardAttemptBody(
 	}
 	if reqLog != nil {
 		reqLog.Info("openai.failover_cross_mode_reasoning_stripped",
-			zap.Int64("account_id", account.ID),
+			zap.Int64("account_id", account.Record.ID),
 			zap.Bool("account_passthrough", currentPassthrough),
 			zap.Bool("passthrough_seen", true),
 		)

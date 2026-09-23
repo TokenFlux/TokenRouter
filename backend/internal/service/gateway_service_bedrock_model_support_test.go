@@ -2,18 +2,20 @@ package service
 
 import (
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 func TestGatewayServiceIsModelSupportedByAccount_BedrockDefaultMappingRestrictsModels(t *testing.T) {
-	svc := &GatewayService{}
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeBedrock,
+	svc := withSchedulerParametersForTest(&GatewayService{})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+		Type: capability.AccountTypeBedrock,
 		Credentials: map[string]any{
 			"aws_region": "us-east-1",
-		},
+		}},
 	}
 
 	if !svc.isModelSupportedByAccount(account, "claude-sonnet-4-5") {
@@ -26,16 +28,15 @@ func TestGatewayServiceIsModelSupportedByAccount_BedrockDefaultMappingRestrictsM
 }
 
 func TestGatewayServiceIsModelSupportedByAccount_BedrockCustomMappingStillActsAsAllowlist(t *testing.T) {
-	svc := &GatewayService{}
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeBedrock,
+	svc := withSchedulerParametersForTest(&GatewayService{})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+		Type: capability.AccountTypeBedrock,
 		Credentials: map[string]any{
 			"aws_region": "eu-west-1",
 			"model_mapping": map[string]any{
 				"claude-sonnet-*": "claude-sonnet-4-6",
 			},
-		},
+		}},
 	}
 
 	if !svc.isModelSupportedByAccount(account, "claude-sonnet-4-6") {

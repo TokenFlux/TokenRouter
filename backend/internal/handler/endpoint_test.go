@@ -4,11 +4,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -16,14 +18,14 @@ import (
 func TestShouldUseAntigravityCompat(t *testing.T) {
 	tests := []struct {
 		name    string
-		account *service.Account
+		account *gatewayprovider.ExecutionAccount
 		want    bool
 	}{
-		{"oauth", &service.Account{Platform: capability.PlatformAntigravity, Type: capability.AccountTypeOAuth}, true},
-		{"setup token", &service.Account{Platform: capability.PlatformAntigravity, Type: capability.AccountTypeSetupToken}, false},
-		{"upstream", &service.Account{Platform: capability.PlatformAntigravity, Type: capability.AccountTypeUpstream}, false},
-		{"api key", &service.Account{Platform: capability.PlatformAntigravity, Type: capability.AccountTypeAPIKey}, false},
-		{"anthropic oauth", &service.Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}, false},
+		{"oauth", &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity, Type: capability.AccountTypeOAuth}}, true},
+		{"setup token", &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity, Type: capability.AccountTypeSetupToken}}, false},
+		{"upstream", &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity, Type: capability.AccountTypeUpstream}}, false},
+		{"api key", &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity, Type: capability.AccountTypeAPIKey}}, false},
+		{"anthropic oauth", &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}, false},
 		{"nil", nil, false},
 	}
 
@@ -37,7 +39,7 @@ func TestShouldUseAntigravityCompat(t *testing.T) {
 func TestResolveOpenAIUpstreamEndpointPrefersForwardResult(t *testing.T) {
 	tests := []struct {
 		name            string
-		account         *service.Account
+		account         *gatewayprovider.ExecutionAccount
 		result          *forwardcore.OpenAIResult
 		inboundEndpoint string
 		runtimeEndpoint string
@@ -45,48 +47,47 @@ func TestResolveOpenAIUpstreamEndpointPrefersForwardResult(t *testing.T) {
 	}{
 		{
 			name:            "grok raw chat result overrides stale context",
-			account:         &service.Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
+			account:         &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}},
 			result:          &forwardcore.OpenAIResult{UpstreamEndpoint: gatewayhttp.EndpointChatCompletions},
 			runtimeEndpoint: gatewayhttp.EndpointResponses,
 			want:            gatewayhttp.EndpointChatCompletions,
 		},
 		{
 			name:    "grok chat bridged to responses",
-			account: &service.Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}},
 			result:  &forwardcore.OpenAIResult{UpstreamEndpoint: gatewayhttp.EndpointResponses},
 			want:    gatewayhttp.EndpointResponses,
 		},
 		{
 			name:    "grok empty result keeps responses default",
-			account: &service.Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}},
 			result:  &forwardcore.OpenAIResult{},
 			want:    gatewayhttp.EndpointResponses,
 		},
 		{
 			name:            "grok raw error uses runtime endpoint",
-			account:         &service.Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
+			account:         &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}},
 			runtimeEndpoint: gatewayhttp.EndpointChatCompletions,
 			want:            gatewayhttp.EndpointChatCompletions,
 		},
 		{
 			name:    "openai behavior remains responses",
-			account: &service.Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}},
 			result:  &forwardcore.OpenAIResult{},
 			want:    gatewayhttp.EndpointResponses,
 		},
 		{
 			name:            "openai api key chat attempt records runtime endpoint",
-			account:         &service.Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey},
+			account:         &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}},
 			result:          &forwardcore.OpenAIResult{},
 			runtimeEndpoint: gatewayhttp.EndpointChatCompletions,
 			want:            gatewayhttp.EndpointChatCompletions,
 		},
 		{
 			name: "openai api key responses attempt records runtime endpoint",
-			account: &service.Account{
-				Platform: capability.PlatformOpenAI,
-				Type:     capability.AccountTypeAPIKey,
-				Extra:    map[string]any{"openai_text_route_mode": "force_responses"},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+				Type:  capability.AccountTypeAPIKey,
+				Extra: map[string]any{"openai_text_route_mode": "force_responses"}},
 			},
 			result:          &forwardcore.OpenAIResult{},
 			runtimeEndpoint: gatewayhttp.EndpointResponses,
@@ -94,7 +95,7 @@ func TestResolveOpenAIUpstreamEndpointPrefersForwardResult(t *testing.T) {
 		},
 		{
 			name:            "responses fallback records runtime chat endpoint",
-			account:         &service.Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey},
+			account:         &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}},
 			result:          &forwardcore.OpenAIResult{},
 			inboundEndpoint: gatewayhttp.EndpointResponses,
 			runtimeEndpoint: gatewayhttp.EndpointChatCompletions,
@@ -102,7 +103,7 @@ func TestResolveOpenAIUpstreamEndpointPrefersForwardResult(t *testing.T) {
 		},
 		{
 			name:            "messages native path records runtime responses endpoint",
-			account:         &service.Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey},
+			account:         &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}},
 			result:          &forwardcore.OpenAIResult{},
 			inboundEndpoint: gatewayhttp.EndpointMessages,
 			runtimeEndpoint: gatewayhttp.EndpointResponses,

@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	service "github.com/TokenFlux/TokenRouter/internal/audit"
-	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -151,8 +152,8 @@ func TestOllamaCloudUsageSessionRouteOmitsAuditBody(t *testing.T) {
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set(string(identityhttp.ContextKeyUser), identityhttp.AuthSubject{UserID: 77})
-		c.Set(string(identityhttp.ContextKeyUserRole), "admin")
+		c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 77})
+		c.Set(string(authctx.ContextKeyUserRole), "admin")
 		c.Next()
 	})
 	router.Use(gin.HandlerFunc(NewAuditLogMiddleware(auditService, service.NewRedactor(nil))))
@@ -252,7 +253,7 @@ func TestS08AuditClearHTTPAuthorizationAndTrace(t *testing.T) {
 			router.POST("/api/v1/admin/audit-logs/clear", func(c *gin.Context) {
 				c.Set("auth_method", tc.auth)
 				if tc.user > 0 {
-					c.Set(string(identityhttp.ContextKeyUser), identityhttp.AuthSubject{UserID: tc.user})
+					c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: tc.user})
 					c.Set("user_role", "admin")
 					c.Set(ContextKeyAuthEmail, "admin@example.test")
 				}

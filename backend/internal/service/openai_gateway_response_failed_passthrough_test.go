@@ -14,10 +14,12 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -40,9 +42,9 @@ func bindPassthroughRule(c *gin.Context, platform string, keywords []string, res
 }
 
 // forcedResponsesChatTestAccount 让 Chat 入站进入 Responses 错误转换测试路径。
-func forcedResponsesChatTestAccount() *Account {
+func forcedResponsesChatTestAccount() *gatewayprovider.ExecutionAccount {
 	account := rawChatCompletionsTestAccount()
-	account.Extra = map[string]any{"openai_text_route_mode": "force_responses"}
+	account.Record.Extra = map[string]any{"openai_text_route_mode": "force_responses"}
 	return account
 }
 
@@ -61,10 +63,10 @@ func TestForwardAsChatCompletions_ResponseFailed_PassthroughRule(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(buildContextLengthFailedSSE())),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	account := forcedResponsesChatTestAccount()
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
@@ -87,18 +89,18 @@ func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T)
 		`data: {"type":"response.failed","response":{"status":"failed","error":{"code":"account_disabled","message":"Your account is disabled"}}}` + "\n\n"
 	tests := []struct {
 		name string
-		run  func(*OpenAIGatewayService, *gin.Context, *http.Response, *Account) error
+		run  func(*OpenAIGatewayService, *gin.Context, *http.Response, *gatewayprovider.ExecutionAccount) error
 	}{
 		{
 			name: "native",
-			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
+			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
 				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
 				return err
 			},
 		},
 		{
 			name: "passthrough",
-			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
+			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
 				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
 				return err
 			},
@@ -115,13 +117,13 @@ func TestResponsesStreamAccessStateFailoverPrecedesPassthroughRule(t *testing.T)
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 				Body:       io.NopCloser(strings.NewReader(stream)),
 			}
-			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
-			err := tt.run(svc, c, resp, &Account{ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth})
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}})
+			err := tt.run(svc, c, resp, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}})
 
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.True(t, failoverErr.IsCredentialFailure())
-			require.Equal(t, OpenAIUpstreamAccessStateReason, failoverErr.Reason)
+			require.Equal(t, forwardcore.OpenAIUpstreamAccessStateReason, failoverErr.Reason)
 			require.False(t, failoverErr.RetryableOnSameAccount)
 			require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
 			require.False(t, c.Writer.Written(), "passthrough rule must not commit a response before account failover")
@@ -135,18 +137,18 @@ func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
 		`data: {"type":"error","error":{"code":"cyber_policy","message":"blocked by cyber policy"}}` + "\n\n"
 	tests := []struct {
 		name string
-		run  func(*OpenAIGatewayService, *gin.Context, *http.Response, *Account) error
+		run  func(*OpenAIGatewayService, *gin.Context, *http.Response, *gatewayprovider.ExecutionAccount) error
 	}{
 		{
 			name: "native",
-			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
+			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
 				_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
 				return err
 			},
 		},
 		{
 			name: "passthrough",
-			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *Account) error {
+			run: func(svc *OpenAIGatewayService, c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount) error {
 				_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, account, time.Now(), "gpt-5", "gpt-5")
 				return err
 			},
@@ -163,13 +165,13 @@ func TestResponsesStreamCyberPolicyPrecedesPassthroughRule(t *testing.T) {
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 				Body:       io.NopCloser(strings.NewReader(stream)),
 			}
-			svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}}
-			err := tt.run(svc, c, resp, &Account{ID: 12, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth})
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}})
+			err := tt.run(svc, c, resp, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}})
 
 			require.Error(t, err)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.False(t, errors.As(err, &failoverErr))
-			require.NotNil(t, GetOpsCyberPolicy(c))
+			require.NotNil(t, gatewayhttp.GetOpsCyberPolicy(c))
 			require.NotEqual(t, http.StatusTeapot, rec.Code)
 			require.Contains(t, rec.Body.String(), "cyber_policy")
 		})
@@ -191,10 +193,10 @@ func TestForwardAsAnthropic_ResponseFailed_PassthroughRule(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(buildContextLengthFailedSSE())),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
@@ -222,10 +224,10 @@ func TestForwardAsAnthropic_StreamingResponseFailed_PassthroughRule(t *testing.T
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(buildContextLengthFailedSSE())),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	_, err := svc.ForwardAsAnthropic(context.Background(), c, rawChatCompletionsTestAccount(), body, "", "")
 
@@ -247,10 +249,10 @@ func TestForwardAsChatCompletions_ResponseFailed_NoRule_Still502(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(buildContextLengthFailedSSE())),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	account := forcedResponsesChatTestAccount()
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
@@ -271,18 +273,18 @@ func TestForwardAsChatCompletions_ResponseFailedCustomErrorMissReturnsGeneric500
 
 	failed := `{"type":"response.failed","response":{"status":"failed","error":{"code":"server_error","message":"temporary failure"},"output":[]}}`
 	repo := &openAIWSPolicyRepo{}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: rawChatCompletionsTestConfig(),
 		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 			Body:       io.NopCloser(strings.NewReader("data: " + failed + "\n\n")),
 		}},
-	}
-	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil, nil)
+	})
+	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil)
 	account := forcedResponsesChatTestAccount()
-	account.Credentials["custom_error_codes_enabled"] = true
-	account.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
+	account.Record.Credentials["custom_error_codes_enabled"] = true
+	account.Record.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
@@ -306,18 +308,18 @@ func TestForwardAsChatCompletions_ResponseFailedCustomNonDefaultStatusFailsOver(
 
 	failed := `{"type":"response.failed","response":{"status":"failed","error":{"status_code":422,"code":"configured","type":"upstream_error","message":"configured failure"},"output":[]}}`
 	repo := &openAIWSPolicyRepo{}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: rawChatCompletionsTestConfig(),
 		httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 			Body:       io.NopCloser(strings.NewReader("data: " + failed + "\n\n")),
 		}},
-	}
-	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil, nil)
+	})
+	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil)
 	account := forcedResponsesChatTestAccount()
-	account.Credentials["custom_error_codes_enabled"] = true
-	account.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
+	account.Record.Credentials["custom_error_codes_enabled"] = true
+	account.Record.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
@@ -345,14 +347,14 @@ func TestOpenAIResponsesStreaming_ResponseFailedCustomStatusFailsOver(t *testing
 	}
 	repo := &openAIWSPolicyRepo{}
 	cfg := rawChatCompletionsTestConfig()
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:              cfg,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil, nil),
+		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
 		toolCorrector:    openai.NewCodexToolCorrector(),
-	}
+	})
 	account := rawChatCompletionsTestAccount()
-	account.Credentials["custom_error_codes_enabled"] = true
-	account.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
+	account.Record.Credentials["custom_error_codes_enabled"] = true
+	account.Record.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
 	_, err := svc.handleStreamingResponse(
 		context.Background(), resp, c, account, time.Now(), "gpt-5.4", "gpt-5.4",
 	)
@@ -417,10 +419,10 @@ func TestForwardAsChatCompletions_ResponseFailed_ErrorCodeRuleMatchesViaSemantic
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(buildContextLengthFailedSSE())),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	account := forcedResponsesChatTestAccount()
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
@@ -447,10 +449,10 @@ func TestForwardAsAnthropic_ResponseFailed_ErrorCodeRuleMatchesViaSemanticStatus
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(buildContextLengthFailedSSE())),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")

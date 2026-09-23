@@ -6,6 +6,8 @@ import (
 	errors "errors"
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	gin "github.com/gin-gonic/gin"
 )
@@ -132,7 +134,7 @@ func ValidateAdminAPIKey(
 		return false
 	}
 
-	SetPrincipal(c, identity.Principal{UserID: admin.ID, Role: admin.Role, SessionID: "", CredentialKind: "admin_api_key"}, admin.Concurrency, admin.Email)
+	authctx.SetPrincipal(c, identity.Principal{UserID: admin.ID, Role: admin.Role, SessionID: "", CredentialKind: "admin_api_key"}, admin.Concurrency, admin.Email)
 	c.Set("auth_method", "admin_api_key")
 	return true
 }
@@ -187,7 +189,7 @@ func ValidateJWTForAdmin(
 		return false
 	}
 
-	SetPrincipal(c, identity.Principal{UserID: user.ID, Role: user.Role, SessionID: claims.SessionID, CredentialKind: "jwt"}, user.Concurrency, user.Email)
+	authctx.SetPrincipal(c, identity.Principal{UserID: user.ID, Role: user.Role, SessionID: claims.SessionID, CredentialKind: "jwt"}, user.Concurrency, user.Email)
 	c.Set("auth_method", "jwt")
 
 	return true

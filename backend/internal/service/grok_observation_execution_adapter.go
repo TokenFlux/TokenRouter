@@ -3,13 +3,14 @@ package service
 import (
 	"context"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // grokObservationAdapter 绑定现有账号健康命令，不复制领域规则或快照节流器。
 type grokObservationAdapter struct {
 	s       *OpenAIGatewayService
-	account *Account
+	account *gatewayprovider.ExecutionAccount
 }
 
 func (a grokObservationAdapter) Stamp(snapshot *grok.QuotaSnapshot, model string) {

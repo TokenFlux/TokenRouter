@@ -37,7 +37,7 @@ func TestOpenAIResponsesEmptyCompletedFailsOver(t *testing.T) {
 			svc := newOpenAIImageGenerationControlTestService(upstream)
 			c, recorder := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 			account := newOpenAIImageGenerationControlTestAccount()
-			account.Extra = map[string]any{"openai_passthrough": passthrough}
+			account.Record.Extra = map[string]any{"openai_passthrough": passthrough}
 
 			result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"continue"}`))
 
@@ -45,7 +45,7 @@ func TestOpenAIResponsesEmptyCompletedFailsOver(t *testing.T) {
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.ErrorAs(t, err, &failoverErr)
 			require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
-			require.True(t, IsOpenAISilentRefusalErrorBody(failoverErr.ResponseBody))
+			require.True(t, forwardcore.IsOpenAISilentRefusalErrorBody(failoverErr.ResponseBody))
 			require.Equal(t, "rid-empty-completed", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 			require.Empty(t, recorder.Body.String(), "空成功流不能写给客户端")
 		})
@@ -87,7 +87,7 @@ func TestOpenAIResponsesEmptyCompletedExemptions(t *testing.T) {
 				svc := newOpenAIImageGenerationControlTestService(upstream)
 				c, recorder := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 				account := newOpenAIImageGenerationControlTestAccount()
-				account.Extra = map[string]any{"openai_passthrough": passthrough}
+				account.Record.Extra = map[string]any{"openai_passthrough": passthrough}
 
 				result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.6-sol","stream":true,"input":"continue"}`))
 

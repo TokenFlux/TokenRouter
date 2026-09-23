@@ -10,7 +10,6 @@ import (
 	core "github.com/TokenFlux/TokenRouter/internal/batchimage"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
 )
 
 type Account = acct.Record
@@ -40,14 +39,4 @@ func resolveBatchProtocol(value *Account) (capability.ProtocolID, bool) {
 	plan := routing.Plan(routing.PlanInput{ClientProtocol: capability.ProtocolImageBatches})
 	candidate, ok := plan.ResolveCandidate(value.RoutingSnapshot())
 	return candidate.UpstreamProtocol, ok
-}
-
-func vertexProjectID(value *Account) string {
-	return value.VertexProjectID(func(raw []byte) (string, error) {
-		key, err := vertex.ParseVertexServiceAccountJSON(raw)
-		if err != nil {
-			return "", err
-		}
-		return key.ProjectID, nil
-	})
 }

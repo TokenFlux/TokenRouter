@@ -19,9 +19,14 @@ func openAITextMaxBytesError(err error) (*http.MaxBytesError, bool) {
 	return limit, ok
 }
 func (h *OpenAITextHandler) errorResponse(c *gin.Context, status int, kind, message string) {
-	if h.backend.StopCompact(c) {
-		h.backend.MarkStream(c, kind, message, status)
-		id, model := h.backend.ErrorMetadata(c)
+	writeOpenAIRequestError(c, status, kind, message, h.backend.StopCompact, h.backend.MarkStream, h.backend.ErrorMetadata)
+}
+
+// writeOpenAIRequestError 保留 compact 已提交状态下的终态事件与普通 JSON 错误。
+func writeOpenAIRequestError(c *gin.Context, status int, kind, message string, stop func(*gin.Context) bool, mark func(*gin.Context, string, string, int), metadata func(*gin.Context) (string, string)) {
+	if stop(c) {
+		mark(c, kind, message, status)
+		id, model := metadata(c)
 		if WriteResponsesFailedSSE(c, kind, "", message, id, model) {
 			return
 		}

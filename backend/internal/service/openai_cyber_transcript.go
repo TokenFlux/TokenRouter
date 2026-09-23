@@ -29,7 +29,7 @@ func deriveOpenAICyberTranscriptBlockKeys(apiKeyID int64, body []byte) openAICyb
 	if len(body) == 0 {
 		return openAICyberTranscriptBlockKeys{}
 	}
-	root := openAIRequestPayloadView(body)
+	root := openai.RequestPayloadView(body)
 	if !root.Exists() || !root.IsObject() {
 		return openAICyberTranscriptBlockKeys{}
 	}

@@ -5,13 +5,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/team"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +28,7 @@ func TestBuildContentModerationInputTeamKeyUsesActorAndKeepsBillingAttribution(t
 		ActorUser: &identity.User{ID: 202, Email: "member@example.com"},
 	}
 
-	input := buildContentModerationInput(c, apiKey, middleware2.AuthSubject{UserID: 101}, moderation.ContentModerationProtocolOpenAIChat, "gpt-5", []byte(`{"messages":[]}`))
+	input := buildContentModerationInput(c, apiKey, authctx.AuthSubject{UserID: 101}, moderation.ContentModerationProtocolOpenAIChat, "gpt-5", []byte(`{"messages":[]}`))
 
 	require.Equal(t, int64(202), input.UserID)
 	require.Equal(t, "member@example.com", input.UserEmail)
@@ -62,7 +63,7 @@ func TestResolveContentModerationIdentityPersonalKeyFallsBackToBillingUser(t *te
 		User:   &identity.User{ID: 303, Email: "personal@example.com"},
 	}
 
-	identity := resolveContentModerationIdentity(apiKey, middleware2.AuthSubject{UserID: 303})
+	identity := resolveContentModerationIdentity(apiKey, authctx.AuthSubject{UserID: 303})
 
 	require.Equal(t, int64(303), identity.UserID)
 	require.Equal(t, int64(303), identity.BillingUserID)
@@ -79,7 +80,7 @@ func TestResolveContentModerationIdentityTeamKeyWithoutActorUsesKeyOwnerAndMembe
 		TeamMembership: &team.TeamMembership{UserID: 505, Email: "member@example.com"},
 	}
 
-	identity := resolveContentModerationIdentity(apiKey, middleware2.AuthSubject{UserID: 606})
+	identity := resolveContentModerationIdentity(apiKey, authctx.AuthSubject{UserID: 606})
 
 	require.Equal(t, int64(505), identity.UserID)
 	require.Equal(t, "member@example.com", identity.UserEmail)
@@ -88,7 +89,7 @@ func TestResolveContentModerationIdentityTeamKeyWithoutActorUsesKeyOwnerAndMembe
 }
 
 func TestResolveContentModerationIdentityWithoutAPIKeyFallsBackToSubject(t *testing.T) {
-	identity := resolveContentModerationIdentity(nil, middleware2.AuthSubject{UserID: 707})
+	identity := resolveContentModerationIdentity(nil, authctx.AuthSubject{UserID: 707})
 
 	require.Equal(t, int64(707), identity.UserID)
 	require.Empty(t, identity.UserEmail)

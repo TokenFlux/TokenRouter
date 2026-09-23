@@ -3,6 +3,8 @@ package app
 import (
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 )
@@ -32,19 +34,23 @@ func idempotencyOptions(cfg *config.Config) idempotency.IdempotencyConfig {
 	return opts
 }
 
-// provideIdempotencyCoordinator 将兼容 HTTP 默认入口绑定到应用的唯一协调器。
+// provideIdempotencyCoordinator 构造唯一协调器，由 HTTP 装配显式共享。
 func provideIdempotencyCoordinator(repo idempotency.IdempotencyRepository, cfg *config.Config) *idempotency.IdempotencyCoordinator {
-	coordinator := idempotency.NewIdempotencyCoordinator(repo, idempotencyOptions(cfg))
-	idempotency.SetDefaultIdempotencyCoordinator(coordinator)
+	coordinator := idempotency.NewIdempotencyCoordinator(repo, idempotencyOptions(cfg), idempotencyObserver())
 	return coordinator
 }
 
 // provideIdempotencyCleanupService 只构造任务，启动和停止由应用生命周期持有。
 func provideIdempotencyCleanupService(repo idempotency.IdempotencyRepository, cfg *config.Config) *idempotency.IdempotencyCleanupService {
-	opts := idempotency.CleanupOptions{}
+	opts := idempotency.CleanupOptions{Observer: idempotencyObserver()}
 	if cfg != nil {
 		opts.Interval = time.Duration(cfg.Idempotency.CleanupIntervalSeconds) * time.Second
 		opts.Batch = cfg.Idempotency.CleanupBatchSize
 	}
 	return idempotency.NewIdempotencyCleanupService(repo, opts)
+}
+
+// idempotencyObserver 由组合根提供日志出口，不在幂等核心安装全局后端。
+func idempotencyObserver() idempotency.Observer {
+	return idempotency.ObserverFunc(func(component, message string) { logging.LegacyPrintf(component, "%s", message) })
 }

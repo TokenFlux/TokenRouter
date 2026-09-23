@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -77,10 +79,10 @@ func TestOpenAIResponsesTTFTStartsAtCompletedImage(t *testing.T) {
 
 func TestOpenAINativeMetadataDoesNotDisarmFirstOutputTimeout(t *testing.T) {
 
-	svc := &OpenAIGatewayService{settingService: newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, &config.Config{}), cfg: &config.Config{Gateway: config.GatewayConfig{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{settingService: newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, &config.Config{}), cfg: &config.Config{Gateway: config.GatewayConfig{
 		MaxLineSize:                     defaultMaxLineSize,
 		OpenAIFirstOutputTimeoutSeconds: 1,
-	}}}
+	}}})
 	reader, writer := io.Pipe()
 	writerDone := make(chan struct{})
 	go func() {
@@ -95,7 +97,7 @@ func TestOpenAINativeMetadataDoesNotDisarmFirstOutputTimeout(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: reader}
-	account := &Account{ID: 1, Name: "account_test", Platform: capability.PlatformOpenAI}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "account_test", Platform: capability.PlatformOpenAI}}
 
 	_, err := svc.handleStreamingResponse(context.Background(), resp, c, account, time.Now(), "test-model", "test-model")
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -112,10 +114,10 @@ func TestOpenAINativeMetadataDoesNotDisarmFirstOutputTimeout(t *testing.T) {
 func runSyntheticVisibleTTFTStream(t *testing.T, passthrough bool, visibleDelay time.Duration, timeoutSeconds int, visibleEvent string) *openaiStreamingResult {
 	t.Helper()
 
-	svc := &OpenAIGatewayService{settingService: newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, &config.Config{}), cfg: &config.Config{Gateway: config.GatewayConfig{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{settingService: newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{gateway.SettingKeyOpenAITTFTMode: gateway.OpenAITTFTModeVisible}}, &config.Config{}), cfg: &config.Config{Gateway: config.GatewayConfig{
 		MaxLineSize:                     defaultMaxLineSize,
 		OpenAIFirstOutputTimeoutSeconds: timeoutSeconds,
-	}}}
+	}}})
 	reader, writer := io.Pipe()
 	writerDone := make(chan struct{})
 	go func() {
@@ -132,7 +134,7 @@ func runSyntheticVisibleTTFTStream(t *testing.T, passthrough bool, visibleDelay 
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: reader}
-	account := &Account{ID: 1, Name: "account_test", Platform: capability.PlatformOpenAI}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "account_test", Platform: capability.PlatformOpenAI}}
 	started := time.Now()
 
 	var result *openaiStreamingResult

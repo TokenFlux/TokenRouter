@@ -7,9 +7,8 @@ import (
 	"strings"
 	"time"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
-	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idemhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -24,6 +23,8 @@ import (
 
 // UsageHandler handles admin usage-related requests
 type UsageHandler struct {
+	idemhttp.Executor
+
 	calendar       timezone.Calendar
 	usageService   *usage.UsageService
 	apiKeyService  ports.KeyReader
@@ -525,7 +526,7 @@ func (h *UsageHandler) ListCleanupTasks(c *gin.Context) {
 		return
 	}
 	operator := int64(0)
-	if subject, ok := middleware.GetAuthSubjectFromContext(c); ok {
+	if subject, ok := authctx.GetAuthSubjectFromContext(c); ok {
 		operator = subject.UserID
 	}
 	page, pageSize := response.ParsePagination(c)
@@ -552,7 +553,7 @@ func (h *UsageHandler) CreateCleanupTask(c *gin.Context) {
 		response.Error(c, http.StatusServiceUnavailable, "Usage cleanup service unavailable")
 		return
 	}
-	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok || subject.UserID <= 0 {
 		response.Unauthorized(c, "Unauthorized")
 		return
@@ -649,7 +650,7 @@ func (h *UsageHandler) CreateCleanupTask(c *gin.Context) {
 		OperatorID: subject.UserID,
 		Body:       req,
 	}
-	idemhttp.ExecuteAdminIdempotentJSON(c, "admin.usage.cleanup_tasks.create", idempotencyPayload, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.usage.cleanup_tasks.create", idempotencyPayload, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		logger.LegacyPrintf("handler.admin.usage", "[UsageCleanup] 请求创建清理任务: operator=%d start=%s end=%s user_id=%v api_key_id=%v account_id=%v group_id=%v model=%v request_type=%v stream=%v billing_type=%v tz=%q",
 			subject.UserID,
 			filters.StartTime.Format(time.RFC3339),
@@ -682,7 +683,7 @@ func (h *UsageHandler) CancelCleanupTask(c *gin.Context) {
 		response.Error(c, http.StatusServiceUnavailable, "Usage cleanup service unavailable")
 		return
 	}
-	subject, ok := middleware.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok || subject.UserID <= 0 {
 		response.Unauthorized(c, "Unauthorized")
 		return

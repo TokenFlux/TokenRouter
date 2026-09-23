@@ -7,6 +7,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -30,8 +31,8 @@ func hasBillableGrokChatUsage(usage openai.ForwardUsage) bool {
 // requiresBillableGrokChatUsage 根据实际账号平台和最终模型身份识别 Grok 流量。
 // Grok 可由通用 OpenAI 兼容账号承载，因此不能只检查 account.Platform；同时不使用
 // 未映射的客户端模型，避免 Grok 命名别名映射到非 Grok 上游时被误判。
-func requiresBillableGrokChatUsage(account *Account, models ...string) bool {
-	if account != nil && account.Platform == capability.PlatformGrok {
+func requiresBillableGrokChatUsage(account *gatewayprovider.ExecutionAccount, models ...string) bool {
+	if account != nil && account.Record.Platform == capability.PlatformGrok {
 		return true
 	}
 	for _, model := range models {
@@ -47,12 +48,12 @@ func requiresBillableGrokChatUsage(account *Account, models ...string) bool {
 }
 
 // newGrokMissingUsageFailoverError 构造稳定的缺失用量故障转移错误并写入 Grok Ops 诊断。
-func newGrokMissingUsageFailoverError(c *gin.Context, account *Account, upstreamRequestID string) *forwardcore.UpstreamFailoverError {
+func newGrokMissingUsageFailoverError(c *gin.Context, account *gatewayprovider.ExecutionAccount, upstreamRequestID string) *forwardcore.UpstreamFailoverError {
 	accountID := int64(0)
 	accountName := ""
 	if account != nil {
-		accountID = account.ID
-		accountName = account.Name
+		accountID = account.Record.ID
+		accountName = account.Record.Name
 	}
 	gatewayhttp.SetOpsUpstreamError(c, http.StatusBadGateway, grokMissingUsageMessage, "")
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{

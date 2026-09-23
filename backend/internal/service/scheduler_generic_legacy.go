@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
@@ -17,11 +18,11 @@ import (
 // genericSelectionScope 用临时关联号保留同 ID 的多份读取快照，选择结束后即释放。
 type genericSelectionScope struct {
 	next     uint64
-	accounts map[uint64]*Account
+	accounts map[uint64]*gatewayprovider.ExecutionAccount
 	groups   map[uint64]*routing.Group
 }
 
-func (g *genericSelectionScope) account(value *Account) *scheduler.FlowAccount {
+func (g *genericSelectionScope) account(value *gatewayprovider.ExecutionAccount) *scheduler.FlowAccount {
 	if value == nil {
 		return nil
 	}
@@ -29,10 +30,10 @@ func (g *genericSelectionScope) account(value *Account) *scheduler.FlowAccount {
 	id := g.next
 	g.accounts[id] = value
 	var plan *routing.CandidatePlan
-	if captured, ok := value.attemptRoute.Candidate(); ok {
+	if captured, ok := value.Route.Candidate(); ok {
 		plan = &captured
 	}
-	return &scheduler.FlowAccount{Plan: plan, ProjectionID: id, ID: value.ID, Name: value.Name, Platform: value.Platform, Type: value.Type, Concurrency: value.Concurrency, Priority: value.Priority, LastUsedAt: cloneFlowTime(value.LastUsedAt), SessionWindowEnd: cloneFlowTime(value.SessionWindowEnd), LoadFactor: value.EffectiveLoadFactor(), BaseRPM: value.GetBaseRPM(), PrivacySet: value.IsPrivacySet(), MixedScheduling: value.IsMixedSchedulingEnabled()}
+	return &scheduler.FlowAccount{Plan: plan, ProjectionID: id, ID: value.Record.ID, Name: value.Record.Name, Platform: value.Record.Platform, Type: value.Record.Type, Concurrency: value.Record.Concurrency, Priority: value.Record.Priority, LastUsedAt: cloneFlowTime(value.Record.LastUsedAt), SessionWindowEnd: cloneFlowTime(value.Record.SessionWindowEnd), LoadFactor: value.View().EffectiveLoadFactor(), BaseRPM: gatewayprovider.ExecutionRuntimeConfig(value).GetBaseRPM(), PrivacySet: value.View().IsPrivacySet(), MixedScheduling: value.View().IsMixedSchedulingEnabled()}
 }
 func (g *genericSelectionScope) group(value *routing.Group) *scheduler.FlowGroup {
 	if value == nil {
@@ -43,7 +44,7 @@ func (g *genericSelectionScope) group(value *routing.Group) *scheduler.FlowGroup
 	g.groups[id] = value
 	return &scheduler.FlowGroup{ProjectionID: id, Group: *routing.CloneGroup(value)}
 }
-func (g *genericSelectionScope) oldAccount(v *scheduler.FlowAccount) *Account {
+func (g *genericSelectionScope) oldAccount(v *scheduler.FlowAccount) *gatewayprovider.ExecutionAccount {
 	if v == nil {
 		return nil
 	}
@@ -55,7 +56,7 @@ func (g *genericSelectionScope) oldGroup(v *scheduler.FlowGroup) *routing.Group 
 	}
 	return g.groups[v.ProjectionID]
 }
-func (g *genericSelectionScope) values(values []Account) []scheduler.FlowAccount {
+func (g *genericSelectionScope) values(values []gatewayprovider.ExecutionAccount) []scheduler.FlowAccount {
 	if values == nil {
 		return nil
 	}
@@ -65,17 +66,17 @@ func (g *genericSelectionScope) values(values []Account) []scheduler.FlowAccount
 	}
 	return out
 }
-func (g *genericSelectionScope) oldValues(values []scheduler.FlowAccount) []Account {
+func (g *genericSelectionScope) oldValues(values []scheduler.FlowAccount) []gatewayprovider.ExecutionAccount {
 	if values == nil {
 		return nil
 	}
-	out := make([]Account, len(values))
+	out := make([]gatewayprovider.ExecutionAccount, len(values))
 	for i := range values {
 		out[i] = *g.oldAccount(&values[i])
 	}
 	return out
 }
-func (g *genericSelectionScope) pointers(values []*Account) []*scheduler.FlowAccount {
+func (g *genericSelectionScope) pointers(values []*gatewayprovider.ExecutionAccount) []*scheduler.FlowAccount {
 	if values == nil {
 		return nil
 	}
@@ -95,31 +96,29 @@ func (g *genericSelectionScope) loads(values []accountWithLoad) []scheduler.Flow
 	}
 	return out
 }
-func (g *genericSelectionScope) selection(value *AccountSelectionResult) *scheduler.FlowSelection {
+func (g *genericSelectionScope) selection(value *gatewayprovider.SelectionResult) *scheduler.FlowSelection {
 	if value == nil {
 		return nil
 	}
 	out := &scheduler.FlowSelection{Account: g.account(value.Account), Acquired: value.Acquired, ReleaseFunc: value.ReleaseFunc, WaitPlan: value.WaitPlan, AdvancedScheduler: value.AdvancedScheduler}
 	if v := value.AdvancedSchedulerFeedback; v != nil {
-		out.AdvancedSchedulerFeedback = &policy.FeedbackConfig{ErrorRateAlpha: v.errorRateAlpha, TtftAlpha: v.ttftAlpha}
+		out.AdvancedSchedulerFeedback = &policy.FeedbackConfig{ErrorRateAlpha: v.ErrorRateAlpha, TtftAlpha: v.TtftAlpha}
 	}
 	return out
 }
-func (g *genericSelectionScope) restore(value *scheduler.FlowSelection) *AccountSelectionResult {
+func (g *genericSelectionScope) restore(value *scheduler.FlowSelection) *gatewayprovider.SelectionResult {
 	if value == nil {
 		return nil
 	}
-	out := &AccountSelectionResult{Account: g.oldAccount(value.Account), Acquired: value.Acquired, ReleaseFunc: value.ReleaseFunc, WaitPlan: value.WaitPlan, AdvancedScheduler: value.AdvancedScheduler}
+	out := &gatewayprovider.SelectionResult{Account: g.oldAccount(value.Account), Acquired: value.Acquired, ReleaseFunc: value.ReleaseFunc, WaitPlan: value.WaitPlan, AdvancedScheduler: value.AdvancedScheduler}
 	if v := value.AdvancedSchedulerFeedback; v != nil {
-		out.AdvancedSchedulerFeedback = &advancedSchedulerFeedbackConfig{errorRateAlpha: v.ErrorRateAlpha, ttftAlpha: v.TtftAlpha}
+		out.AdvancedSchedulerFeedback = &policy.FeedbackConfig{ErrorRateAlpha: v.ErrorRateAlpha, TtftAlpha: v.TtftAlpha}
 	}
 	return out
 }
-func schedulerEffectiveProjection(v advancedSchedulerEffectiveSettings) policy.EffectiveSettings {
-	return policy.EffectiveSettings{StickyWeightedEnabled: v.stickyWeightedEnabled, SubscriptionPriorityEnabled: v.subscriptionPriorityEnabled, TopK: v.topK, Weights: policy.ScoreWeights(v.weights), Feedback: policy.FeedbackConfig{ErrorRateAlpha: v.feedback.errorRateAlpha, TtftAlpha: v.feedback.ttftAlpha}, StickyEscape: policy.StickyEscapeConfig{Enabled: v.stickyEscape.enabled, TtftMs: v.stickyEscape.ttftMs, ErrorRate: v.stickyEscape.errorRate}}
-}
+
 func (s *GatewayService) genericSelector() (*scheduler.GenericSelector, *genericSelectionScope) {
-	scope := &genericSelectionScope{accounts: map[uint64]*Account{}, groups: map[uint64]*routing.Group{}}
+	scope := &genericSelectionScope{accounts: map[uint64]*gatewayprovider.ExecutionAccount{}, groups: map[uint64]*routing.Group{}}
 	diagnostics := scheduler.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event}
 
 	// 保留原结构化日志等级和字段，核心不安装日志后端。
@@ -161,9 +160,9 @@ func (s *GatewayService) genericSelector() (*scheduler.GenericSelector, *generic
 		LogDetailedSelectionFailure: func(ctx context.Context, id *int64, hash, model, platform string, values []scheduler.FlowAccount, excluded map[int64]struct{}, mixed bool) string {
 			return summarizeSelectionFailureStats(s.logDetailedSelectionFailure(ctx, id, hash, model, platform, scope.oldValues(values), excluded, mixed))
 		},
-		AdvancedSchedulerStats: func() *scheduler.RuntimeStats { return schedulerStats(s.advancedSchedulerStats()) },
+		AdvancedSchedulerStats: func() *scheduler.RuntimeStats { return s.advancedSchedulerStats() },
 		AdvancedSchedulerEffectiveSettingsForRequest: func(ctx context.Context, id *int64) policy.EffectiveSettings {
-			return schedulerEffectiveProjection(s.advancedSchedulerEffectiveSettingsForRequest(ctx, id))
+			return s.advancedSchedulerEffectiveSettingsForRequest(ctx, id)
 		},
 		CheckChannelPricingRestriction:       s.checkChannelPricingRestriction,
 		ChannelMappedModelForAccountLayer:    s.channelMappedModelForAccountLayer,

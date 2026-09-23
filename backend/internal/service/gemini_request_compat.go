@@ -5,14 +5,15 @@ import (
 	"context"
 	"errors"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gemininative "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
 )
 
-func (s *GeminiMessagesCompatService) geminiRequestPlan(value *Account, model, action string, native, clientStream, upstreamStream, forceAIStudio bool) gemininative.RequestPlan {
-	plan := gemininative.RequestPlan{Mode: gemininative.CredentialMode(value.Type), Model: model, Action: action, Native: native, ClientStream: clientStream, UpstreamStream: upstreamStream, ForceAIStudio: forceAIStudio, APIKey: func() string { return value.GetCredential("api_key") }, BaseURL: func() string { return value.GetGeminiBaseURL(geminicli.AIStudioBaseURL) }, ValidateURL: s.validateUpstreamBaseURL, VertexURL: func(action string, stream bool) (string, error) {
-		return vertex.BuildVertexGeminiURL(value.VertexProjectID(), value.VertexLocation(model), model, action, stream)
+func (s *GeminiMessagesCompatService) geminiRequestPlan(value *gatewayprovider.ExecutionAccount, model, action string, native, clientStream, upstreamStream, forceAIStudio bool) gemininative.RequestPlan {
+	plan := gemininative.RequestPlan{Mode: gemininative.CredentialMode(value.Record.Type), Model: model, Action: action, Native: native, ClientStream: clientStream, UpstreamStream: upstreamStream, ForceAIStudio: forceAIStudio, APIKey: func() string { return value.View().GetCredential("api_key") }, BaseURL: func() string { return value.View().GetGeminiBaseURL(geminicli.AIStudioBaseURL) }, ValidateURL: s.validateUpstreamBaseURL, VertexURL: func(action string, stream bool) (string, error) {
+		return vertex.BuildVertexGeminiURL(gatewayprovider.ExecutionProtocolRecord(value).VertexProjectID(vertex.ServiceAccountProjectID), gatewayprovider.ExecutionProtocolRecord(value).VertexLocation(model), model, action, stream)
 	}}
 	plan.Token = func(ctx context.Context) (gemininative.TokenSnapshot, error) {
 		if s.tokenProvider == nil {
@@ -22,7 +23,7 @@ func (s *GeminiMessagesCompatService) geminiRequestPlan(value *Account, model, a
 		if err != nil {
 			return gemininative.TokenSnapshot{}, err
 		}
-		return gemininative.TokenSnapshot{AccessToken: token, ProjectID: value.GetCredential("project_id")}, nil
+		return gemininative.TokenSnapshot{AccessToken: token, ProjectID: value.View().GetCredential("project_id")}, nil
 	}
 	return plan
 }

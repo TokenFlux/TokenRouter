@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 )
@@ -15,8 +16,8 @@ const openCodeSessionHeader = "X-OpenCode-Session"
 // only to OpenCode's official API origin. The caller applies this after account
 // header overrides so a per-conversation value cannot be replaced by a fixed
 // account-wide override.
-func applyOpenCodeSessionHeader(c *gin.Context, account *Account, targetURL string, headers http.Header) {
-	if c == nil || c.Request == nil || account == nil || account.Type != capability.AccountTypeAPIKey || headers == nil {
+func applyOpenCodeSessionHeader(c *gin.Context, account *gatewayprovider.ExecutionAccount, targetURL string, headers http.Header) {
+	if c == nil || c.Request == nil || account == nil || account.Record.Type != capability.AccountTypeAPIKey || headers == nil {
 		return
 	}
 

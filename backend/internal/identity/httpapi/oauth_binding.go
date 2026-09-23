@@ -6,6 +6,8 @@ import (
 	url "net/url"
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
@@ -53,7 +55,7 @@ func (h *OAuthBindHandler) BuildOAuthBindUserCookieFromContext(c *gin.Context) (
 	return h.Signer.Sign(*userID)
 }
 func (h *OAuthBindHandler) ResolveOAuthBindTargetUserID(c *gin.Context) (*int64, error) {
-	if subject, ok := GetAuthSubjectFromContext(c); ok && subject.UserID > 0 {
+	if subject, ok := authctx.GetAuthSubjectFromContext(c); ok && subject.UserID > 0 {
 		return &subject.UserID, nil
 	}
 	if h == nil || h.SessionHandler == nil || h.authService == nil || h.userService == nil {

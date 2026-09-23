@@ -5,6 +5,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +24,7 @@ import (
 func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	defaultMappedModel string,
 	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,

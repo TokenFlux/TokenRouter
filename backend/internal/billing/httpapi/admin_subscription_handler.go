@@ -6,7 +6,6 @@ import (
 	strconv "strconv"
 
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
@@ -28,6 +27,8 @@ func toResponsePagination(p *pagination.PaginationResult) *response.PaginationRe
 
 // AdminSubscriptionHandler 处理管理员订阅管理请求。
 type AdminSubscriptionHandler struct {
+	idempotencyhttp.Executor
+
 	subscriptionService *billing.SubscriptionService
 }
 
@@ -208,7 +209,7 @@ func (h *AdminSubscriptionHandler) Extend(c *gin.Context) {
 		SubscriptionID: subscriptionID,
 		Body:           req,
 	}
-	idempotencyhttp.ExecuteAdminIdempotentJSON(c, "admin.subscriptions.extend", idempotencyPayload, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.subscriptions.extend", idempotencyPayload, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		subscription, execErr := h.subscriptionService.SetSubscriptionValidityDays(ctx, subscriptionID, req.Days)
 		if execErr != nil {
 			return nil, execErr

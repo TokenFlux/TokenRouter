@@ -9,20 +9,21 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
-type channelRows struct {
+// ChannelRows 仅提供可替换的持久化输入；查询缓存仍由真实渠道服务管理。
+type ChannelRows struct {
 	routing.ChannelRepository
-	values    []routing.Channel
-	platforms map[int64]string
+	Values    []routing.Channel
+	Platforms map[int64]string
 }
 
-func (r channelRows) ListAll(context.Context) ([]routing.Channel, error) { return r.values, nil }
-func (r channelRows) GetGroupPlatforms(context.Context, []int64) (map[int64]string, error) {
-	return r.platforms, nil
+func (r ChannelRows) ListAll(context.Context) ([]routing.Channel, error) { return r.Values, nil }
+func (r ChannelRows) GetGroupPlatforms(context.Context, []int64) (map[int64]string, error) {
+	return r.Platforms, nil
 }
-func (r channelRows) GetByID(_ context.Context, id int64) (*routing.Channel, error) {
-	for i := range r.values {
-		if r.values[i].ID == id {
-			return r.values[i].Clone(), nil
+func (r ChannelRows) GetByID(_ context.Context, id int64) (*routing.Channel, error) {
+	for i := range r.Values {
+		if r.Values[i].ID == id {
+			return r.Values[i].Clone(), nil
 		}
 	}
 	return nil, routing.ErrChannelNotFound
@@ -32,5 +33,5 @@ func (r channelRows) GetByID(_ context.Context, id int64) (*routing.Channel, err
 func Channel(groupID int64, platform string, value routing.Channel) *routing.ChannelService {
 	cloned := value.Clone()
 	cloned.GroupIDs = []int64{groupID}
-	return routing.NewChannelService(channelRows{values: []routing.Channel{*cloned}, platforms: map[int64]string{groupID: platform}}, nil, routing.ChannelOptions{Now: time.Now, LoadLocation: pricingprovider.LoadPricingLocation})
+	return routing.NewChannelService(ChannelRows{Values: []routing.Channel{*cloned}, Platforms: map[int64]string{groupID: platform}}, nil, routing.ChannelOptions{Now: time.Now, LoadLocation: pricingprovider.LoadPricingLocation})
 }

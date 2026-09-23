@@ -9,6 +9,7 @@ import (
 	billingpricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/stretchr/testify/require"
 )
@@ -79,13 +80,13 @@ func TestModelMarketplaceQoderModelUsesStandardPricing(t *testing.T) {
 
 func TestModelMarketplaceQoderChannelMappedBasisDoesNotUseRequestedStandardPricing(t *testing.T) {
 	groupID := int64(902)
-	cache := newEmptyChannelCache()
-	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "gpt-5.4"}] = "qmodel"
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive, BillingModelSource: routing.BillingModelSourceChannelMapped}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache := routingtestkit.NewChannelData()
+	cache.Models[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = "qmodel"
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive, BillingModelSource: routing.BillingModelSourceChannelMapped}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -104,13 +105,13 @@ func TestModelMarketplaceQoderChannelMappedBasisDoesNotUseRequestedStandardPrici
 
 func TestModelMarketplaceQoderUpstreamBasisDoesNotUseRequestedStandardPricing(t *testing.T) {
 	groupID := int64(902)
-	cache := newEmptyChannelCache()
-	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "gpt-5.4-mini"}] = "qmodel"
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive, BillingModelSource: routing.BillingModelSourceUpstream}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache := routingtestkit.NewChannelData()
+	cache.Models[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4-mini"}] = "qmodel"
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive, BillingModelSource: routing.BillingModelSourceUpstream}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -129,13 +130,13 @@ func TestModelMarketplaceQoderUpstreamBasisDoesNotUseRequestedStandardPricing(t 
 
 func TestModelMarketplaceQoderCustomImageAliasWithoutManualPricingRemainsUnknown(t *testing.T) {
 	groupID := int64(902)
-	cache := newEmptyChannelCache()
-	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "custom-image-alias"}] = "qmodel"
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive, BillingModelSource: routing.BillingModelSourceChannelMapped}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache := routingtestkit.NewChannelData()
+	cache.Models[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "custom-image-alias"}] = "qmodel"
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive, BillingModelSource: routing.BillingModelSourceChannelMapped}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -168,17 +169,17 @@ func TestModelMarketplaceQoderManualChannelPricingOverridesDefaultAliasDisplayPr
 	groupID := int64(902)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "auto"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "auto"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -199,18 +200,18 @@ func TestModelMarketplaceChannelImageInputPricingIsDisplayed(t *testing.T) {
 	inputPrice := 0.01
 	imageInputPrice := 0.03
 	outputPrice := 0.02
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformOpenAI, model: "gpt-image-edit"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformOpenAI, Model: "gpt-image-edit"}] = &routing.ChannelModelPricing{
 		BillingMode:     routing.BillingModeToken,
 		InputPrice:      &inputPrice,
 		ImageInputPrice: &imageInputPrice,
 		OutputPrice:     &outputPrice,
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformOpenAI
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformOpenAI
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -285,15 +286,15 @@ func TestModelDisplayPricingImageInputFastRates(t *testing.T) {
 
 func TestModelMarketplaceQoderBlankChannelPricingRemainsUnknown(t *testing.T) {
 	groupID := int64(902)
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "auto"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "auto"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -313,20 +314,20 @@ func TestModelMarketplaceQoderBlankRouteKeyPricingShowsAliasManualPricing(t *tes
 	groupID := int64(902)
 	aliasInputPrice := 0.01
 	aliasOutputPrice := 0.02
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 	}
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &aliasInputPrice,
 		OutputPrice: &aliasOutputPrice,
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -346,17 +347,17 @@ func TestModelMarketplaceQoderRequestedBasisDoesNotInferRouteKeyPricing(t *testi
 	groupID := int64(902)
 	inputPrice := 0.01
 	outputPrice := 0.02
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &inputPrice,
 		OutputPrice: &outputPrice,
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -378,22 +379,22 @@ func TestModelMarketplaceQoderAliasManualPricingOverridesRouteKeyManualPricing(t
 	aliasOutputPrice := 0.02
 	routeInputPrice := 0.50
 	routeOutputPrice := 0.75
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qmodel"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qmodel"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &routeInputPrice,
 		OutputPrice: &routeOutputPrice,
 	}
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &aliasInputPrice,
 		OutputPrice: &aliasOutputPrice,
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -416,19 +417,19 @@ func TestModelMarketplaceQoderNonUniformIntervalsDisplayAsContextIntervals(t *te
 	secondInput := 0.03
 	secondOutput := 0.04
 	maxTokens := 100
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "qwen3.7-plus"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 		Intervals: []routing.PricingInterval{
 			{MinTokens: 0, MaxTokens: &maxTokens, InputPrice: &firstInput, OutputPrice: &firstOutput},
 			{MinTokens: maxTokens, InputPrice: &secondInput, OutputPrice: &secondOutput},
 		},
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,
@@ -453,18 +454,18 @@ func TestModelMarketplaceQoderNonUniformIntervalsDisplayAsContextIntervals(t *te
 func TestModelMarketplaceQoderStandardModelPartialIntervalKeepsBaseDisplayFields(t *testing.T) {
 	groupID := int64(902)
 	inputPrice := 0.01
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformQoder, model: "gpt-5.4"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformQoder, Model: "gpt-5.4"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 		Intervals: []routing.PricingInterval{
 			{MinTokens: 0, InputPrice: &inputPrice},
 		},
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformQoder
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformQoder
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	basePricing, err := billingService.GetModelPricing("gpt-5.4")
@@ -491,17 +492,17 @@ func TestModelMarketplaceGroupPricingOverridesChannelPricing(t *testing.T) {
 	channelOutput := 0.75
 	groupInput := 0.01
 	groupOutput := 0.02
-	cache := newEmptyChannelCache()
-	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: capability.PlatformOpenAI, model: "gpt-5.4-mini"}] = &routing.ChannelModelPricing{
+	cache := routingtestkit.NewChannelData()
+	cache.Prices[routingtestkit.ModelKey{GroupID: groupID, Platform: capability.PlatformOpenAI, Model: "gpt-5.4-mini"}] = &routing.ChannelModelPricing{
 		BillingMode: routing.BillingModeToken,
 		InputPrice:  &channelInput,
 		OutputPrice: &channelOutput,
 	}
-	cache.channelByGroupID[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
-	cache.groupPlatform[groupID] = capability.PlatformOpenAI
-	cache.loadedAt = time.Now()
+	cache.ByGroup[groupID] = &routing.Channel{ID: groupID, Status: billing.StatusActive}
+	cache.Platforms[groupID] = capability.PlatformOpenAI
+	cache.LoadedAt = time.Now()
 
-	channelService := seedChannelFixture(cache)
+	channelService := routingtestkit.ChannelFromData(cache)
 
 	billingService := newMarketplaceCalculator(nil, nil)
 	svc := newMarketplaceFixture(nil, nil,

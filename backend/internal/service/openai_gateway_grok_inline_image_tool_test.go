@@ -10,8 +10,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
@@ -29,14 +32,14 @@ func TestForwardGrokChatViaResponsesDropsRedundantViewImage(t *testing.T) {
 
 	account := grokChatBridgeTestAccount(799)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_chat_image", 0)}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -53,9 +56,8 @@ func TestForwardGrokRawChatDropsRedundantViewImage(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
 
-	account := &Account{
-		ID: 800, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey, Concurrency: 1,
-		Credentials: map[string]any{"api_key": "test-key", "base_url": "https://grok.example.test/v1"},
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 800, Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey, Concurrency: 1,
+		Credentials: map[string]any{"api_key": "test-key", "base_url": "https://grok.example.test/v1"}},
 	}
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
@@ -64,7 +66,7 @@ func TestForwardGrokRawChatDropsRedundantViewImage(t *testing.T) {
 			`{"id":"chatcmpl","object":"chat.completion","model":"grok-4.6","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}}`,
 		)),
 	}}
-	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -95,14 +97,14 @@ func TestForwardGrokMessagesDropsRedundantViewImage(t *testing.T) {
 
 	account := healthyGrokOAuthGatewayTestAccount(801, "access-token")
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokMessagesSSECompletedResponse("resp_messages_image", 0)}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)

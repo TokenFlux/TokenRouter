@@ -110,7 +110,7 @@ func TestOpenAIGatewayService_OAuthFlattenFlagRestoresLegacyBehavior(t *testing.
 	}}
 	c := newOpenAIRejectedFieldTestContext(body)
 	account := newOpenAIOAuthNamespaceTestAccount()
-	account.Extra = map[string]any{"openai_responses_flatten_namespaces": true}
+	account.Record.Extra = map[string]any{"openai_responses_flatten_namespaces": true}
 
 	result, err := newOpenAIRejectedFieldTestService(upstream).Forward(context.Background(), c, account, body)
 

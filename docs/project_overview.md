@@ -44,14 +44,15 @@ Go 模块路径为 `github.com/TokenFlux/TokenRouter`。后端以 `backend/go.mo
 
 | 路径 | 规范责任 | 注意事项 |
 | --- | --- | --- |
-| `backend/cmd/server/` | 主进程入口、版本信息、Wire 依赖图和有序关闭 | `wire_gen.go` 是生成物；修改依赖图应改 `wire.go` 后重新生成 |
-| `backend/internal/server/` | HTTP server、中间件顺序和路由注册 | 路由只负责接口装配，业务不变量应留在 service/domain 层 |
-| `backend/internal/handler/` | HTTP/协议适配、输入输出和网关 attempt 编排 | 同时包含普通面板 handler 和多协议网关 handler |
-| `backend/internal/service/` | 核心业务、调度、计费、协议转换和后台运行时 | 跨 repository 的不变量通常由这里拥有 |
-| `backend/internal/repository/` | PostgreSQL、Redis、对象存储和外部基础设施实现 | 包含迁移执行器和缓存实现；失败语义会影响 service 层降级 |
+| `backend/cmd/server/` | 参数、版本信息与最终退出 | 原生成入口委托 app 的 Wire 图 |
+| `backend/internal/app/` | 唯一组合根、精简初始化及生命周期 | 修改手写装配后生成 Wire，资源由原生模块唯一持有 |
+| `backend/internal/server/` | HTTP server、中间件顺序和路由注册 | 路由只负责接口装配，业务不变量由所属模块持有 |
+| `backend/internal/handler/` | 尚待清理的网关 HTTP 适配 | 面板接口已归所属模块，原生入口由 app 绑定 |
+| `backend/internal/service/` | 尚待清理的执行适配与调用绑定 | 资金、协议、账号、调度等规则已归原生模块，不再定义旧实体 |
+| `backend/internal/<module>/` | 原生用例及其 PostgreSQL、Redis、HTTP、provider 适配 | 旧 repository 包已删除；通用技术实现归 infra |
 | `backend/ent/schema/` | 主要持久实体的 Ent schema 源 | `backend/ent/` 下其余大部分文件为生成代码 |
 | `backend/migrations/` | 已发布数据库的前向演进 | SQL 被嵌入二进制并按文件名执行；已应用文件不可改写 |
-| `backend/internal/config/` | 启动配置结构、默认值、环境映射和校验 | 数据库中的运行时设置由 Setting 相关 service/handler 负责，不等同于启动配置 |
+| `backend/internal/config/` | 启动配置结构、默认值、环境映射和校验 | 数据库中的运行时设置由 settings 和所属模块读取器负责，不等同于启动配置 |
 | `frontend/src/` | Vue 应用、路由、API 客户端、Pinia store、视图、组件和 i18n | 后端 API 契约变化通常需要同步类型、调用方和前端测试 |
 | `deploy/` | Compose、安装脚本、反向代理基线和运行配置示例 | 与根 Dockerfile、GoReleaser 和 workflow 共同定义发布形态 |
 | `.github/workflows/` | 后端 CI、安全扫描和 release 自动化 | 实际工具链版本和发布触发条件以 workflow 为准 |

@@ -11,6 +11,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
@@ -34,19 +35,19 @@ type grokCredentialConditionalStateRepository interface {
 }
 
 // GetRequestCredential 在建立任何上游传输前应用请求路径的凭据和故障切换契约。
-func (s *OpenAIGatewayService) GetRequestCredential(ctx context.Context, c *gin.Context, account *Account) (string, string, error) {
+func (s *OpenAIGatewayService) GetRequestCredential(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount) (string, string, error) {
 	return s.getRequestCredential(ctx, c, account)
 }
 
-func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.Context, account *Account) (string, string, error) {
+func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount) (string, string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if account == nil {
 		return "", "", errors.New("account is nil")
 	}
-	if !account.IsGrokOAuth() {
-		return s.GetAccessToken(ctx, account)
+	if !account.View().IsGrokOAuth() {
+		return s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
 	}
 	if err := ctx.Err(); err != nil {
 		return "", "", err
@@ -81,7 +82,7 @@ func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.
 		})
 	}
 
-	token, kind, err := s.GetAccessToken(credentialCtx, account)
+	token, kind, err := s.executionCredentials.Resolve(credentialCtx, gatewayprovider.ExecutionRecord(account))
 	if err == nil {
 		if s.isOpenAIAccountRuntimeBlocked(account) {
 			return "", "", s.newGrokCredentialFailover(c, account, forwardcore.GrokCredentialFailure{
@@ -105,7 +106,7 @@ func (s *OpenAIGatewayService) getRequestCredential(ctx context.Context, c *gin.
 		})
 	}
 
-	class := forwardcore.ClassifyGrokCredentialFailure(account != nil && account.ProxyID != nil, err)
+	class := forwardcore.ClassifyGrokCredentialFailure(account != nil && account.Record.ProxyID != nil, err)
 	if snapshot, ok := accountcore.GrokCredentialFailureSnapshot(err); ok {
 		class.SetSnapshot(&snapshot)
 	}
@@ -175,14 +176,14 @@ func grokCredentialAcquisitionContext(ctx context.Context, c *gin.Context) (cont
 	return acquireCtx, cancel, false
 }
 
-func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Context, account *Account, class forwardcore.GrokCredentialFailure) (string, error) {
+func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Context, account *gatewayprovider.ExecutionAccount, class forwardcore.GrokCredentialFailure) (string, error) {
 	if s == nil || account == nil || ctx == nil || ctx.Err() != nil {
 		if ctx != nil {
 			return "", ctx.Err()
 		}
 		return "", context.Canceled
 	}
-	mutationMu := s.grokCredentialMutationLock(account.ID)
+	mutationMu := s.grokCredentialMutationLock(account.Record.ID)
 	if err := mutationMu.Lock(ctx); err != nil {
 		return "", err
 	}
@@ -192,12 +193,12 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 	if class.Snapshot() != nil {
 		snapshot = *class.Snapshot()
 	}
-	if token, err := s.validateCurrentGrokCredentialFailure(ctx, account.ID, snapshot, class); err != nil || token != "" {
+	if token, err := s.validateCurrentGrokCredentialFailure(ctx, account.Record.ID, snapshot, class); err != nil || token != "" {
 		return token, err
 	}
 
 	if class.Permanent {
-		if token, ok := s.grokCredentialConcurrentlyRefreshedToken(ctx, account.ID, snapshot); ok {
+		if token, ok := s.grokCredentialConcurrentlyRefreshedToken(ctx, account.Record.ID, snapshot); ok {
 			return token, nil
 		}
 		if ctx.Err() != nil {
@@ -224,13 +225,13 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 			cancel()
 			return "", err
 		}
-		updated, err := stateRepo.SetGrokCredentialErrorIfMatch(stateCtx, account.ID, snapshot, string(class.Reason))
+		updated, err := stateRepo.SetGrokCredentialErrorIfMatch(stateCtx, account.Record.ID, snapshot, string(class.Reason))
 		requestErr := ctx.Err()
 		cancel()
 		if err != nil {
-			slog.Warn("grok_credential_failure.set_error_failed", "account_id", account.ID, "reason", class.Reason, "error", err)
+			slog.Warn("grok_credential_failure.set_error_failed", "account_id", account.Record.ID, "reason", class.Reason, "error", err)
 			if requestErr != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				if s.grokCredentialMutationCommitted(account.ID, class, time.Time{}) {
+				if s.grokCredentialMutationCommitted(account.Record.ID, class, time.Time{}) {
 					updated = true
 				} else if requestErr != nil {
 					return "", requestErr
@@ -246,7 +247,7 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 		if !updated {
 			rollbackRuntime()
 			runtimeRollbackDone = true
-			return s.resolveGrokCredentialCASMiss(ctx, account.ID, snapshot)
+			return s.resolveGrokCredentialCASMiss(ctx, account.Record.ID, snapshot)
 		}
 		// SetError 是线性化点：持久隔离已提交，本节点的运行时阻断不得回滚。
 		keepRuntimeBlock = true
@@ -257,10 +258,10 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 			return "", fmt.Errorf("%w: token provider is not configured", errGrokCredentialStateUpdateFailed)
 		}
 		invalidateCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), grokCredentialCacheCleanupTimeout)
-		err = s.grokTokenProvider.InvalidateToken(invalidateCtx, AccountRecordView(account))
+		err = s.grokTokenProvider.InvalidateToken(invalidateCtx, gatewayprovider.ExecutionRecord(account))
 		cancel()
 		if err != nil {
-			slog.Warn("grok_credential_failure.invalidate_token_failed", "account_id", account.ID, "reason", class.Reason, "error", err)
+			slog.Warn("grok_credential_failure.invalidate_token_failed", "account_id", account.Record.ID, "reason", class.Reason, "error", err)
 			if ctx.Err() != nil {
 				return "", ctx.Err()
 			}
@@ -300,13 +301,13 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 			cancel()
 			return "", err
 		}
-		updated, err := stateRepo.SetGrokCredentialTempUnschedulableIfMatch(stateCtx, account.ID, snapshot, until, string(class.Reason))
+		updated, err := stateRepo.SetGrokCredentialTempUnschedulableIfMatch(stateCtx, account.Record.ID, snapshot, until, string(class.Reason))
 		requestErr := ctx.Err()
 		cancel()
 		if err != nil {
-			slog.Warn("grok_credential_failure.set_temp_unschedulable_failed", "account_id", account.ID, "reason", class.Reason, "error", err)
+			slog.Warn("grok_credential_failure.set_temp_unschedulable_failed", "account_id", account.Record.ID, "reason", class.Reason, "error", err)
 			if requestErr != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				if s.grokCredentialMutationCommitted(account.ID, class, until) {
+				if s.grokCredentialMutationCommitted(account.Record.ID, class, until) {
 					updated = true
 				} else if requestErr != nil {
 					return "", requestErr
@@ -322,7 +323,7 @@ func (s *OpenAIGatewayService) applyGrokCredentialAccountFailure(ctx context.Con
 		if !updated {
 			rollbackRuntime()
 			runtimeRollbackDone = true
-			return s.resolveGrokCredentialCASMiss(ctx, account.ID, snapshot)
+			return s.resolveGrokCredentialCASMiss(ctx, account.Record.ID, snapshot)
 		}
 		// SetTempUnschedulable 成功后，临时隔离已持久化。
 		keepRuntimeBlock = true
@@ -356,7 +357,7 @@ func (s *OpenAIGatewayService) validateCurrentGrokCredentialFailure(
 		}
 		return "", fmt.Errorf("%w: %v", accountcore.ErrRefreshAccountRereadFailed, err)
 	}
-	if latest == nil || !latest.IsGrokOAuth() || !latest.IsSchedulable() || s.isOpenAIAccountRuntimeBlocked(latest) {
+	if latest == nil || !latest.View().IsGrokOAuth() || !latest.View().IsSchedulable() || s.isOpenAIAccountRuntimeBlocked(latest) {
 		return "", accountcore.ErrRefreshAccountStateChanged
 	}
 	latestSnapshot := grokCredentialMutationSnapshot(latest)
@@ -371,17 +372,17 @@ func (s *OpenAIGatewayService) validateCurrentGrokCredentialFailure(
 	// 已配置代理不属于账号行的 CAS 身份；重新检查加载后的代理对象，
 	// 让同 ID 的代理恢复结果优先于过期的代理无效失败。
 	if class.Reason == forwardcore.GrokCredentialReasonProxyInvalid {
-		if latest.ProxyID == nil || latest.Proxy != nil {
+		if latest.Record.ProxyID == nil || latest.Record.Proxy != nil {
 			return "", accountcore.ErrRefreshAccountStateChanged
 		}
-	} else if latest.ProxyID != nil && latest.Proxy == nil {
+	} else if latest.Record.ProxyID != nil && latest.Record.Proxy == nil {
 		return "", accountcore.ErrRefreshAccountStateChanged
 	}
 
 	if class.Reason == forwardcore.GrokCredentialReasonMissing {
-		expiresAt := latest.GetCredentialAsTime("expires_at")
-		credentialsStillMissing := strings.TrimSpace(latest.GetGrokAccessToken()) == "" ||
-			strings.TrimSpace(latest.GetGrokRefreshToken()) == "" || expiresAt == nil || !time.Now().Before(*expiresAt)
+		expiresAt := latest.View().GetCredentialAsTime("expires_at")
+		credentialsStillMissing := strings.TrimSpace(latest.View().GetGrokAccessToken()) == "" ||
+			strings.TrimSpace(latest.View().GetGrokRefreshToken()) == "" || expiresAt == nil || !time.Now().Before(*expiresAt)
 		if !credentialsStillMissing {
 			return "", accountcore.ErrRefreshAccountStateChanged
 		}
@@ -410,17 +411,17 @@ func (s *OpenAIGatewayService) grokCredentialMutationCommitted(accountID int64, 
 		return false
 	}
 	if class.Permanent {
-		return latest.Status == accountcore.StatusError && !latest.Schedulable && latest.ErrorMessage == string(class.Reason)
+		return latest.Record.Status == accountcore.StatusError && !latest.Record.Schedulable && latest.Record.ErrorMessage == string(class.Reason)
 	}
 	if class.Transient {
-		return latest.TempUnschedulableUntil != nil && !latest.TempUnschedulableUntil.Before(until) &&
-			latest.TempUnschedulableReason == string(class.Reason)
+		return latest.Record.TempUnschedulableUntil != nil && !latest.Record.TempUnschedulableUntil.Before(until) &&
+			latest.Record.TempUnschedulableReason == string(class.Reason)
 	}
 	return false
 }
 
-func grokCredentialMutationSnapshot(account *Account) accountcore.CredentialMutationSnapshot {
-	return accountcore.GrokCredentialMutationSnapshot(AccountRecordView(account))
+func grokCredentialMutationSnapshot(account *gatewayprovider.ExecutionAccount) accountcore.CredentialMutationSnapshot {
+	return accountcore.GrokCredentialMutationSnapshot(gatewayprovider.ExecutionRecord(account))
 }
 
 func (s *OpenAIGatewayService) resolveGrokCredentialCASMiss(ctx context.Context, accountID int64, snapshot accountcore.CredentialMutationSnapshot) (string, error) {
@@ -433,45 +434,11 @@ func (s *OpenAIGatewayService) resolveGrokCredentialCASMiss(ctx context.Context,
 	return "", accountcore.ErrRefreshAccountStateChanged
 }
 
-func (s *OpenAIGatewayService) blockGrokCredentialRuntime(account *Account, until time.Time, reason string) func() {
+func (s *OpenAIGatewayService) blockGrokCredentialRuntime(account *gatewayprovider.ExecutionAccount, until time.Time, reason string) func() {
 	if s == nil || account == nil {
 		return func() {}
 	}
-	mu := s.openAIAccountRuntimeBlockLock(account.ID)
-	mu.Lock()
-	before, hadBefore := s.openaiAccountRuntimeBlockUntil.Load(account.ID)
-	installedGeneration, changed := s.blockAccountSchedulingLocked(account, until, reason)
-	installed, installedOK := s.openaiAccountRuntimeBlockUntil.Load(account.ID)
-	installedUntil, isTime := installed.(time.Time)
-	mu.Unlock()
-	if !changed || !installedOK || !isTime {
-		return func() {}
-	}
-	if hadBefore {
-		if beforeUntil, ok := before.(time.Time); ok && beforeUntil.Equal(installedUntil) {
-			return func() {}
-		}
-	}
-	return func() {
-		mu.Lock()
-		defer mu.Unlock()
-		generation, ok := s.openaiAccountRuntimeBlockGeneration.Load(account.ID)
-		if !ok || generation != installedGeneration {
-			return
-		}
-		current, ok := s.openaiAccountRuntimeBlockUntil.Load(account.ID)
-		currentUntil, isTime := current.(time.Time)
-		if !ok || !isTime || !currentUntil.Equal(installedUntil) {
-			return
-		}
-		if hadBefore {
-			s.openaiAccountRuntimeBlockUntil.Store(account.ID, before)
-			s.openaiAccountRuntimeBlockGeneration.Store(account.ID, s.openaiAccountRuntimeBlockSequence.Add(1))
-			return
-		}
-		s.openaiAccountRuntimeBlockUntil.Delete(account.ID)
-		s.openaiAccountRuntimeBlockGeneration.Store(account.ID, s.openaiAccountRuntimeBlockSequence.Add(1))
-	}
+	return s.runtimeBlockState().BlockRollback(account.Record.ID, until, reason)
 }
 
 func (s *OpenAIGatewayService) grokCredentialConcurrentlyRefreshedToken(ctx context.Context, accountID int64, baseline accountcore.CredentialMutationSnapshot) (string, bool) {
@@ -486,28 +453,28 @@ func (s *OpenAIGatewayService) grokCredentialConcurrentlyRefreshedToken(ctx cont
 	}
 	latestSnapshot := grokCredentialMutationSnapshot(latest)
 	if !accountcore.GrokCredentialProxyIDsEqual(latestSnapshot.ProxyID, baseline.ProxyID) ||
-		latestSnapshot.CredentialsJSON == baseline.CredentialsJSON || !latest.IsSchedulable() ||
-		(latest.ProxyID != nil && latest.Proxy == nil) || s.isOpenAIAccountRuntimeBlocked(latest) {
+		latestSnapshot.CredentialsJSON == baseline.CredentialsJSON || !latest.View().IsSchedulable() ||
+		(latest.Record.ProxyID != nil && latest.Record.Proxy == nil) || s.isOpenAIAccountRuntimeBlocked(latest) {
 		return "", false
 	}
-	latestToken := strings.TrimSpace(latest.GetGrokAccessToken())
-	if latestToken == "" || strings.TrimSpace(latest.GetGrokRefreshToken()) == "" {
+	latestToken := strings.TrimSpace(latest.View().GetGrokAccessToken())
+	if latestToken == "" || strings.TrimSpace(latest.View().GetGrokRefreshToken()) == "" {
 		return "", false
 	}
-	expiresAt := latest.GetCredentialAsTime("expires_at")
+	expiresAt := latest.View().GetCredentialAsTime("expires_at")
 	if expiresAt == nil || !time.Now().Before(*expiresAt) {
 		return "", false
 	}
 	return latestToken, true
 }
 
-func (s *OpenAIGatewayService) newGrokCredentialFailover(c *gin.Context, account *Account, class forwardcore.GrokCredentialFailure) error {
+func (s *OpenAIGatewayService) newGrokCredentialFailover(c *gin.Context, account *gatewayprovider.ExecutionAccount, class forwardcore.GrokCredentialFailure) error {
 	if strings.TrimSpace(class.Message) == "" {
 		class.Message = "Grok OAuth credentials are unavailable"
 	}
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 		Platform:  capability.PlatformGrok,
-		AccountID: account.ID,
+		AccountID: account.Record.ID,
 		Stage:     string(forwardcore.GatewayFailureStageAccountAuth),
 		Scope:     string(class.Scope),
 		Reason:    string(class.Reason),

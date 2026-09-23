@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
@@ -21,7 +23,7 @@ func openAIResetTestScheduler(reset float64) *defaultOpenAIAccountScheduler {
 		Reset:         reset,
 		QuotaHeadroom: 0,
 	}
-	return &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{cfg: cfg}}
+	return &defaultOpenAIAccountScheduler{service: withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg})}
 }
 
 func openAIQuotaHeadroomTestScheduler(quotaHeadroom float64) *defaultOpenAIAccountScheduler {
@@ -29,13 +31,13 @@ func openAIQuotaHeadroomTestScheduler(quotaHeadroom float64) *defaultOpenAIAccou
 	cfg.Gateway.AdvancedScheduler.ScoreWeights = config.GatewayAdvancedSchedulerScoreWeights{
 		QuotaHeadroom: quotaHeadroom,
 	}
-	return &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{cfg: cfg}}
+	return &defaultOpenAIAccountScheduler{service: withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg})}
 }
 
 func openAIPlanScores(plan openAIAccountLoadPlan) map[int64]float64 {
 	scores := make(map[int64]float64, len(plan.candidates))
 	for _, c := range plan.candidates {
-		scores[c.account.ID] = c.score
+		scores[c.Account.ID] = c.Score
 	}
 	return scores
 }
@@ -45,9 +47,9 @@ func TestBuildOpenAIAccountLoadPlan_ResetWeightPrefersSoonestReset(t *testing.T)
 	now := time.Now()
 	soon := now.Add(1 * time.Hour)
 	later := now.Add(20 * time.Hour)
-	filtered := []*Account{
-		{ID: 1, Priority: 0, SessionWindowEnd: &later},
-		{ID: 2, Priority: 0, SessionWindowEnd: &soon},
+	filtered := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 0, SessionWindowEnd: &later}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 0, SessionWindowEnd: &soon}},
 	}
 	sched := openAIResetTestScheduler(5.0)
 
@@ -61,9 +63,9 @@ func TestBuildOpenAIAccountLoadPlan_ResetWeightZeroNoEffect(t *testing.T) {
 	now := time.Now()
 	soon := now.Add(1 * time.Hour)
 	later := now.Add(20 * time.Hour)
-	filtered := []*Account{
-		{ID: 1, Priority: 0, SessionWindowEnd: &later},
-		{ID: 2, Priority: 0, SessionWindowEnd: &soon},
+	filtered := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 0, SessionWindowEnd: &later}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 0, SessionWindowEnd: &soon}},
 	}
 	sched := openAIResetTestScheduler(0.0)
 
@@ -76,24 +78,22 @@ func TestBuildOpenAIAccountLoadPlan_ResetWeightZeroNoEffect(t *testing.T) {
 func TestBuildOpenAIAccountLoadPlan_BillingRatesDoNotAffectScoreOrOrder(t *testing.T) {
 	expensiveRate := 100.0
 	cheapRate := 0.01
-	filtered := []*Account{
-		{
-			ID: 1, Priority: 0, RateMultiplier: &expensiveRate,
+	filtered := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 0, RateMultiplier: &expensiveRate,
 			Extra: map[string]any{
 				"upstream_billing_probe": map[string]any{
 					"status": "ok",
 					"data":   map[string]any{"effective_rate_multiplier": expensiveRate},
 				},
-			},
+			}},
 		},
-		{
-			ID: 2, Priority: 0, RateMultiplier: &cheapRate,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 0, RateMultiplier: &cheapRate,
 			Extra: map[string]any{
 				"upstream_billing_probe": map[string]any{
 					"status": "ok",
 					"data":   map[string]any{"effective_rate_multiplier": cheapRate},
 				},
-			},
+			}},
 		},
 	}
 	sched := openAIResetTestScheduler(0)
@@ -102,17 +102,17 @@ func TestBuildOpenAIAccountLoadPlan_BillingRatesDoNotAffectScoreOrOrder(t *testi
 	scores := openAIPlanScores(plan)
 	require.Equal(t, scores[1], scores[2])
 
-	ranked := selectTopKOpenAICandidates(plan.candidates, len(plan.candidates))
-	require.Equal(t, []int64{1, 2}, []int64{ranked[0].account.ID, ranked[1].account.ID})
+	ranked := scheduler.SelectTopK(plan.candidates, len(plan.candidates))
+	require.Equal(t, []int64{1, 2}, []int64{ranked[0].Account.ID, ranked[1].Account.ID})
 }
 
 // 无活跃窗口的账号 reset 因子为 0，应低于拥有未来窗口的账号。
 func TestBuildOpenAIAccountLoadPlan_ResetWeightIgnoresNilWindow(t *testing.T) {
 	now := time.Now()
 	soon := now.Add(2 * time.Hour)
-	filtered := []*Account{
-		{ID: 1, Priority: 0, SessionWindowEnd: nil},
-		{ID: 2, Priority: 0, SessionWindowEnd: &soon},
+	filtered := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 0, SessionWindowEnd: nil}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 0, SessionWindowEnd: &soon}},
 	}
 	sched := openAIResetTestScheduler(5.0)
 
@@ -123,24 +123,22 @@ func TestBuildOpenAIAccountLoadPlan_ResetWeightIgnoresNilWindow(t *testing.T) {
 
 func TestBuildOpenAIAccountLoadPlan_QuotaHeadroomPrefersHigher7dRemaining(t *testing.T) {
 	now := time.Now()
-	filtered := []*Account{
-		{
-			ID:       1,
+	filtered := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 			Priority: 0,
 			Extra: map[string]any{
 				"codex_primary_used_percent": 80.0,
 				"codex_primary_reset_at":     now.Add(24 * time.Hour).Format(time.RFC3339),
 				"codex_usage_updated_at":     now.Add(-time.Minute).Format(time.RFC3339),
-			},
+			}},
 		},
-		{
-			ID:       2,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 			Priority: 0,
 			Extra: map[string]any{
 				"codex_primary_used_percent": 20.0,
 				"codex_primary_reset_at":     now.Add(24 * time.Hour).Format(time.RFC3339),
 				"codex_usage_updated_at":     now.Add(-time.Minute).Format(time.RFC3339),
-			},
+			}},
 		},
 	}
 	sched := openAIQuotaHeadroomTestScheduler(1.0)
@@ -152,24 +150,22 @@ func TestBuildOpenAIAccountLoadPlan_QuotaHeadroomPrefersHigher7dRemaining(t *tes
 
 func TestBuildOpenAIAccountLoadPlan_QuotaHeadroomZeroNoEffect(t *testing.T) {
 	now := time.Now()
-	filtered := []*Account{
-		{
-			ID:       1,
+	filtered := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 			Priority: 0,
 			Extra: map[string]any{
 				"codex_primary_used_percent": 80.0,
 				"codex_primary_reset_at":     now.Add(24 * time.Hour).Format(time.RFC3339),
 				"codex_usage_updated_at":     now.Add(-time.Minute).Format(time.RFC3339),
-			},
+			}},
 		},
-		{
-			ID:       2,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 			Priority: 0,
 			Extra: map[string]any{
 				"codex_primary_used_percent": 20.0,
 				"codex_primary_reset_at":     now.Add(24 * time.Hour).Format(time.RFC3339),
 				"codex_usage_updated_at":     now.Add(-time.Minute).Format(time.RFC3339),
-			},
+			}},
 		},
 	}
 	sched := openAIResetTestScheduler(0)

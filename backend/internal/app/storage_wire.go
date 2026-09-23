@@ -15,6 +15,7 @@ var storageProviders = wire.NewSet(
 	wire.Bind(new(settings.Repository), new(*settings.Store)),
 	provideIdempotencyRepository,
 	provideIdempotencyCoordinator,
+	provideIdempotencyHTTP,
 	provideIdempotencyCleanupService,
 	timingwheel.New,
 )

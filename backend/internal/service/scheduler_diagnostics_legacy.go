@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -16,12 +17,12 @@ import (
 type diagnosticProjectionScope struct {
 	source        AdvancedSchedulerScoreDiagnosticSource
 	next          uint64
-	accountValues map[uint64]*Account
+	accountValues map[uint64]*gatewayprovider.ExecutionAccount
 	groupValues   map[uint64]*routing.Group
 }
 
 func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticCore() (*scheduler.DiagnosticService, *diagnosticProjectionScope) {
-	scope := &diagnosticProjectionScope{source: s.source, accountValues: map[uint64]*Account{}, groupValues: map[uint64]*routing.Group{}}
+	scope := &diagnosticProjectionScope{source: s.source, accountValues: map[uint64]*gatewayprovider.ExecutionAccount{}, groupValues: map[uint64]*routing.Group{}}
 	var source scheduler.DiagnosticSource
 	if s.source != nil {
 		source = scope
@@ -29,19 +30,16 @@ func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticCore() (*scheduler.D
 	core := scheduler.NewDiagnosticService(source, s.concurrencyService, scheduler.DiagnosticPorts{
 		Now: time.Now,
 		Stats: func() *scheduler.RuntimeStats {
-			if s.rateLimitService == nil {
-				return nil
-			}
-			return schedulerStats(s.rateLimitService.AdvancedSchedulerRuntimeStats())
+			return s.feedback
 		},
 		Effective: func(ctx context.Context, g *scheduler.DiagnosticGroup) (policy.EffectiveSettings, policy.RuntimeSettings) {
 			effective, runtime := s.effectiveSettings(ctx, scope.originalGroup(g))
-			return policy.EffectiveSettings{StickyWeightedEnabled: effective.stickyWeightedEnabled, SubscriptionPriorityEnabled: effective.subscriptionPriorityEnabled, TopK: effective.topK, Weights: policy.ScoreWeights(effective.weights), Feedback: policy.FeedbackConfig{ErrorRateAlpha: effective.feedback.errorRateAlpha, TtftAlpha: effective.feedback.ttftAlpha}, StickyEscape: policy.StickyEscapeConfig{Enabled: effective.stickyEscape.enabled, TtftMs: effective.stickyEscape.ttftMs, ErrorRate: effective.stickyEscape.errorRate}}, schedulerRuntimeSettings(runtime)
+			return effective, runtime
 		},
 		Prepare: func(ctx context.Context, g *scheduler.DiagnosticGroup, accounts []scheduler.DiagnosticAccount) context.Context {
-			var values []Account
+			var values []gatewayprovider.ExecutionAccount
 			if accounts != nil {
-				values = make([]Account, len(accounts))
+				values = make([]gatewayprovider.ExecutionAccount, len(accounts))
 				for i, v := range accounts {
 					values[i] = *scope.accountValues[v.ProjectionID]
 				}
@@ -70,29 +68,29 @@ func (s *diagnosticProjectionScope) group(v *routing.Group) *scheduler.Diagnosti
 	s.groupValues[id] = v
 	return &scheduler.DiagnosticGroup{ProjectionID: id, ID: v.ID, Name: v.Name, Platform: v.Platform, SortOrder: v.SortOrder, Advanced: v.UsesAdvancedScheduler(), RequirePrivacySet: v.RequirePrivacySet, AdvancedSchedulerOverrides: accessview.CloneGroupAdvancedSchedulerOverrides(v.AdvancedSchedulerOverrides)}
 }
-func (s *diagnosticProjectionScope) account(v *Account) *scheduler.DiagnosticAccount {
+func (s *diagnosticProjectionScope) account(v *gatewayprovider.ExecutionAccount) *scheduler.DiagnosticAccount {
 	if v == nil {
 		return nil
 	}
 	s.next++
 	id := s.next
 	s.accountValues[id] = v
-	a := &scheduler.DiagnosticAccount{ProjectionID: id, ID: v.ID, Name: v.Name, Platform: v.Platform, Type: v.Type, Status: v.Status, Priority: v.Priority, LoadFactor: v.EffectiveLoadFactor(), Schedulable: v.Schedulable, AutoPauseOnExpired: v.AutoPauseOnExpired, PrivacySet: v.IsPrivacySet(), MixedScheduling: v.IsMixedSchedulingEnabled(), SubscriptionPriority: v.IsOpenAIChatGPTSubscription(), ExpiresAt: v.ExpiresAt, OverloadUntil: v.OverloadUntil, RateLimitResetAt: v.RateLimitResetAt, TempUnschedulableUntil: v.TempUnschedulableUntil, SessionWindowEnd: v.SessionWindowEnd, GroupIDs: slices.Clone(v.GroupIDs)}
-	if v.AccountGroups != nil {
-		a.AccountGroups = make([]scheduler.DiagnosticAccountGroup, len(v.AccountGroups))
-		for i, g := range v.AccountGroups {
-			a.AccountGroups[i] = scheduler.DiagnosticAccountGroup{Group: s.group(g.Group)}
+	a := &scheduler.DiagnosticAccount{ProjectionID: id, ID: v.Record.ID, Name: v.Record.Name, Platform: v.Record.Platform, Type: v.Record.Type, Status: v.Record.Status, Priority: v.Record.Priority, LoadFactor: v.View().EffectiveLoadFactor(), Schedulable: v.Record.Schedulable, AutoPauseOnExpired: v.Record.AutoPauseOnExpired, PrivacySet: v.View().IsPrivacySet(), MixedScheduling: v.View().IsMixedSchedulingEnabled(), SubscriptionPriority: v.View().IsOpenAIChatGPTSubscription(), ExpiresAt: v.Record.ExpiresAt, OverloadUntil: v.Record.OverloadUntil, RateLimitResetAt: v.Record.RateLimitResetAt, TempUnschedulableUntil: v.Record.TempUnschedulableUntil, SessionWindowEnd: v.Record.SessionWindowEnd, GroupIDs: slices.Clone(v.Record.GroupIDs)}
+	if v.Record.AccountGroups != nil {
+		a.AccountGroups = make([]scheduler.DiagnosticAccountGroup, len(v.Record.AccountGroups))
+		for i, g := range v.Record.AccountGroups {
+			a.AccountGroups[i] = scheduler.DiagnosticAccountGroup{Group: s.group((*routing.Group)(g.Group))}
 		}
 	}
-	if v.Groups != nil {
-		a.Groups = make([]*scheduler.DiagnosticGroup, len(v.Groups))
-		for i, g := range v.Groups {
-			a.Groups[i] = s.group(g)
+	if v.Record.Groups != nil {
+		a.Groups = make([]*scheduler.DiagnosticGroup, len(v.Record.Groups))
+		for i, g := range v.Record.Groups {
+			a.Groups[i] = s.group((*routing.Group)(g))
 		}
 	}
 	return a
 }
-func (s *diagnosticProjectionScope) accounts(values []*Account) []*scheduler.DiagnosticAccount {
+func (s *diagnosticProjectionScope) accounts(values []*gatewayprovider.ExecutionAccount) []*scheduler.DiagnosticAccount {
 	if values == nil {
 		return nil
 	}
@@ -102,7 +100,7 @@ func (s *diagnosticProjectionScope) accounts(values []*Account) []*scheduler.Dia
 	}
 	return out
 }
-func (s *diagnosticProjectionScope) accountSlice(values []Account) []scheduler.DiagnosticAccount {
+func (s *diagnosticProjectionScope) accountSlice(values []gatewayprovider.ExecutionAccount) []scheduler.DiagnosticAccount {
 	if values == nil {
 		return nil
 	}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
@@ -14,7 +15,7 @@ func provideOpsObservationAccess() gatewayhttp.OpsObservationAccess {
 			if key, ok := gatewayhttp.EffectiveAPIKey(c); ok && key != nil {
 				return key
 			}
-			key, _ := middleware.GetOpsFallbackAPIKey(c)
+			key, _ := keyhttp.GetOpsFallbackAPIKey(c)
 			return key
 		},
 		Rejected: func(c *gin.Context) bool {

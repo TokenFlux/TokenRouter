@@ -6,9 +6,11 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +31,7 @@ type openAI403TestHarness struct {
 	repo    *rateLimitAccountRepoStub
 	counter *countingOpenAI403CounterCache
 	blocker *runtimeBlockRecorder
-	account *Account
+	account *gatewayprovider.ExecutionAccount
 }
 
 func newOpenAI403TestHarness(t *testing.T, accountID int64, counts ...int64) *openAI403TestHarness {
@@ -37,7 +39,7 @@ func newOpenAI403TestHarness(t *testing.T, accountID int64, counts ...int64) *op
 	repo := &rateLimitAccountRepoStub{}
 	counter := &countingOpenAI403CounterCache{openAI403CounterCacheStub: openAI403CounterCacheStub{counts: counts}}
 	blocker := &runtimeBlockRecorder{}
-	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
 	svc.SetOpenAI403CounterCache(counter)
 	svc.SetAccountRuntimeBlocker(blocker)
 	return &openAI403TestHarness{
@@ -45,14 +47,12 @@ func newOpenAI403TestHarness(t *testing.T, accountID int64, counts ...int64) *op
 		repo:    repo,
 		counter: counter,
 		blocker: blocker,
-		account: &Account{ID: accountID, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
+		account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: accountID, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}},
 	}
 }
 
 func (h *openAI403TestHarness) handle(body string) bool {
-	return h.svc.HandleUpstreamError(
-		context.Background(), h.account, http.StatusForbidden, http.Header{}, []byte(body),
-	)
+	return gatewayprovider.ApplyExecutionHealth(context.Background(), h.svc.UpstreamHealth(), h.account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(body), nil)).StopScheduling
 }
 
 func (h *openAI403TestHarness) requireNoAccountPenalty(t *testing.T) {
@@ -94,8 +94,8 @@ func TestHandleUpstreamErrorCNProviderHTML403DoesNotPenalizeAccount(t *testing.T
 	for _, platform := range []string{capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
 		t.Run(platform, func(t *testing.T) {
 			h := newOpenAI403TestHarness(t, 507, 1)
-			h.account.Platform = platform
-			h.account.Type = capability.AccountTypeAPIKey
+			h.account.Record.Platform = platform
+			h.account.Record.Type = capability.AccountTypeAPIKey
 
 			require.False(t, h.handle(openAI403HTMLBody))
 			h.requireNoAccountPenalty(t)
@@ -107,8 +107,8 @@ func TestHandleUpstreamErrorCNProviderStructured403UsesCumulativeCooldown(t *tes
 	for _, platform := range []string{capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
 		t.Run(platform, func(t *testing.T) {
 			h := newOpenAI403TestHarness(t, 508, 1)
-			h.account.Platform = platform
-			h.account.Type = capability.AccountTypeAPIKey
+			h.account.Record.Platform = platform
+			h.account.Record.Type = capability.AccountTypeAPIKey
 
 			require.True(t, h.handle(`{"error":{"message":"forbidden"}}`))
 			require.Equal(t, 1, h.counter.increments)
@@ -164,12 +164,10 @@ func TestHandleUpstreamError_HTML403OnOtherPlatformsUnchanged(t *testing.T) {
 	for _, platform := range []string{capability.PlatformAnthropic, capability.PlatformGemini} {
 		t.Run(platform, func(t *testing.T) {
 			repo := &rateLimitAccountRepoStub{}
-			svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-			account := &Account{ID: 506, Platform: platform, Type: capability.AccountTypeAPIKey}
+			svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 506, Platform: platform, Type: capability.AccountTypeAPIKey}}
 
-			shouldDisable := svc.HandleUpstreamError(
-				context.Background(), account, http.StatusForbidden, http.Header{}, []byte(openAI403HTMLBody),
-			)
+			shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), svc.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(openAI403HTMLBody), nil)).StopScheduling
 
 			require.True(t, shouldDisable)
 			require.Equal(t, 1, repo.setErrorCalls, "其他平台保持原有 SetError 行为")

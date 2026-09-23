@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 	"github.com/gin-gonic/gin"
@@ -130,7 +132,7 @@ func TestApplyAPIKeyModelRedirectComposesWithCompositeResponseRestore(t *testing
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"review"}`))
 	c.Request.Header.Set("Content-Type", "application/json")
-	SetCompositeModelContext(c, "GPT/review", "review")
+	gatewayhttp.SetCompositeModelContext(c, "GPT/review", "review")
 
 	applyAPIKeyModelRedirect(c, &apikey.APIKey{ModelMapping: map[string]string{"review": "gpt-5.6-luna"}})
 	_, err := c.Writer.Write([]byte(`{"model":"gpt-5.6-luna"}`))

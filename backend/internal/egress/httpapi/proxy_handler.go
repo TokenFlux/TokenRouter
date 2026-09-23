@@ -8,7 +8,6 @@ import (
 	time "time"
 
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
@@ -16,6 +15,8 @@ import (
 
 // ProxyHandler handles admin proxy management
 type ProxyHandler struct {
+	idempotencyhttp.Executor
+
 	transfer     *egress.ProxyTransfer
 	adminService egress.ProxyAdministrator
 }
@@ -151,7 +152,7 @@ func (h *ProxyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	idempotencyhttp.ExecuteAdminIdempotentJSON(c, "admin.proxies.create", req, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.proxies.create", req, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		var expiresAt *time.Time
 		if req.ExpiresAt != nil && *req.ExpiresAt > 0 {
 			t := time.Unix(*req.ExpiresAt, 0).UTC()

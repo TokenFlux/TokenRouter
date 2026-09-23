@@ -10,7 +10,10 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
@@ -29,7 +32,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_StripsInvalidInputItemIDs(t *tes
 	svc := newOpenAIImageGenerationControlTestService(upstream)
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 	account := newOpenAIImageGenerationControlTestAccount()
-	account.Extra = map[string]any{"openai_passthrough": true}
+	account.Record.Extra = map[string]any{"openai_passthrough": true}
 
 	body := []byte(`{
 		"model":"gpt-5.6-sol",
@@ -84,12 +87,12 @@ func TestOpenAIGatewayService_OAuthPassthrough_SanitizesNativeToolItemIDs(t *tes
 			svc := newOpenAIImageGenerationControlTestService(upstream)
 			c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 			account := newOpenAIImageGenerationControlTestAccount()
-			account.Type = accountType
-			account.Credentials = map[string]any{
+			account.Record.Type = accountType
+			account.Record.Credentials = map[string]any{
 				"access_token":       "oauth-token",
 				"chatgpt_account_id": "chatgpt-account",
 			}
-			account.Extra = map[string]any{"openai_passthrough": true}
+			account.Record.Extra = map[string]any{"openai_passthrough": true}
 
 			body := []byte(`{
 		"model":"gpt-5.6-sol",
@@ -127,12 +130,12 @@ func TestOpenAIGatewayService_SetupTokenLegacy_SanitizesAndTransforms(t *testing
 	svc := newOpenAIImageGenerationControlTestService(upstream)
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 	account := newOpenAIImageGenerationControlTestAccount()
-	account.Type = capability.AccountTypeSetupToken
-	account.Credentials = map[string]any{
+	account.Record.Type = capability.AccountTypeSetupToken
+	account.Record.Credentials = map[string]any{
 		"access_token":       "setup-token",
 		"chatgpt_account_id": "chatgpt-account",
 	}
-	account.Extra = map[string]any{"openai_passthrough": false}
+	account.Record.Extra = map[string]any{"openai_passthrough": false}
 	body := []byte(`{
 		"model":"gpt-5.6-sol",
 		"stream":true,
@@ -169,7 +172,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_StripsInvalidReasoningItemIDs(t 
 	service := newOpenAIImageGenerationControlTestService(upstream)
 	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.144.1")
 	account := newOpenAIImageGenerationControlTestAccount()
-	account.Extra = map[string]any{"openai_passthrough": true}
+	account.Record.Extra = map[string]any{"openai_passthrough": true}
 	body := []byte(`{
 		"model":"gpt-5.6-sol",
 		"stream":false,
@@ -233,7 +236,7 @@ func TestSanitizeOpenAIResponsesInputItemIDs_AllocationGrowthIsLinear(t *testing
 		runtime.GC()
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-		sanitized, changed, err := sanitizeOpenAIResponsesInputItemIDs(body)
+		sanitized, changed, err := gatewayprovider.SanitizeOpenAIResponsesInputItemIDs(body)
 		runtime.ReadMemStats(&after)
 		require.NoError(t, err)
 		require.True(t, changed)
@@ -257,10 +260,9 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBodyPreservesOpaqueRefere
 
 	for _, accountType := range []string{capability.AccountTypeAPIKey, capability.AccountTypeOAuth} {
 		t.Run(accountType, func(t *testing.T) {
-			normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{
-				Platform: capability.PlatformOpenAI,
-				Type:     accountType,
-			}, false)
+			normalized, changed, err := gatewayprovider.NormalizeOpenAIResponsesWebSocketCompatibilityBody(body, gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+				Type: accountType},
+			}), false)
 
 			require.NoError(t, err)
 			require.True(t, changed)
@@ -271,10 +273,9 @@ func TestNormalizeOpenAIResponsesWebSocketCompatibilityBodyPreservesOpaqueRefere
 			require.Equal(t, "ctco_bad", gjson.GetBytes(normalized, "input.2.id").String())
 			require.Equal(t, "item_future", gjson.GetBytes(normalized, "input.3.id").String())
 
-			second, changedAgain, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(normalized, &Account{
-				Platform: capability.PlatformOpenAI,
-				Type:     accountType,
-			}, false)
+			second, changedAgain, err := gatewayprovider.NormalizeOpenAIResponsesWebSocketCompatibilityBody(normalized, gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+				Type: accountType},
+			}), false)
 			require.NoError(t, err)
 			require.False(t, changedAgain)
 			require.JSONEq(t, string(normalized), string(second))

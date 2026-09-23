@@ -8,9 +8,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -89,12 +92,11 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 			"usage":{"prompt_tokens":13,"total_tokens":13}
 		}`)),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:       42,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 42,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
@@ -103,7 +105,7 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 			"model_mapping": map[string]any{
 				"nowledge-embedding": "jina-embeddings-v5-text-small",
 			},
-		},
+		}},
 	}
 
 	result, err := svc.ForwardEmbeddings(context.Background(), c, account, reqBody, "")
@@ -143,14 +145,13 @@ func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {
 		},
 		Body: io.NopCloser(bytes.NewReader(upstreamBody)),
 	}}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:       43,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 43,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardEmbeddings(context.Background(), c, account, reqBody, "")
@@ -161,7 +162,7 @@ func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, failoverErr.StatusCode)
 	require.Equal(t, forwardcore.GatewayFailureStageAccountAuth, failoverErr.Stage)
 	require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
-	require.Equal(t, OpenAIUpstreamAccessStateReason, failoverErr.Reason)
+	require.Equal(t, forwardcore.OpenAIUpstreamAccessStateReason, failoverErr.Reason)
 	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
 	require.Equal(t, openAIUpstreamAccessUnavailableClientMessage, failoverErr.ClientMessage)
@@ -182,14 +183,13 @@ func TestForwardEmbeddings_NonAccessFailoverKeepsLegacyShape(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:       44,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 44,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardEmbeddings(context.Background(), c, account, reqBody, "")

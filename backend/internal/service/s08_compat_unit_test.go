@@ -4,5 +4,3 @@
 package service
 
 func float64Ptr(v float64) *float64 { return &v }
-
-func strPtr(v string) *string { return &v }

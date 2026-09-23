@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
@@ -18,7 +20,7 @@ func TestResolveGrokStreamIdleTimeout(t *testing.T) {
 }
 
 func TestGrokStreamIdleFailoverError(t *testing.T) {
-	account := &Account{ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	err := grokStreamIdleFailoverError(account, 180*time.Second)
 	require.NotNil(t, err)
 	require.Equal(t, 502, err.StatusCode)
@@ -31,7 +33,7 @@ func TestGrokStreamIdleFailoverError(t *testing.T) {
 }
 
 func TestGrokStreamIdleFailoverErrorRequiresGrokAccount(t *testing.T) {
-	openAI := &Account{ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	openAI := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	err := grokStreamIdleFailoverError(openAI, time.Second)
 	require.False(t, err.RetryableOnSameAccount)
 	require.True(t, err.RequestScopedTransient)

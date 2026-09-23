@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -34,13 +37,12 @@ func TestGatewayServiceForwardCountTokensAppliesOAuthAccountMappingBeforeNormali
 		Body:       io.NopCloser(strings.NewReader(`{"input_tokens":7}`)),
 	}}
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-	}
-	account := &Account{
-		ID:          501,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 501,
 		Name:        "oauth-count-token-mapping",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeOAuth,
@@ -50,7 +52,7 @@ func TestGatewayServiceForwardCountTokensAppliesOAuthAccountMappingBeforeNormali
 			"model_mapping": map[string]any{"channel-model": "claude-sonnet-4-5"},
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	err = svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -65,13 +67,13 @@ func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *tes
 		name string
 		path string
 		body []byte
-		call func(*GatewayService, context.Context, *gin.Context, *Account, []byte) error
+		call func(*GatewayService, context.Context, *gin.Context, *gatewayprovider.ExecutionAccount, []byte) error
 	}{
 		{
 			name: "chat completions",
 			path: "/v1/chat/completions",
 			body: []byte(`{"model":"channel-model","messages":[{"role":"user","content":"hello"}],"stream":false}`),
-			call: func(svc *GatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) error {
+			call: func(svc *GatewayService, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) error {
 				_, err := svc.ForwardAsChatCompletions(ctx, c, account, body, nil)
 				return err
 			},
@@ -80,7 +82,7 @@ func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *tes
 			name: "responses",
 			path: "/v1/responses",
 			body: []byte(`{"model":"channel-model","input":"hello","stream":false}`),
-			call: func(svc *GatewayService, ctx context.Context, c *gin.Context, account *Account, body []byte) error {
+			call: func(svc *GatewayService, ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) error {
 				_, err := svc.ForwardAsResponses(ctx, c, account, body, nil)
 				return err
 			},
@@ -100,13 +102,12 @@ func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *tes
 				Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"test error"}}`)),
 			}}
 			cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-			svc := &GatewayService{
+			svc := withSchedulerParametersForTest(&GatewayService{
 				cfg:                  cfg,
 				responseHeaderFilter: compileResponseHeaderFilter(cfg),
 				httpUpstream:         upstream,
-			}
-			account := &Account{
-				ID:          502,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 502,
 				Name:        "oauth-compat-mapping",
 				Platform:    capability.PlatformAnthropic,
 				Type:        capability.AccountTypeOAuth,
@@ -116,7 +117,7 @@ func TestGatewayServiceAnthropicCompatibilityForwardersUseFinalOAuthModel(t *tes
 					"model_mapping": map[string]any{"channel-model": "claude-sonnet-4-5"},
 				},
 				Status:      billing.StatusActive,
-				Schedulable: true,
+				Schedulable: true},
 			}
 
 			err := tt.call(svc, context.Background(), c, account, tt.body)

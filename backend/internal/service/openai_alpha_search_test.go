@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -20,6 +21,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -28,7 +30,8 @@ import (
 )
 
 type alphaSearchAccountStateRepo struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	setErrorCalls      int
 	lastError          string
 	updatedCredentials map[string]any
@@ -81,13 +84,12 @@ func TestForwardAlphaSearchOAuthPreservesWire(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"encrypted_output":"ciphertext","output":"search result"}`)),
 	}}
-	service := &OpenAIGatewayService{
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:                 &config.Config{},
 		httpUpstream:        upstream,
 		tlsFPProfileService: &provider.TLSProfiles{},
-	}
-	account := &Account{
-		ID:          42,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 42,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
@@ -95,7 +97,7 @@ func TestForwardAlphaSearchOAuthPreservesWire(t *testing.T) {
 			"access_token":       "oauth-token",
 			"chatgpt_account_id": "chatgpt-account",
 		},
-		Extra: map[string]any{"enable_tls_fingerprint": true},
+		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
 
 	const routedUA = "codex-tui/9.9.9 (Mac OS X 14.0; arm64) iTerm (codex-tui; 9.9.9)"
@@ -123,14 +125,8 @@ func TestForwardAlphaSearchOAuthPreservesWire(t *testing.T) {
 	require.Empty(t, upstream.lastReq.Header.Get("OpenAI-Beta"))
 	require.NotNil(t, upstream.lastTLSProfile)
 	require.Equal(t, "Built-in Default (Node.js 24.x)", upstream.lastTLSProfile.Name)
-	require.Equal(t,
-		scopeCodexAccountIdentityValue(account, 0, "session", "search-session"),
-		gjson.Get(upstream.lastReq.Header.Get("X-Codex-Turn-Metadata"), "session_id").String(),
-	)
-	require.Equal(t,
-		scopeCodexAccountIdentityValue(account, 0, "turn", "search-turn"),
-		gjson.Get(upstream.lastReq.Header.Get("X-Codex-Turn-Metadata"), "turn_id").String(),
-	)
+	require.Equal(t, openai.ScopeCodexAccountIdentityValue(accountprovider.CodexIdentityNamespace(account.View()), 0, "session", "search-session"), gjson.Get(upstream.lastReq.Header.Get("X-Codex-Turn-Metadata"), "session_id").String())
+	require.Equal(t, openai.ScopeCodexAccountIdentityValue(accountprovider.CodexIdentityNamespace(account.View()), 0, "turn", "search-turn"), gjson.Get(upstream.lastReq.Header.Get("X-Codex-Turn-Metadata"), "turn_id").String())
 	require.JSONEq(t, string(body), string(upstream.lastBody))
 }
 
@@ -165,13 +161,12 @@ func TestForwardAlphaSearchPATUsesResponsesWebSearchFallback(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"req-search"}},
 		Body:       io.NopCloser(strings.NewReader(alphaSearchResponsesSSE("search result"))),
 	}}
-	service := &OpenAIGatewayService{
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:                 &config.Config{},
 		httpUpstream:        upstream,
 		tlsFPProfileService: &provider.TLSProfiles{},
-	}
-	account := &Account{
-		ID:          43,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 43,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
@@ -181,7 +176,7 @@ func TestForwardAlphaSearchPATUsesResponsesWebSearchFallback(t *testing.T) {
 			"chatgpt_account_id":         "chatgpt-account",
 			"chatgpt_account_is_fedramp": true,
 		},
-		Extra: map[string]any{"enable_tls_fingerprint": true},
+		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
 
 	const routedUA = "codex-tui/9.9.9 (Mac OS X 14.0; arm64) iTerm (codex-tui; 9.9.9)"
@@ -206,18 +201,12 @@ func TestForwardAlphaSearchPATUsesResponsesWebSearchFallback(t *testing.T) {
 	require.Equal(t, "text/event-stream", upstream.lastReq.Header.Get("Accept"))
 	require.Equal(t, "responses=experimental", upstream.lastReq.Header.Get("OpenAI-Beta"))
 	require.Equal(t, "0.144.1", upstream.lastReq.Header.Get("Version"))
-	require.Equal(t,
-		scopeCodexAccountIdentityValue(account, 0, "turn", "turn-1"),
-		gjson.Get(upstream.lastReq.Header.Get("X-Codex-Turn-Metadata"), "turn_id").String(),
-	)
+	require.Equal(t, openai.ScopeCodexAccountIdentityValue(accountprovider.CodexIdentityNamespace(account.View()), 0, "turn", "turn-1"), gjson.Get(upstream.lastReq.Header.Get("X-Codex-Turn-Metadata"), "turn_id").String())
 	require.Equal(t, routedUA, upstream.lastReq.Header.Get("User-Agent"))
 	require.Equal(t, "codex-tui", upstream.lastReq.Header.Get("Originator"))
 	require.NotNil(t, upstream.lastTLSProfile)
 	require.Equal(t, "Built-in Default (Node.js 24.x)", upstream.lastTLSProfile.Name)
-	require.Equal(t,
-		scopeCodexAccountIdentityValue(account, 0, "turn", "turn-1"),
-		gjson.Get(upstream.lastReq.Header.Get("X-Codex-Turn-Metadata"), "turn_id").String(),
-	)
+	require.Equal(t, openai.ScopeCodexAccountIdentityValue(accountprovider.CodexIdentityNamespace(account.View()), 0, "turn", "turn-1"), gjson.Get(upstream.lastReq.Header.Get("X-Codex-Turn-Metadata"), "turn_id").String())
 	require.Empty(t, upstream.lastReq.Header.Get("X-Codex-Beta-Features"))
 	require.Empty(t, upstream.lastReq.Header.Get("X-Codex-Turn-State"))
 	require.Empty(t, upstream.lastReq.Header.Get(media.ResponsesLiteHeaderKey))
@@ -266,22 +255,21 @@ func TestForwardAlphaSearchPATBackfillsMissingChatGPTAccountMetadata(t *testing.
 	oauthService := newOpenAIAuthorizationForTest(t, nil, nil)
 	oauthService.Start()
 	repo := &alphaSearchAccountStateRepo{}
-	service := &OpenAIGatewayService{
-		cfg:                 &config.Config{},
-		httpUpstream:        upstream,
-		openAITokenProvider: newOpenAITokenSourceForTest(nil, nil, oauthService),
-		openAIAuthorization: oauthService,
-		accountRepo:         repo,
-	}
-	account := &Account{
-		ID:          45,
+	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
+		cfg:                  &config.Config{},
+		httpUpstream:         upstream,
+		executionCredentials: newOpenAIExecutionCredentialsForTest(nil, newOpenAITokenSourceForTest(nil, nil, oauthService), nil),
+		openAIAuthorization:  oauthService,
+		accountRepo:          repo,
+	}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 45,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "at-test-token",
 			"auth_mode":    accountcore.OpenAIAuthModePersonalAccessToken,
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -291,9 +279,9 @@ func TestForwardAlphaSearchPATBackfillsMissingChatGPTAccountMetadata(t *testing.
 	require.Equal(t, int32(1), atomic.LoadInt32(&whoamiCalls))
 	require.Equal(t, "acct-123", upstream.lastReq.Header.Get("ChatGPT-Account-ID"))
 	require.Equal(t, "true", upstream.lastReq.Header.Get("X-OpenAI-Fedramp"))
-	require.Equal(t, "acct-123", account.Credentials["chatgpt_account_id"])
-	require.Equal(t, "user-123", account.Credentials["chatgpt_user_id"])
-	require.Equal(t, accountcore.OpenAIAuthModePersonalAccessToken, account.Credentials["auth_mode"])
+	require.Equal(t, "acct-123", account.Record.Credentials["chatgpt_account_id"])
+	require.Equal(t, "user-123", account.Record.Credentials["chatgpt_user_id"])
+	require.Equal(t, accountcore.OpenAIAuthModePersonalAccessToken, account.Record.Credentials["auth_mode"])
 	require.Equal(t, "acct-123", repo.updatedCredentials["chatgpt_account_id"])
 	require.Equal(t, accountcore.OpenAIAuthModePersonalAccessToken, repo.updatedCredentials["auth_mode"])
 }
@@ -313,9 +301,8 @@ func TestForwardAlphaSearchAPIKeyMapsModelAndPassesThroughError(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	service := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:       7,
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
@@ -324,7 +311,7 @@ func TestForwardAlphaSearchAPIKeyMapsModelAndPassesThroughError(t *testing.T) {
 			"model_mapping": map[string]any{
 				"gpt-5.6-sol": "upstream-5.6",
 			},
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -353,14 +340,13 @@ func TestForwardAlphaSearchReturnsFailoverBeforeWriting(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
-	service := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:       8,
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -396,16 +382,15 @@ func TestForwardAlphaSearchSetupToken429CarriesSameAccountRetryWindow(t *testing
 		},
 		Body: io.NopCloser(strings.NewReader(`{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"rate limited"}}`)),
 	}}
-	service := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:          81,
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 81,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeSetupToken,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
 			"chatgpt_account_id": "chatgpt-account",
-		},
+		}},
 	}
 	startedAt := time.Now()
 
@@ -416,7 +401,7 @@ func TestForwardAlphaSearchSetupToken429CarriesSameAccountRetryWindow(t *testing
 	require.ErrorAs(t, err, &failoverErr)
 	require.True(t, failoverErr.RetryableOnSameAccount)
 	require.Equal(t, time.Second, failoverErr.SameAccountRetryDelay)
-	require.WithinDuration(t, startedAt.Add(openAIOAuth429RetryWindow), failoverErr.SameAccountRetryDeadline, time.Second)
+	require.WithinDuration(t, startedAt.Add(accountcore.RuntimeRetryWindow), failoverErr.SameAccountRetryDeadline, time.Second)
 	require.Equal(t, "req_alpha_oauth_429", http.Header(failoverErr.ResponseHeaders).Get("x-request-id"))
 	require.False(t, c.Writer.Written())
 }
@@ -436,16 +421,15 @@ func TestForwardAlphaSearchAccessStateUsesTypedFailover(t *testing.T) {
 		},
 		Body: io.NopCloser(strings.NewReader(`{"error":{"code":"deactivated_workspace","message":"Workspace is deactivated"}}`)),
 	}}
-	service := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:          11,
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
 			"chatgpt_account_id": "chatgpt-account",
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -471,9 +455,8 @@ func TestForwardAlphaSearchPATFallbackAccessStateUsesTypedFailover(t *testing.T)
 		},
 		Body: io.NopCloser(strings.NewReader(`{"error":{"code":"account_disabled","message":"Account is disabled"}}`)),
 	}}
-	service := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:          12,
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
@@ -481,7 +464,7 @@ func TestForwardAlphaSearchPATFallbackAccessStateUsesTypedFailover(t *testing.T)
 			"access_token":       "at-test-token",
 			"auth_mode":          accountcore.OpenAIAuthModePersonalAccessToken,
 			"chatgpt_account_id": "chatgpt-account",
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -499,7 +482,7 @@ func assertOpenAIAlphaSearchAccessStateFailover(t *testing.T, err error, request
 	require.Equal(t, http.StatusForbidden, failoverErr.StatusCode)
 	require.Equal(t, forwardcore.GatewayFailureStageAccountAuth, failoverErr.Stage)
 	require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
-	require.Equal(t, OpenAIUpstreamAccessStateReason, failoverErr.Reason)
+	require.Equal(t, forwardcore.OpenAIUpstreamAccessStateReason, failoverErr.Reason)
 	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
 	require.Equal(t, openAIUpstreamAccessUnavailableClientMessage, failoverErr.ClientMessage)
@@ -521,14 +504,13 @@ func TestForwardAlphaSearchUnauthorizedDoesNotMarkAccountError(t *testing.T) {
 	}}
 	repo := &alphaSearchAccountStateRepo{}
 	cfg := &config.Config{}
-	service := &OpenAIGatewayService{
+	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:              cfg,
 		httpUpstream:     upstream,
 		accountRepo:      repo,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil, nil),
-	}
-	account := &Account{
-		ID:          44,
+		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
+	}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 44,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
@@ -536,7 +518,7 @@ func TestForwardAlphaSearchUnauthorizedDoesNotMarkAccountError(t *testing.T) {
 			// 刻意不设置 auth_mode：覆盖历史上把 at- token 当普通 OAuth 导入的账号。
 			"access_token":       "at-test-token",
 			"chatgpt_account_id": "chatgpt-account",
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -564,14 +546,13 @@ func TestForwardAlphaSearchPATResponsesFallbackUnauthorizedDoesNotMarkAccountErr
 	}}
 	repo := &alphaSearchAccountStateRepo{}
 	cfg := &config.Config{}
-	service := &OpenAIGatewayService{
+	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:              cfg,
 		httpUpstream:     upstream,
 		accountRepo:      repo,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil, nil),
-	}
-	account := &Account{
-		ID:          46,
+		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
+	}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 46,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
@@ -579,7 +560,7 @@ func TestForwardAlphaSearchPATResponsesFallbackUnauthorizedDoesNotMarkAccountErr
 			"access_token":       "at-test-token",
 			"auth_mode":          accountcore.OpenAIAuthModePersonalAccessToken,
 			"chatgpt_account_id": "chatgpt-account",
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -614,20 +595,19 @@ func TestForwardAlphaSearchAPIKeyEndpointNotFoundFailsOver(t *testing.T) {
 	}}
 	repo := &alphaSearchAccountStateRepo{}
 	cfg := &config.Config{}
-	service := &OpenAIGatewayService{
+	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:              cfg,
 		httpUpstream:     upstream,
 		accountRepo:      repo,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil, nil),
-	}
-	account := &Account{
-		ID:       9,
+		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
+	}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://relay.example",
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -656,16 +636,15 @@ func TestForwardAlphaSearchOAuthNotFoundPassesThrough(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	service := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:          10,
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 10,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
 			"chatgpt_account_id": "chatgpt-account",
-		},
+		}},
 	}
 
 	result, err := service.ForwardAlphaSearch(context.Background(), c, account, body)
@@ -685,9 +664,9 @@ func TestShouldApplyOpenAIAlphaSearchAccountErrorSideEffects(t *testing.T) {
 }
 
 func TestOpenAIAlphaSearchSchedulingModelUsesCanonicalAccountMapping(t *testing.T) {
-	account := &Account{Credentials: map[string]any{
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
 		"model_mapping": map[string]any{"client-visible": "canonical-upstream"},
-	}}
+	}}}
 	require.Equal(t, "canonical-upstream", openAIAlphaSearchSchedulingModel(account, "client-visible"))
 	require.Equal(t, "unmapped", openAIAlphaSearchSchedulingModel(account, "unmapped"))
 }
@@ -703,8 +682,8 @@ func TestSanitizeOpenAIAlphaSearchBody_RemovesResponsesOnlyFields(t *testing.T) 
 }
 
 func TestIsOpenAIAlphaSearchEndpointUnsupported(t *testing.T) {
-	apiKey := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
-	oauth := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	apiKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	oauth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 
 	require.True(t, isOpenAIAlphaSearchEndpointUnsupported(apiKey, http.StatusNotFound))
 	require.True(t, isOpenAIAlphaSearchEndpointUnsupported(apiKey, http.StatusMethodNotAllowed))

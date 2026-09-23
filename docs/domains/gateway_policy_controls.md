@@ -38,6 +38,8 @@ Images 生成/编辑独立控制，Responses 图片工具使用 `responses_image
 
 Group 可以启用模型路由、默认映射和 OpenAI Messages 专用模型配置。OpenAI Messages 专用配置中的精确规则优先于系列规则，只有非空目标值才生效；空配置或空系列字段不使用内置默认模型，当前渠道模型保持不变并继续进入账号层。Channel 决定分组内的映射、价格和功能；Account 则处理供应商或站点差异。可见模型只包含当前可请求结果，未知或歧义定价以未定价表达，不使用猜测价格。
 
+客户端限制的逐组读取与回退由 routing 的 `ResolveClientGroup` 唯一执行。通用入口保留原读取错误，OpenAI 快照入口仍可保留未解析分组；客户端识别在读取当前分组后按原短路顺序执行。强制平台旁路和最终分组的资金、权限复查仍由各入口拥有。
+
 Group 的 fallback 包括普通 fallback、invalid-request fallback 和 unavailable fallback。它们是显式的跨分组策略：目标分组仍要重新执行平台、Key、模型、权限、计费和 `scheduler_type` 约束，不能只把原账号列表替换掉。循环、目标失效或策略不匹配必须终止。
 
 `scheduler_type` 仅属于 Group，`basic` 为默认值，`advanced` 表示该分组在硬过滤后使用通用高级评分。高级调度的 Top-K、评分权重、粘性加权和订阅优先是网关通用设置，不存在全局启用开关；设置不能把基础分组隐式切换为高级，也不能让 OpenAI/Grok 特有能力作用于不具备该能力的账号。
@@ -55,6 +57,10 @@ OpenAI 客户端访问裁决直接使用 account 的原生检测端口，按需�
 ## 推理与 Header
 
 Group 可限制最大 reasoning effort 并配置 effort 映射，平台适配器再把统一值转换为 Anthropic thinking、OpenAI reasoning 或 Qoder/Gemini 原生字段。显式关闭、平台不支持和管理员上限的优先级必须可预测；无效字符串通常保持默认或被拒绝，不能静默提升推理强度。
+
+HTTP 在原策略改写位置捕获客户端档位，`gateway/requeststate` 保存请求策略快照并执行报文字段改写；映射、上限和错误类型仍由 routing 拥有。WS 使用相同报文规则和原生用量解码器，逐轮区分客户端原档位与最终上游档位。缺省桥接档位不自动成为客户端请求，显式字段被最终转换删除后也不再从模型后缀补回；异步完成只读取已经固化的值。
+
+Fast/Ultra Fast 的系统、分组与 Key 裁决统一由 `gateway/tierpolicy.Resolve` 执行，HTTP 报文与 WS 帧都使用该结果。系统短路和分组强制关闭不会触发后续 Key 开启查价；Key 强制开启产生的新档位仍须再次接受系统策略。旧执行边界只投影资格及惰性读取端口，协议拒绝、HTTP/SSE 错误与 WS 错误帧分别由原生 Adapter 输出。
 
 Header 策略来自平台默认、全局设置和允许的账号 override。认证、hop-by-hop、Host/长度等受保护头不能被任意覆盖。Anthropic beta/cache、OpenAI UA/客户端元数据、Claude Code mimicry 和 dateline/metadata 兼容均应在平台边界内处理，并接受出站安全校验。
 

@@ -11,9 +11,11 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -105,23 +107,21 @@ func (s *liveHTTPUpstreamStub) DoWithTLS(
 }
 
 func TestLiveCapabilityOnlyAllowsOpenAIOAuth(t *testing.T) {
-	require.True(t, (&Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
-	require.False(t, (&Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
-	require.False(t, (&Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
-	require.False(t, (&Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+	require.True(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}})), accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}})), accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}})), accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			accountcore.OpenAIAuthModeCredentialKey: accountcore.OpenAIAuthModePersonalAccessToken,
-		},
-	}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
-	require.False(t, (&Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+		}},
+	})), accountcore.OpenAIEndpointCapabilityLive))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord((&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			accountcore.OpenAIAuthModeCredentialKey: accountcore.OpenAIAuthModeAgentIdentity,
-		},
-	}).SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive))
+		}},
+	})), accountcore.OpenAIEndpointCapabilityLive))
 }
 
 func TestValidateLiveCallRequestDoesNotRequireDelegation(t *testing.T) {
@@ -136,14 +136,13 @@ func TestValidateLiveCallRequestDoesNotRequireDelegation(t *testing.T) {
 func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 	upstream := &liveHTTPUpstreamStub{}
 	profileService, routerService := newLiveTLSRoutingServices()
-	service := &OpenAIGatewayService{
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:                 &config.Config{},
 		httpUpstream:        upstream,
 		tlsFPProfileService: profileService,
 		tlsFPRouterService:  routerService,
-	}
-	account := &Account{
-		ID:          7,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 2,
@@ -154,7 +153,7 @@ func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 		Extra: map[string]any{
 			"enable_tls_fingerprint":    true,
 			"tls_fingerprint_router_id": int64(9),
-		},
+		}},
 	}
 	session := json.RawMessage(`{
 		"model":"gpt-live-test",
@@ -195,14 +194,13 @@ func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 
 func TestLiveClientPolicyUsesTLSRouterMatch(t *testing.T) {
 	_, routerService := newLiveTLSRoutingServices()
-	service := &OpenAIGatewayService{tlsFPRouterService: routerService}
-	account := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{tlsFPRouterService: routerService})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeOAuth,
 		Extra: map[string]any{
 			"tls_fingerprint_router_id":  int64(9),
 			"openai_oauth_client_policy": accountcore.OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
-		},
+		}},
 	}
 
 	matched := service.matchLiveTLSFingerprintRouter(account, "test-live-client")
@@ -253,10 +251,10 @@ func TestPrepareLiveAttestationEncryptsHeaderAndReturnsExplicitProviderError(t *
 	cipher := newLiveAttestationCipher(&config.Config{
 		JWT: config.JWTConfig{Secret: "live-attestation-test-secret"},
 	})
-	service := &OpenAIGatewayService{
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{
 		liveAttestation:       liveAttestationStub{header: `{"v":1,"s":0,"t":"v1.test"}`},
 		liveAttestationCipher: cipher,
-	}
+	})
 	header, ciphertext, err := service.prepareLiveAttestation(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, `{"v":1,"s":0,"t":"v1.test"}`, header)
@@ -273,15 +271,15 @@ func TestPrepareLiveAttestationEncryptsHeaderAndReturnsExplicitProviderError(t *
 }
 
 func TestLiveMaxSessionDurationDefaultsAndOverrides(t *testing.T) {
-	require.Equal(t, defaultLiveMaxSessionDuration, (&OpenAIGatewayService{}).liveMaxSessionDuration())
+	require.Equal(t, defaultLiveMaxSessionDuration, (withSchedulerParametersForTest(&OpenAIGatewayService{})).liveMaxSessionDuration())
 	require.Equal(
 		t,
 		90*time.Second,
-		(&OpenAIGatewayService{cfg: &config.Config{
+		(withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				Live: config.GatewayLiveConfig{MaxSessionDurationSeconds: 90},
 			},
-		}}).liveMaxSessionDuration(),
+		}})).liveMaxSessionDuration(),
 	)
 }
 
@@ -294,7 +292,7 @@ func TestLiveSidebandNormalCloseEndsCall(t *testing.T) {
 }
 
 func TestLiveCreateFailoverUsesExistingOpenAIPolicy(t *testing.T) {
-	service := &OpenAIGatewayService{}
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	require.False(t, service.shouldFailoverLiveCreateError(&forwardcore.UpstreamFailoverError{
 		StatusCode:   http.StatusBadRequest,
 		ResponseBody: []byte(`{"error":{"message":"invalid session"}}`),

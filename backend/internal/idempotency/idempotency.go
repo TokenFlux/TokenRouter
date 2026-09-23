@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -95,47 +94,36 @@ type IdempotencyExecuteResult struct {
 }
 
 type IdempotencyCoordinator struct {
-	repo IdempotencyRepository
-	cfg  IdempotencyConfig
+	observer Observer
+	repo     IdempotencyRepository
+	cfg      IdempotencyConfig
 }
 
-var (
-	defaultIdempotencyMu  sync.RWMutex
-	defaultIdempotencySvc *IdempotencyCoordinator
-)
-
-func SetDefaultIdempotencyCoordinator(svc *IdempotencyCoordinator) {
-	defaultIdempotencyMu.Lock()
-	defaultIdempotencySvc = svc
-	defaultIdempotencyMu.Unlock()
-}
-
-func DefaultIdempotencyCoordinator() *IdempotencyCoordinator {
-	defaultIdempotencyMu.RLock()
-	defer defaultIdempotencyMu.RUnlock()
-	return defaultIdempotencySvc
-}
-
-func DefaultWriteIdempotencyTTL() time.Duration {
-	defaultTTL := DefaultIdempotencyConfig().DefaultTTL
-	if coordinator := DefaultIdempotencyCoordinator(); coordinator != nil && coordinator.cfg.DefaultTTL > 0 {
-		return coordinator.cfg.DefaultTTL
+// DefaultWriteIdempotencyTTL 保留未装配或非正配置时的默认值。
+func (c *IdempotencyCoordinator) DefaultWriteIdempotencyTTL() time.Duration {
+	if c != nil && c.cfg.DefaultTTL > 0 {
+		return c.cfg.DefaultTTL
 	}
-	return defaultTTL
+	return DefaultIdempotencyConfig().DefaultTTL
 }
 
-func DefaultSystemOperationIdempotencyTTL() time.Duration {
-	defaultTTL := DefaultIdempotencyConfig().SystemOperationTTL
-	if coordinator := DefaultIdempotencyCoordinator(); coordinator != nil && coordinator.cfg.SystemOperationTTL > 0 {
-		return coordinator.cfg.SystemOperationTTL
+// DefaultSystemOperationIdempotencyTTL 保留维护操作的独立默认期限。
+func (c *IdempotencyCoordinator) DefaultSystemOperationIdempotencyTTL() time.Duration {
+	if c != nil && c.cfg.SystemOperationTTL > 0 {
+		return c.cfg.SystemOperationTTL
 	}
-	return defaultTTL
+	return DefaultIdempotencyConfig().SystemOperationTTL
 }
 
-func NewIdempotencyCoordinator(repo IdempotencyRepository, cfg IdempotencyConfig) *IdempotencyCoordinator {
+func NewIdempotencyCoordinator(repo IdempotencyRepository, cfg IdempotencyConfig, observers ...Observer) *IdempotencyCoordinator {
+	var observer Observer
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
 	return &IdempotencyCoordinator{
-		repo: repo,
-		cfg:  cfg,
+		observer: observer,
+		repo:     repo,
+		cfg:      cfg,
 	}
 }
 
@@ -222,7 +210,7 @@ func (c *IdempotencyCoordinator) Execute(
 		return &IdempotencyExecuteResult{Data: data}, nil
 	}
 	if c.repo == nil {
-		RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "repo_nil")
+		c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "repo_nil")
 		return nil, ErrIdempotencyStoreUnavail
 	}
 
@@ -255,75 +243,75 @@ func (c *IdempotencyCoordinator) Execute(
 
 	owner, err := c.repo.CreateProcessing(ctx, record)
 	if err != nil {
-		RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "create_processing_error")
-		logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
+		c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "create_processing_error")
+		c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
 			"operation": "create_processing",
 		})
 		return nil, ErrIdempotencyStoreUnavail.WithCause(err)
 	}
 	if owner {
-		recordIdempotencyClaim(opts.Route, opts.Scope, map[string]string{"mode": "new_claim"})
-		logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "none->processing", false, map[string]string{
+		c.recordIdempotencyClaim(opts.Route, opts.Scope, map[string]string{"mode": "new_claim"})
+		c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "none->processing", false, map[string]string{
 			"claim_mode": "new",
 		})
 	}
 	if !owner {
 		existing, getErr := c.repo.GetByScopeAndKeyHash(ctx, opts.Scope, keyHash)
 		if getErr != nil {
-			RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "get_existing_error")
-			logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
+			c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "get_existing_error")
+			c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
 				"operation": "get_existing",
 			})
 			return nil, ErrIdempotencyStoreUnavail.WithCause(getErr)
 		}
 		if existing == nil {
-			RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "missing_existing")
-			logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
+			c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "missing_existing")
+			c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
 				"operation": "missing_existing",
 			})
 			return nil, ErrIdempotencyStoreUnavail
 		}
 		if existing.RequestFingerprint != fingerprint {
-			recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "fingerprint_mismatch"})
-			logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "existing->fingerprint_mismatch", false, nil)
+			c.recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "fingerprint_mismatch"})
+			c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "existing->fingerprint_mismatch", false, nil)
 			return nil, ErrIdempotencyKeyConflict
 		}
 		reclaimedByExpired := false
 		if !existing.ExpiresAt.After(now) {
 			taken, reclaimErr := c.repo.TryReclaim(ctx, existing.ID, existing.Status, now, lockedUntil, expiresAt)
 			if reclaimErr != nil {
-				RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "try_reclaim_expired_error")
-				logIdempotencyAudit(opts.Route, opts.Scope, keyHash, existing.Status+"->store_unavailable", false, map[string]string{
+				c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "try_reclaim_expired_error")
+				c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, existing.Status+"->store_unavailable", false, map[string]string{
 					"operation": "try_reclaim_expired",
 				})
 				return nil, ErrIdempotencyStoreUnavail.WithCause(reclaimErr)
 			}
 			if taken {
 				reclaimedByExpired = true
-				recordIdempotencyClaim(opts.Route, opts.Scope, map[string]string{"mode": "expired_reclaim"})
-				logIdempotencyAudit(opts.Route, opts.Scope, keyHash, existing.Status+"->processing", false, map[string]string{
+				c.recordIdempotencyClaim(opts.Route, opts.Scope, map[string]string{"mode": "expired_reclaim"})
+				c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, existing.Status+"->processing", false, map[string]string{
 					"claim_mode": "expired_reclaim",
 				})
 				record.ID = existing.ID
 			} else {
 				latest, latestErr := c.repo.GetByScopeAndKeyHash(ctx, opts.Scope, keyHash)
 				if latestErr != nil {
-					RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "get_existing_after_expired_reclaim_error")
-					logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
+					c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "get_existing_after_expired_reclaim_error")
+					c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
 						"operation": "get_existing_after_expired_reclaim",
 					})
 					return nil, ErrIdempotencyStoreUnavail.WithCause(latestErr)
 				}
 				if latest == nil {
-					RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "missing_existing_after_expired_reclaim")
-					logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
+					c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "missing_existing_after_expired_reclaim")
+					c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "unknown->store_unavailable", false, map[string]string{
 						"operation": "missing_existing_after_expired_reclaim",
 					})
 					return nil, ErrIdempotencyStoreUnavail
 				}
 				if latest.RequestFingerprint != fingerprint {
-					recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "fingerprint_mismatch"})
-					logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "existing->fingerprint_mismatch", false, nil)
+					c.recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "fingerprint_mismatch"})
+					c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "existing->fingerprint_mismatch", false, nil)
 					return nil, ErrIdempotencyKeyConflict
 				}
 				existing = latest
@@ -335,49 +323,49 @@ func (c *IdempotencyCoordinator) Execute(
 			case IdempotencyStatusSucceeded:
 				data, parseErr := c.decodeStoredResponse(existing.ResponseBody)
 				if parseErr != nil {
-					RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "decode_stored_response_error")
-					logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "succeeded->store_unavailable", false, map[string]string{
+					c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "decode_stored_response_error")
+					c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "succeeded->store_unavailable", false, map[string]string{
 						"operation": "decode_stored_response",
 					})
 					return nil, ErrIdempotencyStoreUnavail.WithCause(parseErr)
 				}
-				recordIdempotencyReplay(opts.Route, opts.Scope, nil)
-				logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "succeeded->replayed", true, nil)
+				c.recordIdempotencyReplay(opts.Route, opts.Scope, nil)
+				c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "succeeded->replayed", true, nil)
 				return &IdempotencyExecuteResult{Data: data, Replayed: true}, nil
 			case IdempotencyStatusProcessing:
-				recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "in_progress"})
-				logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->conflict", false, nil)
+				c.recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "in_progress"})
+				c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->conflict", false, nil)
 				return nil, c.conflictWithRetryAfter(ErrIdempotencyInProgress, existing.LockedUntil, now)
 			case IdempotencyStatusFailedRetryable:
 				if existing.LockedUntil != nil && existing.LockedUntil.After(now) {
-					recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "retry_backoff"})
-					recordIdempotencyRetryBackoff(opts.Route, opts.Scope, nil)
-					logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "failed_retryable->retry_backoff_conflict", false, nil)
+					c.recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "retry_backoff"})
+					c.recordIdempotencyRetryBackoff(opts.Route, opts.Scope, nil)
+					c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "failed_retryable->retry_backoff_conflict", false, nil)
 					return nil, c.conflictWithRetryAfter(ErrIdempotencyRetryBackoff, existing.LockedUntil, now)
 				}
 				taken, reclaimErr := c.repo.TryReclaim(ctx, existing.ID, IdempotencyStatusFailedRetryable, now, lockedUntil, expiresAt)
 				if reclaimErr != nil {
-					RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "try_reclaim_error")
-					logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "failed_retryable->store_unavailable", false, map[string]string{
+					c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "try_reclaim_error")
+					c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "failed_retryable->store_unavailable", false, map[string]string{
 						"operation": "try_reclaim",
 					})
 					return nil, ErrIdempotencyStoreUnavail.WithCause(reclaimErr)
 				}
 				if !taken {
-					recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "reclaim_race"})
-					logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "failed_retryable->conflict", false, map[string]string{
+					c.recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "reclaim_race"})
+					c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "failed_retryable->conflict", false, map[string]string{
 						"conflict": "reclaim_race",
 					})
 					return nil, c.conflictWithRetryAfter(ErrIdempotencyInProgress, existing.LockedUntil, now)
 				}
-				recordIdempotencyClaim(opts.Route, opts.Scope, map[string]string{"mode": "reclaim"})
-				logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "failed_retryable->processing", false, map[string]string{
+				c.recordIdempotencyClaim(opts.Route, opts.Scope, map[string]string{"mode": "reclaim"})
+				c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "failed_retryable->processing", false, map[string]string{
 					"claim_mode": "reclaim",
 				})
 				record.ID = existing.ID
 			default:
-				recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "unexpected_status"})
-				logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "existing->conflict", false, map[string]string{
+				c.recordIdempotencyConflict(opts.Route, opts.Scope, map[string]string{"reason": "unexpected_status"})
+				c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "existing->conflict", false, map[string]string{
 					"status": existing.Status,
 				})
 				return nil, ErrIdempotencyKeyConflict
@@ -386,8 +374,8 @@ func (c *IdempotencyCoordinator) Execute(
 	}
 
 	if record.ID == 0 {
-		RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "record_id_missing")
-		logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
+		c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "record_id_missing")
+		c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
 			"operation": "record_id_missing",
 		})
 		return nil, ErrIdempotencyStoreUnavail
@@ -395,7 +383,7 @@ func (c *IdempotencyCoordinator) Execute(
 
 	execStart := time.Now()
 	defer func() {
-		recordIdempotencyProcessingDuration(opts.Route, opts.Scope, time.Since(execStart), nil)
+		c.recordIdempotencyProcessingDuration(opts.Route, opts.Scope, time.Since(execStart), nil)
 	}()
 
 	data, execErr := execute(ctx)
@@ -405,13 +393,13 @@ func (c *IdempotencyCoordinator) Execute(
 		if reason == "" {
 			reason = "EXECUTION_FAILED"
 		}
-		recordIdempotencyRetryBackoff(opts.Route, opts.Scope, nil)
-		logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->failed_retryable", false, map[string]string{
+		c.recordIdempotencyRetryBackoff(opts.Route, opts.Scope, nil)
+		c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->failed_retryable", false, map[string]string{
 			"reason": reason,
 		})
 		if markErr := c.repo.MarkFailedRetryable(ctx, record.ID, reason, backoffUntil, expiresAt); markErr != nil {
-			RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "mark_failed_retryable_error")
-			logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
+			c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "mark_failed_retryable_error")
+			c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
 				"operation": "mark_failed_retryable",
 			})
 		}
@@ -420,20 +408,20 @@ func (c *IdempotencyCoordinator) Execute(
 
 	storedBody, marshalErr := c.marshalStoredResponse(data)
 	if marshalErr != nil {
-		RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "marshal_response_error")
-		logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
+		c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "marshal_response_error")
+		c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
 			"operation": "marshal_response",
 		})
 		return nil, ErrIdempotencyStoreUnavail.WithCause(marshalErr)
 	}
 	if markErr := c.repo.MarkSucceeded(ctx, record.ID, 200, storedBody, expiresAt); markErr != nil {
-		RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "mark_succeeded_error")
-		logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
+		c.RecordIdempotencyStoreUnavailable(opts.Route, opts.Scope, "mark_succeeded_error")
+		c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->store_unavailable", false, map[string]string{
 			"operation": "mark_succeeded",
 		})
 		return nil, ErrIdempotencyStoreUnavail.WithCause(markErr)
 	}
-	logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->succeeded", false, nil)
+	c.logIdempotencyAudit(opts.Route, opts.Scope, keyHash, "processing->succeeded", false, nil)
 
 	return &IdempotencyExecuteResult{Data: data}, nil
 }

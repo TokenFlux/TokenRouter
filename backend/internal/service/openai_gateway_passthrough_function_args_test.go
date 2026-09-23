@@ -16,6 +16,7 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -52,8 +53,8 @@ func TestHandleStreamingResponsePassthroughDeduplicatesFunctionCallArguments(t *
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}
 
-	svc := &OpenAIGatewayService{}
-	result, err := svc.handleStreamingResponsePassthrough(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "gpt-5.4", "gpt-5.4")
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	result, err := svc.handleStreamingResponsePassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "gpt-5.4", "gpt-5.4")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -97,13 +98,13 @@ func TestForwardResponsesChatCompletionsFallbackKeepsFunctionArgumentsSingle(t *
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
 	account := passthroughArgsFallbackAccount()
-	account.Extra = map[string]any{
+	account.Record.Extra = map[string]any{
 		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 	}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          passthroughArgsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	result, err := svc.Forward(context.Background(), c, account, body)
 	require.NoError(t, err)
@@ -189,9 +190,8 @@ func passthroughArgsTestConfig() *config.Config {
 	}
 }
 
-func passthroughArgsFallbackAccount() *Account {
-	return &Account{
-		ID:          102,
+func passthroughArgsFallbackAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 102,
 		Name:        "passthrough-args-openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -199,7 +199,7 @@ func passthroughArgsFallbackAccount() *Account {
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "http://upstream.example",
-		},
+		}},
 	}
 }
 

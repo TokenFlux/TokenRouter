@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -63,15 +66,15 @@ func TestResolveBedrockBetaTokensForRequest_BlocksOnOriginalAnthropicToken(t *te
 		t.Fatalf("marshal settings: %v", err)
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
 				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
-	}
-	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}}
 
 	_, err = svc.resolveBedrockBetaTokensForRequest(
 		context.Background(),
@@ -103,15 +106,15 @@ func TestResolveBedrockBetaTokensForRequest_FiltersAfterBedrockTransform(t *test
 		t.Fatalf("marshal settings: %v", err)
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
 				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
-	}
-	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}}
 
 	betaTokens, err := svc.resolveBedrockBetaTokensForRequest(
 		context.Background(),
@@ -149,15 +152,15 @@ func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedComputerUse(t 
 		t.Fatalf("marshal settings: %v", err)
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
 				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
-	}
-	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}}
 
 	// header 中不带 beta token，但 body 中有 computer_use 工具
 	_, err = svc.resolveBedrockBetaTokensForRequest(
@@ -194,15 +197,15 @@ func TestResolveBedrockBetaTokensForRequest_BlocksBodyAutoInjectedToolSearch(t *
 		t.Fatalf("marshal settings: %v", err)
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
 				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
-	}
-	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}}
 
 	// header 中不带 beta token，但 body 中有 tool_search_tool 工具
 	_, err = svc.resolveBedrockBetaTokensForRequest(
@@ -238,15 +241,15 @@ func TestResolveBedrockBetaTokensForRequest_PassesWhenNoBlockRuleMatches(t *test
 		t.Fatalf("marshal settings: %v", err)
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
 				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
-	}
-	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock}}
 
 	// body 中有 computer_use 工具（会注入 computer-use token），但 block 规则只针对 context-1m
 	tokens, err := svc.resolveBedrockBetaTokensForRequest(

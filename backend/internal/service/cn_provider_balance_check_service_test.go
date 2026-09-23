@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -22,9 +23,10 @@ import (
 )
 
 type cnUsageMonitorRepo struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	mu               sync.Mutex
-	accounts         map[int64]*Account
+	accounts         map[int64]*gatewayprovider.ExecutionAccount
 	byPlatform       map[string][]int64
 	writes           []*acctcore.CNUsageMonitorSnapshot
 	casResult        bool
@@ -34,7 +36,7 @@ type cnUsageMonitorRepo struct {
 	updateExtraCalls int
 }
 
-func (r *cnUsageMonitorRepo) GetByID(_ context.Context, id int64) (*Account, error) {
+func (r *cnUsageMonitorRepo) GetByID(_ context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	account := r.accounts[id]
@@ -45,11 +47,11 @@ func (r *cnUsageMonitorRepo) GetByID(_ context.Context, id int64) (*Account, err
 	return &copy, nil
 }
 
-func (r *cnUsageMonitorRepo) ListByPlatform(_ context.Context, platform string) ([]Account, error) {
+func (r *cnUsageMonitorRepo) ListByPlatform(_ context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	ids := r.byPlatform[platform]
-	result := make([]Account, 0, len(ids))
+	result := make([]gatewayprovider.ExecutionAccount, 0, len(ids))
 	for _, id := range ids {
 		if account := r.accounts[id]; account != nil {
 			result = append(result, *account)
@@ -68,7 +70,7 @@ func (r *cnUsageMonitorRepo) UpdateCNUsageMonitorSnapshotCAS(
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	account := r.accounts[accountID]
-	if account == nil || !account.UpdatedAt.Equal(expectedUpdatedAt) || !r.casResult {
+	if account == nil || !account.Record.UpdatedAt.Equal(expectedUpdatedAt) || !r.casResult {
 		return false, nil
 	}
 	copy := *snapshot
@@ -82,8 +84,8 @@ func (r *cnUsageMonitorRepo) SetTempUnschedulable(_ context.Context, id int64, u
 	r.pauseReason = reason
 	r.pauseUntil = until
 	if account := r.accounts[id]; account != nil {
-		account.TempUnschedulableUntil = &until
-		account.TempUnschedulableReason = reason
+		account.Record.TempUnschedulableUntil = &until
+		account.Record.TempUnschedulableReason = reason
 	}
 	return nil
 }
@@ -93,8 +95,8 @@ func (r *cnUsageMonitorRepo) ClearTempUnschedulable(_ context.Context, id int64)
 	defer r.mu.Unlock()
 	r.clearCalls++
 	if account := r.accounts[id]; account != nil {
-		account.TempUnschedulableUntil = nil
-		account.TempUnschedulableReason = ""
+		account.Record.TempUnschedulableUntil = nil
+		account.Record.TempUnschedulableReason = ""
 	}
 	return nil
 }
@@ -163,9 +165,8 @@ func (l *cnUsageMonitorLeaderLock) TryAcquireLeaderLock(context.Context, string,
 
 func (*cnUsageMonitorLeaderLock) ReleaseLeaderLock(context.Context, string, string) error { return nil }
 
-func newCNUsageMonitorAccount(id int64, platform, mode string) *Account {
-	return &Account{
-		ID:          id,
+func newCNUsageMonitorAccount(id int64, platform, mode string) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: acctcore.Record{LoadLocation: time.LoadLocation, ID: id,
 		Platform:    platform,
 		Type:        capability.AccountTypeAPIKey,
 		Status:      billing.StatusActive,
@@ -176,7 +177,7 @@ func newCNUsageMonitorAccount(id int64, platform, mode string) *Account {
 			"api_key":      "sk-test",
 			"account_mode": mode,
 		},
-		Extra: map[string]any{},
+		Extra: map[string]any{}},
 	}
 }
 
@@ -188,7 +189,7 @@ func newCNUsageMonitorForTest(repo *cnUsageMonitorRepo, upstream httpclient.Upst
 func TestCNUsageMonitorRunOncePersistsUnifiedSnapshotWithoutLegacyWrites(t *testing.T) {
 	account := newCNUsageMonitorAccount(1, capability.PlatformKimi, acctcore.AccountModePayG)
 	repo := &cnUsageMonitorRepo{
-		accounts:   map[int64]*Account{1: account},
+		accounts:   map[int64]*gatewayprovider.ExecutionAccount{1: account},
 		byPlatform: map[string][]int64{capability.PlatformKimi: {1}},
 		casResult:  true,
 	}
@@ -218,7 +219,7 @@ func TestCNUsageMonitorFailurePreservesLastSuccess(t *testing.T) {
 	queryConfig.Adapter = cnUpstreamUsageAdapterName(account)
 	observed := time.Date(2026, 8, 22, 3, 0, 0, 0, time.UTC)
 	remaining := 8.0
-	account.Extra[acctcore.CNUsageMonitorSnapshotExtraKey] = &acctcore.CNUsageMonitorSnapshot{
+	account.Record.Extra[acctcore.CNUsageMonitorSnapshotExtraKey] = &acctcore.CNUsageMonitorSnapshot{
 		Version:       acctcore.CNUsageMonitorSnapshotVersion,
 		Adapter:       queryConfig.Adapter,
 		IdentityHash:  upstreamUsageContextFingerprint(account, queryConfig),
@@ -230,7 +231,7 @@ func TestCNUsageMonitorFailurePreservesLastSuccess(t *testing.T) {
 		LastAttemptAt: observed,
 	}
 	repo := &cnUsageMonitorRepo{
-		accounts:   map[int64]*Account{2: account},
+		accounts:   map[int64]*gatewayprovider.ExecutionAccount{2: account},
 		byPlatform: map[string][]int64{capability.PlatformDeepseek: {2}},
 		casResult:  true,
 	}
@@ -247,9 +248,9 @@ func TestCNUsageMonitorFailurePreservesLastSuccess(t *testing.T) {
 
 func TestCNUsageMonitorCustomHostRequiresExplicitAllowlist(t *testing.T) {
 	account := newCNUsageMonitorAccount(3, capability.PlatformDeepseek, acctcore.AccountModePayG)
-	account.Credentials["base_url"] = "https://relay.example/v1"
+	account.Record.Credentials["base_url"] = "https://relay.example/v1"
 	repo := &cnUsageMonitorRepo{
-		accounts:   map[int64]*Account{3: account},
+		accounts:   map[int64]*gatewayprovider.ExecutionAccount{3: account},
 		byPlatform: map[string][]int64{capability.PlatformDeepseek: {3}},
 		casResult:  true,
 	}
@@ -275,7 +276,7 @@ func TestCNUsageMonitorCustomHostRequiresExplicitAllowlist(t *testing.T) {
 func TestCNUsageMonitorSkipsCycleWhenNotLeader(t *testing.T) {
 	account := newCNUsageMonitorAccount(4, capability.PlatformKimi, acctcore.AccountModePayG)
 	repo := &cnUsageMonitorRepo{
-		accounts:   map[int64]*Account{4: account},
+		accounts:   map[int64]*gatewayprovider.ExecutionAccount{4: account},
 		byPlatform: map[string][]int64{capability.PlatformKimi: {4}},
 		casResult:  true,
 	}
@@ -289,7 +290,7 @@ func TestCNUsageMonitorSkipsCycleWhenNotLeader(t *testing.T) {
 }
 
 func TestCNUsageMonitorDefaultOffAndStopCancelsProbe(t *testing.T) {
-	repo := &cnUsageMonitorRepo{accounts: map[int64]*Account{}, byPlatform: map[string][]int64{}, casResult: true}
+	repo := &cnUsageMonitorRepo{accounts: map[int64]*gatewayprovider.ExecutionAccount{}, byPlatform: map[string][]int64{}, casResult: true}
 	service := newCNUsageMonitorForTest(repo, &cnUsageMonitorHTTP{}, testUpstreamUsageConfig())
 	service.Start()
 	// 同一构造无上下文断言迁至 account 的生命周期测试；这里保留外层无探测副作用。

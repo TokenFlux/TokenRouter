@@ -18,7 +18,9 @@
 
 `routing.RequestableResolver` 唯一负责可请求候选合并、渠道限制、R → C → U 及价格歧义判断。`routing.RequestableCatalogue` 组合候选读取与模型列表短缓存，由 app 直接绑定 account 存储；公开市场不再经过旧 GatewayService 读取账号。`gateway/provider.ModelPolicy` 为目录和实际转发提供同一套平台模型判断，账号记录与本次 attempt 的模型链分开传入。账号模型范围与一跳匹配由 account 提供，平台专有资格、thinking/模型限流观测和动态默认目录通过窄接口接入。`routing.ModelList` 由 app 按原 TTL 构造一次，保留原组/平台键、nil 结果、失效范围及全进程指标，仍由应用时间轮按原频率清理。请求模型与公开模型都使用同一可请求解析边界：从当前分组的可调度账号能力生成候选，再执行 Key/分组/渠道/账号的模型映射和范围校验。默认平台模型只在缺少可用解析服务的兼容场景提供基线；已经完成账号/渠道解析但结果为空时必须保持为空，不能重新回退默认列表。
 
-账号映射的配置解析与默认透传合并由 `account.ResolveModelMapping` 执行，平台默认表按需由外层提供。返回映射是独立值；读取时不再修改账号内的派生缓存，避免调度/展示并发读取以及调用方修改结果污染后续请求。原精确/通配匹配继续复用 `routing/modelmap`；Qoder 专有资格、平台默认目录来源和请求改写仍保留在旧适配链路。
+网关四类模型目录 HTTP 由 app 直接构造 `gateway/httpapi.ModelsHandler`，复用同一 `routing.RequestableCatalogue`，不从旧 GatewayHandler 创建门面。平台展示数据由 `gateway/provider.ModelDisplayCatalogue` 提供；`gateway/modeldisplay` 只保存原展示值、稳定合并与默认列表规则。HTTP 继续拥有 Key 别名、自定义列表、原生 Gemini 响应与回退；Gemini 远端模型读取通过 app 的只读目标端口连接现有选择/传输原语，不新增账号选择或查询。
+
+账号映射的配置解析与默认透传合并由 `account.ResolveModelMapping` 执行，平台默认表按需由外层提供。返回映射是独立值；读取时不再修改账号内的派生缓存，避免调度/展示并发读取以及调用方修改结果污染后续请求。原精确/通配匹配继续复用 `routing/modelmap`；Qoder 专有资格和默认目录由平台规则适配器提供，请求改写仍在原执行时点发生。分组模型拒绝提示由 routing 聚合候选，gateway/provider 提供站点默认目录；只在候选合资格且没有显式模型时读取默认目录，显式配置过滤为空时保持非 nil 空集合。
 
 管理端账号测试模型目录由 `routing.AdminCatalog` 组合显式平台、账号认证形态与懒解析的请求模型；默认目录通过 app 注入 `routing/provider.AdminCatalogOptions`，在调用时读取原平台快照。OpenAI 透传、Gemini Google One/OAuth 和 Antigravity 保留原忽略配置或保守默认集合的分支，Grok 动态目录每次只读取一次。HTTP 分别保留 OpenAI、Grok 和 Claude/Gemini 类模型的零值字段、省略字段及空数组/null 形状；没有将管理测试目录等同于账号可执行能力。
 

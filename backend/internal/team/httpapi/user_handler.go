@@ -6,7 +6,8 @@ import (
 	strings "strings"
 	time "time"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	team "github.com/TokenFlux/TokenRouter/internal/team"
@@ -23,8 +24,8 @@ func NewUserHandler(teamService *team.TeamService, calendar timezone.Calendar) *
 	return &UserHandler{service: teamService, calendar: calendar}
 }
 
-func teamSubject(c *gin.Context) (middleware.AuthSubject, bool) {
-	subject, ok := middleware.GetAuthSubjectFromContext(c)
+func teamSubject(c *gin.Context) (authctx.AuthSubject, bool) {
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 	}

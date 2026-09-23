@@ -13,14 +13,14 @@ import (
 	gin "github.com/gin-gonic/gin"
 )
 
-func ExecuteUserIdempotentJSON(
+func (e *Executor) ExecuteUserIdempotentJSON(
 	c *gin.Context,
 	scope string,
 	payload any,
 	ttl time.Duration,
 	execute func(context.Context) (any, error),
 ) {
-	coordinator := idempotency.DefaultIdempotencyCoordinator()
+	coordinator := e.coordinator
 	if coordinator == nil {
 		data, err := execute(c.Request.Context())
 		if err != nil {
@@ -48,7 +48,7 @@ func ExecuteUserIdempotentJSON(
 	}, execute)
 	if err != nil {
 		if response.ErrorCode(err) == response.ErrorCode(idempotency.ErrIdempotencyStoreUnavail) {
-			idempotency.RecordIdempotencyStoreUnavailable(c.FullPath(), scope, "handler_fail_close")
+			e.coordinator.RecordIdempotencyStoreUnavailable(c.FullPath(), scope, "handler_fail_close")
 			logger.LegacyPrintf("handler.idempotency", "[Idempotency] store unavailable: method=%s route=%s scope=%s strategy=fail_close", c.Request.Method, c.FullPath(), scope)
 		}
 		if retryAfter := idempotency.RetryAfterSecondsFromError(err); retryAfter > 0 {

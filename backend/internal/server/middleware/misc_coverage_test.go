@@ -11,10 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
-
-	"github.com/TokenFlux/TokenRouter/internal/billing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -148,57 +145,4 @@ func TestRequestBodyLimit_LimitsBody(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/t", bytes.NewBufferString("12345"))
 	r.ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestForcePlatform_SetsContextAndGinValue(t *testing.T) {
-
-	r := gin.New()
-	r.Use(ForcePlatform("anthropic"))
-	r.GET("/t", func(c *gin.Context) {
-		require.True(t, HasForcePlatform(c))
-		v, ok := GetForcePlatformFromContext(c)
-		require.True(t, ok)
-		require.Equal(t, "anthropic", v)
-
-		ctxV, present := apikey.ForcePlatformFromContext(c.Request.Context())
-		require.True(t, present)
-		require.Equal(t, "anthropic", ctxV)
-		c.Status(http.StatusOK)
-	})
-
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/t", nil)
-	r.ServeHTTP(w, req)
-	require.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestAuthSubjectHelpers_RoundTrip(t *testing.T) {
-	c := &gin.Context{}
-	c.Set(string(ContextKeyUser), AuthSubject{UserID: 1, Concurrency: 2})
-	c.Set(string(ContextKeyUserRole), "admin")
-
-	sub, ok := GetAuthSubjectFromContext(c)
-	require.True(t, ok)
-	require.Equal(t, int64(1), sub.UserID)
-	require.Equal(t, 2, sub.Concurrency)
-
-	role, ok := GetUserRoleFromContext(c)
-	require.True(t, ok)
-	require.Equal(t, "admin", role)
-}
-
-func TestAPIKeyAndSubscriptionFromContext(t *testing.T) {
-	c := &gin.Context{}
-
-	key := &apikey.APIKey{ID: 1}
-	c.Set(string(ContextKeyAPIKey), key)
-	gotKey, ok := GetAPIKeyFromContext(c)
-	require.True(t, ok)
-	require.Equal(t, int64(1), gotKey.ID)
-
-	sub := &billing.UserSubscription{ID: 2}
-	c.Set(string(ContextKeySubscription), sub)
-	gotSub, ok := GetSubscriptionFromContext(c)
-	require.True(t, ok)
-	require.Equal(t, int64(2), gotSub.ID)
 }

@@ -3,23 +3,22 @@
 package postgres
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"context"
 	"testing"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 
 	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/stretchr/testify/require"
 )
 
@@ -117,7 +116,7 @@ func mustCreateGroup(t *testing.T, client *dbent.Client, g *routing.Group) *rout
 	return g
 }
 
-func mustCreateAccount(t *testing.T, client *dbent.Client, a *service.Account) *service.Account {
+func mustCreateAccount(t *testing.T, client *dbent.Client, a *accountcore.Record) *accountcore.Record {
 	t.Helper()
 	ctx := context.Background()
 

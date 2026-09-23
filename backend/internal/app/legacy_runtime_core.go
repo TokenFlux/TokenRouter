@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -16,6 +18,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 	payment "github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
@@ -23,8 +27,14 @@ import (
 type coreRuntimeReady struct{}
 
 func provideCoreRuntime(
+	accountRuntime *account.RuntimeBlockState,
+	geminiPrecheck *account.GeminiPrecheck,
+	cfg *config.Config,
 	authCacheInvalidationWorker *apikey.AuthCacheInvalidationWorker,
-	schedulerSnapshot *service.SchedulerSnapshotService,
+	schedulerSnapshot *scheduler.SnapshotService,
+	models *routing.ModelList,
+	groups routing.GroupRepository,
+	shared *schedulerSharedState,
 	usageCleanup *usage.UsageCleanupService,
 	idempotencyCleanup *idempotency.IdempotencyCleanupService,
 	openAIGateway *service.OpenAIGatewayService,
@@ -36,23 +46,26 @@ func provideCoreRuntime(
 	gateway *service.GatewayService,
 	geminiGateway *service.GeminiMessagesCompatService,
 	antigravityGateway *service.AntigravityGatewayService,
-	creativeExecutor *service.CreativeExecutor,
 	digestStore *session.DigestSessionStore,
 	usageRepo usage.UsageLogRepository,
 	tasks *lifecycle.Tasks,
-	httpUpstream httpclient.UpstreamTransport, requestActivity *gatewayRequestActivity,
+	httpUpstream httpclient.UpstreamTransport, requestActivity *gatewayRequestActivity, rates *gatewayBillingRates,
 ) *coreRuntimeReady {
 	// 原生平台仅登记同步尝试，不改变客户端取消或供应商重试预算。
+	bindSchedulerExecutionState(shared, gateway, openAIGateway, geminiGateway)
 	nativeAttempts := requestActivity
+	openAIGateway.BindRuntimeBlockState(accountRuntime)
+	bindGatewayBackground(tasks, gateway, openAIGateway)
+	bindAccountFreeQuota(cfg, usageRepo, tasks, gateway, openAIGateway)
+	geminiGateway.BindQuotaPrecheck(geminiPrecheck)
 	if openAIGateway != nil {
+		openAIGateway.BindSchedulerStickyStats(shared.Sticky)
+		openAIGateway.BindSchedulingGroups(groups.GetByID)
 		openAIGateway.BindOpenAIAuthorization(openAIAuthorization)
 		openAIGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}
 	if antigravityGateway != nil {
 		antigravityGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
-	}
-	if creativeExecutor != nil {
-		creativeExecutor.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}
 	if geminiGateway != nil {
 		geminiGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
@@ -148,8 +161,8 @@ func provideCoreRuntime(
 	manager.Register(lifecycle.Hook{Name: "RuntimeLocalCaches", StartOrder: 185, StopOrder: 815,
 		Start: func(context.Context) error {
 			timingWheel.ScheduleRecurring("runtime:local_caches", time.Minute, func() {
-				gateway.ExpireRuntimeCaches()
-				openAIGateway.ExpireRuntimeCaches()
+				models.Expire()
+				rates.Expire()
 				digestStore.ExpireRuntimeCaches()
 				if cache, ok := usageRepo.(interface{ ExpireRuntimeCaches() }); ok {
 					cache.ExpireRuntimeCaches()
@@ -178,4 +191,14 @@ func provideCoreRuntime(
 	}})
 
 	return &coreRuntimeReady{}
+}
+
+// bindGatewayBackground 使执行侧派生工作与其他应用任务共享关闭屏障。
+func bindGatewayBackground(tasks *lifecycle.Tasks, gateway *service.GatewayService, openai *service.OpenAIGatewayService) {
+	if gateway != nil {
+		gateway.BindBackgroundTasks(tasks.Go)
+	}
+	if openai != nil {
+		openai.BindBackgroundTasks(tasks.Go)
+	}
 }

@@ -15,10 +15,10 @@ import (
 )
 
 // provideOpenAIQuota 直接组合账号查询、原连接写入及共享 task 协调器。
-func provideOpenAIQuota(admin *account.Admin, store *postgres.AccountStore, proxies egress.ProxyRepository, transport httpclient.UpstreamTransport, token *account.OpenAITokenSource, profiles *egressprovider.TLSProfiles, routers *egress.TLSFingerprintRouterService, gateway *service.OpenAIGatewayService) *account.OpenAIQuotaService {
+func provideOpenAIQuota(admin *account.Admin, store *postgres.AccountStore, proxies egress.ProxyRepository, transport httpclient.UpstreamTransport, token *account.OpenAITokenSource, profiles *egressprovider.TLSProfiles, routers *egress.TLSFingerprintRouterService, gateway *service.OpenAIGatewayService, coordinator *account.OpenAITaskCoordinator) *account.OpenAIQuotaService {
 	factory := &provider.OpenAIQuotaFactory{
 		Proxy: proxies.GetByID, Transport: transport, Profiles: profiles, Routers: routers,
-		Tasks: account.SharedOpenAITaskCoordinator(),
+		Tasks: coordinator,
 		TaskOptions: account.OpenAITaskOptions{
 			Read: store.GetByID,
 			Register: func(ctx context.Context, value *account.Record) (string, error) {

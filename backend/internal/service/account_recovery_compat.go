@@ -7,14 +7,17 @@ import (
 	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
 // legacyRecoveryStore 只转换旧账号形状，不复制恢复规则。
-type legacyRecoveryStore struct{ AccountRepository }
+type legacyRecoveryStore struct {
+	gatewayprovider.ExecutionAccountStore
+}
 
 func (s legacyRecoveryStore) GetByID(ctx context.Context, id int64) (*accountcore.Record, error) {
-	v, err := s.AccountRepository.GetByID(ctx, id)
-	return AccountRecordView(v), err
+	v, err := s.ExecutionAccountStore.GetByID(ctx, id)
+	return gatewayprovider.ExecutionRecord(v), err
 }
 
 // RecoveryOptions 保留装配后设置的技术缓存与调度端口。

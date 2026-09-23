@@ -1,0 +1,105 @@
+//go:build wireinject
+
+package app
+
+import (
+	accountauth "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
+	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
+
+	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+
+	accountredis "github.com/TokenFlux/TokenRouter/internal/account/rediscache"
+
+	"github.com/google/wire"
+)
+
+// 账号管理、授权与运行能力的组合根登记；这里只分组原 provider，不创建资源或复制业务实现。
+var accountAssemblyProviders = wire.NewSet(
+	accountauth.NewOAuthUsageCache,
+	provideGeminiAuthorization,
+	provideAccountProbeTasks,
+	provideGrokAuthorization,
+	provideGrokTokens,
+	provideOpenAIAuthorization,
+	provideOpenAITokens,
+	provideOpenAIExecutionCredentials,
+	provideAgentTaskCoordinator,
+	provideClaudeTokens,
+	provideMessageCredentials,
+	provideGeminiTokens,
+	provideAntigravityTokens,
+	wire.Bind(new(accountauth.GrokRefreshTokenService), new(*accountauth.GrokAuthorization)),
+	provideAntigravityAuthorization,
+	provideClaudeAuthorization,
+	provideTokenCacheInvalidator,
+	provideQoderTokens,
+	provideQoderRequestRefresh,
+	provideQoderAuthorization,
+	accountAuthorizationHTTPProviders,
+	wire.Bind(new(accounthttp.GeminiAuthorizationUseCase), new(*accountauth.GeminiAuthorization)),
+	wire.Bind(new(accounthttp.AntigravityAuthorizationUseCase), new(*accountauth.AntigravityAuthorization)),
+	provideOpenAIQuota,
+	provideGrokQuota,
+	provideCodexInvites,
+	wire.Bind(new(accounthttp.CodexInviteResetCommands), new(*accountauth.CodexInviteResetService)),
+	provideOpenAIAccountOAuth,
+	accountredis.NewTempUnschedCache,
+	accountredis.NewTimeoutCounterCache,
+	accountredis.NewOpenAI403CounterCache,
+	provideGeminiPrecheck,
+	provideGeminiQuotaPolicy,
+	provideAntigravityQuota,
+	accountprovider.NewGrokQuotaView,
+	provideAccountModelSync,
+	provideAccountTier,
+	provideAccountManagementList,
+	provideAccountRuntimePresenter,
+	provideAccountRuntimeState,
+	provideAccountHealthRuntime,
+	provideAccountRecovery,
+	provideAccountManagement,
+	provideManagedRefresh,
+	wire.Bind(new(accountauth.RefreshFailureObserver), new(*accountauth.RuntimeBlockState)),
+	wire.Bind(new(accountauth.RuntimeUnblocker), new(*accountauth.RuntimeBlockState)),
+	provideRefreshPlatforms,
+	provideRefreshPostActions,
+	provideBackgroundRefresh,
+	wire.Bind(new(accountauth.GrokOAuthReconciler), new(*accountauth.BackgroundRefreshService)),
+	provideOAuthUsageCore,
+	provideOAuthUsageStats,
+	accounthttp.NewOAuthUsageHandler,
+	provideOllamaUsage,
+	accounthttp.NewOllamaUsageHandler,
+	provideCodexImporter,
+	accounthttp.NewCodexImportHandler,
+	provideCRSSync,
+	provideCRSHTTP,
+	provideAccountArchive,
+	accounthttp.NewArchiveHandler,
+	provideAccountImportProbes,
+	provideGrokOAuthWithImports,
+	provideCNUsageMonitor,
+	provideAccountTestHTTP,
+	provideUpstreamUsageHTTP,
+	provideUpstreamUsage,
+	provideAccountTests,
+	provideAntigravityRetry,
+	provideAntigravityProbe,
+	provideScheduledTestRunner,
+	provideScheduledTests,
+	accountpostgres.NewScheduledTestPlanRepository,
+	accountpostgres.NewScheduledTestResultRepository,
+	accounthttp.NewScheduledTestHandler,
+	provideAccountPrivacy,
+	provideAccountAdmin,
+	provideAccountExpiry,
+	provideAccountDeferred,
+	provideAccountRefresh,
+	provideAccountStore,
+	provideOAuthTokenCache,
+	provideQuotaSettings,
+	provideAccountSettings,
+	accounthttp.NewRuntimeSettingsHandler,
+)

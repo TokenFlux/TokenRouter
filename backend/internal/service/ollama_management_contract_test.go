@@ -3,8 +3,11 @@ package service
 import (
 	"fmt"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +16,7 @@ func TestScheduleOllamaCloudUsageActivityOnlyForOllama(t *testing.T) {
 	deferred, activity := newDeferredActivityRecorder(t)
 	ollama := ollamaUsageAccount(1)
 	other := ollamaUsageAccount(2)
-	other.Credentials["base_url"] = "https://api.openai.com"
+	other.Record.Credentials["base_url"] = "https://api.openai.com"
 
 	scheduleOllamaCloudUsageActivity(deferred, ollama)
 	scheduleOllamaCloudUsageActivity(deferred, other)
@@ -26,10 +29,9 @@ func TestScheduleOllamaCloudUsageActivityOnlyForOllama(t *testing.T) {
 	require.False(t, ok)
 }
 
-func ollamaUsageAccount(id int64) *Account {
-	return &Account{
-		ID: id, Name: fmt.Sprintf("ollama-%d", id), Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+func ollamaUsageAccount(id int64) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id, Name: fmt.Sprintf("ollama-%d", id), Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{"base_url": "https://ollama.com", "api_key": fmt.Sprintf("key-%d", id)},
-		Extra:       map[string]any{}, Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
+		Extra:       map[string]any{}, Status: billing.StatusActive, Schedulable: true, Concurrency: 1},
 	}
 }

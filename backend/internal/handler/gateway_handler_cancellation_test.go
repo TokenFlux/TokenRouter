@@ -9,11 +9,17 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	time "time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
@@ -23,7 +29,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -34,7 +39,7 @@ type countingGatewaySchedulerCache struct {
 	snapshotCalls atomic.Int64
 }
 
-func (c *countingGatewaySchedulerCache) GetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket) ([]*service.Account, bool, error) {
+func (c *countingGatewaySchedulerCache) GetSnapshot(ctx context.Context, bucket scheduler.SchedulerBucket) ([]scheduler.SnapshotAccount, bool, error) {
 	c.snapshotCalls.Add(1)
 	return c.fakeSchedulerCache.GetSnapshot(ctx, bucket)
 }
@@ -43,17 +48,19 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 
 	groupID := int64(9100)
 	group := &routing.Group{ID: groupID, Hydrated: true, Platform: capability.PlatformAnthropic, Status: billing.StatusActive}
-	account := &service.Account{
-		ID: 9101, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9101, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 		Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
-		AccountGroups: []service.AccountGroup{{AccountID: 9101, GroupID: groupID}},
+		AccountGroups: []accountcore.GroupMembership{{AccountID: 9101, GroupID: groupID}}},
 	}
-	schedulerCache := &countingGatewaySchedulerCache{fakeSchedulerCache: &fakeSchedulerCache{accounts: []*service.Account{account}}}
-	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
+	schedulerCache := &countingGatewaySchedulerCache{fakeSchedulerCache: &fakeSchedulerCache{accounts: []*gatewayprovider.ExecutionAccount{account}}}
+	schedulerSnapshot := scheduler.NewSnapshotService(schedulerCache, nil, nil, nil, nil, scheduler.SnapshotBindings{})
 	gatewayService := service.NewGatewayService(
-		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, nil,
-		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, &fakeGroupRepo{group: group}, nil, nil, nil,
+		schedulerSnapshot, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, responseHeaderFilterForTest(nil),
 	)
+	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil,
+		nil, nil, nil, nil, nil, false))
+
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	billingCacheService := newBillingEligibilityFixture(cfg)
 	billingCacheService.Start()
@@ -100,8 +107,8 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 			req := httptest.NewRequest(http.MethodPost, tt.path, bytes.NewBufferString(tt.body)).WithContext(ctx)
 			req.Header.Set("Content-Type", "application/json")
 			c.Request = req
-			c.Set(string(middleware.ContextKeyAPIKey), apiKey)
-			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.UserID, Concurrency: 10})
+			c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
+			c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: apiKey.UserID, Concurrency: 10})
 
 			tt.call(c)
 

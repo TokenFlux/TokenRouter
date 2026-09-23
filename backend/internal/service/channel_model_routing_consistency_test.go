@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -24,7 +27,7 @@ func TestGatewayAccountLayerUsesChannelMappedModelForSupportAndRateLimit(t *test
 			capability.PlatformAnthropic: {"client-alias": "channel-model"},
 		},
 	}
-	svc := &GatewayService{channelService: routingtestkit.Channel(groupID, capability.PlatformAnthropic, channel)}
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: routingtestkit.Channel(groupID, capability.PlatformAnthropic, channel)})
 	ctx := svc.withGroupContext(context.Background(), &routing.Group{
 		ID:       groupID,
 		Platform: capability.PlatformAnthropic,
@@ -32,19 +35,17 @@ func TestGatewayAccountLayerUsesChannelMappedModelForSupportAndRateLimit(t *test
 		Hydrated: true,
 	})
 	future := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
-	account := &Account{
-		Platform:    capability.PlatformAnthropic,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
 		Status:      billing.StatusActive,
 		Schedulable: true,
 		Credentials: map[string]any{
 			"model_mapping":   map[string]any{"channel-model": "upstream-model"},
 			"model_whitelist": []any{"upstream-model"},
 		},
-		Extra: map[string]any{
-			modelRateLimitsKey: map[string]any{
-				"upstream-model": map[string]any{"rate_limit_reset_at": future},
-			},
+		Extra: map[string]any{"model_rate_limits": map[string]any{
+			"upstream-model": map[string]any{"rate_limit_reset_at": future},
 		},
+		}},
 	}
 
 	require.True(t, svc.isModelSupportedByAccountWithContext(ctx, account, "client-alias"))
@@ -75,15 +76,14 @@ func TestGatewayAnthropicAccountSupportMapsBeforePlatformNormalization(t *testin
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			account := &Account{
-				Platform: capability.PlatformAnthropic,
-				Type:     tt.accountType,
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+				Type: tt.accountType,
 				Credentials: map[string]any{
 					"model_mapping":   map[string]any{"channel-model": "claude-sonnet-4-5"},
 					"model_whitelist": []any{tt.whitelistModel},
-				},
+				}},
 			}
-			svc := &GatewayService{}
+			svc := withSchedulerParametersForTest(&GatewayService{})
 
 			require.True(t, svc.isModelSupportedByAccount(account, "channel-model"))
 			require.Equal(t, tt.finalModel, resolveAccountUpstreamModel(context.Background(), account, "channel-model"))
@@ -92,16 +92,15 @@ func TestGatewayAnthropicAccountSupportMapsBeforePlatformNormalization(t *testin
 }
 
 func TestAdvancedSchedulerUsesRoutingModelAndKeepsRequestedModel(t *testing.T) {
-	account := &Account{
-		ID:       72,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 72,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping":   map[string]any{"channel-model": "upstream-model"},
 			"model_whitelist": []any{"upstream-model"},
-		},
+		}},
 	}
-	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{}}
+	scheduler := &defaultOpenAIAccountScheduler{service: withSchedulerParametersForTest(&OpenAIGatewayService{})}
 	req := OpenAIAccountScheduleRequest{
 		Platform:       capability.PlatformOpenAI,
 		RequestedModel: "client-alias",
@@ -130,12 +129,11 @@ func TestOpenAIUpstreamRestrictionAppliesChannelThenAccountMapping(t *testing.T)
 			InputPrice: &price,
 		}},
 	}
-	svc := &OpenAIGatewayService{channelService: routingtestkit.Channel(groupID, capability.PlatformOpenAI, channel)}
-	account := &Account{
-		Platform: capability.PlatformOpenAI,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{channelService: routingtestkit.Channel(groupID, capability.PlatformOpenAI, channel)})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"channel-model": "upstream-model"},
-		},
+		}},
 	}
 
 	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), groupID, account, "client-alias", false))
@@ -149,7 +147,7 @@ func TestOpenAIUpstreamRestrictionUsesActuallyForwardedOAuthModel(t *testing.T) 
 		groupID         int64
 		channelModel    string
 		pricingModel    string
-		account         *Account
+		account         *gatewayprovider.ExecutionAccount
 		restricted      bool
 		httpPassthrough bool
 	}{
@@ -158,14 +156,14 @@ func TestOpenAIUpstreamRestrictionUsesActuallyForwardedOAuthModel(t *testing.T) 
 			groupID:      4204,
 			channelModel: "gpt-5.6-sol-high",
 			pricingModel: "gpt-5.6-sol",
-			account:      &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
+			account:      &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}},
 		},
 		{
 			name:         "OAuth 归一化前的模型不能冒充最终模型",
 			groupID:      4205,
 			channelModel: "gpt-5.6-sol-high",
 			pricingModel: "gpt-5.6-sol-high",
-			account:      &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
+			account:      &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}},
 			restricted:   true,
 		},
 		{
@@ -173,7 +171,7 @@ func TestOpenAIUpstreamRestrictionUsesActuallyForwardedOAuthModel(t *testing.T) 
 			groupID:      4207,
 			channelModel: "gpt-5.6",
 			pricingModel: "gpt-5.6-sol",
-			account:      &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
+			account:      &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}},
 			restricted:   true,
 		},
 		{
@@ -181,13 +179,12 @@ func TestOpenAIUpstreamRestrictionUsesActuallyForwardedOAuthModel(t *testing.T) 
 			groupID:      4206,
 			channelModel: "passthrough-model",
 			pricingModel: "passthrough-model",
-			account: &Account{
-				Platform: capability.PlatformOpenAI,
-				Type:     capability.AccountTypeOAuth,
-				Extra:    map[string]any{"openai_passthrough": true},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+				Type:  capability.AccountTypeOAuth,
+				Extra: map[string]any{"openai_passthrough": true},
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"passthrough-model": "mapped-model"},
-				},
+				}},
 			},
 			httpPassthrough: true,
 		},
@@ -209,7 +206,7 @@ func TestOpenAIUpstreamRestrictionUsesActuallyForwardedOAuthModel(t *testing.T) 
 					InputPrice: &price,
 				}},
 			}
-			svc := &OpenAIGatewayService{channelService: routingtestkit.Channel(tt.groupID, capability.PlatformOpenAI, channel)}
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{channelService: routingtestkit.Channel(tt.groupID, capability.PlatformOpenAI, channel)})
 
 			ctx := context.Background()
 			if tt.httpPassthrough {
@@ -223,8 +220,7 @@ func TestOpenAIUpstreamRestrictionUsesActuallyForwardedOAuthModel(t *testing.T) 
 
 // TestOpenAIHTTPPassthroughIgnoresStoredAccountModelRules 验证自动透传账号不会被保留的旧白名单误拒绝。
 func TestOpenAIHTTPPassthroughIgnoresStoredAccountModelRules(t *testing.T) {
-	account := Account{
-		ID:          76,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 76,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Status:      billing.StatusActive,
@@ -233,7 +229,7 @@ func TestOpenAIHTTPPassthroughIgnoresStoredAccountModelRules(t *testing.T) {
 		Credentials: map[string]any{
 			"model_mapping":   map[string]any{"client-model": "mapped-model"},
 			"model_whitelist": []any{"other-model"},
-		},
+		}},
 	}
 	plainCtx := context.Background()
 	passthroughCtx := WithOpenAIHTTPPassthroughRouting(plainCtx)
@@ -243,19 +239,19 @@ func TestOpenAIHTTPPassthroughIgnoresStoredAccountModelRules(t *testing.T) {
 	require.True(t, isOpenAICompatibleAccountEligibleForRequest(plainCtx, &account, capability.PlatformOpenAI, "client-model", false, ""))
 	require.True(t, isOpenAICompatibleAccountEligibleForRequest(passthroughCtx, &account, capability.PlatformOpenAI, "client-model", false, ""))
 
-	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{}, stats: newOpenAIAccountRuntimeStats()}
+	scheduler := &defaultOpenAIAccountScheduler{service: withSchedulerParametersForTest(&OpenAIGatewayService{}), stats: scheduler.NewRuntimeStats(time.Now)}
 	req := OpenAIAccountScheduleRequest{Platform: capability.PlatformOpenAI, RequestedModel: "client-model", RoutingModel: "client-model"}
 	require.True(t, scheduler.isAccountRequestCompatible(plainCtx, &account, req))
 	require.True(t, scheduler.isAccountRequestCompatible(passthroughCtx, &account, req))
 
-	plainErr := noAvailableOpenAISelectionErrorForRouting(plainCtx, "client-model", "client-model", false, []Account{account})
+	plainErr := noAvailableOpenAISelectionErrorForRouting(plainCtx, "client-model", "client-model", false, []gatewayprovider.ExecutionAccount{account})
 	var modelErr *routing.GroupModelUnsupportedError
 	require.False(t, errors.As(plainErr, &modelErr))
-	passthroughErr := noAvailableOpenAISelectionErrorForRouting(passthroughCtx, "client-model", "client-model", false, []Account{account})
+	passthroughErr := noAvailableOpenAISelectionErrorForRouting(passthroughCtx, "client-model", "client-model", false, []gatewayprovider.ExecutionAccount{account})
 	modelErr = nil
 	require.False(t, errors.As(passthroughErr, &modelErr))
 
-	svc := &OpenAIGatewayService{accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{account}}}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}))
 	require.True(t, svc.DiagnoseRoutingModelAvailabilityForPlatform(plainCtx, nil, "client-model", capability.PlatformOpenAI).HasModelSupport)
 	require.True(t, svc.DiagnoseRoutingModelAvailabilityForPlatform(passthroughCtx, nil, "client-model", capability.PlatformOpenAI).HasModelSupport)
 }
@@ -269,8 +265,7 @@ func TestModelAvailabilityDiagnosisAcceptsChannelAlias(t *testing.T) {
 			capability.PlatformOpenAI: {"client-alias": "channel-model"},
 		},
 	}
-	account := Account{
-		ID:          75,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 75,
 		Platform:    capability.PlatformOpenAI,
 		Status:      billing.StatusActive,
 		Schedulable: true,
@@ -278,12 +273,12 @@ func TestModelAvailabilityDiagnosisAcceptsChannelAlias(t *testing.T) {
 		Credentials: map[string]any{
 			"model_mapping":   map[string]any{"channel-model": "upstream-model"},
 			"model_whitelist": []any{"upstream-model"},
-		},
+		}},
 	}
-	svc := &OpenAIGatewayService{
-		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []Account{account}},
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
 		channelService: routingtestkit.Channel(groupID, capability.PlatformOpenAI, channel),
-	}
+	}))
 
 	diagnosis := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "client-alias", capability.PlatformOpenAI)
 	require.True(t, diagnosis.HasAccountsInPool)
@@ -322,9 +317,8 @@ func TestResolveOpenAIWSRoutingModelForAccountStrictlyFollowsBillingBasis(t *tes
 					InputPrice: &price,
 				}},
 			}
-			svc := &OpenAIGatewayService{channelService: routingtestkit.Channel(groupID, capability.PlatformOpenAI, channel)}
-			account := &Account{
-				ID:          90,
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{channelService: routingtestkit.Channel(groupID, capability.PlatformOpenAI, channel)})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 90,
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
 				Status:      billing.StatusActive,
@@ -332,7 +326,7 @@ func TestResolveOpenAIWSRoutingModelForAccountStrictlyFollowsBillingBasis(t *tes
 				Credentials: map[string]any{
 					"model_mapping":   map[string]any{"channel-model": "upstream-model"},
 					"model_whitelist": []any{"upstream-model"},
-				},
+				}},
 			}
 
 			routingModel, err := svc.ResolveOpenAIWSRoutingModelForAccount(
@@ -351,8 +345,7 @@ func TestResolveOpenAIWSRoutingModelForAccountStrictlyFollowsBillingBasis(t *tes
 
 // TestResolveOpenAIWSRoutingModelForAccountRejectsUnsupportedMappedModel 验证后续 turn 不能绕过固定账号的最终白名单。
 func TestResolveOpenAIWSRoutingModelForAccountRejectsUnsupportedMappedModel(t *testing.T) {
-	account := &Account{
-		ID:          91,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 91,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
 		Status:      billing.StatusActive,
@@ -360,9 +353,9 @@ func TestResolveOpenAIWSRoutingModelForAccountRejectsUnsupportedMappedModel(t *t
 		Credentials: map[string]any{
 			"model_mapping":   map[string]any{"channel-model": "upstream-model"},
 			"model_whitelist": []any{"different-upstream-model"},
-		},
+		}},
 	}
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	routingModel, err := svc.ResolveOpenAIWSRoutingModelForAccount(
 		context.Background(), nil, account, "channel-model", accountcore.OpenAIEndpointCapabilityTextGeneration,

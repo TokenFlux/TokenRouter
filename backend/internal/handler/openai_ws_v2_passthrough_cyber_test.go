@@ -1,8 +1,11 @@
 package handler
 
 import (
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
 	usage "github.com/TokenFlux/TokenRouter/internal/usage"
@@ -25,7 +28,6 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/testutil"
 
@@ -65,8 +67,7 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	settingSvc := gatewaytestkit.RuntimeReaders(settingRepo)
 
 	groupID := int64(4301)
-	account := service.Account{
-		ID:          9951,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9951,
 		Name:        "openai-ws-passthrough-cyber",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -77,7 +78,7 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_enabled": true,
 			"openai_apikey_responses_websockets_v2_mode":    accountcore.OpenAIWSIngressModePassthrough,
-		},
+		}},
 	}
 	cfg := &config.Config{}
 	cfg.RunMode = config.RunModeSimple
@@ -97,10 +98,13 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *usage.UsageLog, 2)}
 	billingCacheSvc := newBillingEligibilityFixture(cfg)
 	billingCacheSvc.Start()
+	completionInput16 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
+	completionInput17 := &accountcore.DeferredService{}
 	gatewaySvc := service.NewOpenAIGatewayService(
-		accountRepo, usageRepo, nil, nil, nil, nil, gatewayCache, cfg, nil, nil, billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil), nil, billingCacheSvc, nil, nil, &accountcore.DeferredService{},
-		nil, nil, nil, nil, nil, settingSvc, nil,
+		accountRepo, usageRepo, gatewayCache, cfg, nil, nil, nil, nil, nil, completionInput17, newOpenAIExecutionCredentialsForTest(accountRepo, nil), nil, nil, nil, settingSvc, nil, responseHeaderFilterForTest(cfg), nil,
 	)
+	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, usageRepo, completionInput16, billingCacheSvc, completionInput17, nil, nil, true))
+
 	concurrencyCache := &concurrencyCacheMock{
 		acquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },
 		acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
@@ -123,8 +127,8 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	handlerDone := make(chan struct{})
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set(string(middleware.ContextKeyAPIKey), apiKey)
-		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.User.ID, Concurrency: 1})
+		c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
+		c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: apiKey.User.ID, Concurrency: 1})
 		c.Next()
 	})
 	router.GET("/openai/v1/responses", func(c *gin.Context) {

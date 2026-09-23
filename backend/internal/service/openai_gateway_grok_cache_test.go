@@ -8,9 +8,13 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
@@ -30,10 +34,10 @@ func newGrokCacheTestContext(apiKeyID int64) *gin.Context {
 }
 
 func TestGrokPreviousResponseSessionSeed(t *testing.T) {
-	require.Equal(t, "grok-prev-resp:resp_abc123", grokPreviousResponseSessionSeed([]byte(`{"previous_response_id":"resp_abc123"}`)))
-	require.Empty(t, grokPreviousResponseSessionSeed([]byte(`{"previous_response_id":"msg_abc123"}`)))
-	require.Empty(t, grokPreviousResponseSessionSeed([]byte(`{"previous_response_id":""}`)))
-	require.Empty(t, grokPreviousResponseSessionSeed([]byte(`{}`)))
+	require.Equal(t, "grok-prev-resp:resp_abc123", gatewaysession.GrokPreviousResponseSeed([]byte(`{"previous_response_id":"resp_abc123"}`)))
+	require.Empty(t, gatewaysession.GrokPreviousResponseSeed([]byte(`{"previous_response_id":"msg_abc123"}`)))
+	require.Empty(t, gatewaysession.GrokPreviousResponseSeed([]byte(`{"previous_response_id":""}`)))
+	require.Empty(t, gatewaysession.GrokPreviousResponseSeed([]byte(`{}`)))
 }
 
 func TestResolveGrokCacheIdentityUsesPreviousResponseIDWhenNoOtherSeed(t *testing.T) {
@@ -146,14 +150,14 @@ func TestResolveGrokCacheIdentityIsolatesAPIKeyAndMappedModel(t *testing.T) {
 func TestResolveGrokCacheIdentityUsesAndIsolatesNativeConversationHeader(t *testing.T) {
 
 	c := newGrokCacheTestContext(301)
-	c.Request.Header.Set(grokConversationIDHeader, "raw-native-conversation")
+	c.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, "raw-native-conversation")
 	body1 := []byte(`{"model":"grok","input":"one"}`)
 	body2 := []byte(`{"model":"grok","input":"different body that must not replace the explicit session"}`)
 
 	first := resolveGrokCacheIdentity(c, body1, "body-cache-key", "grok-4.5")
 	second := resolveGrokCacheIdentity(c, body2, "another-body-cache-key", "grok-4.5")
 
-	require.Equal(t, "raw-native-conversation", (&OpenAIGatewayService{}).ExtractSessionID(c, body1))
+	require.Equal(t, "raw-native-conversation", gatewayhttp.ExplicitOpenAIRequestSessionID(c, body1))
 	require.Equal(t, first, second)
 	require.NotEqual(t, "raw-native-conversation", first)
 	require.NotContains(t, first, "raw-native-conversation")
@@ -163,7 +167,7 @@ func TestResolveGrokCacheIdentityExplicitHeaderPriority(t *testing.T) {
 
 	body := []byte(`{"model":"grok","prompt_cache_key":"body-key","input":"hi"}`)
 	c := newGrokCacheTestContext(401)
-	c.Request.Header.Set(grokConversationIDHeader, "grok-key")
+	c.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, "grok-key")
 	c.Request.Header.Set("conversation_id", "conversation-key")
 	c.Request.Header.Set("session_id", "session-key")
 
@@ -182,11 +186,11 @@ func TestResolveGrokCacheIdentityIDEHeaderPriority(t *testing.T) {
 		name  string
 		value string
 	}{
-		{name: openCodeSessionAffinityHeader, value: "opencode-affinity"},
-		{name: openCodeSessionIDHeader, value: "opencode-session-id"},
-		{name: openCodeNativeSessionHeader, value: "opencode-native-session"},
-		{name: codeBuddyConversationHeader, value: "codebuddy-conversation"},
-		{name: grokConversationIDHeader, value: "grok-conversation"},
+		{name: gatewayhttp.OpenCodeSessionAffinityHeader, value: "opencode-affinity"},
+		{name: gatewayhttp.OpenCodeSessionIDHeader, value: "opencode-session-id"},
+		{name: gatewayhttp.OpenCodeNativeSessionHeader, value: "opencode-native-session"},
+		{name: gatewayhttp.CodeBuddyConversationHeader, value: "codebuddy-conversation"},
+		{name: gatewayhttp.GrokConversationIDHeader, value: "grok-conversation"},
 	}
 
 	c := newGrokCacheTestContext(402)
@@ -197,7 +201,7 @@ func TestResolveGrokCacheIdentityIDEHeaderPriority(t *testing.T) {
 		got := resolveGrokCacheIdentity(c, body, "explicit-argument", "grok-4.5")
 		onlyCurrent := newGrokCacheTestContext(402)
 		onlyCurrent.Request.Header.Set(header.name, header.value)
-		if header.name == grokConversationIDHeader {
+		if header.name == gatewayhttp.GrokConversationIDHeader {
 			// prompt_cache_key beats X-Grok-Conv-Id: verify the identity is
 			// derived from the body key, not the per-call conv label.
 			withOnlyBody := newGrokCacheTestContext(402)
@@ -226,18 +230,18 @@ func TestResolveGrokCacheIdentitySideCallSharesParentCacheKey(t *testing.T) {
 	parentSession := "6f1c2f46-0f5e-4f9d-9d4e-2f0f1c3d5b7a"
 
 	mainTurn := newGrokCacheTestContext(910)
-	mainTurn.Request.Header.Set(grokConversationIDHeader, parentSession)
+	mainTurn.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, parentSession)
 	mainIdentity := resolveGrokCacheIdentity(mainTurn, []byte(`{"model":"grok-4.6","input":"main conversation"}`), "", "grok-4.6")
 	require.NotEmpty(t, mainIdentity)
 
 	sideCall := newGrokCacheTestContext(910)
-	sideCall.Request.Header.Set(grokConversationIDHeader, "turn-summary-"+uuidNew())
+	sideCall.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, "turn-summary-"+uuidNew())
 	sideIdentity := resolveGrokCacheIdentity(sideCall, []byte(`{"model":"grok-4.6","prompt_cache_key":"`+parentSession+`","input":"summary replay"}`), "", "grok-4.6")
 	require.Equal(t, mainIdentity, sideIdentity,
 		"side-call with parent prompt_cache_key must share the main turn cache identity")
 
 	titleRefresh := newGrokCacheTestContext(910)
-	titleRefresh.Request.Header.Set(grokConversationIDHeader, "title-refresh-"+uuidNew())
+	titleRefresh.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, "title-refresh-"+uuidNew())
 	titleIdentity := resolveGrokCacheIdentity(titleRefresh, []byte(`{"model":"grok-4.6","prompt_cache_key":"`+parentSession+`","input":"title replay"}`), "", "grok-4.6")
 	require.Equal(t, mainIdentity, titleIdentity)
 }
@@ -253,14 +257,14 @@ func TestExplicitGrokCacheSeedPriority(t *testing.T) {
 		name  string
 		value string
 	}{
-		{name: claudeCodeSessionHeader, value: "claude-session"},
+		{name: gatewayhttp.ClaudeCodeSessionHeader, value: "claude-session"},
 		{name: "session_id", value: "generic-session"},
 		{name: "conversation_id", value: "generic-conversation"},
-		{name: openCodeSessionAffinityHeader, value: "opencode-affinity"},
-		{name: openCodeSessionIDHeader, value: "opencode-session-id"},
-		{name: openCodeNativeSessionHeader, value: "opencode-native-session"},
-		{name: codeBuddyConversationHeader, value: "codebuddy-conversation"},
-		{name: grokConversationIDHeader, value: "grok-conversation"},
+		{name: gatewayhttp.OpenCodeSessionAffinityHeader, value: "opencode-affinity"},
+		{name: gatewayhttp.OpenCodeSessionIDHeader, value: "opencode-session-id"},
+		{name: gatewayhttp.OpenCodeNativeSessionHeader, value: "opencode-native-session"},
+		{name: gatewayhttp.CodeBuddyConversationHeader, value: "codebuddy-conversation"},
+		{name: gatewayhttp.GrokConversationIDHeader, value: "grok-conversation"},
 	}
 	for _, header := range headers {
 		c.Request.Header.Set(header.name, header.value)
@@ -270,7 +274,7 @@ func TestExplicitGrokCacheSeedPriority(t *testing.T) {
 	for _, header := range headers {
 		var want string
 		switch header.name {
-		case grokConversationIDHeader:
+		case gatewayhttp.GrokConversationIDHeader:
 			// Client-declared prompt_cache_key outranks X-Grok-Conv-Id: the
 			// grok-build CLI pairs a fresh per-side-call conv label with the
 			// stable parent session id in the body field, and the body field
@@ -292,10 +296,10 @@ func TestResolveGrokCacheIdentityIDEHeadersAreStableIsolatedAndOpaque(t *testing
 		name   string
 		header string
 	}{
-		{name: "OpenCode affinity", header: openCodeSessionAffinityHeader},
-		{name: "OpenCode session ID", header: openCodeSessionIDHeader},
-		{name: "OpenCode native session", header: openCodeNativeSessionHeader},
-		{name: "CodeBuddy conversation", header: codeBuddyConversationHeader},
+		{name: "OpenCode affinity", header: gatewayhttp.OpenCodeSessionAffinityHeader},
+		{name: "OpenCode session ID", header: gatewayhttp.OpenCodeSessionIDHeader},
+		{name: "OpenCode native session", header: gatewayhttp.OpenCodeNativeSessionHeader},
+		{name: "CodeBuddy conversation", header: gatewayhttp.CodeBuddyConversationHeader},
 	}
 
 	for index, tt := range tests {
@@ -326,8 +330,8 @@ func TestOpenCodeResponsesHeaderAndBodyCacheSignalsConverge(t *testing.T) {
 
 	const rawSession = "opencode-session-42"
 	c := newGrokCacheTestContext(901)
-	c.Request.Header.Set(openCodeSessionAffinityHeader, rawSession)
-	c.Request.Header.Set(openCodeSessionIDHeader, rawSession)
+	c.Request.Header.Set(gatewayhttp.OpenCodeSessionAffinityHeader, rawSession)
+	c.Request.Header.Set(gatewayhttp.OpenCodeSessionIDHeader, rawSession)
 	firstBody := []byte(`{"model":"grok","prompt_cache_key":"opencode-session-42","input":"first turn"}`)
 	secondBody := []byte(`{"model":"grok","prompt_cache_key":"opencode-session-42","input":"different second turn"}`)
 
@@ -343,14 +347,14 @@ func TestOpenCodeResponsesHeaderAndBodyCacheSignalsConverge(t *testing.T) {
 	require.Equal(t, second, gjson.GetBytes(patched, "prompt_cache_key").String())
 	headers := make(http.Header)
 	xai.ApplyGrokCacheHeaders(headers, second)
-	require.Equal(t, second, headers.Get(grokConversationIDHeader))
+	require.Equal(t, second, headers.Get(gatewayhttp.GrokConversationIDHeader))
 	require.NotContains(t, string(patched), rawSession)
 }
 
 func TestResolveGrokCacheIdentityPrefersClaudeCodeSession(t *testing.T) {
 
 	c := newGrokCacheTestContext(701)
-	c.Request.Header.Set(claudeCodeSessionHeader, "cc-session-abc")
+	c.Request.Header.Set(gatewayhttp.ClaudeCodeSessionHeader, "cc-session-abc")
 	c.Request.Header.Set("session_id", "session-key")
 	body1 := []byte(`{"model":"grok","input":"turn-1"}`)
 	body2 := []byte(`{"model":"grok","input":"turn-2-different-user-text"}`)
@@ -372,7 +376,7 @@ func TestResolveGrokCacheIdentityPrefersClaudeCodeSession(t *testing.T) {
 func TestResolveGrokCacheIdentityFailsClosedWithoutAPIKeyContext(t *testing.T) {
 
 	c := newGrokCacheTestContext(0)
-	c.Request.Header.Set(grokConversationIDHeader, "native-session")
+	c.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, "native-session")
 
 	require.Empty(t, resolveGrokCacheIdentity(c, []byte(`{"model":"grok","input":"hi"}`), "", "grok-4.5"))
 	require.Empty(t, resolveGrokCacheIdentity(nil, []byte(`{"model":"grok","prompt_cache_key":"key"}`), "key", "grok-4.5"))
@@ -383,20 +387,17 @@ func TestGrokConversationHeaderIsScopedToGrokRequestScheduling(t *testing.T) {
 	body := []byte(`{"model":"grok","prompt_cache_key":"body-session","input":"hi"}`)
 
 	grokContext := newGrokCacheTestContext(601)
-	grokContext.Request.Header.Set(grokConversationIDHeader, "native-grok-session")
-	require.Equal(t, "native-grok-session", (&OpenAIGatewayService{}).ExtractSessionID(grokContext, body))
+	grokContext.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, "native-grok-session")
+	require.Equal(t, "native-grok-session", gatewayhttp.ExplicitOpenAIRequestSessionID(grokContext, body))
 
 	openAIContext := newGrokCacheTestContext(601)
 	openAIContext.Set("api_key", &apikey.APIKey{ID: 601, Group: &routing.Group{Platform: capability.PlatformOpenAI}})
-	openAIContext.Request.Header.Set(grokConversationIDHeader, "must-be-ignored")
-	require.Equal(t, "body-session", (&OpenAIGatewayService{}).ExtractSessionID(openAIContext, body))
+	openAIContext.Request.Header.Set(gatewayhttp.GrokConversationIDHeader, "must-be-ignored")
+	require.Equal(t, "body-session", gatewayhttp.ExplicitOpenAIRequestSessionID(openAIContext, body))
 
 	withoutGrokHeader := newGrokCacheTestContext(601)
 	withoutGrokHeader.Set("api_key", &apikey.APIKey{ID: 601, Group: &routing.Group{Platform: capability.PlatformOpenAI}})
-	require.Equal(t,
-		(&OpenAIGatewayService{}).GenerateSessionHash(withoutGrokHeader, body),
-		(&OpenAIGatewayService{}).GenerateSessionHash(openAIContext, body),
-	)
+	require.Equal(t, gatewayhttp.GenerateOpenAISessionHash(withoutGrokHeader, body), gatewayhttp.GenerateOpenAISessionHash(openAIContext, body))
 }
 
 func TestApplyGrokCacheIdentityWritesResponsesBodyAndHeader(t *testing.T) {
@@ -409,11 +410,11 @@ func TestApplyGrokCacheIdentityWritesResponsesBodyAndHeader(t *testing.T) {
 	require.Equal(t, grokFreeCacheDisabledToolChoice, gjson.GetBytes(body, "tool_choice").String())
 
 	headers := make(http.Header)
-	headers.Set(grokConversationIDHeader, "spoofed-client-value")
+	headers.Set(gatewayhttp.GrokConversationIDHeader, "spoofed-client-value")
 	xai.ApplyGrokCacheHeaders(headers, "isolated-id")
-	require.Equal(t, "isolated-id", headers.Get(grokConversationIDHeader))
+	require.Equal(t, "isolated-id", headers.Get(gatewayhttp.GrokConversationIDHeader))
 	xai.ApplyGrokCacheHeaders(headers, "")
-	require.Empty(t, headers.Get(grokConversationIDHeader))
+	require.Empty(t, headers.Get(gatewayhttp.GrokConversationIDHeader))
 
 	chatBody, err := xai.StripGrokChatPromptCacheKey(body)
 	require.NoError(t, err)
@@ -429,7 +430,7 @@ func TestApplyGrokCacheIdentityWritesResponsesBodyAndHeader(t *testing.T) {
 
 func TestGrokFreeMessagesClientToolCacheDefaultsOnForKnownFree(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(901, "access-token")
-	account.Credentials["subscription_tier"] = " FREE "
+	account.Record.Credentials["subscription_tier"] = " FREE "
 	tests := []struct {
 		name           string
 		toolChoiceJSON string
@@ -464,7 +465,7 @@ func TestGrokFreeMessagesClientToolCacheDefaultsOnForKnownFree(t *testing.T) {
 // Grok Build 可能把原生搜索工具声明成同名函数，缓存路由必须转换并去重。
 func TestGrokFreeFunctionToolCacheRouteConvertsNamedSearchFunctions(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(916, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	intentBody := []byte(`{
 		"model":"grok",
 		"tools":[
@@ -506,8 +507,8 @@ func TestGrokFreeMessagesClientToolCacheDefaultsWithMissingAccountSetting(t *tes
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			account := healthyGrokOAuthGatewayTestAccount(90101, "access-token")
-			account.Credentials["subscription_tier"] = "free"
-			account.Extra = tt.extra
+			account.Record.Credentials["subscription_tier"] = "free"
+			account.Record.Extra = tt.extra
 
 			patched, err := applyGrokFreeMessagesFunctionToolCacheRoute(body, body, account, "isolated-id")
 
@@ -522,7 +523,7 @@ func TestGrokFreeMessagesClientToolCacheDefaultsWithMissingAccountSetting(t *tes
 
 func TestApplyGrokCacheIdentityAppendsNativeToolsWhenSearchPresent(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(901, "access-token")
-	account.Credentials["subscription_tier"] = " FREE "
+	account.Record.Credentials["subscription_tier"] = " FREE "
 
 	// 包含 web_search 的函数工具会转换为原生工具，并补齐 x_search。
 	intentBody := []byte(`{"model":"grok","tools":[{"type":"function","name":"lookup","description":"look up a value","parameters":{"type":"object"}},{"type":"function","name":"web_search","description":"search","parameters":{"type":"object"}}]}`)
@@ -541,8 +542,8 @@ func TestApplyGrokCacheIdentityAppendsNativeToolsWhenSearchPresent(t *testing.T)
 
 func TestGrokFreeClientToolCacheAccountOptIn(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(9011, "access-token")
-	account.Credentials["subscription_tier"] = "free"
-	account.Extra = map[string]any{grokClientToolCacheOptInExtraKey: true}
+	account.Record.Credentials["subscription_tier"] = "free"
+	account.Record.Extra = map[string]any{grokClientToolCacheOptInExtraKey: true}
 	intentBody := []byte(`{"model":"grok","tools":[{"type":"function","name":"view_image","parameters":{"type":"object"}},{"type":"function","name":"read_file","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
 
 	body, err := xai.ApplyGrokResponsesCacheIdentity(intentBody, intentBody, "isolated-id", true)
@@ -573,8 +574,8 @@ func TestGrokFreeMessagesClientToolCacheAccountOptOut(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			account := healthyGrokOAuthGatewayTestAccount(90111, "access-token")
-			account.Credentials["subscription_tier"] = "free"
-			account.Extra = map[string]any{grokClientToolCacheOptInExtraKey: tt.value}
+			account.Record.Credentials["subscription_tier"] = "free"
+			account.Record.Extra = map[string]any{grokClientToolCacheOptInExtraKey: tt.value}
 
 			patched, err := applyGrokFreeMessagesFunctionToolCacheRoute(body, body, account, "isolated-id")
 
@@ -586,8 +587,8 @@ func TestGrokFreeMessagesClientToolCacheAccountOptOut(t *testing.T) {
 
 func TestGrokFreeClientToolCacheRequestOptInOverridesAccountOptOut(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(9014, "access-token")
-	account.Credentials["subscription_tier"] = "free"
-	account.Extra = map[string]any{grokClientToolCacheOptInExtraKey: false}
+	account.Record.Credentials["subscription_tier"] = "free"
+	account.Record.Extra = map[string]any{grokClientToolCacheOptInExtraKey: false}
 	c := newGrokCacheTestContext(9014)
 	c.Request.Header.Set(grokClientToolCacheOptInHeader, "prefer-cache")
 	intentBody := []byte(`{"model":"grok","tools":[{"type":"function","name":"view_image","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
@@ -606,7 +607,7 @@ func TestGrokFreeClientToolCacheRequestOptInOverridesAccountOptOut(t *testing.T)
 
 func TestGrokFreeChatRequestClientToolCacheDefaultsOnWithoutClientFingerprint(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(90140, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	c := newGrokCacheTestContext(90140)
 	c.Request.URL.Path = "/v1/chat/completions"
 	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"view_image","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
@@ -623,7 +624,7 @@ func TestGrokFreeChatRequestClientToolCacheDefaultsOnWithoutClientFingerprint(t 
 
 func TestGrokFreeClientToolCacheClaudeDesktopResponsesAutoOptIn(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(90141, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"Read","parameters":{"type":"object"}},{"type":"function","name":"Edit","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
 
 	for _, xApp := range []string{"cli", "cli-bg"} {
@@ -650,8 +651,8 @@ func TestGrokFreeClientToolCacheClaudeDesktopResponsesAutoOptIn(t *testing.T) {
 
 func TestGrokFreeClientToolCacheClaudeDesktopFingerprintRequiresAllSignals(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(90142, "access-token")
-	account.Credentials["subscription_tier"] = "free"
-	account.Extra = map[string]any{grokClientToolCacheOptInExtraKey: false}
+	account.Record.Credentials["subscription_tier"] = "free"
+	account.Record.Extra = map[string]any{grokClientToolCacheOptInExtraKey: false}
 	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"Read","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
 
 	tests := []struct {
@@ -752,7 +753,7 @@ func TestGrokFreeClientToolCacheClaudeDesktopFingerprintRequiresAllSignals(t *te
 
 func TestGrokFreeClientToolCacheExplicitRequestOptOut(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(90144, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"Read","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
 
 	for _, value := range []string{"0", "false", "no", "off"} {
@@ -771,7 +772,7 @@ func TestGrokFreeClientToolCacheExplicitRequestOptOut(t *testing.T) {
 
 func TestGrokFreeClientToolCacheClaudeDesktopAutoOptInDoesNotOverridePaidTier(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(90143, "access-token")
-	account.Credentials["subscription_tier"] = "supergrok"
+	account.Record.Credentials["subscription_tier"] = "supergrok"
 	c := newGrokCacheTestContext(90143)
 	c.Request.Header.Set("User-Agent", "claude-cli/2.1.215 (external, claude-desktop-3p, agent-sdk/0.3.215)")
 	c.Request.Header.Set("X-App", "cli")
@@ -787,7 +788,7 @@ func TestGrokFreeClientToolCacheClaudeDesktopAutoOptInDoesNotOverridePaidTier(t 
 
 func TestGrokFreeRequestClientSearchFunctionUsesDefaultAccountPolicy(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(9015, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	c := newGrokCacheTestContext(9015)
 	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"view_image","parameters":{"type":"object"}},{"type":"function","name":"web_search","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
 
@@ -803,7 +804,7 @@ func TestGrokFreeRequestClientSearchFunctionUsesDefaultAccountPolicy(t *testing.
 
 func TestGrokFreeRequestToolChoiceNoneUsesSafeCacheRoute(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(9016, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	c := newGrokCacheTestContext(9016)
 	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"view_image","parameters":{"type":"object"}}],"tool_choice":"none"}`)
 
@@ -834,7 +835,7 @@ func TestApplyGrokCacheIdentityRecognizesResponsesLiteAdditionalTools(t *testing
 
 func TestGrokFreeCacheRoutePreservesMixedSupportedToolsWithSearchIntent(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(9012, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	intentBody := []byte(`{"model":"grok","tools":[{"type":"function","name":"view_image","parameters":{"type":"object"}},{"type":"shell"},{"type":"web_search"}],"tool_choice":"auto"}`)
 
 	body, err := xai.ApplyGrokResponsesCacheIdentity(intentBody, intentBody, "isolated-id", true)
@@ -852,8 +853,8 @@ func TestGrokFreeCacheRoutePreservesMixedSupportedToolsWithSearchIntent(t *testi
 
 func TestGrokClientToolCacheOptInDoesNotOverridePaidTier(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(9013, "access-token")
-	account.Credentials["subscription_tier"] = "supergrok"
-	account.Extra = map[string]any{grokClientToolCacheOptInExtraKey: true}
+	account.Record.Credentials["subscription_tier"] = "supergrok"
+	account.Record.Extra = map[string]any{grokClientToolCacheOptInExtraKey: true}
 	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"view_image","parameters":{"type":"object"}}],"tool_choice":"auto"}`)
 
 	patched, err := applyGrokFreeMessagesFunctionToolCacheRoute(body, body, account, "isolated-id")
@@ -864,7 +865,7 @@ func TestGrokClientToolCacheOptInDoesNotOverridePaidTier(t *testing.T) {
 
 func TestApplyGrokCacheIdentityRequiresPatchedFunctionTools(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(902, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	intentBody := []byte(`{"model":"grok","tools":[{"type":"function","name":"lookup"}],"tool_choice":"auto"}`)
 	tests := []struct {
 		name        string
@@ -897,32 +898,32 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 	intentBody := []byte(`{"model":"grok","tools":[{"type":"function","name":"lookup"},{"type":"function","name":"web_search"}],"tool_choice":"auto"}`)
 	tests := []struct {
 		name    string
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 		wantMix bool
 	}{
 		{
 			name: "free credential tier",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(910, "access-token")
-				a.Credentials["subscription_tier"] = "free"
+				a.Record.Credentials["subscription_tier"] = "free"
 				return a
 			}(),
 			wantMix: true,
 		},
 		{
 			name: "free billing tier",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(911, "access-token")
-				a.Extra = map[string]any{accountcore.GrokUsageBillingExtraKey: map[string]any{"plan": "FREE"}}
+				a.Record.Extra = map[string]any{accountcore.GrokUsageBillingExtraKey: map[string]any{"plan": "FREE"}}
 				return a
 			}(),
 			wantMix: true,
 		},
 		{
 			name: "free successful billing has blank plan",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(9111, "access-token")
-				a.Extra = map[string]any{accountcore.GrokUsageBillingExtraKey: map[string]any{
+				a.Record.Extra = map[string]any{accountcore.GrokUsageBillingExtraKey: map[string]any{
 					"status_code":        http.StatusOK,
 					"source":             "billing_probe",
 					"monthly_updated_at": "2026-07-15T05:00:00Z",
@@ -933,9 +934,9 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 		},
 		{
 			name: "free rolling token quota",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(9112, "access-token")
-				a.Extra = map[string]any{grokQuotaSnapshotExtraKey: map[string]any{
+				a.Record.Extra = map[string]any{grokQuotaSnapshotExtraKey: map[string]any{
 					"headers_observed": true,
 					"tokens":           map[string]any{"limit": xai.GrokFreeRolling24hTokenLimit},
 				}}
@@ -945,9 +946,9 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 		},
 		{
 			name: "legacy free rolling token quota",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(9113, "access-token")
-				a.Extra = map[string]any{grokQuotaSnapshotExtraKey: map[string]any{
+				a.Record.Extra = map[string]any{grokQuotaSnapshotExtraKey: map[string]any{
 					"headers_observed": true,
 					"tokens":           map[string]any{"limit": int64(2_000_000)},
 				}}
@@ -957,17 +958,17 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 		},
 		{
 			name: "supergrok remains unchanged",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(912, "access-token")
-				a.Credentials["subscription_tier"] = "supergrok"
+				a.Record.Credentials["subscription_tier"] = "supergrok"
 				return a
 			}(),
 		},
 		{
 			name: "paid billing overrides stale free quota",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(9121, "access-token")
-				a.Extra = map[string]any{
+				a.Record.Extra = map[string]any{
 					accountcore.GrokUsageBillingExtraKey: map[string]any{"plan": "SuperGrok", "status_code": http.StatusOK},
 					grokQuotaSnapshotExtraKey: map[string]any{
 						"headers_observed": true,
@@ -979,10 +980,10 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 		},
 		{
 			name: "paid billing overrides stale free credentials",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(9123, "access-token")
-				a.Credentials["subscription_tier"] = "free"
-				a.Extra = map[string]any{
+				a.Record.Credentials["subscription_tier"] = "free"
+				a.Record.Extra = map[string]any{
 					accountcore.GrokUsageBillingExtraKey: map[string]any{"plan": "SuperGrok", "status_code": http.StatusOK},
 				}
 				return a
@@ -990,9 +991,9 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 		},
 		{
 			name: "partial billing without monthly evidence remains unknown",
-			account: func() *Account {
+			account: func() *gatewayprovider.ExecutionAccount {
 				a := healthyGrokOAuthGatewayTestAccount(9122, "access-token")
-				a.Extra = map[string]any{accountcore.GrokUsageBillingExtraKey: map[string]any{
+				a.Record.Extra = map[string]any{accountcore.GrokUsageBillingExtraKey: map[string]any{
 					"status_code":    http.StatusOK,
 					"source":         "billing_probe",
 					"partial":        true,
@@ -1007,10 +1008,9 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 		},
 		{
 			name: "api key remains unchanged",
-			account: &Account{
-				ID:       914,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 914,
 				Platform: capability.PlatformGrok,
-				Type:     capability.AccountTypeAPIKey,
+				Type:     capability.AccountTypeAPIKey},
 			},
 		},
 	}
@@ -1034,7 +1034,7 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 
 func TestGrokFreeMessagesFunctionToolCacheRouteRequiresIdentity(t *testing.T) {
 	account := healthyGrokOAuthGatewayTestAccount(915, "access-token")
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	body := []byte(`{"model":"grok","tools":[{"type":"function","name":"lookup"}],"tool_choice":"auto"}`)
 
 	patched, err := applyGrokFreeMessagesFunctionToolCacheRoute(body, body, account, "")

@@ -6,9 +6,11 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -17,11 +19,12 @@ import (
 // returned by GetByID, simulating cache miss + DB fallback.
 type dbFallbackRepoStub struct {
 	errorPolicyRepoStub
-	dbAccount *Account // returned by GetByID when non-nil
+	dbAccount *gatewayprovider. // returned by GetByID when non-nil
+			ExecutionAccount
 }
 
-func (r *dbFallbackRepoStub) GetByID(ctx context.Context, id int64) (*Account, error) {
-	if r.dbAccount != nil && r.dbAccount.ID == id {
+func (r *dbFallbackRepoStub) GetByID(ctx context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
+	if r.dbAccount != nil && r.dbAccount.Record.ID == id {
 		return r.dbAccount, nil
 	}
 	return nil, nil // not found, no error
@@ -34,15 +37,13 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 	// Antigravity: skips escalation logic (401 handled by applyErrorPolicy rules).
 	t.Run("gemini_escalates", func(t *testing.T) {
 		repo := &dbFallbackRepoStub{
-			dbAccount: &Account{
-				ID:                      20,
-				TempUnschedulableReason: `{"status_code":401,"until_unix":1735689600}`,
+			dbAccount: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 20,
+				TempUnschedulableReason: `{"status_code":401,"until_unix":1735689600}`},
 			},
 		}
-		svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+		svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
 
-		account := &Account{
-			ID:                      20,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 20,
 			Type:                    capability.AccountTypeOAuth,
 			Platform:                capability.PlatformGemini,
 			TempUnschedulableReason: "",
@@ -55,24 +56,22 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 						"duration_minutes": float64(10),
 					},
 				},
-			},
+			}},
 		}
 
-		result := svc.CheckErrorPolicy(context.Background(), account, http.StatusUnauthorized, []byte(`unauthorized`))
+		result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
 		require.Equal(t, accountcore.ErrorPolicyNone, result, "gemini 401 with DB fallback showing previous 401 should escalate")
 	})
 
 	t.Run("antigravity_stays_temp", func(t *testing.T) {
 		repo := &dbFallbackRepoStub{
-			dbAccount: &Account{
-				ID:                      20,
-				TempUnschedulableReason: `{"status_code":401,"until_unix":1735689600}`,
+			dbAccount: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 20,
+				TempUnschedulableReason: `{"status_code":401,"until_unix":1735689600}`},
 			},
 		}
-		svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+		svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
 
-		account := &Account{
-			ID:                      20,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 20,
 			Type:                    capability.AccountTypeOAuth,
 			Platform:                capability.PlatformAntigravity,
 			TempUnschedulableReason: "",
@@ -85,10 +84,10 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 						"duration_minutes": float64(10),
 					},
 				},
-			},
+			}},
 		}
 
-		result := svc.CheckErrorPolicy(context.Background(), account, http.StatusUnauthorized, []byte(`unauthorized`))
+		result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
 		require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "antigravity 401 skips escalation, stays temp-unscheduled")
 	})
 }
@@ -97,15 +96,13 @@ func TestCheckErrorPolicy_401_DBFallback_NoDBRecord_FirstHit(t *testing.T) {
 	// Scenario: cache account has empty TempUnschedulableReason,
 	// DB also has no previous 401 record → should NOT escalate (first hit → temp unscheduled).
 	repo := &dbFallbackRepoStub{
-		dbAccount: &Account{
-			ID:                      21,
-			TempUnschedulableReason: "", // DB also empty
+		dbAccount: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
+			TempUnschedulableReason: ""}, // DB also empty
 		},
 	}
-	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
 
-	account := &Account{
-		ID:                      21,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
 		Type:                    capability.AccountTypeOAuth,
 		Platform:                capability.PlatformAntigravity,
 		TempUnschedulableReason: "",
@@ -118,10 +115,10 @@ func TestCheckErrorPolicy_401_DBFallback_NoDBRecord_FirstHit(t *testing.T) {
 					"duration_minutes": float64(10),
 				},
 			},
-		},
+		}},
 	}
 
-	result := svc.CheckErrorPolicy(context.Background(), account, http.StatusUnauthorized, []byte(`unauthorized`))
+	result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
 	require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "401 first hit with no DB record should temp-unschedule")
 }
 
@@ -131,10 +128,9 @@ func TestCheckErrorPolicy_401_DBFallback_DBError_FirstHit(t *testing.T) {
 	repo := &dbFallbackRepoStub{
 		dbAccount: nil, // GetByID returns nil, nil
 	}
-	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
 
-	account := &Account{
-		ID:                      22,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 22,
 		Type:                    capability.AccountTypeOAuth,
 		Platform:                capability.PlatformAntigravity,
 		TempUnschedulableReason: "",
@@ -147,9 +143,9 @@ func TestCheckErrorPolicy_401_DBFallback_DBError_FirstHit(t *testing.T) {
 					"duration_minutes": float64(10),
 				},
 			},
-		},
+		}},
 	}
 
-	result := svc.CheckErrorPolicy(context.Background(), account, http.StatusUnauthorized, []byte(`unauthorized`))
+	result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
 	require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "401 first hit with DB not found should temp-unschedule")
 }

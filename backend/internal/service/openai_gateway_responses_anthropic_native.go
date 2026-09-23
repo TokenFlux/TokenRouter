@@ -15,6 +15,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"net/http"
 	"time"
@@ -34,7 +35,7 @@ import (
 func (s *OpenAIGatewayService) forwardResponsesViaNativeAnthropic(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	defaultMappedModel string,
 ) (*forwardcore.OpenAIResult, error) {

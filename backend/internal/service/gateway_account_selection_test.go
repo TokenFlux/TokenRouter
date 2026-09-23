@@ -6,7 +6,9 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
@@ -18,13 +20,12 @@ func testTimePtr(t time.Time) *time.Time { return &t }
 
 func makeAccWithLoad(id int64, priority int, loadRate int, lastUsed *time.Time, accType string) accountWithLoad {
 	return accountWithLoad{
-		account: &Account{
-			ID:          id,
+		account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
 			Priority:    priority,
 			LastUsedAt:  lastUsed,
 			Type:        accType,
 			Schedulable: true,
-			Status:      billing.StatusActive,
+			Status:      billing.StatusActive},
 		},
 		loadInfo: &scheduler.AccountLoadInfo{
 			AccountID:          id,
@@ -38,44 +39,44 @@ func makeAccWithLoad(id int64, priority int, loadRate int, lastUsed *time.Time, 
 
 func TestSortAccountsByPriorityAndLastUsed_ByPriority(t *testing.T) {
 	now := time.Now()
-	accounts := []*Account{
-		{ID: 1, Priority: 5, LastUsedAt: testTimePtr(now)},
-		{ID: 2, Priority: 1, LastUsedAt: testTimePtr(now)},
-		{ID: 3, Priority: 3, LastUsedAt: testTimePtr(now)},
+	accounts := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 5, LastUsedAt: testTimePtr(now)}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 1, LastUsedAt: testTimePtr(now)}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Priority: 3, LastUsedAt: testTimePtr(now)}},
 	}
 	sortAccountsByPriorityAndLastUsed(accounts, false)
-	require.Equal(t, int64(2), accounts[0].ID, "优先级最低的排第一")
-	require.Equal(t, int64(3), accounts[1].ID)
-	require.Equal(t, int64(1), accounts[2].ID)
+	require.Equal(t, int64(2), accounts[0].Record.ID, "优先级最低的排第一")
+	require.Equal(t, int64(3), accounts[1].Record.ID)
+	require.Equal(t, int64(1), accounts[2].Record.ID)
 }
 
 func TestSortAccountsByPriorityAndLastUsed_SamePriorityByLastUsed(t *testing.T) {
 	now := time.Now()
-	accounts := []*Account{
-		{ID: 1, Priority: 1, LastUsedAt: testTimePtr(now)},
-		{ID: 2, Priority: 1, LastUsedAt: testTimePtr(now.Add(-1 * time.Hour))},
-		{ID: 3, Priority: 1, LastUsedAt: nil},
+	accounts := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 1, LastUsedAt: testTimePtr(now)}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 1, LastUsedAt: testTimePtr(now.Add(-1 * time.Hour))}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Priority: 1, LastUsedAt: nil}},
 	}
 	sortAccountsByPriorityAndLastUsed(accounts, false)
-	require.Equal(t, int64(3), accounts[0].ID, "nil LastUsedAt 排最前")
-	require.Equal(t, int64(2), accounts[1].ID, "更早使用的排前面")
-	require.Equal(t, int64(1), accounts[2].ID)
+	require.Equal(t, int64(3), accounts[0].Record.ID, "nil LastUsedAt 排最前")
+	require.Equal(t, int64(2), accounts[1].Record.ID, "更早使用的排前面")
+	require.Equal(t, int64(1), accounts[2].Record.ID)
 }
 
 func TestSortAccountsByPriorityAndLastUsed_PreferOAuth(t *testing.T) {
-	accounts := []*Account{
-		{ID: 1, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey},
-		{ID: 2, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeOAuth},
+	accounts := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeOAuth}},
 	}
 	sortAccountsByPriorityAndLastUsed(accounts, true)
-	require.Equal(t, int64(2), accounts[0].ID, "preferOAuth 时 OAuth 账号排前面")
+	require.Equal(t, int64(2), accounts[0].Record.ID, "preferOAuth 时 OAuth 账号排前面")
 }
 
 func TestSortAccountsByPriorityAndLastUsed_StableSort(t *testing.T) {
-	accounts := []*Account{
-		{ID: 1, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey},
-		{ID: 2, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey},
-		{ID: 3, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey},
+	accounts := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Priority: 1, LastUsedAt: nil, Type: capability.AccountTypeAPIKey}},
 	}
 
 	// sortAccountsByPriorityAndLastUsed 内部会在同组(Priority+LastUsedAt)内做随机打散，
@@ -83,14 +84,14 @@ func TestSortAccountsByPriorityAndLastUsed_StableSort(t *testing.T) {
 	// 1) 元素集合不变；2) 多次运行能产生不同的顺序。
 	seenFirst := map[int64]bool{}
 	for i := 0; i < 100; i++ {
-		cpy := make([]*Account, len(accounts))
+		cpy := make([]*gatewayprovider.ExecutionAccount, len(accounts))
 		copy(cpy, accounts)
 		sortAccountsByPriorityAndLastUsed(cpy, false)
-		seenFirst[cpy[0].ID] = true
+		seenFirst[cpy[0].Record.ID] = true
 
 		ids := map[int64]bool{}
 		for _, a := range cpy {
-			ids[a.ID] = true
+			ids[a.Record.ID] = true
 		}
 		require.True(t, ids[1] && ids[2] && ids[3])
 	}
@@ -99,19 +100,19 @@ func TestSortAccountsByPriorityAndLastUsed_StableSort(t *testing.T) {
 
 func TestSortAccountsByPriorityAndLastUsed_MixedPriorityAndTime(t *testing.T) {
 	now := time.Now()
-	accounts := []*Account{
-		{ID: 1, Priority: 2, LastUsedAt: nil},
-		{ID: 2, Priority: 1, LastUsedAt: testTimePtr(now)},
-		{ID: 3, Priority: 1, LastUsedAt: testTimePtr(now.Add(-1 * time.Hour))},
-		{ID: 4, Priority: 2, LastUsedAt: testTimePtr(now.Add(-2 * time.Hour))},
+	accounts := []*gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Priority: 2, LastUsedAt: nil}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Priority: 1, LastUsedAt: testTimePtr(now)}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Priority: 1, LastUsedAt: testTimePtr(now.Add(-1 * time.Hour))}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4, Priority: 2, LastUsedAt: testTimePtr(now.Add(-2 * time.Hour))}},
 	}
 	sortAccountsByPriorityAndLastUsed(accounts, false)
 	// 优先级1排前：nil < earlier
-	require.Equal(t, int64(3), accounts[0].ID, "优先级1 + 更早")
-	require.Equal(t, int64(2), accounts[1].ID, "优先级1 + 现在")
+	require.Equal(t, int64(3), accounts[0].Record.ID, "优先级1 + 更早")
+	require.Equal(t, int64(2), accounts[1].Record.ID, "优先级1 + 现在")
 	// 优先级2排后：nil < time
-	require.Equal(t, int64(1), accounts[2].ID, "优先级2 + nil")
-	require.Equal(t, int64(4), accounts[3].ID, "优先级2 + 有时间")
+	require.Equal(t, int64(1), accounts[2].Record.ID, "优先级2 + nil")
+	require.Equal(t, int64(4), accounts[3].Record.ID, "优先级2 + 有时间")
 }
 
 // --- filterByMinPriority ---
@@ -130,8 +131,8 @@ func TestFilterByMinPriority_SelectsMinPriority(t *testing.T) {
 	}
 	result := filterByMinPriority(accounts)
 	require.Len(t, result, 2)
-	require.Equal(t, int64(2), result[0].account.ID)
-	require.Equal(t, int64(3), result[1].account.ID)
+	require.Equal(t, int64(2), result[0].account.Record.ID)
+	require.Equal(t, int64(3), result[1].account.Record.ID)
 }
 
 // --- filterByMinLoadRate ---
@@ -150,8 +151,8 @@ func TestFilterByMinLoadRate_SelectsMinLoadRate(t *testing.T) {
 	}
 	result := filterByMinLoadRate(accounts)
 	require.Len(t, result, 2)
-	require.Equal(t, int64(2), result[0].account.ID)
-	require.Equal(t, int64(3), result[1].account.ID)
+	require.Equal(t, int64(2), result[0].account.Record.ID)
+	require.Equal(t, int64(3), result[1].account.Record.ID)
 }
 
 // --- selectByLRU ---
@@ -165,7 +166,7 @@ func TestSelectByLRU_Single(t *testing.T) {
 	accounts := []accountWithLoad{makeAccWithLoad(1, 1, 10, nil, capability.AccountTypeAPIKey)}
 	result := selectByLRU(accounts, false)
 	require.NotNil(t, result)
-	require.Equal(t, int64(1), result.account.ID)
+	require.Equal(t, int64(1), result.account.Record.ID)
 }
 
 func TestSelectByLRU_NilLastUsedAtWins(t *testing.T) {
@@ -177,7 +178,7 @@ func TestSelectByLRU_NilLastUsedAtWins(t *testing.T) {
 	}
 	result := selectByLRU(accounts, false)
 	require.NotNil(t, result)
-	require.Equal(t, int64(2), result.account.ID)
+	require.Equal(t, int64(2), result.account.Record.ID)
 }
 
 func TestSelectByLRU_EarliestTimeWins(t *testing.T) {
@@ -189,7 +190,7 @@ func TestSelectByLRU_EarliestTimeWins(t *testing.T) {
 	}
 	result := selectByLRU(accounts, false)
 	require.NotNil(t, result)
-	require.Equal(t, int64(3), result.account.ID)
+	require.Equal(t, int64(3), result.account.Record.ID)
 }
 
 func TestSelectByLRU_TiePreferOAuth(t *testing.T) {
@@ -203,7 +204,7 @@ func TestSelectByLRU_TiePreferOAuth(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		result := selectByLRU(accounts, true)
 		require.NotNil(t, result)
-		require.Equal(t, capability.AccountTypeOAuth, result.account.Type)
-		require.Equal(t, int64(2), result.account.ID)
+		require.Equal(t, capability.AccountTypeOAuth, result.account.Record.Type)
+		require.Equal(t, int64(2), result.account.Record.ID)
 	}
 }

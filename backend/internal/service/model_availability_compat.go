@@ -4,11 +4,12 @@ package service
 import (
 	context "context"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // legacyAvailabilityReader 只读取原持久候选并把平台判断封装为本轮窄端口。
-func legacyAvailabilityReader(repo AccountRepository, supports func(context.Context, *Account, string) bool) routing.AvailabilityReader {
+func legacyAvailabilityReader(repo gatewayprovider.ExecutionAccountStore, supports func(context.Context, *gatewayprovider.ExecutionAccount, string) bool) routing.AvailabilityReader {
 	if repo == nil {
 		return nil
 	}
@@ -20,7 +21,7 @@ func legacyAvailabilityReader(repo AccountRepository, supports func(context.Cont
 		out := make([]routing.AvailabilityAccount, len(values))
 		for i := range values {
 			v := &values[i]
-			out[i] = routing.AvailabilityAccount{Platform: v.Platform, MixedScheduling: v.IsMixedSchedulingEnabled(), Supports: func(ctx context.Context, model string) bool { return supports(ctx, v, model) }}
+			out[i] = routing.AvailabilityAccount{Platform: v.Record.Platform, MixedScheduling: v.View().IsMixedSchedulingEnabled(), Supports: func(ctx context.Context, model string) bool { return supports(ctx, v, model) }}
 		}
 		return out, nil
 	}

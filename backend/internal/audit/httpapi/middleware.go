@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	service "github.com/TokenFlux/TokenRouter/internal/audit"
 	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
@@ -177,11 +179,11 @@ func NewAuditLogMiddleware(auditService *service.AuditLogService, redactor *serv
 		}
 
 		// 操作者身份：优先取认证中间件写入的上下文，其次取 handler 覆写（登录等场景）。
-		if subject, ok := identityhttp.GetAuthSubjectFromContext(c); ok && subject.UserID > 0 {
+		if subject, ok := authctx.GetAuthSubjectFromContext(c); ok && subject.UserID > 0 {
 			uid := subject.UserID
 			entry.ActorUserID = &uid
 		}
-		if role, ok := identityhttp.GetUserRoleFromContext(c); ok {
+		if role, ok := authctx.GetUserRoleFromContext(c); ok {
 			entry.ActorRole = role
 		}
 		entry.ActorEmail = c.GetString(ContextKeyAuthEmail)

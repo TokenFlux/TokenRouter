@@ -3,25 +3,22 @@
 package postgres
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/google/uuid"
 )
 
 func (s *UsageLogRepoSuite) TestListWithFilters_SortByModelAsc() {
 	user := mustCreateUser(s.T(), s.client, &identity.User{Email: "usage-sort@example.com"})
 	apiKey := mustCreateApiKey(s.T(), s.client, &apikey.APIKey{UserID: user.ID, Key: "sk-usage-sort", Name: "k"})
-	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "usage-sort-account"})
+	account := mustCreateAccount(s.T(), s.client, &accountcore.Record{Name: "usage-sort-account"})
 
 	first := &usage.UsageLog{
 		UserID:         user.ID,

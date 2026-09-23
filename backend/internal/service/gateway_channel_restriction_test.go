@@ -8,11 +8,14 @@ import (
 	"testing"
 	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,9 +49,7 @@ func TestBillingModelForRestriction_Empty(t *testing.T) {
 
 func TestResolveAccountUpstreamModel_Antigravity(t *testing.T) {
 	t.Parallel()
-	account := &Account{
-		Platform: capability.PlatformAntigravity,
-	}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}}
 	// Antigravity 平台使用 DefaultAntigravityModelMapping
 	got := resolveAccountUpstreamModel(context.Background(), account, "claude-sonnet-4-6")
 	require.Equal(t, "claude-sonnet-4-6", got)
@@ -56,30 +57,25 @@ func TestResolveAccountUpstreamModel_Antigravity(t *testing.T) {
 
 func TestResolveAccountUpstreamModel_Antigravity_Unsupported(t *testing.T) {
 	t.Parallel()
-	account := &Account{
-		Platform: capability.PlatformAntigravity,
-	}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}}
 	got := resolveAccountUpstreamModel(context.Background(), account, "totally-unknown-model")
 	require.Equal(t, "", got, "unsupported model should return empty")
 }
 
 func TestResolveAccountUpstreamModel_NonAntigravity(t *testing.T) {
 	t.Parallel()
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-	}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic}}
 	got := resolveAccountUpstreamModel(context.Background(), account, "claude-sonnet-4-6")
 	require.Equal(t, "claude-sonnet-4-6", got, "no mapping = passthrough")
 }
 
 func TestResolveAccountUpstreamModel_AnthropicOAuthAppliesMappingBeforeNormalization(t *testing.T) {
 	t.Parallel()
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"client-alias": "claude-sonnet-4-5"},
-		},
+		}},
 	}
 
 	got := resolveAccountUpstreamModel(context.Background(), account, "client-alias")
@@ -88,12 +84,11 @@ func TestResolveAccountUpstreamModel_AnthropicOAuthAppliesMappingBeforeNormaliza
 
 func TestResolveAccountUpstreamModel_BedrockUsesRegionalFinalModel(t *testing.T) {
 	t.Parallel()
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeBedrock,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+		Type: capability.AccountTypeBedrock,
 		Credentials: map[string]any{
 			"aws_region": "us-east-1",
-		},
+		}},
 	}
 
 	got := resolveAccountUpstreamModel(context.Background(), account, "claude-sonnet-4-5")
@@ -102,7 +97,7 @@ func TestResolveAccountUpstreamModel_BedrockUsesRegionalFinalModel(t *testing.T)
 
 func TestResolveAccountUpstreamModel_AntigravityUsesThinkingContext(t *testing.T) {
 	t.Parallel()
-	account := &Account{Platform: capability.PlatformAntigravity}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}}
 	ctx := requeststate.WithThinkingEnabled(context.Background(), true)
 
 	got := resolveAccountUpstreamModel(ctx, account, "claude-sonnet-4-5")
@@ -119,20 +114,19 @@ func TestIsModelSupportedByAccountWithContext_QoderUsesChannelMappedAccountLayer
 			capability.PlatformQoder: {"my-qoder": "qmodel"},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: capability.PlatformQoder}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: capability.PlatformQoder}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 	ctx := svc.withGroupContext(context.Background(), &routing.Group{
 		ID:       10,
 		Platform: capability.PlatformQoder,
 		Status:   billing.StatusActive,
 		Hydrated: true,
 	})
-	account := &Account{
-		Platform: capability.PlatformQoder,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformQoder,
 		Credentials: map[string]any{
 			"model_mapping":   map[string]any{"qmodel": "ultimate"},
 			"model_whitelist": []any{"ultimate"},
-		},
+		}},
 	}
 
 	require.True(t, svc.isModelSupportedByAccountWithContext(ctx, account, "my-qoder"),
@@ -143,30 +137,30 @@ func TestIsModelSupportedByAccountWithContext_QoderUsesChannelMappedAccountLayer
 
 func TestCheckChannelPricingRestriction_NilGroupID(t *testing.T) {
 	t.Parallel()
-	svc := &GatewayService{channelService: routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
 		Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation}),
-	}
+	})
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), nil, "claude-sonnet-4"))
 }
 
 func TestCheckChannelPricingRestriction_NilChannelService(t *testing.T) {
 	t.Parallel()
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	gid := int64(10)
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4"))
 }
 
 func TestCheckChannelPricingRestriction_EmptyModel(t *testing.T) {
 	t.Parallel()
-	svc := &GatewayService{channelService: routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: routing.NewChannelService(nil, nil, routing.ChannelOptions{Warn: slog.
 		Warn,
 		Now: time.
 			Now, LoadLocation: pricingprovider.
 			LoadPricingLocation}),
-	}
+	})
 	gid := int64(10)
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, ""))
 }
@@ -187,8 +181,8 @@ func TestCheckChannelPricingRestriction_ChannelMapped_Restricted(t *testing.T) {
 			"anthropic": {"claude-sonnet-4-5": "claude-sonnet-4-6"},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
 	gid := int64(10)
 	require.True(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4-5"),
@@ -211,8 +205,8 @@ func TestCheckChannelPricingRestriction_ChannelMapped_Allowed(t *testing.T) {
 			"anthropic": {"claude-sonnet-4-5": "claude-sonnet-4-6"},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
 	gid := int64(10)
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4-5"),
@@ -236,8 +230,8 @@ func TestCheckChannelPricingRestriction_QoderChannelMappedBasisAllowsConfiguredR
 			capability.PlatformQoder: {"qwen3.7-plus": "qmodel"},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: capability.PlatformQoder}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: capability.PlatformQoder}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
 	gid := int64(10)
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "qwen3.7-plus"),
@@ -257,8 +251,8 @@ func TestCheckChannelPricingRestriction_Requested_Restricted(t *testing.T) {
 			{Platform: "anthropic", Models: []string{"claude-sonnet-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
 	gid := int64(10)
 	require.True(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4-5"),
@@ -277,8 +271,8 @@ func TestCheckChannelPricingRestriction_Requested_Allowed(t *testing.T) {
 			{Platform: "anthropic", Models: []string{"claude-sonnet-4-5"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
 	gid := int64(10)
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "claude-sonnet-4-5"),
@@ -298,8 +292,8 @@ func TestCheckChannelPricingRestriction_Upstream_SkipsPreCheck(t *testing.T) {
 			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
 	gid := int64(10)
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "unknown-model"),
@@ -317,8 +311,8 @@ func TestCheckChannelPricingRestriction_RestrictModelsDisabled(t *testing.T) {
 			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
 	gid := int64(10)
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "any-model"),
@@ -328,11 +322,11 @@ func TestCheckChannelPricingRestriction_RestrictModelsDisabled(t *testing.T) {
 func TestCheckChannelPricingRestriction_NoChannel(t *testing.T) {
 	t.Parallel()
 	// 分组没有关联渠道
-	repo := &mockChannelRepository{
-		listAllFn: func(_ context.Context) ([]routing.Channel, error) { return nil, nil },
+	repo := &routingtestkit.ChannelRepositoryStub{
+		ListAllFn: func(_ context.Context) ([]routing.Channel, error) { return nil, nil },
 	}
-	channelSvc := newTestChannelService(repo)
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(repo)
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
 	gid := int64(999)
 	require.False(t, svc.checkChannelPricingRestriction(context.Background(), &gid, "any-model"),
@@ -352,12 +346,14 @@ func TestIsUpstreamModelRestrictedByChannel_Restricted(t *testing.T) {
 			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
-	account := &Account{Platform: capability.PlatformAntigravity}
-	// claude-sonnet-4-6 在 DefaultAntigravityModelMapping 中，映射后仍为 claude-sonnet-4-6
-	// 但定价列表只有 claude-opus-4-6
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.
+		// claude-sonnet-4-6 在 DefaultAntigravityModelMapping 中，映射后仍为 claude-sonnet-4-6
+		// 但定价列表只有 claude-opus-4-6
+		LoadLocation, Platform: capability.PlatformAntigravity}}
+
 	require.True(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "claude-sonnet-4-6"),
 		"upstream model claude-sonnet-4-6 NOT in pricing → restricted")
 }
@@ -373,10 +369,10 @@ func TestIsUpstreamModelRestrictedByChannel_Allowed(t *testing.T) {
 			{Platform: "anthropic", Models: []string{"claude-sonnet-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
-	account := &Account{Platform: capability.PlatformAntigravity}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}}
 	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "claude-sonnet-4-6"),
 		"upstream model claude-sonnet-4-6 IS in pricing → allowed")
 }
@@ -397,13 +393,12 @@ func TestIsUpstreamModelRestrictedByChannel_AppliesChannelMappingBeforeAccountMa
 			capability.PlatformQoder: {"my-qoder": "qmodel"},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: capability.PlatformQoder}))
-	svc := &GatewayService{channelService: channelSvc}
-	account := &Account{
-		Platform: capability.PlatformQoder,
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: capability.PlatformQoder}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformQoder,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"qmodel": "ultimate"},
-		},
+		}},
 	}
 
 	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "my-qoder"),
@@ -427,9 +422,9 @@ func TestIsUpstreamModelRestrictedByChannel_QoderUpstreamBasisAllowsConfiguredUp
 			capability.PlatformQoder: {"qwen3.7-plus": "qmodel"},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: capability.PlatformQoder}))
-	svc := &GatewayService{channelService: channelSvc}
-	account := &Account{Platform: capability.PlatformQoder}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: capability.PlatformQoder}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformQoder}}
 
 	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "qwen3.7-plus"),
 		"已配置的上游模型属于白名单，价格为空不影响放行")
@@ -446,11 +441,13 @@ func TestIsUpstreamModelRestrictedByChannel_UnsupportedModel(t *testing.T) {
 			{Platform: "anthropic", Models: []string{"claude-opus-4-6"}},
 		},
 	}
-	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: "anthropic"}))
-	svc := &GatewayService{channelService: channelSvc}
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(ch, map[int64]string{10: "anthropic"}))
+	svc := withSchedulerParametersForTest(&GatewayService{channelService: channelSvc})
 
-	account := &Account{Platform: capability.PlatformAntigravity}
-	// totally-unknown-model 不在 DefaultAntigravityModelMapping 中 → 映射结果为空
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.
+		// totally-unknown-model 不在 DefaultAntigravityModelMapping 中 → 映射结果为空
+		LoadLocation, Platform: capability.PlatformAntigravity}}
+
 	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "totally-unknown-model"),
 		"unmappable model → upstream model empty → not restricted (account filter handles this)")
 }

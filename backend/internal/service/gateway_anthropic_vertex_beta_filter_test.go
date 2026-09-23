@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
@@ -30,15 +33,14 @@ func newVertexBetaTestContext(t *testing.T, anthropicBeta string) *gin.Context {
 	return c
 }
 
-func newVertexServiceAccount(id int64) *Account {
-	return &Account{
-		ID:       id,
+func newVertexServiceAccount(id int64) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
 		Platform: capability.PlatformAnthropic,
 		Type:     capability.AccountTypeServiceAccount,
 		Credentials: map[string]any{
 			"project_id": "vertex-proj",
 			"location":   "us-east5",
-		},
+		}},
 	}
 }
 
@@ -55,7 +57,7 @@ func TestVertexBetaFilter_StripsUnsupportedClaudeCodeTokens(t *testing.T) {
 
 	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, newVertexServiceAccount(401), body,
 		"vertex-token", "service_account", "claude-opus-4-7@20260417", false, false,
@@ -95,7 +97,7 @@ func TestVertexBetaFilter_DropsHeaderWhenAllUnsupported(t *testing.T) {
 
 	body := []byte(`{"model":"claude-opus-4-7","max_tokens":32,"messages":[{"role":"user","content":"hi"}]}`)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, newVertexServiceAccount(402), body,
 		"vertex-token", "service_account", "claude-opus-4-7@20260417", false, false,
@@ -114,7 +116,7 @@ func TestVertexBetaFilter_BodySanitizeKeysOnFinalBeta(t *testing.T) {
 
 	body := []byte(`{"model":"claude-opus-4-7","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[{"role":"user","content":"hi"}]}`)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, newVertexServiceAccount(403), body,
 		"vertex-token", "service_account", "claude-opus-4-7@20260417", false, false,
@@ -142,14 +144,14 @@ func TestVertexBetaFilter_BlocksViaBetaPolicy(t *testing.T) {
 	raw, err := json.Marshal(settings)
 	require.NoError(t, err)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(
 			&betaPolicySettingRepoStub{values: map[string]string{
 				gateway.SettingKeyBetaPolicySettings: string(raw),
 			}},
 			&config.Config{},
 		),
-	}
+	})
 
 	c := newVertexBetaTestContext(t,
 		"interleaved-thinking-2025-05-14,context-management-2025-06-27")

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -21,8 +22,8 @@ func (r *s06CNDecisionRepo) changeIdentity(id int64) {
 		return
 	}
 	r.changed = true
-	r.accounts[id].UpdatedAt = r.accounts[id].UpdatedAt.Add(time.Second)
-	r.accounts[id].Credentials = map[string]any{"api_key": "new-admin-key", "account_mode": account.AccountModePayG}
+	r.accounts[id].Record.UpdatedAt = r.accounts[id].Record.UpdatedAt.Add(time.Second)
+	r.accounts[id].Record.Credentials = map[string]any{"api_key": "new-admin-key", "account_mode": account.AccountModePayG}
 }
 func (r *s06CNDecisionRepo) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
 	r.changeIdentity(id)
@@ -30,7 +31,7 @@ func (r *s06CNDecisionRepo) SetTempUnschedulable(ctx context.Context, id int64, 
 }
 func (r *s06CNDecisionRepo) SetCNUsageDecisionCAS(ctx context.Context, id int64, expected time.Time, until time.Time, reason string, clear bool) (bool, error) {
 	r.changeIdentity(id)
-	if !r.accounts[id].UpdatedAt.Equal(expected) {
+	if !r.accounts[id].Record.UpdatedAt.Equal(expected) {
 		return false, nil
 	}
 	if clear {
@@ -40,7 +41,7 @@ func (r *s06CNDecisionRepo) SetCNUsageDecisionCAS(ctx context.Context, id int64,
 }
 func TestS06CNMonitorOldIdentityCannotPauseNewCredentials(t *testing.T) {
 	value := newCNUsageMonitorAccount(1, capability.PlatformKimi, account.AccountModePayG)
-	repo := &s06CNDecisionRepo{cnUsageMonitorRepo: &cnUsageMonitorRepo{accounts: map[int64]*Account{1: value}, byPlatform: map[string][]int64{capability.PlatformKimi: {1}}, casResult: true}}
+	repo := &s06CNDecisionRepo{cnUsageMonitorRepo: &cnUsageMonitorRepo{accounts: map[int64]*gatewayprovider.ExecutionAccount{1: value}, byPlatform: map[string][]int64{capability.PlatformKimi: {1}}, casResult: true}}
 	upstream := &cnUsageMonitorHTTP{body: `{"code":0,"data":{"available_balance":0.1}}`}
 	cfg := testUpstreamUsageConfig()
 	cfg.Gateway.CNProviders.BalanceThreshold = 0.5
@@ -49,5 +50,5 @@ func TestS06CNMonitorOldIdentityCannotPauseNewCredentials(t *testing.T) {
 	monitor.RunOnce(context.Background())
 	require.True(t, repo.changed)
 	require.Empty(t, repo.pauseReason, "旧查询健康结论不得写到管理员替换后的身份")
-	require.Nil(t, value.TempUnschedulableUntil)
+	require.Nil(t, value.Record.TempUnschedulableUntil)
 }

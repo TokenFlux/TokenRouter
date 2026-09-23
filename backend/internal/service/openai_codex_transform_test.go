@@ -1808,7 +1808,7 @@ func TestApplyCodexOAuthTransform_StripsChatGPTInternalUnsupportedFields(t *test
 	result := applyCodexOAuthTransform(reqBody, true, false)
 
 	require.True(t, result.Modified)
-	for _, field := range openAIChatGPTInternalUnsupportedFields {
+	for _, field := range openai.OpenAIChatGPTInternalUnsupportedFields {
 		require.NotContains(t, reqBody, field)
 	}
 }
@@ -1850,7 +1850,7 @@ func TestNormalizeOpenAIResponsesImageGenerationTools_StripsGPTImage2InputFideli
 func TestOpenAIRequestBodyImageGenerationToolNeedsNormalization_GPTImage2InputFidelity(t *testing.T) {
 	body := []byte(`{"tools":[{"type":"image_generation","model":"gpt-image-2-codex","input_fidelity":"high"}]}`)
 
-	require.True(t, openAIRequestBodyImageGenerationToolNeedsNormalization(body))
+	require.True(t, gatewayprovider.ImageIntent().OpenAIRequestBodyImageGenerationToolNeedsNormalization(body))
 }
 
 func TestApplyCodexOAuthTransform_ExtractsSystemMessages(t *testing.T) {

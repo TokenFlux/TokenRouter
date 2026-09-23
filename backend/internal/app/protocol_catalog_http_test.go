@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	routinghttpapi "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
@@ -24,7 +26,7 @@ func TestProtocolCatalogHTTPContract(t *testing.T) {
 	catalog := routinghttpapi.NewProtocolCatalogHandler(endpoints)
 	endpoints[protocol.ProtocolOpenAIResponses] = "unexpected-change"
 	var calls []string
-	auth := middleware.AdminAuthMiddleware(func(c *gin.Context) {
+	auth := identityhttp.AdminAuthMiddleware(func(c *gin.Context) {
 		calls = append(calls, "auth")
 		switch c.GetHeader("Authorization") {
 		case "admin":

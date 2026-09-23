@@ -10,7 +10,10 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -44,8 +47,8 @@ func newImagesCooldownContext(t *testing.T) (*gin.Context, *httptest.ResponseRec
 	return c, rec
 }
 
-func imagesCooldownAccount() *Account {
-	return &Account{ID: 77, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "img-oauth"}
+func imagesCooldownAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 77, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "img-oauth"}}
 }
 
 func TestShouldCoolOpenAIImagesToolForError(t *testing.T) {
@@ -91,7 +94,7 @@ func TestShouldCoolOpenAIImagesToolForError(t *testing.T) {
 func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *testing.T) {
 	c, _ := newImagesCooldownContext(t)
 	repo := &countingModelRateLimitRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
 	account := imagesCooldownAccount()
 
 	upstreamErr := openAIImagesTextFallbackErrorForText("Here's a polished image prompt for your request.")
@@ -100,8 +103,7 @@ func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *
 
 	err := svc.handleOpenAIImagesOAuthResponseError(
 		context.Background(), c, account, "gpt-image-2", "https://upstream.example/v1/responses",
-		&http.Response{StatusCode: http.StatusOK, Header: http.Header{}},
-		OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
+		&http.Response{StatusCode: http.StatusOK, Header: http.Header{}}, gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
 	)
 
 	require.Zero(t, repo.calls, "模型闲聊不构成账号级证据，不得写 30 分钟冷却")
@@ -115,7 +117,7 @@ func TestHandleOpenAIImagesOAuthResponseError_TextFallbackDoesNotCoolAccount(t *
 func TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAccount(t *testing.T) {
 	c, _ := newImagesCooldownContext(t)
 	repo := &countingModelRateLimitRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
 	account := imagesCooldownAccount()
 
 	upstreamErr := &openai.OpenAIImagesUpstreamError{
@@ -127,12 +129,11 @@ func TestHandleOpenAIImagesOAuthResponseError_StructuredUnavailableStillCoolsAcc
 
 	_ = svc.handleOpenAIImagesOAuthResponseError(
 		context.Background(), c, account, "gpt-image-2", "https://upstream.example/v1/responses",
-		&http.Response{StatusCode: http.StatusOK, Header: http.Header{}},
-		OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
+		&http.Response{StatusCode: http.StatusOK, Header: http.Header{}}, gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), upstreamErr,
 	)
 
 	require.Equal(t, 1, repo.calls, "结构化上游证据仍须写冷却")
-	require.Equal(t, []string{openAIImageGenerationRateLimitKey}, repo.scopes)
+	require.Equal(t, []string{accountcore.OpenAIImageGenerationRateLimitKey}, repo.scopes)
 }
 
 // 标记必须打在文字兜底的两个入口上，且不影响违规拦截分支的判定。

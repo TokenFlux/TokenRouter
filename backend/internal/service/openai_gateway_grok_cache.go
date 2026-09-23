@@ -4,20 +4,18 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	grokConversationIDHeader         = "X-Grok-Conv-Id"
-	claudeCodeSessionHeader          = "X-Claude-Code-Session-Id"
 	grokClientToolCacheOptInHeader   = "X-Sub2API-Grok-Client-Tool-Cache"
 	grokFreeCacheNativeToolsJSON     = `[{"type":"web_search"},{"type":"x_search"}]`
 	grokFreeCacheDisabledToolChoice  = "none"
@@ -28,7 +26,7 @@ const (
 // Claude Code 会话标识。
 func extractClaudeCodeSessionID(c *gin.Context, body []byte) string {
 	if c != nil {
-		if seed := strings.TrimSpace(c.GetHeader(claudeCodeSessionHeader)); seed != "" {
+		if seed := strings.TrimSpace(c.GetHeader(gatewayhttp.ClaudeCodeSessionHeader)); seed != "" {
 			return seed
 		}
 	}
@@ -39,34 +37,17 @@ func resolveGrokCacheIdentity(c *gin.Context, body []byte, explicitKey, upstream
 	return grok.ResolveCacheIdentity(grokCacheInput(c, explicitKey, upstreamModel), body)
 }
 
-func isGrokRequestContext(c *gin.Context) bool {
-	if c == nil {
-		return false
-	}
-	if c.Request != nil {
-		if platform, ok := apikey.ForcePlatformFromContext(c.Request.Context()); ok && strings.TrimSpace(platform) != "" {
-			return platform == capability.PlatformGrok
-		}
-	}
-	v, exists := c.Get("api_key")
-	if !exists {
-		return false
-	}
-	apiKey, ok := v.(*apikey.APIKey)
-	return ok && apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == capability.PlatformGrok
-}
-
 // applyGrokFreeMessagesFunctionToolCacheRoute 只为已知 Free 账号启用 xAI 可缓存的
 // 混合工具路由。纯客户端工具默认启用，运维人员可在原生搜索工具会改变预期行为时
 // 按账号明确关闭（#4486）。
-func applyGrokFreeMessagesFunctionToolCacheRoute(body, intentSourceBody []byte, account *Account, cacheIdentity string) ([]byte, error) {
+func applyGrokFreeMessagesFunctionToolCacheRoute(body, intentSourceBody []byte, account *gatewayprovider.ExecutionAccount, cacheIdentity string) ([]byte, error) {
 	allowPureClientTools, _ := grokClientToolCacheAccountPolicy(account)
 	return applyGrokFreeToolCacheRoute(body, intentSourceBody, account, cacheIdentity, allowPureClientTools, true)
 }
 
 // applyGrokFreeRequestToolCacheRoute 还接受请求级开关。该兼容协议头仅在本地消费，
 // buildGrokResponsesRequest 只向上游转发明确支持的 OpenAI-Beta 头。
-func applyGrokFreeRequestToolCacheRoute(c *gin.Context, body, intentSourceBody []byte, account *Account, cacheIdentity string) ([]byte, error) {
+func applyGrokFreeRequestToolCacheRoute(c *gin.Context, body, intentSourceBody []byte, account *gatewayprovider.ExecutionAccount, cacheIdentity string) ([]byte, error) {
 	allowPureClientTools, accountPolicyExplicit := grokClientToolCacheAccountPolicy(account)
 	requestOptOut := false
 	if c != nil {
@@ -89,14 +70,14 @@ func applyGrokFreeRequestToolCacheRoute(c *gin.Context, body, intentSourceBody [
 
 // grokClientToolCacheAccountPolicy 严格要求配置值为 JSON 布尔值。缺少键时仅对已确认的
 // Grok Free OAuth 账号默认启用；付费、API Key 和未知账号保持关闭。
-func grokClientToolCacheAccountPolicy(account *Account) (enabled, explicit bool) {
+func grokClientToolCacheAccountPolicy(account *gatewayprovider.ExecutionAccount) (enabled, explicit bool) {
 	if !isKnownGrokFreeAccount(account) {
 		return false, false
 	}
-	if account.Extra == nil {
+	if account.Record.Extra == nil {
 		return true, false
 	}
-	value, exists := account.Extra[grokClientToolCacheOptInExtraKey]
+	value, exists := account.Record.Extra[grokClientToolCacheOptInExtraKey]
 	if !exists {
 		return true, false
 	}
@@ -111,7 +92,7 @@ func grokClientToolCacheAccountPolicy(account *Account) (enabled, explicit bool)
 // 转为 OpenAI Responses 请求时的严格线路指纹。必须同时满足所有独立信号，避免普通
 // Claude 兼容客户端或 Chat bridge 被静默加入原生/客户端混合工具路由。
 func isGrokClaudeDesktopResponsesCacheRequest(c *gin.Context) bool {
-	if c == nil || c.Request == nil || c.Request.URL == nil || isOpenAIResponsesCompactPath(c) {
+	if c == nil || c.Request == nil || c.Request.URL == nil || gatewayhttp.IsOpenAIResponsesCompactPath(c) {
 		return false
 	}
 	path := strings.TrimRight(strings.TrimSpace(c.Request.URL.Path), "/")
@@ -133,7 +114,7 @@ func isGrokClaudeDesktopResponsesCacheRequest(c *gin.Context) bool {
 	return strings.TrimSpace(c.GetHeader("X-Claude-Code-Session-Id")) != ""
 }
 
-func applyGrokFreeToolCacheRoute(body, intentSourceBody []byte, account *Account, cacheIdentity string, allowPureClientTools, allowFunctionSearch bool) ([]byte, error) {
+func applyGrokFreeToolCacheRoute(body, intentSourceBody []byte, account *gatewayprovider.ExecutionAccount, cacheIdentity string, allowPureClientTools, allowFunctionSearch bool) ([]byte, error) {
 	if strings.TrimSpace(cacheIdentity) == "" {
 		return body, nil
 	}
@@ -142,17 +123,17 @@ func applyGrokFreeToolCacheRoute(body, intentSourceBody []byte, account *Account
 
 // isKnownGrokFreeAccount 识别免费层 Grok 账号，用于免费缓存路由与媒体 free_tier 阻断，
 // 其覆盖范围比软性门禁更广；软性门禁使用 isExplicitGrokFreeOAuthAccount，且只匹配明确的 free。
-func isKnownGrokFreeAccount(account *Account) bool {
-	return accountcore.KnownGrokFreeAccount(AccountRecordView(account), accountprovider.GrokTierRules())
+func isKnownGrokFreeAccount(account *gatewayprovider.ExecutionAccount) bool {
+	return accountcore.KnownGrokFreeAccount(gatewayprovider.ExecutionRecord(account), accountprovider.GrokTierRules())
 }
 
 // 请求读取留在适配器；原种子 helper 只在平台实际选择该分支时调用。
 func grokCacheInput(c *gin.Context, explicitKey, model string) grok.CacheIdentityInput {
-	input := grok.CacheIdentityInput{APIKeyID: gatewayhttp.APIKeyIDFromContext(c), Compact: isOpenAIResponsesCompactPath(c), Model: model, ExplicitKey: explicitKey, StablePrefixSeed: deriveOpenAIStablePrefixSessionSeed, AnchoredSeed: deriveOpenAIAnchoredContentSessionSeed, PreviousResponseSeed: grokPreviousResponseSessionSeed}
+	input := grok.CacheIdentityInput{APIKeyID: gatewayhttp.APIKeyIDFromContext(c), Compact: gatewayhttp.IsOpenAIResponsesCompactPath(c), Model: model, ExplicitKey: explicitKey, StablePrefixSeed: gatewaysession.OpenAIStablePrefixSeed, AnchoredSeed: gatewaysession.OpenAIAnchoredContentSeed, PreviousResponseSeed: gatewaysession.GrokPreviousResponseSeed}
 	if c != nil {
-		input.ClaudeSession = c.GetHeader(claudeCodeSessionHeader)
-		input.HeaderSession = explicitOpenAIHeaderSessionID(c)
-		input.ConversationID = c.GetHeader(grokConversationIDHeader)
+		input.ClaudeSession = c.GetHeader(gatewayhttp.ClaudeCodeSessionHeader)
+		input.HeaderSession = gatewayhttp.ExplicitOpenAIHeaderSessionID(c)
+		input.ConversationID = c.GetHeader(gatewayhttp.GrokConversationIDHeader)
 	}
 	return input
 }

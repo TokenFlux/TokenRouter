@@ -4,6 +4,8 @@ package service
 import (
 	"context"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
 
@@ -39,16 +41,16 @@ func (p *openAINativeAnthropicAdapter) errorWriter() func(*gin.Context, int, str
 	}
 }
 func (p *openAINativeAnthropicAdapter) Profile() forward.MessagesProfile {
-	return forward.MessagesProfile{Profile: openAIForwardProfile(p.account), ID: p.account.ID}
+	return forward.MessagesProfile{Profile: openAIForwardProfile(p.account), ID: p.account.Record.ID}
 }
 func (p *openAINativeAnthropicAdapter) Error(status int, kind, message string) {
 	p.errorWriter()(p.c, status, kind, message)
 }
 func (p *openAINativeAnthropicAdapter) NormalizeThinking(body []byte, model string) ([]byte, bool) {
-	return NormalizeGLM53AnthropicThinking(body, model)
+	return gatewayprovider.NormalizeGLM53AnthropicThinking(body, model)
 }
 func (p *openAINativeAnthropicAdapter) ThinkingFallback(effort *string, body []byte, model string) *string {
-	return ApplyThinkingEnabledFallback(effort, body, model)
+	return gatewayprovider.ApplyThinkingEnabledFallback(effort, body, model)
 }
 func (p *openAINativeAnthropicAdapter) StripEmpty(body []byte) []byte {
 	return protocolanthropic.StripEmptyTextBlocks(body)
@@ -63,7 +65,7 @@ func (p *openAINativeAnthropicAdapter) Log(format string, args ...any) {
 	logging.LegacyPrintf("service.gateway", format, args...)
 }
 func (p *openAINativeAnthropicAdapter) ProtocolAPIKey() string {
-	return p.account.GetOpenAIProtocolAPIKey()
+	return p.account.View().GetOpenAIProtocolAPIKey()
 }
 func (p *openAINativeAnthropicAdapter) TargetURL() (string, error) {
 	return p.s.nativeAnthropicTargetURL(p.account)
@@ -76,7 +78,7 @@ func (p *openAINativeAnthropicAdapter) BuildNative(ctx context.Context, body []b
 	return r, err
 }
 func (p *openAINativeAnthropicAdapter) SendNative(r *http.Request) (*http.Response, error) {
-	return p.s.httpUpstream.Do(r, p.proxyURL, p.account.ID, p.account.Concurrency)
+	return p.s.httpUpstream.Do(r, p.proxyURL, p.account.Record.ID, p.account.Record.Concurrency)
 }
 func (p *openAINativeAnthropicAdapter) TransportErrorNative(ctx context.Context, err error) error {
 	return p.s.handleOpenAIUpstreamTransportError(ctx, p.c, p.account, err, true)

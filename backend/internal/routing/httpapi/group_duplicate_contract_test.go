@@ -8,14 +8,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	idempotencytest "github.com/TokenFlux/TokenRouter/internal/idempotency/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -53,18 +53,18 @@ func (s *duplicateGroupAdminServiceStub) RecoverDuplicateGroup(_ context.Context
 	return s.group, nil
 }
 
-func setupDuplicateGroupRouter(t *testing.T, svc GroupAdministration) *gin.Engine {
+func setupDuplicateGroupRouter(t *testing.T, svc GroupAdministration, coordinators ...*idempotency.IdempotencyCoordinator) *gin.Engine {
 	t.Helper()
-	previousCoordinator := idempotency.DefaultIdempotencyCoordinator()
-	idempotency.SetDefaultIdempotencyCoordinator(nil)
-	t.Cleanup(func() { idempotency.SetDefaultIdempotencyCoordinator(previousCoordinator) })
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 77})
+		c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 77})
 		c.Next()
 	})
 	handler := NewGroupHandler(svc)
+	if len(coordinators) > 0 {
+		handler.BindIdempotency(coordinators[0])
+	}
 	router.POST("/api/v1/admin/groups/:id/duplicate", handler.Duplicate)
 	return router
 }
@@ -118,8 +118,8 @@ func TestDuplicateGroupHandlerRejectsInvalidID(t *testing.T) {
 
 func TestDuplicateGroupHandlerReplaysSameIdempotencyKey(t *testing.T) {
 	svc := &duplicateGroupAdminServiceStub{group: duplicateGroupHandlerFixture()}
-	router := setupDuplicateGroupRouter(t, svc)
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(idempotencytest.NewMemoryStore(), idempotency.DefaultIdempotencyConfig()))
+	coordinator := idempotency.NewIdempotencyCoordinator(idempotencytest.NewMemoryStore(), idempotency.DefaultIdempotencyConfig())
+	router := setupDuplicateGroupRouter(t, svc, coordinator)
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
@@ -143,9 +143,9 @@ func TestDuplicateGroupHandlerReplaysSameIdempotencyKey(t *testing.T) {
 
 func TestDuplicateGroupHandlerRecoversAfterMarkSucceededFailure(t *testing.T) {
 	svc := &duplicateGroupAdminServiceStub{group: duplicateGroupHandlerFixture()}
-	router := setupDuplicateGroupRouter(t, svc)
 	repo := &failOnceMarkSucceededRepo{MemoryStore: idempotencytest.NewMemoryStore(), failNext: true}
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(repo, idempotency.DefaultIdempotencyConfig()))
+	coordinator := idempotency.NewIdempotencyCoordinator(repo, idempotency.DefaultIdempotencyConfig())
+	router := setupDuplicateGroupRouter(t, svc, coordinator)
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()

@@ -4,14 +4,7 @@
 package handler
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-
-	gemini "github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,21 +12,6 @@ import (
 // geminiCLITmpDirRegex 用于从 Gemini CLI 请求体中提取 tmp 目录的哈希值
 // 匹配格式: /Users/xxx/.gemini/tmp/[64位十六进制哈希]
 var geminiCLITmpDirRegex = gatewayhttp.GeminiCLITmpDirRegex
-
-func customGeminiModelsList(group *routing.Group) (gemini.ModelsListResponse, bool) {
-	value, ok := newModelDisplayHandler().CustomGeminiModelsList(apikey.GroupFromRouting(group))
-	var out []gemini.Model
-	if value.Models != nil {
-		out = make([]gemini.Model, len(value.Models))
-	}
-	for i, m := range value.Models {
-		out[i] = gemini.Model(m)
-	}
-	return gemini.ModelsListResponse{Models: out}, ok
-}
-func shouldFallbackGeminiModel(modelName string, res *gemini.HTTPResult) bool {
-	return newModelDisplayHandler().ShouldFallbackGeminiModel(modelName, modelHTTPResponse(res))
-}
 
 // extractGeminiCLISessionHash 从 Gemini CLI 请求中提取会话标识。
 // 组合 x-gemini-api-privileged-user-id header 和请求体中的 tmp 目录哈希。

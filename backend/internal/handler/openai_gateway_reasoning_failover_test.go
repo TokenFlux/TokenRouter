@@ -2,9 +2,11 @@ package handler
 
 import (
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -16,12 +18,11 @@ const kiroReasoningCanonicalBody = `{"model":"gpt-5.1","stream":false,"input":[`
 	`{"type":"message","role":"assistant","content":"hi"}` +
 	`]}`
 
-func newOpenAIPassthroughAccount(id int64, passthrough bool) *service.Account {
-	return &service.Account{
-		ID:       id,
+func newOpenAIPassthroughAccount(id int64, passthrough bool) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
-		Extra:    map[string]any{"openai_passthrough": passthrough},
+		Extra:    map[string]any{"openai_passthrough": passthrough}},
 	}
 }
 

@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -58,13 +60,12 @@ func TestGeminiForwardAsChatCompletions_OAuthRoutesToGeminiAndReturnsChatFormat(
 			Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 		},
 	}
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		tokenProvider: newGeminiTokenSourceForTest(),
 		httpUpstream:  httpStub,
 		cfg:           &config.Config{},
-	}
-	account := &Account{
-		ID:       101,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
@@ -74,7 +75,7 @@ func TestGeminiForwardAsChatCompletions_OAuthRoutesToGeminiAndReturnsChatFormat(
 				"gemini-2.5-flash": "gemini-2.5-flash-upstream",
 			},
 		},
-		Concurrency: 1,
+		Concurrency: 1},
 	}
 
 	rec := httptest.NewRecorder()
@@ -136,13 +137,12 @@ func TestGeminiMessagesCompatServiceForward_OAuthAppliesAccountModelMapping(t *t
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		tokenProvider: newGeminiTokenSourceForTest(),
 		httpUpstream:  httpStub,
 		cfg:           &config.Config{},
-	}
-	account := &Account{
-		ID:       103,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 103,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
@@ -152,7 +152,7 @@ func TestGeminiMessagesCompatServiceForward_OAuthAppliesAccountModelMapping(t *t
 				"channel-model": "oauth-upstream-model",
 			},
 		},
-		Concurrency: 1,
+		Concurrency: 1},
 	}
 
 	rec := httptest.NewRecorder()
@@ -181,13 +181,12 @@ func TestGeminiMessagesCompatServiceForwardNative_OAuthAppliesAccountModelMappin
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		tokenProvider: newGeminiTokenSourceForTest(),
 		httpUpstream:  httpStub,
 		cfg:           &config.Config{},
-	}
-	account := &Account{
-		ID:       104,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 104,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
@@ -197,7 +196,7 @@ func TestGeminiMessagesCompatServiceForwardNative_OAuthAppliesAccountModelMappin
 				"channel-model": "oauth-upstream-model",
 			},
 		},
-		Concurrency: 1,
+		Concurrency: 1},
 	}
 
 	rec := httptest.NewRecorder()
@@ -228,18 +227,17 @@ func TestGeminiForwardAsChatCompletions_StreamsOpenAIChunksFromGeminiSSE(t *test
 			Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 		},
 	}
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		httpUpstream: httpStub,
 		cfg:          &config.Config{},
-	}
-	account := &Account{
-		ID:       102,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 102,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "gemini-api-key",
 		},
-		Concurrency: 1,
+		Concurrency: 1},
 	}
 
 	rec := httptest.NewRecorder()
@@ -280,18 +278,17 @@ func TestGeminiMessagesCompatServiceForward_StreamingClosesToolUseBeforeText(t *
 			Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 		},
 	}
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		httpUpstream: httpStub,
 		cfg:          &config.Config{},
-	}
-	account := &Account{
-		ID:       103,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 103,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "gemini-api-key",
 		},
-		Concurrency: 1,
+		Concurrency: 1},
 	}
 
 	rec := httptest.NewRecorder()
@@ -373,18 +370,17 @@ func TestGeminiForwardAsChatCompletions_FunctionNamedWebSearchStaysClientSide(t 
 			)),
 		},
 	}
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		httpUpstream: httpStub,
 		cfg:          &config.Config{},
-	}
-	account := &Account{
-		ID:       103,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 103,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "gemini-api-key",
 		},
-		Concurrency: 1,
+		Concurrency: 1},
 	}
 
 	rec := httptest.NewRecorder()
@@ -736,13 +732,13 @@ func TestGeminiHandleNativeNonStreamingResponse_DebugDisabledDoesNotEmitHeaderLo
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				GeminiDebugResponseHeaders: false,
 			},
 		},
-	}
+	})
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -777,16 +773,15 @@ func TestGeminiMessagesCompatServiceForward_PreservesRequestedModelAndMappedUpst
 			Body:       io.NopCloser(strings.NewReader(`{"candidates":[{"content":{"parts":[{"text":"hello"}]}}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":5}}`)),
 		},
 	}
-	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{
-		ID:   1,
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "test-key",
 			"model_mapping": map[string]any{
 				"claude-sonnet-4": "claude-sonnet-4-20250514",
 			},
-		},
+		}},
 	}
 	body := []byte(`{"model":"claude-sonnet-4","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}`)
 
@@ -814,13 +809,12 @@ func TestGeminiMessagesCompatServiceForward_NormalizesWebSearchToolForAIStudio(t
 			Body:       io.NopCloser(strings.NewReader(`{"candidates":[{"content":{"parts":[{"text":"hello"}]}}],"usageMetadata":{"promptTokenCount":10,"candidatesTokenCount":5}}`)),
 		},
 	}
-	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{
-		ID:   1,
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "test-key",
-		},
+		}},
 	}
 	body := []byte(`{"model":"claude-sonnet-4","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"tools":[{"name":"get_weather","description":"Get weather info","input_schema":{"type":"object"}},{"type":"web_search_20250305","name":"web_search"}]}`)
 

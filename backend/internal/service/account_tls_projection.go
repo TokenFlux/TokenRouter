@@ -1,13 +1,16 @@
 package service
 
-import "github.com/TokenFlux/TokenRouter/internal/egress"
+import (
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+)
 
 // accountTLSSelection 只提取资格与配置 ID，策略选择由 egress 拥有。
-func accountTLSSelection(value *Account, routerMatch []egress.TLSFingerprintRouterMatchResult) egress.TLSSelection {
+func accountTLSSelection(value *gatewayprovider.ExecutionAccount, routerMatch []egress.TLSFingerprintRouterMatchResult) egress.TLSSelection {
 	selection := egress.TLSSelection{}
 	if value != nil {
-		selection.Enabled = value.IsTLSFingerprintEnabled()
-		selection.DirectProfileID = value.GetTLSFingerprintProfileID()
+		selection.Enabled = value.View().IsTLSFingerprintEnabled()
+		selection.DirectProfileID = value.View().GetTLSFingerprintProfileID()
 	}
 	if len(routerMatch) > 0 {
 		selection.RouterMatched = routerMatch[0].Matched

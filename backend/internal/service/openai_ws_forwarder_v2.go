@@ -11,21 +11,24 @@ import (
 	"strings"
 	"time"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-
-	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
-
-	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
@@ -36,7 +39,7 @@ import (
 func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	reqBody map[string]any,
 	clientPromptCacheKey string,
 	token string,
@@ -75,8 +78,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 	gatewayprovider.LogOpenAIWSModeDebug(
 		"dial_target account_id=%d account_type=%s ws_host=%s ws_path=%s",
-		account.ID,
-		account.Type,
+		account.Record.ID,
+		account.Record.Type,
 		wsHost,
 		wsPath,
 	)
@@ -90,9 +93,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		turnMetadata = strings.TrimSpace(c.GetHeader(openai.WSTurnMetadataHeader))
 	}
 	openai.SetOpenAIWSTurnMetadata(payload, turnMetadata)
-	applyStagedCodexFingerprintClientMetadata(c, account, payload)
+	gatewayhttp.ApplyStagedCodexFingerprintClientMetadata(c, account.View(), payload)
 	previousResponseID := protocolopenai.WSPayloadString(payload, "previous_response_id")
-	previousResponseIDKind := ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
+	previousResponseIDKind := protocolopenai.ClassifyOpenAIPreviousResponseIDKind(previousResponseID)
 	promptCacheKey := strings.TrimSpace(clientPromptCacheKey)
 	if promptCacheKey == "" {
 		// Fingerprint convergence may inject a default key when the client did
@@ -120,7 +123,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	if s.shouldEmitOpenAIWSPayloadSchema(attempt) {
 		gatewayprovider.LogOpenAIWSModeInfo(
 			"[debug] payload_schema account_id=%d attempt=%d event=%s payload_keys=%s payload_bytes=%d payload_key_sizes=%s input_summary=%s stream=%s payload_strategy=%s removed_keys=%s has_previous_response_id=%v has_prompt_cache_key=%v has_tools=%v",
-			account.ID,
+			account.Record.ID,
 			attempt,
 			payloadEventType, gatewayprovider.NormalizeOpenAIWSLogValue(strings.Join(gatewayprovider.SortedOpenAIWSPayloadKeys(payload), ",")), resolvePayloadBytes(), gatewayprovider.NormalizeOpenAIWSLogValue(gatewayprovider.SummarizeOpenAIWSPayloadKeySizes(payload, openAIWSPayloadKeySizeTopN)), gatewayprovider.NormalizeOpenAIWSLogValue(gatewayprovider.SummarizeOpenAIWSInput(payload["input"])), streamValue, gatewayprovider.NormalizeOpenAIWSLogValue(payloadStrategy), gatewayprovider.NormalizeOpenAIWSLogValue(strings.Join(removedKeys, ",")), previousResponseID != "",
 			promptCacheKey != "",
@@ -128,13 +131,13 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		)
 	}
 
-	stateStore := s.getOpenAIWSStateStore()
+	stateStore := s.ResponseStateStore()
 	groupID := getOpenAIGroupIDFromContext(c)
-	sessionHash := s.GenerateSessionHash(c, nil)
+	sessionHash := gatewayhttp.GenerateOpenAISessionHash(c, nil)
 	if sessionHash == "" {
 		var legacySessionHash string
 		sessionHash, legacySessionHash = scheduler.DeriveSessionHashes(promptCacheKey)
-		attachOpenAILegacySessionHashToGin(c, legacySessionHash)
+		gatewayhttp.AttachOpenAILegacySessionHash(c, legacySessionHash)
 	}
 	if turnState == "" && stateStore != nil && sessionHash != "" {
 		if savedTurnState, ok := stateStore.GetSessionTurnState(groupID, sessionHash); ok {
@@ -172,12 +175,12 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 	gatewayprovider.LogOpenAIWSModeDebug(
 		"acquire_start account_id=%d account_type=%s transport=%s preferred_conn_id=%s has_previous_response_id=%v session_hash=%s has_turn_state=%v turn_state_len=%d has_turn_metadata=%v turn_metadata_len=%d store_disabled=%v store_disabled_conn_mode=%s retry_last_reason=%s force_new_conn=%v header_user_agent=%s header_openai_beta=%s header_originator=%s header_accept_language=%s header_session_id=%s header_conversation_id=%s session_id_source=%s conversation_id_source=%s has_prompt_cache_key=%v has_chatgpt_account_id=%v has_authorization=%v has_session_id=%v has_conversation_id=%v proxy_enabled=%v",
-		account.ID,
-		account.Type, gatewayprovider.NormalizeOpenAIWSLogValue(string(decision.Transport)), gatewayprovider.TruncateOpenAIWSLogValue(preferredConnID, gatewayprovider.OpenAIWSIDValueMaxLen), previousResponseID != "", gatewayprovider.TruncateOpenAIWSLogValue(sessionHash, 12), turnState != "",
+		account.Record.ID,
+		account.Record.Type, gatewayprovider.NormalizeOpenAIWSLogValue(string(decision.Transport)), gatewayprovider.TruncateOpenAIWSLogValue(preferredConnID, gatewayprovider.OpenAIWSIDValueMaxLen), previousResponseID != "", gatewayprovider.TruncateOpenAIWSLogValue(sessionHash, 12), turnState != "",
 		len(turnState),
 		turnMetadata != "",
 		len(turnMetadata),
-		storeDisabled, gatewayprovider.NormalizeOpenAIWSLogValue(storeDisabledConnMode), gatewayprovider.TruncateOpenAIWSLogValue(lastFailureReason, gatewayprovider.OpenAIWSLogValueMaxLen), forceNewConn, gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "user-agent"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "openai-beta"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "originator"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "accept-language"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "session_id"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "conversation_id"), gatewayprovider.NormalizeOpenAIWSLogValue(sessionResolution.SessionSource), gatewayprovider.NormalizeOpenAIWSLogValue(sessionResolution.ConversationSource), promptCacheKey != "", gatewayprovider.HasOpenAIWSHeader(wsHeaders, "chatgpt-account-id"), gatewayprovider.HasOpenAIWSHeader(wsHeaders, "authorization"), gatewayprovider.HasOpenAIWSHeader(wsHeaders, "session_id"), gatewayprovider.HasOpenAIWSHeader(wsHeaders, "conversation_id"), account.ProxyID != nil && account.Proxy != nil,
+		storeDisabled, gatewayprovider.NormalizeOpenAIWSLogValue(storeDisabledConnMode), gatewayprovider.TruncateOpenAIWSLogValue(lastFailureReason, gatewayprovider.OpenAIWSLogValueMaxLen), forceNewConn, gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "user-agent"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "openai-beta"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "originator"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "accept-language"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "session_id"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "conversation_id"), gatewayprovider.NormalizeOpenAIWSLogValue(sessionResolution.SessionSource), gatewayprovider.NormalizeOpenAIWSLogValue(sessionResolution.ConversationSource), promptCacheKey != "", gatewayprovider.HasOpenAIWSHeader(wsHeaders, "chatgpt-account-id"), gatewayprovider.HasOpenAIWSHeader(wsHeaders, "authorization"), gatewayprovider.HasOpenAIWSHeader(wsHeaders, "session_id"), gatewayprovider.HasOpenAIWSHeader(wsHeaders, "conversation_id"), account.Record.ProxyID != nil && account.Record.Proxy != nil,
 	)
 
 	acquireCtx, acquireCancel := context.WithTimeout(ctx, s.openAIWSAcquireTimeout())
@@ -189,34 +192,34 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		WSURL:   wsURL,
 		Headers: wsHeaders,
 		HeadersFactory: func(factoryCtx context.Context, headers http.Header) (http.Header, error) {
-			return s.refreshOpenAIAgentIdentityHeaders(factoryCtx, account, headers)
+			return s.agentIdentity.RefreshHeaders(factoryCtx, account, headers)
 		},
 		PreferredConnID: preferredConnID,
 		ForceNewConn:    forceNewConn,
 		TLSProfile:      tlsProfile,
 		TLSProfileKey:   tlsProfileKey,
 		ProxyURL: func() string {
-			if account.ProxyID != nil && account.Proxy != nil {
-				return account.Proxy.URL()
+			if account.Record.ProxyID != nil && account.Record.Proxy != nil {
+				return account.Record.Proxy.URL()
 			}
 			return ""
 		}(),
 	})
 	if err != nil {
 		var agentDialErr *openai.WSDialError
-		if s.isAgentIdentityAccount(ctx, account) && errors.As(err, &agentDialErr) && isAgentIdentityTaskInvalidWSDialError(agentDialErr) && agentTaskRecoveryTried != nil && !*agentTaskRecoveryTried {
+		if s.agentIdentity.UsesAgentIdentity(ctx, account) && errors.As(err, &agentDialErr) && openai.IsAgentTaskInvalidWSDialError(agentDialErr) && agentTaskRecoveryTried != nil && !*agentTaskRecoveryTried {
 			*agentTaskRecoveryTried = true
-			if recoveryErr := s.recoverAgentIdentityTask(ctx, account, account.GetCredential("task_id")); recoveryErr != nil {
+			if recoveryErr := s.agentIdentity.Recover(ctx, account, account.View().GetCredential("task_id")); recoveryErr != nil {
 				return nil, fmt.Errorf("agent identity task recovery failed: %w", recoveryErr)
 			}
-			return nil, &agentIdentityTaskRecoveredError{}
+			return nil, &forwardcore.AgentIdentityTaskRecoveredError{}
 		}
 		errorDecision := s.handleOpenAIWSDialTransientFailure(ctx, account, mappedModel, err)
 		dialStatus, dialClass, dialCloseStatus, dialCloseReason, dialRespServer, dialRespVia, dialRespCFRay, dialRespReqID := gatewayprovider.SummarizeOpenAIWSDialError(err)
 		gatewayprovider.LogOpenAIWSModeInfo(
 			"acquire_fail account_id=%d account_type=%s transport=%s reason=%s dial_status=%d dial_class=%s dial_close_status=%s dial_close_reason=%s dial_resp_server=%s dial_resp_via=%s dial_resp_cf_ray=%s dial_resp_x_request_id=%s cause=%s preferred_conn_id=%s force_new_conn=%v ws_host=%s ws_path=%s proxy_enabled=%v",
-			account.ID,
-			account.Type, gatewayprovider.NormalizeOpenAIWSLogValue(string(decision.Transport)), gatewayprovider.NormalizeOpenAIWSLogValue(openai.ClassifyWSAcquireError(err)), dialStatus,
+			account.Record.ID,
+			account.Record.Type, gatewayprovider.NormalizeOpenAIWSLogValue(string(decision.Transport)), gatewayprovider.NormalizeOpenAIWSLogValue(openai.ClassifyWSAcquireError(err)), dialStatus,
 			dialClass,
 			dialCloseStatus, gatewayprovider.TruncateOpenAIWSLogValue(dialCloseReason, gatewayprovider.OpenAIWSHeaderValueMaxLen), dialRespServer,
 			dialRespVia,
@@ -224,7 +227,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			dialRespReqID, gatewayprovider.TruncateOpenAIWSLogValue(err.Error(), gatewayprovider.OpenAIWSLogValueMaxLen), gatewayprovider.TruncateOpenAIWSLogValue(preferredConnID, gatewayprovider.OpenAIWSIDValueMaxLen), forceNewConn,
 			wsHost,
 			wsPath,
-			account.ProxyID != nil && account.Proxy != nil,
+			account.Record.ProxyID != nil && account.Record.Proxy != nil,
 		)
 		var policyDialErr *openai.WSDialError
 		if errors.As(err, &policyDialErr) && policyDialErr != nil && policyDialErr.StatusCode != 0 {
@@ -232,7 +235,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				return nil, ws.NewGenericPolicyError(policyDialErr.StatusCode)
 			}
 			if errorDecision.ShouldFailoverWithDefaults(
-				account,
+				gatewayprovider.ExecutionErrorPolicy(account),
 				policyDialErr.StatusCode,
 				false,
 				s.shouldFailoverOpenAIWSError(account, policyDialErr.StatusCode, policyDialErr.ResponseBody),
@@ -242,7 +245,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					policyDialErr.ResponseHeaders,
 					policyDialErr.ResponseBody,
 					upstream.ExtractErrorMessage(policyDialErr.ResponseBody),
-					errorDecision.RetryableOnSameAccount(account, policyDialErr.StatusCode),
+					errorDecision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), policyDialErr.StatusCode),
 				)
 			}
 		}
@@ -261,8 +264,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	connID := strings.TrimSpace(lease.ConnID())
 	gatewayprovider.LogOpenAIWSModeDebug(
 		"connected account_id=%d account_type=%s transport=%s conn_id=%s conn_reused=%v conn_pick_ms=%d queue_wait_ms=%d has_previous_response_id=%v",
-		account.ID,
-		account.Type, gatewayprovider.NormalizeOpenAIWSLogValue(string(decision.Transport)), connID,
+		account.Record.ID,
+		account.Record.Type, gatewayprovider.NormalizeOpenAIWSLogValue(string(decision.Transport)), connID,
 		lease.Reused(),
 		lease.ConnPickDuration().Milliseconds(),
 		lease.QueueWaitDuration().Milliseconds(),
@@ -271,8 +274,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	if previousResponseID != "" {
 		gatewayprovider.LogOpenAIWSModeInfo(
 			"continuation_probe account_id=%d account_type=%s conn_id=%s previous_response_id=%s previous_response_id_kind=%s preferred_conn_id=%s conn_reused=%v store_disabled=%v session_hash=%s header_session_id=%s header_conversation_id=%s session_id_source=%s conversation_id_source=%s has_turn_state=%v turn_state_len=%d has_prompt_cache_key=%v",
-			account.ID,
-			account.Type, gatewayprovider.TruncateOpenAIWSLogValue(connID, gatewayprovider.OpenAIWSIDValueMaxLen), gatewayprovider.TruncateOpenAIWSLogValue(previousResponseID, gatewayprovider.OpenAIWSIDValueMaxLen), gatewayprovider.NormalizeOpenAIWSLogValue(previousResponseIDKind), gatewayprovider.TruncateOpenAIWSLogValue(preferredConnID, gatewayprovider.OpenAIWSIDValueMaxLen), lease.Reused(),
+			account.Record.ID,
+			account.Record.Type, gatewayprovider.TruncateOpenAIWSLogValue(connID, gatewayprovider.OpenAIWSIDValueMaxLen), gatewayprovider.TruncateOpenAIWSLogValue(previousResponseID, gatewayprovider.OpenAIWSIDValueMaxLen), gatewayprovider.NormalizeOpenAIWSLogValue(previousResponseIDKind), gatewayprovider.TruncateOpenAIWSLogValue(preferredConnID, gatewayprovider.OpenAIWSIDValueMaxLen), lease.Reused(),
 			storeDisabled, gatewayprovider.TruncateOpenAIWSLogValue(sessionHash, 12), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "session_id"), gatewayprovider.OpenAIWSHeaderValueForLog(wsHeaders, "conversation_id"), gatewayprovider.NormalizeOpenAIWSLogValue(sessionResolution.SessionSource), gatewayprovider.NormalizeOpenAIWSLogValue(sessionResolution.ConversationSource), turnState != "",
 			len(turnState),
 			promptCacheKey != "",
@@ -290,7 +293,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	handshakeTurnState := strings.TrimSpace(lease.HandshakeHeader(openAIWSTurnStateHeader))
 	gatewayprovider.LogOpenAIWSModeDebug(
 		"handshake account_id=%d conn_id=%s has_turn_state=%v turn_state_len=%d",
-		account.ID,
+		account.Record.ID,
 		connID,
 		handshakeTurnState != "",
 		len(handshakeTurnState),
@@ -323,7 +326,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		lease.MarkBroken()
 		gatewayprovider.LogOpenAIWSModeInfo(
 			"write_request_fail account_id=%d conn_id=%s cause=%s payload_bytes=%d",
-			account.ID,
+			account.Record.ID,
 			connID, gatewayprovider.TruncateOpenAIWSLogValue(err.Error(), gatewayprovider.OpenAIWSLogValueMaxLen), resolvePayloadBytes(),
 		)
 		return nil, ws.WrapFallback("write_request", err)
@@ -331,7 +334,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	if debugEnabled {
 		gatewayprovider.LogOpenAIWSModeDebug(
 			"write_request_sent account_id=%d conn_id=%s stream=%v payload_bytes=%d previous_response_id=%s",
-			account.ID,
+			account.Record.ID,
 			connID,
 			reqStream,
 			resolvePayloadBytes(), gatewayprovider.TruncateOpenAIWSLogValue(previousResponseID, gatewayprovider.OpenAIWSIDValueMaxLen),
@@ -412,7 +415,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			return
 		}
 		clientDisconnected = true
-		logging.LegacyPrintf("service.openai_gateway", "[OpenAI WS Mode] client disconnected, continue draining upstream: account=%d", account.ID)
+		logging.LegacyPrintf("service.openai_gateway", "[OpenAI WS Mode] client disconnected, continue draining upstream: account=%d", account.Record.ID)
 	}
 	flushBufferedStreamEvents := func(reason string) {
 		if len(bufferedStreamEvents) == 0 {
@@ -428,7 +431,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if debugEnabled {
 			gatewayprovider.LogOpenAIWSModeDebug(
 				"buffer_flush account_id=%d conn_id=%s reason=%s flushed=%d total_flushed=%d client_disconnected=%v",
-				account.ID,
+				account.Record.ID,
 				connID, gatewayprovider.TruncateOpenAIWSLogValue(reason, gatewayprovider.OpenAIWSLogValueMaxLen), flushed,
 				flushedBufferedEventCount,
 				clientDisconnected,
@@ -451,7 +454,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				if documents, repaired := protocolopenai.SplitConcatenatedJSONDocuments(message); repaired {
 					gatewayprovider.LogOpenAIWSModeInfo(
 						"concatenated_json_repaired account_id=%d conn_id=%s documents=%d bytes=%d",
-						account.ID, gatewayprovider.TruncateOpenAIWSLogValue(connID, gatewayprovider.OpenAIWSIDValueMaxLen), len(documents),
+						account.Record.ID, gatewayprovider.TruncateOpenAIWSLogValue(connID, gatewayprovider.OpenAIWSIDValueMaxLen), len(documents),
 						len(message),
 					)
 					message = documents[0]
@@ -468,7 +471,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			lease.MarkBroken()
 			gatewayprovider.LogOpenAIWSModeInfo(
 				"invalid_event_json account_id=%d conn_id=%s event_type=%s bytes=%d wrote_downstream=%v",
-				account.ID, gatewayprovider.TruncateOpenAIWSLogValue(connID, gatewayprovider.OpenAIWSIDValueMaxLen), gatewayprovider.TruncateOpenAIWSLogValue(eventType, gatewayprovider.OpenAIWSLogValueMaxLen), len(message),
+				account.Record.ID, gatewayprovider.TruncateOpenAIWSLogValue(connID, gatewayprovider.OpenAIWSIDValueMaxLen), gatewayprovider.TruncateOpenAIWSLogValue(eventType, gatewayprovider.OpenAIWSLogValueMaxLen), len(message),
 				wroteDownstream,
 			)
 			if !wroteDownstream {
@@ -481,7 +484,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			closeStatus, closeReason := gatewayprovider.SummarizeOpenAIWSReadCloseError(readErr)
 			gatewayprovider.LogOpenAIWSModeInfo(
 				"read_fail account_id=%d conn_id=%s wrote_downstream=%v close_status=%s close_reason=%s cause=%s events=%d token_events=%d terminal_events=%d buffered_pending=%d buffered_flushed=%d first_event=%s last_event=%s",
-				account.ID,
+				account.Record.ID,
 				connID,
 				wroteDownstream,
 				closeStatus,
@@ -534,7 +537,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if debugEnabled && gatewayprovider.ShouldLogOpenAIWSEvent(eventCount, eventType) {
 			gatewayprovider.LogOpenAIWSModeDebug(
 				"event_received account_id=%d conn_id=%s idx=%d type=%s bytes=%d token=%v terminal=%v buffered_pending=%d",
-				account.ID,
+				account.Record.ID,
 				connID,
 				eventCount, gatewayprovider.TruncateOpenAIWSLogValue(eventType, gatewayprovider.OpenAIWSLogValueMaxLen), len(message),
 				isTokenEvent,
@@ -558,7 +561,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			protocolopenai.ParseWSResponseUsageFromCompletedEvent(message, usage)
 		}
 		if eventType == "error" || eventType == "response.failed" {
-			markOpenAICyberPolicyEvent(c, message, http.StatusOK, usage)
+			gatewayhttp.MarkOpenAICyberPolicyEvent(c, message, http.StatusOK, usage)
 		}
 		var responseEvent protocolopenai.ResponsesStreamEvent
 		if err := json.Unmarshal(message, &responseEvent); err == nil {
@@ -570,7 +573,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		}
 		terminalPolicy := openAIWSTerminalPolicyDecision{
 			TerminalEvent: normalizeOpenAIWSTerminalEvent(eventType),
-			Decision:      UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone},
+			Decision:      accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone},
 		}
 		if isTerminalEvent {
 			terminalPolicy = s.handleOpenAIWSTerminalTransientFailure(ctx, account, mappedModel, lease.HandshakeHeaders(), message)
@@ -582,10 +585,10 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					return nil, ws.NewGenericPolicyError(terminalPolicy.StatusCode)
 				}
 				// 流已提交时无法改写 HTTP 状态，只下发净化后的通用终止事件。
-				message = openAIStreamGenericFailedEventPayload()
+				message = protocolopenai.GenericFailedEventPayload()
 			}
 			if !wroteDownstream && terminalPolicy.Decision.ShouldFailoverWithDefaults(
-				account,
+				gatewayprovider.ExecutionErrorPolicy(account),
 				terminalPolicy.StatusCode,
 				false,
 				s.shouldFailoverOpenAIWSError(account, terminalPolicy.StatusCode, message),
@@ -596,7 +599,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					lease.HandshakeHeaders(),
 					message,
 					openai.ExtractOpenAISSEErrorMessage(message),
-					terminalPolicy.Decision.RetryableOnSameAccount(account, terminalPolicy.StatusCode),
+					terminalPolicy.Decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), terminalPolicy.StatusCode),
 				)
 			}
 		}
@@ -613,7 +616,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			errCode, errType, errMessage := gatewayprovider.SummarizeOpenAIWSErrorEventFieldsFromRaw(errCodeRaw, errTypeRaw, errMsgRaw)
 			gatewayprovider.LogOpenAIWSModeInfo(
 				"error_event account_id=%d conn_id=%s idx=%d fallback_reason=%s can_fallback=%v err_code=%s err_type=%s err_message=%s",
-				account.ID,
+				account.Record.ID,
 				connID,
 				eventCount, gatewayprovider.TruncateOpenAIWSLogValue(fallbackReason, gatewayprovider.OpenAIWSLogValueMaxLen), canFallback,
 				errCode,
@@ -623,8 +626,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			if fallbackReason == "previous_response_not_found" {
 				gatewayprovider.LogOpenAIWSModeInfo(
 					"previous_response_not_found_diag account_id=%d account_type=%s conn_id=%s previous_response_id=%s previous_response_id_kind=%s response_id=%s event_idx=%d req_stream=%v store_disabled=%v conn_reused=%v session_hash=%s header_session_id=%s header_conversation_id=%s session_id_source=%s conversation_id_source=%s has_turn_state=%v turn_state_len=%d has_prompt_cache_key=%v err_code=%s err_type=%s err_message=%s",
-					account.ID,
-					account.Type,
+					account.Record.ID,
+					account.Record.Type,
 					connID, gatewayprovider.TruncateOpenAIWSLogValue(previousResponseID, gatewayprovider.OpenAIWSIDValueMaxLen), gatewayprovider.NormalizeOpenAIWSLogValue(previousResponseIDKind), gatewayprovider.TruncateOpenAIWSLogValue(responseID, gatewayprovider.OpenAIWSIDValueMaxLen), eventCount,
 					reqStream,
 					storeDisabled,
@@ -645,7 +648,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				return nil, ws.NewGenericPolicyError(statusCode)
 			}
 			if !wroteDownstream && errorDecision.ShouldFailoverWithDefaults(
-				account,
+				gatewayprovider.ExecutionErrorPolicy(account),
 				statusCode,
 				false,
 				s.shouldFailoverOpenAIWSError(account, statusCode, message),
@@ -655,7 +658,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 					lease.HandshakeHeaders(),
 					message,
 					errMsg,
-					errorDecision.RetryableOnSameAccount(account, statusCode),
+					errorDecision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), statusCode),
 				)
 			}
 			if !wroteDownstream && canFallback {
@@ -707,7 +710,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 				if debugEnabled && gatewayprovider.ShouldLogOpenAIWSBufferedEvent(bufferedEventCount) {
 					gatewayprovider.LogOpenAIWSModeDebug(
 						"buffer_enqueue account_id=%d conn_id=%s idx=%d event_idx=%d event_type=%s buffer_size=%d",
-						account.ID,
+						account.Record.ID,
 						connID,
 						bufferedEventCount,
 						eventCount, gatewayprovider.TruncateOpenAIWSLogValue(eventType, gatewayprovider.OpenAIWSLogValueMaxLen), len(bufferedStreamEvents),
@@ -744,7 +747,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if len(finalResponse) == 0 {
 			gatewayprovider.LogOpenAIWSModeInfo(
 				"missing_final_response account_id=%d conn_id=%s events=%d token_events=%d terminal_events=%d wrote_downstream=%v",
-				account.ID,
+				account.Record.ID,
 				connID,
 				eventCount,
 				tokenEventCount,
@@ -779,8 +782,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 
 	if responseID != "" && stateStore != nil {
-		ttl := s.openAIWSResponseStickyTTL()
-		gatewayprovider.LogOpenAIWSBindResponseAccountWarn(groupID, account.ID, responseID, stateStore.BindResponseAccount(ctx, groupID, responseID, account.ID, ttl))
+		ttl := s.OpenAIHTTPResponseStickyTTL()
+		gatewayprovider.LogOpenAIWSBindResponseAccountWarn(groupID, account.Record.ID, responseID, stateStore.BindResponseAccount(ctx, groupID, responseID, account.Record.ID, ttl))
 		stateStore.BindResponseConn(responseID, lease.ConnID(), ttl)
 		s.bindOpenAIWSResponseSessionOwner(ctx, c, responseID)
 	}
@@ -793,7 +796,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}
 	gatewayprovider.LogOpenAIWSModeDebug(
 		"completed account_id=%d conn_id=%s response_id=%s stream=%v duration_ms=%d events=%d token_events=%d terminal_events=%d buffered_events=%d buffered_flushed=%d first_event=%s last_event=%s first_token_ms=%d wrote_downstream=%v client_disconnected=%v",
-		account.ID,
+		account.Record.ID,
 		connID, gatewayprovider.TruncateOpenAIWSLogValue(strings.TrimSpace(responseID), gatewayprovider.OpenAIWSIDValueMaxLen), reqStream,
 		time.Since(startTime).Milliseconds(),
 		eventCount,
@@ -813,9 +816,9 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		UpstreamResponseServiceTier: responseModelObserver.ServiceTier(),
 		ImageCount:                  imageCounter.Count(),
 		ImageOutputSizes:            imageCounter.Sizes(),
-		ServiceTier:                 gatewayhttp.ResolvedOpenAIUpstreamServiceTierFromObserver(responseModelObserver, extractOpenAIServiceTier(reqBody)),
-		ReasoningEffort:             ApplyThinkingEnabledFallback(extractOpenAIReasoningEffort(reqBody, mappedModel, originalModel), payloadAsJSONBytes(payload), mappedModel),
-		RequestedReasoningEffort:    CanonicalRequestedReasoningEffortFromReqBody(reqBody, originalModel, mappedModel),
+		ServiceTier:                 gatewayhttp.ResolvedOpenAIUpstreamServiceTierFromObserver(responseModelObserver, requeststate.ExtractOpenAIServiceTier(reqBody)),
+		ReasoningEffort:             gatewayprovider.ApplyThinkingEnabledFallback(requeststate.ExtractOpenAIReasoningEffort(reqBody, mappedModel, originalModel), payloadAsJSONBytes(payload), mappedModel),
+		RequestedReasoningEffort:    requeststate.CanonicalRequestedReasoningEffortFromReqBody(reqBody, originalModel, mappedModel),
 		Stream:                      reqStream,
 		OpenAIWSMode:                true,
 		UpstreamTerminalEvent:       upstreamTerminalEvent,

@@ -11,6 +11,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -73,7 +74,7 @@ func classifyUpstreamTransportError(err error) openAITransportErrorClass {
 //
 // 该函数只记录 ops 和返回错误，不直接写响应；非客户端取消错误会转成
 // UpstreamFailoverError，让 handler 继续切换账号。持久故障会同步临时摘除账号。
-func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Context, c *gin.Context, account *Account, err error, passthrough bool) error {
+func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, err error, passthrough bool) error {
 	if err == nil {
 		return nil
 	}
@@ -81,9 +82,9 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 	platform, accountName := "", ""
 	var accountID int64
 	if account != nil {
-		platform = account.Platform
-		accountID = account.ID
-		accountName = account.Name
+		platform = account.Record.Platform
+		accountID = account.Record.ID
+		accountName = account.Record.Name
 	}
 	gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
@@ -116,7 +117,7 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 }
 
 // tempUnscheduleOpenAITransportError 因持久传输层故障临时摘除 OpenAI 账号。
-func (s *OpenAIGatewayService) tempUnscheduleOpenAITransportError(ctx context.Context, account *Account, safeErr string) {
+func (s *OpenAIGatewayService) tempUnscheduleOpenAITransportError(ctx context.Context, account *gatewayprovider.ExecutionAccount, safeErr string) {
 	if s == nil || account == nil {
 		return
 	}
@@ -129,9 +130,9 @@ func (s *OpenAIGatewayService) tempUnscheduleOpenAITransportError(ctx context.Co
 	if s.accountRepo == nil {
 		logging.L().With(zap.String("component", "service.openai_gateway")).Warn(
 			"openai.account_temp_unscheduled_transport_memory_only",
-			zap.Int64("account_id", account.ID),
-			zap.String("account_name", account.Name),
-			zap.String("platform", account.Platform),
+			zap.Int64("account_id", account.Record.ID),
+			zap.String("account_name", account.Record.Name),
+			zap.String("platform", account.Record.Platform),
 			zap.Time("until", until),
 			zap.String("reason", reason),
 		)
@@ -140,19 +141,19 @@ func (s *OpenAIGatewayService) tempUnscheduleOpenAITransportError(ctx context.Co
 
 	bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAIAccountStateUpdateTimeout)
 	defer cancel()
-	if err := s.accountRepo.SetTempUnschedulable(bgCtx, account.ID, until, reason); err != nil {
+	if err := s.accountRepo.SetTempUnschedulable(bgCtx, account.Record.ID, until, reason); err != nil {
 		logging.L().With(zap.String("component", "service.openai_gateway")).Warn(
 			"openai.account_temp_unscheduled_transport_failed",
-			zap.Int64("account_id", account.ID),
+			zap.Int64("account_id", account.Record.ID),
 			zap.Error(err),
 		)
 		return
 	}
 	logging.L().With(zap.String("component", "service.openai_gateway")).Warn(
 		"openai.account_temp_unscheduled_transport",
-		zap.Int64("account_id", account.ID),
-		zap.String("account_name", account.Name),
-		zap.String("platform", account.Platform),
+		zap.Int64("account_id", account.Record.ID),
+		zap.String("account_name", account.Record.Name),
+		zap.String("platform", account.Record.Platform),
 		zap.Time("until", until),
 		zap.String("reason", reason),
 	)

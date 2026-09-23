@@ -5,6 +5,7 @@ import (
 
 	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
 // ServiceTierBillingResolution 描述请求档位与上游实际档位之间的计费决策。
@@ -12,12 +13,12 @@ import (
 // ResolveOpenAIServiceTierBilling 按凭据类型应用上游 service tier 计费契约。
 // 公共 OpenAI 响应的档位声明可降低计费；私有 ChatGPT Codex 常将有效 Fast 回显为
 // default，因此 OAuth 类凭据保留最终出站档位。
-func ResolveOpenAIServiceTierBilling(account *Account, requested, observed string) completion.ServiceTierBillingResolution {
-	return completion.ResolveOpenAIServiceTierBilling(account != nil && account.IsOpenAIOAuthLike(), requested, observed)
+func ResolveOpenAIServiceTierBilling(account *gatewayprovider.ExecutionAccount, requested, observed string) completion.ServiceTierBillingResolution {
+	return completion.ResolveOpenAIServiceTierBilling(account != nil && account.View().IsOpenAIOAuthLike(), requested, observed)
 }
 
 // ApplyOpenAIServiceTierBillingResolution 仅在上游档位对当前凭据有权威性时降档。
-func ApplyOpenAIServiceTierBillingResolution(account *Account, result *forwardcore.OpenAIResult) completion.ServiceTierBillingResolution {
+func ApplyOpenAIServiceTierBillingResolution(account *gatewayprovider.ExecutionAccount, result *forwardcore.OpenAIResult) completion.ServiceTierBillingResolution {
 	if result == nil {
 		return completion.ServiceTierBillingResolution{}
 	}

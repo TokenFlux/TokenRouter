@@ -5,7 +5,6 @@ import (
 	context "context"
 
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
 )
@@ -55,26 +54,3 @@ func AbortWithError(c *gin.Context, status int, code, message string) {
 	httpx.AbortWithError(c, status, code, message)
 }
 func normalizePersistentText(v string, n int) string { return httpx.NormalizePersistentText(v, n) }
-
-// 身份 HTTP 继续暴露旧名称，状态只由 authctx 叶子保存。
-type AuthSubject = authctx.AuthSubject
-
-const (
-	ContextKeyUser              = authctx.ContextKeyUser
-	ContextKeyUserRole          = authctx.ContextKeyUserRole
-	ContextKeyAuthEmail         = authctx.ContextKeyAuthEmail
-	ContextKeySessionID         = authctx.ContextKeySessionID
-	maxPersistentUserAgentBytes = authctx.MaxPersistentUserAgentBytes
-)
-
-func SetPrincipal(c *gin.Context, p identity.Principal, n int, email string) {
-	authctx.SetPrincipal(c, p, n, email)
-}
-func SetAuthenticatedPrincipal(c *gin.Context, p identity.Principal) {
-	authctx.SetAuthenticatedPrincipal(c, p)
-}
-func GetPrincipal(c *gin.Context) (identity.Principal, bool) { return authctx.GetPrincipal(c) }
-func GetAuthSubjectFromContext(c *gin.Context) (AuthSubject, bool) {
-	return authctx.GetAuthSubjectFromContext(c)
-}
-func GetUserRoleFromContext(c *gin.Context) (string, bool) { return authctx.GetUserRoleFromContext(c) }

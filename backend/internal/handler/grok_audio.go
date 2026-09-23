@@ -2,6 +2,8 @@ package handler
 
 import (
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"context"
@@ -26,8 +28,6 @@ import (
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -39,7 +39,7 @@ func grokRealtimeBillingResult(model string, elapsed time.Duration, audioObserve
 	if usage == nil {
 		return nil
 	}
-	return &forwardcore.OpenAIResult{RequestID: service.StableGrokRealtimeBillingRequestID(""), Model: model, Duration: elapsed, AudioUsage: usage}
+	return &forwardcore.OpenAIResult{RequestID: gatewaycapture.StableRealtimeBillingRequestID(""), Model: model, Duration: elapsed, AudioUsage: usage}
 }
 
 func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
@@ -50,7 +50,7 @@ func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
 func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 	c *gin.Context,
 	apiKey *apikey.APIKey,
-	account *service.Account,
+	account *gatewaycapture.ExecutionAccount,
 	subscription *billing.UserSubscription,
 	endpoint string,
 	body []byte,
@@ -64,31 +64,31 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 	}
 	// 即使调用方遗漏，也为 Realtime、TTS 和 STT 强制生成持久结算 ID。
 	if mode := strings.TrimSpace(result.AudioUsage.Mode); mode == "realtime" {
-		result.RequestID = service.StableGrokRealtimeBillingRequestID(result.RequestID)
+		result.RequestID = gatewaycapture.StableRealtimeBillingRequestID(result.RequestID)
 	} else {
-		result.RequestID = service.StableGrokAudioBillingRequestID(result.RequestID)
+		result.RequestID = gatewaycapture.StableAudioBillingRequestID(result.RequestID)
 	}
 	userAgent := c.GetHeader("User-Agent")
 	clientIP := clientip.GetClientIP(c)
-	sessionID := service.ExtractClientSessionID(c)
+	sessionID := gatewayhttp.ExtractClientSessionID(c)
 	requestPayloadHash := billing.HashUsageRequestPayload(body)
 	if requestPayloadHash == "" {
 		requestPayloadHash = billing.HashUsageRequestPayload([]byte(endpoint))
 	}
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
-	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
-	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Record.Platform)
+	quotaPlatform := admission.QuotaPlatform(c.Request.Context(), apiKey)
 	model := strings.TrimSpace(result.Model)
 	if model == "" {
 		model = endpoint
 	}
 
 	channelFields := gatewayhttp.ClientRequestedUsageFields(c, routing.ChannelMappingResult{}, model, result.UpstreamModel)
-	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{
+	completionInput := gatewaycapture.CaptureOpenAI(c.Request.Context(), &gatewaycapture.OpenAICapture{
 		Result:             result,
 		APIKey:             apiKey,
 		User:               apiKey.User,
-		Account:            account,
+		Account:            gatewaycapture.ExecutionCompletionRecord(account),
 		Subscription:       subscription,
 		InboundEndpoint:    inboundEndpoint,
 		UpstreamEndpoint:   upstreamEndpoint,
@@ -107,7 +107,7 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 		zap.Int64("api_key_id", apiKey.ID),
 		zap.Any("group_id", apiKey.GroupID),
 		zap.String("endpoint", endpoint),
-		zap.Int64("account_id", account.ID),
+		zap.Int64("account_id", account.Record.ID),
 	)
 	h.submitMandatoryUsageRecordTask(c, func(ctx context.Context) {
 		if err := completionRecorder.Record(ctx, completionInput, true); err != nil {
@@ -122,7 +122,7 @@ type grokRealtimeAdapter struct {
 	c         *gin.Context
 	apiKey    *apikey.APIKey
 	reqLog    *zap.Logger
-	selection *service.AccountSelectionResult
+	selection *gatewaycapture.SelectionResult
 }
 
 func (p *grokRealtimeAdapter) SelectRealtime(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
@@ -131,7 +131,7 @@ func (p *grokRealtimeAdapter) SelectRealtime(ctx context.Context, excluded map[i
 	if selected == nil || selected.Account == nil {
 		return accountcore.AccountSnapshot{}, false, err
 	}
-	return service.AccountSnapshotView(selected.Account), true, err
+	return gatewaycapture.ExecutionSnapshot(selected.Account), true, err
 }
 func (p *grokRealtimeAdapter) AcquireRealtime(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
 	var started bool
@@ -165,7 +165,7 @@ type grokVoiceAdapter struct {
 	apiKey       *apikey.APIKey
 	subscription *billing.UserSubscription
 	reqLog       *zap.Logger
-	selection    *service.AccountSelectionResult
+	selection    *gatewaycapture.SelectionResult
 }
 
 func (p *grokVoiceAdapter) SelectVoice(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
@@ -174,7 +174,7 @@ func (p *grokVoiceAdapter) SelectVoice(ctx context.Context, excluded map[int64]s
 	if selected == nil || selected.Account == nil {
 		return accountcore.AccountSnapshot{}, false, err
 	}
-	return service.AccountSnapshotView(selected.Account), true, err
+	return gatewaycapture.ExecutionSnapshot(selected.Account), true, err
 }
 func (p *grokVoiceAdapter) AcquireVoice(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
 	var started bool
@@ -213,7 +213,7 @@ func (p *grokRealtimeAdapter) Relay(ctx context.Context, client, server upstream
 	return p.h.gatewayService.RelayGrokRealtimeFrames(ctx, client, server)
 }
 func (p *grokRealtimeAdapter) CompleteRealtime(_ context.Context, _ accountcore.AccountSnapshot, model string, elapsed time.Duration) {
-	subscription, _ := middleware2.GetSubscriptionFromContext(p.c)
+	subscription, _ := gatewayhttp.SubscriptionFromContext(p.c)
 	result := grokRealtimeBillingResult(model, elapsed, true)
 	if result != nil {
 		p.h.recordGrokVoiceUsage(p.c, p.apiKey, p.selection.Account, subscription, "realtime", nil, result)

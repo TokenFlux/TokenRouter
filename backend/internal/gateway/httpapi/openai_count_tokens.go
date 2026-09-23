@@ -27,7 +27,7 @@ type OpenAICountCall struct {
 	StartedAt                                       time.Time
 }
 
-func (h *OpenAITextHandler) GrokCountTokens(c *gin.Context) {
+func (h *OpenAITokensHandler) GrokCountTokens(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "anthropic")
 	if !accepted {
 		return
@@ -72,7 +72,7 @@ func (h *OpenAITextHandler) GrokCountTokens(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"input_tokens": estimated})
 }
 
-func (h *OpenAITextHandler) CountTokens(c *gin.Context) {
+func (h *OpenAITokensHandler) CountTokens(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "anthropic")
 	if !accepted {
 		return
@@ -127,7 +127,7 @@ func (h *OpenAITextHandler) CountTokens(c *gin.Context) {
 
 	h.backend.ObserveRequest(c, "", false)
 
-	body = h.prompt.ApplyUserPromptReplacement(c.Request.Context(), body, "anthropic_messages")
+	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "anthropic_messages")
 	bodyRef := requeststate.NewRequestBodyRef(body)
 	parsedReq, err := requeststate.ParseGatewayRequest(bodyRef, capability.PlatformAnthropic)
 	if err != nil {

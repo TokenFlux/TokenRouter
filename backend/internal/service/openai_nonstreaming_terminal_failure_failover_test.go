@@ -7,13 +7,16 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -34,18 +37,17 @@ func newNonStreamingFailoverContext(t *testing.T) (*gin.Context, *httptest.Respo
 }
 
 func newNonStreamingFailoverService() *OpenAIGatewayService {
-	return &OpenAIGatewayService{cfg: &config.Config{}}
+	return withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 }
 
-func newNonStreamingFailoverAccount() *Account {
-	return &Account{
-		ID:       1,
+func newNonStreamingFailoverAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Name:     "pool-account",
 		Credentials: map[string]any{
 			"pool_mode": true,
-		},
+		}},
 	}
 }
 

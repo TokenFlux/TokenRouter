@@ -1,0 +1,775 @@
+//go:build integration
+
+package apikey_test
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+
+	apikeypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
+
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+)
+
+type APIKeyRepoSuite struct {
+	root *dbent.Client
+	suite.Suite
+	ctx    context.Context
+	client *dbent.Client
+	repo   *apikeypostgres.KeyStore
+}
+
+// 每套件共用一个隔离数据库，每条断言仍使用独立回滚事务。
+func (s *APIKeyRepoSuite) SetupSuite() {
+	_, s.root = keyDatabase(s.T())
+}
+
+func (s *APIKeyRepoSuite) SetupTest() {
+	s.ctx = context.Background()
+	tx, err := s.root.Tx(s.ctx)
+	s.Require().NoError(err)
+	s.T().Cleanup(func() { _ = tx.Rollback() })
+	s.client = tx.Client()
+	s.repo = newKeyStoreFixture(s.client, tx)
+}
+
+func TestAPIKeyRepoSuite(t *testing.T) {
+	suite.Run(t, new(APIKeyRepoSuite))
+}
+
+// --- Create / GetByID / GetByKey ---
+
+func (s *APIKeyRepoSuite) TestCreate() {
+	user := s.mustCreateUser("create@test.com")
+
+	key := &apikey.APIKey{
+		UserID: user.ID,
+		Key:    "sk-create-test",
+		Name:   "Test Key",
+		Status: billing.StatusActive,
+	}
+
+	err := s.repo.Create(s.ctx, key)
+	s.Require().NoError(err, "Create")
+	s.Require().NotZero(key.ID, "expected ID to be set")
+
+	got, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err, "GetByID")
+	s.Require().Equal("sk-create-test", got.Key)
+}
+
+func (s *APIKeyRepoSuite) TestUpdateForkSpecificFields() {
+	user := s.mustCreateUser("fork-update-fields@test.com")
+	key := &apikey.APIKey{
+		UserID: user.ID,
+		Key:    "sk-fork-update-fields",
+		Name:   "Fork Fields",
+		Status: billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	loaded, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err)
+	loaded.FastModePolicy = apikey.APIKeyFastModePolicyForceOff
+	loaded.FallbackToDefaultGroupWhenUnavailable = false
+
+	// fork 扩展列必须各自由显式掩码控制，不能因收窄标准字段而停止持久化。
+	s.Require().NoError(s.repo.Update(s.ctx, loaded, apikey.APIKeyUpdateFields{
+		FastModePolicy:                        true,
+		FallbackToDefaultGroupWhenUnavailable: true,
+	}))
+
+	updated, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(apikey.APIKeyFastModePolicyForceOff, updated.FastModePolicy)
+	s.Require().False(updated.FallbackToDefaultGroupWhenUnavailable)
+}
+
+func (s *APIKeyRepoSuite) TestCompositeKeyCRUDAndGroupQueries() {
+	user := s.mustCreateUser("composite-key@test.com")
+	openAIGroup := s.mustCreateGroup("g-composite-openai")
+	claudeGroup := s.mustCreateGroup("g-composite-claude")
+	key := &apikey.APIKey{
+		UserID: user.ID, Key: "sk-composite-integration", Name: "Composite Key",
+		Status: billing.StatusActive, IsComposite: true,
+		CompositeGroups: []apikey.APIKeyCompositeGroup{
+			{GroupID: openAIGroup.ID, Prefix: "GPT", NormalizedPrefix: "gpt", SortOrder: 0},
+			{GroupID: claudeGroup.ID, Prefix: "Claude", NormalizedPrefix: "claude", SortOrder: 1},
+		},
+	}
+
+	// 主记录与两条映射必须在同一事务内创建，并按用户顺序完整加载。
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+	got, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err)
+	s.Require().True(got.IsComposite)
+	s.Require().Nil(got.GroupID)
+	s.Require().Len(got.CompositeGroups, 2)
+	s.Require().Equal("GPT", got.CompositeGroups[0].Prefix)
+	s.Require().Equal("Claude", got.CompositeGroups[1].Prefix)
+	s.Require().NotNil(got.CompositeGroups[0].Group)
+
+	count, err := s.repo.CountByGroupID(s.ctx, claudeGroup.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), count)
+	listed, page, err := s.repo.ListByGroupID(s.ctx, claudeGroup.ID, pagination.PaginationParams{Page: 1, PageSize: 10})
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), page.Total)
+	s.Require().Len(listed, 1)
+	s.Require().Equal(key.ID, listed[0].ID)
+
+	// 更新使用完整替换语义，删除旧映射后只保留请求中的新列表。
+	got.CompositeGroups = []apikey.APIKeyCompositeGroup{
+		{GroupID: claudeGroup.ID, Prefix: "Anthropic", NormalizedPrefix: "anthropic", SortOrder: 0},
+	}
+	s.Require().NoError(s.repo.Update(s.ctx, got, apikey.APIKeyUpdateFields{CompositeConfiguration: true}))
+	updated, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err)
+	s.Require().Len(updated.CompositeGroups, 1)
+	s.Require().Equal("Anthropic", updated.CompositeGroups[0].Prefix)
+
+	affected, err := s.repo.ClearGroupIDByGroupID(s.ctx, claudeGroup.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), affected)
+	cleared, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err)
+	s.Require().Empty(cleared.CompositeGroups)
+
+	// 唯一约束测试放在末尾，PostgreSQL 事务进入失败状态后无需再执行其他断言。
+	_, err = s.client.APIKeyCompositeGroup.Create().
+		SetAPIKeyID(key.ID).
+		SetGroupID(openAIGroup.ID).
+		SetPrefix("GPT").
+		SetNormalizedPrefix("gpt").
+		Save(s.ctx)
+	s.Require().NoError(err)
+	_, err = s.client.APIKeyCompositeGroup.Create().
+		SetAPIKeyID(key.ID).
+		SetGroupID(openAIGroup.ID).
+		SetPrefix("Other").
+		SetNormalizedPrefix("other").
+		Save(s.ctx)
+	s.Require().Error(err)
+}
+
+func (s *APIKeyRepoSuite) TestCompositeKeyNormalizedPrefixUniqueConstraint() {
+	user := s.mustCreateUser("composite-prefix-unique@test.com")
+	firstGroup := s.mustCreateGroup("g-composite-prefix-first")
+	secondGroup := s.mustCreateGroup("g-composite-prefix-second")
+	key := &apikey.APIKey{
+		UserID: user.ID, Key: "sk-composite-prefix-unique", Name: "Composite Prefix Unique",
+		Status: billing.StatusActive, IsComposite: true,
+		CompositeGroups: []apikey.APIKeyCompositeGroup{
+			{GroupID: firstGroup.ID, Prefix: "GPT", NormalizedPrefix: "gpt", SortOrder: 0},
+		},
+	}
+
+	// 不同分组仍不能复用同一规范化前缀，数据库约束负责兜底并发写入。
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+	_, err := s.client.APIKeyCompositeGroup.Create().
+		SetAPIKeyID(key.ID).
+		SetGroupID(secondGroup.ID).
+		SetPrefix("gpt").
+		SetNormalizedPrefix("gpt").
+		Save(s.ctx)
+	s.Require().Error(err)
+}
+
+func (s *APIKeyRepoSuite) TestGetByID_NotFound() {
+	_, err := s.repo.GetByID(s.ctx, 999999)
+	s.Require().Error(err, "expected error for non-existent ID")
+}
+
+func (s *APIKeyRepoSuite) TestGetByKey() {
+	user := s.mustCreateUser("getbykey@test.com")
+	group := s.mustCreateGroup("g-key")
+
+	key := &apikey.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbykey",
+		Name:    "My Key",
+		GroupID: &group.ID,
+		Status:  billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	got, err := s.repo.GetByKey(s.ctx, key.Key)
+	s.Require().NoError(err, "GetByKey")
+	s.Require().Equal(key.ID, got.ID)
+	s.Require().NotNil(got.User, "expected User preload")
+	s.Require().Equal(user.ID, got.User.ID)
+	s.Require().NotNil(got.Group, "expected Group preload")
+	s.Require().Equal(group.ID, got.Group.ID)
+}
+
+func (s *APIKeyRepoSuite) TestGetByKey_NotFound() {
+	_, err := s.repo.GetByKey(s.ctx, "non-existent-key")
+	s.Require().Error(err, "expected error for non-existent key")
+}
+
+func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
+	user := s.mustCreateUser("getbykey-auth-dispatch@test.com")
+	// 认证查询的列投影必须完整带回区间与倍率，不能只在管理读取中可见。
+	modelPricing := `[{"models":["gpt-test"],"billing_mode":"token","fast_multiplier":1.5,"flex_multiplier":0.4,"max_reasoning_effort_multiplier":2,"intervals":[{"min_tokens":100,"input_multiplier":2}],"time_pricing":{"timezone":"UTC","periods":[{"start_time":"09:00","end_time":"10:00","multiplier":0.5}]}}]`
+	lbTopK := 4
+	group, err := s.client.Group.Create().
+		SetName("g-auth-dispatch").
+		SetModelPricing([]byte(modelPricing)).
+		SetPlatform(capability.PlatformOpenAI).
+		SetStatus(billing.StatusActive).
+		SetRateMultiplier(1).
+		SetSchedulerType(string(routing.GroupSchedulerTypeAdvanced)).
+		SetAdvancedSchedulerOverrides(routing.GroupAdvancedSchedulerOverrides{LBTopK: &lbTopK}).
+		SetForceOpenaiFast(true).
+		SetFreeOpenaiFast(true).
+		SetWebSearchPricePerCall(0.008).
+		SetAllowedProtocols([]protocol.ProtocolID{
+			protocol.ProtocolAnthropicMessages,
+			protocol.ProtocolOpenAIResponses,
+			protocol.ProtocolOpenAIChatCompletions,
+		}).
+		SetAllowMessagesDispatch(true).
+		SetDefaultMappedModel("gpt-5.4").
+		SetMessagesDispatchModelConfig(routing.OpenAIMessagesDispatchModelConfig{
+			OpusMappedModel:   "gpt-5.4-nano",
+			SonnetMappedModel: "gpt-5.3-codex",
+			HaikuMappedModel:  "gpt-5.4-mini",
+			ExactModelMappings: map[string]string{
+				"claude-sonnet-4.5": "gpt-5.4-nano",
+			},
+		}).
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	key := &apikey.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbykey-auth-dispatch",
+		Name:    "Dispatch Key",
+		GroupID: &group.ID,
+		Status:  billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	got, err := s.repo.GetByKeyForAuth(s.ctx, key.Key)
+	s.Require().NoError(err)
+	s.Require().NotNil(got.Group)
+	s.Require().NotNil(got.Group.WebSearchPricePerCall)
+	s.Require().InDelta(0.008, *got.Group.WebSearchPricePerCall, 1e-12)
+	s.Require().Equal([]protocol.ProtocolID{
+		protocol.ProtocolAnthropicMessages,
+		protocol.ProtocolOpenAIResponses,
+		protocol.ProtocolOpenAIChatCompletions,
+	}, got.Group.AllowedProtocols)
+	s.Require().Equal("gpt-5.4", got.Group.DefaultMappedModel)
+	s.Require().Equal("gpt-5.4-nano", got.Group.MessagesDispatchModelConfig.OpusMappedModel)
+	s.Require().Equal("gpt-5.4-nano", got.Group.MessagesDispatchModelConfig.ExactModelMappings["claude-sonnet-4.5"])
+	s.Require().Equal(routing.GroupSchedulerTypeAdvanced, got.Group.SchedulerType)
+	s.Require().NotNil(got.Group.AdvancedSchedulerOverrides.LBTopK)
+	s.Require().Equal(4, *got.Group.AdvancedSchedulerOverrides.LBTopK)
+	s.Require().True(got.Group.ForceOpenAIFast)
+	s.Require().True(got.Group.FreeOpenAIFast)
+	s.Require().Len(got.Group.ModelPricing, 1)
+	pricing := got.Group.ModelPricing[0]
+	s.Require().Equal(1.5, *pricing.FastMultiplier)
+	s.Require().Equal(0.4, *pricing.FlexMultiplier)
+	s.Require().Equal(2.0, *pricing.MaxReasoningEffortMultiplier)
+	s.Require().Equal(2.0, *pricing.Intervals[0].InputMultiplier)
+	s.Require().Equal(0.5, pricing.TimePricing.Periods[0].Multiplier)
+}
+
+// --- Update ---
+
+func (s *APIKeyRepoSuite) TestUpdate() {
+	user := s.mustCreateUser("update@test.com")
+	key := &apikey.APIKey{
+		UserID: user.ID,
+		Key:    "sk-update",
+		Name:   "Original",
+		Status: billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	key.Name = "Renamed"
+	key.Status = billing.StatusDisabled
+	err := s.repo.Update(s.ctx, key, apikey.APIKeyUpdateFields{Name: true, Status: true})
+	s.Require().NoError(err, "Update")
+
+	got, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err, "GetByID after update")
+	s.Require().Equal("sk-update", got.Key, "Update should not change key")
+	s.Require().Equal(user.ID, got.UserID, "Update should not change user_id")
+	s.Require().Equal("Renamed", got.Name)
+	s.Require().Equal(billing.StatusDisabled, got.Status)
+}
+
+func (s *APIKeyRepoSuite) TestUpdate_ClearGroupID() {
+	user := s.mustCreateUser("cleargroup@test.com")
+	group := s.mustCreateGroup("g-clear")
+	key := &apikey.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-clear-group",
+		Name:    "Group Key",
+		GroupID: &group.ID,
+		Status:  billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	key.GroupID = nil
+	err := s.repo.Update(s.ctx, key, apikey.APIKeyUpdateFields{GroupID: true})
+	s.Require().NoError(err, "Update")
+
+	got, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err)
+	s.Require().Nil(got.GroupID, "expected GroupID to be cleared")
+}
+
+// --- Delete ---
+
+func (s *APIKeyRepoSuite) TestDelete() {
+	user := s.mustCreateUser("delete@test.com")
+	key := &apikey.APIKey{
+		UserID: user.ID,
+		Key:    "sk-delete",
+		Name:   "Delete Me",
+		Status: billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	err := s.repo.Delete(s.ctx, key.ID)
+	s.Require().NoError(err, "Delete")
+
+	_, err = s.repo.GetByID(s.ctx, key.ID)
+	s.Require().Error(err, "expected error after delete")
+}
+
+func (s *APIKeyRepoSuite) TestCreate_AfterSoftDelete_AllowsSameKey() {
+	user := s.mustCreateUser("recreate-after-soft-delete@test.com")
+	const reusedKey = "sk-reuse-after-soft-delete"
+
+	first := &apikey.APIKey{
+		UserID: user.ID,
+		Key:    reusedKey,
+		Name:   "First Key",
+		Status: billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, first), "create first key")
+
+	s.Require().NoError(s.repo.Delete(s.ctx, first.ID), "soft delete first key")
+
+	second := &apikey.APIKey{
+		UserID: user.ID,
+		Key:    reusedKey,
+		Name:   "Second Key",
+		Status: billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, second), "create second key with same key")
+	s.Require().NotZero(second.ID)
+	s.Require().NotEqual(first.ID, second.ID, "recreated key should be a new row")
+}
+
+// --- ListByUserID / CountByUserID ---
+
+func (s *APIKeyRepoSuite) TestListByUserID() {
+	user := s.mustCreateUser("listbyuser@test.com")
+	s.mustCreateApiKey(user.ID, "sk-list-1", "Key 1", nil)
+	s.mustCreateApiKey(user.ID, "sk-list-2", "Key 2", nil)
+
+	keys, page, err := s.repo.ListByUserID(s.ctx, user.ID, pagination.PaginationParams{Page: 1, PageSize: 10}, apikey.APIKeyListFilters{})
+	s.Require().NoError(err, "ListByUserID")
+	s.Require().Len(keys, 2)
+	s.Require().Equal(int64(2), page.Total)
+}
+
+func (s *APIKeyRepoSuite) TestListByUserID_Pagination() {
+	user := s.mustCreateUser("paging@test.com")
+	for i := 0; i < 5; i++ {
+		s.mustCreateApiKey(user.ID, "sk-page-"+string(rune('a'+i)), "Key", nil)
+	}
+
+	keys, page, err := s.repo.ListByUserID(s.ctx, user.ID, pagination.PaginationParams{Page: 1, PageSize: 2}, apikey.APIKeyListFilters{})
+	s.Require().NoError(err)
+	s.Require().Len(keys, 2)
+	s.Require().Equal(int64(5), page.Total)
+	s.Require().Equal(3, page.Pages)
+}
+
+func (s *APIKeyRepoSuite) TestCountByUserID() {
+	user := s.mustCreateUser("count@test.com")
+	s.mustCreateApiKey(user.ID, "sk-count-1", "K1", nil)
+	s.mustCreateApiKey(user.ID, "sk-count-2", "K2", nil)
+
+	count, err := s.repo.CountByUserID(s.ctx, user.ID)
+	s.Require().NoError(err, "CountByUserID")
+	s.Require().Equal(int64(2), count)
+}
+
+// --- ListByGroupID / CountByGroupID ---
+
+func (s *APIKeyRepoSuite) TestListByGroupID() {
+	user := s.mustCreateUser("listbygroup@test.com")
+	group := s.mustCreateGroup("g-list")
+
+	s.mustCreateApiKey(user.ID, "sk-grp-1", "K1", &group.ID)
+	s.mustCreateApiKey(user.ID, "sk-grp-2", "K2", &group.ID)
+	s.mustCreateApiKey(user.ID, "sk-grp-3", "K3", nil) // no group
+
+	keys, page, err := s.repo.ListByGroupID(s.ctx, group.ID, pagination.PaginationParams{Page: 1, PageSize: 10})
+	s.Require().NoError(err, "ListByGroupID")
+	s.Require().Len(keys, 2)
+	s.Require().Equal(int64(2), page.Total)
+	// User preloaded
+	s.Require().NotNil(keys[0].User)
+}
+
+func (s *APIKeyRepoSuite) TestCountByGroupID() {
+	user := s.mustCreateUser("countgroup@test.com")
+	group := s.mustCreateGroup("g-count")
+	s.mustCreateApiKey(user.ID, "sk-gc-1", "K1", &group.ID)
+
+	count, err := s.repo.CountByGroupID(s.ctx, group.ID)
+	s.Require().NoError(err, "CountByGroupID")
+	s.Require().Equal(int64(1), count)
+}
+
+// --- ExistsByKey ---
+
+func (s *APIKeyRepoSuite) TestExistsByKey() {
+	user := s.mustCreateUser("exists@test.com")
+	s.mustCreateApiKey(user.ID, "sk-exists", "K", nil)
+
+	exists, err := s.repo.ExistsByKey(s.ctx, "sk-exists")
+	s.Require().NoError(err, "ExistsByKey")
+	s.Require().True(exists)
+
+	notExists, err := s.repo.ExistsByKey(s.ctx, "sk-not-exists")
+	s.Require().NoError(err)
+	s.Require().False(notExists)
+}
+
+// --- SearchAPIKeys ---
+
+func (s *APIKeyRepoSuite) TestSearchAPIKeys() {
+	user := s.mustCreateUser("search@test.com")
+	s.mustCreateApiKey(user.ID, "sk-search-1", "Production Key", nil)
+	s.mustCreateApiKey(user.ID, "sk-search-2", "Development Key", nil)
+
+	found, err := s.repo.SearchAPIKeys(s.ctx, user.ID, "prod", 10)
+	s.Require().NoError(err, "SearchAPIKeys")
+	s.Require().Len(found, 1)
+	s.Require().Contains(found[0].Name, "Production")
+}
+
+func (s *APIKeyRepoSuite) TestSearchAPIKeys_NoKeyword() {
+	user := s.mustCreateUser("searchnokw@test.com")
+	s.mustCreateApiKey(user.ID, "sk-nk-1", "K1", nil)
+	s.mustCreateApiKey(user.ID, "sk-nk-2", "K2", nil)
+
+	found, err := s.repo.SearchAPIKeys(s.ctx, user.ID, "", 10)
+	s.Require().NoError(err)
+	s.Require().Len(found, 2)
+}
+
+func (s *APIKeyRepoSuite) TestSearchAPIKeys_NoUserID() {
+	user := s.mustCreateUser("searchnouid@test.com")
+	s.mustCreateApiKey(user.ID, "sk-nu-1", "TestKey", nil)
+
+	found, err := s.repo.SearchAPIKeys(s.ctx, 0, "testkey", 10)
+	s.Require().NoError(err)
+	s.Require().Len(found, 1)
+}
+
+// --- ClearGroupIDByGroupID ---
+
+func (s *APIKeyRepoSuite) TestClearGroupIDByGroupID() {
+	user := s.mustCreateUser("cleargrp@test.com")
+	group := s.mustCreateGroup("g-clear-bulk")
+
+	k1 := s.mustCreateApiKey(user.ID, "sk-clr-1", "K1", &group.ID)
+	k2 := s.mustCreateApiKey(user.ID, "sk-clr-2", "K2", &group.ID)
+	s.mustCreateApiKey(user.ID, "sk-clr-3", "K3", nil) // no group
+
+	affected, err := s.repo.ClearGroupIDByGroupID(s.ctx, group.ID)
+	s.Require().NoError(err, "ClearGroupIDByGroupID")
+	s.Require().Equal(int64(2), affected)
+
+	got1, _ := s.repo.GetByID(s.ctx, k1.ID)
+	got2, _ := s.repo.GetByID(s.ctx, k2.ID)
+	s.Require().Nil(got1.GroupID)
+	s.Require().Nil(got2.GroupID)
+
+	count, _ := s.repo.CountByGroupID(s.ctx, group.ID)
+	s.Require().Zero(count)
+}
+
+// --- Combined CRUD/Search/ClearGroupID (original test preserved as integration) ---
+
+func (s *APIKeyRepoSuite) TestCRUD_Search_ClearGroupID() {
+	user := s.mustCreateUser("k@example.com")
+	group := s.mustCreateGroup("g-k")
+	key := s.mustCreateApiKey(user.ID, "sk-test-1", "My Key", &group.ID)
+	key.GroupID = &group.ID
+
+	got, err := s.repo.GetByKey(s.ctx, key.Key)
+	s.Require().NoError(err, "GetByKey")
+	s.Require().Equal(key.ID, got.ID)
+	s.Require().NotNil(got.User)
+	s.Require().Equal(user.ID, got.User.ID)
+	s.Require().NotNil(got.Group)
+	s.Require().Equal(group.ID, got.Group.ID)
+
+	key.Name = "Renamed"
+	key.Status = billing.StatusDisabled
+	key.GroupID = nil
+	s.Require().NoError(s.repo.Update(s.ctx, key, apikey.APIKeyUpdateFields{Name: true, Status: true, GroupID: true}), "Update")
+
+	got2, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err, "GetByID")
+	s.Require().Equal("sk-test-1", got2.Key, "Update should not change key")
+	s.Require().Equal(user.ID, got2.UserID, "Update should not change user_id")
+	s.Require().Equal("Renamed", got2.Name)
+	s.Require().Equal(billing.StatusDisabled, got2.Status)
+	s.Require().Nil(got2.GroupID)
+
+	keys, page, err := s.repo.ListByUserID(s.ctx, user.ID, pagination.PaginationParams{Page: 1, PageSize: 10}, apikey.APIKeyListFilters{})
+	s.Require().NoError(err, "ListByUserID")
+	s.Require().Equal(int64(1), page.Total)
+	s.Require().Len(keys, 1)
+
+	exists, err := s.repo.ExistsByKey(s.ctx, "sk-test-1")
+	s.Require().NoError(err, "ExistsByKey")
+	s.Require().True(exists, "expected key to exist")
+
+	found, err := s.repo.SearchAPIKeys(s.ctx, user.ID, "renam", 10)
+	s.Require().NoError(err, "SearchAPIKeys")
+	s.Require().Len(found, 1)
+	s.Require().Equal(key.ID, found[0].ID)
+
+	// ClearGroupIDByGroupID
+	k2 := s.mustCreateApiKey(user.ID, "sk-test-2", "Group Key", &group.ID)
+	k2.GroupID = &group.ID
+
+	countBefore, err := s.repo.CountByGroupID(s.ctx, group.ID)
+	s.Require().NoError(err, "CountByGroupID")
+	s.Require().Equal(int64(1), countBefore, "expected 1 key in group before clear")
+
+	affected, err := s.repo.ClearGroupIDByGroupID(s.ctx, group.ID)
+	s.Require().NoError(err, "ClearGroupIDByGroupID")
+	s.Require().Equal(int64(1), affected, "expected 1 affected row")
+
+	got3, err := s.repo.GetByID(s.ctx, k2.ID)
+	s.Require().NoError(err, "GetByID")
+	s.Require().Nil(got3.GroupID, "expected GroupID cleared")
+
+	countAfter, err := s.repo.CountByGroupID(s.ctx, group.ID)
+	s.Require().NoError(err, "CountByGroupID after clear")
+	s.Require().Equal(int64(0), countAfter, "expected 0 keys in group after clear")
+}
+
+func (s *APIKeyRepoSuite) mustCreateUser(email string) *identity.User {
+	s.T().Helper()
+
+	u, err := s.client.User.Create().
+		SetEmail(email).
+		SetPasswordHash("test-password-hash").
+		SetStatus(billing.StatusActive).
+		SetRole(identity.RoleUser).
+		Save(s.ctx)
+	s.Require().NoError(err, "create user")
+	return identitypostgres.UserFromEntity(u)
+}
+
+func (s *APIKeyRepoSuite) mustCreateGroup(name string) *routing.Group {
+	s.T().Helper()
+
+	g, err := s.client.Group.Create().
+		SetName(name).
+		SetStatus(billing.StatusActive).
+		Save(s.ctx)
+	s.Require().NoError(err, "create group")
+	return routingpostgres.GroupFromEnt(g)
+}
+
+func (s *APIKeyRepoSuite) mustCreateApiKey(userID int64, key, name string, groupID *int64) *apikey.APIKey {
+	s.T().Helper()
+
+	k := &apikey.APIKey{
+		UserID:  userID,
+		Key:     key,
+		Name:    name,
+		GroupID: groupID,
+		Status:  billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, k), "create api key")
+	return k
+}
+
+// --- IncrementQuotaUsed ---
+
+func (s *APIKeyRepoSuite) TestIncrementQuotaUsed_Basic() {
+	user := s.mustCreateUser("incr-basic@test.com")
+	key := s.mustCreateApiKey(user.ID, "sk-incr-basic", "Incr", nil)
+
+	newQuota, err := s.repo.IncrementQuotaUsed(s.ctx, key.ID, 1.5)
+	s.Require().NoError(err, "IncrementQuotaUsed")
+	s.Require().Equal(1.5, newQuota, "第一次递增后应为 1.5")
+
+	newQuota, err = s.repo.IncrementQuotaUsed(s.ctx, key.ID, 2.5)
+	s.Require().NoError(err, "IncrementQuotaUsed second")
+	s.Require().Equal(4.0, newQuota, "第二次递增后应为 4.0")
+}
+
+func (s *APIKeyRepoSuite) TestIncrementQuotaUsed_NotFound() {
+	_, err := s.repo.IncrementQuotaUsed(s.ctx, 999999, 1.0)
+	s.Require().ErrorIs(err, apikey.ErrAPIKeyNotFound, "不存在的 key 应返回 ErrAPIKeyNotFound")
+}
+
+func (s *APIKeyRepoSuite) TestIncrementQuotaUsed_DeletedKey() {
+	user := s.mustCreateUser("incr-deleted@test.com")
+	key := s.mustCreateApiKey(user.ID, "sk-incr-del", "Deleted", nil)
+
+	s.Require().NoError(s.repo.Delete(s.ctx, key.ID), "Delete")
+
+	_, err := s.repo.IncrementQuotaUsed(s.ctx, key.ID, 1.0)
+	s.Require().ErrorIs(err, apikey.ErrAPIKeyNotFound, "已删除的 key 应返回 ErrAPIKeyNotFound")
+}
+
+func (s *APIKeyRepoSuite) TestIncrementQuotaUsedAndGetState() {
+	user := s.mustCreateUser("quota-state@test.com")
+	key := s.mustCreateApiKey(user.ID, "sk-quota-state", "QuotaState", nil)
+	key.Quota = 3
+	key.QuotaUsed = 1
+	s.Require().NoError(s.repo.Update(s.ctx, key, apikey.APIKeyUpdateFields{Quota: true, QuotaUsed: true}), "Update quota")
+
+	state, err := s.repo.IncrementQuotaUsedAndGetState(s.ctx, key.ID, 2.5)
+	s.Require().NoError(err, "IncrementQuotaUsedAndGetState")
+	s.Require().NotNil(state)
+	s.Require().Equal(3.5, state.QuotaUsed)
+	s.Require().Equal(3.0, state.Quota)
+	s.Require().Equal(apikey.StatusAPIKeyQuotaExhausted, state.Status)
+	s.Require().Equal(key.Key, state.Key)
+
+	got, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().NoError(err, "GetByID")
+	s.Require().Equal(3.5, got.QuotaUsed)
+	s.Require().Equal(apikey.StatusAPIKeyQuotaExhausted, got.Status)
+}
+
+// TestIncrementQuotaUsed_Concurrent 使用真实数据库验证并发原子性。
+// 注意：此测试使用 testEntClient（非事务隔离），数据会真正写入数据库。
+func TestIncrementQuotaUsed_Concurrent(t *testing.T) {
+	integrationDB, client := keyDatabase(t)
+	repo := newKeyStoreFixture(client, integrationDB)
+	ctx := context.Background()
+
+	// 创建测试用户和 API Key
+	u, err := client.User.Create().
+		SetEmail("concurrent-incr-" + time.Now().Format(time.RFC3339Nano) + "@test.com").
+		SetPasswordHash("hash").
+		SetStatus(billing.StatusActive).
+		SetRole(identity.RoleUser).
+		Save(ctx)
+	require.NoError(t, err, "create user")
+
+	k := &apikey.APIKey{
+		UserID: u.ID,
+		Key:    "sk-concurrent-" + time.Now().Format(time.RFC3339Nano),
+		Name:   "Concurrent",
+		Status: billing.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, k), "create api key")
+	t.Cleanup(func() {
+		_ = client.APIKey.DeleteOneID(k.ID).Exec(ctx)
+		_ = client.User.DeleteOneID(u.ID).Exec(ctx)
+	})
+
+	// 10 个 goroutine 各递增 1.0，总计应为 10.0
+	const goroutines = 10
+	const increment = 1.0
+	var wg sync.WaitGroup
+	errs := make([]error, goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			_, errs[idx] = repo.IncrementQuotaUsed(ctx, k.ID, increment)
+		}(i)
+	}
+	wg.Wait()
+
+	for i, e := range errs {
+		require.NoError(t, e, "goroutine %d failed", i)
+	}
+
+	// 验证最终结果
+	got, err := repo.GetByID(ctx, k.ID)
+	require.NoError(t, err, "GetByID")
+	require.Equal(t, float64(goroutines)*increment, got.QuotaUsed,
+		"并发递增后总和应为 %v，实际为 %v", float64(goroutines)*increment, got.QuotaUsed)
+}
+
+func (s *APIKeyRepoSuite) TestDeleteWithAudit_TombstonesWithoutRetainingCredential() {
+	user := s.mustCreateUser("delwithaudit@test.com")
+	key := &apikey.APIKey{
+		UserID: user.ID,
+		Key:    "sk-del-audit-1",
+		Name:   "Audit Me",
+		Status: billing.StatusActive,
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
+
+	_, err := s.repo.GetByID(s.ctx, key.ID)
+	s.Require().Error(err)
+
+	var tombstone string
+	var deletedAt time.Time
+	rows, err := s.client.QueryContext(s.ctx, `SELECT key, deleted_at FROM api_keys WHERE id = $1`, key.ID)
+	s.Require().NoError(err)
+	s.Require().True(rows.Next())
+	s.Require().NoError(rows.Scan(&tombstone, &deletedAt))
+	s.Require().NoError(rows.Close())
+	s.Require().NotEqual("sk-del-audit-1", tombstone)
+	s.Require().Contains(tombstone, "__deleted__")
+
+	var auditCount int
+	auditRows, err := s.client.QueryContext(s.ctx,
+		`SELECT COUNT(*) FROM deleted_api_key_audits WHERE api_key_id = $1`, key.ID)
+	s.Require().NoError(err)
+	s.Require().True(auditRows.Next())
+	s.Require().NoError(auditRows.Scan(&auditCount))
+	s.Require().NoError(auditRows.Close())
+	s.Require().Zero(auditCount, "deleted credentials must not be retained")
+}
+
+func (s *APIKeyRepoSuite) TestDeleteWithAudit_RepeatIsIdempotent() {
+	user := s.mustCreateUser("delwithaudit-idem@test.com")
+	key := &apikey.APIKey{UserID: user.ID, Key: "sk-del-audit-2", Name: "K", Status: billing.StatusActive}
+	s.Require().NoError(s.repo.Create(s.ctx, key))
+
+	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
+	s.Require().NoError(s.repo.DeleteWithAudit(s.ctx, key.ID))
+}
+
+func (s *APIKeyRepoSuite) TestDeleteWithAudit_NotFound() {
+	err := s.repo.DeleteWithAudit(s.ctx, 999999)
+	s.Require().ErrorIs(err, apikey.ErrAPIKeyNotFound)
+}

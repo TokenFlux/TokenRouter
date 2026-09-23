@@ -32,9 +32,9 @@ import (
 func RegisterAdminRoutes(
 	v1 *gin.RouterGroup,
 	h *routeTestHandlers,
-	adminAuth middleware.AdminAuthMiddleware,
+	adminAuth routeidentity.AdminAuthMiddleware,
 	auditLog middleware.AuditLogMiddleware,
-	stepUpAuth middleware.StepUpAuthMiddleware,
+	stepUpAuth routeidentity.StepUpAuthMiddleware,
 	panelRateLimiter *middleware.PanelRateLimiter,
 	protocolCatalog gin.HandlerFunc,
 ) {
@@ -152,7 +152,7 @@ func RegisterAdminRoutes(
 	}
 }
 
-func registerAuditLogRoutes(admin *gin.RouterGroup, h *routeTestHandlers, _ middleware.StepUpAuthMiddleware) {
+func registerAuditLogRoutes(admin *gin.RouterGroup, h *routeTestHandlers, _ routeidentity.StepUpAuthMiddleware) {
 	routeaudit.RegisterAuditLogRoutes(admin, h.Admin.AuditLog)
 }
 
@@ -187,7 +187,7 @@ func registerGroupRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
 	routerouting.RegisterGroupRoutes(admin, h.Admin.Group)
 }
 
-func registerAccountRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth middleware.StepUpAuthMiddleware) {
+func registerAccountRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth routeidentity.StepUpAuthMiddleware) {
 	routeaccount.RegisterAccountRoutes(admin, routeaccount.AccountRouteEndpoints{
 		AccountArchive:     h.Admin.AccountArchive,
 		AccountCRS:         h.Admin.AccountCRS,
@@ -229,7 +229,7 @@ func registerGrokOAuthRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
 	routeaccount.RegisterGrokOAuthRoutes(admin, h.Admin.GrokOAuth)
 }
 
-func registerProxyRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth middleware.StepUpAuthMiddleware) {
+func registerProxyRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth routeidentity.StepUpAuthMiddleware) {
 	routeegress.RegisterProxyRoutes(admin, h.Admin.Proxy, gin.HandlerFunc(stepUpAuth))
 }
 
@@ -241,11 +241,11 @@ func registerPromoCodeRoutes(admin *gin.RouterGroup, h *routeTestHandlers) {
 	routepromotion.RegisterPromoCodeRoutes(admin, h.Admin.Promo)
 }
 
-func registerDataManagementRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth middleware.StepUpAuthMiddleware) {
+func registerDataManagementRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth routeidentity.StepUpAuthMiddleware) {
 	routebackup.RegisterDataManagementRoutes(admin, h.Admin.DataManagement, gin.HandlerFunc(stepUpAuth))
 }
 
-func registerBackupRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth middleware.StepUpAuthMiddleware) {
+func registerBackupRoutes(admin *gin.RouterGroup, h *routeTestHandlers, stepUpAuth routeidentity.StepUpAuthMiddleware) {
 	routebackup.RegisterBackupRoutes(admin, h.Admin.Backup, gin.HandlerFunc(stepUpAuth))
 }
 

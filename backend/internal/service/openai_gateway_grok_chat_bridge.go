@@ -9,19 +9,24 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	uuid "github.com/google/uuid"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
+	uuid "github.com/google/uuid"
 
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -56,7 +61,7 @@ func grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity string) bool 
 func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
@@ -70,14 +75,14 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	}
 	originalModel := chatReq.Model
 	clientStream := chatReq.Stream
-	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	billingModel := gatewayprovider.ExecutionModelPolicy(account).ForwardModel(originalModel, defaultMappedModel)
+	upstreamModel := gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(billingModel)
 	cacheIdentity := resolveGrokCacheIdentity(c, body, promptCacheKey, upstreamModel)
 	// 图片输入必须通过 Responses 桥接：原始 Chat Completions 路径无法把 image_url
 	// 转发给非 Composer 模型的 Grok 原生视觉能力，否则图片会被静默丢弃；
 	// 因此即使没有 prompt-cache 身份也要路由到 Responses。
 	hasImageInput := protocolopenai.JSONValueMayContainImageInput(gjson.GetBytes(body, "messages"))
-	if account.attemptRoute.Protocol() == "" && !grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity) && (!hasImageInput || !grokChatResponsesBridgeModel(upstreamModel)) {
+	if account.Route.Protocol() == "" && !grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity) && (!hasImageInput || !grokChatResponsesBridgeModel(upstreamModel)) {
 		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel, tlsRouterMatch...)
 	}
 
@@ -117,7 +122,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 		return nil, fmt.Errorf("apply grok responses bridge function-tool cache route: %w", err)
 	}
 
-	updatedBody, policyErr := s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, responsesBody)
+	updatedBody, policyErr := tierpolicy.ApplyBody(responsesBody, s.fastModeInput(ctx, account, upstreamModel))
 	if policyErr != nil {
 		var blocked *tierpolicy.BlockedError
 		if errors.As(policyErr, &blocked) {
@@ -141,15 +146,15 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, grok.GrokChatResponsesEndpoint)
 
 	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	if account.Record.ProxyID != nil && account.Record.Proxy != nil {
+		proxyURL = account.Record.Proxy.URL()
 	}
 
 	var result *protocolforward.OpenAIResult
 	var handleErr error
 	target := &grok.ResponsesTarget{
 
-		AccountID: account.ID,
+		AccountID: account.Record.ID,
 
 		Model: upstreamModel,
 
@@ -164,7 +169,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 			Build: func([]byte) (*http.Request, error) { return upstreamReq, nil },
 
 			Do: func(req *http.Request) (*http.Response, error) {
-				return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
+				return s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
 			},
 
 			ReadError: s.readUpstreamErrorBody,
@@ -186,16 +191,16 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 				}
 				decision := s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 				kind := "http_error"
-				if decision.ShouldFailover(account, resp.StatusCode, s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)) {
+				if decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)) {
 					kind = "failover"
 				}
 				gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
-					Platform: account.Platform,
+					Platform: account.Record.Platform,
 
-					AccountID: account.ID,
+					AccountID: account.Record.ID,
 
-					AccountName: account.Name,
+					AccountName: account.Record.Name,
 
 					UpstreamStatusCode: resp.StatusCode,
 
@@ -219,7 +224,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 
 						ResponseHeaders: resp.Header.Clone(),
 
-						RetryableOnSameAccount: retryable || decision.RetryableOnSameAccount(account, resp.StatusCode),
+						RetryableOnSameAccount: retryable || decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode),
 
 						RequestScopedTransient: retryable && resp.StatusCode == http.StatusTooManyRequests,
 
@@ -292,7 +297,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 		if result.RequestID == "" {
 			result.RequestID = firstNonEmpty(nativeResult.UpstreamHeaders.Get("x-request-id"), nativeResult.UpstreamHeaders.Get("xai-request-id"))
 		}
-		result.ReasoningEffort = extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
+		result.ReasoningEffort = requeststate.ExtractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
 	}
 	return result, err
 }

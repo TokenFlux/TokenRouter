@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
@@ -22,7 +24,7 @@ import (
 // handleGrokAccountUpstreamError 保留测试中的布尔断言写法；生产代码统一使用完整决策。
 func (s *OpenAIGatewayService) handleGrokAccountUpstreamError(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	statusCode int,
 	headers http.Header,
 	responseBody []byte,
@@ -133,8 +135,8 @@ func TestIsGrokContentPolicyRejection(t *testing.T) {
 
 func TestGrokContentPolicy403DoesNotMutateOrFailover(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 4715, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4715, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"code":"new_sensitive","message":"text is sensitive"}}`)
 
 	svc.handleGrokAccountUpstreamError(context.Background(), account, http.StatusForbidden, nil, body)
@@ -157,12 +159,11 @@ func TestGrokContentPolicy403DoesNotMutateOrFailover(t *testing.T) {
 func TestGrokNonFailoverDoesNotApplyGenericTempUnschedulablePolicy(t *testing.T) {
 
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:      repo,
-		rateLimitService: NewRateLimitService(repo, nil, nil, nil, nil),
-	}
-	account := &Account{
-		ID:       5099,
+		rateLimitService: NewRateLimitService(repo, nil, nil, nil),
+	}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5099,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
@@ -172,7 +173,7 @@ func TestGrokNonFailoverDoesNotApplyGenericTempUnschedulablePolicy(t *testing.T)
 				"keywords":         []any{"text is sensitive"},
 				"duration_minutes": float64(1),
 			}},
-		},
+		}},
 	}
 	body := []byte(`{"error":{"code":"new_sensitive","message":"text is sensitive"}}`)
 	recorder := httptest.NewRecorder()
@@ -195,15 +196,14 @@ func TestGrokContentPolicy403SharedErrorFallbackDoesNotMutate(t *testing.T) {
 
 	body := []byte(`{"error":{"code":"content_filter","message":"prohibited content"}}`)
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{
-		ID:       4719,
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4719,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusTooManyRequests)},
-		},
+		}},
 	}
 
 	newContext := func() (*gin.Context, *httptest.ResponseRecorder) {
@@ -244,15 +244,14 @@ func TestGrokContentPolicy403MediaResponseBypassesCustomErrorCodes(t *testing.T)
 
 	body := `{"error":{"code":"new_sensitive","message":"image is sensitive"}}`
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{
-		ID:       4720,
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4720,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusTooManyRequests)},
-		},
+		}},
 	}
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -282,8 +281,8 @@ func TestGrokContentPolicySSEErrorDoesNotMutateOrFailover(t *testing.T) {
 			"data: {\"type\":\"error\",\"error\":{\"code\":\"new_sensitive\",\"message\":\"text is sensitive\"}}\n\n",
 		)),
 	}}
-	svc := &OpenAIGatewayService{accountRepo: repo, httpUpstream: upstream}
-	account := &Account{ID: 4721, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth, Concurrency: 1}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, httpUpstream: upstream}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4721, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth, Concurrency: 1}}
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
@@ -313,8 +312,8 @@ func TestGrokContentPolicySSEErrorDoesNotMutateOrFailover(t *testing.T) {
 
 func TestGrokPermissionDeniedContentRefusalDoesNotMutateOrFailover(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 4785, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4785, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"code":"permission-denied","error":"Content violates usage guidelines. "}`)
 
 	svc.handleGrokAccountUpstreamError(context.Background(), account, http.StatusForbidden, nil, body)
@@ -328,8 +327,8 @@ func TestGrokPermissionDeniedContentRefusalDoesNotMutateOrFailover(t *testing.T)
 
 func TestHandleGrokAccountUpstreamErrorEntitlement403KeepsDefaultCooldown(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 4716, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4716, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	before := time.Now()
 
 	svc.handleGrokAccountUpstreamError(
@@ -345,9 +344,8 @@ func TestHandleGrokAccountUpstreamErrorEntitlement403KeepsDefaultCooldown(t *tes
 
 func TestHandleGrokAccountUpstreamError403UsesConfiguredRule(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{
-		ID:       4717,
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4717,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
@@ -359,7 +357,7 @@ func TestHandleGrokAccountUpstreamError403UsesConfiguredRule(t *testing.T) {
 					"duration_minutes": float64(7),
 				},
 			},
-		},
+		}},
 	}
 	before := time.Now()
 
@@ -375,9 +373,8 @@ func TestHandleGrokAccountUpstreamError403UsesConfiguredRule(t *testing.T) {
 
 func TestHandleGrokAccountUpstreamError403ConfiguredUnmatchedKeepsDefaultCooldown(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{
-		ID:       4718,
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4718,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
@@ -389,7 +386,7 @@ func TestHandleGrokAccountUpstreamError403ConfiguredUnmatchedKeepsDefaultCooldow
 					"duration_minutes": float64(7),
 				},
 			},
-		},
+		}},
 	}
 
 	svc.handleGrokAccountUpstreamError(

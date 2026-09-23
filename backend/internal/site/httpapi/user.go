@@ -4,8 +4,9 @@ import (
 	"strconv"
 	"strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/site"
 
 	"github.com/gin-gonic/gin"
@@ -26,7 +27,7 @@ func NewAnnouncementHandler(announcementService *site.AnnouncementService) *Anno
 // List handles listing announcements visible to current user
 // GET /api/v1/announcements
 func (h *AnnouncementHandler) List(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not found in context")
 		return
@@ -50,7 +51,7 @@ func (h *AnnouncementHandler) List(c *gin.Context) {
 // MarkRead marks an announcement as read for current user
 // POST /api/v1/announcements/:id/read
 func (h *AnnouncementHandler) MarkRead(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not found in context")
 		return

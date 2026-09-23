@@ -10,8 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -19,7 +23,8 @@ import (
 )
 
 type nonJSONTempUnschedAccountRepo struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	tempUnschedCalls    int
 	tempReason          string
 	modelRateLimitCalls int
@@ -57,12 +62,12 @@ func TestHandleNonStreamingResponse_NonJSON2xxTriggersFailover(t *testing.T) {
 		},
 		Body: io.NopCloser(bytes.NewReader(body)),
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:              &config.Config{},
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
-	usage, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, "claude-sonnet-4-6", "claude-sonnet-4-6")
+	usage, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, "claude-sonnet-4-6", "claude-sonnet-4-6")
 
 	require.Nil(t, usage)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -85,12 +90,12 @@ func TestHandleNonStreamingResponse_ValidJSONUnchanged(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:              &config.Config{},
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
-	usage, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, "claude-sonnet-4-6", "claude-sonnet-4-6")
+	usage, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, "claude-sonnet-4-6", "claude-sonnet-4-6")
 
 	require.NoError(t, err)
 	require.NotNil(t, usage)
@@ -111,9 +116,9 @@ func TestHandleNonStreamingResponseAnthropicAPIKeyPassthrough_NonJSON2xxTriggers
 		Header:     http.Header{"Content-Type": []string{"text/plain"}},
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 
-	usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 2})
+	usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2}})
 
 	require.Nil(t, usage)
 	var failoverErr *forwardcore.UpstreamFailoverError
@@ -135,9 +140,9 @@ func TestHandleNonStreamingResponseAnthropicAPIKeyPassthrough_ValidJSONUnchanged
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 
-	usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 2})
+	usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2}})
 
 	require.NoError(t, err)
 	require.NotNil(t, usage)
@@ -180,9 +185,9 @@ func TestHandleNonStreamingResponseAnthropicAPIKeyPassthrough_ForceCacheBillingR
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body:       io.NopCloser(bytes.NewBufferString(tt.body)),
 			}
-			svc := &GatewayService{cfg: &config.Config{}}
+			svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 
-			usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(WithForceCacheBilling(context.Background()), resp, c, &Account{ID: 2})
+			usage, err := svc.handleNonStreamingResponseAnthropicAPIKeyPassthrough(requeststate.WithForceCacheBilling(context.Background()), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2}})
 
 			require.NoError(t, err)
 			require.Equal(t, int(gjson.Get(tt.body, "usage.input_tokens").Int()), usage.InputTokens, "本地计费必须保留未归类的输入 token")
@@ -199,13 +204,12 @@ func TestHandleNonStreamingResponse_NonJSON2xxMatchesModelScopedTempUnschedulabl
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	repo := &nonJSONTempUnschedAccountRepo{}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	svc := &GatewayService{
+	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:              &config.Config{},
 		rateLimitService: rateLimitService,
-	}
-	account := &Account{
-		ID:       3,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 		Platform: capability.PlatformAnthropic,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
@@ -217,7 +221,7 @@ func TestHandleNonStreamingResponse_NonJSON2xxMatchesModelScopedTempUnschedulabl
 					"duration_minutes": float64(10),
 				},
 			},
-		},
+		}},
 	}
 	body := []byte("(upstream request failed)")
 	resp := &http.Response{

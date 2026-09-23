@@ -5,12 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	"github.com/TokenFlux/TokenRouter/internal/settings"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -19,6 +23,7 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
@@ -175,17 +180,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          114,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 114,
 		Name:        "openai-ingress-session-lease",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -202,7 +206,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -357,16 +361,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRe
 	pool.SetClientDialerForTest(&openAIWSSingleConnDialer{conn: upstreamConn})
 	defer pool.Close()
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          118,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 118,
 		Name:        "openai-ingress-lease-loss",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -374,7 +377,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRe
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -478,16 +481,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutRelea
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 	defer pool.Close()
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          116,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 116,
 		Name:        "openai-ingress-idle-timeout",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -495,7 +497,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutRelea
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -556,7 +558,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_IdleTimeoutRelea
 		t.Fatal("timed out waiting for idle ingress session to close")
 	}
 
-	state, ok := pool.SnapshotAccountState(account.ID)
+	state, ok := pool.SnapshotAccountState(account.Record.ID)
 	require.True(t, ok)
 	require.Zero(t, state.PinnedConnections, "idle close must unpin a store=false session")
 	require.Zero(t, state.LeasedConnections, "idle close must release every upstream lease")
@@ -588,16 +590,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCa
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          115,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 115,
 		Name:        "openai-ingress-omit-model",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -612,7 +613,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_FollowupCreateCa
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -731,17 +732,17 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowup
 	captureDialer := &openAIWSCaptureDialer{conn: captureConn}
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            cfg,
 		httpUpstream:   &httpUpstreamRecorder{},
 		cache:          &stubGatewayCache{},
 		settingService: settingService,
+		prompts:        promptpolicy.New(settingService.Scheduler, settings.ErrSettingNotFound, slog.Warn),
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          116,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 116,
 		Name:        "openai-ingress-user-prompt-replacement",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -753,7 +754,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReplacesFollowup
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -865,14 +866,14 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
 	groupID := int64(3)
 	apiKey := &apikey.APIKey{
@@ -884,8 +885,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 			AllowImageGeneration: true,
 		},
 	}
-	account := &Account{
-		ID:          31,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 31,
 		Name:        "openai-codex-image-ws",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -898,7 +898,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_CodexImageBridge
 		Extra: map[string]any{
 			"openai_oauth_responses_websockets_v2_enabled": true,
 			"codex_image_generation_bridge":                true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1093,17 +1093,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoe
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          441,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 441,
 		Name:        "openai-ingress-dedicated",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1115,7 +1114,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_DedicatedModeDoe
 		},
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeDedicated,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 2)
@@ -1216,17 +1215,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 		},
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: upstreamConn}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector:             openai.NewCodexToolCorrector(),
 		openaiWSPassthroughDialer: captureDialer,
-	}
+	})
 
-	account := &Account{
-		ID:          452,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 452,
 		Name:        "openai-ingress-passthrough",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1242,7 +1240,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 		},
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1434,16 +1432,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 			)),
 		},
 	}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: upstream,
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          552,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 552,
 		Name:        "openai-ingress-http-bridge",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1458,7 +1455,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 		},
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeHTTPBridge,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1640,16 +1637,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridg
 			}}
 			dialer := &openAIWSCaptureDialer{conn: upstreamConn}
 			httpUpstream := &httpUpstreamRecorder{}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          cfg,
 				httpUpstream: httpUpstream,
 				cache:        &stubGatewayCache{},
 
 				toolCorrector:             openai.NewCodexToolCorrector(),
 				openaiWSPassthroughDialer: dialer,
-			}
-			account := &Account{
-				ID:          453,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 453,
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
 				Status:      billing.StatusActive,
@@ -1658,7 +1654,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridg
 				Credentials: map[string]any{"api_key": "sk-test"},
 				Extra: map[string]any{
 					"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
-				},
+				}},
 			}
 
 			errCh := make(chan error, 1)
@@ -1737,16 +1733,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 		},
 	}
 	captureDialer := &openAIWSCaptureDialer{conn: upstreamConn}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector:             openai.NewCodexToolCorrector(),
 		openaiWSPassthroughDialer: captureDialer,
-	}
-	account := &Account{
-		ID:          453,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 453,
 		Name:        "openai-ingress-passthrough-headers",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -1758,7 +1753,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 		},
 		Extra: map[string]any{
 			"openai_oauth_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1839,7 +1834,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeade
 		t.Fatal("等待 passthrough websocket 结束超时")
 	}
 
-	require.Equal(t, isolateOpenAIUpstreamSessionID(0, account, "pcache_passthrough"), captureDialer.lastHeaders.Get("session_id"))
+	require.Equal(t, openai.IsolateOpenAIUpstreamSessionID(0, accountprovider.CodexIdentityNamespace(account.View()), "pcache_passthrough"), captureDialer.lastHeaders.Get("session_id"))
 	require.Equal(t, "turn-state-1", captureDialer.lastHeaders.Get(openAIWSTurnStateHeader))
 	require.Equal(t, "turn-meta-1", captureDialer.lastHeaders.Get(openai.WSTurnMetadataHeader))
 	require.Len(t, upstreamConn.writes, 1)
@@ -1866,17 +1861,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPo
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
 	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeShared
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  newOpenAIWSConnPool(cfg),
-	}
+	})
 
-	account := &Account{
-		ID:          442,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 442,
 		Name:        "openai-ingress-off",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1888,7 +1882,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPo
 		},
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeOff,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -1978,17 +1972,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          140,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 140,
 		Name:        "openai-ingress-prev-preflight-rewrite",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2000,7 +1993,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2125,17 +2118,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          142,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 142,
 		Name:        "openai-ingress-prev-strict-drop-before-ping",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2147,7 +2139,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2265,17 +2257,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreEnabledSkip
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          143,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 143,
 		Name:        "openai-ingress-store-enabled-skip-strict",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2287,7 +2278,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreEnabledSkip
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2396,17 +2387,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          141,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 141,
 		Name:        "openai-ingress-prev-preflight-skip-fco",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2418,7 +2408,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2527,17 +2517,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          143,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 143,
 		Name:        "openai-ingress-fco-auto-prev",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2549,7 +2538,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2658,17 +2647,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledToo
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          145,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 145,
 		Name:        "openai-ingress-tool-search-output-auto-prev",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2680,7 +2668,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledToo
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2792,17 +2780,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          144,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 144,
 		Name:        "openai-ingress-fco-auto-prev-skip",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2814,7 +2801,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -2926,17 +2913,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          114,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 114,
 		Name:        "openai-ingress-tool-context",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2948,7 +2934,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3059,17 +3045,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          115,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 115,
 		Name:        "openai-ingress-item-reference",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -3081,7 +3066,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledFun
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3202,17 +3187,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          116,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 116,
 		Name:        "openai-ingress-preflight-ping",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -3224,7 +3208,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreflightPingFai
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3344,17 +3328,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          121,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 121,
 		Name:        "openai-ingress-preflight-ping-strict-affinity",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -3366,7 +3349,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3496,17 +3479,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          128,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 128,
 		Name:        "openai-ingress-preflight-replay-function-output-with-context",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -3518,7 +3500,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3651,17 +3633,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          129,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 129,
 		Name:        "openai-ingress-preflight-replay-function-output",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -3673,7 +3654,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3797,17 +3778,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          130,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 130,
 		Name:        "openai-ingress-preflight-replay-only-function-output",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -3819,7 +3799,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledPre
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -3937,17 +3917,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          117,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 117,
 		Name:        "openai-ingress-write-retry",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -3959,7 +3938,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_WriteFailBeforeD
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 	var hooksMu sync.Mutex
 	beforeTurnCalls := make(map[int]int)
@@ -4105,17 +4084,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          118,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 118,
 		Name:        "openai-ingress-prev-recovery",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -4127,7 +4105,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4255,17 +4233,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          122,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 122,
 		Name:        "openai-ingress-prev-strict-layer2",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -4277,7 +4254,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_StoreDisabledStr
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4410,17 +4387,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          120,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 120,
 		Name:        "openai-ingress-prev-recovery-once",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -4432,7 +4408,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PreviousResponse
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4535,16 +4511,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageID
 	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          119,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 119,
 		Name:        "openai-ingress-prev-validation",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -4556,7 +4531,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_RejectsMessageID
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4780,17 +4755,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnect
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          115,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 115,
 		Name:        "openai-ingress-client-disconnect",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -4805,7 +4779,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ClientDisconnect
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -4908,16 +4882,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          119,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 119,
 		Name:        "openai-ingress-cyber-error",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -4929,7 +4902,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -5041,16 +5014,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          120,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 120,
 		Name:        "openai-ingress-cyber-failed",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -5062,7 +5034,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)
@@ -5175,17 +5147,16 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_InvalidEncrypted
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(dialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          119,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 119,
 		Name:        "openai-ingress-enc-lineage",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -5197,7 +5168,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_InvalidEncrypted
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	serverErrCh := make(chan error, 1)

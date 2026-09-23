@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -22,8 +23,8 @@ const (
 	geminiExchangeOpenAI
 )
 
-func (s *GeminiMessagesCompatService) geminiExchangeOptions(c *gin.Context, ctx context.Context, account *Account, model string, mode geminiExchangeMode, protocol gemininative.OpenAICompatProtocol) gemininative.ExchangeOptions {
-	options := gemininative.ExchangeOptions{AccountID: account.ID, AccountName: account.Name, Platform: account.Platform, MaxRetries: geminiMaxRetries, ReadError: s.readUpstreamErrorBody, Sanitize: logredact.SanitizeUpstreamQueries, Message: upstream.ExtractErrorMessage, CheckPolicy: func(ctx context.Context, resp *http.Response) (bool, *http.Response) {
+func (s *GeminiMessagesCompatService) geminiExchangeOptions(c *gin.Context, ctx context.Context, account *gatewayprovider.ExecutionAccount, model string, mode geminiExchangeMode, protocol gemininative.OpenAICompatProtocol) gemininative.ExchangeOptions {
+	options := gemininative.ExchangeOptions{AccountID: account.Record.ID, AccountName: account.Record.Name, Platform: account.Record.Platform, MaxRetries: geminiMaxRetries, ReadError: s.readUpstreamErrorBody, Sanitize: logredact.SanitizeUpstreamQueries, Message: upstream.ExtractErrorMessage, CheckPolicy: func(ctx context.Context, resp *http.Response) (bool, *http.Response) {
 		return s.checkErrorPolicyInLoop(ctx, account, resp, model)
 	}, ShouldRetry: func(code int) bool { return s.shouldRetryGeminiUpstreamError(account, code) }, OnStatus: func(ctx context.Context, status int, header http.Header, body []byte) {
 		s.handleGeminiUpstreamError(ctx, account, status, header, body)

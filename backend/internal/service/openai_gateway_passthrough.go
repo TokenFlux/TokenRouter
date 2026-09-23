@@ -1,6 +1,10 @@
 package service
 
 import (
+	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,23 +13,23 @@ import (
 	"strings"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-
 	// 本文件承载 /v1/responses 透传转发及其流式、非流式响应与错误处理。
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -36,7 +40,7 @@ import (
 )
 
 // 旧透传入口仅保持签名，当前账号的请求准备和恢复由目标执行器唯一实现。
-func (s *OpenAIGatewayService) forwardOpenAIPassthrough(ctx context.Context, c *gin.Context, account *Account, body, canonicalImageIntentBody []byte, reqModel string, attemptImageIntentInvalidated bool, reasoningEffort *string, reqStream bool, startTime time.Time, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error) {
+func (s *OpenAIGatewayService) forwardOpenAIPassthrough(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body, canonicalImageIntentBody []byte, reqModel string, attemptImageIntentInvalidated bool, reasoningEffort *string, reqStream bool, startTime time.Time, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error) {
 	input := forward.PassthroughInput{Body: body, CanonicalImageIntentBody: canonicalImageIntentBody, Model: reqModel, ImageIntentInvalidated: attemptImageIntentInvalidated, ReasoningEffort: reasoningEffort, Stream: reqStream, StartedAt: startTime}
 	p := &openAIPassthroughExecutionAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch}}
 	result, err := forward.RunPassthrough(ctx, input, p)
@@ -46,7 +50,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(ctx context.Context, c *
 func logOpenAIPassthroughInstructionsRejected(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	reqModel string,
 	rejectReason string,
 	body []byte,
@@ -58,9 +62,9 @@ func logOpenAIPassthroughInstructionsRejected(
 	accountName := ""
 	accountType := ""
 	if account != nil {
-		accountID = account.ID
-		accountName = strings.TrimSpace(account.Name)
-		accountType = strings.TrimSpace(string(account.Type))
+		accountID = account.Record.ID
+		accountName = strings.TrimSpace(account.Record.Name)
+		accountType = strings.TrimSpace(string(account.Record.Type))
 	}
 	fields := []zap.Field{
 		zap.String("component", "service.openai_gateway"),
@@ -77,13 +81,13 @@ func logOpenAIPassthroughInstructionsRejected(
 func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	token string,
 	routerMatch ...egress.TLSFingerprintRouterMatchResult,
 ) (*http.Request, error) {
 	return forward.BuildPassthroughRequest(ctx, body, s.openAIRequestTarget(c, account, true), func(b []byte) []byte {
-		return forward.NormalizeCNResponsesBody(account != nil && account.UsesNativeCNResponses(), b)
+		return forward.NormalizeCNResponsesBody(account != nil && gatewayprovider.ExecutionProtocolTarget(account).UsesNativeCNResponses(), b)
 	}, func(target string) openai.PassthroughRequestOptions {
 		options := s.nativeResponsesRequestOptions(ctx, c, account, token, target, false, routerMatch...)
 		options.ForwardHeaders = func() http.Header {
@@ -111,15 +115,15 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 }
 
 // shouldFailoverOpenAIPassthroughResponse 只投影账号类别与平台错误分类。
-func shouldFailoverOpenAIPassthroughResponse(account *Account, status int, body []byte) bool {
+func shouldFailoverOpenAIPassthroughResponse(account *gatewayprovider.ExecutionAccount, status int, body []byte) bool {
 	return forward.ShouldFailoverPassthrough(status, body, forward.PassthroughFailureOptions{
-		APIKey:        account != nil && account.Type == capability.AccountTypeAPIKey,
+		APIKey:        account != nil && account.Record.Type == capability.AccountTypeAPIKey,
 		Cyber:         func(b []byte) bool { hit, _, _ := openai.DetectOpenAICyberPolicy(b); return hit },
 		ContextWindow: func(b []byte) bool { return openai.IsOpenAIContextWindowError("", b) },
 		AccessState:   func(s int, b []byte) bool { return isOpenAIHTTPUpstreamAccessStateError(s, "", b) },
 		BodyTooLarge:  func(s int, b []byte) bool { return isOpenAIRequestBodyTooLargeError(s, "", b) },
 		PoolRetryable: func(s int) bool {
-			return account != nil && account.IsPoolMode() && account.IsPoolModeRetryableStatus(s)
+			return account != nil && account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(s)
 		},
 	})
 }
@@ -142,11 +146,11 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	requestBody []byte,
 	responseBody []byte,
 ) error {
-	body := s.redactAgentIdentitySensitiveBody(ctx, account, responseBody)
+	body := s.agentIdentity.Redact(ctx, account, responseBody)
 
 	upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(body))
 	upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
@@ -160,8 +164,8 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 	}
 	gatewayhttp.SetOpsUpstreamError(c, resp.StatusCode, upstreamMsg, upstreamDetail)
 	logOpenAIInstructionsRequiredDebug(ctx, c, account, resp.StatusCode, upstreamMsg, requestBody, body)
-	reqModel, _, _ := extractOpenAIRequestMetaFromBody(requestBody)
-	canonicalModel := canonicalOpenAIAccountSchedulingModel(account, reqModel)
+	reqModel, _, _ := requeststate.OpenAIRequestMetaFromBody(requestBody)
+	canonicalModel := gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel(reqModel)
 	decision := s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, canonicalModel)
 	if decision.ShouldReturnGenericError() {
 		gatewayhttp.MarkResponseCommitted(c)
@@ -169,9 +173,9 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 		return fmt.Errorf("upstream error: %d (not in custom error codes)", resp.StatusCode)
 	}
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-		Platform:             account.Platform,
-		AccountID:            account.ID,
-		AccountName:          account.Name,
+		Platform:             account.Record.Platform,
+		AccountID:            account.Record.ID,
+		AccountName:          account.Record.Name,
 		UpstreamStatusCode:   resp.StatusCode,
 		UpstreamRequestID:    resp.Header.Get("x-request-id"),
 		Passthrough:          true,
@@ -188,7 +192,7 @@ func (s *OpenAIGatewayService) handleFailoverErrorResponsePassthrough(
 		body,
 		upstreamMsg,
 		shouldDisable,
-		!shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
+		!shouldDisable && account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(resp.StatusCode),
 	)
 }
 
@@ -196,18 +200,18 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	requestBody []byte,
 	responseBody []byte,
 ) error {
-	body := s.redactAgentIdentitySensitiveBody(ctx, account, responseBody)
+	body := s.agentIdentity.Redact(ctx, account, responseBody)
 
 	// cyber_policy 仍按原始 body 打内部标记，供 handler 事后写风控/邮件；面向客户端的
 	// 错误体在下方统一重建。cyber 是上游网络安全策略拦截，不冷却账号，
 	// 故下方跳过 handleOpenAIAccountUpstreamError（避免自定义 temp-unschedulable 规则误冷却）。
 	cyberHit, cyberCode, cyberMsg := openai.DetectOpenAICyberPolicy(body)
 	if cyberHit {
-		MarkOpsCyberPolicy(c, CyberPolicyMark{
+		gatewayhttp.MarkOpsCyberPolicy(c, moderationflow.Mark{
 			Code:           cyberCode,
 			Message:        cyberMsg,
 			Body:           logredact.TruncateUTF8(string(body), 4096),
@@ -233,29 +237,29 @@ func (s *OpenAIGatewayService) handleErrorResponsePassthrough(
 	// 错误体虽不会原样透传，运行态账号状态仍需更新，避免粘性路由继续复用
 	// 刚被限流的账号。请求级错误例外：不冷却账号，也不触发池模式重试。
 	if !requestScopedError {
-		reqModel, _, _ := extractOpenAIRequestMetaFromBody(requestBody)
-		canonicalModel := canonicalOpenAIAccountSchedulingModel(account, reqModel)
+		reqModel, _, _ := requeststate.OpenAIRequestMetaFromBody(requestBody)
+		canonicalModel := gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel(reqModel)
 		decision := s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, canonicalModel)
 		if decision.ShouldReturnGenericError() {
 			gatewayhttp.MarkResponseCommitted(c)
 			writeOpenAIPassthroughErrorEnvelope(c, http.StatusInternalServerError, resp.Header, "Upstream gateway error")
 			return fmt.Errorf("upstream error: %d (not in custom error codes)", resp.StatusCode)
 		}
-		if decision.ShouldFailoverWithDefaults(account, resp.StatusCode, false, false) {
+		if decision.ShouldFailoverWithDefaults(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, false, false) {
 			return newOpenAIUpstreamFailoverError(
 				resp.StatusCode,
 				resp.Header,
 				body,
 				upstreamMsg,
-				decision.RetryableOnSameAccount(account, resp.StatusCode),
+				decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode),
 			)
 		}
 	}
 	gatewayhttp.MarkResponseCommitted(c)
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-		Platform:             account.Platform,
-		AccountID:            account.ID,
-		AccountName:          account.Name,
+		Platform:             account.Record.Platform,
+		AccountID:            account.Record.ID,
+		AccountName:          account.Record.Name,
 		UpstreamStatusCode:   resp.StatusCode,
 		UpstreamRequestID:    resp.Header.Get("x-request-id"),
 		Passthrough:          true,
@@ -340,38 +344,6 @@ type openaiNonStreamingResultPassthrough struct {
 	imageOutputSizes []string
 }
 
-const openAIStreamKeepaliveBytesKey = "openai_stream_keepalive_bytes"
-
-func recordOpenAIStreamKeepaliveBytes(c *gin.Context, written int) {
-	if c == nil || written <= 0 {
-		return
-	}
-	current := 0
-	if value, ok := c.Get(openAIStreamKeepaliveBytesKey); ok {
-		current, _ = value.(int)
-	}
-	c.Set(openAIStreamKeepaliveBytesKey, current+written)
-}
-
-func openAIStreamClientOutputStarted(c *gin.Context, localStarted bool) bool {
-	if localStarted {
-		return true
-	}
-	if c == nil || c.Writer == nil {
-		return false
-	}
-	// compact 心跳会提交 HTTP 200，但不属于模型业务输出，不应阻止安全重试。
-	return gatewayhttp.OpenAICompactKeepaliveAdjustedWrittenSize(c) >= 0
-}
-
-// openAIStreamDataStartsTTFT 按管理员设置选择语义事件或真实可见内容作为 TTFT 起点。
-func openAIStreamDataStartsTTFT(data, eventType string, forceOutput bool, mode string) bool {
-	if gateway.NormalizeOpenAITTFTMode(mode) == gateway.OpenAITTFTModeVisible {
-		return protocolopenai.StreamDataStartsVisibleOutput(data, eventType)
-	}
-	return forceOutput || openai.OpenAIStreamDataStartsSemanticTTFT(data, eventType)
-}
-
 // openAITTFTMode 读取本实例网关设置，缺少依赖时使用原安全默认。
 func (s *OpenAIGatewayService) openAITTFTMode(ctx context.Context) string {
 	mode := gateway.OpenAITTFTModeSemantic
@@ -383,7 +355,7 @@ func (s *OpenAIGatewayService) openAITTFTMode(ctx context.Context) string {
 
 func logOpenAICapacityFailoverSuppressed(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	path string,
 	upstreamRequestID string,
 	eventType string,
@@ -395,8 +367,8 @@ func logOpenAICapacityFailoverSuppressed(
 	}
 	if account != nil {
 		fields = append(fields,
-			zap.Int64("account_id", account.ID),
-			zap.String("platform", account.Platform),
+			zap.Int64("account_id", account.Record.ID),
+			zap.String("platform", account.Record.Platform),
 		)
 	}
 	logging.FromContext(ctx).Warn("gateway.failover_suppressed_after_semantic_output", fields...)
@@ -476,7 +448,7 @@ func applyOpenAIStreamFailedErrorPassthroughRule(
 
 func (s *OpenAIGatewayService) handleOpenAIStreamTerminalAccountSideEffects(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	payload []byte,
 	message string,
 	headers http.Header,
@@ -509,8 +481,8 @@ func (s *OpenAIGatewayService) handleOpenAIStreamTerminalAccountSideEffects(
 		// response.failed 可携带管理员自定义的非默认状态码（例如 422）。
 		// 只有命中显式策略或池模式重试状态时才进入账号策略，普通请求级
 		// 校验错误仍保持无副作用。
-		customMatched := account != nil && account.IsCustomErrorCodesEnabled() && account.ShouldHandleErrorCode(statusCode)
-		poolRetryable := account != nil && account.IsPoolMode() && account.IsPoolModeRetryableStatus(statusCode)
+		customMatched := account != nil && account.View().IsCustomErrorCodesEnabled() && account.View().ShouldHandleErrorCode(statusCode)
+		poolRetryable := account != nil && account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(statusCode)
 		if customMatched || poolRetryable {
 			ctx := context.Background()
 			if c != nil && c.Request != nil {
@@ -525,15 +497,15 @@ func (s *OpenAIGatewayService) handleOpenAIStreamTerminalAccountSideEffects(
 // openAIStreamFailedEventRetryableOnSameAccount 兼容旧调用点和带策略决策的测试入口。
 // 两种入口最终都按账号池模式与事件语义判断同账号重试，决策参数仅用于保持旧 API 兼容。
 func openAIStreamFailedEventRetryableOnSameAccount(args ...any) bool {
-	var account *Account
+	var account *gatewayprovider.ExecutionAccount
 	var payload []byte
 	var message string
 	if len(args) == 3 {
-		account, _ = args[0].(*Account)
+		account, _ = args[0].(*gatewayprovider.ExecutionAccount)
 		payload, _ = args[1].([]byte)
 		message, _ = args[2].(string)
 	} else if len(args) >= 5 {
-		account, _ = args[1].(*Account)
+		account, _ = args[1].(*gatewayprovider.ExecutionAccount)
 		payload, _ = args[3].([]byte)
 		message, _ = args[4].(string)
 	}
@@ -545,11 +517,11 @@ func openAIStreamFailedEventRetryableOnSameAccount(args ...any) bool {
 	if openai.IsOpenAIUpstreamCapacityShedEvent(payload) {
 		return true
 	}
-	if !account.IsPoolMode() {
+	if !account.View().IsPoolMode() {
 		return false
 	}
 	semanticStatus := openai.OpenAIStreamFailedEventSemanticStatus(payload, message)
-	return account.IsPoolModeRetryableStatus(semanticStatus) ||
+	return account.View().IsPoolModeRetryableStatus(semanticStatus) ||
 		openai.IsOpenAITransientProcessingError(http.StatusBadRequest, message, payload)
 }
 
@@ -557,12 +529,12 @@ func openAIStreamFailedEventRetryableOnSameAccount(args ...any) bool {
 // 统一映射到现有账号策略管线，避免各协议入口重复推导状态码。
 func (s *OpenAIGatewayService) applyOpenAIStreamFailedAccountPolicy(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	model string,
 	headers http.Header,
 	payload []byte,
 	message string,
-) (int, UpstreamErrorDecision) {
+) (int, accountcore.UpstreamErrorDecision) {
 	status := openai.OpenAIStreamFailedEventSemanticStatus(payload, message)
 	if status < http.StatusBadRequest {
 		status = http.StatusBadGateway
@@ -572,7 +544,7 @@ func (s *OpenAIGatewayService) applyOpenAIStreamFailedAccountPolicy(
 
 func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	passthrough bool,
 	upstreamRequestID string,
 	kind string,
@@ -604,9 +576,9 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 			Detail:             detail,
 		}
 		if account != nil {
-			event.Platform = account.Platform
-			event.AccountID = account.ID
-			event.AccountName = account.Name
+			event.Platform = account.Record.Platform
+			event.AccountID = account.Record.ID
+			event.AccountName = account.Record.Name
 		}
 		gatewayhttp.AppendOpsUpstreamError(c, event)
 	}
@@ -615,7 +587,7 @@ func (s *OpenAIGatewayService) recordOpenAIStreamUpstreamError(
 
 func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	passthrough bool,
 	upstreamRequestID string,
 	payload []byte,
@@ -627,7 +599,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverError(
 
 func (s *OpenAIGatewayService) newOpenAIStreamFailoverErrorWithModel(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	passthrough bool,
 	upstreamRequestID string,
 	payload []byte,
@@ -648,7 +620,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamFailoverErrorWithModel(
 // 下游错误体保持统一封装，同时保留语义状态和上游响应头供 handler 最终处理。
 func (s *OpenAIGatewayService) newOpenAIStreamPolicyFailoverError(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	passthrough bool,
 	upstreamRequestID string,
 	responseHeaders http.Header,
@@ -662,7 +634,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamPolicyFailoverError(
 
 func (s *OpenAIGatewayService) newOpenAIStreamPolicyFailoverErrorWithModel(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	passthrough bool,
 	upstreamRequestID string,
 	responseHeaders http.Header,
@@ -764,7 +736,7 @@ func (s *OpenAIGatewayService) newOpenAIStreamPolicyFailoverErrorWithModel(
 func (s *OpenAIGatewayService) nonStreamingTerminalFailureFailover(
 	c *gin.Context,
 	resp *http.Response,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	passthrough bool,
 	terminalType string,
 	payload []byte,
@@ -794,7 +766,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	startTime time.Time,
 	originalModel string,
 	mappedModel string,
@@ -810,7 +782,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	originalModel string,
 	mappedModel string,
 ) (*openaiNonStreamingResultPassthrough, error) {
@@ -821,7 +793,7 @@ func (s *OpenAIGatewayService) handleNonStreamingResponsePassthrough(
 	return &openaiNonStreamingResultPassthrough{ForwardUsage: result.Usage, usage: result.Usage, responseID: result.ResponseID, imageCount: result.ImageCount, imageOutputSizes: result.ImageOutputSizes}, err
 }
 
-func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c *gin.Context, account *Account, body []byte, originalModel string, mappedModel string) (*openaiNonStreamingResultPassthrough, error) {
+func (s *OpenAIGatewayService) handlePassthroughSSEToJSON(resp *http.Response, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, originalModel string, mappedModel string) (*openaiNonStreamingResultPassthrough, error) {
 	result, err := openai.ReadPassthroughSSEAsJSON(resp, gatewayhttp.ResponseSink{Writer: c.Writer}, s.nativePassthroughOptions(c.Request.Context(), c, account), body, originalModel, mappedModel)
 	if result == nil {
 		return nil, err

@@ -3,7 +3,10 @@ package service
 import (
 	"regexp"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -11,7 +14,7 @@ import (
 )
 
 func TestBuildOAuthMetadataUserID_FallbackWithoutAccountUUID(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	parsed := &requeststate.ParsedRequest{
 		Model:          "claude-sonnet-4-5",
@@ -19,10 +22,9 @@ func TestBuildOAuthMetadataUserID_FallbackWithoutAccountUUID(t *testing.T) {
 		MetadataUserID: "",
 	}
 
-	account := &Account{
-		ID:    123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Type:  capability.AccountTypeOAuth,
-		Extra: map[string]any{}, // intentionally missing account_uuid / claude_user_id
+		Extra: map[string]any{}}, // intentionally missing account_uuid / claude_user_id
 	}
 
 	fp := &anthropic.Fingerprint{ClientID: "deadbeef"} // should be used as user id in legacy format
@@ -36,7 +38,7 @@ func TestBuildOAuthMetadataUserID_FallbackWithoutAccountUUID(t *testing.T) {
 }
 
 func TestBuildOAuthMetadataUserID_UsesAccountUUIDWhenPresent(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	parsed := &requeststate.ParsedRequest{
 		Model:          "claude-sonnet-4-5",
@@ -44,14 +46,13 @@ func TestBuildOAuthMetadataUserID_UsesAccountUUIDWhenPresent(t *testing.T) {
 		MetadataUserID: "",
 	}
 
-	account := &Account{
-		ID:   123,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 123,
 		Type: capability.AccountTypeOAuth,
 		Extra: map[string]any{
 			"account_uuid":      "acc-uuid",
 			"claude_user_id":    "clientid123",
 			"anthropic_user_id": "",
-		},
+		}},
 	}
 
 	got := svc.buildOAuthMetadataUserID(parsed, account, nil)
@@ -67,8 +68,8 @@ func TestBuildOAuthMetadataUserID_UsesAccountUUIDWhenPresent(t *testing.T) {
 // 进程级稳定的 session。账号 / 指纹 / UA 版本均相同，唯一可能变化的就是 session_id，
 // 因此直接比较完整 user_id 字符串即可判定 session_id 是否稳定。
 func TestBuildOAuthMetadataUserID_SessionIDStableAcrossTurns(t *testing.T) {
-	svc := &GatewayService{}
-	account := &Account{ID: 777, Type: capability.AccountTypeOAuth, Extra: map[string]any{"account_uuid": "acc-uuid"}}
+	svc := withSchedulerParametersForTest(&GatewayService{})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 777, Type: capability.AccountTypeOAuth, Extra: map[string]any{"account_uuid": "acc-uuid"}}}
 	fp := &anthropic.Fingerprint{ClientID: "clientid777", UserAgent: "claude-cli/2.1.161 (external, cli)"}
 
 	mustParse := func(body string) *requeststate.ParsedRequest {

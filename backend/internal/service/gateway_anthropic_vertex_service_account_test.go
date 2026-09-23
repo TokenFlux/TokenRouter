@@ -6,7 +6,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/vertex"
@@ -25,18 +28,17 @@ func TestGatewayService_BuildAnthropicVertexServiceAccountRequest(t *testing.T) 
 	c.Request.Header.Set("Anthropic-Version", "2023-06-01")
 	c.Request.Header.Set("Anthropic-Beta", "interleaved-thinking-2025-05-14")
 
-	account := &Account{
-		ID:       301,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
 		Platform: capability.PlatformAnthropic,
 		Type:     capability.AccountTypeServiceAccount,
 		Credentials: map[string]any{
 			"project_id": "vertex-proj",
 			"location":   "us-east5",
-		},
+		}},
 	}
 	body := []byte(`{"model":"claude-sonnet-4-5","stream":false,"max_tokens":32,"messages":[{"role":"user","content":"hello"}]}`)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(),
 		c,
@@ -81,14 +83,13 @@ func TestGatewayService_BuildAnthropicVertexServiceAccount_StripsContextManageme
 	// 客户端 header 只带 interleaved-thinking，不带 context-management-2025-06-27
 	c.Request.Header.Set("Anthropic-Beta", "interleaved-thinking-2025-05-14")
 
-	account := &Account{
-		ID: 302, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeServiceAccount,
-		Credentials: map[string]any{"project_id": "vertex-proj", "location": "us-east5"},
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 302, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeServiceAccount,
+		Credentials: map[string]any{"project_id": "vertex-proj", "location": "us-east5"}},
 	}
 	// body 带了 context_management 字段（客户端透传 / normalize 补齐 / mimicry 注入等场景都可能导致）
 	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015","keep":"all"}]},"messages":[{"role":"user","content":"hi"}]}`)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, account, body,
 		"vertex-token", "service_account", "claude-haiku-4-5@20251001", false, false,
@@ -112,13 +113,12 @@ func TestGatewayService_BuildAnthropicVertexServiceAccount_PreservesContextManag
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	c.Request.Header.Set("Anthropic-Beta", "interleaved-thinking-2025-05-14,context-management-2025-06-27")
 
-	account := &Account{
-		ID: 303, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeServiceAccount,
-		Credentials: map[string]any{"project_id": "vertex-proj", "location": "us-east5"},
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 303, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeServiceAccount,
+		Credentials: map[string]any{"project_id": "vertex-proj", "location": "us-east5"}},
 	}
 	body := []byte(`{"model":"claude-sonnet-4-6","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"messages":[]}`)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, account, body,
 		"vertex-token", "service_account", "claude-sonnet-4-6@20260218", false, false,

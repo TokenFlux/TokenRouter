@@ -387,13 +387,10 @@ func TransformRequest(ctx context.Context, prepared *Prelude, profile Profile, p
 			markDecodedModified()
 		}
 	}
-	if reqBody != nil || p.OpenAIResponsesInputMayNeedTruncation(body) {
-		decoded, decodeErr := ensureReqBody()
-		if decodeErr != nil {
+	if reqBody != nil {
+		// 保留原完整对象的补丁同步时点，不截断客户端或工具文本。
+		if _, decodeErr := ensureReqBody(); decodeErr != nil {
 			return nil, decodeErr
-		}
-		if p.TruncateOpenAIResponsesInputText(decoded) {
-			markDecodedModified()
 		}
 	}
 

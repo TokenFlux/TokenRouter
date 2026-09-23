@@ -8,11 +8,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -41,8 +44,8 @@ func newOpenAIUpstreamClientErrorResponse(statusCode int, body string) *http.Res
 	}
 }
 
-func newOpenAIUpstreamClientErrorTestAccount() *Account {
-	return &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acct"}
+func newOpenAIUpstreamClientErrorTestAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Name: "acct"}}
 }
 
 // 兼容上游新增测试使用的命名，复用 fork 原有测试夹具。
@@ -55,13 +58,13 @@ func newOpenAIUpstreamErrorResponse(statusCode int, body string) *http.Response 
 	return newOpenAIUpstreamClientErrorResponse(statusCode, body)
 }
 
-func newOpenAIUpstreamErrorTestAccount() *Account {
+func newOpenAIUpstreamErrorTestAccount() *gatewayprovider.ExecutionAccount {
 	return newOpenAIUpstreamClientErrorTestAccount()
 }
 
 func TestHandleErrorResponse_Deterministic400IsNotRewrappedAs502(t *testing.T) {
 	c, recorder := newOpenAIUpstreamClientErrorTestContext()
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	_, err := svc.handleErrorResponse(
 		context.Background(),
@@ -81,7 +84,7 @@ func TestHandleErrorResponse_Deterministic400IsNotRewrappedAs502(t *testing.T) {
 }
 
 func TestHandleErrorResponse_Deterministic400MatchesCompatSibling(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	nativeCtx, nativeRecorder := newOpenAIUpstreamClientErrorTestContext()
 	_, nativeErr := svc.handleErrorResponse(
 		context.Background(),
@@ -108,7 +111,7 @@ func TestHandleErrorResponse_Deterministic400MatchesCompatSibling(t *testing.T) 
 
 func TestHandleErrorResponse_Transient400KeepsGenericGatewayError(t *testing.T) {
 	c, recorder := newOpenAIUpstreamClientErrorTestContext()
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	body := `{"error":{"message":"An error occurred while processing your request. You can retry your request.","type":"invalid_request_error"}}`
 
 	_, err := svc.handleErrorResponse(
@@ -124,10 +127,10 @@ func TestHandleErrorResponse_Transient400KeepsGenericGatewayError(t *testing.T) 
 
 func TestHandleErrorResponse_PoolRetryable400StillFailsOver(t *testing.T) {
 	c, recorder := newOpenAIUpstreamClientErrorTestContext()
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	account := newOpenAIUpstreamClientErrorTestAccount()
-	account.Type = capability.AccountTypeAPIKey
-	account.Credentials = map[string]any{
+	account.Record.Type = capability.AccountTypeAPIKey
+	account.Record.Credentials = map[string]any{
 		"pool_mode":                    true,
 		"pool_mode_retry_status_codes": []any{float64(http.StatusBadRequest)},
 	}
@@ -176,7 +179,7 @@ func TestHandleErrorResponse_NonDeterministicStatusesKeepGeneric502(t *testing.T
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c, rec := newOpenAIUpstreamErrorTestContext(t)
-			svc := &OpenAIGatewayService{cfg: &config.Config{}}
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 
 			_, err := svc.handleErrorResponse(
 				context.Background(),
@@ -202,7 +205,7 @@ func TestHandleErrorResponse_PassthroughRuleStillWinsOver400Branch(t *testing.T)
 		newNonFailoverPassthroughRule(http.StatusBadRequest, "automation_update", http.StatusTeapot, "自定义文案"),
 	})
 	gatewayhttp.BindErrorPassthroughService(c, ruleSvc)
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	_, err := svc.handleErrorResponse(
 		context.Background(),

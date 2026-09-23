@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 )
 
@@ -26,7 +27,8 @@ type defaultExtraUpdateCall struct {
 }
 
 type stubAntigravityAccountRepo struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	rateCalls           []defaultRateLimitCall
 	modelRateLimitCalls []defaultModelRateLimitCall
 	extraUpdateCalls    []defaultExtraUpdateCall

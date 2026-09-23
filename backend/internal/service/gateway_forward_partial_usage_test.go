@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -22,7 +23,8 @@ import (
 )
 
 type gatewayForwardErrorPolicyRepoStub struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	tempCalls           int
 	overloadCalls       int
 	modelRateLimitCalls []gatewayForwardModelRateLimitCall
@@ -58,18 +60,17 @@ func newForwardPartialUsageServiceForTest(upstream *anthropicHTTPUpstreamRecorde
 			MaxLineSize: defaultMaxLineSize,
 		},
 	}
-	return &GatewayService{
+	return withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     &RateLimitService{},
 		deferredService:      &accountcore.DeferredService{},
-	}
+	})
 }
 
-func newAnthropicOAuthAccountForPartialUsageTest() *Account {
-	return &Account{
-		ID:          501,
+func newAnthropicOAuthAccountForPartialUsageTest() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 501,
 		Name:        "anthropic-oauth-partial-usage",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeOAuth,
@@ -78,7 +79,7 @@ func newAnthropicOAuthAccountForPartialUsageTest() *Account {
 			"access_token": "oauth-token",
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 }
 
@@ -256,16 +257,16 @@ func TestGatewayService_Forward_PreOutputSSEOverloadedErrorUsesSemantic529(t *te
 	}}
 	repo := &gatewayForwardErrorPolicyRepoStub{}
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil, nil),
+		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil),
 		deferredService:      &accountcore.DeferredService{},
-	}
+	})
 	account := newAnthropicOAuthAccountForPartialUsageTest()
-	account.Credentials["temp_unschedulable_enabled"] = true
-	account.Credentials["temp_unschedulable_rules"] = []any{map[string]any{
+	account.Record.Credentials["temp_unschedulable_enabled"] = true
+	account.Record.Credentials["temp_unschedulable_rules"] = []any{map[string]any{
 		"error_code": float64(529), "keywords": []any{"Overloaded"}, "duration_minutes": float64(10),
 	}}
 	result, err := svc.Forward(context.Background(), c, account, parsed)
@@ -297,13 +298,13 @@ func TestGatewayService_Forward_PostOutputSSEOverloadedErrorKeepsExistingStatus(
 	}}
 	repo := &gatewayForwardErrorPolicyRepoStub{}
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil, nil),
+		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil),
 		deferredService:      &accountcore.DeferredService{},
-	}
+	})
 	result, err := svc.Forward(context.Background(), c, newAnthropicOAuthAccountForPartialUsageTest(), parsed)
 	require.Error(t, err)
 	require.Nil(t, result)

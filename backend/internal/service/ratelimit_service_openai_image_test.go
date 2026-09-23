@@ -15,6 +15,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -23,17 +24,16 @@ import (
 
 func TestOpenAIGatewayService_HandleOpenAIAccountUpstreamError_ImageRateLimitDoesNotBlockWholeAccount(t *testing.T) {
 	repo := &modelNotFoundAccountRepoStub{}
-	svc := &OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}}
-	account := &Account{ID: 203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"type":"rate_limit_exceeded","message":"Rate limit reached for gpt-image-2-codex (for limit gpt-image) on input-images per min. Please try again in 1s."}}`)
 
 	disabled := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests, http.Header{}, body, "gpt-image-2")
 
 	require.False(t, disabled)
 	require.Len(t, repo.modelRateLimitCalls, 1)
-	require.Equal(t, openAIImageGenerationRateLimitKey, repo.modelRateLimitCalls[0].scope)
-	_, wholeAccountBlocked := svc.openaiAccountRuntimeBlockUntil.Load(account.ID)
-	require.False(t, wholeAccountBlocked)
+	require.Equal(t, accountcore.OpenAIImageGenerationRateLimitKey, repo.modelRateLimitCalls[0].scope)
+	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 }
 
 func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCoolsCapability(t *testing.T) {
@@ -48,7 +48,7 @@ func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCools
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		rateLimitService: &RateLimitService{accountRepo: repo},
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -57,17 +57,16 @@ func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCools
 				Body:       io.NopCloser(strings.NewReader(errorBody)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{
-		ID:       204,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 204,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -78,7 +77,7 @@ func TestOpenAIGatewayServiceForwardImages_ImageRateLimitReturnsFailoverAndCools
 	require.Equal(t, http.StatusTooManyRequests, failoverErr.StatusCode)
 	require.Contains(t, string(failoverErr.ResponseBody), "input-images per min")
 	require.Len(t, repo.modelRateLimitCalls, 1)
-	require.Equal(t, openAIImageGenerationRateLimitKey, repo.modelRateLimitCalls[0].scope)
+	require.Equal(t, accountcore.OpenAIImageGenerationRateLimitKey, repo.modelRateLimitCalls[0].scope)
 }
 
 // issue #6171：上游"回文字没回图"是**这一轮**的结果（模型选择了说话），不是账号能力
@@ -97,7 +96,7 @@ func TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapabilit
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo: repo,
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -106,17 +105,16 @@ func TestOpenAIGatewayServiceForwardImages_TextFallbackDoesNotCoolImageCapabilit
 				Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 			},
 		},
-	}
+	}))
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{
-		ID:       205,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 205,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -149,7 +147,7 @@ func TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapabi
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo: repo,
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -158,17 +156,16 @@ func TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapabi
 				Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 			},
 		},
-	}
+	}))
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{
-		ID:       206,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	before := time.Now()
@@ -178,8 +175,8 @@ func TestOpenAIGatewayServiceForwardImages_StructuredUnavailableCoolsImageCapabi
 	require.Error(t, err)
 	require.Len(t, repo.modelRateLimitCalls, 1)
 	call := repo.modelRateLimitCalls[0]
-	require.Equal(t, account.ID, call.accountID)
-	require.Equal(t, openAIImageGenerationRateLimitKey, call.scope)
+	require.Equal(t, account.Record.ID, call.accountID)
+	require.Equal(t, accountcore.OpenAIImageGenerationRateLimitKey, call.scope)
 	require.Equal(t, openai.OpenAIImagesOAuthUnavailableReason, call.reason)
 	require.WithinDuration(t, before.Add(openai.OpenAIImagesOAuthUnavailableDefaultCooldown), call.resetAt, time.Second)
 }
@@ -188,13 +185,13 @@ func TestOpenAIGatewayService_CoolOpenAIImagesOAuthToolUsesConfiguredCooldown(t 
 	accountRepo := &modelNotFoundAccountRepoStub{}
 	settingRepo := newMockSettingRepo()
 	settingRepo.data[accountcore.SettingKeyOpenAIImagesOAuthUnavailableCooldownSettings] = `{"cooldown_minutes":7}`
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:    accountRepo,
 		settingService: newExecutionReadersFixture(settingRepo, &config.Config{}),
-	}
+	}))
 
 	before := time.Now()
-	svc.coolOpenAIImagesOAuthTool(context.Background(), &Account{ID: 206, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth})
+	svc.coolOpenAIImagesOAuthTool(context.Background(), &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}})
 
 	require.Len(t, accountRepo.modelRateLimitCalls, 1)
 	require.WithinDuration(t, before.Add(7*time.Minute), accountRepo.modelRateLimitCalls[0].resetAt, time.Second)
@@ -212,7 +209,7 @@ func TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope(t *test
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		rateLimitService: &RateLimitService{accountRepo: repo},
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -221,17 +218,16 @@ func TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope(t *test
 				Body:       io.NopCloser(strings.NewReader(errorBody)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{
-		ID:       205,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 205,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	before := time.Now()
@@ -241,22 +237,21 @@ func TestOpenAIGatewayServiceForwardImages_CapabilityLossCoolsImageScope(t *test
 	require.Error(t, err)
 	require.Len(t, repo.modelRateLimitCalls, 1)
 	call := repo.modelRateLimitCalls[0]
-	require.Equal(t, account.ID, call.accountID)
-	require.Equal(t, openAIImageGenerationRateLimitKey, call.scope)
+	require.Equal(t, account.Record.ID, call.accountID)
+	require.Equal(t, accountcore.OpenAIImageGenerationRateLimitKey, call.scope)
 	require.Equal(t, accountcore.OpenAIImageCapabilityLossReason, call.reason)
 	require.WithinDuration(t, before.Add(accountcore.OpenAIImageCapabilityLossCooldown), call.resetAt, time.Second)
 }
 
 func TestOpenAIGatewayServiceHandleUpstreamError_PassthroughCapabilityLossDoesNotCool(t *testing.T) {
 	repo := &modelNotFoundAccountRepoStub{}
-	svc := &OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}}
-	account := &Account{ID: 206, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"message":"Tool choice 'image_generation' not found in 'tools' parameter.","param":"tool_choice","type":"invalid_request_error"}}`)
 
 	disabled := svc.handleOpenAIAccountUpstreamError(context.Background(), account, http.StatusBadRequest, http.Header{}, body, "gpt-5.5")
 
 	require.False(t, disabled)
 	require.Empty(t, repo.modelRateLimitCalls)
-	_, wholeAccountBlocked := svc.openaiAccountRuntimeBlockUntil.Load(account.ID)
-	require.False(t, wholeAccountBlocked)
+	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 }

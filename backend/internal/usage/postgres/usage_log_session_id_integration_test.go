@@ -3,21 +3,18 @@
 package postgres
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"context"
 	"testing"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
-
 	"github.com/google/uuid"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +27,7 @@ func TestUsageLog_SessionIDPersistence(t *testing.T) {
 
 	user := mustCreateUser(t, client, &identity.User{Email: "session-id-" + uuid.NewString() + "@example.com"})
 	apiKey := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-session-" + uuid.NewString(), Name: "k"})
-	account := mustCreateAccount(t, client, &service.Account{Name: "acc-session-" + uuid.NewString()})
+	account := mustCreateAccount(t, client, &accountcore.Record{Name: "acc-session-" + uuid.NewString()})
 
 	sessionID := "sess-" + uuid.NewString()
 

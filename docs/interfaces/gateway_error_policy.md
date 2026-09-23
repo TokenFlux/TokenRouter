@@ -18,6 +18,8 @@
 - 规则不修改用量结算的成功/失败，也不把 HTTP 错误转为业务成功。
 - 流已开始时仍要生成对应 SSE/WebSocket 错误事件，不能改写已经发送的状态行。
 
+失败事实和稳定 reason 位于 gateway/forward，HTTP 使用 gateway/httpapi 的唯一展示投影及输出顺序。空 Chat 终态和空 Responses completed 保留各自的 Ops 消息，但继续使用原内部静默拒绝编码；不因迁移改变换号资格或完成处理。观察输入只携带账号 ID、名称和平台，不把凭据交给错误输出层。
+
 账号健康分类发生在这些展示规则之前。OpenAI、Kimi、Zhipu、DeepSeek 收到 HTML 外形的 403 时，视为 CDN、代理或端点级阻断证据，不递增账号 403 计数，也不写临时/永久处罚；结构化 403 则进入同一累计策略，阈值前临时冷却，达到阈值后才标记账号错误。后续成功且进入用量记录的请求会清零该账号计数，保证阈值只表达连续失败。其它平台继续使用各自既有 403 分类，管理员透传规则不能改变这些状态决定。
 
 Kimi 返回精确文案 `You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again.` 时属于账号级并发限制：请求仍返回可故障转移信号，但账号只写入默认 10 分钟临时不可调度，不进入累计 403 永久禁用计数；其它相似文案仍按普通结构化 403 处理。
@@ -42,7 +44,7 @@ Kimi 返回精确文案 `You've reached your concurrent request limit. Please wa
 
 ## 缓存一致性
 
-规则唯一实现位于 `gateway/errorpolicy`，PostgreSQL/Redis 与管理 HTTP 分别由 gateway Adapter 提供。app 持有唯一实例，旧 service/model/handler 入口保留类型别名或委托。
+规则唯一实现位于 `gateway/errorpolicy`，PostgreSQL/Redis 与管理 HTTP 分别由 gateway Adapter 提供。app 直接持有唯一实例，旧 service/model/handler 的规则别名和构造入口已删除；剩余执行适配只消费该原生实例。
 
 服务启动时从数据库加载有序规则，并维护进程缓存和 Redis 缓存。创建、更新、删除或排序后，写路径更新缓存并发布跨实例失效通知；订阅实例重新加载。数据库仍是权威来源，缓存/通知失败必须保留可诊断错误并允许后续重载收敛。
 

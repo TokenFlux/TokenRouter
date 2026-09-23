@@ -8,6 +8,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -21,7 +22,7 @@ const openAIRawStreamTruncatedUpstreamMessage = "Upstream Chat Completions strea
 // 字节"的情况：响应头还没提交，可以透明换号重试，客户端不会看到半截流。
 func newOpenAIRawStreamTruncatedFailoverError(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	upstreamRequestID string,
 	cause error,
 ) *forwardcore.UpstreamFailoverError {
@@ -42,7 +43,7 @@ func newOpenAIRawStreamTruncatedFailoverError(
 // 账号健康度中可见——这正是此前"HTTP 200 假成功"丢掉的信息。
 func recordOpenAIRawStreamTruncation(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	upstreamRequestID string,
 	cause error,
 	kind string,
@@ -55,9 +56,9 @@ func recordOpenAIRawStreamTruncation(
 	accountID := int64(0)
 	accountName := ""
 	if account != nil {
-		platform = account.Platform
-		accountID = account.ID
-		accountName = account.Name
+		platform = account.Record.Platform
+		accountID = account.Record.ID
+		accountName = account.Record.Name
 	}
 	gatewayhttp.SetOpsUpstreamError(c, http.StatusBadGateway, message, "")
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{

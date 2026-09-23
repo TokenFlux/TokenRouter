@@ -192,7 +192,7 @@ func TestRewriteMessageCacheControlIfEnabled_DefaultKeepsClientAnchors(t *testin
 		{"role":"user","content":[{"type":"text","text":"latest","cache_control":{"type":"ephemeral","ttl":"5m"}}]}
 	]}`)
 
-	out := (&GatewayService{}).rewriteMessageCacheControlIfEnabled(context.Background(), body)
+	out := (withSchedulerParametersForTest(&GatewayService{})).rewriteMessageCacheControlIfEnabled(context.Background(), body)
 
 	require.JSONEq(t, string(body), string(out))
 	require.Equal(t, "1h", gjson.GetBytes(out, "messages.0.content.0.cache_control.ttl").String())
@@ -209,7 +209,7 @@ func TestRewriteMessageCacheControlIfEnabled_OptInPreservesLegacyRewrite(t *test
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		gateway.SettingKeyRewriteMessageCacheControl: "true",
 	}}
-	svc := &GatewayService{settingService: newExecutionReadersFixture(repo, &config.Config{})}
+	svc := withSchedulerParametersForTest(&GatewayService{settingService: newExecutionReadersFixture(repo, &config.Config{})})
 
 	out := svc.rewriteMessageCacheControlIfEnabled(context.Background(), body)
 

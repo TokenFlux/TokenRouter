@@ -6,21 +6,20 @@ import (
 	fmt "fmt"
 	slog "log/slog"
 	strings "strings"
-	sync "sync"
+	"sync/atomic"
 	time "time"
+
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	config "github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	schedulercore "github.com/TokenFlux/TokenRouter/internal/scheduler"
 	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
-	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 )
 
 const (
@@ -33,24 +32,6 @@ const (
 // quota headroom 只影响调度偏好，不应像自动暂停那样强制屏蔽账号。
 // 缺少或陈旧快照时使用中性分，避免没有 header 数据的账号被错误降权。
 const ()
-
-type advancedSchedulerRuntimeSettings struct {
-	stickyWeightedEnabled       bool
-	subscriptionPriorityEnabled bool
-	lbTopKOverride              int
-	weightOverrides             map[string]float64
-	ewmaErrorRateAlpha          float64
-	ewmaErrorRateAlphaSet       bool
-	ewmaTTFTAlpha               float64
-	ewmaTTFTAlphaSet            bool
-	stickyEscapeEnabled         bool
-	stickyEscapeEnabledSet      bool
-	stickyEscapeTTFTMs          float64
-	stickyEscapeTTFTMsSet       bool
-	stickyEscapeErrorRate       float64
-	stickyEscapeErrorRateSet    bool
-	stickyEscape                advancedStickyEscapeConfig
-}
 
 type OpenAIAccountScheduleRequest struct {
 	GroupID                 *int64
@@ -73,8 +54,8 @@ type OpenAIAccountScheduleRequest struct {
 	RequireCompact          bool
 	ExcludedIDs             map[int64]struct{}
 	// AdvancedSchedulerFeedbackConfig 与 StickyEscapeConfig 固定本次请求使用的有效策略。
-	AdvancedSchedulerFeedbackConfig advancedSchedulerFeedbackConfig
-	StickyEscapeConfig              advancedStickyEscapeConfig
+	AdvancedSchedulerFeedbackConfig policy.FeedbackConfig
+	StickyEscapeConfig              policy.StickyEscapeConfig
 }
 
 // routingModel 返回账号调度层使用的模型，并兼容未设置 RoutingModel 的旧调用方。
@@ -86,8 +67,8 @@ func (r OpenAIAccountScheduleRequest) routingModel() string {
 }
 
 type OpenAIAccountScheduler interface {
-	Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*AccountSelectionResult, schedulercore.PlatformDecision, error)
-	ReportResult(accountID int64, success bool, firstTokenMs *int, feedback ...advancedSchedulerFeedbackConfig)
+	Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error)
+	ReportResult(accountID int64, success bool, firstTokenMs *int, feedback ...policy.FeedbackConfig)
 	ReportSwitch()
 	SnapshotMetrics() schedulercore.PlatformMetricsSnapshot
 }
@@ -107,29 +88,16 @@ func (m *openAIAccountSchedulerMetrics) recordSwitch() {
 	}
 }
 
-// 兼容内部调用点的别名：OpenAI 是通用高级调度器的能力适配者之一。
-type openAIAccountRuntimeStats = advancedAccountRuntimeStats
-
-func newOpenAIAccountRuntimeStats() *advancedAccountRuntimeStats {
-	return newAdvancedAccountRuntimeStats()
-}
-
 type defaultOpenAIAccountScheduler struct {
-	service                *OpenAIGatewayService
-	metrics                openAIAccountSchedulerMetrics
-	stats                  *openAIAccountRuntimeStats
-	grokFreeQuotaGateCache sync.Map // key: int64(accountID), value: grokFreeQuotaGateCacheEntry
+	service       *OpenAIGatewayService
+	metrics       openAIAccountSchedulerMetrics
+	stats         *schedulercore.RuntimeStats
+	freeQuotaGate atomic.Pointer[accountcore.FreeQuotaGate]
 }
 
-type advancedStickyEscapeConfig struct {
-	enabled   bool
-	ttftMs    float64
-	errorRate float64
-}
-
-func newDefaultOpenAIAccountScheduler(service *OpenAIGatewayService, stats *openAIAccountRuntimeStats) OpenAIAccountScheduler {
+func newDefaultOpenAIAccountScheduler(service *OpenAIGatewayService, stats *schedulercore.RuntimeStats) OpenAIAccountScheduler {
 	if stats == nil {
-		stats = newOpenAIAccountRuntimeStats()
+		stats = schedulercore.NewRuntimeStats(time.Now)
 	}
 	return &defaultOpenAIAccountScheduler{
 		service: service,
@@ -137,31 +105,31 @@ func newDefaultOpenAIAccountScheduler(service *OpenAIGatewayService, stats *open
 	}
 }
 
-func (s *defaultOpenAIAccountScheduler) Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*AccountSelectionResult, schedulercore.PlatformDecision, error) {
+func (s *defaultOpenAIAccountScheduler) Select(ctx context.Context, req OpenAIAccountScheduleRequest) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
 	core, scope := s.platformSelector()
 	v, decision, err := core.Select(ctx, platformSelectionInput(req))
 	return scope.restore(v), decision, err
 }
 
 // hasOpenAIAccountGroupMetadata 判断账号是否声明了分组归属信息。
-func hasOpenAIAccountGroupMetadata(account *Account) bool {
-	return account != nil && (len(account.GroupIDs) > 0 || len(account.AccountGroups) > 0)
+func hasOpenAIAccountGroupMetadata(account *gatewayprovider.ExecutionAccount) bool {
+	return account != nil && (len(account.Record.GroupIDs) > 0 || len(account.Record.AccountGroups) > 0)
 }
 
 // openAIStickyAccountMatchesGroup 校验粘性会话账号是否仍属于当前请求分组。
-func openAIStickyAccountMatchesGroup(account *Account, groupID *int64) bool {
+func openAIStickyAccountMatchesGroup(account *gatewayprovider.ExecutionAccount, groupID *int64) bool {
 	if account == nil {
 		return false
 	}
 	if groupID == nil {
-		return len(account.AccountGroups) == 0 && len(account.GroupIDs) == 0
+		return len(account.Record.AccountGroups) == 0 && len(account.Record.GroupIDs) == 0
 	}
-	for _, accountGroupID := range account.GroupIDs {
+	for _, accountGroupID := range account.Record.GroupIDs {
 		if accountGroupID == *groupID {
 			return true
 		}
 	}
-	for _, accountGroup := range account.AccountGroups {
+	for _, accountGroup := range account.Record.AccountGroups {
 		if accountGroup.GroupID == *groupID {
 			return true
 		}
@@ -169,64 +137,22 @@ func openAIStickyAccountMatchesGroup(account *Account, groupID *int64) bool {
 	return false
 }
 
-func shouldEscapeAdvancedStickyAccount(stats *advancedAccountRuntimeStats, id int64, cfg advancedStickyEscapeConfig) (string, float64, float64, bool) {
-	return schedulercore.ShouldEscapeSticky(schedulerStats(stats), id, policy.StickyEscapeConfig{Enabled: cfg.enabled, TtftMs: cfg.ttftMs, ErrorRate: cfg.errorRate})
+func shouldEscapeAdvancedStickyAccount(stats *schedulercore.RuntimeStats, id int64, cfg policy.StickyEscapeConfig) (string, float64, float64, bool) {
+	return schedulercore.ShouldEscapeSticky(stats, id, policy.StickyEscapeConfig{Enabled: cfg.Enabled, TtftMs: cfg.TtftMs, ErrorRate: cfg.ErrorRate})
 }
 
-func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int64, cfg advancedStickyEscapeConfig) (reason string, errorRate float64, ttft float64, shouldEscape bool) {
+func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int64, cfg policy.StickyEscapeConfig) (reason string, errorRate float64, ttft float64, shouldEscape bool) {
 	if s == nil {
 		return "", 0, 0, false
 	}
 	return shouldEscapeAdvancedStickyAccount(s.stats, accountID, cfg)
 }
 
-// 以下别名保留 OpenAI 适配层的局部语义；底层实现由通用高级调度核心共享。
-type openAIAccountCandidateScore = advancedSchedulerCandidateScore
-
-func isOpenAIAccountCandidateBetter(left, right openAIAccountCandidateScore) bool {
-	return isAdvancedSchedulerCandidateBetter(left, right)
-}
-
-func selectTopKOpenAICandidates(candidates []openAIAccountCandidateScore, topK int) []openAIAccountCandidateScore {
-	return selectTopKAdvancedSchedulerCandidates(candidates, topK)
-}
-
-func buildOpenAIWeightedSelectionOrder(candidates []openAIAccountCandidateScore, req OpenAIAccountScheduleRequest) []openAIAccountCandidateScore {
-	return buildAdvancedWeightedSelectionOrder(candidates, advancedSchedulerSelectionInput{
-		GroupID:                 req.GroupID,
-		SessionHash:             req.SessionHash,
-		PreviousResponseID:      req.PreviousResponseID,
-		RequestedModel:          req.RequestedModel,
-		StickyAccountID:         req.StickyAccountID,
-		StickyPreviousAccountID: req.StickyPreviousAccountID,
-		StickyWeighted:          req.StickyWeighted,
-	})
-}
-
-// 兼容旧测试和基准的命名，生产代码使用通用高级调度器随机源。
-type openAISelectionRNG = advancedSchedulerRNG
-
-func newOpenAISelectionRNG(seed uint64) openAISelectionRNG {
-	return newAdvancedSchedulerRNG(seed)
-}
-
-func deriveOpenAISelectionSeed(req OpenAIAccountScheduleRequest) uint64 {
-	return deriveAdvancedSchedulerSelectionSeed(advancedSchedulerSelectionInput{
-		GroupID:                 req.GroupID,
-		SessionHash:             req.SessionHash,
-		PreviousResponseID:      req.PreviousResponseID,
-		RequestedModel:          req.RequestedModel,
-		StickyAccountID:         req.StickyAccountID,
-		StickyPreviousAccountID: req.StickyPreviousAccountID,
-		StickyWeighted:          req.StickyWeighted,
-	})
-}
-
 // reasons 延迟分配，正常选中账号的热路径不会产生额外 map 分配。
 
 // summary 生成顺序稳定的排除统计，便于日志聚合和问题定位。
 
-func (s *defaultOpenAIAccountScheduler) isAccountTransportCompatible(account *Account, requiredTransport egress.OpenAIUpstreamTransport) bool {
+func (s *defaultOpenAIAccountScheduler) isAccountTransportCompatible(account *gatewayprovider.ExecutionAccount, requiredTransport egress.OpenAIUpstreamTransport) bool {
 	if requiredTransport == egress.OpenAIUpstreamTransportAny || requiredTransport == egress.OpenAIUpstreamTransportHTTPSSE {
 		return true
 	}
@@ -236,12 +162,12 @@ func (s *defaultOpenAIAccountScheduler) isAccountTransportCompatible(account *Ac
 	return s.service.isOpenAIAccountTransportCompatible(account, requiredTransport)
 }
 
-func (s *defaultOpenAIAccountScheduler) lookupShadowParentAccount(ctx context.Context, id int64) *Account {
+func (s *defaultOpenAIAccountScheduler) lookupShadowParentAccount(ctx context.Context, id int64) *gatewayprovider.ExecutionAccount {
 	if s == nil || s.service == nil {
 		return nil
 	}
 	if s.service.schedulerSnapshot != nil {
-		if account, err := s.service.schedulerSnapshot.GetAccount(ctx, id); err == nil && account != nil {
+		if account, err := readSnapshotAccount(ctx, s.service.schedulerSnapshot, id); err == nil && account != nil {
 			return account
 		}
 	}
@@ -252,23 +178,23 @@ func (s *defaultOpenAIAccountScheduler) lookupShadowParentAccount(ctx context.Co
 	return account
 }
 
-func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(ctx context.Context, account *Account, req OpenAIAccountScheduleRequest) bool {
+func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(ctx context.Context, account *gatewayprovider.ExecutionAccount, req OpenAIAccountScheduleRequest) bool {
 	compatible, _ := s.isAccountRequestCompatibleReason(ctx, account, req)
 	return compatible
 }
 
 // isAccountRequestCompatibleReason 返回账号是否兼容，并在拒绝时标明具体门禁原因。
-func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx context.Context, account *Account, req OpenAIAccountScheduleRequest) (bool, string) {
+func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx context.Context, account *gatewayprovider.ExecutionAccount, req OpenAIAccountScheduleRequest) (bool, string) {
 	if s != nil && s.service != nil && !s.service.shadowProtocolsAllowed(ctx, account) {
 		return false, "parent_protocol_unavailable"
 	}
-	if !account.allowsProtocolRequest(ctx) {
+	if !gatewayprovider.ExecutionModelPolicy(account).AllowsProtocol(ctx) {
 		return false, "protocol_unavailable"
 	}
 	if account == nil {
 		return false, "account_nil"
 	}
-	if req.RequirePrivacySet && !account.IsPrivacySet() {
+	if req.RequirePrivacySet && !account.View().IsPrivacySet() {
 		return false, "privacy_not_set"
 	}
 	if s != nil && s.service != nil && s.service.isOpenAIAccountRequestRuntimeBlocked(account, req.routingModel()) {
@@ -290,8 +216,8 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	// 母账号健康联动：影子账号的凭据来自母账号，母账号不可调度时影子也不应被选中。
 	// Parent-health gate: shadow borrows the parent's credentials; an unschedulable
 	// parent must block the shadow across all scheduler paths.
-	if !accountcore.ParentHealthyForShadow(AccountRecordView(account), func(id int64) *accountcore.Record {
-		return AccountRecordView(s.lookupShadowParentAccount(ctx, id))
+	if !accountcore.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(account), func(id int64) *accountcore.Record {
+		return gatewayprovider.ExecutionRecord(s.lookupShadowParentAccount(ctx, id))
 	}) {
 		return false, "shadow_parent_unhealthy"
 	}
@@ -309,11 +235,11 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	return true, ""
 }
 
-func (s *defaultOpenAIAccountScheduler) ReportResult(accountID int64, success bool, firstTokenMs *int, feedback ...advancedSchedulerFeedbackConfig) {
+func (s *defaultOpenAIAccountScheduler) ReportResult(accountID int64, success bool, firstTokenMs *int, feedback ...policy.FeedbackConfig) {
 	if s == nil || s.stats == nil {
 		return
 	}
-	s.stats.report(accountID, success, firstTokenMs, feedback...)
+	s.stats.Report(accountID, success, firstTokenMs, feedback...)
 }
 
 func (s *defaultOpenAIAccountScheduler) ReportSwitch() {
@@ -327,37 +253,7 @@ func (s *defaultOpenAIAccountScheduler) SnapshotMetrics() schedulercore.Platform
 	if s == nil {
 		return schedulercore.PlatformMetricsSnapshot{}
 	}
-	return s.metrics.Snapshot(s.stats.size())
-}
-
-func (s *OpenAIGatewayService) advancedSchedulerSettingRepo() settingscore.Repository {
-	if s == nil || s.rateLimitService == nil || s.rateLimitService.settingService == nil {
-		return nil
-	}
-	return s.rateLimitService.settingService.Scheduler
-}
-
-func (s *OpenAIGatewayService) advancedSchedulerRuntimeSettings(ctx context.Context) advancedSchedulerRuntimeSettings {
-	return legacySchedulerRuntimeSettings(SchedulerSettingsRuntime().Load(ctx, s.advancedSchedulerSettingRepo(), schedulerRuntimeSettings(s.advancedSchedulerProcessRuntimeSettings())))
-}
-
-// advancedSchedulerProcessRuntimeSettings 返回高级调度器的进程级默认运行参数。
-func (s *OpenAIGatewayService) advancedSchedulerProcessRuntimeSettings() advancedSchedulerRuntimeSettings {
-	settings := advancedSchedulerRuntimeSettings{
-		ewmaErrorRateAlpha: schedulercore.DefaultErrorRateAlpha,
-		ewmaTTFTAlpha:      schedulercore.DefaultTTFTAlpha,
-		stickyEscape:       resolveAdvancedStickyEscapeConfig(nil),
-	}
-	if s != nil && s.cfg != nil {
-		settings.ewmaErrorRateAlpha = s.cfg.Gateway.AdvancedScheduler.EWMAErrorRateAlpha
-		settings.ewmaTTFTAlpha = s.cfg.Gateway.AdvancedScheduler.EWMATTFTAlpha
-		settings.stickyEscape = resolveAdvancedStickyEscapeConfig(s.cfg)
-	}
-	return settings
-}
-
-func (s *OpenAIGatewayService) isAdvancedSchedulerStickyWeightedEnabled(ctx context.Context) bool {
-	return s.advancedSchedulerRuntimeSettings(ctx).stickyWeightedEnabled
+	return s.metrics.Snapshot(s.stats.Size())
 }
 
 // groupUsesAdvancedScheduler 只依据最终解析后的分组决定调度模式。
@@ -371,7 +267,7 @@ func (s *OpenAIGatewayService) groupUsesAdvancedScheduler(ctx context.Context, g
 	if s.schedulerSnapshot == nil {
 		return false
 	}
-	group, err := s.schedulerSnapshot.GetGroupByID(ctx, *groupID)
+	group, err := s.readSchedulingGroup(ctx, *groupID)
 	return err == nil && group != nil && group.UsesAdvancedScheduler()
 }
 
@@ -383,11 +279,8 @@ func (s *OpenAIGatewayService) getOpenAIAccountScheduler(ctx context.Context, gr
 		return nil
 	}
 	s.openaiSchedulerOnce.Do(func() {
-		if s.rateLimitService != nil {
-			s.openaiAccountStats = s.rateLimitService.AdvancedSchedulerRuntimeStats()
-		}
 		if s.openaiAccountStats == nil {
-			s.openaiAccountStats = newOpenAIAccountRuntimeStats()
+			s.openaiAccountStats = schedulercore.NewRuntimeStats(time.Now)
 		}
 		if s.openaiScheduler == nil {
 			s.openaiScheduler = newDefaultOpenAIAccountScheduler(s, s.openaiAccountStats)
@@ -403,24 +296,14 @@ func (s *OpenAIGatewayService) ensureOpenAIAccountScheduler() OpenAIAccountSched
 		return nil
 	}
 	s.openaiSchedulerOnce.Do(func() {
-		if s.rateLimitService != nil {
-			s.openaiAccountStats = s.rateLimitService.AdvancedSchedulerRuntimeStats()
-		}
 		if s.openaiAccountStats == nil {
-			s.openaiAccountStats = newOpenAIAccountRuntimeStats()
+			s.openaiAccountStats = schedulercore.NewRuntimeStats(time.Now)
 		}
 		if s.openaiScheduler == nil {
 			s.openaiScheduler = newDefaultOpenAIAccountScheduler(s, s.openaiAccountStats)
 		}
 	})
 	return s.openaiScheduler
-}
-
-func resetAdvancedSchedulerSettingCacheForTest() {
-	schedulerSettingsRuntime.Store(schedulercore.NewSettingsRuntime(schedulercore.Diagnostics{
-		Logf:  logging.LegacyPrintf,
-		Event: logging.Event},
-	))
 }
 
 func (s *OpenAIGatewayService) SelectAccountWithScheduler(
@@ -432,7 +315,7 @@ func (s *OpenAIGatewayService) SelectAccountWithScheduler(
 	excludedIDs map[int64]struct{},
 	requiredTransport egress.OpenAIUpstreamTransport,
 	requireCompact bool,
-) (*AccountSelectionResult, schedulercore.PlatformDecision, error) {
+) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
 	return s.selectAccountWithScheduler(ctx, groupID, previousResponseID, sessionHash, requestedModel, excludedIDs, requiredTransport, "", "", requireCompact, capability.PlatformOpenAI, false)
 }
 
@@ -451,7 +334,7 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForCapability(
 	requireCompact bool,
 	previousResponseCanMove bool,
 	platformOverride ...string,
-) (*AccountSelectionResult, schedulercore.PlatformDecision, error) {
+) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
 	platform := capability.PlatformOpenAI
 	if len(platformOverride) > 0 {
 		platform = platformOverride[0]
@@ -474,7 +357,7 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForCapabilityAndRouting
 	requireCompact bool,
 	previousResponseCanMove bool,
 	platformOverride ...string,
-) (*AccountSelectionResult, schedulercore.PlatformDecision, error) {
+) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
 	platform := capability.PlatformOpenAI
 	if len(platformOverride) > 0 {
 		platform = platformOverride[0]
@@ -493,7 +376,7 @@ func (s *OpenAIGatewayService) SelectAccountWithSchedulerForImages(
 	requestedModel string,
 	excludedIDs map[int64]struct{},
 	requiredCapability accountcore.OpenAIImagesCapability,
-) (*AccountSelectionResult, schedulercore.PlatformDecision, error) {
+) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
 	selection, decision, err := s.selectAccountWithScheduler(ctx, groupID, "", sessionHash, requestedModel, excludedIDs, egress.OpenAIUpstreamTransportHTTPSSE, "", requiredCapability, false, capability.PlatformOpenAI, false)
 	if err == nil && selection != nil && selection.Account != nil {
 		return selection, decision, nil
@@ -518,7 +401,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 	requireCompact bool,
 	platform string,
 	previousResponseCanMove bool,
-) (*AccountSelectionResult, schedulercore.PlatformDecision, error) {
+) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
 	routingModel := s.resolveChannelRoutingModel(ctx, groupID, requestedModel)
 	return s.selectAccountWithSchedulerForRouting(ctx, groupID, previousResponseID, sessionHash, requestedModel, routingModel, excludedIDs, requiredTransport, requiredCapability, requiredImageCapability, requireCompact, platform, previousResponseCanMove)
 }
@@ -540,7 +423,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRouting(
 	requireCompact bool,
 	platform string,
 	previousResponseCanMove bool,
-) (*AccountSelectionResult, schedulercore.PlatformDecision, error) {
+) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
 	originalGroupID := derefGroupID(groupID)
 	resolvedCtx, resolvedGroupID, err := s.resolveOpenAISchedulerGroup(ctx, groupID)
 	if err != nil {
@@ -582,36 +465,23 @@ func (s *OpenAIGatewayService) resolveOpenAISchedulerGroup(ctx context.Context, 
 		return ctx, groupID, nil
 	}
 
-	currentID := *groupID
-	visited := map[int64]struct{}{}
-	for {
-		if _, seen := visited[currentID]; seen {
-			return ctx, nil, fmt.Errorf("fallback group cycle detected")
+	read := func(ctx context.Context, id int64) (*routing.Group, error) {
+		if contextual, ok := requeststate.GroupFromContext(ctx); ok && routing.IsGroupContextValid(contextual) && contextual.ID == id {
+			return contextual, nil
 		}
-		visited[currentID] = struct{}{}
-
-		var group *routing.Group
-		if contextual, ok := requeststate.GroupFromContext(ctx); ok && routing.IsGroupContextValid(contextual) && contextual.ID == currentID {
-			group = contextual
-		} else if s != nil && s.schedulerSnapshot != nil {
-			resolved, err := s.schedulerSnapshot.GetGroupByID(ctx, currentID)
-			if err != nil {
-				return ctx, nil, err
-			}
-			group = resolved
+		if s != nil && s.schedulerSnapshot != nil {
+			return s.readSchedulingGroup(ctx, id)
 		}
-		if group == nil {
-			// 没有可用分组快照时保持已有选择语义；高级模式也会安全回退到基础路径。
-			return ctx, &currentID, nil
-		}
-		if !group.ClaudeCodeOnly || requeststate.IsClaudeCodeClient(ctx) {
-			return requeststate.WithGroup(ctx, group), &currentID, nil
-		}
-		if group.FallbackGroupID == nil || *group.FallbackGroupID <= 0 {
-			return ctx, nil, ErrClaudeCodeOnly
-		}
-		currentID = *group.FallbackGroupID
+		return nil, nil
 	}
+	group, resolved, err := routing.ResolveClientGroup(ctx, groupID, read, requeststate.IsClaudeCodeClient, routing.ClientGroupPolicy{KeepMissingSnapshot: true, RejectNonPositiveFallback: true})
+	if err != nil {
+		return ctx, nil, err
+	}
+	if group != nil {
+		ctx = requeststate.WithGroup(ctx, group)
+	}
+	return ctx, resolved, nil
 }
 
 type openAIGroupPrivacyRequirementContextKey struct{}
@@ -640,7 +510,7 @@ func (s *OpenAIGatewayService) loadOpenAIGroupRequiresPrivacySet(ctx context.Con
 	if s == nil || groupID == nil || s.schedulerSnapshot == nil {
 		return false
 	}
-	group, err := s.schedulerSnapshot.GetGroupByID(ctx, *groupID)
+	group, err := s.readSchedulingGroup(ctx, *groupID)
 	if err != nil {
 		// 隐私资格查询失败时收紧当前请求，避免错误地把未确认账号用于审查任务。
 		return true
@@ -662,7 +532,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 	requireCompact bool,
 	platform string,
 	previousResponseCanMove bool,
-) (*AccountSelectionResult, schedulercore.PlatformDecision, error) {
+) (*gatewayprovider.SelectionResult, schedulercore.PlatformDecision, error) {
 	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	ctx = s.withOpenAIGroupPrivacyRequirement(ctx, groupID)
 	platform = routing.NormalizeOpenAICompatiblePlatform(platform)
@@ -676,7 +546,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 	if scheduler == nil {
 		decision.Layer = openAIAccountScheduleLayerLoadBalance
 		if guardianParentAccountID > 0 {
-			fallbackScheduler := &defaultOpenAIAccountScheduler{service: s, stats: newOpenAIAccountRuntimeStats()}
+			fallbackScheduler := &defaultOpenAIAccountScheduler{service: s, stats: schedulercore.NewRuntimeStats(time.Now)}
 			selection, _, err := fallbackScheduler.selectBySessionHash(ctx, OpenAIAccountScheduleRequest{
 				GroupID:                 groupID,
 				Platform:                platform,
@@ -698,8 +568,8 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 			if selection != nil && selection.Account != nil {
 				decision.Layer = openAIAccountScheduleLayerGuardianParent
 				decision.StickySessionHit = true
-				decision.SelectedAccountID = selection.Account.ID
-				decision.SelectedAccountType = selection.Account.Type
+				decision.SelectedAccountID = selection.Account.Record.ID
+				decision.SelectedAccountType = selection.Account.Record.Type
 				return selection, decision, nil
 			}
 		}
@@ -726,10 +596,10 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 				if effectiveExcludedIDs == nil {
 					effectiveExcludedIDs = make(map[int64]struct{})
 				}
-				if _, exists := effectiveExcludedIDs[selection.Account.ID]; exists {
+				if _, exists := effectiveExcludedIDs[selection.Account.Record.ID]; exists {
 					return nil, decision, schedulercore.ErrNoAvailableAccounts
 				}
-				effectiveExcludedIDs[selection.Account.ID] = struct{}{}
+				effectiveExcludedIDs[selection.Account.Record.ID] = struct{}{}
 			}
 		}
 
@@ -752,10 +622,10 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 			if effectiveExcludedIDs == nil {
 				effectiveExcludedIDs = make(map[int64]struct{})
 			}
-			if _, exists := effectiveExcludedIDs[selection.Account.ID]; exists {
+			if _, exists := effectiveExcludedIDs[selection.Account.Record.ID]; exists {
 				return nil, decision, schedulercore.ErrNoAvailableAccounts
 			}
-			effectiveExcludedIDs[selection.Account.ID] = struct{}{}
+			effectiveExcludedIDs[selection.Account.Record.ID] = struct{}{}
 		}
 	}
 
@@ -773,8 +643,8 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 		}
 	}
 	effectiveSettings := s.advancedSchedulerEffectiveSettingsForRequest(ctx, groupID)
-	stickyWeighted := effectiveSettings.stickyWeightedEnabled
-	subscriptionPriority := effectiveSettings.subscriptionPriorityEnabled
+	stickyWeighted := effectiveSettings.StickyWeightedEnabled
+	subscriptionPriority := effectiveSettings.SubscriptionPriorityEnabled
 	stickyPreviousAccountID := int64(0)
 	if stickyWeighted && previousResponseCanMove && strings.TrimSpace(previousResponseID) != "" && platform == capability.PlatformOpenAI {
 		stickyPreviousAccountID = s.ResolveAccountIDByPreviousResponseIDForScheduler(ctx, groupID, previousResponseID, routingModel, excludedIDs, requiredCapability, requireCompact)
@@ -804,18 +674,18 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 	if selection != nil {
 		// 只有进入 OpenAI 高级适配器的选择才允许写入高级运行时反馈。
 		selection.AdvancedScheduler = true
-		feedback := effectiveSettings.feedback
+		feedback := effectiveSettings.Feedback
 		selection.AdvancedSchedulerFeedback = &feedback
 	}
 	return selection, decision, selectErr
 }
 
-func accountSupportsOpenAICapabilities(ctx context.Context, account *Account, requiredCapability accountcore.OpenAIEndpointCapability, requiredImageCapability accountcore.OpenAIImagesCapability) bool {
+func accountSupportsOpenAICapabilities(ctx context.Context, account *gatewayprovider.ExecutionAccount, requiredCapability accountcore.OpenAIEndpointCapability, requiredImageCapability accountcore.OpenAIImagesCapability) bool {
 	if account == nil {
 		return false
 	}
 	return supportsOpenAIRequestCapability(ctx, account, requiredCapability) &&
-		account.SupportsOpenAIImageCapability(requiredImageCapability)
+		account.View().SupportsOpenAIImageCapability(requiredImageCapability)
 }
 
 func cloneExcludedAccountIDs(excludedIDs map[int64]struct{}) map[int64]struct{} {
@@ -829,7 +699,7 @@ func cloneExcludedAccountIDs(excludedIDs map[int64]struct{}) map[int64]struct{} 
 	return cloned
 }
 
-func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Account, requiredTransport egress.OpenAIUpstreamTransport) bool {
+func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *gatewayprovider.ExecutionAccount, requiredTransport egress.OpenAIUpstreamTransport) bool {
 	if requiredTransport == egress.OpenAIUpstreamTransportAny || requiredTransport == egress.OpenAIUpstreamTransportHTTPSSE {
 		return true
 	}
@@ -838,13 +708,13 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 	}
 	if requiredTransport == egress.OpenAIUpstreamTransportResponsesWebsocketV2Ingress {
 		// Grok WS ingress 在转发层固定走 HTTP bridge，不依赖仅适用于 OpenAI 账号的 WSv2 mode。
-		if account.IsGrok() {
+		if account.View().IsGrok() {
 			return true
 		}
 		if s.cfg == nil || !s.cfg.Gateway.OpenAIWS.ModeRouterV2Enabled {
 			return s.resolveOpenAIWSTransport(account).Transport == egress.OpenAIUpstreamTransportResponsesWebsocketV2
 		}
-		switch account.ResolveOpenAIResponsesWebSocketV2Mode(s.cfg.Gateway.OpenAIWS.IngressModeDefault) {
+		switch account.View().ResolveOpenAIResponsesWebSocketV2Mode(s.cfg.Gateway.OpenAIWS.IngressModeDefault) {
 		case accountcore.OpenAIWSIngressModeCtxPool, accountcore.OpenAIWSIngressModePassthrough, accountcore.OpenAIWSIngressModeHTTPBridge, accountcore.OpenAIWSIngressModeShared, accountcore.OpenAIWSIngressModeDedicated:
 			return true
 		default:
@@ -855,13 +725,13 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 }
 
 func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountOrID any, model string, success bool, firstTokenMs *int, observedErr ...error) bool {
-	var account *Account
+	var account *gatewayprovider.ExecutionAccount
 	var accountID int64
 	switch value := accountOrID.(type) {
-	case *Account:
+	case *gatewayprovider.ExecutionAccount:
 		account = value
 		if account != nil {
-			accountID = account.ID
+			accountID = account.Record.ID
 		}
 	case int64:
 		accountID = value
@@ -874,14 +744,13 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountOrID any
 
 	healthTripped := false
 	if account != nil && s != nil && s.rateLimitService != nil {
-		if success {
-			s.rateLimitService.ObserveOpenAIAPIKeyHealthSuccess(context.Background(), account)
-		} else if len(observedErr) > 0 && observedErr[0] != nil {
-			healthTripped = s.rateLimitService.ObserveOpenAIAPIKeyHealthFailure(context.Background(), account, observedErr[0])
+		// 成功路径沿用原不读取设置、不清滚动计数的语义。
+		if !success && len(observedErr) > 0 && observedErr[0] != nil {
+			healthTripped = s.ObserveOpenAIAccountHealthFailure(context.Background(), account, observedErr[0])
 		}
 	}
 	if success {
-		s.openaiOAuth429RetryStartedAt.Delete(accountID)
+		s.runtimeBlockState().ResetRetry(accountID)
 		s.clearOpenAIAccountModelTransientState(accountID, accountcore.NormalizeTransientModel(model))
 	}
 	if account == nil {
@@ -901,16 +770,21 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountOrID any
 }
 
 // ObserveOpenAIAccountHealthFailure 记录已经写出响应后无法进入调度反馈的失败。
-func (s *OpenAIGatewayService) ObserveOpenAIAccountHealthFailure(ctx context.Context, account *Account, observedErr error) bool {
+func (s *OpenAIGatewayService) ObserveOpenAIAccountHealthFailure(ctx context.Context, account *gatewayprovider.ExecutionAccount, observedErr error) bool {
 	if s == nil || s.rateLimitService == nil || account == nil || observedErr == nil {
 		return false
 	}
-	return s.rateLimitService.ObserveOpenAIAPIKeyHealthFailure(ctx, account, observedErr)
+	status, body, eligible := gatewayprovider.ClassifyOpenAIAPIKeyHealthFailure(observedErr)
+	record := gatewayprovider.ExecutionRecord(account)
+	handled := s.rateLimitService.HealthCore().ApplyAPIKeyHealthFailure(ctx, record, status, body, eligible)
+	account.Record.TempUnschedulableUntil = record.TempUnschedulableUntil
+	account.Record.TempUnschedulableReason = record.TempUnschedulableReason
+	return handled
 }
 
 // ReportOpenAIAccountScheduleResultForSelection 按本次实际选择模式写入反馈。
 // 基础分组仍清理请求临时状态，但不会污染高级调度统计。
-func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResultForSelection(selection *AccountSelectionResult, accountID int64, model string, success bool, firstTokenMs *int) {
+func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResultForSelection(selection *gatewayprovider.SelectionResult, accountID int64, model string, success bool, firstTokenMs *int) {
 	if selection != nil && selection.AdvancedScheduler && selection.AdvancedSchedulerFeedback != nil {
 		s.reportOpenAIAccountScheduleResultWithFeedback(accountID, model, success, firstTokenMs, *selection.AdvancedSchedulerFeedback)
 		return
@@ -932,7 +806,7 @@ func (s *OpenAIGatewayService) reportOpenAIAccountScheduleResult(advanced bool, 
 	scheduler.ReportResult(accountID, success, firstTokenMs)
 }
 
-func (s *OpenAIGatewayService) reportOpenAIAccountScheduleResultWithFeedback(accountID int64, model string, success bool, firstTokenMs *int, feedback advancedSchedulerFeedbackConfig) {
+func (s *OpenAIGatewayService) reportOpenAIAccountScheduleResultWithFeedback(accountID int64, model string, success bool, firstTokenMs *int, feedback policy.FeedbackConfig) {
 	if success {
 		s.clearOpenAIAccountModelTransientState(accountID, accountcore.NormalizeTransientModel(model))
 	}
@@ -955,7 +829,7 @@ func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {
 }
 
 // RecordOpenAIAccountSwitchForSelection 只记录高级调度请求的账号切换。
-func (s *OpenAIGatewayService) RecordOpenAIAccountSwitchForSelection(selection *AccountSelectionResult) {
+func (s *OpenAIGatewayService) RecordOpenAIAccountSwitchForSelection(selection *gatewayprovider.SelectionResult) {
 	s.recordOpenAIAccountSwitch(selection != nil && selection.AdvancedScheduler)
 }
 
@@ -985,106 +859,8 @@ func (s *OpenAIGatewayService) openAIWSSessionStickyTTL() time.Duration {
 	return openaiStickySessionTTL
 }
 
-func (s *OpenAIGatewayService) openAIWSLBTopK() int {
-	if s != nil && s.cfg != nil && s.cfg.Gateway.AdvancedScheduler.LBTopK > 0 {
-		return s.cfg.Gateway.AdvancedScheduler.LBTopK
-	}
-	return 7
-}
-
-func (s *OpenAIGatewayService) openAIWSLBTopKForRequest(ctx context.Context) int {
-	base := s.openAIWSLBTopK()
-	settings := s.advancedSchedulerRuntimeSettings(ctx)
-	if settings.lbTopKOverride > 0 {
-		return settings.lbTopKOverride
-	}
-	return base
-}
-
-func resolveAdvancedStickyEscapeConfig(appConfig *config.Config) advancedStickyEscapeConfig {
-	if appConfig != nil {
-		cfg := appConfig.Gateway.AdvancedScheduler
-		return normalizeAdvancedStickyEscapeConfig(advancedStickyEscapeConfig{
-			enabled:   cfg.StickyEscapeEnabled,
-			ttftMs:    float64(cfg.StickyEscapeTTFTMs),
-			errorRate: cfg.StickyEscapeErrorRate,
-		})
-	}
-	return normalizeAdvancedStickyEscapeConfig(advancedStickyEscapeConfig{
-		enabled:   true,
-		ttftMs:    15000,
-		errorRate: 0.5,
-	})
-}
-
-func normalizeAdvancedStickyEscapeConfig(value advancedStickyEscapeConfig) advancedStickyEscapeConfig {
-	v := policy.NormalizeStickyEscape(policy.StickyEscapeConfig{Enabled: value.enabled, TtftMs: value.ttftMs, ErrorRate: value.errorRate})
-	return advancedStickyEscapeConfig{enabled: v.Enabled, ttftMs: v.TtftMs, errorRate: v.ErrorRate}
-}
-
-func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayAdvancedSchedulerScoreWeightsView {
-	if s != nil && s.cfg != nil {
-		return GatewayAdvancedSchedulerScoreWeightsView{
-			Priority:      s.cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority,
-			Load:          s.cfg.Gateway.AdvancedScheduler.ScoreWeights.Load,
-			Queue:         s.cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue,
-			ErrorRate:     s.cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate,
-			TTFT:          s.cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT,
-			Reset:         s.cfg.Gateway.AdvancedScheduler.ScoreWeights.Reset,
-			QuotaHeadroom: s.cfg.Gateway.AdvancedScheduler.ScoreWeights.QuotaHeadroom,
-			Previous:      s.cfg.Gateway.AdvancedScheduler.ScoreWeights.PreviousResponse,
-			SessionSticky: s.cfg.Gateway.AdvancedScheduler.ScoreWeights.SessionSticky,
-		}
-	}
-	return GatewayAdvancedSchedulerScoreWeightsView{
-		Priority:      1.0,
-		Load:          1.0,
-		Queue:         0.7,
-		ErrorRate:     0.8,
-		TTFT:          0.5,
-		Reset:         0.0,
-		QuotaHeadroom: 0.0,
-		Previous:      5.0,
-		SessionSticky: 3.0,
-	}
-}
-
-func (s *OpenAIGatewayService) openAIWSSchedulerWeightsForRequest(ctx context.Context) GatewayAdvancedSchedulerScoreWeightsView {
-	weights := s.openAIWSSchedulerWeights()
-	settings := s.advancedSchedulerRuntimeSettings(ctx)
-	overridden := applyAdvancedSchedulerWeightOverrides(weights, settings.weightOverrides)
-	if !overridden.configWeights().IsValid() {
-		return weights
-	}
-	return overridden
-}
-
-func applyAdvancedSchedulerWeightOverrides(
-	weights GatewayAdvancedSchedulerScoreWeightsView,
-	overrides map[string]float64,
-) GatewayAdvancedSchedulerScoreWeightsView {
-	return GatewayAdvancedSchedulerScoreWeightsView(policy.ApplyGlobalWeightOverrides(policy.ScoreWeights(weights), overrides))
-}
-
-// 旧视图只保留 config 投影方法，值字段由纯 policy 拥有。
-type GatewayAdvancedSchedulerScoreWeightsView policy.ScoreWeights
-
-func (w GatewayAdvancedSchedulerScoreWeightsView) configWeights() config.GatewayAdvancedSchedulerScoreWeights {
-	return config.GatewayAdvancedSchedulerScoreWeights{
-		Priority:         w.Priority,
-		Load:             w.Load,
-		Queue:            w.Queue,
-		ErrorRate:        w.ErrorRate,
-		TTFT:             w.TTFT,
-		Reset:            w.Reset,
-		QuotaHeadroom:    w.QuotaHeadroom,
-		PreviousResponse: w.Previous,
-		SessionSticky:    w.SessionSticky,
-	}
-}
-
 // 基础回退只委托同一粘性核心，不维护第二条绑定或等待策略。
-func (s *defaultOpenAIAccountScheduler) selectBySessionHash(ctx context.Context, req OpenAIAccountScheduleRequest) (*AccountSelectionResult, bool, error) {
+func (s *defaultOpenAIAccountScheduler) selectBySessionHash(ctx context.Context, req OpenAIAccountScheduleRequest) (*gatewayprovider.SelectionResult, bool, error) {
 	core, scope := s.platformSelector()
 	value, escaped, err := core.SelectBySessionHash(ctx, platformSelectionInput(req))
 	return scope.restore(value), escaped, err
@@ -1093,6 +869,6 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(ctx context.Context,
 // 旧基础选择的只读诊断状态与新核心使用同一类型。
 
 // 旧候选只转换额度观测；评分信号使用账号模块唯一实现。
-func openAIQuotaHeadroomFactor(value *Account, now time.Time) float64 {
-	return accountcore.OpenAIQuotaHeadroomFactor(AccountRecordView(value), now)
+func openAIQuotaHeadroomFactor(value *gatewayprovider.ExecutionAccount, now time.Time) float64 {
+	return accountcore.OpenAIQuotaHeadroomFactor(gatewayprovider.ExecutionRecord(value), now)
 }

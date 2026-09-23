@@ -13,23 +13,20 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
-// provideAccountRecovery 直接投影配置、原生设置和技术端口；构造期间不回源或启动工作。
-func provideAccountRecovery(
+// provideAccountHealthRuntime 直接投影配置、原生设置和技术端口；构造期间不回源或启动工作。
+func provideAccountHealthRuntime(
 	store *accountpostgres.AccountStore,
 	cache account.TempUnschedCache,
-	source *service.RateLimitService,
-	precheck *account.GeminiPrecheck,
 	cfg *config.Config,
 	settings *account.RuntimeSettings,
 	timeouts account.TimeoutCounterCache,
 	forbidden account.OpenAI403CounterCache,
 	tokens account.TokenCacheInvalidator,
-	blocker service.AccountRuntimeBlocker,
-) *account.RecoveryService {
+	state *account.RuntimeBlockState,
+) *accountHealthRuntime {
 	options := account.HealthOptions{
 		Now: time.Now, Warn: slog.Warn, Info: slog.Info,
 		SessionWindows: store, TimeoutCounter: timeouts, ForbiddenCounter: forbidden,
@@ -56,10 +53,8 @@ func provideAccountRecovery(
 	if tokens != nil {
 		options.InvalidateUnauthorizedToken = tokens.InvalidateToken
 	}
-	if blocker != nil {
-		options.Block = func(value *account.Record, until time.Time, reason string) {
-			blocker.BlockAccountScheduling(service.AccountFromRecord(value), until, reason)
-		}
+	if state != nil {
+		options.Block = state.BlockAccountScheduling
 	}
 
 	// 恢复与窗口观测互相调用；绑定完成后才对外发布，构造本身不执行这些回调。
@@ -69,8 +64,8 @@ func provideAccountRecovery(
 	}
 	health := account.NewHealthService(store, cache, options)
 	recoveryOptions := account.RecoveryOptions{Now: time.Now, Warn: slog.Warn, ResetCounter: health.ResetForbiddenCounter}
-	if blocker != nil {
-		recoveryOptions.ClearSchedulingBlock = blocker.ClearAccountSchedulingBlock
+	if state != nil {
+		recoveryOptions.ClearSchedulingBlock = state.ClearAccountSchedulingBlock
 	}
 	if tokens != nil {
 		recoveryOptions.InvalidateToken = tokens.InvalidateToken
@@ -81,13 +76,12 @@ func provideAccountRecovery(
 		reset := account.GeminiDailyResetTime(time.Now(), geminiQuotaLocation()).Unix()
 		return &reset
 	}}
-	if retry, ok := blocker.(interface {
-		ShouldRetryOpenAIOAuth429(*service.Account, http.Header, []byte) bool
-	}); ok {
+	if state != nil {
 		limits.RetryOpenAI = func(value *account.Record, headers http.Header, body []byte) bool {
-			return retry.ShouldRetryOpenAIOAuth429(service.AccountFromRecord(value), headers, body)
+			return accountprovider.CanRetryOpenAI429(state, value, headers, body)
 		}
 	}
+
 	team := account.NewTeamLinkedHealth(store, account.TeamLinkedOptions{Now: options.Now, Warn: options.Warn, Block: options.Block})
 	models := &accountprovider.ModelHealth{Health: health, CodexRules: openai.CodexModelRules{
 		ImageOnly: media.IsImageGenerationModel, LastSegment: capability.LastOpenAIModelSegment,
@@ -95,12 +89,19 @@ func provideAccountRecovery(
 		SupportsEffort: capability.OpenAIModelSupportsReasoningEffort,
 	}, IsImageModel: media.IsGPTImageGenerationModel}
 
-	// 尚未清零的调用方只取得这些唯一原生实例，不从旧聚合服务读取配置或持久化端口。
-	source.BindGeminiPrecheck(precheck)
-	source.BindHealth(health)
-	source.BindRecovery(recovery)
-	source.BindRateLimitObserver(limits)
-	source.BindTeamLinkedHealth(team)
-	source.BindUpstreamHealth(&accountprovider.UpstreamHealth{Core: health, Team: team, Limits: limits, Models: models})
-	return recovery
+	return &accountHealthRuntime{
+		Health: health, Recovery: recovery, Observer: &accountprovider.UpstreamHealth{Core: health, Team: team, Limits: limits, Models: models},
+	}
+}
+
+// accountHealthRuntime 仅聚合同一装配的原生拥有者，不另建规则或可变状态。
+type accountHealthRuntime struct {
+	Health   *account.HealthService
+	Recovery *account.RecoveryService
+	Observer *accountprovider.UpstreamHealth
+}
+
+// provideAccountRecovery 对原生消费者直接发布唯一恢复用例。
+func provideAccountRecovery(runtime *accountHealthRuntime) *account.RecoveryService {
+	return runtime.Recovery
 }

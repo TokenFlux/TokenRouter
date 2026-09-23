@@ -7,14 +7,16 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDiagnoseModelAvailabilityForPlatform_NoModel_AlwaysAvailable(t *testing.T) {
-	repo := &mockAccountRepoForPlatform{accounts: nil, accountsByID: map[int64]*Account{}}
-	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
+	repo := &mockAccountRepoForPlatform{accounts: nil, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{}}
+	svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo, cfg: testConfig()})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "", capability.PlatformOpenAI)
 
@@ -23,8 +25,8 @@ func TestDiagnoseModelAvailabilityForPlatform_NoModel_AlwaysAvailable(t *testing
 }
 
 func TestDiagnoseModelAvailabilityForPlatform_EmptyPlatform_AlwaysAvailable(t *testing.T) {
-	repo := &mockAccountRepoForPlatform{accounts: nil, accountsByID: map[int64]*Account{}}
-	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
+	repo := &mockAccountRepoForPlatform{accounts: nil, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{}}
+	svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo, cfg: testConfig()})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", "")
 
@@ -42,8 +44,8 @@ func TestDiagnoseModelAvailabilityForPlatform_NilReceiver(t *testing.T) {
 }
 
 func TestDiagnoseModelAvailabilityForPlatform_NoAccountsInPool(t *testing.T) {
-	repo := &mockAccountRepoForPlatform{accounts: nil, accountsByID: map[int64]*Account{}}
-	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
+	repo := &mockAccountRepoForPlatform{accounts: nil, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{}}
+	svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo, cfg: testConfig()})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", capability.PlatformOpenAI)
 
@@ -53,23 +55,22 @@ func TestDiagnoseModelAvailabilityForPlatform_NoAccountsInPool(t *testing.T) {
 
 func TestDiagnoseModelAvailabilityForPlatform_ExplicitMappingMatches(t *testing.T) {
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"gpt-5.1-codex-mini": "gpt-5.1-codex-mini"},
-				},
+				}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
-	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
+	svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo, cfg: testConfig()})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", capability.PlatformOpenAI)
 
@@ -79,15 +80,15 @@ func TestDiagnoseModelAvailabilityForPlatform_ExplicitMappingMatches(t *testing.
 
 func TestDiagnoseModelAvailabilityForPlatform_EmptyMappingAllowsAll(t *testing.T) {
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, Schedulable: true /* 无 ModelMapping 表示允许全部模型 */},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, Schedulable: true} /* 无 ModelMapping 表示允许全部模型 */},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
-	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
+	svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo, cfg: testConfig()})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", capability.PlatformOpenAI)
 
@@ -96,23 +97,22 @@ func TestDiagnoseModelAvailabilityForPlatform_EmptyMappingAllowsAll(t *testing.T
 
 func TestDiagnoseModelAvailabilityForPlatform_WildcardMappingMatches(t *testing.T) {
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"*": "gpt-5"},
-				},
+				}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
-	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
+	svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo, cfg: testConfig()})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5.1-codex-mini", capability.PlatformOpenAI)
 
@@ -122,34 +122,32 @@ func TestDiagnoseModelAvailabilityForPlatform_WildcardMappingMatches(t *testing.
 func TestDiagnoseModelAvailabilityForPlatform_NoMatchingModel_ReturnsNotFoundSignal(t *testing.T) {
 	groupID := int64(42)
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				AccountGroups: []AccountGroup{
+				AccountGroups: []accountcore.GroupMembership{
 					{GroupID: groupID},
 				},
-				Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5": "gpt-5"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5": "gpt-5"}}},
 			},
-			{
-				ID:          2,
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				AccountGroups: []AccountGroup{
+				AccountGroups: []accountcore.GroupMembership{
 					{GroupID: groupID},
 				},
-				Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5-mini": "gpt-5-mini"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5-mini": "gpt-5-mini"}}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
-	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
+	svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo, cfg: testConfig()})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "gpt-5.1-codex-mini", capability.PlatformOpenAI)
 
@@ -161,30 +159,29 @@ func TestDiagnoseModelAvailabilityForPlatform_RateLimitedSupportingAccountRemain
 	groupID := int64(42)
 	cooldownUntil := time.Now().Add(time.Hour)
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:                     1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:               capability.PlatformAnthropic,
 				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				RateLimitResetAt:       &cooldownUntil,
 				OverloadUntil:          &cooldownUntil,
 				TempUnschedulableUntil: &cooldownUntil,
-				AccountGroups:          []AccountGroup{{GroupID: groupID}},
+				AccountGroups:          []accountcore.GroupMembership{{GroupID: groupID}},
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"claude-opus-4-8": "claude-opus-4-8"},
-				},
+				}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
-	require.False(t, repo.accounts[0].IsSchedulable(), "test account must be excluded from normal scheduling while cooling down")
-	svc := &GatewayService{
+	require.False(t, repo.accounts[0].View().IsSchedulable(), "test account must be excluded from normal scheduling while cooling down")
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cfg:         testConfig(),
 		schedulerSnapshot: NewSchedulerSnapshotService(nil, // 诊断必须绕过只反映瞬时状态的快照。
 			nil, nil, nil, nil),
-	}
+	})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-opus-4-8", capability.PlatformAnthropic)
 
@@ -196,30 +193,29 @@ func TestOpenAIDiagnoseModelAvailabilityForPlatform_RateLimitedSupportingAccount
 	groupID := int64(43)
 	cooldownUntil := time.Now().Add(time.Hour)
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:                     2,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 				Platform:               capability.PlatformOpenAI,
 				Status:                 billing.StatusActive,
 				Schedulable:            true,
 				RateLimitResetAt:       &cooldownUntil,
 				OverloadUntil:          &cooldownUntil,
 				TempUnschedulableUntil: &cooldownUntil,
-				AccountGroups:          []AccountGroup{{GroupID: groupID}},
+				AccountGroups:          []accountcore.GroupMembership{{GroupID: groupID}},
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"claude-opus-4-8": "claude-opus-4-8"},
-				},
+				}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
-	require.False(t, repo.accounts[0].IsSchedulable(), "test account must be excluded from normal scheduling while cooling down")
-	svc := &OpenAIGatewayService{
+	require.False(t, repo.accounts[0].View().IsSchedulable(), "test account must be excluded from normal scheduling while cooling down")
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo: repo,
 		cfg:         testConfig(),
 		schedulerSnapshot: NewSchedulerSnapshotService(nil, // 诊断必须绕过只反映瞬时状态的快照。
 			nil, nil, nil, nil),
-	}
+	}))
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-opus-4-8", capability.PlatformOpenAI)
 
@@ -231,21 +227,20 @@ func TestDiagnoseModelAvailabilityForPlatform_WrongPlatformFiltersOut(t *testing
 	// 分组里只有 Anthropic 账号，但用户路由到 OpenAI 网关。
 	// 诊断必须按平台过滤掉 Anthropic 账号，因此 HasAccountsInPool=false，调用方保留 503。
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformAnthropic,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-sonnet-4-5": "claude-sonnet-4-5"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"claude-sonnet-4-5": "claude-sonnet-4-5"}}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
-	svc := &GatewayService{accountRepo: repo, cfg: testConfig()}
+	svc := withSchedulerParametersForTest(&GatewayService{accountRepo: repo, cfg: testConfig()})
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "gpt-5", capability.PlatformOpenAI)
 
@@ -255,21 +250,20 @@ func TestDiagnoseModelAvailabilityForPlatform_WrongPlatformFiltersOut(t *testing
 
 func TestOpenAIGatewayDiagnoseModelAvailabilityForPlatform_GrokPlatformFiltersOpenAIAccounts(t *testing.T) {
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5": "gpt-5"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5": "gpt-5"}}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
-	svc := &OpenAIGatewayService{accountRepo: repo, cfg: testConfig()}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo, cfg: testConfig()}))
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), nil, "grok-4.3", capability.PlatformGrok)
 

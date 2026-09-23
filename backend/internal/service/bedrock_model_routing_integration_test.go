@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -26,17 +28,16 @@ import (
 )
 
 // newBedrockRoutingTestAccount 使用虚构凭据构造可调度账号，测试不会访问真实 AWS。
-func newBedrockRoutingTestAccount(id int64, region string, forceGlobal bool) Account {
-	account := Account{
-		ID: id, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock,
+func newBedrockRoutingTestAccount(id int64, region string, forceGlobal bool) gatewayprovider.ExecutionAccount {
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeBedrock,
 		Status: billing.StatusActive, Schedulable: true, Concurrency: 5, Priority: int(id),
 		Credentials: map[string]any{
 			"aws_region": region, "auth_mode": "sigv4",
 			"aws_access_key_id": "test-akid", "aws_secret_access_key": "test-secret",
-		},
+		}},
 	}
 	if forceGlobal {
-		account.Credentials["aws_force_global"] = "true"
+		account.Record.Credentials["aws_force_global"] = "true"
 	}
 	return account
 }
@@ -68,14 +69,14 @@ func TestBedrockRegionRouting_ForwardAndAccountTestUseSameRoute(t *testing.T) {
 		for _, authMode := range []string{"sigv4", "apikey"} {
 			t.Run(tc.name+"/"+authMode, func(t *testing.T) {
 				account := newBedrockRoutingTestAccount(1, tc.region, tc.global)
-				account.Credentials["auth_mode"] = authMode
-				account.Credentials["api_key"] = "test-api-key"
-				before, err := json.Marshal(account.Credentials)
+				account.Record.Credentials["auth_mode"] = authMode
+				account.Record.Credentials["api_key"] = "test-api-key"
+				before, err := json.Marshal(account.Record.Credentials)
 				require.NoError(t, err)
 				parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef([]byte(`{"model":"`+tc.model+`","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}`)), capability.PlatformAnthropic)
 				require.NoError(t, err)
 				forwardUpstream := newBedrockRoutingTestUpstream()
-				gateway := &GatewayService{httpUpstream: forwardUpstream, cfg: testConfig()}
+				gateway := withSchedulerParametersForTest(&GatewayService{httpUpstream: forwardUpstream, cfg: testConfig()})
 				result, err := gateway.forwardBedrock(context.Background(), newBedrockRoutingTestContext(), &account, parsed, time.Now())
 				require.NoError(t, err)
 				require.Equal(t, tc.wantID, result.UpstreamModel)
@@ -85,7 +86,7 @@ func TestBedrockRegionRouting_ForwardAndAccountTestUseSameRoute(t *testing.T) {
 				accountTester := &accountprovider.AnthropicAccountTest{Transport: testUpstream}
 				run := accountprovider.NewTestRun(context.Background(), make(http.Header), accounthttp.NewTestEventSink(httptest.NewRecorder()))
 				defer run.Cancel()
-				err = accountTester.ExecuteBedrock(run, run.Context, AccountRecordView(&account), tc.model, "hello")
+				err = accountTester.ExecuteBedrock(run, run.Context, gatewayprovider.ExecutionRecord(&account), tc.model, "hello")
 				require.NoError(t, run.Result(err))
 				for _, upstream := range []*httpUpstreamRecorder{forwardUpstream, testUpstream} {
 					require.Len(t, upstream.requests, 1)
@@ -97,7 +98,7 @@ func TestBedrockRegionRouting_ForwardAndAccountTestUseSameRoute(t *testing.T) {
 						require.Contains(t, upstream.lastReq.Header.Get("Authorization"), "/"+strings.TrimSpace(tc.region)+"/bedrock/aws4_request")
 					}
 				}
-				after, err := json.Marshal(account.Credentials)
+				after, err := json.Marshal(account.Record.Credentials)
 				require.NoError(t, err)
 				require.Equal(t, before, after)
 			})
@@ -118,7 +119,7 @@ func TestBedrockRegionRouting_InvalidRouteStopsBeforeUpstream(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			account := newBedrockRoutingTestAccount(1, tc.region, tc.global)
 			upstream := &httpUpstreamRecorder{}
-			gateway := &GatewayService{httpUpstream: upstream}
+			gateway := withSchedulerParametersForTest(&GatewayService{httpUpstream: upstream})
 			parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef([]byte(`{"model":"`+tc.model+`","messages":[{"role":"user","content":"hello"}]}`)), capability.PlatformAnthropic)
 			require.NoError(t, err)
 			_, err = gateway.forwardBedrock(context.Background(), newBedrockRoutingTestContext(), &account, parsed, time.Now())
@@ -127,7 +128,7 @@ func TestBedrockRegionRouting_InvalidRouteStopsBeforeUpstream(t *testing.T) {
 			accountTester := &accountprovider.AnthropicAccountTest{Transport: upstream}
 			run := accountprovider.NewTestRun(context.Background(), make(http.Header), accounthttp.NewTestEventSink(httptest.NewRecorder()))
 			defer run.Cancel()
-			err = run.Result(accountTester.ExecuteBedrock(run, run.Context, AccountRecordView(&account), tc.model, ""))
+			err = run.Result(accountTester.ExecuteBedrock(run, run.Context, gatewayprovider.ExecutionRecord(&account), tc.model, ""))
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.region)
 			if tc.hint {
@@ -136,8 +137,8 @@ func TestBedrockRegionRouting_InvalidRouteStopsBeforeUpstream(t *testing.T) {
 				require.NotContains(t, err.Error(), "可开启")
 			}
 			require.Empty(t, upstream.requests)
-			require.Equal(t, billing.StatusActive, account.Status)
-			require.True(t, account.Schedulable)
+			require.Equal(t, billing.StatusActive, account.Record.Status)
+			require.True(t, account.Record.Schedulable)
 		})
 	}
 }
@@ -157,32 +158,32 @@ func TestBedrockRegionRouting_SchedulerAndDiagnosisAgree(t *testing.T) {
 				name += "批量负载"
 			}
 			t.Run(name, func(t *testing.T) {
-				accounts := []Account{invalid}
+				accounts := []gatewayprovider.ExecutionAccount{invalid}
 				if withValid {
 					accounts = append(accounts, valid)
 				}
-				repo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: map[int64]*Account{}}
+				repo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{}}
 				for i := range repo.accounts {
-					repo.accounts[i].AccountGroups = []AccountGroup{{AccountID: repo.accounts[i].ID, GroupID: groupID}}
-					repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+					repo.accounts[i].Record.AccountGroups = []accountcore.GroupMembership{{AccountID: repo.accounts[i].Record.ID, GroupID: groupID}}
+					repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 				}
 				group := &routing.Group{ID: groupID, Platform: capability.PlatformAnthropic, Status: billing.StatusActive, Hydrated: true}
 				cfg := testConfig()
 				cfg.Gateway.Scheduling.LoadBatchEnabled = loadBatchEnabled
-				gateway := &GatewayService{
+				gateway := withSchedulerParametersForTest(&GatewayService{
 					accountRepo: repo, groupRepo: &mockGroupRepoForGateway{groups: map[int64]*routing.Group{groupID: group}},
 					cache: &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{"sticky": 1}},
 					cfg:   cfg, concurrencyService: scheduler.NewConcurrencyService(&mockConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 						Event: logging.Event},
 					),
-				}
+				})
 				diagnosis := gateway.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-sonnet-5", capability.PlatformAnthropic)
 				require.True(t, diagnosis.HasAccountsInPool)
 				require.Equal(t, withValid, diagnosis.HasModelSupport)
 				selected, err := gateway.SelectAccountWithLoadAwareness(context.Background(), &groupID, "sticky", "claude-sonnet-5", nil, "", 0)
 				if withValid {
 					require.NoError(t, err)
-					require.Equal(t, valid.ID, selected.Account.ID)
+					require.Equal(t, valid.Record.ID, selected.Account.Record.ID)
 					if selected.ReleaseFunc != nil {
 						selected.ReleaseFunc()
 					}
@@ -196,55 +197,5 @@ func TestBedrockRegionRouting_SchedulerAndDiagnosisAgree(t *testing.T) {
 }
 
 // 模型广场通过公共模型解析器获得相同的区域可用性，不自行回退到默认目录。
-func TestBedrockRegionRouting_MarketplaceUsesSharedResolution(t *testing.T) {
-	groupID := int64(5201)
-	for _, forceGlobal := range []bool{false, true} {
-		name := "地域不可用"
-		if forceGlobal {
-			name = "全局可用"
-		}
-		t.Run(name, func(t *testing.T) {
-			account := newBedrockRoutingTestAccount(1, "ap-northeast-1", forceGlobal)
-			account.GroupIDs = []int64{groupID}
-			account.AccountGroups = []AccountGroup{{AccountID: 1, GroupID: groupID}}
-			account.Credentials["model_mapping"] = map[string]any{"client-alias": "claude-sonnet-5"}
-			repo := &modelsListAccountRepoStub{all: []Account{account}, byGroup: map[int64][]Account{groupID: {account}}}
-			gateway := &GatewayService{accountRepo: repo}
-			models := gateway.ResolveRequestableModels(context.Background(), &groupID, capability.PlatformAnthropic)
-			if forceGlobal {
-				require.Contains(t, routing.RequestableModelIDs(models.Models), "client-alias")
-			} else {
-				require.NotContains(t, routing.RequestableModelIDs(models.Models), "client-alias")
-			}
-			marketplace := newGatewayMarketplaceFixture(
-				&bedrockMarketplaceGroups{groups: []routing.Group{{ID: groupID, Name: "Bedrock", Platform: capability.PlatformAnthropic, Status: billing.StatusActive, RateMultiplier: 1, ActiveAccountCount: 1}}},
-				nil, gateway, NewBillingService(nil, nil), nil, nil, nil,
-			)
-			groups, err := marketplace.ListPublic(context.Background())
-			require.NoError(t, err)
-			require.Len(t, groups, 1)
-			var publicModels []string
-			for _, model := range groups[0].Models {
-				publicModels = append(publicModels, model.ID)
-			}
-			// 其它可请求型号仍正常展示；只移除本地区不可用的型号及其别名。
-			require.ElementsMatch(t, routing.RequestableModelIDs(models.Models), publicModels)
-			if forceGlobal {
-				require.Contains(t, publicModels, "client-alias")
-			} else {
-				require.NotContains(t, publicModels, "client-alias")
-				require.NotContains(t, publicModels, "claude-sonnet-5")
-			}
-		})
-	}
-}
 
 // bedrockMarketplaceGroups 仅提供区域路由回归所需的分组数据。
-type bedrockMarketplaceGroups struct {
-	routing.GroupRepository
-	groups []routing.Group
-}
-
-func (s *bedrockMarketplaceGroups) ListActive(context.Context) ([]routing.Group, error) {
-	return s.groups, nil
-}

@@ -16,6 +16,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -61,7 +62,7 @@ func (s *OpenAIGatewayService) parseOpenAIImagesRequest(c *gin.Context, body []b
 func (s *OpenAIGatewayService) ForwardImages(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	parsed *gatewaymedia.ImageRequest,
 	channelMappedModel string,
@@ -70,7 +71,7 @@ func (s *OpenAIGatewayService) ForwardImages(
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
 	}
-	oauth, err := gatewaymedia.ImageExecutionPath(account.Type)
+	oauth, err := gatewaymedia.ImageExecutionPath(account.Record.Type)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (s *OpenAIGatewayService) ForwardImages(
 func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	parsed *gatewaymedia.ImageRequest,
 	channelMappedModel string,
@@ -91,7 +92,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 ) (*forwardcore.OpenAIResult, error) {
 	startTime := time.Now()
 	requestModel, upstreamModel, err := gatewaymedia.ResolveImageModels(parsed.Model, channelMappedModel, "", func(model string) string {
-		return resolveOpenAIAccountUpstreamModelForRequest(account, model, false, false)
+		return gatewayprovider.ExecutionModelPolicy(account).OpenAIUpstream(model, false, false)
 	})
 	if err != nil {
 		return nil, err
@@ -103,7 +104,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		strings.TrimSpace(parsed.Model),
 		upstreamModel,
 		parsed.Endpoint,
-		account.Type,
+		account.Record.Type,
 	)
 	forwardBody, forwardContentType, err := upstream.RewriteImageModel(body, parsed.ContentType, upstreamModel)
 	if err != nil {
@@ -117,7 +118,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
 
-	token, _, err := s.GetAccessToken(upstreamCtx, account)
+	token, _, err := s.executionCredentials.Resolve(upstreamCtx, gatewayprovider.ExecutionRecord(account))
 	if err != nil {
 		return nil, err
 	}
@@ -127,8 +128,8 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	}
 
 	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	if account.Record.ProxyID != nil && account.Record.Proxy != nil {
+		proxyURL = account.Record.Proxy.URL()
 	}
 
 	options := s.nativeImageResponseOptions(c)
@@ -137,7 +138,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	httpFailure := false
 	target := &mediaprovider.ImagesOptions{
 
-		AccountID: account.ID,
+		AccountID: account.Record.ID,
 		OAuth:     false,
 		Model:     upstreamModel,
 		StartedAt: startTime,
@@ -151,7 +152,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 
 		Do: func(req *http.Request) (*http.Response, error) {
 			upstreamStart := time.Now()
-			resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
+			resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
 			gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
 			return resp, err
 		},
@@ -160,9 +161,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			safeErr := logredact.SanitizeUpstreamQueries(err.Error())
 			gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
 			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-				Platform:           account.Platform,
-				AccountID:          account.ID,
-				AccountName:        account.Name,
+				Platform:           account.Record.Platform,
+				AccountID:          account.Record.ID,
+				AccountName:        account.Record.Name,
 				UpstreamStatusCode: 0,
 				UpstreamURL:        logredact.SafeUpstreamURL(upstreamReq.URL.String()),
 				Kind:               "request_error",
@@ -173,7 +174,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 
 		ReadErrorBody: s.readUpstreamErrorBody,
 
-		RedactErrorBody: func(body []byte) []byte { return s.redactAgentIdentitySensitiveBody(upstreamCtx, account, body) },
+		RedactErrorBody: func(body []byte) []byte { return s.agentIdentity.Redact(upstreamCtx, account, body) },
 
 		HTTPError: func(resp *http.Response, respBody []byte) error {
 			httpFailure = true
@@ -184,11 +185,11 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 				Observe: func() {
 					gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
-						Platform: account.Platform,
+						Platform: account.Record.Platform,
 
-						AccountID: account.ID,
+						AccountID: account.Record.ID,
 
-						AccountName: account.Name,
+						AccountName: account.Record.Name,
 
 						UpstreamStatusCode: resp.StatusCode,
 
@@ -206,8 +207,8 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 					return false
 				},
 				NewFailover: func() error {
-					retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
-					if account.IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
+					retryableOnSameAccount := !shouldDisable && account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(resp.StatusCode)
+					if account.View().IsOpenAIOAuthLike() && resp.StatusCode == http.StatusTooManyRequests {
 						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMsg, shouldDisable, retryableOnSameAccount)
 					}
 					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
@@ -242,7 +243,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 func (s *OpenAIGatewayService) buildOpenAIImagesRequest(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	contentType string,
 	token string,
@@ -253,7 +254,7 @@ func (s *OpenAIGatewayService) buildOpenAIImagesRequest(
 	if endpoint == upstream.OpenAIImagesEditsEndpoint {
 		targetURL = openAIImagesEditsURL
 	}
-	baseURL := account.GetOpenAIBaseURL()
+	baseURL := gatewayprovider.ExecutionProtocolTarget(account).GetOpenAIBaseURL()
 	if baseURL != "" {
 		validatedURL, err := s.validateUpstreamBaseURL(baseURL)
 		if err != nil {
@@ -271,7 +272,7 @@ func (s *OpenAIGatewayService) handleOpenAIImagesNonStreamingResponse(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	parsed *gatewaymedia.ImageRequest,
 ) (openai.ForwardUsage, int, []string, error) {
 	options := s.nativeImageResponseOptions(c)

@@ -3,7 +3,10 @@ package service
 import (
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
@@ -36,7 +39,7 @@ func TestEnsureCodexReasoningInclude(t *testing.T) {
 // applyCodexClientMetadata：用账号真实 device_id 注入 installation 标识，幂等、不覆盖既有项、不伪造。
 func TestApplyCodexClientMetadata(t *testing.T) {
 	// 仅 OpenAI OAuth 账号才有 device_id（GetOpenAIDeviceID 的门控）。
-	acc := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Extra: map[string]any{"openai_device_id": "dev-xyz"}}
+	acc := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Extra: map[string]any{"openai_device_id": "dev-xyz"}}}
 
 	body := map[string]any{}
 	require.True(t, applyCodexClientMetadata(body, acc))
@@ -48,7 +51,7 @@ func TestApplyCodexClientMetadata(t *testing.T) {
 
 	// OAuth 账号但无 device_id → 不写入（不伪造）
 	body2 := map[string]any{}
-	require.False(t, applyCodexClientMetadata(body2, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}))
+	require.False(t, applyCodexClientMetadata(body2, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}))
 	_, ok = body2["client_metadata"]
 	require.False(t, ok)
 

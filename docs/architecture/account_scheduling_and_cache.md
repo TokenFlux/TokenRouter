@@ -31,7 +31,7 @@
 
 `groups.scheduler_type` 是分组级调度策略，取值只能是 `basic` 或 `advanced`，新建和历史未配置分组均为 `basic`。它不是平台能力开关：任何平台的分组都能选择高级调度器；未绑定分组的请求保持基础调度。Claude Code-only、不可用组等回退链完成后，必须以实际落到的最终分组重新读取该字段，不能沿用原分组的模式。强制平台只改变候选平台和混合模式，不清除最终分组，也不能绕过该分组的高级模式与参数覆盖。
 
-高级分组的有效参数按字段合并，而不是把一整套全局参数复制到分组：高级调度覆盖值、深复制、校验和配置合并由 `internal/scheduler/policy` 的纯叶子实现。`routing/accessview` 和旧 domain/service 类型保留别名或委托；评分、反馈与 Top-K 抽样由 `scheduler` 的纯实现拥有；`scheduler.SettingsRuntime` 负责动态设置读取、短 TTL 缓存与 singleflight；旧设置入口只投影并更新同一实例。`GenericSelector` 与 `PlatformSelector` 拥有基础/高级选择、粘性、订阅池及 fresh/DB 复核的执行顺序；旧 service 只投影账号和平台资格。app 显式绑定唯一反馈、设置和粘性统计实例，生产选择与诊断共用。
+高级分组的有效参数按字段合并：高级调度覆盖值、深复制、校验和配置合并由 `internal/scheduler/policy` 的纯叶子实现。选号和诊断直接使用其 RuntimeSettings、EffectiveSettings、FeedbackConfig 与 StickyEscapeConfig，运行反馈直接使用唯一 `scheduler.RuntimeStats`；评分与 Top-K 抽样也由 scheduler 拥有。平台直接使用原生无凭据分数类型，执行目标只在当次适配作用域保留对应关系，不再往返转换旧分数实体。`scheduler.SettingsRuntime` 负责动态设置读取、短 TTL 缓存与 singleflight，设置保存后发布到同一实例。`scheduler.Parameters` 固定参数来源并合并进程投影、运行设置和最终分组覆盖；app 将同一参数实例直接绑定各平台选择与诊断，不再临时构造 OpenAI 服务或借健康适配取得设置仓储。`GenericSelector` 与 `PlatformSelector` 拥有基础/高级选择、粘性、订阅池及 fresh/DB 复核的执行顺序；旧 service 仍保留账号和平台资格投影。app 显式绑定唯一反馈、设置和粘性统计实例，生产选择与诊断共用；运行设置及粘性观测已改为实例依赖，不再通过进程全局指针替换。
 
 `gateway.advanced_scheduler` 提供进程默认值，`advanced_scheduler_*` 运行时设置可覆盖该默认值，最终由 Group 的 `advanced_scheduler_overrides` 覆盖。覆盖 JSON 缺失字段继续继承；显式 `false` 和 `0` 都是有效的分组值，空对象代表全部继承。两个 EWMA alpha 分别控制错误率和 TTFT 的最新样本权重，范围为 `0 < alpha <= 1`；sticky escape 的开关、TTFT 阈值和错误率阈值也按同一优先级合并。运行时反馈仍按账号共享，但请求完成时使用该请求最终分组解析出的 alpha 回写，选择和反馈不会因保存后的配置变化而错配。七项基础权重最终全为零也是有效策略，此时粘性加成仍可参与，完全并列的候选只按账号全局优先级、账号 ID 稳定决胜，再进入 Top-K 抽样；负载和等待已经属于评分信号，不能作为第二套同分比较规则。合并后的基础权重和完整权重总和必须有限，管理写入拒绝会使任一总和溢出的覆盖；请求期遇到历史异常对象时仅把权重回退到已验证的全局值，避免生成 `NaN`/`Inf`。基础分组和无分组路径忽略这份对象，避免配置残留改变基础调度语义。
 
@@ -61,9 +61,9 @@ Spark 影子的母账号资格由 `account.ParentHealthyForShadow` 统一判断�
 
 协议统一后调度 Redis 命名空间升级为 `sched:v2:`，完整与轻量账号投影均携带 `upstream_protocols` 和认证方式，分组认证快照 v40 携带准入集合、转换映射和 Responses 图片策略。协议候选过滤在评分前执行，每次切号和 fresh/DB 复核重新检查；转发目标只保存在当次账号副本，不污染共享缓存。
 
-调度事件契约及去重编码、SQL 读写位于 `scheduler` 与 `scheduler/postgres`；旧仓储入口仅委托，同事务写入和提交后尽力发布的界限保持。`scheduler.SnapshotService` 拥有重建、事件消费与受限回退，`scheduler/rediscache` 拥有原 `sched:v2` 发布、epoch/tombstone 和锁协议。其 `codec.AccountCodec` 唯一负责完整/轻量账号的存储形状及字段过滤，保持历史 JSON 字段与 nil/空集合。app 直接把 account/routing 存储和凭据刷新后的原生记录绑定到同一缓存；编码器内部持有受控完整记录，核心只读取无凭据的候选元数据。尚未清理的旧请求入口仍通过 `SchedulerSnapshotService` 投影和委托。
+调度事件契约及去重编码、SQL 读写位于 `scheduler` 与 `scheduler/postgres`；同事务写入和提交后尽力发布的界限保持。`scheduler.SnapshotService` 拥有重建、事件消费与受限回退，网关读取和生命周期直接绑定这一实例，旧快照服务与 Redis 缓存包装已删除。`scheduler/rediscache` 拥有原 `sched:v2` 发布、epoch/tombstone 和锁协议。其 `codec.AccountCodec` 唯一负责完整/轻量账号的存储形状及字段过滤，保持历史 JSON 字段与 nil/空集合。app 直接把 account/routing 存储和凭据刷新后的原生记录绑定到同一缓存；旧 repository 的备用存储构造、事件绑定和快照发布器已删除，剩余执行形状转接只引用 app 注入的存储。编码器内部持有受控完整记录，核心只读取无凭据的候选元数据。尚未清理的旧执行实体只在读取边界转换，分组读取单独绑定原 routing 来源，保持查询次数。
 
-`SchedulerSnapshotService` 在进程内保存 bucket 快照和账号投影。启动时异步执行初始重建，outbox 立即执行首轮；运行中消费调度 outbox，并周期性做全量重建以修复漏通知或外部写入。账号状态热更新可以先写入本地投影，再通过 outbox/失效广播传播到其它实例。
+`scheduler.SnapshotService` 管理 bucket 快照和账号投影。启动时异步执行初始重建，outbox 立即执行首轮；运行中消费调度 outbox，并周期性做全量重建以修复漏通知或外部写入。账号状态热更新可以先发布快照，再通过 outbox/失效广播传播到其它实例。
 
 一致性保护包括：
 
@@ -99,6 +99,8 @@ Bedrock 账号的模型筛选包含型号、来源区域及全局推理开关的
 每次候选调度前使用当前额度快照评估阈值：OpenAI 读取身份匹配、尚未重置且未超过自动暂停陈旧期限的 Codex 5h/7d 窗口，`codex_*_used_percent` 始终按 0-100 百分数原值解释，`1.0` 表示 1% 而不是 100%；Anthropic 的 utilization 字段继续按 0-1 比例换算百分比。Grok 只读取响应头投影的滚动 quota 窗口，不使用官方 7d/30d 账单周期。多个窗口同时达到阈值时，选择重置时间最晚的窗口作为暂停截止；已过期、明确陈旧、缺少截止时间、身份不匹配或缺少观测的快照不会暂停账号。历史快照缺少或无法解析 `codex_usage_updated_at` 时保持原有 fail-closed 语义，不会仅凭缺失时间逃逸阈值门禁。
 
 命中后服务写入带结构化来源的临时不可调度原因和窗口截止时间，并触发账号状态失效传播；相同阈值状态不重复写入。管理员可从暂停原因区分阈值门禁与普通限流。设置读取使用进程原子缓存和 singleflight 回源；配置项不存在时，默认阈值按正常 TTL 缓存，只有真实数据库故障使用较短错误 TTL。显式保存后立即替换缓存，未提供该字段的部分更新不能用默认值污染现有缓存。
+
+OpenAI/Grok 的进程内停调、同账号 429 恢复窗口和刷新失败发布代次由 `account.RuntimeBlockState` 统一持有，app 将同一实例绑定给执行与恢复消费者。Grok 暂定停调回滚只撤销本次安装的代次；后来延长或重新声明的停调不能被旧回滚删除。凭据版本阻断仍使用 `RefreshFailureBlocks`，无匹配版本时不计算身份散列。旧执行入口只做平台资格和记录投影。
 
 <a id="session_lifecycle"></a>
 ## 粘性与等待

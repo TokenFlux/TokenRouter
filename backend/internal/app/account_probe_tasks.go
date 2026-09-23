@@ -11,8 +11,8 @@ import (
 )
 
 // provideAccountProbeTasks 绑定原 task 协调与条件凭据写入，app 不持有锁或任务规则。
-func provideAccountProbeTasks(store *postgres.AccountStore, gateway *service.OpenAIGatewayService) *provider.ProbeTasks {
-	return &provider.ProbeTasks{Coordinator: account.SharedOpenAITaskCoordinator(), Options: account.OpenAITaskOptions{
+func provideAccountProbeTasks(store *postgres.AccountStore, gateway *service.OpenAIGatewayService, coordinator *account.OpenAITaskCoordinator) *provider.ProbeTasks {
+	return &provider.ProbeTasks{Coordinator: coordinator, Options: account.OpenAITaskOptions{
 		Read: store.GetByID,
 		Register: func(ctx context.Context, value *account.Record) (string, error) {
 			return provider.RegisterAgentIdentityTask(ctx, value, "https://auth.openai.com/api/accounts")

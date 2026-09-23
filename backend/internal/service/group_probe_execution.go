@@ -6,6 +6,7 @@ import (
 	fmt "fmt"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -32,7 +33,7 @@ func (s GroupProbeExecution) Select(ctx context.Context, due routing.GroupAvaila
 	if err != nil {
 		return 0, err
 	}
-	return account.ID, nil
+	return account.Record.ID, nil
 }
 func (s GroupProbeExecution) Test(ctx context.Context, id int64, model, prompt, userAgent string) (*routing.ProbeExecutionResult, error) {
 	result, err := s.AccountTest.RunTestBackgroundWithPromptAndUserAgent(ctx, id, model, prompt, userAgent)
@@ -41,7 +42,7 @@ func (s GroupProbeExecution) Test(ctx context.Context, id int64, model, prompt, 
 	}
 	return &routing.ProbeExecutionResult{Status: result.Status, LatencyMs: result.LatencyMs, ErrorMessage: result.ErrorMessage, StartedAt: result.StartedAt, FinishedAt: result.FinishedAt}, err
 }
-func (s GroupProbeExecution) selectProbeAccount(ctx context.Context, due routing.GroupAvailabilityProbeDueGroup, modelID string) (*Account, error) {
+func (s GroupProbeExecution) selectProbeAccount(ctx context.Context, due routing.GroupAvailabilityProbeDueGroup, modelID string) (*gatewayprovider.ExecutionAccount, error) {
 	groupID := due.GroupID
 	switch due.Platform {
 	case capability.PlatformOpenAI:

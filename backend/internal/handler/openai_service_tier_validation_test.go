@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -19,7 +22,6 @@ import (
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -58,7 +60,7 @@ func runOpenAIHandlerServiceTierTest(t *testing.T, path, body string, handler fu
 
 	groupID := int64(6401)
 	userID := int64(6402)
-	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
+	c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      6403,
 		GroupID: &groupID,
 		Group: &routing.Group{
@@ -67,7 +69,7 @@ func runOpenAIHandlerServiceTierTest(t *testing.T, path, body string, handler fu
 		},
 		User: &identity.User{ID: userID, Status: billing.StatusActive},
 	})
-	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: userID, Concurrency: 1})
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: userID, Concurrency: 1})
 
 	handler(newServiceTierHandlerTest(t), c)
 	return rec

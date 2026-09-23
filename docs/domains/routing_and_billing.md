@@ -67,6 +67,8 @@ OpenAI 分组还可设置 `max_reasoning_effort` 与 `max_reasoning_effort_over_
 
 Anthropic 分组也支持同一套模型范围映射、上限与超限动作，合法档位为 `low < medium < high < xhigh < max`，不接受 OpenAI 专用的 `none/minimal` 配置。Messages、Responses、Chat 三个入口都在协议转换和账号调度前执行策略；强制路由到其他平台时不套用 Anthropic 策略。兼容桥保留 `xhigh` 与 `max` 的区别，防止转换过程静默触发不同费率。
 
+网关在 `requeststate.ExecutionHints` 保留本次规范健康模型，`gateway/provider` 将原始/规范模型、thinking 与端点固化为账号观测输入。账号规则不再从旧 service 的临时模型键取值；调用后的账号副本回写仍只覆盖该入口原先拥有的字段，不能把观测快照当成完整账号更新。
+
 用户/分组 RPM 准入、账号软计数及三区规则归 scheduler，仍在资金检查后执行，simple 跳过及故障放行不变。五小时费用窗口规则、批量查询和回填归 billing，usage 聚合仍通过只读端口读取；费用与消费字段不进入调度写权限。
 
 ## 可用性与缓存
@@ -147,6 +149,8 @@ billing 从锁定的订阅快照生成有序分配与窗口更新，PostgreSQL A
 ## 记录与对账
 
 网关完成计算和提交次序由 `gateway/completion.Recorder` 唯一实现，app 在构造固定执行器前绑定同一 Forward/OpenAI 完成实例。HTTP、SSE、媒体和 WS turn 在提交任务前取得独立主体、资金来源、报文及模型快照；后台不再读取 Gin 或随后变化的请求对象。普通完成、Cyber 失败补记和 Live 零费用记录保留各自原资格，未把一种入口的部分失败扣费扩展到其它入口。
+
+完成输入的同步捕获由 `gateway/provider` 唯一实现，读取原生 Key、身份与账号记录后复制实际需要的计费字段，不保留凭据或原请求体。请求 ID 前缀优先级、上游自定义 Header、WS 无 HTTP 请求 ID、UTF-8 列宽截断、WS turn 的固定时刻及显式额度更新能力均保持原语义。历史长上下文专用入参已删除；长上下文算法继续由模型目录和统一定价决定。
 
 普通结算的 `completion.Store` 由 app 直接绑定唯一 `billing/postgres.SettlementStore`，与任务 `Funds` 共用同一存储；已删除旧资金仓储构造与命令包装。订阅解析仍由该存储在原调用点读取，普通 `Apply` 保持自己的闭合事务，不因请求携带外层事务而自动加入。
 

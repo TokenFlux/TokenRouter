@@ -56,12 +56,13 @@ func TestS16NativeAntigravityProbeAssembly(t *testing.T) {
 	f := newDatabaseFixture(t)
 	store := accountpostgres.NewAccountStore(f.client, f.db, accountpostgres.AccountStoreOptions{})
 	cfg := &config.Config{}
-	limits := service.NewRateLimitService(nil, nil, cfg, nil, nil)
-	recovery := app.NewS16AccountRecovery(store, nil, limits, nil, cfg, nil, nil, nil, nil, nil)
+	limits := service.NewRateLimitService(nil, nil, cfg, nil)
+	runtime := app.NewS16AccountHealthRuntime(store, nil, cfg, nil, nil, nil, nil, nil)
+	app.BindS16AccountHealthRuntime(limits, runtime)
 	tokens := &account.AntigravityTokenSource{}
 	transport := &antigravityProbeTransport{}
 	oldGateway := service.NewAntigravityGatewayService(nil, nil, nil, tokens, limits, transport, nil, nil)
-	retry := app.NewS16AntigravityRetry(oldGateway, store, nil, limits, recovery, nil, transport, cfg)
+	retry := app.NewS16AntigravityRetry(oldGateway, store, nil, runtime, nil, transport, cfg)
 	manager := lifecycle.New()
 	activity := app.NewS16GatewayActivity(manager)
 	probe := app.NewS16AntigravityProbe(tokens, retry, activity)

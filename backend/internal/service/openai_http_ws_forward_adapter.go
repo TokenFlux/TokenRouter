@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
+	forward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -17,7 +19,7 @@ import (
 type openAIHTTPWSForwardAdapter struct {
 	s                            *OpenAIGatewayService
 	c                            *gin.Context
-	account                      *Account
+	account                      *gatewayprovider.ExecutionAccount
 	clientPromptCacheKey, token  string
 	decision                     egress.OpenAIWSProtocolDecision
 	isCodexCLI, stream           bool
@@ -36,7 +38,7 @@ func (p *openAIHTTPWSForwardAdapter) OutputCommitted() bool {
 	return p.c != nil && p.c.Writer != nil && p.c.Writer.Written()
 }
 func (p *openAIHTTPWSForwardAdapter) AgentTaskRecovered(err error) bool {
-	var recovered *agentIdentityTaskRecoveredError
+	var recovered *forward.AgentIdentityTaskRecoveredError
 	return errors.As(err, &recovered)
 }
 func (p *openAIHTTPWSForwardAdapter) ClassifyError(err error) (string, bool) {
@@ -50,7 +52,7 @@ func (p *openAIHTTPWSForwardAdapter) EncryptedDigests(body []byte) []string {
 }
 func (p *openAIHTTPWSForwardAdapter) MarkEncrypted(entry []byte, digests []string) {
 	if p.lineageSessionHash == "" {
-		p.lineageSessionHash = p.s.GenerateSessionHash(p.c, entry)
+		p.lineageSessionHash = gatewayhttp.GenerateOpenAISessionHash(p.c, entry)
 	}
 	p.s.markOpenAIWSInvalidEncryptedContentLineage(p.lineageGroupID, p.lineageSessionHash, digests)
 }
@@ -61,7 +63,7 @@ func (p *openAIHTTPWSForwardAdapter) NormalizeLog(v string) string {
 	return gatewayprovider.NormalizeOpenAIWSLogValue(v)
 }
 func (p *openAIHTTPWSForwardAdapter) ClassifyPrevious(v string) string {
-	return ClassifyOpenAIPreviousResponseIDKind(v)
+	return protocolopenai.ClassifyOpenAIPreviousResponseIDKind(v)
 }
 func (p *openAIHTTPWSForwardAdapter) RetryBudget() time.Duration {
 	return p.s.openAIWSRetryTotalBudget()

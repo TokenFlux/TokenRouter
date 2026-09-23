@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -13,8 +15,8 @@ import (
 // 第二次调度的 context 只绕过代理隔离，不会清除熔断状态。
 func TestOpenAIProxyStreamQuarantineBypassContext(t *testing.T) {
 	proxyID := int64(7)
-	account := &Account{ID: 1, Platform: capability.PlatformOpenAI, ProxyID: &proxyID}
-	svc := &OpenAIGatewayService{}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, ProxyID: &proxyID}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.openaiProxyStreamCircuit = egress.NewProxyStreamCircuit(egress.ProxyStreamCircuitSettings{
 		FailureThreshold: 1,
 		FailureWindow:    time.Minute,

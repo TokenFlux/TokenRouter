@@ -5,6 +5,10 @@ import (
 	"strings"
 	"sync/atomic"
 
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,7 +38,7 @@ type IngressRejectRecorder interface {
 
 // InvalidAuthClientKey 供装配复用相同的地址归一化，不改变无效认证分桶。
 func InvalidAuthClientKey(c *gin.Context) string {
-	return normalizeIngressRejectIP(SecurityClientIP(c))
+	return normalizeIngressRejectIP(identityhttp.SecurityClientIP(c))
 }
 
 type ingressRejectRecorderHolder struct{ recorder IngressRejectRecorder }
@@ -76,14 +80,14 @@ func recordIngressReject(c *gin.Context, reason IngressRejectReason) {
 		return
 	}
 	routeFamily, protocol := ingressRejectRoute(c.Request.URL.Path)
-	clientIP := normalizeIngressRejectIP(SecurityClientIP(c))
+	clientIP := normalizeIngressRejectIP(identityhttp.SecurityClientIP(c))
 	var userID, apiKeyID int64
-	if apiKey, ok := GetAPIKeyFromContext(c); ok && apiKey != nil {
+	if apiKey, ok := keyhttp.GetAPIKeyFromContext(c); ok && apiKey != nil {
 		apiKeyID = apiKey.ID
 		if apiKey.User != nil {
 			userID = apiKey.User.ID
 		}
-	} else if apiKey, ok := GetOpsFallbackAPIKey(c); ok && apiKey != nil {
+	} else if apiKey, ok := keyhttp.GetOpsFallbackAPIKey(c); ok && apiKey != nil {
 		apiKeyID = apiKey.ID
 		if apiKey.User != nil {
 			userID = apiKey.User.ID

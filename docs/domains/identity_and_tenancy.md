@@ -19,6 +19,8 @@
 
 用户资料、注册/绑定规则、会话、强认证和属性用例由 `internal/identity` 实现，团队用例由 `internal/team` 实现，Key 生命周期和认证缓存由 `internal/apikey` 实现。各自的 `postgres`、`rediscache`、`provider` 与 `httpapi` 按实际需要承接存储、外部验证和 HTTP。用户实体及仓储接口统一使用 identity 类型，app 向原生用例和剩余消费者交付同一 `identity/postgres.UserStore`，旧用户字段转换与 repository 用户转接已删除。公告及 billing 继续消费各自的只读投影。七类身份、通用 pending 和 OAuth 回调的生产 HTTP 由 app 一次性组合；旧 AuthHandler 及其 OAuth 转接已经删除，原跨模块 HTTP 断言直接使用 identity/httpapi 的同一组端点。微信支付 OAuth 独立由 payment/httpapi 与身份 provider 的交换端口协作，不构造登录身份图。
 
+身份 HTTP 及调用方直接使用 `identity/httpapi/authctx`，旧 server middleware 和 identity HTTP 根包的主体转接已删除。Key 已认证投影、鉴权失败时仅供 Ops 读取的加载投影以及强制平台字段由 `apikey/httpapi` 提供；失败投影不成为准入依据。资金来源和订阅读取由 gateway HTTP 拥有，保留原字段编码与取值时机。
+
 `Principal` 表达已验证的身份和凭据种类；`AccessSnapshot` 分别记录 Key owner、付款用户、行为成员和团队。身份核心的 `User` 不递归持有 API Key，旧 HTTP 的关联形状由 DTO 投影恢复。资金消费、调账及注册赠送的写入仍由 billing 负责，身份与团队事务通过同连接参与能力组合，提交前不发布成功失效。
 
 Key 消费者直接使用 `apikey.APIKey`、`APIKeyRepository` 和唯一 `APIKeyService`，分组策略使用 `routing.Group`。app 交付同一 `apikey/postgres.KeyStore`，认证缓存仍使用 v40 专用快照及原深复制边界；同连接删除和分组迁移直接绑定原生存储参与能力。

@@ -8,13 +8,14 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	opsprovider "github.com/TokenFlux/TokenRouter/internal/ops/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -76,7 +77,7 @@ func newOpsRuntimeRouter(handler *OpsHandler, withUser bool) *gin.Engine {
 	r := gin.New()
 	if withUser {
 		r.Use(func(c *gin.Context) {
-			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 7})
+			c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 7})
 			c.Next()
 		})
 	}

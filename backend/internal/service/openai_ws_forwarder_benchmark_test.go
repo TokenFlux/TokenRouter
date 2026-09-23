@@ -3,7 +3,9 @@ package service
 import (
 	"fmt"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -20,8 +22,8 @@ var (
 
 func BenchmarkOpenAIWSForwarderHotPath(b *testing.B) {
 	cfg := &config.Config{}
-	svc := &OpenAIGatewayService{cfg: cfg}
-	account := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	reqBody := benchmarkOpenAIWSHotPathRequest()
 
 	b.ReportAllocs()

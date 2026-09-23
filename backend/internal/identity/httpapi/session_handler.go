@@ -6,6 +6,8 @@ import (
 	slog "log/slog"
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
@@ -336,7 +338,7 @@ func (h *SessionHandler) Login2FA(c *gin.Context) {
 // GetCurrentUser handles getting current authenticated user
 // GET /api/v1/auth/me
 func (h *SessionHandler) GetCurrentUser(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -625,7 +627,7 @@ type RevokeAllSessionsResponse struct {
 // RevokeAllSessions 撤销当前用户的所有会话
 // POST /api/v1/auth/revoke-all-sessions
 func (h *SessionHandler) RevokeAllSessions(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return

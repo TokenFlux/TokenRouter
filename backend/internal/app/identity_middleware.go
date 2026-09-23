@@ -18,18 +18,18 @@ func (a identityAuthAudit) RecordBindingMismatch(_ context.Context, event identi
 }
 
 // provideJWTAuth 直接装配原生身份、设置和活动记录，server 不接收旧业务对象。
-func provideJWTAuth(graph *identityAuthGraph, users *identity.UserService, settings *identity.RuntimeSettings, recorder *audit.AuditLogService) middleware.JWTAuthMiddleware {
-	return middleware.JWTAuthMiddleware(identityhttp.JWTAuth(graph.Core, users, users, settings, identityAuthAudit{recorder}))
+func provideJWTAuth(graph *identityAuthGraph, users *identity.UserService, settings *identity.RuntimeSettings, recorder *audit.AuditLogService) identityhttp.JWTAuthMiddleware {
+	return identityhttp.JWTAuthMiddleware(identityhttp.JWTAuth(graph.Core, users, users, settings, identityAuthAudit{recorder}))
 }
 
 // provideAdminAuth 与 JWT 共用身份运行时，不构造第二套认证服务。
-func provideAdminAuth(graph *identityAuthGraph, users *identity.UserService, settings *identity.RuntimeSettings, recorder *audit.AuditLogService) middleware.AdminAuthMiddleware {
-	return middleware.AdminAuthMiddleware(identityhttp.AdminAuth(graph.Core, users, settings, identityAuthAudit{recorder}))
+func provideAdminAuth(graph *identityAuthGraph, users *identity.UserService, settings *identity.RuntimeSettings, recorder *audit.AuditLogService) identityhttp.AdminAuthMiddleware {
+	return identityhttp.AdminAuthMiddleware(identityhttp.AdminAuth(graph.Core, users, settings, identityAuthAudit{recorder}))
 }
 
 // provideStepUpAuth 保留同一会话凭据、TOTP 及动态开关。
-func provideStepUpAuth(totp *identity.TotpService, users *identity.UserService, settings *identity.RuntimeSettings) middleware.StepUpAuthMiddleware {
-	return middleware.StepUpAuthMiddleware(identityhttp.StepUpAuth(totp, users, settings))
+func provideStepUpAuth(totp *identity.TotpService, users *identity.UserService, settings *identity.RuntimeSettings) identityhttp.StepUpAuthMiddleware {
+	return identityhttp.StepUpAuthMiddleware(identityhttp.StepUpAuth(totp, users, settings))
 }
 
 // provideAuditMiddleware 注入与旧捕获入口同一份脱敏策略。

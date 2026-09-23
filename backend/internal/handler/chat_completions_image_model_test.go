@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -20,7 +23,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -36,7 +38,7 @@ func TestChatCompletionsRejectsGPTImageModelsBeforeScheduling(t *testing.T) {
 		}{
 			{
 				name: "gateway",
-				call: newGatewayModelsHandlerForTest(nil).ChatCompletions,
+				call: newGatewayExecutionHandlerForTest(nil).ChatCompletions,
 			},
 			{
 				name: "openai_gateway",
@@ -66,7 +68,7 @@ func TestChatCompletionsRejectsGPTImageModelsBeforeScheduling(t *testing.T) {
 func TestChatCompletionsRejectsChannelMappedImageModel(t *testing.T) {
 
 	groupID := int64(4349)
-	channelService := newGatewayModelsChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
+	channelService := newGatewayExecutionChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
 		ID:     4349,
 		Status: billing.StatusActive,
 		ModelMapping: map[string]map[string]string{
@@ -80,7 +82,7 @@ func TestChatCompletionsRejectsChannelMappedImageModel(t *testing.T) {
 	}{
 		{
 			name: "gateway",
-			call: newGatewayModelsHandlerWithChannelForTest(nil, channelService).ChatCompletions,
+			call: newGatewayExecutionHandlerWithChannelForTest(nil, channelService).ChatCompletions,
 		},
 		{
 			name: "openai_gateway",
@@ -143,9 +145,13 @@ func newOpenAIImageChatRejectionHandlerWithCache(t *testing.T, cache *concurrenc
 func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService *routing.ChannelService) *OpenAIGatewayHandler {
 	t.Helper()
 	gatewayService := service.NewOpenAIGatewayService(
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, channelService, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
+			nil), nil, nil, channelService, nil, nil, responseHeaderFilterForTest(nil), nil,
 	)
+	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil, nil,
+		nil, nil, channelService, nil, true))
+
 	return newOpenAIImageChatRejectionHandlerWithService(t, &concurrencyCacheMock{}, gatewayService)
 }
 
@@ -173,6 +179,6 @@ func setImageChatTestAuthForGroup(c *gin.Context, groupID int64) {
 		apiKey.GroupID = &groupID
 		apiKey.Group = &routing.Group{ID: groupID, Platform: capability.PlatformOpenAI}
 	}
-	c.Set(string(middleware.ContextKeyAPIKey), apiKey)
-	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.UserID, Concurrency: 1})
+	c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: apiKey.UserID, Concurrency: 1})
 }

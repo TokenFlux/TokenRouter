@@ -13,7 +13,6 @@ import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/app"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,13 +21,12 @@ func TestS16NativeAccountHealthAssembly(t *testing.T) {
 	f := newDatabaseFixture(t)
 	store := accountpostgres.NewAccountStore(f.client, f.db, accountpostgres.AccountStoreOptions{})
 	cfg := &config.Config{}
-	assembly := service.NewRateLimitService(nil, nil, cfg, nil, nil)
-	app.NewS16AccountRecovery(store, nil, assembly, nil, cfg, nil, nil, nil, nil, nil)
-	observer := assembly.UpstreamHealth()
-	require.Same(t, observer, assembly.UpstreamHealth())
-	require.Same(t, observer.Core, assembly.HealthCore())
-	require.Same(t, observer.Team, assembly.TeamLinkedHealth())
-	require.Same(t, observer.Limits, assembly.RateLimitObserver())
+	runtime := app.NewS16AccountHealthRuntime(store, nil, cfg, nil, nil, nil, nil, nil)
+	observer := runtime.Observer
+	require.Same(t, runtime.Health, observer.Core)
+	require.Same(t, runtime.Health, observer.Limits.Health)
+	require.Same(t, runtime.Health, observer.Models.Health)
+	require.NotNil(t, runtime.Recovery)
 
 	t.Run("anthropic window", func(t *testing.T) {
 		row, err := f.client.Account.Create().SetName("s16-health-window").SetPlatform(account.PlatformAnthropic).SetType(account.AccountTypeOAuth).Save(t.Context())

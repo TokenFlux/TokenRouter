@@ -34,11 +34,6 @@ func calculateStatsCost(pricing *routing.ChannelModelPricing, tokens purepricing
 	return purepricing.CalculateStatsCost(pricing, tokens, requestCount)
 }
 
-// serviceTierCostMultiplier 委托纯定价实现，旧查询与配置投影保留在适配层。
-func serviceTierCostMultiplier(serviceTier string) float64 {
-	return purepricing.ServiceTierCostMultiplier(serviceTier)
-}
-
 func resolvedChannelTimeMultiplier(resolved *purepricing.ResolvedPricing, at time.Time) float64 {
 	if resolved == nil || resolved.Mode != routing.BillingModeToken || resolved.ChannelPricing == nil {
 		return 1
@@ -47,31 +42,6 @@ func resolvedChannelTimeMultiplier(resolved *purepricing.ResolvedPricing, at tim
 }
 
 const deepseekFlashOffPeakInputPrice = purepricing.DeepseekFlashOffPeakInputPrice
-
-const deepseekFlashOffPeakOutputPrice = purepricing.DeepseekFlashOffPeakOutputPrice
-
-const deepseekFlashOffPeakCacheRead = purepricing.DeepseekFlashOffPeakCacheRead
-
-const deepseekProOffPeakInputPrice = purepricing.DeepseekProOffPeakInputPrice
-
-const deepseekProOffPeakOutputPrice = purepricing.DeepseekProOffPeakOutputPrice
-
-const deepseekProOffPeakCacheRead = purepricing.DeepseekProOffPeakCacheRead
-
-// deepseekPeakMultiplierAt 委托纯定价实现，旧查询与配置投影保留在适配层。
-func deepseekPeakMultiplierAt(now time.Time) float64 {
-	return purepricing.DeepseekPeakMultiplierAt(now)
-}
-
-// normalizeCacheCreationBreakdown 委托纯定价实现，旧查询与配置投影保留在适配层。
-func normalizeCacheCreationBreakdown(tokens purepricing.UsageTokens) (int, int) {
-	return purepricing.NormalizeCacheCreationBreakdown(tokens)
-}
-
-// applyLongContextDisplayMultipliers 委托纯定价实现，旧查询与配置投影保留在适配层。
-func applyLongContextDisplayMultipliers(pricing *purepricing.ModelPricing) *purepricing.ModelPricing {
-	return purepricing.ApplyLongContextDisplayMultipliers(pricing)
-}
 
 // channelTimeMultiplierAt 在兼容边界加载时区，纯算法只接收显式 Location。
 func channelTimeMultiplierAt(config *routing.ChannelTimePricing, at time.Time) float64 {
@@ -83,24 +53,4 @@ func channelTimeMultiplierAt(config *routing.ChannelTimePricing, at time.Time) f
 		return 1
 	}
 	return config.MultiplierAt(at, location)
-}
-
-// filterValidTokenIntervals 委托纯定价实现，旧查询与配置投影保留在适配层。
-func filterValidTokenIntervals(intervals []routing.PricingInterval) []routing.PricingInterval {
-	return purepricing.FilterValidTokenIntervals(intervals)
-}
-
-// filterValidRequestIntervals 委托纯定价实现，旧查询与配置投影保留在适配层。
-func filterValidRequestIntervals(intervals []routing.PricingInterval) []routing.PricingInterval {
-	return purepricing.FilterValidRequestIntervals(intervals)
-}
-
-// intervalToModelPricing 委托纯定价实现，旧查询与配置投影保留在适配层。
-func intervalToModelPricing(iv *routing.PricingInterval, supportsCacheBreakdown bool, chPricing *routing.ChannelModelPricing) *purepricing.ModelPricing {
-	return purepricing.IntervalToModelPricing(iv, supportsCacheBreakdown, chPricing)
-}
-
-// intervalToModelPricingWithBase 委托纯定价实现，旧查询与配置投影保留在适配层。
-func intervalToModelPricingWithBase(iv *routing.PricingInterval, supportsCacheBreakdown bool, chPricing *routing.ChannelModelPricing, base *purepricing.ModelPricing) *purepricing.ModelPricing {
-	return purepricing.IntervalToModelPricingWithBase(iv, supportsCacheBreakdown, chPricing, base)
 }

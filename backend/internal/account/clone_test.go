@@ -80,3 +80,21 @@ func TestCloneValuesCopiesNormalizedProtocolIDs(t *testing.T) {
 		t.Fatal("协议副本污染原值")
 	}
 }
+
+// 原地应用必须保留根自引用；地址稳定使既有方法绑定继续读取更新后的记录。
+func TestCopyRecordIntoKeepsRootAndSupportsSameRecord(t *testing.T) {
+	source := &Record{ID: 1, Credentials: map[string]any{"token": "source"}}
+	source.AccountGroups = []GroupMembership{{Account: source}}
+	var target Record
+	CopyRecordInto(&target, source)
+	require.Same(t, &target, target.AccountGroups[0].Account)
+	target.Credentials["token"] = "target"
+	require.Equal(t, "source", source.GetCredential("token"))
+	CopyRecordInto(&target, &target)
+	require.Same(t, &target, target.AccountGroups[0].Account)
+	require.Equal(t, "target", target.GetCredential("token"))
+	CopyRecordInto(&target, nil)
+	require.Zero(t, target.ID)
+	require.Nil(t, target.Credentials)
+	require.Nil(t, target.AccountGroups)
+}

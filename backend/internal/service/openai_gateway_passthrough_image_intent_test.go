@@ -20,7 +20,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ImageIntentPreservesGateAndBilli
 		svc := newOpenAIImageGenerationControlTestService(upstream)
 		c, recorder := newOpenAIImageGenerationControlTestContext(false, "curl/8.0")
 		account := newOpenAIImageGenerationControlTestAccount()
-		account.Extra = map[string]any{"openai_passthrough": true}
+		account.Record.Extra = map[string]any{"openai_passthrough": true}
 
 		result, err := svc.Forward(context.Background(), c, account, body)
 
@@ -42,7 +42,7 @@ func TestOpenAIGatewayService_APIKeyPassthrough_ImageIntentPreservesGateAndBilli
 		svc := newOpenAIImageGenerationControlTestService(upstream)
 		c, _ := newOpenAIImageGenerationControlTestContext(true, "curl/8.0")
 		account := newOpenAIImageGenerationControlTestAccount()
-		account.Extra = map[string]any{"openai_passthrough": true}
+		account.Record.Extra = map[string]any{"openai_passthrough": true}
 
 		result, err := svc.Forward(context.Background(), c, account, body)
 

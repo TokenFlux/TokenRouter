@@ -169,7 +169,7 @@ func (s *AnthropicAccountTest) executeVertex(c *TestRun, ctx context.Context, va
 		return (TestStreamOutput{}).Error(c, fmt.Sprintf("Failed to get service account access token: %s", err.Error()))
 	}
 
-	fullURL, err := vertex.BuildVertexAnthropicURL(value.VertexProjectID(vertexTestProjectID), value.VertexLocation(testModelID), testModelID, true)
+	fullURL, err := vertex.BuildVertexAnthropicURL(value.VertexProjectID(vertex.ServiceAccountProjectID), value.VertexLocation(testModelID), testModelID, true)
 	if err != nil {
 		return (TestStreamOutput{}).Error(c, fmt.Sprintf("Failed to build Vertex URL: %s", err.Error()))
 	}

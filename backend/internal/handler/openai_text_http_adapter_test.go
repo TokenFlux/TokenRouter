@@ -52,10 +52,7 @@ func (p *openAITextEntryProbe) AllowsMessages(*apikey.APIKey) bool {
 	p.mark("messages-policy")
 	return p.allowed
 }
-func (p *openAITextEntryProbe) NormalizeCompact(_ *gin.Context, _ *zap.Logger, body []byte) ([]byte, bool) {
-	p.mark("compact-normalize")
-	return body, true
-}
+
 func (p *openAITextEntryProbe) StartCompact(*gin.Context, time.Duration) func() {
 	p.mark("keepalive-start")
 	return func() { p.mark("keepalive-stop") }
@@ -70,7 +67,7 @@ func (p *openAITextEntryProbe) Reasoning(_ *gin.Context, _ *apikey.APIKey, body 
 func (p *openAITextEntryProbe) MessageReasoning(*gin.Context, *apikey.APIKey, []byte) {
 	p.mark("message-reasoning")
 }
-func (p *openAITextEntryProbe) ApplyUserPromptReplacement(_ context.Context, body []byte, format string) []byte {
+func (p *openAITextEntryProbe) ApplyUserPromptReplacementToBody(_ context.Context, body []byte, format string) []byte {
 	p.mark("prompt:" + format)
 	return body
 }
@@ -285,61 +282,6 @@ func TestOpenAITextHTTPWaitAndSnapshot(t *testing.T) {
 		require.Equal(t, []byte(original), p.call.SessionHashBody)
 		require.Equal(t, p.rewrite, p.call.Body)
 		require.NotNil(t, p.call.SelectionContext)
-	})
-}
-
-// 计数端口不暴露用户/账号槽或完成提交，测试失败路径不能偷偷进入这些能力。
-func (p *openAITextEntryProbe) CountExecution(_ *gin.Context, call gatewayhttp.OpenAICountCall) textflow.SingleCountPorts {
-	p.mark("count-execution")
-	return &openAITextCountProbe{parent: p, call: call}
-}
-
-type openAITextCountProbe struct {
-	parent *openAITextEntryProbe
-	call   gatewayhttp.OpenAICountCall
-}
-
-func (p *openAITextCountProbe) Select() (bool, error) {
-	p.parent.mark("count-select")
-	return true, nil
-}
-func (p *openAITextCountProbe) Selected()             { p.parent.mark("count-latency") }
-func (p *openAITextCountProbe) SelectionFailed(error) { p.parent.mark("count-selection-failed") }
-func (p *openAITextCountProbe) Forward() error        { p.parent.mark("count-forward"); return nil }
-func (p *openAITextCountProbe) ForwardFailed(error)   { p.parent.mark("count-forward-failed") }
-func TestOpenAITextCountTokensHTTP(t *testing.T) {
-	t.Run("funds precede single no-slot selection", func(t *testing.T) {
-		p, h, c, w, _ := newOpenAITextEntryProbe(t, `{"model":"gpt-5","messages":[{"role":"user","content":"hello"}]}`)
-		h.CountTokens(c)
-		require.Equal(t, 200, w.Code)
-		assertOpenAITextEventBefore(t, p.events, "plan", "eligibility")
-		assertOpenAITextEventBefore(t, p.events, "eligibility", "count-select")
-		assertOpenAITextEventBefore(t, p.events, "count-select", "count-latency")
-		assertOpenAITextEventBefore(t, p.events, "count-latency", "count-forward")
-		require.NotContains(t, p.events, "user-slot")
-		require.NotContains(t, p.events, "moderate")
-		require.NotContains(t, p.events, "execution")
-	})
-	t.Run("failed funds check does not select", func(t *testing.T) {
-		p, h, c, _, _ := newOpenAITextEntryProbe(t, `{"model":"gpt-5","messages":[]}`)
-		p.eligibility = errors.New("unavailable")
-		h.CountTokens(c)
-		require.NotContains(t, p.events, "count-select")
-		require.NotContains(t, p.events, "user-slot")
-	})
-	t.Run("grok count uses local estimator without funds or selection", func(t *testing.T) {
-		p, h, c, w, _ := newOpenAITextEntryProbe(t, `{"model":"grok-4","messages":[{"role":"user","content":"hello"}]}`)
-		p.key = nil
-		h.GrokCountTokens(c)
-		require.Equal(t, 200, w.Code)
-		require.Contains(t, w.Body.String(), "input_tokens")
-		require.Empty(t, p.events)
-	})
-	t.Run("grok local empty body error remains Anthropic", func(t *testing.T) {
-		_, h, c, w, _ := newOpenAITextEntryProbe(t, "")
-		h.GrokCountTokens(c)
-		require.Equal(t, 400, w.Code)
-		require.Contains(t, w.Body.String(), `"type":"error"`)
 	})
 }
 

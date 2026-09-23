@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	provider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
@@ -26,10 +29,10 @@ type openAIPassthroughExecutionAdapter struct {
 }
 
 func (p *openAIPassthroughExecutionAdapter) Profile() forward.MessagesProfile {
-	return forward.MessagesProfile{Profile: openAIForwardProfile(p.account), ID: p.account.ID, Shadow: p.account.IsShadow()}
+	return forward.MessagesProfile{Profile: openAIForwardProfile(p.account), ID: p.account.Record.ID, Shadow: p.account.View().IsShadow()}
 }
 func (p *openAIPassthroughExecutionAdapter) CompactPath() bool {
-	return isOpenAIResponsesCompactPath(p.c)
+	return gatewayhttp.IsOpenAIResponsesCompactPath(p.c)
 }
 func (p *openAIPassthroughExecutionAdapter) CompactModel(model string) string {
 	return p.s.resolveOpenAICompactFallbackModel(p.account, model)
@@ -53,17 +56,17 @@ func (p *openAIPassthroughExecutionAdapter) OAuthBody(body []byte, compact bool)
 	return openai.NormalizeOpenAIPassthroughOAuthBody(body, compact)
 }
 func (p *openAIPassthroughExecutionAdapter) AccountIdentityRaw(body []byte) ([]byte, bool, error) {
-	return applyCodexAccountIdentityClientMetadataRaw(body, codexAccountIdentitySource(p.c, p.account), gatewayhttp.APIKeyIDFromContext(p.c))
+	return openai.ApplyCodexAccountIdentityClientMetadataRaw(body, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(p.c, p.account.View())), gatewayhttp.APIKeyIDFromContext(p.c))
 }
 func (p *openAIPassthroughExecutionAdapter) StageFingerprint(ids *openai.FingerprintIDs) {
-	stageCodexFingerprintIDs(p.c, ids)
+	gatewayhttp.StageCodexFingerprintIDs(p.c, ids)
 }
 func (p *openAIPassthroughExecutionAdapter) Fingerprint() *openai.FingerprintIDs {
 	var headers http.Header
 	if p.c != nil && p.c.Request != nil {
 		headers = p.c.Request.Header
 	}
-	return resolveCodexFingerprintIDsFromRequest(p.account, headers)
+	return accountprovider.CodexFingerprintIDsFromRequest(p.account.View(), headers)
 }
 func (p *openAIPassthroughExecutionAdapter) FingerprintBody(body []byte, ids *openai.FingerprintIDs) ([]byte, bool, error) {
 	return openai.ApplyCodexFingerprintClientMetadataRaw(body, ids)
@@ -72,13 +75,13 @@ func (p *openAIPassthroughExecutionAdapter) HasContext() bool {
 	return p.c != nil
 }
 func (p *openAIPassthroughExecutionAdapter) LiteHeader() bool {
-	return isOpenAIResponsesLiteHeader(p.c.GetHeader(media.ResponsesLiteHeader))
+	return provider.ImageIntent().IsOpenAIResponsesLiteHeader(p.c.GetHeader(media.ResponsesLiteHeader))
 }
 func (p *openAIPassthroughExecutionAdapter) LitePayloadFlag(body []byte) bool {
-	return isOpenAIResponsesLiteWebSocketPayload(body)
+	return provider.ImageIntent().IsOpenAIResponsesLiteWebSocketPayload(body)
 }
 func (p *openAIPassthroughExecutionAdapter) CompatibilityBody(body []byte, lite bool) ([]byte, bool, error) {
-	return normalizeOpenAIResponsesWebSocketCompatibilityBody(body, p.account, lite)
+	return provider.NormalizeOpenAIResponsesWebSocketCompatibilityBody(body, provider.ExecutionProtocolRecord(p.account), lite)
 }
 func (p *openAIPassthroughExecutionAdapter) ReservedToolNames(body []byte) ([]byte, map[string]string, bool, error) {
 	return openai.AliasOpenAIOAuthReservedToolNamesBody(body)
@@ -97,21 +100,21 @@ func (p *openAIPassthroughExecutionAdapter) AdaptClientTools(body []byte) ([]byt
 	return updated, err
 }
 func (p *openAIPassthroughExecutionAdapter) NormalizeLite(body []byte) ([]byte, bool, error) {
-	return normalizeOpenAIResponsesLitePayloadForAccount(p.account, body)
+	return provider.NormalizeResponsesLiteForAccount(p.account.View(), body)
 }
 func (p *openAIPassthroughExecutionAdapter) ApplyFastPass(ctx context.Context, model string, body []byte) ([]byte, error) {
-	updated, err := p.s.applyOpenAIFastPolicyToBody(ctx, p.account, model, body)
+	updated, err := tierpolicy.ApplyBody(body, p.s.fastModeInput(ctx, p.account, model))
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
-		writeOpenAIFastPolicyBlockedResponse(p.c, blocked)
+		gatewayhttp.WriteFastPolicyBlockedResponse(p.c, blocked)
 	}
 	return updated, err
 }
 func (p *openAIPassthroughExecutionAdapter) ImageIntent(model string, canonical []byte, policy string, body []byte, invalidated bool) bool {
-	return resolveOpenAIPassthroughImageIntent(p.c, model, canonical, policy, body, invalidated, IsImageGenerationIntent)
+	return resolveOpenAIPassthroughImageIntent(p.c, model, canonical, policy, body, invalidated, provider.ImageIntent().IsImageGenerationIntent)
 }
 func (p *openAIPassthroughExecutionAdapter) ExplicitImageIntent(model string, body []byte) bool {
-	return IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, model, body)
+	return provider.ImageIntent().IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, model, body)
 }
 func (p *openAIPassthroughExecutionAdapter) ImageAllowed() bool {
 	return GroupAllowsResponsesImages(apiKeyGroup(getAPIKeyFromContext(p.c)))
@@ -120,10 +123,10 @@ func (p *openAIPassthroughExecutionAdapter) FeatureDenied() {
 	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
 func (p *openAIPassthroughExecutionAdapter) ImagePermissionMessage() string {
-	return ImageGenerationPermissionMessage()
+	return media.ImageGenerationPermissionMessage
 }
 func (p *openAIPassthroughExecutionAdapter) ImageBilling(body []byte, model string) (forward.ImageBilling, error) {
-	v, err := resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, model)
+	v, err := provider.ImageIntent().ResolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, model)
 	return forward.ImageBilling{Model: v.Model, SizeTier: v.SizeTier, InputSize: v.InputSize}, err
 }
 func (p *openAIPassthroughExecutionAdapter) UpstreamError(status int, message string) {
@@ -137,7 +140,7 @@ func (p *openAIPassthroughExecutionAdapter) WarnTimeoutHeaders(ctx context.Conte
 		return
 	}
 	if h := collectOpenAIPassthroughTimeoutHeaders(p.c.Request.Header); len(h) > 0 {
-		log := logging.FromContext(ctx).With(zap.String("component", "service.openai_gateway"), zap.Int64("account_id", p.account.ID), zap.Strings("timeout_headers", h))
+		log := logging.FromContext(ctx).With(zap.String("component", "service.openai_gateway"), zap.Int64("account_id", p.account.Record.ID), zap.Strings("timeout_headers", h))
 		if p.s.isOpenAIPassthroughTimeoutHeadersAllowed() {
 			log.Warn("OpenAI passthrough 透传请求包含超时相关请求头，且当前配置为放行，可能导致上游提前断流")
 		} else {
@@ -146,13 +149,13 @@ func (p *openAIPassthroughExecutionAdapter) WarnTimeoutHeaders(ctx context.Conte
 	}
 }
 func (p *openAIPassthroughExecutionAdapter) AccessToken(ctx context.Context) (string, error) {
-	token, _, err := p.s.GetAccessToken(ctx, p.account)
+	token, _, err := p.s.executionCredentials.Resolve(ctx, provider.ExecutionRecord(p.account))
 	return token, err
 }
 func (p *openAIPassthroughExecutionAdapter) PrepareTransportPass() {
 	p.proxyURL = ""
-	if p.account.ProxyID != nil && p.account.Proxy != nil {
-		p.proxyURL = p.account.Proxy.URL()
+	if p.account.Record.ProxyID != nil && p.account.Record.Proxy != nil {
+		p.proxyURL = p.account.Record.Proxy.URL()
 	}
 }
 func (p *openAIPassthroughExecutionAdapter) MarkPassthrough() {
@@ -170,7 +173,7 @@ func (p *openAIPassthroughExecutionAdapter) BuildPass(ctx context.Context, body 
 	return p.s.buildUpstreamRequestOpenAIPassthrough(ctx, p.c, p.account, body, token, p.tls...)
 }
 func (p *openAIPassthroughExecutionAdapter) SendPass(r *http.Request) (*http.Response, error) {
-	return p.s.httpUpstream.DoWithTLS(r, p.proxyURL, p.account.ID, p.account.Concurrency, p.s.resolveOpenAITLSProfile(p.account, p.tls...))
+	return p.s.httpUpstream.DoWithTLS(r, p.proxyURL, p.account.Record.ID, p.account.Record.Concurrency, p.s.resolveOpenAITLSProfile(p.account, p.tls...))
 }
 func (p *openAIPassthroughExecutionAdapter) Latency(d time.Duration) {
 	gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsUpstreamLatencyMsKey, d.Milliseconds())

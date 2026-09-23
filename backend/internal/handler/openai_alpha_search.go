@@ -2,6 +2,8 @@ package handler
 
 import (
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"context"
@@ -21,7 +23,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -34,7 +35,7 @@ func (h *OpenAIGatewayHandler) AlphaSearch(c *gin.Context) { h.AuxiliaryHTTPHand
 func (h *OpenAIGatewayHandler) recordAlphaSearchUsage(
 	c *gin.Context,
 	apiKey *apikey.APIKey,
-	account *service.Account,
+	account *gatewaycapture.ExecutionAccount,
 	subscription *billing.UserSubscription,
 	channelMapping routing.ChannelMappingResult,
 	requestedModel string,
@@ -44,17 +45,17 @@ func (h *OpenAIGatewayHandler) recordAlphaSearchUsage(
 ) {
 	userAgent := c.GetHeader("User-Agent")
 	clientIP := clientip.GetClientIP(c)
-	sessionID := service.ExtractClientSessionID(c)
+	sessionID := gatewayhttp.ExtractClientSessionID(c)
 	requestPayloadHash := billing.HashUsageRequestPayload(body)
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
-	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
-	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Record.Platform)
+	quotaPlatform := admission.QuotaPlatform(c.Request.Context(), apiKey)
 
-	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{
+	completionInput := gatewaycapture.CaptureOpenAI(c.Request.Context(), &gatewaycapture.OpenAICapture{
 		Result:             result,
 		APIKey:             apiKey,
 		User:               apiKey.User,
-		Account:            account,
+		Account:            gatewaycapture.ExecutionCompletionRecord(account),
 		Subscription:       subscription,
 		InboundEndpoint:    inboundEndpoint,
 		UpstreamEndpoint:   upstreamEndpoint,
@@ -73,7 +74,7 @@ func (h *OpenAIGatewayHandler) recordAlphaSearchUsage(
 		zap.Int64("api_key_id", apiKey.ID),
 		zap.Any("group_id", apiKey.GroupID),
 		zap.String("model", requestedModel),
-		zap.Int64("account_id", account.ID),
+		zap.Int64("account_id", account.Record.ID),
 	)
 	h.submitMandatoryUsageRecordTask(c, func(ctx context.Context) {
 		if err := completionRecorder.Record(ctx, completionInput, true); err != nil {
@@ -94,7 +95,7 @@ type alphaRequestAdapter struct {
 	userID                      int64
 	reqLog                      *zap.Logger
 	streamStarted               *bool
-	selection                   *service.AccountSelectionResult
+	selection                   *gatewaycapture.SelectionResult
 	oauth429                    failover.OAuth429State
 }
 
@@ -104,7 +105,7 @@ func (p *alphaRequestAdapter) SelectAlpha(ctx context.Context, excluded map[int6
 	if selected == nil || selected.Account == nil {
 		return gatewaymedia.AlphaSelection{}, false, err
 	}
-	return gatewaymedia.AlphaSelection{Account: service.AccountSnapshotView(selected.Account), RetryLimit: selected.Account.GetPoolModeRetryCount()}, true, err
+	return gatewaymedia.AlphaSelection{Account: gatewaycapture.ExecutionSnapshot(selected.Account), RetryLimit: selected.Account.View().GetPoolModeRetryCount()}, true, err
 }
 func (p *alphaRequestAdapter) AcquireAlpha(_ context.Context, _ gatewaymedia.AlphaSelection) (func(), bool) {
 	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, false, p.streamStarted, p.reqLog)
@@ -188,7 +189,7 @@ func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 		if !f.Outcome.OutputChanged {
 			p.h.errorResponse(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		}
-		p.reqLog.Warn("openai_alpha_search.forward_failed", zap.Int64("account_id", p.selection.Account.ID), zap.Error(f.Err))
+		p.reqLog.Warn("openai_alpha_search.forward_failed", zap.Int64("account_id", p.selection.Account.Record.ID), zap.Error(f.Err))
 	case "exhausted":
 		var last *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &last) {

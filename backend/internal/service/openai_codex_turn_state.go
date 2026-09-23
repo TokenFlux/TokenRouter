@@ -7,6 +7,7 @@ import (
 	"time"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
@@ -37,7 +38,7 @@ func openAICodexTurnStateSeed(c *gin.Context) string {
 
 // relayOpenAICodexTurnState 将上游状态显式写回客户端，并只在响应真正会送达
 // 客户端时记录签发账号。上游缺失时主动清理可能残留的上一次尝试状态。
-func (s *OpenAIGatewayService) relayOpenAICodexTurnState(c *gin.Context, account *Account, upstream http.Header) {
+func (s *OpenAIGatewayService) relayOpenAICodexTurnState(c *gin.Context, account *gatewayprovider.ExecutionAccount, upstream http.Header) {
 	if c == nil || c.Writer == nil {
 		return
 	}
@@ -73,7 +74,7 @@ func stageOpenAICodexTurnState(dst *http.Header, upstream http.Header) {
 
 // noteStagedOpenAICodexTurnStateCommitted 仅在暂存头实际写给客户端后记录来源，
 // 避免被首输出超时丢弃的尝试污染后续回放判断。
-func (s *OpenAIGatewayService) noteStagedOpenAICodexTurnStateCommitted(c *gin.Context, account *Account, staged http.Header) {
+func (s *OpenAIGatewayService) noteStagedOpenAICodexTurnStateCommitted(c *gin.Context, account *gatewayprovider.ExecutionAccount, staged http.Header) {
 	if staged == nil || strings.TrimSpace(staged.Get(openAICodexTurnStateHeader)) == "" {
 		return
 	}
@@ -88,8 +89,8 @@ func extractOpenAICodexTurnState(upstream http.Header) string {
 }
 
 // noteOpenAICodexTurnStateProvenance 记录下游会话与最近签发账号的对应关系。
-func (s *OpenAIGatewayService) noteOpenAICodexTurnStateProvenance(c *gin.Context, account *Account) {
-	if s == nil || account == nil || account.ID <= 0 {
+func (s *OpenAIGatewayService) noteOpenAICodexTurnStateProvenance(c *gin.Context, account *gatewayprovider.ExecutionAccount) {
+	if s == nil || account == nil || account.Record.ID <= 0 {
 		return
 	}
 	seed := openAICodexTurnStateSeed(c)
@@ -97,7 +98,7 @@ func (s *OpenAIGatewayService) noteOpenAICodexTurnStateProvenance(c *gin.Context
 		return
 	}
 	s.openaiCodexTurnStateOrigins.Store(seed, openAICodexTurnStateOrigin{
-		accountID: account.ID,
+		accountID: account.Record.ID,
 		expiresAt: time.Now().Add(s.openAIWSSessionStickyTTL()),
 	})
 	s.sweepOpenAICodexTurnStateOrigins()
@@ -105,7 +106,7 @@ func (s *OpenAIGatewayService) noteOpenAICodexTurnStateProvenance(c *gin.Context
 
 // guardOpenAICodexTurnStateEcho 移除已知由其它账号签发的客户端回带值。同账号
 // 与未知来源保持不变；服务端绝不自行注入状态，避免改变真实 Codex 回合语义。
-func (s *OpenAIGatewayService) guardOpenAICodexTurnStateEcho(c *gin.Context, account *Account, h http.Header) {
+func (s *OpenAIGatewayService) guardOpenAICodexTurnStateEcho(c *gin.Context, account *gatewayprovider.ExecutionAccount, h http.Header) {
 	if s == nil || h == nil || account == nil {
 		return
 	}
@@ -129,7 +130,7 @@ func (s *OpenAIGatewayService) guardOpenAICodexTurnStateEcho(c *gin.Context, acc
 		s.openaiCodexTurnStateOrigins.Delete(seed)
 		return
 	}
-	if origin.accountID != account.ID {
+	if origin.accountID != account.Record.ID {
 		h.Del(openAICodexTurnStateHeader)
 	}
 }

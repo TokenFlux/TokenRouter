@@ -34,12 +34,12 @@ func newGatewayAuthorization(keys *apikey.APIKeyService, subscriptions *billing.
 			gatewayhttp.MarkOpsClientBusinessLimited(c, reason)
 		},
 		Loaded: func(c *gin.Context, key *apikey.APIKey) {
-			middleware.SetOpsFallbackAPIKey(c, apikey.CopyAPIKey(key))
+			keyhttp.SetOpsFallbackAPIKey(c, apikey.CopyAPIKey(key))
 		},
 	},
 		BindLegacyKey: func(c *gin.Context, key *apikey.APIKey) {
 			legacy := apikey.CopyAPIKey(key)
-			c.Set(string(middleware.ContextKeyAPIKey), legacy)
+			c.Set(string(keyhttp.ContextKeyAPIKey), legacy)
 			bindLegacyAuthorizationGroup(c, legacy.Group)
 		},
 	}
@@ -55,8 +55,8 @@ func newGatewayAuthorization(keys *apikey.APIKeyService, subscriptions *billing.
 }
 
 // provideAPIKeyAuth 构造唯一原生认证链，旧实体只在适配回调中投影。
-func provideAPIKeyAuth(keys *apikey.APIKeyService, subscriptions *billing.SubscriptionService, cfg *config.Config) middleware.APIKeyAuthMiddleware {
-	return middleware.APIKeyAuthMiddleware(newGatewayAuthorization(keys, subscriptions, cfg, false))
+func provideAPIKeyAuth(keys *apikey.APIKeyService, subscriptions *billing.SubscriptionService, cfg *config.Config) keyhttp.APIKeyAuthMiddleware {
+	return keyhttp.APIKeyAuthMiddleware(newGatewayAuthorization(keys, subscriptions, cfg, false))
 }
 
 // bindLegacyAuthorizationGroup 仅服务 S16 尚未清零的请求 context 消费者。

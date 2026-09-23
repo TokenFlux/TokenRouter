@@ -8,6 +8,7 @@ import (
 	"time"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -27,7 +28,7 @@ type tokenRefreshAccountRepo struct {
 	lastErrorMessage             string
 	lastTempUnschedReason        string
 	lastExtraUpdates             map[string]any
-	lastAccount                  *Account
+	lastAccount                  *gatewayprovider.ExecutionAccount
 	updateErr                    error
 	cancelOnUpdate               context.CancelFunc
 	conditionalErrorCalls        int
@@ -50,7 +51,7 @@ type tokenRefreshAccountRepo struct {
 	beforeConditionalState       func()
 }
 
-func (r *tokenRefreshAccountRepo) Update(ctx context.Context, account *Account) error {
+func (r *tokenRefreshAccountRepo) Update(ctx context.Context, account *gatewayprovider.ExecutionAccount) error {
 	r.updateCalls++
 	r.fullUpdateCalls++
 	r.lastAccount = account
@@ -66,7 +67,7 @@ func (r *tokenRefreshAccountRepo) UpdateCredentials(ctx context.Context, id int6
 	cloned := querycache.ShallowMap(credentials)
 	if r.accountsByID != nil {
 		if acc, ok := r.accountsByID[id]; ok && acc != nil {
-			acc.Credentials = cloned
+			acc.Record.Credentials = cloned
 			r.lastAccount = acc
 			if r.cancelOnUpdate != nil {
 				r.cancelOnUpdate()
@@ -74,14 +75,14 @@ func (r *tokenRefreshAccountRepo) UpdateCredentials(ctx context.Context, id int6
 			return nil
 		}
 	}
-	r.lastAccount = &Account{ID: id, Credentials: cloned}
+	r.lastAccount = &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id, Credentials: cloned}}
 	if r.cancelOnUpdate != nil {
 		r.cancelOnUpdate()
 	}
 	return nil
 }
 
-func (r *tokenRefreshAccountRepo) GetByID(ctx context.Context, id int64) (*Account, error) {
+func (r *tokenRefreshAccountRepo) GetByID(ctx context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	if r.respectReadContext && ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -132,7 +133,7 @@ func (r *tokenRefreshAccountRepo) SetGrokCredentialErrorIfMatch(
 	}
 	account := r.accountsByID[id]
 	if !grokCredentialSnapshotMatchesAccount(account, snapshot) ||
-		(errorMsg == string(forwardcore.GrokCredentialReasonProxyInvalid) && account.Proxy != nil) {
+		(errorMsg == string(forwardcore.GrokCredentialReasonProxyInvalid) && account.Record.Proxy != nil) {
 		return false, nil
 	}
 	r.setErrorCalls++
@@ -140,9 +141,9 @@ func (r *tokenRefreshAccountRepo) SetGrokCredentialErrorIfMatch(
 	if r.setErrorErr != nil {
 		return false, r.setErrorErr
 	}
-	account.Status = accountcore.StatusError
-	account.Schedulable = false
-	account.ErrorMessage = errorMsg
+	account.Record.Status = accountcore.StatusError
+	account.Record.Schedulable = false
+	account.Record.ErrorMessage = errorMsg
 	return true, nil
 }
 
@@ -168,14 +169,14 @@ func (r *tokenRefreshAccountRepo) SetGrokCredentialTempUnschedulableIfMatch(
 		return false, r.setTempUnschedErr
 	}
 	value := until
-	account.TempUnschedulableUntil = &value
+	account.Record.TempUnschedulableUntil = &value
 	return true, nil
 }
 
-func grokCredentialSnapshotMatchesAccount(account *Account, snapshot accountcore.CredentialMutationSnapshot) bool {
-	return account != nil && account.IsGrokOAuth() && account.IsSchedulable() &&
+func grokCredentialSnapshotMatchesAccount(account *gatewayprovider.ExecutionAccount, snapshot accountcore.CredentialMutationSnapshot) bool {
+	return account != nil && account.View().IsGrokOAuth() && account.View().IsSchedulable() &&
 		grokCredentialMutationSnapshot(account).CredentialsJSON == snapshot.CredentialsJSON &&
-		accountcore.GrokCredentialProxyIDsEqual(account.ProxyID, snapshot.ProxyID)
+		accountcore.GrokCredentialProxyIDsEqual(account.Record.ProxyID, snapshot.ProxyID)
 }
 
 func (r *tokenRefreshAccountRepo) SetGrokOAuthRefreshErrorIfCredentialsUnchanged(
@@ -195,28 +196,28 @@ func (r *tokenRefreshAccountRepo) SetGrokOAuthRefreshErrorIfCredentialsUnchanged
 	}
 	if r.reauthorizeOnErrorCAS {
 		r.reauthorizeOnErrorCAS = false
-		account.Credentials = map[string]any{
+		account.Record.Credentials = map[string]any{
 			"access_token":   "fresh-access",
 			"refresh_token":  "fresh-refresh",
 			"_token_version": int64(2),
 		}
-		account.Status = billing.StatusActive
-		account.Schedulable = true
+		account.Record.Status = billing.StatusActive
+		account.Record.Schedulable = true
 	}
 	if r.repairProxyOnErrorCAS {
 		r.repairProxyOnErrorCAS = false
 		proxyID := int64(902)
-		account.ProxyID = &proxyID
+		account.Record.ProxyID = &proxyID
 	}
-	if account.Status != billing.StatusActive || account.Platform != capability.PlatformGrok || account.Type != capability.AccountTypeOAuth ||
-		!reflect.DeepEqual(account.Credentials, expectedCredentials) || !reflect.DeepEqual(account.ProxyID, expectedProxyID) {
+	if account.Record.Status != billing.StatusActive || account.Record.Platform != capability.PlatformGrok || account.Record.Type != capability.AccountTypeOAuth ||
+		!reflect.DeepEqual(account.Record.Credentials, expectedCredentials) || !reflect.DeepEqual(account.Record.ProxyID, expectedProxyID) {
 		return false, nil
 	}
 	r.setErrorCalls++
 	r.lastErrorMessage = errorMsg
-	account.Status = accountcore.StatusError
-	account.Schedulable = false
-	account.ErrorMessage = errorMsg
+	account.Record.Status = accountcore.StatusError
+	account.Record.Schedulable = false
+	account.Record.ErrorMessage = errorMsg
 	return true, nil
 }
 
@@ -234,19 +235,19 @@ func (r *tokenRefreshAccountRepo) UpdateGrokOAuthCredentialsIfUnchanged(
 	account := r.accountsByID[id]
 	if account != nil && r.mutateSchedulingOnSuccessCAS {
 		r.mutateSchedulingOnSuccessCAS = false
-		account.Status = billing.StatusDisabled
-		account.Schedulable = false
+		account.Record.Status = billing.StatusDisabled
+		account.Record.Schedulable = false
 		resetAt := time.Now().Add(30 * time.Minute)
-		account.RateLimitResetAt = &resetAt
+		account.Record.RateLimitResetAt = &resetAt
 	}
-	if account == nil || account.Platform != capability.PlatformGrok ||
-		account.Type != capability.AccountTypeOAuth || !reflect.DeepEqual(account.Credentials, expectedCredentials) ||
-		!reflect.DeepEqual(account.ProxyID, expectedProxyID) {
+	if account == nil || account.Record.Platform != capability.PlatformGrok ||
+		account.Record.Type != capability.AccountTypeOAuth || !reflect.DeepEqual(account.Record.Credentials, expectedCredentials) ||
+		!reflect.DeepEqual(account.Record.ProxyID, expectedProxyID) {
 		return false, nil
 	}
 	r.updateCalls++
 	r.updateCredentialsCalls++
-	account.Credentials = querycache.ShallowMap(credentials)
+	account.Record.Credentials = querycache.ShallowMap(credentials)
 	r.lastAccount = account
 	if r.cancelOnUpdate != nil {
 		r.cancelOnUpdate()
@@ -272,27 +273,27 @@ func (r *tokenRefreshAccountRepo) SetGrokOAuthRefreshTempUnschedulableIfCredenti
 	}
 	if r.reauthorizeOnTempCAS {
 		r.reauthorizeOnTempCAS = false
-		account.Credentials = map[string]any{
+		account.Record.Credentials = map[string]any{
 			"access_token":   "fresh-access",
 			"refresh_token":  "fresh-refresh",
 			"_token_version": int64(2),
 		}
-		account.Status = billing.StatusActive
-		account.Schedulable = true
+		account.Record.Status = billing.StatusActive
+		account.Record.Schedulable = true
 	}
 	if r.repairProxyOnTempCAS {
 		r.repairProxyOnTempCAS = false
 		proxyID := int64(902)
-		account.ProxyID = &proxyID
+		account.Record.ProxyID = &proxyID
 	}
-	if account.Status != billing.StatusActive || account.Platform != capability.PlatformGrok || account.Type != capability.AccountTypeOAuth ||
-		!reflect.DeepEqual(account.Credentials, expectedCredentials) || !reflect.DeepEqual(account.ProxyID, expectedProxyID) {
+	if account.Record.Status != billing.StatusActive || account.Record.Platform != capability.PlatformGrok || account.Record.Type != capability.AccountTypeOAuth ||
+		!reflect.DeepEqual(account.Record.Credentials, expectedCredentials) || !reflect.DeepEqual(account.Record.ProxyID, expectedProxyID) {
 		return false, nil
 	}
 	r.setTempUnschedCalls++
 	r.lastTempUnschedReason = reason
-	account.TempUnschedulableUntil = &until
-	account.TempUnschedulableReason = reason
+	account.Record.TempUnschedulableUntil = &until
+	account.Record.TempUnschedulableReason = reason
 	return true, nil
 }
 
@@ -301,11 +302,11 @@ func (r *tokenRefreshAccountRepo) UpdateExtra(ctx context.Context, id int64, upd
 	r.lastExtraUpdates = querycache.ShallowMap(updates)
 	if r.accountsByID != nil {
 		if acc, ok := r.accountsByID[id]; ok && acc != nil {
-			if acc.Extra == nil {
-				acc.Extra = make(map[string]any, len(updates))
+			if acc.Record.Extra == nil {
+				acc.Record.Extra = make(map[string]any, len(updates))
 			}
 			for k, v := range updates {
-				acc.Extra[k] = v
+				acc.Record.Extra[k] = v
 			}
 		}
 	}
@@ -341,10 +342,10 @@ func (r *tokenRefresherStub) CacheKey(account *accountcore.Record) string {
 // ========== Path A (refreshAPI) 测试用例 ==========
 
 // grokCredentialStoredSnapshot 只为旧消费者测试生成独立夹具，运行实现归 account。
-func grokCredentialStoredSnapshot(value *Account) *Account {
-	copy := AccountFromRecord(AccountRecordView(value))
-	if copy != nil && copy.Credentials == nil {
-		copy.Credentials = map[string]any{}
+func grokCredentialStoredSnapshot(value *gatewayprovider.ExecutionAccount) *gatewayprovider.ExecutionAccount {
+	copy := gatewayprovider.NewExecutionAccount(gatewayprovider.ExecutionRecord(value))
+	if copy != nil && copy.Record.Credentials == nil {
+		copy.Record.Credentials = map[string]any{}
 	}
 	return copy
 }

@@ -15,11 +15,13 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
@@ -64,7 +66,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSON(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
@@ -97,7 +99,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit(t *testing.T
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body.Bytes())
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
@@ -145,7 +147,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_NormalizesOfficialAndCusto
 		{size: "auto", wantTier: "2K"},
 	}
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	for _, tt := range tests {
 		t.Run(tt.size, func(t *testing.T) {
 			body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"` + tt.size + `"}`)
@@ -179,7 +181,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_UnknownSizesDoNotBlockPass
 		{size: "999999999999999999999999999x2", wantTier: "2K"},
 	}
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	for _, tt := range tests {
 		t.Run(tt.size, func(t *testing.T) {
 			body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","size":"` + tt.size + `"}`)
@@ -209,7 +211,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_LegacyImageModelUnknownSiz
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
@@ -252,7 +254,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEditWithMaskAndNa
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body.Bytes())
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
@@ -278,7 +280,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_PromptOnlyDefaultsRemainBa
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
@@ -296,7 +298,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_ExplicitSizeRequiresNative
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
@@ -313,7 +315,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_RejectsNonImageModel(t *te
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.Nil(t, parsed)
 	require.ErrorContains(t, err, `images endpoint requires an image model, got "gpt-5.4"`)
@@ -329,7 +331,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequestForRouting(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequestForRouting(c, body)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
@@ -350,7 +352,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_AllowsGrokImageModels(t *t
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = req
 
-			svc := &OpenAIGatewayService{}
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 			parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 			require.NoError(t, err)
 			require.NotNil(t, parsed)
@@ -379,7 +381,7 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_JSONEditURLs(t *testing.T)
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 	require.NotNil(t, parsed)
@@ -459,278 +461,31 @@ func TestOpenAIUpstreamErrorBodyReadLimitForConfig_RespectsDiagnosticLimit(t *te
 }
 
 func TestAccountSupportsOpenAIImageCapability_OAuthSupportsNative(t *testing.T) {
-	account := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeOAuth},
 	}
 
-	require.True(t, account.SupportsOpenAIImageCapability(OpenAIImagesCapabilityBasic))
-	require.True(t, account.SupportsOpenAIImageCapability(OpenAIImagesCapabilityNative))
+	require.True(t, account.View().SupportsOpenAIImageCapability(OpenAIImagesCapabilityBasic))
+	require.True(t, account.View().SupportsOpenAIImageCapability(OpenAIImagesCapabilityNative))
 }
 
 func TestAccountSupportsOpenAIImageCapability_SetupTokenSupportsNative(t *testing.T) {
-	account := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeSetupToken,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeSetupToken},
 	}
 
-	require.True(t, account.SupportsOpenAIImageCapability(OpenAIImagesCapabilityBasic))
-	require.True(t, account.SupportsOpenAIImageCapability(OpenAIImagesCapabilityNative))
-	require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityEmbeddings))
+	require.True(t, account.View().SupportsOpenAIImageCapability(OpenAIImagesCapabilityBasic))
+	require.True(t, account.View().SupportsOpenAIImageCapability(OpenAIImagesCapabilityNative))
+	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(account), accountcore.OpenAIEndpointCapabilityEmbeddings))
 }
 
 func TestAccountSupportsOpenAIImageCapability_EmptyRequirementDoesNotRejectGrok(t *testing.T) {
-	account := &Account{
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+		Type: capability.AccountTypeOAuth},
 	}
 
-	require.True(t, account.SupportsOpenAIImageCapability(""))
-	require.False(t, account.SupportsOpenAIImageCapability(OpenAIImagesCapabilityBasic))
-}
-
-func TestAccountSupportsOpenAIEndpointCapability(t *testing.T) {
-	t.Run("OpenAI APIKey 默认兼容 chat、embeddings 和 alpha search", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityEmbeddings))
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityAlphaSearch))
-	})
-
-	t.Run("OpenAI OAuth 默认仅兼容 chat", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeOAuth,
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityAlphaSearch))
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityEmbeddings))
-	})
-
-	t.Run("alpha search 允许 OpenAI OAuth/PAT 与 APIKey 账号，拒绝 Grok", func(t *testing.T) {
-		// OAuth/PAT 走 chatgpt.com Codex 端点，APIKey 走 {base_url}/v1/alpha/search，
-		// 两类都能承接独立搜索（APIKey 被排除曾导致纯 APIKey 分组搜索失效的回归）。
-		apiKey := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-		}
-		oauth := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeOAuth,
-		}
-		grok := &Account{
-			Platform: capability.PlatformGrok,
-			Type:     capability.AccountTypeAPIKey,
-		}
-
-		require.True(t, apiKey.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityAlphaSearch))
-		require.True(t, oauth.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityAlphaSearch))
-		require.False(t, grok.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityAlphaSearch))
-	})
-
-	t.Run("显式列表支持同时声明 chat 和 embeddings", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-			Credentials: map[string]any{
-				"openai_workload_capabilities": []any{"text_generation", "embeddings"},
-			},
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityEmbeddings))
-	})
-
-	t.Run("显式列表只声明 chat 时不支持 embeddings", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-			Credentials: map[string]any{
-				"openai_workload_capabilities": []any{"text_generation"},
-			},
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-		// chat 能力隐含放行 alpha search（OAuth/APIKey 语义一致）。
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityAlphaSearch))
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityEmbeddings))
-	})
-
-	t.Run("OAuth 显式列表沿用 chat 能力放行 alpha search", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeOAuth,
-			Credentials: map[string]any{
-				"openai_workload_capabilities": []any{"text_generation"},
-			},
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityAlphaSearch))
-	})
-
-	// OAuth 历史数据可能保留空能力容器，应与缺失字段一样不阻断文本调度。
-	for _, emptyCapabilities := range []struct {
-		name  string
-		value any
-	}{
-		{name: "map[string]any", value: map[string]any{}},
-		{name: "[]any", value: []any{}},
-		{name: "[]string", value: []string{}},
-	} {
-		t.Run("OAuth 空能力 "+emptyCapabilities.name, func(t *testing.T) {
-			account := &Account{
-				Platform: capability.PlatformOpenAI,
-				Type:     capability.AccountTypeOAuth,
-				Credentials: map[string]any{
-					accountcore.OpenAIWorkloadCapabilitiesCredentialKey: emptyCapabilities.value,
-				},
-			}
-
-			require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-			require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityResponses))
-		})
-	}
-
-	t.Run("API Key 空能力仍表示显式禁用", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-			Credentials: map[string]any{
-				accountcore.OpenAIWorkloadCapabilitiesCredentialKey: []any{},
-			},
-		}
-
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-	})
-
-	t.Run("SetupToken 空能力与 OAuth 一样回退为未配置", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeSetupToken,
-			Credentials: map[string]any{
-				accountcore.OpenAIWorkloadCapabilitiesCredentialKey: map[string]any{},
-			},
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-	})
-
-	t.Run("非空全 false 能力仍按显式禁用处理", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeOAuth,
-			Credentials: map[string]any{
-				accountcore.OpenAIWorkloadCapabilitiesCredentialKey: map[string]any{
-					string(accountcore.OpenAIEndpointCapabilityTextGeneration): false,
-				},
-			},
-		}
-
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-	})
-
-	t.Run("类型异常仍按已配置但不含能力处理", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeOAuth,
-			Credentials: map[string]any{
-				accountcore.OpenAIWorkloadCapabilitiesCredentialKey: "text_generation",
-			},
-		}
-
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-	})
-
-	t.Run("显式数组支持单独关闭文本生成并开启 embeddings", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-			Credentials: map[string]any{
-				"openai_workload_capabilities": []any{"embeddings"},
-			},
-		}
-
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityEmbeddings))
-	})
-
-	t.Run("未知能力不应默认放行", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-		}
-
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapability("unknown")))
-	})
-
-	t.Run("responses 能力：未探测的 APIKey 默认放行", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityResponses))
-	})
-
-	t.Run("responses 能力：历史探测不再排除 APIKey", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-			Extra:    map[string]any{"openai_responses_probe_status": "unsupported"},
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityResponses))
-		// 非生图路径仍可选中（只要求 chat_completions）。
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityTextGeneration))
-	})
-
-	t.Run("responses 能力：探测确认支持的 APIKey 放行", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-			Extra:    map[string]any{"openai_responses_probe_status": "supported"},
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityResponses))
-	})
-
-	t.Run("responses 能力：force_chat_completions 覆盖排除 APIKey", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-			Extra:    map[string]any{"openai_text_route_mode": "force_chat_completions"},
-		}
-
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityResponses))
-	})
-
-	t.Run("responses 能力：OAuth 账号不受探测标记影响", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeOAuth,
-			Extra:    map[string]any{"openai_responses_probe_status": "unsupported"},
-		}
-
-		require.True(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityResponses))
-	})
-
-	t.Run("responses 能力：仍需通过 chat_completions 配置集校验", func(t *testing.T) {
-		// 未探测（默认支持 responses），但显式能力集未声明 chat_completions。
-		account := &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     capability.AccountTypeAPIKey,
-			Credentials: map[string]any{
-				"openai_workload_capabilities": []any{"embeddings"},
-			},
-		}
-
-		require.False(t, account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityResponses))
-	})
+	require.True(t, account.View().SupportsOpenAIImageCapability(""))
+	require.False(t, account.View().SupportsOpenAIImageCapability(OpenAIImagesCapabilityBasic))
 }
 
 func TestBuildOpenAIImagesURL_HandlesVersionedBaseURL(t *testing.T) {
@@ -805,7 +560,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsA
 	c.Request = req
 	c.Set("api_key", &apikey.APIKey{ID: 42})
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -824,8 +579,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsA
 	}
 	svc.httpUpstream = upstream
 
-	account := &Account{
-		ID:       1,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
@@ -833,7 +587,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsA
 			"access_token":       "token-123",
 			"chatgpt_account_id": "acct-123",
 			"model_mapping":      map[string]any{"gpt-image-1": "gpt-image-2"},
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -876,7 +630,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthAppliesAccountMappingAndReturnsA
 }
 
 func TestParseOpenAIImagesSSEUsageBytes_ToolUsagePrecedenceAndFallback(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	fallback := openai.ForwardUsage{InputTokens: 3, ImageInputTokens: 2, OutputTokens: 4, ImageOutputTokens: 2}
 	tests := []struct {
 		name      string
@@ -918,7 +672,7 @@ func TestParseOpenAIImagesSSEUsageBytes_ToolUsagePrecedenceAndFallback(t *testin
 }
 
 func TestParseOpenAIImagesSSEUsageBytes_MalformedCompletedDoesNotOverrideUsage(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	var usage openai.ForwardUsage
 
 	svc.parseOpenAIImagesSSEUsageBytes([]byte(`{"type":"response.output_item.done","item":{"type":"image_generation_call","result":"aW1hZ2U="}}`), &usage)
@@ -967,7 +721,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealErr
 	c.Request = req
 	c.Set("api_key", &apikey.APIKey{ID: 42})
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -984,14 +738,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealErr
 		},
 	}
 
-	account := &Account{
-		ID:       1,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1021,7 +774,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturn
 	c.Request = req
 	c.Set("api_key", &apikey.APIKey{ID: 42})
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -1040,14 +793,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturn
 		},
 	}
 
-	account := &Account{
-		ID:       1,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1073,7 +825,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailo
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
 				StatusCode: http.StatusOK,
@@ -1087,17 +839,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailo
 				)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{
-		ID:       21,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
 		Name:     "openai-oauth-server-error",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1116,7 +867,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamServerErrorReturnsFailo
 	require.True(t, ok)
 	require.Len(t, events, 1)
 	require.Equal(t, "failover", events[0].Kind)
-	require.Equal(t, account.ID, events[0].AccountID)
+	require.Equal(t, account.Record.ID, events[0].AccountID)
 	require.Equal(t, http.StatusBadGateway, events[0].UpstreamStatusCode)
 }
 
@@ -1128,14 +879,14 @@ func TestOpenAIGatewayServiceForwardImages_OAuth429CarriesSameAccountRetryWindow
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
-	svc := &OpenAIGatewayService{httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusTooManyRequests,
 		Header:     http.Header{"Retry-After": []string{"1"}, "X-Request-Id": []string{"req_img_oauth_429"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"rate limited"}}`)),
-	}}}
+	}}})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{ID: 22, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"access_token": "token-123"}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 22, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"access_token": "token-123"}}}
 	startedAt := time.Now()
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1145,7 +896,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuth429CarriesSameAccountRetryWindow
 	require.ErrorAs(t, err, &failoverErr)
 	require.True(t, failoverErr.RetryableOnSameAccount)
 	require.Equal(t, time.Second, failoverErr.SameAccountRetryDelay)
-	require.WithinDuration(t, startedAt.Add(openAIOAuth429RetryWindow), failoverErr.SameAccountRetryDeadline, time.Second)
+	require.WithinDuration(t, startedAt.Add(accountcore.RuntimeRetryWindow), failoverErr.SameAccountRetryDeadline, time.Second)
 }
 
 func TestOpenAIImagesOAuthBodyReadTransportErrorFailover(t *testing.T) {
@@ -1161,12 +912,12 @@ func TestOpenAIImagesOAuthBodyReadTransportErrorFailover(t *testing.T) {
 		},
 		Body: &openAIImagesReadErrorBody{err: errors.New("stream error: stream ID 11; INTERNAL_ERROR; received from peer")},
 	}
-	account := &Account{ID: 5400, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
-	svc := &OpenAIGatewayService{}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5400, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	_, _, _, readErr := svc.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, "b64_json", "gpt-image-2")
 	require.Error(t, readErr)
-	err := svc.handleOpenAIImagesOAuthResponseError(context.Background(), c, account, "gpt-image-2", "https://api.openai.com/v1/responses", resp, OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), readErr)
+	err := svc.handleOpenAIImagesOAuthResponseError(context.Background(), c, account, "gpt-image-2", "https://api.openai.com/v1/responses", resp, gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), readErr)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.ErrorAs(t, err, &failoverErr)
@@ -1194,7 +945,7 @@ func TestOpenAIImagesOAuthBodyReadErrorsNotMisclassified(t *testing.T) {
 		err  error
 	}{
 		{name: "context canceled", err: context.Canceled},
-		{name: "response too large", err: fmt.Errorf("%w: limit=1", ErrUpstreamResponseBodyTooLarge)},
+		{name: "response too large", err: fmt.Errorf("%w: limit=1", httpclient.ErrResponseBodyTooLarge)},
 		{name: "semantic error", err: &upstreamopenai.OpenAIImagesUpstreamError{StatusCode: http.StatusBadRequest, ErrorType: "invalid_request_error", Code: "invalid_value", Message: "bad image request"}},
 	}
 
@@ -1205,11 +956,11 @@ func TestOpenAIImagesOAuthBodyReadErrorsNotMisclassified(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 			resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}
 			err := tt.err
-			if tt.name != "semantic error" && shouldClassifyOpenAIUpstreamStreamReadError(err, c.Request.Context()) {
+			if tt.name != "semantic error" && upstreamopenai.ShouldClassifyUpstreamStreamReadError(err, httpclient.ErrResponseBodyTooLarge, c.Request.Context()) {
 				err = upstreamopenai.NewUpstreamStreamReadError(err)
 			}
 
-			got := (&OpenAIGatewayService{}).handleOpenAIImagesOAuthResponseError(context.Background(), c, &Account{Platform: capability.PlatformOpenAI}, "gpt-image-2", "", resp, OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), err)
+			got := (withSchedulerParametersForTest(&OpenAIGatewayService{})).handleOpenAIImagesOAuthResponseError(context.Background(), c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}}, "gpt-image-2", "", resp, gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), err)
 			var failoverErr *forwardcore.UpstreamFailoverError
 			require.False(t, errors.As(got, &failoverErr))
 			require.ErrorIs(t, got, tt.err)
@@ -1223,14 +974,14 @@ func TestOpenAIImagesOAuthTransportErrorAfterDownstreamWriteDoesNotFailover(t *t
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-	before := OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
+	before := gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
 	_, writeErr := c.Writer.Write([]byte("downstream image bytes"))
 	require.NoError(t, writeErr)
 	classifiedErr := upstreamopenai.NewUpstreamStreamReadError(errors.New("unexpected EOF"))
-	account := &Account{ID: 5401, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5401, Name: "openai-oauth", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	resp := &http.Response{Header: http.Header{"X-Request-Id": []string{"req_after_write"}}}
 
-	err := (&OpenAIGatewayService{}).handleOpenAIImagesOAuthResponseError(context.Background(), c, account, "gpt-image-2", "", resp, before, classifiedErr)
+	err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).handleOpenAIImagesOAuthResponseError(context.Background(), c, account, "gpt-image-2", "", resp, before, classifiedErr)
 
 	var failoverErr *forwardcore.UpstreamFailoverError
 	require.False(t, errors.As(err, &failoverErr))
@@ -1247,13 +998,13 @@ func TestOpenAIImagesOAuthTransportErrorAfterDownstreamWriteDoesNotFailover(t *t
 func TestShouldClassifyOpenAIUpstreamStreamReadErrorTransportStrings(t *testing.T) {
 	for _, message := range []string{"unexpected EOF", "connection reset by peer", "broken pipe", "use of closed network connection"} {
 		t.Run(message, func(t *testing.T) {
-			require.True(t, shouldClassifyOpenAIUpstreamStreamReadError(errors.New(message)))
+			require.True(t, upstreamopenai.ShouldClassifyUpstreamStreamReadError(errors.New(message), httpclient.ErrResponseBodyTooLarge))
 		})
 	}
 
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
-	require.False(t, shouldClassifyOpenAIUpstreamStreamReadError(errors.New("unexpected EOF"), canceledCtx))
+	require.False(t, upstreamopenai.ShouldClassifyUpstreamStreamReadError(errors.New("unexpected EOF"), httpclient.ErrResponseBodyTooLarge, canceledCtx))
 }
 
 func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseURL(t *testing.T) {
@@ -1266,7 +1017,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{},
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -1278,19 +1029,18 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyGenerationUsesConfiguredV1BaseU
 				Body: io.NopCloser(strings.NewReader(`{"created":1710000007,"data":[{"b64_json":"aGVsbG8=","revised_prompt":"draw a cat"}]}`)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
-	account := &Account{
-		ID:       6,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6,
 		Name:     "openai-apikey",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "test-api-key",
 			"base_url": "https://image-upstream.example/v1",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1328,16 +1078,15 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover(t 
 		},
 		Body: io.NopCloser(bytes.NewReader(upstreamBody)),
 	}}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{
-		ID:       51,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 51,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "sk-test",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1348,7 +1097,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyAccessStateUsesTypedFailover(t 
 	require.Equal(t, http.StatusForbidden, failoverErr.StatusCode)
 	require.Equal(t, forwardcore.GatewayFailureStageAccountAuth, failoverErr.Stage)
 	require.Equal(t, forwardcore.GatewayFailureScopeAccount, failoverErr.Scope)
-	require.Equal(t, OpenAIUpstreamAccessStateReason, failoverErr.Reason)
+	require.Equal(t, forwardcore.OpenAIUpstreamAccessStateReason, failoverErr.Reason)
 	require.Equal(t, forwardcore.NextAccountRetry, failoverErr.NextAccountAction)
 	require.Equal(t, http.StatusBadGateway, failoverErr.ClientStatusCode)
 	require.Equal(t, openAIUpstreamAccessUnavailableClientMessage, failoverErr.ClientMessage)
@@ -1367,7 +1116,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamJSONResponseBillsImage(t 
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{},
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -1379,19 +1128,18 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamJSONResponseBillsImage(t 
 				Body: io.NopCloser(strings.NewReader(`{"created":1710000008,"usage":{"input_tokens":12,"output_tokens":21,"output_tokens_details":{"image_tokens":9}},"data":[{"b64_json":"aGVsbG8=","revised_prompt":"draw a cat"}]}`)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
-	account := &Account{
-		ID:       7,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:     "openai-apikey",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "test-api-key",
 			"base_url": "https://image-upstream.example/v1",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1416,7 +1164,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamRawJSONEventStreamFallbac
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{},
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -1428,19 +1176,18 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamRawJSONEventStreamFallbac
 				Body: io.NopCloser(strings.NewReader(`{"created":1710000009,"usage":{"input_tokens":10,"output_tokens":18,"output_tokens_details":{"image_tokens":8}},"data":[{"b64_json":"ZmluYWw="}]}`)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
-	account := &Account{
-		ID:       8,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Name:     "openai-apikey",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "test-api-key",
 			"base_url": "https://image-upstream.example/v1",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1464,7 +1211,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamMultilineSSEDataBillsImag
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{},
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -1481,18 +1228,17 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamMultilineSSEDataBillsImag
 				)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
-	account := &Account{
-		ID:       8,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Name:     "openai-apikey",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "test-api-key",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1529,7 +1275,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL(t *
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{},
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
@@ -1541,19 +1287,18 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL(t *
 				Body: io.NopCloser(strings.NewReader(`{"created":1710000008,"data":[{"b64_json":"ZWRpdGVk","revised_prompt":"replace background"}]}`)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body.Bytes())
 	require.NoError(t, err)
 
-	account := &Account{
-		ID:       7,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:     "openai-apikey",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "test-api-key",
 			"base_url": "https://image-upstream.example/v1/",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body.Bytes(), parsed, "")
@@ -1583,7 +1328,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *tes
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -1604,14 +1349,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *tes
 	}
 	svc.httpUpstream = upstream
 
-	account := &Account{
-		ID:       2,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1658,7 +1402,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingModerationBlockedEmitsE
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -1675,14 +1419,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingModerationBlockedEmitsE
 		},
 	}
 
-	account := &Account{
-		ID:       2,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1711,7 +1454,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorBeforeFlushR
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
 				StatusCode: http.StatusOK,
@@ -1724,17 +1467,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorBeforeFlushR
 				)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{
-		ID:       23,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 23,
 		Name:     "openai-oauth-stream-server-error",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1758,7 +1500,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorAfterFlushDo
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream: &httpUpstreamRecorder{
 			resp: &http.Response{
 				StatusCode: http.StatusOK,
@@ -1772,17 +1514,16 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingServerErrorAfterFlushDo
 				)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
-	account := &Account{
-		ID:       22,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 22,
 		Name:     "openai-oauth-partial-server-error",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1839,7 +1580,7 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamingDrainsAfterClientDisco
 	c.Request = req
 	c.Writer = &failingOpenAIImageWriter{ResponseWriter: c.Writer, failAfter: 1}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				ImageStreamDataIntervalTimeout: 1,
@@ -1860,18 +1601,17 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyStreamingDrainsAfterClientDisco
 				)),
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
-	account := &Account{
-		ID:       8,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Name:     "openai-apikey",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "test-api-key",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -1918,7 +1658,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI(t
 	c.Request = req
 	c.Set("api_key", &apikey.APIKey{ID: 100})
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body.Bytes())
 	require.NoError(t, err)
 
@@ -1937,14 +1677,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsMultipartUsesResponsesAPI(t
 	}
 	svc.httpUpstream = upstream
 
-	account := &Account{
-		ID:       3,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body.Bytes(), parsed, "")
@@ -1979,7 +1718,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsStreamingTransformsEvents(t
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -1999,14 +1738,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthEditsStreamingTransformsEvents(t
 	}
 	svc.httpUpstream = upstream
 
-	account := &Account{
-		ID:       4,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -2169,7 +1907,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFa
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -2189,14 +1927,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesOutputItemDoneFa
 	}
 	svc.httpUpstream = upstream
 
-	account := &Account{
-		ID:       5,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -2226,7 +1963,7 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesMultilineSSE(t *
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -2245,14 +1982,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingHandlesMultilineSSE(t *
 		},
 	}
 
-	account := &Account{
-		ID:       11,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
@@ -2282,14 +2018,14 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDiscon
 	c.Request = req
 	c.Writer = &failingOpenAIImageWriter{ResponseWriter: c.Writer, failAfter: 1}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				ImageStreamDataIntervalTimeout: 1,
 				ImageStreamKeepaliveInterval:   0,
 			},
 		},
-	}
+	})
 	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 
@@ -2309,14 +2045,13 @@ func TestOpenAIGatewayServiceForwardImages_OAuthStreamingDrainsAfterClientDiscon
 	}
 	svc.httpUpstream = upstream
 
-	account := &Account{
-		ID:       9,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "token-123",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")

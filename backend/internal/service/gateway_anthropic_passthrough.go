@@ -14,6 +14,7 @@ import (
 	// 网关响应与恢复解释由 gateway/forward 唯一执行；平台流读取和交换仍复用 upstream。
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -27,7 +28,7 @@ import (
 func (s *GatewayService) forwardAnthropicAPIKeyPassthrough(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	reqModel string,
 	originalModel string,
@@ -46,7 +47,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthrough(
 func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	input forwardcore.APIKeyInput,
 ) (*forwardcore.MessagesResult, error) {
 	adapter := &anthropicPassthroughAdapter{messageExecutionAdapter: newMessageExecutionAdapter(s, c, account)}
@@ -57,14 +58,14 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	token string,
 ) (*http.Request, []byte, error) {
 	model := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	o := s.anthropicRequestOptions(ctx, c, account, model, "apikey", false)
 	o.URL = func() (string, error) {
-		if base := account.GetBaseURL(); base != "" {
+		if base := account.View().GetBaseURL(); base != "" {
 			url, err := s.validateUpstreamBaseURL(base)
 			if err != nil {
 				return "", err
@@ -87,7 +88,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	startTime time.Time,
 	model string,
 ) (*streamingResult, error) {
@@ -112,15 +113,15 @@ func invalidNonStreamingJSONFailoverError(
 	ctx context.Context,
 	rateLimitService *RateLimitService,
 	resp *http.Response,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	parseErr error,
 	requestedModel ...string,
 ) error {
 	input := forwardcore.InvalidJSONInput{UpstreamStatus: resp.StatusCode, RequestID: resp.Header.Get("x-request-id"), Headers: resp.Header, Body: body, ParseError: parseErr, RequestedModels: requestedModel}
 	if account != nil {
-		input.AccountID = account.ID
-		input.AccountName = account.Name
+		input.AccountID = account.Record.ID
+		input.AccountName = account.Record.Name
 	}
 	return forwardcore.InvalidJSON(ctx, invalidJSONAdapter{rateLimit: rateLimitService, account: account, headers: resp.Header}, input)
 }
@@ -129,13 +130,13 @@ func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 ) (*upstream.TokenUsage, error) {
 	options := s.anthropicResponseOptions(ctx, c, account, "", true)
 	return claude.NonStreamResponsePassthrough(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), options)
 }
 
-func (s *GatewayService) anthropicPassthroughExchangeOptions(ctx context.Context, c *gin.Context, account *Account, token, proxyURL string, input *forwardcore.APIKeyInput) claude.ExchangeOptions {
+func (s *GatewayService) anthropicPassthroughExchangeOptions(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, token, proxyURL string, input *forwardcore.APIKeyInput) claude.ExchangeOptions {
 	options := s.anthropicExchangeOptions(ctx, c, account, token, "apikey", input.RequestModel, input.RequestStream, false, proxyURL, nil, func(body []byte) error {
 		if input.Parsed != nil {
 			if err := input.Parsed.ReplaceBody(body); err != nil {
@@ -150,7 +151,7 @@ func (s *GatewayService) anthropicPassthroughExchangeOptions(ctx context.Context
 		return s.buildUpstreamRequestAnthropicAPIKeyPassthrough(ctx, c, account, body, token)
 	}
 	options.Do = func(req *http.Request) (*http.Response, error) {
-		return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(account, nil)))
+		return s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(account, nil)))
 	}
 	options.TransportError = func(ctx context.Context, err error, url string) error {
 		return s.handleUpstreamTransportError(ctx, c, account, err, ops.OpsUpstreamErrorEvent{UpstreamURL: logredact.SafeUpstreamURL(url), Passthrough: true})

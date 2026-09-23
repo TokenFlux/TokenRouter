@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -17,7 +20,7 @@ import (
 )
 
 func TestSetOpenAICodexRoutingHintCanonicalizesOfficialServiceTiers(t *testing.T) {
-	oauthAccount := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	oauthAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	tests := []struct {
 		name        string
 		model       string
@@ -61,7 +64,7 @@ func TestSetOpenAICodexRoutingHintCanonicalizesOfficialServiceTiers(t *testing.T
 		headers := make(http.Header)
 		headers[openAICodexRoutingHintHeader] = []string{"lowercase-spoof"}
 		headers["X-Codex-Routing-Hint"] = []string{"canonical-spoof"}
-		setOpenAICodexRoutingHint(headers, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, "gpt-5.6", "priority")
+		setOpenAICodexRoutingHint(headers, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}, "gpt-5.6", "priority")
 		for key := range headers {
 			require.False(t, strings.EqualFold(key, openAICodexRoutingHintHeader))
 		}
@@ -78,14 +81,13 @@ func TestSetOpenAICodexRoutingHintCanonicalizesOfficialServiceTiers(t *testing.T
 
 func TestOpenAIOAuthHTTPBuildersSendRoutingHintFromFinalBody(t *testing.T) {
 
-	oauthAccount := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+	oauthAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "test-account",
-		},
+		}},
 	}
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	tests := []struct {
 		name string
@@ -128,14 +130,14 @@ func TestOpenAIOAuthHTTPBuildersSendRoutingHintFromFinalBody(t *testing.T) {
 
 func TestOpenAIHTTPPassthroughStripsOnlyOAuthLegacyResponsesBeta(t *testing.T) {
 
-	svc := &OpenAIGatewayService{cfg: &config.Config{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{
 		Security: config.SecurityConfig{
 			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 		},
-	}}
+	}})
 	body := []byte(`{"model":"gpt-5.6-codex","service_tier":"priority"}`)
 
-	build := func(t *testing.T, account *Account, betaValues []string, rawLowercaseKey bool) http.Header {
+	build := func(t *testing.T, account *gatewayprovider.ExecutionAccount, betaValues []string, rawLowercaseKey bool) http.Header {
 		t.Helper()
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
@@ -153,19 +155,17 @@ func TestOpenAIHTTPPassthroughStripsOnlyOAuthLegacyResponsesBeta(t *testing.T) {
 		return req.Header
 	}
 
-	oauth := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+	oauth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "test-account",
-		},
+		}},
 	}
-	apiKey := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
+	apiKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key": "test-api-key",
-		},
+		}},
 	}
 
 	t.Run("oauth legacy only is removed including raw lowercase key", func(t *testing.T) {
@@ -192,10 +192,10 @@ func TestBuildOpenAIWSHeadersSendsOAuthRoutingHintOnly(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	decision := egress.OpenAIWSProtocolDecision{Transport: egress.OpenAIUpstreamTransportResponsesWebsocketV2}
 
-	build := func(t *testing.T, account *Account, tier string) http.Header {
+	build := func(t *testing.T, account *gatewayprovider.ExecutionAccount, tier string) http.Header {
 		headers, _, err := svc.buildOpenAIWSHeaders(
 			context.Background(),
 			c,
@@ -213,17 +213,16 @@ func TestBuildOpenAIWSHeadersSendsOAuthRoutingHintOnly(t *testing.T) {
 		return headers
 	}
 
-	oauthAccount := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+	oauthAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "test-account",
-		},
+		}},
 	}
 	require.Equal(t, "model=gpt-5.6-codex;tier=priority", build(t, oauthAccount, "fast").Get(openAICodexRoutingHintHeader))
 	require.Equal(t, "model=gpt-5.6-codex;tier=ultrafast", build(t, oauthAccount, "ultrafast").Get(openAICodexRoutingHintHeader))
 	require.Equal(t, "model=gpt-5.6-codex", build(t, oauthAccount, "default").Get(openAICodexRoutingHintHeader))
-	require.Empty(t, build(t, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, "priority").Get(openAICodexRoutingHintHeader))
+	require.Empty(t, build(t, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}, "priority").Get(openAICodexRoutingHintHeader))
 }
 
 func TestOpenAIRoutingDiagnosticsUseFinalDerivedValuesOnly(t *testing.T) {
@@ -231,16 +230,15 @@ func TestOpenAIRoutingDiagnosticsUseFinalDerivedValuesOnly(t *testing.T) {
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
-	account := &Account{
-		ID:       917,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 917,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "chatgpt-account",
-		},
+		}},
 	}
 	body := []byte(`{"model":"gpt-5.6-codex","service_tier":"fast"}`)
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -280,7 +278,7 @@ func TestOpenAIWSConnPoolPreferredContinuationIgnoresRoutingHintChanges(t *testi
 	pool := newOpenAIWSConnPool(cfg)
 	dialer := &openAIWSCountingDialer{}
 	pool.SetClientDialerForTest(dialer)
-	account := &Account{ID: 913, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 913, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 
 	acquire := func(t *testing.T, hint, preferred string, forcePreferred bool) *openai.WSConnLease {
 		t.Helper()
@@ -326,7 +324,7 @@ func TestOpenAIWSConnPoolUsesRoutingHintAsSoftDialAffinity(t *testing.T) {
 	pool := newOpenAIWSConnPool(cfg)
 	dialer := &openAIWSCountingDialer{}
 	pool.SetClientDialerForTest(dialer)
-	account := &Account{ID: 913, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 913, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 
 	acquire := func(t *testing.T, hint string) *openai.WSConnLease {
 		headers := make(http.Header)

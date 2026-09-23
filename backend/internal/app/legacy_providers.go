@@ -1,6 +1,7 @@
 package app
 
 import (
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -30,8 +31,6 @@ import (
 
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 
-	service "github.com/TokenFlux/TokenRouter/internal/service"
-
 	site "github.com/TokenFlux/TokenRouter/internal/site"
 
 	gin "github.com/gin-gonic/gin"
@@ -51,22 +50,20 @@ func provideApplication(server *http.Server, manager *lifecycle.Manager, _ *runt
 	return &Application{Server: server, lifecycle: manager}
 }
 
-// installLegacyBackground 仅绑定旧调用方的技术完成端口，业务规则不进入 app。
-func installLegacyBackground(manager *lifecycle.Manager) *lifecycle.Tasks {
+// installBackgroundTasks 登记唯一任务拥有者，由各消费者显式接收，不安装全局绑定。
+func installBackgroundTasks(manager *lifecycle.Manager) *lifecycle.Tasks {
 	tasks := lifecycle.NewTasks()
-	restore := service.SetBackgroundTaskRunner(tasks)
-	manager.Register(lifecycle.Hook{Name: "LegacyBackgroundTasks", StartOrder: 932, StopOrder: 68, Stop: tasks.Stop})
-	manager.Register(lifecycle.Hook{Name: "LegacyBackgroundBinding", StartOrder: -998, StopOrder: 850, Stop: func(context.Context) error { restore(); return nil }})
+	manager.Register(lifecycle.Hook{Name: "ApplicationBackgroundTasks", StartOrder: 932, StopOrder: 68, Stop: tasks.Stop})
 	return tasks
 }
 
-func provideGatewayRouteMiddleware(apiKeyAuth middleware.APIKeyAuthMiddleware, apiKeyService *apikey.APIKeyService, subscriptionService *billing.SubscriptionService, opsService *ops.OpsService, routingSettings *routing.RuntimeSettings, cfg *config.Config, queue *ops.ErrorLogQueue) gatewayhttp.RouteMiddleware {
+func provideGatewayRouteMiddleware(apiKeyAuth keyhttp.APIKeyAuthMiddleware, apiKeyService *apikey.APIKeyService, subscriptionService *billing.SubscriptionService, opsService *ops.OpsService, routingSettings *routing.RuntimeSettings, cfg *config.Config, queue *ops.ErrorLogQueue) gatewayhttp.RouteMiddleware {
 	return gatewayhttp.RouteMiddleware{
 		APIKeyAuth: gin.HandlerFunc(apiKeyAuth), GoogleAPIKeyAuth: newGatewayAuthorization(apiKeyService, subscriptionService, cfg, true),
 		BodyLimit: middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize), TextBodyLimit: middleware.RequestBodyLimit(cfg.Gateway.TextMaxBodySize), ClientRequestID: middleware.ClientRequestID(), OpsErrorLogger: gatewayhttp.OpsErrorLoggerMiddleware(opsService, queue, provideOpsObservationAccess()), EndpointNormalization: gatewayhttp.InboundEndpointMiddleware(),
-		RequireGroupAnthropic: provideGroupAssignmentGuard(routingSettings, middleware.AnthropicErrorWriter), RequireGroupGoogle: provideGroupAssignmentGuard(routingSettings, middleware.GoogleErrorWriter), ForceAntigravity: middleware.ForcePlatform(capability.PlatformAntigravity), ForcedPlatform: middleware.GetForcePlatformFromContext,
+		RequireGroupAnthropic: provideGroupAssignmentGuard(routingSettings, gatewayhttp.AnthropicErrorWriter), RequireGroupGoogle: provideGroupAssignmentGuard(routingSettings, gatewayhttp.GoogleErrorWriter), ForceAntigravity: keyhttp.ForcePlatform(capability.PlatformAntigravity), ForcedPlatform: keyhttp.GetForcePlatformFromContext,
 		Access: func(c *gin.Context) gatewayhttp.RouteAccess {
-			key, ok := middleware.GetAPIKeyFromContext(c)
+			key, ok := keyhttp.GetAPIKeyFromContext(c)
 			if !ok || key == nil {
 				return gatewayhttp.RouteAccess{}
 			}
@@ -79,7 +76,7 @@ func provideGatewayRouteMiddleware(apiKeyAuth middleware.APIKeyAuthMiddleware, a
 			return access
 		}, InstallClientProtocol: func(c *gin.Context, p protocol.ProtocolID) {
 			ctx := requeststate.WithClientProtocol(c.Request.Context(), p)
-			if key, ok := middleware.GetAPIKeyFromContext(c); ok && key != nil && key.Group != nil {
+			if key, ok := keyhttp.GetAPIKeyFromContext(c); ok && key != nil && key.Group != nil {
 				ctx = requeststate.WithGroup(ctx, key.Group)
 			}
 			c.Request = c.Request.WithContext(ctx)

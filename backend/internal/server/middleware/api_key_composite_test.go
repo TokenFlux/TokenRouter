@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	testkit "github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -65,7 +67,7 @@ func TestResolveCompositeAPIKeyRequestJSON(t *testing.T) {
 	body, err := io.ReadAll(c.Request.Body)
 	require.NoError(t, err)
 	require.Equal(t, "vendor/model", gjson.GetBytes(body, "model").String())
-	clientModel, actualModel, ok := GetCompositeModelFromContext(c)
+	clientModel, actualModel, ok := gatewayhttp.GetCompositeModelFromContext(c)
 	require.True(t, ok)
 	require.Equal(t, "gPt/vendor/model", clientModel)
 	require.Equal(t, "vendor/model", actualModel)
@@ -154,7 +156,7 @@ func TestResolveCompositeAPIKeyRequestSpecialEndpoints(t *testing.T) {
 	selected, err := resolveCompositeAPIKeyRequest(listContext, apiKeyService, compositeMiddlewareTestKey())
 	require.NoError(t, err)
 	require.Nil(t, selected.GroupID)
-	_, marked := listContext.Get(compositeKeyNoGroupContextKey)
+	_, marked := listContext.Get(gatewayhttp.CompositeKeyNoGroupContextKey)
 	require.True(t, marked)
 	require.False(t, isCompositeKeyBillingBypassEndpoint(http.MethodGet, "/v1/models"))
 	require.False(t, isCompositeKeyBillingBypassEndpoint(http.MethodGet, "/v1/images/batches/models"))

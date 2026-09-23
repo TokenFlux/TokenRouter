@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/gin-gonic/gin"
@@ -493,7 +494,7 @@ func (h *OpsHandler) CreateAlertSilence(c *gin.Context) {
 	}
 
 	createdBy := (*int64)(nil)
-	if subject, ok := identityhttp.GetAuthSubjectFromContext(c); ok {
+	if subject, ok := authctx.GetAuthSubjectFromContext(c); ok {
 		uid := subject.UserID
 		createdBy = &uid
 	}

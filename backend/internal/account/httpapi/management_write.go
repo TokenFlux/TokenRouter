@@ -81,7 +81,7 @@ func (h *ManagementHandler) Create(c *gin.Context) {
 	// 幂等重放时闭包不会执行，createdAccount 保持 nil，避免重复调度。
 	var createdAccount *accountcore.Record
 
-	result, err := idempotencyhttp.ExecuteAdminIdempotent(c, "admin.accounts.create", req, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	result, err := h.ExecuteAdminIdempotent(c, "admin.accounts.create", req, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		account, execErr := h.adminService.CreateAccount(ctx, &accountcore.CreateAccountInput{
 			Name:                  req.Name,
 			Notes:                 req.Notes,
@@ -147,13 +147,13 @@ func (h *ManagementHandler) Duplicate(c *gin.Context) {
 	}
 	actorScope := idempotencyhttp.AdminActorScope(c)
 
-	result, err := idempotencyhttp.ExecuteAdminIdempotent(
+	result, err := h.ExecuteAdminIdempotent(
 		c,
 		"admin.accounts.duplicate",
 		struct {
 			AccountID int64 `json:"account_id"`
 		}{AccountID: accountID},
-		idempotency.DefaultWriteIdempotencyTTL(),
+		h.DefaultWriteIdempotencyTTL(),
 		func(ctx context.Context) (any, error) {
 			account, execErr := h.adminService.DuplicateAccount(ctx, accountID, actorScope, c.GetHeader("Idempotency-Key"))
 			if execErr != nil {

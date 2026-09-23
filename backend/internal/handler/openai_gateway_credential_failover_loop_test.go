@@ -16,10 +16,14 @@ import (
 	"testing"
 	"time"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
@@ -35,7 +39,6 @@ import (
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 
@@ -47,9 +50,10 @@ import (
 )
 
 type grokCredentialHandlerRepo struct {
-	service.AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	mu             sync.Mutex
-	accounts       []service.Account
+	accounts       []gatewayprovider.ExecutionAccount
 	setErrorIDs    []int64
 	setTempIDs     []int64
 	rateLimitIDs   []int64
@@ -60,37 +64,37 @@ type grokCredentialHandlerRepo struct {
 	missingOnGet   map[int64]bool
 }
 
-func (r *grokCredentialHandlerRepo) ListSchedulableByPlatform(_ context.Context, platform string) ([]service.Account, error) {
+func (r *grokCredentialHandlerRepo) ListSchedulableByPlatform(_ context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.selectionCalls++
-	out := make([]service.Account, 0, len(r.accounts))
+	out := make([]gatewayprovider.ExecutionAccount, 0, len(r.accounts))
 	for _, account := range r.accounts {
-		if account.Platform == platform && account.IsSchedulable() {
+		if account.Record.Platform == platform && account.View().IsSchedulable() {
 			out = append(out, account)
 		}
 	}
 	return out, nil
 }
 
-func (r *grokCredentialHandlerRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, _ int64, platform string) ([]service.Account, error) {
+func (r *grokCredentialHandlerRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, _ int64, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return r.ListSchedulableByPlatform(ctx, platform)
 }
 
-func (r *grokCredentialHandlerRepo) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+func (r *grokCredentialHandlerRepo) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return r.ListSchedulableByPlatform(ctx, platform)
 }
 
-func (r *grokCredentialHandlerRepo) GetByID(_ context.Context, id int64) (*service.Account, error) {
+func (r *grokCredentialHandlerRepo) GetByID(_ context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.missingOnGet[id] {
 		return nil, nil
 	}
 	for _, account := range r.accounts {
-		if account.ID == id {
+		if account.Record.ID == id {
 			copy := account
-			copy.Credentials = cloneCredentialMap(account.Credentials)
+			copy.Record.Credentials = cloneCredentialMap(account.Record.Credentials)
 			return &copy, nil
 		}
 	}
@@ -105,10 +109,10 @@ func (r *grokCredentialHandlerRepo) SetError(_ context.Context, id int64, messag
 		return r.setErrorErr
 	}
 	for i := range r.accounts {
-		if r.accounts[i].ID == id {
-			r.accounts[i].Status = accountcore.StatusError
-			r.accounts[i].Schedulable = false
-			r.accounts[i].ErrorMessage = message
+		if r.accounts[i].Record.ID == id {
+			r.accounts[i].Record.Status = accountcore.StatusError
+			r.accounts[i].Record.Schedulable = false
+			r.accounts[i].Record.ErrorMessage = message
 		}
 	}
 	return nil
@@ -122,9 +126,9 @@ func (r *grokCredentialHandlerRepo) SetTempUnschedulable(_ context.Context, id i
 		return r.setTempErr
 	}
 	for i := range r.accounts {
-		if r.accounts[i].ID == id {
+		if r.accounts[i].Record.ID == id {
 			value := until
-			r.accounts[i].TempUnschedulableUntil = &value
+			r.accounts[i].Record.TempUnschedulableUntil = &value
 		}
 	}
 	return nil
@@ -135,13 +139,13 @@ func (r *grokCredentialHandlerRepo) SetRateLimited(_ context.Context, id int64, 
 	defer r.mu.Unlock()
 	r.rateLimitIDs = append(r.rateLimitIDs, id)
 	for i := range r.accounts {
-		if r.accounts[i].ID != id {
+		if r.accounts[i].Record.ID != id {
 			continue
 		}
 		now := time.Now()
-		r.accounts[i].RateLimitedAt = &now
+		r.accounts[i].Record.RateLimitedAt = &now
 		value := resetAt
-		r.accounts[i].RateLimitResetAt = &value
+		r.accounts[i].Record.RateLimitResetAt = &value
 	}
 	return nil
 }
@@ -149,7 +153,7 @@ func (r *grokCredentialHandlerRepo) SetRateLimited(_ context.Context, id int64, 
 func (r *grokCredentialHandlerRepo) SetRateLimitedIfLater(ctx context.Context, id int64, resetAt time.Time) error {
 	r.mu.Lock()
 	for i := range r.accounts {
-		if r.accounts[i].ID == id && r.accounts[i].RateLimitResetAt != nil && !resetAt.After(*r.accounts[i].RateLimitResetAt) {
+		if r.accounts[i].Record.ID == id && r.accounts[i].Record.RateLimitResetAt != nil && !resetAt.After(*r.accounts[i].Record.RateLimitResetAt) {
 			r.mu.Unlock()
 			return nil
 		}
@@ -168,16 +172,16 @@ func (r *grokCredentialHandlerRepo) SetGrokCredentialErrorIfMatch(
 	defer r.mu.Unlock()
 	for i := range r.accounts {
 		account := &r.accounts[i]
-		if account.ID != id || !handlerGrokCredentialSnapshotMatches(account, snapshot) {
+		if account.Record.ID != id || !handlerGrokCredentialSnapshotMatches(account, snapshot) {
 			continue
 		}
 		r.setErrorIDs = append(r.setErrorIDs, id)
 		if r.setErrorErr != nil {
 			return false, r.setErrorErr
 		}
-		account.Status = accountcore.StatusError
-		account.Schedulable = false
-		account.ErrorMessage = message
+		account.Record.Status = accountcore.StatusError
+		account.Record.Schedulable = false
+		account.Record.ErrorMessage = message
 		return true, nil
 	}
 	return false, nil
@@ -194,7 +198,7 @@ func (r *grokCredentialHandlerRepo) SetGrokCredentialTempUnschedulableIfMatch(
 	defer r.mu.Unlock()
 	for i := range r.accounts {
 		account := &r.accounts[i]
-		if account.ID != id || !handlerGrokCredentialSnapshotMatches(account, snapshot) {
+		if account.Record.ID != id || !handlerGrokCredentialSnapshotMatches(account, snapshot) {
 			continue
 		}
 		r.setTempIDs = append(r.setTempIDs, id)
@@ -202,19 +206,19 @@ func (r *grokCredentialHandlerRepo) SetGrokCredentialTempUnschedulableIfMatch(
 			return false, r.setTempErr
 		}
 		value := until
-		account.TempUnschedulableUntil = &value
+		account.Record.TempUnschedulableUntil = &value
 		return true, nil
 	}
 	return false, nil
 }
 
-func handlerGrokCredentialSnapshotMatches(account *service.Account, snapshot accountcore.CredentialMutationSnapshot) bool {
+func handlerGrokCredentialSnapshotMatches(account *gatewayprovider.ExecutionAccount, snapshot accountcore.CredentialMutationSnapshot) bool {
 	if account == nil {
 		return false
 	}
-	credentialsJSON, err := json.Marshal(account.Credentials)
-	return err == nil && account.IsGrokOAuth() && account.IsSchedulable() && string(credentialsJSON) == snapshot.CredentialsJSON &&
-		handlerGrokCredentialProxyIDsEqual(account.ProxyID, snapshot.ProxyID)
+	credentialsJSON, err := json.Marshal(account.Record.Credentials)
+	return err == nil && account.View().IsGrokOAuth() && account.View().IsSchedulable() && string(credentialsJSON) == snapshot.CredentialsJSON &&
+		handlerGrokCredentialProxyIDsEqual(account.Record.ProxyID, snapshot.ProxyID)
 }
 
 func handlerGrokCredentialProxyIDsEqual(left, right *int64) bool {
@@ -229,14 +233,14 @@ func (r *grokCredentialHandlerRepo) UpdateExtra(_ context.Context, id int64, upd
 	defer r.mu.Unlock()
 	r.updateExtraIDs = append(r.updateExtraIDs, id)
 	for i := range r.accounts {
-		if r.accounts[i].ID != id {
+		if r.accounts[i].Record.ID != id {
 			continue
 		}
-		if r.accounts[i].Extra == nil {
-			r.accounts[i].Extra = map[string]any{}
+		if r.accounts[i].Record.Extra == nil {
+			r.accounts[i].Record.Extra = map[string]any{}
 		}
 		for key, value := range updates {
-			r.accounts[i].Extra[key] = value
+			r.accounts[i].Record.Extra[key] = value
 		}
 	}
 	return nil
@@ -870,46 +874,43 @@ func findHandlerRefresherStarted(router *gin.Engine) <-chan struct{} {
 func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGatewayHandler, *grokCredentialHandlerRepo, *grokCredentialHandlerUpstream, *gin.Engine, func()) {
 	t.Helper()
 	groupID := int64(901)
-	accounts := []service.Account{
-		{
-			ID: 801, Name: "revoked", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 801, Name: "revoked", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 			Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 1,
 			Credentials: map[string]any{
 				"access_token": "expired", "refresh_token": "revoked-refresh",
 				"expires_at": time.Now().Add(-time.Minute).UTC().Format(time.RFC3339),
 			},
-			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true},
+			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true}},
 		},
-		{
-			ID: 802, Name: "healthy", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 802, Name: "healthy", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 			Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 2,
 			Credentials: map[string]any{
 				"access_token": "healthy-access", "refresh_token": "healthy-refresh",
 				"expires_at": time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339),
 			},
-			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true},
+			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true}},
 		},
 	}
 	if mode == "postmap_cancel" || mode == "first_402" || mode == "first_429" || mode == "all_429" || mode == "mixed_429_500" || mode == "mixed_500_429" || mode == "oauth_429_apikey_500" {
-		accounts[0].Credentials["expires_at"] = time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)
+		accounts[0].Record.Credentials["expires_at"] = time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)
 	}
 	if mode == "all_429" || mode == "mixed_429_500" || mode == "mixed_500_429" || mode == "oauth_429_apikey_500" {
-		accounts = append(accounts, service.Account{
-			ID: 803, Name: "untried-healthy", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+		accounts = append(accounts, gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 803, Name: "untried-healthy", Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
 			Status: billing.StatusActive, Schedulable: true, Concurrency: 1, Priority: 3,
 			Credentials: map[string]any{
 				"access_token": "untried-healthy-access", "refresh_token": "untried-healthy-refresh",
 				"expires_at": time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339),
 			},
-			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true},
+			Extra: map[string]any{accountcore.GrokMediaEligibleExtraKey: true}},
 		})
 	}
 	if mode == "oauth_429_apikey_500" {
-		accounts[1].Type = capability.AccountTypeAPIKey
-		accounts[1].Credentials = map[string]any{"api_key": "third-party-key"}
+		accounts[1].Record.Type = capability.AccountTypeAPIKey
+		accounts[1].Record.Credentials = map[string]any{"api_key": "third-party-key"}
 	}
 	if mode == "all_revoked" {
-		accounts[1].Credentials["expires_at"] = time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
+		accounts[1].Record.Credentials["expires_at"] = time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
 	}
 	repo := &grokCredentialHandlerRepo{accounts: accounts, missingOnGet: map[int64]bool{}}
 	if mode == "missing_row" {
@@ -959,10 +960,15 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	cfg.Gateway.MaxAccountSwitches = 3
 	billingCache := newBillingEligibilityFixture(cfg)
 	billingCache.Start()
+	completionInput2 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
+	completionInput3 := &accountcore.DeferredService{}
 	gateway := service.NewOpenAIGatewayService(
-		repo, nil, nil, nil, nil, nil, nil, cfg, nil, nil, billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil), nil, billingCache, upstream,
-		nil, &accountcore.DeferredService{}, nil, provider, nil, nil, nil, nil, nil,
+		repo, nil, nil, cfg, nil, nil, nil, upstream,
+		nil, completionInput3, newOpenAIExecutionCredentialsForTest(repo,
+			provider), provider, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil,
 	)
+	gateway.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput2, billingCache, completionInput3, nil, nil, true))
+
 	cache := &concurrencyCacheMock{
 		acquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },
 		acquireAccountSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },
@@ -970,7 +976,7 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	h := NewOpenAIGatewayHandler(gateway, scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
 	},
-	), newFundingAdmissionFixture(billingCache, cfg), &apikey.APIKeyService{}, nil, nil, nil, nil, cfg)
+	), newFundingAdmissionFixture(billingCache, cfg), &apikey.APIKeyService{}, nil, nil, nil, nil, cfg, nil)
 	apiKey := &apikey.APIKey{
 		ID: 902, GroupID: &groupID,
 		User: &identity.User{ID: 903, Status: billing.StatusActive},
@@ -988,8 +994,8 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 	}
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set(string(middleware.ContextKeyAPIKey), apiKey)
-		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: apiKey.User.ID, Concurrency: 1})
+		c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
+		c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: apiKey.User.ID, Concurrency: 1})
 		c.Next()
 	})
 	router.POST("/openai/v1/responses", h.Responses)

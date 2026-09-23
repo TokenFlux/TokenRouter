@@ -14,7 +14,9 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -22,7 +24,8 @@ import (
 
 // openAITransportAccountRepoStub 只记录临时不可调度调用，其他仓储方法不应被触达。
 type openAITransportAccountRepoStub struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	tempUnschedCalls []tempUnschedCall
 }
 
@@ -109,8 +112,8 @@ func newOpenAITransportErrTestContext() (*gin.Context, *httptest.ResponseRecorde
 
 func TestHandleOpenAIUpstreamTransportError_PersistentEvictsAndFailsOver(t *testing.T) {
 	repo := &openAITransportAccountRepoStub{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 4627, Name: "proxy-expired", Platform: capability.PlatformOpenAI}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4627, Name: "proxy-expired", Platform: capability.PlatformOpenAI}}
 	c, rec := newOpenAITransportErrTestContext()
 
 	before := time.Now()
@@ -132,8 +135,8 @@ func TestHandleOpenAIUpstreamTransportError_PersistentEvictsAndFailsOver(t *test
 
 func TestHandleOpenAIUpstreamTransportError_TransientFailsOverWithoutEviction(t *testing.T) {
 	repo := &openAITransportAccountRepoStub{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 99, Name: "flaky", Platform: capability.PlatformOpenAI}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 99, Name: "flaky", Platform: capability.PlatformOpenAI}}
 	c, rec := newOpenAITransportErrTestContext()
 
 	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account,
@@ -148,8 +151,8 @@ func TestHandleOpenAIUpstreamTransportError_TransientFailsOverWithoutEviction(t 
 
 func TestHandleOpenAIUpstreamTransportError_ContextCanceledNoFailover(t *testing.T) {
 	repo := &openAITransportAccountRepoStub{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 77, Name: "healthy", Platform: capability.PlatformOpenAI}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 77, Name: "healthy", Platform: capability.PlatformOpenAI}}
 	c, rec := newOpenAITransportErrTestContext()
 
 	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account, context.Canceled, false)
@@ -163,8 +166,8 @@ func TestHandleOpenAIUpstreamTransportError_ContextCanceledNoFailover(t *testing
 
 func TestHandleOpenAIUpstreamTransportError_WrappedContextCanceledNoFailover(t *testing.T) {
 	repo := &openAITransportAccountRepoStub{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 78, Name: "healthy2", Platform: capability.PlatformOpenAI}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 78, Name: "healthy2", Platform: capability.PlatformOpenAI}}
 	c, _ := newOpenAITransportErrTestContext()
 
 	err := svc.handleOpenAIUpstreamTransportError(context.Background(), c, account, fmt.Errorf("http request failed: %w", context.Canceled), false)
@@ -178,17 +181,15 @@ func TestHandleOpenAIUpstreamTransportError_WrappedContextCanceledNoFailover(t *
 // TestHandleOpenAIUpstreamTransportError_RecordsOllamaActivityOnly 验证传输错误只记录 Ollama Cloud 账号活动。
 func TestHandleOpenAIUpstreamTransportError_RecordsOllamaActivityOnly(t *testing.T) {
 	deferred, activity := newDeferredActivityRecorder(t)
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:     &openAITransportAccountRepoStub{},
 		deferredService: deferred,
+	}))
+	ollama := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 501, Name: "ollama-cloud", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"}},
 	}
-	ollama := &Account{
-		ID: 501, Name: "ollama-cloud", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"},
-	}
-	other := &Account{
-		ID: 502, Name: "openai-official", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{"api_key": "k-openai", "base_url": "https://api.openai.com"},
+	other := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 502, Name: "openai-official", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "k-openai", "base_url": "https://api.openai.com"}},
 	}
 	c, _ := newOpenAITransportErrTestContext()
 
@@ -205,13 +206,12 @@ func TestHandleOpenAIUpstreamTransportError_RecordsOllamaActivityOnly(t *testing
 // TestHandleOpenAIUpstreamTransportError_ContextCanceledSkipsOllamaActivity 验证客户端取消不会记录活动。
 func TestHandleOpenAIUpstreamTransportError_ContextCanceledSkipsOllamaActivity(t *testing.T) {
 	deferred, activity := newDeferredActivityRecorder(t)
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:     &openAITransportAccountRepoStub{},
 		deferredService: deferred,
-	}
-	ollama := &Account{
-		ID: 503, Name: "ollama-canceled", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"},
+	}))
+	ollama := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 503, Name: "ollama-canceled", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"}},
 	}
 	c, _ := newOpenAITransportErrTestContext()
 
@@ -226,14 +226,12 @@ func TestHandleOpenAIUpstreamTransportError_ContextCanceledSkipsOllamaActivity(t
 // TestHandleOpenAIAccountUpstreamError_RecordsOllamaActivityOnly 验证非 2xx 响应只记录 Ollama Cloud 账号活动。
 func TestHandleOpenAIAccountUpstreamError_RecordsOllamaActivityOnly(t *testing.T) {
 	deferred, activity := newDeferredActivityRecorder(t)
-	svc := &OpenAIGatewayService{deferredService: deferred}
-	ollama := &Account{
-		ID: 504, Name: "ollama-429", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"},
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{deferredService: deferred})
+	ollama := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 504, Name: "ollama-429", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"}},
 	}
-	other := &Account{
-		ID: 505, Name: "openai-429", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
-		Credentials: map[string]any{"api_key": "k-openai", "base_url": "https://api.openai.com"},
+	other := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 505, Name: "openai-429", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "k-openai", "base_url": "https://api.openai.com"}},
 	}
 
 	_ = svc.handleOpenAIAccountUpstreamError(context.Background(), ollama, http.StatusTooManyRequests, http.Header{}, []byte(`{"error":{"message":"rate"}}`), "gpt-test")

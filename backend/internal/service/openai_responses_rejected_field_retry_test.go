@@ -10,10 +10,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -572,7 +574,7 @@ func TestOpenAIGatewayServiceProactivelyStripsCrossProviderReasoningContent(t *t
 func TestOpenAIGatewayService_OpenAIHTTPStripsInputNamespacesBeforeFirstForward(t *testing.T) {
 	accounts := []struct {
 		name    string
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 	}{
 		{name: "oauth", account: newOpenAIOAuthNamespaceTestAccount()},
 		{name: "apikey", account: newOpenAIRejectedFieldTestAccount()},
@@ -652,12 +654,12 @@ func TestOpenAIGatewayService_ComposesProactiveNamespaceStripWithRejectedFieldRe
 }
 
 func newOpenAIRejectedFieldTestService(upstream *httpUpstreamRecorder) *OpenAIGatewayService {
-	return &OpenAIGatewayService{
+	return withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Security: config.SecurityConfig{
 			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 		}},
 		httpUpstream: upstream,
-	}
+	})
 }
 
 func newOpenAIRejectedFieldTestContext(body []byte) *gin.Context {
@@ -670,9 +672,8 @@ func newOpenAIRejectedFieldTestContext(body []byte) *gin.Context {
 	return c
 }
 
-func newOpenAIRejectedFieldTestAccount() *Account {
-	return &Account{
-		ID:          5107,
+func newOpenAIRejectedFieldTestAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5107,
 		Name:        "responses-compatible",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -685,13 +686,12 @@ func newOpenAIRejectedFieldTestAccount() *Account {
 			accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModePreserveClientProtocol),
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 }
 
-func newOpenAIOAuthNamespaceTestAccount() *Account {
-	return &Account{
-		ID:          5108,
+func newOpenAIOAuthNamespaceTestAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5108,
 		Name:        "openai-oauth-namespace",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -701,7 +701,7 @@ func newOpenAIOAuthNamespaceTestAccount() *Account {
 			"chatgpt_account_id": "chatgpt-account",
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 }
 

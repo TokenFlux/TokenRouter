@@ -3,6 +3,7 @@ package text
 import (
 	"context"
 	"errors"
+	"maps"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
@@ -15,11 +16,13 @@ type qoderCompatibleFixture struct {
 	refresh                                                               QoderRefreshResult
 	selects, forwards, refreshes, switched, partials, successes, acquires int
 	knownError                                                            bool
+	exclusions                                                            []map[int64]struct{}
 	pending, failed                                                       bool
 }
 
 func (*qoderCompatibleFixture) Context() context.Context { return context.Background() }
-func (p *qoderCompatibleFixture) Select(map[int64]struct{}) (Selection, error) {
+func (p *qoderCompatibleFixture) Select(excluded map[int64]struct{}) (Selection, error) {
+	p.exclusions = append(p.exclusions, maps.Clone(excluded))
 	p.selects++
 	return Selection{Account: account.AccountSnapshot{ID: int64(p.selects)}}, nil
 }
@@ -78,4 +81,20 @@ func TestQoderCompatibleAttemptBoundaries(t *testing.T) {
 		require.Equal(t, 1, p.selects)
 		require.Zero(t, p.successes)
 	})
+}
+
+// 原旧 helper 的账号排除与预算断言现在执行实际兼容入口循环。
+func TestQoderGatewayRefreshInProgressMarksAccountForFailoverUntilBudgetExhausted(t *testing.T) {
+	failure := errors.New("refresh pending")
+	result := QoderCompatibleOutcome{Err: failure, CanRefresh: true}
+	fixture := &qoderCompatibleFixture{results: []QoderCompatibleOutcome{result, result, result}, refresh: QoderRefreshResult{Pending: true}}
+	RunQoderCompatible(fixture, 3)
+	require.Equal(t, 3, fixture.selects)
+	require.Equal(t, 2, fixture.switched)
+	require.True(t, fixture.pending)
+	require.Empty(t, fixture.exclusions[0])
+	require.Contains(t, fixture.exclusions[1], int64(1))
+	require.Contains(t, fixture.exclusions[2], int64(1))
+	require.Contains(t, fixture.exclusions[2], int64(2))
+	require.Zero(t, fixture.successes)
 }

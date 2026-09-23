@@ -6,10 +6,16 @@ import (
 	"net/http"
 	"time"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -35,10 +41,10 @@ func (p *wsStreamAdapter) ObserveModel(body []byte, event string) {
 }
 func (p *wsStreamAdapter) ResponseTier() string { return p.observer.ServiceTier() }
 func (p *wsStreamAdapter) ResolvedTier(body []byte) *string {
-	return gatewayhttp.ResolvedOpenAIUpstreamServiceTierFromObserver(p.observer, extractOpenAIServiceTierFromBody(body))
+	return gatewayhttp.ResolvedOpenAIUpstreamServiceTierFromObserver(p.observer, requeststate.ExtractOpenAIServiceTierFromBody(body))
 }
 func (p *wsStreamAdapter) Reasoning(body []byte, mapped, original string) *string {
-	return ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(body, mapped, original), body, mapped)
+	return gatewayprovider.ApplyThinkingEnabledFallback(requeststate.ExtractOpenAIReasoningEffortFromBody(body, mapped, original), body, mapped)
 }
 func (p *wsStreamAdapter) ImageCounter() gatewayws.ImageCounter {
 	return wire.NewOpenAIImageOutputCounter()
@@ -53,13 +59,13 @@ func (p *wsStreamAdapter) StoreDisabled(body []byte) bool {
 	return p.service.isOpenAIWSStoreDisabledInRequestRaw(body, p.account)
 }
 func (p *wsStreamAdapter) ClassifyPrevious(id string) string {
-	return ClassifyOpenAIPreviousResponseIDKind(id)
+	return wire.ClassifyOpenAIPreviousResponseIDKind(id)
 }
 func (p *wsStreamAdapter) HasToolOutput(body []byte) bool {
 	return openai.OpenAIWSRawPayloadHasToolCallOutput(body)
 }
 func (p *wsStreamAdapter) MappedModel(model string) string {
-	return normalizeOpenAIModelForUpstream(p.account, resolveAccountMappedModelForForward(p.account, model))
+	return gatewayprovider.ExecutionModelPolicy(p.account).NormalizeOpenAI(resolveAccountMappedModelForForward(p.account, model))
 }
 func (p *wsStreamAdapter) Envelope(body []byte) (string, string, bool) {
 	event, id, _ := wire.ParseWSEventEnvelope(body)
@@ -72,20 +78,20 @@ func (p *wsStreamAdapter) ParseUsage(body []byte, usage *wire.ForwardUsage) {
 	wire.ParseWSResponseUsageFromCompletedEvent(body, usage)
 }
 func (p *wsStreamAdapter) MarkCyber(body []byte, usage *wire.ForwardUsage) {
-	markOpenAICyberPolicyEvent(p.request, body, http.StatusOK, usage)
+	gatewayhttp.MarkOpenAICyberPolicyEvent(p.request, body, http.StatusOK, usage)
 }
 func (p *wsStreamAdapter) SchedulingModel(model string) string {
-	return canonicalOpenAIAccountSchedulingModel(p.account, model)
+	return gatewayprovider.ExecutionModelPolicy(p.account).CanonicalSchedulingModel(model)
 }
 func (p *wsStreamAdapter) ErrorDecision(ctx context.Context, model string, headers map[string][]string, body []byte) gatewayws.ErrorPolicy {
 	decision := p.service.handleOpenAIWSErrorEventTransientFailure(ctx, p.account, model, headers, body)
 	status := openAIWSErrorPolicyStatus(body)
-	return gatewayws.ErrorPolicy{Generic: decision.ShouldReturnGenericError(), Failover: decision.ShouldFailoverWithDefaults(p.account, status, status == http.StatusTooManyRequests, p.service.shouldFailoverOpenAIWSError(p.account, status, body)), RetrySame: decision.RetryableOnSameAccount(p.account, status)}
+	return gatewayws.ErrorPolicy{Generic: decision.ShouldReturnGenericError(), Failover: decision.ShouldFailoverWithDefaults(gatewayprovider.ExecutionErrorPolicy(p.account), status, status == http.StatusTooManyRequests, p.service.shouldFailoverOpenAIWSError(p.account, status, body)), RetrySame: decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(p.account), status)}
 }
 func (p *wsStreamAdapter) TerminalDecision(ctx context.Context, model string, headers map[string][]string, body []byte) gatewayws.TerminalPolicy {
 	policy := p.service.handleOpenAIWSTerminalTransientFailure(ctx, p.account, model, headers, body)
 	d := policy.Decision
-	return gatewayws.TerminalPolicy{TerminalEvent: policy.TerminalEvent, StatusCode: policy.StatusCode, Decision: gatewayws.ErrorPolicy{Generic: d.ShouldReturnGenericError(), Failover: d.ShouldFailoverWithDefaults(p.account, policy.StatusCode, false, p.service.shouldFailoverOpenAIWSError(p.account, policy.StatusCode, body)), RetrySame: d.RetryableOnSameAccount(p.account, policy.StatusCode)}}
+	return gatewayws.TerminalPolicy{TerminalEvent: policy.TerminalEvent, StatusCode: policy.StatusCode, Decision: gatewayws.ErrorPolicy{Generic: d.ShouldReturnGenericError(), Failover: d.ShouldFailoverWithDefaults(gatewayprovider.ExecutionErrorPolicy(p.account), policy.StatusCode, false, p.service.shouldFailoverOpenAIWSError(p.account, policy.StatusCode, body)), RetrySame: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(p.account), policy.StatusCode)}}
 }
 func (p *wsStreamAdapter) ErrorFields(body []byte) (string, string, string) {
 	return wire.ParseWSErrorEventFields(body)

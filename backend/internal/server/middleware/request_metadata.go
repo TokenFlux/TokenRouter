@@ -6,7 +6,6 @@ import (
 
 const (
 	maxPersistentRequestIDBytes = 64
-	maxPersistentUserAgentBytes = 512
 )
 
 func normalizeCorrelationID(value string) (string, bool) {

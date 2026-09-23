@@ -6,11 +6,22 @@ import (
 	"fmt"
 	"strings"
 
+	accountconfig "github.com/TokenFlux/TokenRouter/internal/account"
+
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
+
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
+
 	coderws "github.com/coder/websocket"
 	"github.com/tidwall/sjson"
 )
@@ -48,10 +59,10 @@ func (p *wsRequestAdapter) Mutate(current []byte, path, value string) ([]byte, e
 	return rebuilt, nil
 }
 func (p *wsRequestAdapter) RequestedEffort(body []byte, model string) *string {
-	return CanonicalRequestedReasoningEffort(body, model)
+	return requeststate.CanonicalRequestedReasoningEffort(body, model)
 }
 func (p *wsRequestAdapter) ClassifyPrevious(id string) string {
-	return ClassifyOpenAIPreviousResponseIDKind(id)
+	return protocolopenai.ClassifyOpenAIPreviousResponseIDKind(id)
 }
 func (p *wsRequestAdapter) TurnMetadata() string {
 	return strings.TrimSpace(p.request.GetHeader(openai.WSTurnMetadataHeader))
@@ -59,12 +70,12 @@ func (p *wsRequestAdapter) TurnMetadata() string {
 func (p *wsRequestAdapter) ImagePolicy(ctx context.Context, body []byte) gatewayws.ImagePolicy {
 	apiKey := getAPIKeyFromContext(p.request)
 	allowed := GroupAllowsResponsesImages(apiKeyGroup(apiKey))
-	explicit := codexImageGenerationExplicitToolPolicyAllow
+	explicit := accountconfig.CodexImagePolicyAllow
 	if p.isCodex {
-		explicit = p.account.CodexImageGenerationExplicitToolPolicy()
+		explicit = gatewayprovider.ExecutionProtocolRecord(p.account).CodexImageGenerationExplicitToolPolicy()
 	}
 	explicit = groupResponsesExplicitToolPolicy(responsesPolicyGroup(ctx, apiKeyGroup(apiKey)), explicit)
-	bridge := p.isCodex && !isOpenAIResponsesLiteWebSocketPayload(body) && allowed && explicit != codexImageGenerationExplicitToolPolicyStrip && p.service.isCodexImageGenerationBridgeEnabled(ctx, p.account, apiKey)
+	bridge := p.isCodex && !gatewayprovider.ImageIntent().IsOpenAIResponsesLiteWebSocketPayload(body) && allowed && explicit != accountconfig.CodexImagePolicyStrip && p.service.isCodexImageGenerationBridgeEnabled(ctx, p.account, apiKey)
 	return gatewayws.ImagePolicy{Allowed: allowed, Explicit: explicit, Bridge: bridge}
 }
 func (p *wsRequestAdapter) BridgeImages(normalized []byte) ([]byte, error) {
@@ -75,18 +86,18 @@ func (p *wsRequestAdapter) BridgeImages(normalized []byte) ([]byte, error) {
 	bridgeModified := false
 	if ensureOpenAIResponsesImageGenerationTool(payloadMap) {
 		bridgeModified = true
-		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_tool_injected account_id=%d", p.account.ID)
+		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_tool_injected account_id=%d", p.account.Record.ID)
 	}
 	if ensureOpenAIResponsesImageGenerationToolChoiceAuto(payloadMap) {
 		bridgeModified = true
-		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_tool_choice_auto account_id=%d", p.account.ID)
+		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_tool_choice_auto account_id=%d", p.account.Record.ID)
 	}
 	if openai.NormalizeOpenAIResponsesImageGenerationTools(payloadMap) {
 		bridgeModified = true
 	}
 	if applyCodexImageGenerationBridgeInstructions(payloadMap) {
 		bridgeModified = true
-		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_bridge_instructions_added account_id=%d", p.account.ID)
+		gatewayprovider.LogOpenAIWSModeInfo("ingress_ws_codex_image_bridge_instructions_added account_id=%d", p.account.Record.ID)
 	}
 	if bridgeModified {
 		rebuilt, marshalErr := json.Marshal(payloadMap)
@@ -106,14 +117,16 @@ func (p *wsRequestAdapter) StripSparkImages(body []byte, model string) ([]byte, 
 	return stripCodexSparkImageGenerationToolFromRawPayload(body, model)
 }
 func (p *wsRequestAdapter) ImageIntent(routing, upstream string, body []byte) ([]byte, bool, bool) {
-	return openAIWSImageIntentForRoutingModel(routing, upstream, body, p.account.Platform)
+	return openAIWSImageIntentForRoutingModel(routing, upstream, body, p.account.Record.Platform)
 }
 func (p *wsRequestAdapter) FeatureDenied() {
 	gatewayhttp.MarkOpsClientBusinessLimited(p.request, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
-func (p *wsRequestAdapter) ImageDeniedMessage() string { return ImageGenerationPermissionMessage() }
+func (p *wsRequestAdapter) ImageDeniedMessage() string {
+	return gatewaymedia.ImageGenerationPermissionMessage
+}
 func (p *wsRequestAdapter) ImageBilling(body []byte, model string) (gatewayws.ImageBilling, error) {
-	result, err := resolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, model)
+	result, err := gatewayprovider.ImageIntent().ResolveOpenAIResponsesImageBillingConfigDetailedFromBody(body, model)
 	if err != nil {
 		return gatewayws.ImageBilling{}, err
 	}

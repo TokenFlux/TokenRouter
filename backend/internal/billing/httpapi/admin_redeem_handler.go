@@ -12,7 +12,6 @@ import (
 	time "time"
 
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
@@ -32,6 +31,8 @@ type RedeemAdministrator interface {
 
 // AdminRedeemHandler handles admin redeem code management
 type AdminRedeemHandler struct {
+	idempotencyhttp.Executor
+
 	adminService  RedeemAdministrator
 	redeemService *billing.RedeemService
 }
@@ -202,7 +203,7 @@ func (h *AdminRedeemHandler) Generate(c *gin.Context) {
 		return
 	}
 
-	idempotencyhttp.ExecuteAdminIdempotentJSON(c, "admin.redeem_codes.generate", req, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.redeem_codes.generate", req, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		codes, execErr := h.adminService.GenerateRedeemCodes(ctx, &billing.GenerateRedeemCodesInput{
 			Code:      req.Code,
 			Count:     req.Count,
@@ -256,7 +257,7 @@ func (h *AdminRedeemHandler) CreateAndRedeem(c *gin.Context) {
 		return
 	}
 
-	idempotencyhttp.ExecuteAdminIdempotentJSON(c, "admin.redeem_codes.create_and_redeem", req, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.redeem_codes.create_and_redeem", req, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		existing, err := h.redeemService.GetByCode(ctx, req.Code)
 		if err == nil {
 			return h.resolveCreateAndRedeemExisting(ctx, existing, req.UserID)

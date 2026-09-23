@@ -8,9 +8,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -36,15 +39,14 @@ func TestRemovedGPT56AliasAcrossGatewayProtocols(t *testing.T) {
 					}}
 					cfg := &config.Config{}
 					cfg.Security.URLAllowlist.Enabled = false
-					svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-					account := &Account{
-						ID: 991, Name: "alias-regression", Platform: capability.PlatformOpenAI, Type: accountType, Concurrency: 1,
+					svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+					account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 991, Name: "alias-regression", Platform: capability.PlatformOpenAI, Type: accountType, Concurrency: 1,
 						Credentials: map[string]any{"api_key": "sk-test", "access_token": "oauth-test", "base_url": "https://example.com", "chatgpt_account_id": "test-account"},
-						Extra:       map[string]any{"use_responses_api": true},
+						Extra:       map[string]any{"use_responses_api": true}},
 					}
 					want := "gpt-5.6"
 					if explicit {
-						account.Credentials["model_mapping"] = map[string]any{"gpt-5.6": "gpt-5.6-sol"}
+						account.Record.Credentials["model_mapping"] = map[string]any{"gpt-5.6": "gpt-5.6-sol"}
 						want = "gpt-5.6-sol"
 					}
 					body := map[string]any{"model": "gpt-5.6", "stream": false, "max_tokens": 16}

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
@@ -12,8 +13,9 @@ import (
 )
 
 // provideAccountDiagnostics 保留原诊断装配与唯一调度反馈，执行算法留 S07。
-func provideAccountDiagnostics(admin *account.Admin, groups *routing.GroupAdmin, concurrency *scheduler.ConcurrencyService, limits *service.RateLimitService, gateway *service.GatewayService, openai *service.OpenAIGatewayService) *service.AdvancedSchedulerScoreDiagnosticService {
+func provideAccountDiagnostics(admin *account.Admin, groups *routing.GroupAdmin, concurrency *scheduler.ConcurrencyService, limits *service.RateLimitService, gateway *service.GatewayService, openai *service.OpenAIGatewayService, shared *schedulerSharedState) *service.AdvancedSchedulerScoreDiagnosticService {
 	core := service.NewAdvancedSchedulerScoreDiagnosticService(accountDiagnosticSource{accounts: admin, groups: groups}, concurrency, limits)
+	core.BindSchedulerRuntime(shared.Feedback, shared.Parameters)
 	core.SetSchedulingServices(gateway, openai)
 	return core
 }
@@ -30,18 +32,18 @@ type accountDiagnosticSource struct {
 	groups   *routing.GroupAdmin
 }
 
-func (s accountDiagnosticSource) GetAccount(ctx context.Context, id int64) (*service.Account, error) {
+func (s accountDiagnosticSource) GetAccount(ctx context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	value, err := s.accounts.GetAccount(ctx, id)
-	return service.AccountFromRecord(value), err
+	return gatewayprovider.NewExecutionAccount(value), err
 }
 func (s accountDiagnosticSource) GetGroup(ctx context.Context, id int64) (*routing.Group, error) {
 	return s.groups.GetGroup(ctx, id)
 }
-func (s accountDiagnosticSource) ListAccountsForSchedulerScoreFilter(ctx context.Context, platform, kind, status, search string, gid int64, privacy string) ([]service.Account, error) {
+func (s accountDiagnosticSource) ListAccountsForSchedulerScoreFilter(ctx context.Context, platform, kind, status, search string, gid int64, privacy string) ([]gatewayprovider.ExecutionAccount, error) {
 	values, err := s.accounts.ListAccountsForSchedulerScoreFilter(ctx, platform, kind, status, search, gid, privacy)
-	return service.AccountsFromRecords(values), err
+	return gatewayprovider.ExecutionAccounts(values), err
 }
-func (s accountDiagnosticSource) ListSchedulableAccountsForAdvancedSchedulerScore(ctx context.Context, gid *int64, platform string) ([]service.Account, error) {
+func (s accountDiagnosticSource) ListSchedulableAccountsForAdvancedSchedulerScore(ctx context.Context, gid *int64, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	values, err := s.accounts.ListSchedulableAccountsForAdvancedSchedulerScore(ctx, gid, platform)
-	return service.AccountsFromRecords(values), err
+	return gatewayprovider.ExecutionAccounts(values), err
 }

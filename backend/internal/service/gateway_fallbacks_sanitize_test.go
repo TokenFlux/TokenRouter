@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/bedrock"
@@ -159,14 +162,14 @@ func TestBuildUpstreamRequest_OAuthMimicHaiku_StripsFallbacksEndToEnd(t *testing
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	account := &Account{ID: 601, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 601, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{"access_token": "oauth-tok"},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 	// 客户端默认透传 "fallbacks":"default"（Claude Code / SDK / OpenCode 等）
 	body := []byte(`{"model":"claude-haiku-4-5","fallbacks":"default","messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequest(
 		context.Background(), c, account, body,
 		"oauth-tok", "oauth", "claude-haiku-4-5", false, true, // mimicClaudeCode=true
@@ -195,7 +198,7 @@ func TestBuildUpstreamRequestAnthropicAPIKeyPassthrough_StripsFallbacksWhenClien
 	c.Request.Header.Set("Anthropic-Beta", "oauth-2025-04-20")
 
 	body := []byte(`{"model":"claude-haiku-4-5","fallbacks":"default","messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		context.Background(), c, newAnthropicAPIKeyPassthroughAccountForBetaTest(), body, "token",
 	)
@@ -214,7 +217,7 @@ func TestBuildUpstreamRequestAnthropicAPIKeyPassthrough_PreservesFallbacksWhenCl
 
 	// 模型数组形态：有 beta 时必须原样保留
 	body := []byte(`{"model":"claude-opus-4-7","fallbacks":["claude-opus-4-6","claude-sonnet-4-6"],"messages":[]}`)
-	svc := &GatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}})
 	req, _, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		context.Background(), c, newAnthropicAPIKeyPassthroughAccountForBetaTest(), body, "token",
 	)

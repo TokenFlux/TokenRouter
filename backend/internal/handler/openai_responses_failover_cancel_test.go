@@ -3,8 +3,14 @@
 package handler
 
 import (
+	time "time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	testkit "github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"bytes"
 	"context"
@@ -29,7 +35,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -38,13 +43,14 @@ import (
 
 // openAIResponsesFailoverAccountRepo 为 failover 用例提供按平台选号和账号回读。
 type openAIResponsesFailoverAccountRepo struct {
-	service.AccountRepository
-	accounts []service.Account
+	gatewayprovider.ExecutionAccountStore
+
+	accounts []gatewayprovider.ExecutionAccount
 }
 
-func (r openAIResponsesFailoverAccountRepo) GetByID(_ context.Context, id int64) (*service.Account, error) {
+func (r openAIResponsesFailoverAccountRepo) GetByID(_ context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	for i := range r.accounts {
-		if r.accounts[i].ID == id {
+		if r.accounts[i].Record.ID == id {
 			account := r.accounts[i]
 			return &account, nil
 		}
@@ -52,22 +58,22 @@ func (r openAIResponsesFailoverAccountRepo) GetByID(_ context.Context, id int64)
 	return nil, scheduler.ErrNoAvailableAccounts
 }
 
-func (r openAIResponsesFailoverAccountRepo) ListSchedulableByGroupIDAndPlatform(_ context.Context, _ int64, platform string) ([]service.Account, error) {
+func (r openAIResponsesFailoverAccountRepo) ListSchedulableByGroupIDAndPlatform(_ context.Context, _ int64, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return r.accountsForPlatform(platform), nil
 }
 
-func (r openAIResponsesFailoverAccountRepo) ListSchedulableByPlatform(_ context.Context, platform string) ([]service.Account, error) {
+func (r openAIResponsesFailoverAccountRepo) ListSchedulableByPlatform(_ context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return r.accountsForPlatform(platform), nil
 }
 
-func (r openAIResponsesFailoverAccountRepo) ListSchedulableUngroupedByPlatform(_ context.Context, platform string) ([]service.Account, error) {
+func (r openAIResponsesFailoverAccountRepo) ListSchedulableUngroupedByPlatform(_ context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return r.accountsForPlatform(platform), nil
 }
 
-func (r openAIResponsesFailoverAccountRepo) accountsForPlatform(platform string) []service.Account {
-	out := make([]service.Account, 0, len(r.accounts))
+func (r openAIResponsesFailoverAccountRepo) accountsForPlatform(platform string) []gatewayprovider.ExecutionAccount {
+	out := make([]gatewayprovider.ExecutionAccount, 0, len(r.accounts))
 	for _, account := range r.accounts {
-		if account.Platform == platform {
+		if account.Record.Platform == platform {
 			out = append(out, account)
 		}
 	}
@@ -118,9 +124,8 @@ func (u *openAIResponsesFailoverCancelUpstream) calls() []int64 {
 func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.UpstreamTransport) *OpenAIGatewayHandler {
 	t.Helper()
 	proxyID := int64(11)
-	accounts := []service.Account{
-		{
-			ID:          1,
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 			Name:        "responses-account-1",
 			Platform:    capability.PlatformOpenAI,
 			Type:        capability.AccountTypeOAuth,
@@ -138,10 +143,9 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 				Port:     8080,
 				Username: "proxy-user-secret",
 				Password: "proxy-password-secret",
-			},
+			}},
 		},
-		{
-			ID:          2,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 			Name:        "responses-account-2",
 			Platform:    capability.PlatformOpenAI,
 			Type:        capability.AccountTypeOAuth,
@@ -149,7 +153,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 			Schedulable: true,
 			Concurrency: 0,
 			Priority:    1,
-			Credentials: map[string]any{"access_token": "token-2"},
+			Credentials: map[string]any{"access_token": "token-2"}},
 		},
 	}
 	accountRepo := openAIResponsesFailoverAccountRepo{accounts: accounts}
@@ -157,28 +161,35 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 	gatewayService := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+
 		nil,
 		cfg,
 		nil,
 		nil,
+
 		nil,
-		nil,
-		nil,
+
 		upstream,
 		nil,
+		nil, newOpenAIExecutionCredentialsForTest(accountRepo,
+
+			nil), nil,
 		nil,
 		nil,
+
 		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
+		nil, responseHeaderFilterForTest(cfg), nil,
 	)
+	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil,
+
+		nil,
+
+		nil,
+
+		nil,
+
+		nil, nil, true))
+
 	billingService := newBillingEligibilityFixture(cfg)
 	billingService.Start()
 	t.Cleanup(billingService.Stop)
@@ -192,7 +203,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 		nil,
 		nil,
 		nil,
-		cfg,
+		cfg, nil,
 	)
 	handler.maxAccountSwitches = 10
 	return handler
@@ -210,7 +221,7 @@ func newOpenAIResponsesFailoverTestContext(t *testing.T, ctx context.Context) (*
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
-	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
+	c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      99,
 		GroupID: &groupID,
 		Group: &routing.Group{
@@ -219,7 +230,7 @@ func newOpenAIResponsesFailoverTestContext(t *testing.T, ctx context.Context) (*
 		},
 		User: &identity.User{ID: 100},
 	})
-	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 100, Concurrency: 0})
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 100, Concurrency: 0})
 	return c, rec
 }
 

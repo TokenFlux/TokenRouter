@@ -8,6 +8,12 @@ import (
 	"strconv"
 	"time"
 
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+
+	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
 
@@ -83,14 +89,14 @@ func (p *PanelRateLimiter) userScoped(scope string, limitOf func(runtimeconfig.P
 			c.Next()
 			return
 		}
-		subject, ok := GetAuthSubjectFromContext(c)
+		subject, ok := authctx.GetAuthSubjectFromContext(c)
 		if !ok || subject.UserID <= 0 {
 			// 无认证主体（认证中间件缺位时的防御分支）：放行，避免误伤
 			c.Next()
 			return
 		}
 		if settings.ExemptAdmin {
-			if role, hasRole := GetUserRoleFromContext(c); hasRole && role == identity.RoleAdmin {
+			if role, hasRole := authctx.GetUserRoleFromContext(c); hasRole && role == identity.RoleAdmin {
 				c.Next()
 				return
 			}
@@ -127,7 +133,7 @@ func (p *PanelRateLimiter) PublicIP() gin.HandlerFunc {
 			c.Next()
 			return
 		}
-		clientIP := SecurityClientIP(c)
+		clientIP := identityhttp.SecurityClientIP(c)
 		if !isPubliclyRoutableClientIP(clientIP) {
 			c.Next()
 			return
@@ -170,5 +176,5 @@ func abortPanelRateLimited(c *gin.Context, retryAfter time.Duration) {
 		seconds++
 	}
 	c.Header("Retry-After", strconv.FormatInt(seconds, 10))
-	AbortWithError(c, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests, please slow down and try again later")
+	httpx.AbortWithError(c, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests, please slow down and try again later")
 }

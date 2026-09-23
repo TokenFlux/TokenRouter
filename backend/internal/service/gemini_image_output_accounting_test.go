@@ -196,7 +196,7 @@ func TestHandleNativeNonStreamingResponse_FeedsImageCounter(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
 
-	svc := &GeminiMessagesCompatService{}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{})
 	usage, err := svc.handleNativeNonStreamingResponse(c, resp, false)
 	require.NoError(t, err)
 	require.NotNil(t, usage)

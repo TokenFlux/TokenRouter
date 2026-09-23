@@ -5,6 +5,8 @@ import (
 	errors "errors"
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	gin "github.com/gin-gonic/gin"
 )
@@ -74,7 +76,7 @@ func JWTAuth(
 			return
 		}
 
-		SetPrincipal(c, identity.Principal{UserID: user.ID, Role: user.Role, SessionID: claims.SessionID, CredentialKind: "jwt"}, user.Concurrency, user.Email)
+		authctx.SetPrincipal(c, identity.Principal{UserID: user.ID, Role: user.Role, SessionID: claims.SessionID, CredentialKind: "jwt"}, user.Concurrency, user.Email)
 		if activityToucher != nil {
 			activityToucher.TouchLastActiveForUser(c.Request.Context(), user)
 		}

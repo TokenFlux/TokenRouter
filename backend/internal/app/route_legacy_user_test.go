@@ -20,9 +20,9 @@ import (
 func RegisterUserRoutes(
 	v1 *gin.RouterGroup,
 	h *routeTestHandlers,
-	jwtAuth middleware.JWTAuthMiddleware,
+	jwtAuth identityhttp.JWTAuthMiddleware,
 	auditLog middleware.AuditLogMiddleware,
-	stepUpAuth middleware.StepUpAuthMiddleware,
+	stepUpAuth identityhttp.StepUpAuthMiddleware,
 	settingService *admission.BackendMode,
 	panelRateLimiter *middleware.PanelRateLimiter,
 ) {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/gin-gonic/gin"
@@ -21,15 +22,15 @@ const openAIResponsesNamespaceNamesContextKey = "openai_responses_namespace_name
 // functions.<namespace>.<tool> 寻址的约定；compact 端点及账号兼容开关保持旧行为。
 // WSv2 出口不经过 HTTP 回程还原，因此始终保持 namespace 原样。
 func shouldFlattenOpenAIResponsesNamespaces(
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	transport egress.OpenAIUpstreamTransport,
 	passthroughEnabled bool,
 	compactPath bool,
 ) bool {
-	if account == nil || !account.IsOpenAIOAuthLike() {
+	if account == nil || !account.View().IsOpenAIOAuthLike() {
 		return false
 	}
-	if !compactPath && !account.IsOpenAIResponsesFlattenNamespacesEnabled() {
+	if !compactPath && !account.View().IsOpenAIResponsesFlattenNamespacesEnabled() {
 		return false
 	}
 	if transport == egress.OpenAIUpstreamTransportResponsesWebsocketV2 && !passthroughEnabled {
@@ -41,8 +42,8 @@ func shouldFlattenOpenAIResponsesNamespaces(
 // shouldStripOpenAIResponsesInputNamespaces removes residual input item
 // namespaces for OpenAI OAuth and API Key HTTP forwarding. Native WSv2 keeps
 // namespaces because that protocol supports them and does not restore payloads.
-func shouldStripOpenAIResponsesInputNamespaces(account *Account, transport egress.OpenAIUpstreamTransport, passthroughEnabled bool) bool {
-	if account == nil || (!account.IsOpenAIOAuthLike() && !account.IsOpenAIApiKey()) {
+func shouldStripOpenAIResponsesInputNamespaces(account *gatewayprovider.ExecutionAccount, transport egress.OpenAIUpstreamTransport, passthroughEnabled bool) bool {
+	if account == nil || (!account.View().IsOpenAIOAuthLike() && !account.View().IsOpenAIApiKey()) {
 		return false
 	}
 	if transport == egress.OpenAIUpstreamTransportResponsesWebsocketV2 && !passthroughEnabled {
@@ -66,7 +67,7 @@ func shouldStripOpenAIResponsesInputNamespaces(account *Account, transport egres
 //     namespace，否则声明与历史调用会失配并触发 Missing namespace。
 //   - 摊平模式下调用项已被改写成平名，残留 namespace 指向的声明已不存在，一律清理。
 func shouldKeepOpenAIResponsesToolCallNamespaces(
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	transport egress.OpenAIUpstreamTransport,
 	passthroughEnabled bool,
 	compactPath bool,
@@ -78,10 +79,10 @@ func shouldKeepOpenAIResponsesToolCallNamespaces(
 	if compactPath {
 		return false
 	}
-	if account.IsOpenAIApiKey() {
+	if account.View().IsOpenAIApiKey() {
 		return hasOpenAIResponsesNamespaceToolDeclaration(body)
 	}
-	if !account.IsOpenAIOAuthLike() {
+	if !account.View().IsOpenAIOAuthLike() {
 		return false
 	}
 	return !shouldFlattenOpenAIResponsesNamespaces(account, transport, passthroughEnabled, compactPath)

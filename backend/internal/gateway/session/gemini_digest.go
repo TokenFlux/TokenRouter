@@ -1,0 +1,108 @@
+package session
+
+import (
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"strconv"
+	"strings"
+
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream"
+
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+)
+
+// BuildGeminiDigestChain 根据 Gemini 请求生成摘要链
+// 格式: s:<hash>-u:<hash>-m:<hash>-u:<hash>-...
+// s = systemInstruction, u = user, m = model
+func BuildGeminiDigestChain(req *protocolgemini.GeminiRequest) string {
+	if req == nil {
+		return ""
+	}
+
+	var parts []string
+
+	// 1. system instruction
+	if req.SystemInstruction != nil && len(req.SystemInstruction.Parts) > 0 {
+		partsData, _ := json.Marshal(req.SystemInstruction.Parts)
+		parts = append(parts, "s:"+upstream.ShortHash(partsData))
+	}
+
+	// 2. contents
+	for _, c := range req.Contents {
+		prefix := "u" // user
+		if c.Role == "model" {
+			prefix = "m"
+		}
+		partsData, _ := json.Marshal(c.Parts)
+		parts = append(parts, prefix+":"+upstream.ShortHash(partsData))
+	}
+
+	return strings.Join(parts, "-")
+}
+
+// GenerateGeminiPrefixHash 生成前缀 hash（用于分区隔离）
+// 组合: userID + apiKeyID + ip + userAgent + platform + model
+// 返回 16 字符的 Base64 编码的 SHA256 前缀
+func GenerateGeminiPrefixHash(userID, apiKeyID int64, ip, userAgent, platform, model string) string {
+	// 组合所有标识符
+	normalizedUserAgent := requeststate.NormalizeSessionUserAgent(userAgent)
+	combined := strconv.FormatInt(userID, 10) + ":" +
+		strconv.FormatInt(apiKeyID, 10) + ":" +
+		ip + ":" +
+		normalizedUserAgent + ":" +
+		platform + ":" +
+		model
+
+	hash := sha256.Sum256([]byte(combined))
+	// 取前 12 字节，Base64 编码后正好 16 字符
+	return base64.RawURLEncoding.EncodeToString(hash[:12])
+}
+
+// ParseGeminiSessionValue 解析 Gemini 会话缓存值
+// 格式: {uuid}:{accountID}
+func ParseGeminiSessionValue(value string) (uuid string, accountID int64, ok bool) {
+	if value == "" {
+		return "", 0, false
+	}
+
+	// 找到最后一个 ":" 的位置（因为 uuid 可能包含 ":"）
+	i := strings.LastIndex(value, ":")
+	if i <= 0 || i >= len(value)-1 {
+		return "", 0, false
+	}
+
+	uuid = value[:i]
+	accountID, err := strconv.ParseInt(value[i+1:], 10, 64)
+	if err != nil {
+		return "", 0, false
+	}
+
+	return uuid, accountID, true
+}
+
+// FormatGeminiSessionValue 格式化 Gemini 会话缓存值
+// 格式: {uuid}:{accountID}
+func FormatGeminiSessionValue(uuid string, accountID int64) string {
+	return uuid + ":" + strconv.FormatInt(accountID, 10)
+}
+
+// geminiDigestSessionKeyPrefix Gemini 摘要 fallback 会话 key 前缀
+const geminiDigestSessionKeyPrefix = "gemini:digest:"
+
+// GenerateGeminiDigestSessionKey 生成 Gemini 摘要 fallback 的 sessionKey
+// 组合 prefixHash 前 8 位 + uuid 前 8 位，确保不同会话产生不同的 sessionKey
+// 用于在 SelectAccountWithLoadAwareness 中保持粘性会话
+func GenerateGeminiDigestSessionKey(prefixHash, uuid string) string {
+	prefix := prefixHash
+	if len(prefixHash) >= 8 {
+		prefix = prefixHash[:8]
+	}
+	uuidPart := uuid
+	if len(uuid) >= 8 {
+		uuidPart = uuid[:8]
+	}
+	return geminiDigestSessionKeyPrefix + prefix + ":" + uuidPart
+}

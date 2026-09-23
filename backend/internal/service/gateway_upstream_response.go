@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -14,6 +16,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	modelidentity "github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -42,11 +45,11 @@ func isClaudeCodeClient(userAgent string, metadataUserID string) bool {
 
 // shouldRectifySignatureError 统一判断是否应触发签名整流（strip thinking blocks 并重试）。
 // 根据账号类型检查对应的开关和匹配模式。
-func (s *GatewayService) shouldRectifySignatureError(ctx context.Context, account *Account, respBody []byte, mappedModel ...string) bool {
+func (s *GatewayService) shouldRectifySignatureError(ctx context.Context, account *gatewayprovider.ExecutionAccount, respBody []byte, mappedModel ...string) bool {
 	if len(mappedModel) > 0 && !modelidentity.ShouldRectifyThinkingSignatureError(mappedModel[0]) {
 		return false
 	}
-	if account.Type == capability.AccountTypeAPIKey {
+	if account.Record.Type == capability.AccountTypeAPIKey {
 		// API Key 账号：独立开关，一次读取配置
 		settings, err := s.settingService.Gateway.GetRectifierSettings(ctx)
 		if err != nil || !settings.Enabled || !settings.APIKeySignatureEnabled {
@@ -64,11 +67,11 @@ func (s *GatewayService) shouldRectifySignatureError(ctx context.Context, accoun
 
 // isSignatureErrorPattern 仅做模式匹配，不检查开关。
 // 用于已进入重试流程后的二阶段检测（此时开关已在首次调用时验证过）。
-func (s *GatewayService) isSignatureErrorPattern(ctx context.Context, account *Account, respBody []byte) bool {
+func (s *GatewayService) isSignatureErrorPattern(ctx context.Context, account *gatewayprovider.ExecutionAccount, respBody []byte) bool {
 	if s.isThinkingBlockSignatureError(respBody) {
 		return true
 	}
-	if account.Type == capability.AccountTypeAPIKey {
+	if account.Record.Type == capability.AccountTypeAPIKey {
 		settings, err := s.settingService.Gateway.GetRectifierSettings(ctx)
 		if err != nil {
 			return false
@@ -138,20 +141,20 @@ func (s *GatewayService) readUpstreamErrorBody(resp *http.Response) ([]byte, err
 	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }
 
-func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, requestedModel ...string) (*forwardcore.MessagesResult, error) {
+func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *gatewayprovider.ExecutionAccount, requestedModel ...string) (*forwardcore.MessagesResult, error) {
 	adapter := &anthropicErrorAdapter{s: s, c: c, account: account, resp: resp}
 	result, err := forwardcore.AnthropicError(ctx, adapter, adapter.input(requestedModel))
 	return legacyForwardExecutionResult(result), err
 }
 
-func (s *GatewayService) handleRetryExhaustedSideEffects(ctx context.Context, resp *http.Response, account *Account, requestedModel ...string) UpstreamErrorDecision {
+func (s *GatewayService) handleRetryExhaustedSideEffects(ctx context.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount, requestedModel ...string) accountcore.UpstreamErrorDecision {
 	body, _ := s.readUpstreamErrorBody(resp)
 	statusCode := resp.StatusCode
 	if s.rateLimitService == nil {
-		return upstreamErrorDecisionWithoutPersistence(account, statusCode)
+		return accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(account), statusCode)
 	}
-	policy := s.rateLimitService.ApplyExplicitErrorPolicy(ctx, account, statusCode, body, requestedModel...)
-	decision := UpstreamErrorDecision{Policy: policy}
+	policy := s.rateLimitService.UpstreamHealth().ApplyExplicitErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, statusCode, nil, body, requestedModel))
+	decision := accountcore.UpstreamErrorDecision{Policy: policy}
 	switch policy {
 	case accountcore.ErrorPolicyCustomMatched, accountcore.ErrorPolicyTempUnscheduled:
 		decision.StopScheduling = true
@@ -161,31 +164,31 @@ func (s *GatewayService) handleRetryExhaustedSideEffects(ctx context.Context, re
 	}
 
 	// OAuth/Setup Token 账号的 403：按上游错误策略处理账号状态。
-	if account.IsOAuth() && statusCode == 403 {
-		decision = s.rateLimitService.ApplyUpstreamError(ctx, account, statusCode, resp.Header, body, requestedModel...)
-		logging.LegacyPrintf("service.gateway", "Account %d: applied upstream error policy after %d retries for status %d", account.ID, maxRetryAttempts, statusCode)
+	if account.View().IsOAuth() && statusCode == 403 {
+		decision = gatewayprovider.ApplyExecutionHealth(ctx, s.rateLimitService.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(ctx, statusCode, resp.Header, body, requestedModel))
+		logging.LegacyPrintf("service.gateway", "Account %d: applied upstream error policy after %d retries for status %d", account.Record.ID, maxRetryAttempts, statusCode)
 	} else {
 		// API Key 未配置错误码：不标记账号状态
-		logging.LegacyPrintf("service.gateway", "Account %d: upstream error %d after %d retries (not marking account)", account.ID, statusCode, maxRetryAttempts)
+		logging.LegacyPrintf("service.gateway", "Account %d: upstream error %d after %d retries (not marking account)", account.Record.ID, statusCode, maxRetryAttempts)
 	}
 	return decision
 }
 
-func (s *GatewayService) handleFailoverSideEffects(ctx context.Context, resp *http.Response, account *Account, requestedModel ...string) UpstreamErrorDecision {
+func (s *GatewayService) handleFailoverSideEffects(ctx context.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount, requestedModel ...string) accountcore.UpstreamErrorDecision {
 	body, _ := s.readUpstreamErrorBody(resp)
 	if s.rateLimitService == nil {
-		return upstreamErrorDecisionWithoutPersistence(account, resp.StatusCode)
+		return accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode)
 	}
 	if len(requestedModel) > 0 {
-		return s.rateLimitService.ApplyUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, requestedModel[0])
+		return gatewayprovider.ApplyExecutionHealth(ctx, s.rateLimitService.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(ctx, resp.StatusCode, resp.Header, body, []string{requestedModel[0]}))
 	}
-	return s.rateLimitService.ApplyUpstreamError(ctx, account, resp.StatusCode, resp.Header, body)
+	return gatewayprovider.ApplyExecutionHealth(ctx, s.rateLimitService.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(ctx, resp.StatusCode, resp.Header, body, nil))
 }
 
 // handleRetryExhaustedError 处理重试耗尽后的错误
 // OAuth 403：按错误策略处理账号状态
 // API Key 未配置错误码：仅返回错误，不标记账号
-func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, requestedModel ...string) (*forwardcore.MessagesResult, error) {
+func (s *GatewayService) handleRetryExhaustedError(ctx context.Context, resp *http.Response, c *gin.Context, account *gatewayprovider.ExecutionAccount, requestedModel ...string) (*forwardcore.MessagesResult, error) {
 	adapter := &anthropicErrorAdapter{s: s, c: c, account: account, resp: resp}
 	result, err := forwardcore.AnthropicRetryError(ctx, adapter, adapter.input(requestedModel))
 	return legacyForwardExecutionResult(result), err
@@ -198,7 +201,7 @@ type streamingResult struct {
 	clientDisconnect bool // 客户端是否在流式传输过程中断开
 }
 
-func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
+func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *gatewayprovider.ExecutionAccount, startTime time.Time, originalModel, mappedModel string, mimicClaudeCode bool) (*streamingResult, error) {
 	options := s.anthropicStreamOptions(c, account)
 	result, err := claude.StreamResponse(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), options, startTime, originalModel, mappedModel, mimicClaudeCode)
 	if result == nil {
@@ -211,27 +214,27 @@ func (s *GatewayService) parseSSEUsage(data string, usage *upstream.TokenUsage) 
 	protocolanthropic.ParseSSEUsage(data, usage)
 }
 
-func (s *GatewayService) resolveCacheTTLUsageOverrideTarget(ctx context.Context, account *Account) (string, bool) {
+func (s *GatewayService) resolveCacheTTLUsageOverrideTarget(ctx context.Context, account *gatewayprovider.ExecutionAccount) (string, bool) {
 	if account == nil {
 		return "", false
 	}
-	if account.IsCacheTTLOverrideEnabled() {
-		return account.GetCacheTTLOverrideTarget(), true
+	if account.View().IsCacheTTLOverrideEnabled() {
+		return account.View().GetCacheTTLOverrideTarget(), true
 	}
-	if account.IsAnthropicOAuthOrSetupToken() && s != nil && s.settingService != nil && s.settingService.Gateway.IsAnthropicCacheTTL1hInjectionEnabled(ctx) {
+	if account.View().IsAnthropicOAuthOrSetupToken() && s != nil && s.settingService != nil && s.settingService.Gateway.IsAnthropicCacheTTL1hInjectionEnabled(ctx) {
 		return cacheTTLTarget5m, true
 	}
 	return "", false
 }
 
-func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *Account, originalModel, mappedModel string) (*upstream.TokenUsage, error) {
+func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *http.Response, c *gin.Context, account *gatewayprovider.ExecutionAccount, originalModel, mappedModel string) (*upstream.TokenUsage, error) {
 	options := s.anthropicResponseOptions(ctx, c, account, mappedModel, false)
 	return claude.NonStreamResponse(ctx, resp, upstream.NewOutputContext(gatewayhttp.ResponseSink{Writer: c.Writer}), options, originalModel, mappedModel)
 }
 
 // anthropicStreamOptions 保留逐事件动态设置读取和旧账号观测的时机。
-func (s *GatewayService) anthropicStreamOptions(c *gin.Context, account *Account) claude.StreamOptions {
-	o := claude.StreamOptions{AccountID: account.ID, ToolNames: toolNameRewriteFromContext(c), UpdateWindow: func(ctx context.Context, h http.Header) { s.rateLimitService.UpdateSessionWindow(ctx, account, h) }, OverrideCache: func(ctx context.Context) (string, bool) { return s.resolveCacheTTLUsageOverrideTarget(ctx, account) }, Failover: func(body []byte) error {
+func (s *GatewayService) anthropicStreamOptions(c *gin.Context, account *gatewayprovider.ExecutionAccount) claude.StreamOptions {
+	o := claude.StreamOptions{AccountID: account.Record.ID, ToolNames: toolNameRewriteFromContext(c), UpdateWindow: func(ctx context.Context, h http.Header) { s.rateLimitService.UpdateSessionWindow(ctx, account, h) }, OverrideCache: func(ctx context.Context) (string, bool) { return s.resolveCacheTTLUsageOverrideTarget(ctx, account) }, Failover: func(body []byte) error {
 		return &forwardcore.UpstreamFailoverError{StatusCode: 502, ResponseBody: body, RetryableOnSameAccount: true}
 	}}
 	if c != nil && c.Request != nil {
@@ -256,10 +259,10 @@ func (s *GatewayService) anthropicStreamOptions(c *gin.Context, account *Account
 }
 
 // anthropicResponseOptions 只读取当前调用所需的配置，保留原错误与过滤策略的调用位置。
-func (s *GatewayService) anthropicResponseOptions(ctx context.Context, c *gin.Context, account *Account, model string, passthrough bool) claude.ResponseOptions {
+func (s *GatewayService) anthropicResponseOptions(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, model string, passthrough bool) claude.ResponseOptions {
 	o := claude.ResponseOptions{StreamOptions: s.anthropicStreamOptions(c, account), ReadBody: func(r io.Reader) ([]byte, error) {
-		return ReadUpstreamResponseBody(r, s.cfg, c, anthropicTooLargeError)
-	}, PreserveContentType: s.cfg != nil && !s.cfg.Security.ResponseHeaders.Enabled, ForceCacheBilling: passthrough && IsForceCacheBilling(ctx)}
+		return gatewayhttp.ReadUpstreamResponseBody(r, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.AnthropicResponseTooLarge)
+	}, PreserveContentType: s.cfg != nil && !s.cfg.Security.ResponseHeaders.Enabled, ForceCacheBilling: passthrough && requeststate.IsForceCacheBilling(ctx)}
 	o.InvalidJSON = func(ctx context.Context, resp *http.Response, body []byte, err error) error {
 		if passthrough {
 			return invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err)

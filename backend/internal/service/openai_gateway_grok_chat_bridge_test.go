@@ -14,10 +14,12 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
@@ -241,14 +243,14 @@ func TestForwardGrokChatViaResponsesNonStreamingCachesAndReturnsChat(t *testing.
 
 	account := grokChatBridgeTestAccount(71)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_cache", 9856)}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -264,7 +266,7 @@ func TestForwardGrokChatViaResponsesNonStreamingCachesAndReturnsChat(t *testing.
 	identity := gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String()
 	require.NotEmpty(t, identity)
 	require.NotEqual(t, "stable-session", identity)
-	require.Equal(t, identity, upstream.lastReq.Header.Get(grokConversationIDHeader))
+	require.Equal(t, identity, upstream.lastReq.Header.Get(gatewayhttp.GrokConversationIDHeader))
 	require.Equal(t, "web_search", gjson.GetBytes(upstream.lastBody, "tools.0.type").String())
 	require.Equal(t, "x_search", gjson.GetBytes(upstream.lastBody, "tools.1.type").String())
 	require.Equal(t, grokFreeCacheDisabledToolChoice, gjson.GetBytes(upstream.lastBody, "tool_choice").String())
@@ -278,7 +280,7 @@ func TestForwardGrokChatViaResponsesNonStreamingCachesAndReturnsChat(t *testing.
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "cached ok", gjson.Get(recorder.Body.String(), "choices.0.message.content").String())
 	require.Equal(t, int64(9856), gjson.Get(recorder.Body.String(), "usage.prompt_tokens_details.cached_tokens").Int())
-	require.NotNil(t, repo.updates[account.ID][grokQuotaSnapshotExtraKey])
+	require.NotNil(t, repo.updates[account.Record.ID][grokQuotaSnapshotExtraKey])
 }
 
 func TestForwardGrokChatViaResponsesNonStreamingRejectsCompletedResponseWithoutUsage(t *testing.T) {
@@ -291,7 +293,7 @@ func TestForwardGrokChatViaResponsesNonStreamingRejectsCompletedResponseWithoutU
 
 	account := grokChatBridgeTestAccount(72)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstreamBody := strings.Join([]string{
 		`data: {"type":"response.output_text.delta","sequence_number":0,"delta":"ok"}`,
@@ -304,11 +306,11 @@ func TestForwardGrokChatViaResponsesNonStreamingRejectsCompletedResponseWithoutU
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "Xai-Request-Id": []string{"rid-responses-missing-usage"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	service := &OpenAIGatewayService{
+	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := service.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
@@ -331,14 +333,14 @@ func TestForwardGrokChatImageWithoutCacheIdentityUsesResponses(t *testing.T) {
 
 	account := grokChatBridgeTestAccount(711)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_image", 0)}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
@@ -351,7 +353,7 @@ func TestForwardGrokChatImageWithoutCacheIdentityUsesResponses(t *testing.T) {
 	require.Equal(t, "input_image", gjson.GetBytes(upstream.lastBody, "input.0.content.1.type").String())
 	require.Equal(t, "data:image/png;base64,QQ==", gjson.GetBytes(upstream.lastBody, "input.0.content.1.image_url").String())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").Exists())
-	require.Empty(t, upstream.lastReq.Header.Get(grokConversationIDHeader))
+	require.Empty(t, upstream.lastReq.Header.Get(gatewayhttp.GrokConversationIDHeader))
 }
 
 func TestForwardGrokChatViaResponsesCodeBuddyUsesStableConversationHeader(t *testing.T) {
@@ -383,7 +385,7 @@ func TestForwardGrokChatViaResponsesCodeBuddyUsesStableConversationHeader(t *tes
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodPost, grokChatRawEndpoint, bytes.NewReader(tt.body))
-			c.Request.Header.Set(codeBuddyConversationHeader, conversationID)
+			c.Request.Header.Set(gatewayhttp.CodeBuddyConversationHeader, conversationID)
 			c.Request.Header.Set("X-Conversation-Request-ID", tt.requestID)
 			c.Request.Header.Set("X-Conversation-Message-ID", tt.messageID)
 			c.Request.Header.Set("X-Request-ID", "generic-"+tt.requestID)
@@ -400,14 +402,14 @@ func TestForwardGrokChatViaResponsesCodeBuddyUsesStableConversationHeader(t *tes
 
 			account := grokChatBridgeTestAccount(int64(711 + index))
 			repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-				accountsByID: map[int64]*Account{account.ID: account},
+				accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 			}}
 			upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_codebuddy_"+strconv.Itoa(index), 4096)}
-			svc := &OpenAIGatewayService{
+			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 				httpUpstream:      upstream,
 				grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 				accountRepo:       repo,
-			}
+			}))
 
 			result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, tt.body, "", "")
 			require.NoError(t, err)
@@ -415,7 +417,7 @@ func TestForwardGrokChatViaResponsesCodeBuddyUsesStableConversationHeader(t *tes
 			require.Equal(t, xai.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
 			require.Equal(t, xai.GrokChatResponsesEndpoint, result.UpstreamEndpoint)
 			require.Equal(t, identity, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
-			require.Equal(t, identity, upstream.lastReq.Header.Get(grokConversationIDHeader))
+			require.Equal(t, identity, upstream.lastReq.Header.Get(gatewayhttp.GrokConversationIDHeader))
 		})
 	}
 }
@@ -431,16 +433,16 @@ func TestForwardGrokChatViaResponsesTraeToolHistoryKeepsCacheRoute(t *testing.T)
 	c.Set("api_key", &apikey.APIKey{ID: 7151})
 
 	account := grokChatBridgeTestAccount(715)
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_trae", 8192)}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	firstTurnIdentity := resolveGrokCacheIdentity(c, firstTurnBody, "", "grok-4.5")
 	extendedTurnIdentity := resolveGrokCacheIdentity(c, body, "", "grok-4.5")
@@ -453,7 +455,7 @@ func TestForwardGrokChatViaResponsesTraeToolHistoryKeepsCacheRoute(t *testing.T)
 	require.Equal(t, xai.DefaultCLIBaseURL+"/responses", upstream.lastReq.URL.String())
 	require.Equal(t, xai.GrokChatResponsesEndpoint, result.UpstreamEndpoint)
 	require.Equal(t, extendedTurnIdentity, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
-	require.Equal(t, extendedTurnIdentity, upstream.lastReq.Header.Get(grokConversationIDHeader))
+	require.Equal(t, extendedTurnIdentity, upstream.lastReq.Header.Get(gatewayhttp.GrokConversationIDHeader))
 
 	tools := gjson.GetBytes(upstream.lastBody, "tools").Array()
 	require.Len(t, tools, 3)
@@ -487,16 +489,16 @@ func TestForwardGrokChatViaResponsesTraeCompatibilityFieldsKeepCacheRoute(t *tes
 	c.Set("api_key", &apikey.APIKey{ID: 7161})
 
 	account := grokChatBridgeTestAccount(716)
-	account.Credentials["subscription_tier"] = "free"
+	account.Record.Credentials["subscription_tier"] = "free"
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_trae_compat", 12288)}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	firstTurnIdentity := resolveGrokCacheIdentity(c, firstTurnBody, "", "grok-4.5")
 	extendedTurnIdentity := resolveGrokCacheIdentity(c, body, "", "grok-4.5")
@@ -510,7 +512,7 @@ func TestForwardGrokChatViaResponsesTraeCompatibilityFieldsKeepCacheRoute(t *tes
 	require.Equal(t, xai.GrokChatResponsesEndpoint, result.UpstreamEndpoint)
 	require.Equal(t, 12288, result.Usage.CacheReadInputTokens)
 	require.Equal(t, extendedTurnIdentity, gjson.GetBytes(upstream.lastBody, "prompt_cache_key").String())
-	require.Equal(t, extendedTurnIdentity, upstream.lastReq.Header.Get(grokConversationIDHeader))
+	require.Equal(t, extendedTurnIdentity, upstream.lastReq.Header.Get(gatewayhttp.GrokConversationIDHeader))
 	require.Equal(t, "Return concise JSON", gjson.GetBytes(upstream.lastBody, "instructions").String())
 	require.Equal(t, "json_object", gjson.GetBytes(upstream.lastBody, "text.format.type").String())
 	require.Equal(t, "priority", gjson.GetBytes(upstream.lastBody, "service_tier").String())
@@ -538,14 +540,14 @@ func TestForwardGrokChatViaResponsesStreamingPropagatesCachedUsage(t *testing.T)
 
 	account := grokChatBridgeTestAccount(72)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: grokChatBridgeCompletedResponse("resp_grok_chat_stream", 4096)}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.NoError(t, err)
@@ -583,10 +585,10 @@ func TestForwardGrokChatRuntimeGateFallsBackToRaw(t *testing.T) {
 
 			account := grokChatBridgeTestAccount(int64(73 + index))
 			if tt.mappedModel != "" {
-				account.Credentials["model_mapping"] = map[string]any{"grok": tt.mappedModel}
+				account.Record.Credentials["model_mapping"] = map[string]any{"grok": tt.mappedModel}
 			}
 			repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-				accountsByID: map[int64]*Account{account.ID: account},
+				accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 			}}
 			upstream := &httpUpstreamRecorder{resp: &http.Response{
 				StatusCode: http.StatusOK,
@@ -595,11 +597,11 @@ func TestForwardGrokChatRuntimeGateFallsBackToRaw(t *testing.T) {
 					`{"id":"chat_raw","object":"chat.completion","model":"` + tt.wantUpstream + `","choices":[{"index":0,"message":{"role":"assistant","content":"raw ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":2,"completion_tokens":1,"total_tokens":3}}`,
 				)),
 			}}
-			svc := &OpenAIGatewayService{
+			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 				httpUpstream:      upstream,
 				grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 				accountRepo:       repo,
-			}
+			}))
 
 			result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 			require.NoError(t, err)
@@ -623,7 +625,7 @@ func TestForwardGrokChatViaResponses429UsesGrokRateLimitPolicy(t *testing.T) {
 
 	account := grokChatBridgeTestAccount(75)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusTooManyRequests,
@@ -633,11 +635,11 @@ func TestForwardGrokChatViaResponses429UsesGrokRateLimitPolicy(t *testing.T) {
 		},
 		Body: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 	before := time.Now()
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
@@ -664,9 +666,9 @@ func TestForwardGrokRawChat429PreservesRetryAfter(t *testing.T) {
 	c.Set("api_key", &apikey.APIKey{ID: 7551})
 
 	account := grokChatBridgeTestAccount(755)
-	account.Credentials["expires_at"] = time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)
+	account.Record.Credentials["expires_at"] = time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusTooManyRequests,
@@ -676,11 +678,11 @@ func TestForwardGrokRawChat429PreservesRetryAfter(t *testing.T) {
 		},
 		Body: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 
@@ -703,18 +705,18 @@ func TestForwardGrokRawChatErrorRecordsActualEndpoint(t *testing.T) {
 
 	account := grokChatBridgeTestAccount(76)
 	repo := &grokQuotaAccountRepo{mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}}
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"bad request"}}`)),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "")
 	require.Error(t, err)
@@ -723,9 +725,8 @@ func TestForwardGrokRawChatErrorRecordsActualEndpoint(t *testing.T) {
 	require.Equal(t, grokChatRawEndpoint, gatewayhttp.GetActualOpenAIUpstreamEndpoint(c))
 }
 
-func grokChatBridgeTestAccount(id int64) *Account {
-	return &Account{
-		ID:          id,
+func grokChatBridgeTestAccount(id int64) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
 		Name:        "grok-cache-bridge",
 		Platform:    capability.PlatformGrok,
 		Type:        capability.AccountTypeOAuth,
@@ -737,7 +738,7 @@ func grokChatBridgeTestAccount(id int64) *Account {
 			"refresh_token": "refresh-token",
 			"expires_at":    time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339),
 			"base_url":      xai.DefaultCLIBaseURL,
-		},
+		}},
 	}
 }
 

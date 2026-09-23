@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	identitytestkit "github.com/TokenFlux/TokenRouter/internal/identity/testkit"
 	settingskit "github.com/TokenFlux/TokenRouter/internal/settings/testkit"
 
@@ -58,8 +61,6 @@ import (
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	settingshttp "github.com/TokenFlux/TokenRouter/internal/settings/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -1815,7 +1816,7 @@ func newContractDeps(t *testing.T, setup func(*testing.T, *contractDeps)) *contr
 		setup(t, deps)
 	}
 
-	userService := identity.NewUserService(userRepo, nil, nil, nil, service.RunBackgroundTask)
+	userService := identity.NewUserService(userRepo, nil, nil, nil, func(_ string, fn func()) bool { go fn(); return true })
 	apiKeyService := testkit.NewService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, apiKeyCache, cfg)
 	apiKeyService.Start()
 
@@ -1825,7 +1826,7 @@ func newContractDeps(t *testing.T, setup func(*testing.T, *contractDeps)) *contr
 	subscriptionHandler := billinghttp.NewSubscriptionHandler(subscriptionService)
 	adminSubscriptionHandler := billinghttp.NewAdminSubscriptionHandler(subscriptionService)
 
-	redeemService := billing.NewRedeemService(redeemRepo, contractRedeemUsers{userRepo}, subscriptionService, nil, nil, billingpostgres.NewRedeemMutations(nil, userRepo), nil, nil, billing.RedeemRuntime{Now: time.Now, Observe: logging.LegacyPrintf, Background: func(name string, fn func()) { service.RunBackgroundTask(name, service.BackgroundCall0(fn)) }})
+	redeemService := billing.NewRedeemService(redeemRepo, contractRedeemUsers{userRepo}, subscriptionService, nil, nil, billingpostgres.NewRedeemMutations(nil, userRepo), nil, nil, billing.RedeemRuntime{Now: time.Now, Observe: logging.LegacyPrintf, Background: func(name string, fn func()) { go fn() }})
 	redeemHandler := billinghttp.NewRedeemHandler(redeemService)
 
 	settingFixture := settingskit.NewComposite(settingRepo, cfg)
@@ -1845,19 +1846,19 @@ func newContractDeps(t *testing.T, setup func(*testing.T, *contractDeps)) *contr
 	adminAccountHandler := accounthttp.NewManagementHandler(accountcore.NewAdmin(contractAccountBulkStore{source: &accountRepo}, accountcore.AdminOptions{}), accounthttp.ManagementOptions{})
 
 	jwtAuth := func(c *gin.Context) {
-		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
+		c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{
 			UserID:      1,
 			Concurrency: 5,
 		})
-		c.Set(string(middleware.ContextKeyUserRole), identity.RoleUser)
+		c.Set(string(authctx.ContextKeyUserRole), identity.RoleUser)
 		c.Next()
 	}
 	adminAuth := func(c *gin.Context) {
-		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
+		c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{
 			UserID:      1,
 			Concurrency: 5,
 		})
-		c.Set(string(middleware.ContextKeyUserRole), identity.RoleAdmin)
+		c.Set(string(authctx.ContextKeyUserRole), identity.RoleAdmin)
 		c.Next()
 	}
 
@@ -2228,19 +2229,19 @@ type stubAccountRepo struct {
 	bulkUpdateIDs []int64
 }
 
-func (s *stubAccountRepo) Create(ctx context.Context, account *service.Account) error {
+func (s *stubAccountRepo) Create(ctx context.Context, account *gatewayprovider.ExecutionAccount) error {
 	return errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) CreateWithAccountGroups(ctx context.Context, account *service.Account, groups []service.AccountGroup) error {
+func (s *stubAccountRepo) CreateWithAccountGroups(ctx context.Context, account *gatewayprovider.ExecutionAccount, groups []accountcore.GroupMembership) error {
 	return errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) GetByID(ctx context.Context, id int64) (*service.Account, error) {
+func (s *stubAccountRepo) GetByID(ctx context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	return nil, accountcore.ErrAccountNotFound
 }
 
-func (s *stubAccountRepo) GetByIDs(ctx context.Context, ids []int64) ([]*service.Account, error) {
+func (s *stubAccountRepo) GetByIDs(ctx context.Context, ids []int64) ([]*gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -2248,15 +2249,15 @@ func (s *stubAccountRepo) ExistsByID(ctx context.Context, id int64) (bool, error
 	return false, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) GetByCRSAccountID(ctx context.Context, crsAccountID string) (*service.Account, error) {
+func (s *stubAccountRepo) GetByCRSAccountID(ctx context.Context, crsAccountID string) (*gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) FindByExtraField(ctx context.Context, key string, value any) ([]service.Account, error) {
+func (s *stubAccountRepo) FindByExtraField(ctx context.Context, key string, value any) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) Update(ctx context.Context, account *service.Account) error {
+func (s *stubAccountRepo) Update(ctx context.Context, account *gatewayprovider.ExecutionAccount) error {
 	return errors.New("not implemented")
 }
 
@@ -2264,31 +2265,31 @@ func (s *stubAccountRepo) Delete(ctx context.Context, id int64) error {
 	return errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) List(ctx context.Context, params pagination.PaginationParams) ([]service.Account, *pagination.PaginationResult, error) {
+func (s *stubAccountRepo) List(ctx context.Context, params pagination.PaginationParams) ([]gatewayprovider.ExecutionAccount, *pagination.PaginationResult, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]service.Account, error) {
+func (s *stubAccountRepo) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
 
-func (s *stubAccountRepo) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {
+func (s *stubAccountRepo) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]gatewayprovider.ExecutionAccount, *pagination.PaginationResult, error) {
 	return nil, nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListByGroup(ctx context.Context, groupID int64) ([]service.Account, error) {
+func (s *stubAccountRepo) ListByGroup(ctx context.Context, groupID int64) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListActive(ctx context.Context) ([]service.Account, error) {
+func (s *stubAccountRepo) ListActive(ctx context.Context) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListOAuthRefreshCandidates(ctx context.Context) ([]service.Account, error) {
+func (s *stubAccountRepo) ListOAuthRefreshCandidates(ctx context.Context) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+func (s *stubAccountRepo) ListByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -2320,43 +2321,43 @@ func (s *stubAccountRepo) BindGroups(ctx context.Context, accountID int64, group
 	return errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListShadowsByParent(ctx context.Context, parentID int64) ([]*service.Account, error) {
+func (s *stubAccountRepo) ListShadowsByParent(ctx context.Context, parentID int64) ([]*gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListSchedulable(ctx context.Context) ([]service.Account, error) {
+func (s *stubAccountRepo) ListSchedulable(ctx context.Context) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]service.Account, error) {
+func (s *stubAccountRepo) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListSchedulableByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+func (s *stubAccountRepo) ListSchedulableByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]service.Account, error) {
+func (s *stubAccountRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListSchedulableByPlatforms(ctx context.Context, platforms []string) ([]service.Account, error) {
+func (s *stubAccountRepo) ListSchedulableByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]service.Account, error) {
+func (s *stubAccountRepo) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
+func (s *stubAccountRepo) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]service.Account, error) {
+func (s *stubAccountRepo) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (s *stubAccountRepo) ListModelAvailabilityCandidates(ctx context.Context, groupID *int64, platforms []string, includeGrouped bool) ([]service.Account, error) {
+func (s *stubAccountRepo) ListModelAvailabilityCandidates(ctx context.Context, groupID *int64, platforms []string, includeGrouped bool) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, errors.New("not implemented")
 }
 

@@ -24,9 +24,9 @@ func (r *tokenRefreshAccountRepo) ApplyOAuthRefreshFailure(ctx context.Context, 
 	}
 	if err == nil && failure.Kind == account.RefreshFailurePermanent && r.accountsByID != nil {
 		if value := r.accountsByID[version.ID]; value != nil {
-			value.Status = account.StatusError
-			value.Schedulable = false
-			value.ErrorMessage = failure.Message
+			value.Record.Status = account.StatusError
+			value.Record.Schedulable = false
+			value.Record.ErrorMessage = failure.Message
 		}
 	}
 	return err == nil, err
@@ -35,7 +35,7 @@ func (r *tokenRefreshAccountRepo) ApplyOAuthRefreshFailure(ctx context.Context, 
 func (r *tokenRefreshAccountRepo) ClearAntigravityRefreshRequest(ctx context.Context, version account.CredentialVersion) (bool, error) {
 	if r.accountsByID != nil {
 		value := r.accountsByID[version.ID]
-		if value == nil || !refreshFailureMatchesFixture(value, account.RefreshFailureVersion{CredentialVersion: version, Schedulable: value.Schedulable}) {
+		if value == nil || !refreshFailureMatchesFixture(value, account.RefreshFailureVersion{CredentialVersion: version, Schedulable: value.Record.Schedulable}) {
 			return false, nil
 		}
 	}

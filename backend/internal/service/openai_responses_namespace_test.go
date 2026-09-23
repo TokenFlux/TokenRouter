@@ -3,31 +3,32 @@ package service
 import (
 	"strconv"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
 func TestShouldFlattenOpenAIResponsesNamespaces(t *testing.T) {
-	oauth := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
-	apiKey := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
-	grokOAuth := &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
-	flattenOAuth := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Extra:    map[string]any{"openai_responses_flatten_namespaces": true},
+	oauth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
+	apiKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	grokOAuth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
+	flattenOAuth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type:  capability.AccountTypeOAuth,
+		Extra: map[string]any{"openai_responses_flatten_namespaces": true}},
 	}
-	flattenAPIKey := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Extra:    map[string]any{"openai_responses_flatten_namespaces": true},
+	flattenAPIKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type:  capability.AccountTypeAPIKey,
+		Extra: map[string]any{"openai_responses_flatten_namespaces": true}},
 	}
 
 	tests := []struct {
 		name               string
-		account            *Account
+		account            *gatewayprovider.ExecutionAccount
 		transport          egress.OpenAIUpstreamTransport
 		passthroughEnabled bool
 		compactPath        bool
@@ -61,18 +62,17 @@ func TestShouldFlattenOpenAIResponsesNamespaces(t *testing.T) {
 }
 
 func TestShouldKeepOpenAIResponsesToolCallNamespaces(t *testing.T) {
-	oauth := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
-	apiKey := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
-	setupToken := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken}
-	flattenOAuth := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Extra:    map[string]any{"openai_responses_flatten_namespaces": true},
+	oauth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
+	apiKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	setupToken := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken}}
+	flattenOAuth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type:  capability.AccountTypeOAuth,
+		Extra: map[string]any{"openai_responses_flatten_namespaces": true}},
 	}
 
 	tests := []struct {
 		name               string
-		account            *Account
+		account            *gatewayprovider.ExecutionAccount
 		transport          egress.OpenAIUpstreamTransport
 		passthroughEnabled bool
 		compactPath        bool
@@ -105,14 +105,14 @@ func TestShouldKeepOpenAIResponsesToolCallNamespaces(t *testing.T) {
 }
 
 func TestShouldStripOpenAIResponsesInputNamespaces(t *testing.T) {
-	oauth := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
-	apiKey := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
-	setupToken := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken}
-	grokOAuth := &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	oauth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
+	apiKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	setupToken := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken}}
+	grokOAuth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 
 	tests := []struct {
 		name               string
-		account            *Account
+		account            *gatewayprovider.ExecutionAccount
 		transport          egress.OpenAIUpstreamTransport
 		passthroughEnabled bool
 		want               bool

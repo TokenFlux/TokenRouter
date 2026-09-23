@@ -169,7 +169,7 @@ func (wsReplayCodec) ShouldInfer(a bool, b int, c wire.ToolContinuationSignals, 
 	return openai.ShouldInferIngressFunctionCallOutputPreviousResponseID(a, b, c, d, e)
 }
 func (wsReplayCodec) ClassifyPrevious(id string) string {
-	return ClassifyOpenAIPreviousResponseIDKind(id)
+	return wire.ClassifyOpenAIPreviousResponseIDKind(id)
 }
 
 // wsStrictTurn 只封装纯协议比较状态，不包含账号、配置或 I/O。

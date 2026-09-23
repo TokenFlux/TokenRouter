@@ -7,6 +7,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
 	moderationcore "github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -26,9 +27,10 @@ func ProvideOpenAIGatewayHandler(
 	grokQuotaService *account.GrokQuotaService,
 	cfg *config.Config,
 	queue *ops.ErrorLogQueue,
+	prompts *promptpolicy.Service,
 ) *OpenAIGatewayHandler {
 	h := NewOpenAIGatewayHandler(gatewayService, concurrencyService, billingCacheService, apiKeyService,
-		usageRecordWorkerPool, errorPassthroughService, contentModerationService, opsService, cfg)
+		usageRecordWorkerPool, errorPassthroughService, contentModerationService, opsService, cfg, prompts)
 	h.grokMediaEligibilityProber = grokQuotaService
 	if queue != nil {
 		h.opsErrorQueue = queue

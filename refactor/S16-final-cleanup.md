@@ -1209,6 +1209,14 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 模型短缓存原有 service 测试已迁为 routing ModelList unit 回归，保留一分钟 TTL、回源次数、OpenAI passthrough、nil 结果、全局/按分组/按平台失效及全进程指标断言；无消费者的 `GetAvailableModels`/`InvalidateAvailableModelsCache` 兼容入口已删除。该缓存批次新增 47 条定向通过事件；unit 编译和 lint 复核退出 0。
 - 删除旧入口后目录/缓存回归再次取得 42 条 unit race 通过事件，无失败或跳过，证据见 `baseline/S16/native-catalogue-final-race.log`。
 
+### 2026-09-22：快照与目录缓存的原生生命周期绑定
+
+- 续接时实际 HEAD 为 `0c3748ef5`，保留外部已提交进度，本轮未自动提交。快照启停直接绑定唯一 `scheduler.SnapshotService`；目录缓存到期清理直接绑定同一 `routing.ModelList`，hook 名称、启动/停止顺序与一分钟清理周期不变。
+- 原 `TestSchedulerSnapshotOutboxReplay` 从 repository 迁至 app 集成测试，直接使用 account PostgreSQL 存储、生产 outbox 事件绑定和 scheduler Redis codec；原 last-used 回放断言保留。真实 PostgreSQL/Redis race 通过后删除旧测试及旧快照 Start/Stop/StopContext 转接。
+- 修正上一批手工构造兼容目录时额外创建缓存的迁移偏差：未注入 ModelList 时保持原无缓存读取，不改变生产共享缓存。原生拥有者 race 121、直接消费者 unit race 36、真实进程矩阵 11、outbox integration race 1 条通过事件，无失败或跳过；对应日志以 `native-runtime-` 和 `native-snapshot-outbox-` 为前缀。
+- 普通与 integration 编译、对应定向 lint 均通过；Wire 二次生成 SHA-256 均为 `2f3c9096482243169fe953d9ff4f7a2d45f46b392656482f07070c357dfc76b7`。未把编译计作行为验收。
+- 调度快照的旧账号形状读取、剩余网关与健康适配仍待清零；本批不代表 S16 完成。
+
 ### 2026-09-21：阶段性分批提交
 
 - 本次按用户明确授权提交已有 S16 工作区改动，保持 `main`，未推送；未继续展开调度快照或健康恢复的后续实施。
@@ -1220,3 +1228,422 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 24 篇变更文档的结构与新增/迁移锚点检查通过。本轮命令、退出码、定向事件和既有全量日志统计见 [提交验证记录](baseline/S16/commit-verification.json)，完整输出保存在 `baseline/S16/commit-*.log.gz`。
 - 原有 50 个其他任务文件保留在工作区，不纳入 S16 提交；`SYNC.md` 未提交。计划正文前 16353 字节 SHA-256 仍为 `1a03e5525668efaf2b47669135a8f37f3c050b0004729944a959d64314ad0ed9`。
 - S16 继续保持“实施中”，roadmap 仍为 16 / 17。调度快照兼容层、RateLimitService 健康/恢复残留、其余旧包清理及最终完整验收仍待执行。
+
+### 2026-09-22：快照生产读取与发布能力收尾
+
+- 四个网关及目录构造直接接收唯一 scheduler.SnapshotService，旧 SchedulerSnapshotService 类型及 app 包装 provider 删除。候选与完整账号保持原读取时点；OpenAI 的分组读取由 app 单独绑定原 routing 存储，Gemini 内部选号沿用同一分组端口。
+- 账号事件只接收 scheduler.SnapshotPublicationCache；无消费者的旧 Redis 缓存构造及数据转接删除。旧快照构造和缓存端口已退出生产文件，仅在尚未迁出的执行消费者测试中保留夹具，不复制快照规则或状态。
+- 原快照写入四项断言迁至 scheduler；HTTP 的取消、预热及会话限制替身直接实现原生快照接口。消费者 race 421 条、真实 PostgreSQL 账号存储 race 75 条、真实 outbox 回放 1 条事件通过，无失败或跳过，日志分别为 native-snapshot-consumers-race.jsonl、native-snapshot-publication-integration-race.jsonl、native-snapshot-final-integration-race.jsonl。
+- 夹具初次误加 unit 标签导致无标签消费者编译失败，已去掉限制并复核 integration 编译；原断言与生产行为未改。unit lint 0，精确新增 scheduler 许可不扩大目录豁免。旧执行账号转换仍需随账号/网关能力清理，不能将本批等同于 S16 完成。
+
+### 2026-09-22：原生调度反馈与参数契约
+
+- 删除 advancedAccountRuntimeStats、openAIAccountRuntimeStats 和私有反馈参数包装；各选号、诊断、回写消费者直接使用 app 持有的 scheduler.RuntimeStats 及 policy.FeedbackConfig，未增加反馈实例或改变回写时点。
+- 四项独立反馈测试迁至 scheduler/runtime_feedback_original_test.go，保留 EWMA、时间、样本数和 16 worker 并发断言。混合选号测试同步使用原生参数。第一轮定向 race 338 条通过，unit lint 0。
+- 按 Go 类型对象改绑 RuntimeSettings、EffectiveSettings 和 StickyEscapeConfig 字段，删除旧参数结构及往返转换；保留原全局到分组的选择性字段投影和配置权重校验，未借清理调整参数规则。映射见 native-policy-type-mapping.json。
+- 本批核对发现快照迁移遗漏通用 Gateway 临时选号对象的分组读取绑定，已补回；新增三入口合同验证无请求分组时读取一次并应用 TopK 覆盖，4 条 race 事件通过。参数/评分/粘性消费者另有 338 条 race 事件通过，集合重叠不相加。该问题属于本次迁移回归，不计入历史修复范围。
+- 快照及参数两批进入串行合并检查，见 interim-snapshot-feedback-check.json；仍按 S16 未完成状态管理后续账号、网关及旧图清零，不提交。
+
+### 2026-09-22：设置与粘性状态实例化、合并验证
+
+- 删除旧调度设置及粘性统计的全局 atomic 指针和绑定函数。app 将唯一设置实例直接绑定给平台消费者，OpenAI 粘性统计与日志读取同一执行实例；独立测试构造只拥有自身缓存。保留设置提交后发布、读取时点和 TTL。
+- 同批删除测试对全局缓存的重置，粘性测试改用明确观测实例，原旧键回退与双写计数断言保留。Wire、全部 unit 编译通过；调度/粘性/设置消费者 race 493 条通过，无失败或跳过；unit lint 0。
+- 上两批合并普通测试 11,881 条通过、4 项跳过；unit 19,916 条通过、8 项跳过。integration 因 Docker 获取容器状态超时而退出 1，相关失败发生于容器初始化，未执行目标业务断言；完整原日志保留在 interim-snapshot-feedback-integration.jsonl。
+- 环境恢复后，将受影响的 infra/redis、ops/postgres、repository、app 四包以 -p=1 补验，1,074 条通过，无失败或跳过，见 native-instance-storage-retry.jsonl。原失败与补验分别登记，不修改断言或归类为生产缺陷。
+- 下一批统一改绑上游错误决策的 HTTP/SSE/WS/媒体消费者至 account 原生决策，删除旧方法包装；仍保留执行账号的窄只读策略投影，随后随执行实体清零。
+
+### 2026-09-22：错误决策、后台任务与串行消息队列批次
+
+- HTTP、SSE、WS、图片、音频及 Grok/Gemini 消费者统一使用 account.UpstreamErrorDecision；删除旧决策类型、方法包装及无持久化包装，保留即时只读账号策略投影和各入口默认值。消费者定向 race 628 条通过，unit lint 0。
+- 五项独立健康策略测试由 service/error_policy_test.go 迁到 account/provider/error_policy_original_test.go，直接构造原生 Health/UpstreamHealth，保留原错误码、池模式、写入次数与重试断言；39 条 race 事件通过。仍涉及网关副作用的测试未删除。
+- 删除 service/background_tasks.go 的全局 runner、安装/恢复函数和通用闭包包装；Codex 快照、Grok 统计、Live observer、审核与资金副作用均显式使用应用任务拥有者。关闭 hook 改为 ApplicationBackgroundTasks，顺序保持；进程断言同步改名。
+- 后台实例批次全部 unit 编译通过，定向 race 742 条通过，无失败或跳过；真实 standard/simple 及 SIGTERM 进程验证通过，见 native-background-process.jsonl。新增任务拥有者契约验证等待未完成项、结束后关闭和拒绝停止后派发。
+- 删除串行消息队列旧构造器与 HTTP 类型别名；解析资格移入 gateway/requeststate，HTTP 直接调用 gateway/httpapi.UserMsgQueueHelper，app 继续唯一构造 scheduler 队列。新增资格边界断言，编译与定向 race 通过；本批 unit lint 0，删除对应精确旧许可。
+
+### 2026-09-22：幂等 HTTP 与观察实例收敛
+
+- 十一类用户/管理员 HTTP 处理器通过 app 启动前绑定同一 IdempotencyCoordinator；helper 改为各处理器持有的 Executor，默认写入/维护 TTL 随协调器实例读取。删除进程默认协调器及应用安装/恢复 hook，不改变 scope、hash、payload、降级与重放 Header。
+- 协调器和清理任务显式接收原日志出口，删除全局观察绑定；原进程累计指标保持。测试改用独立实例，不再通过全局安装/清空隔离。
+- 全部 unit 编译通过；HTTP 消费者普通 race 396 条、装配/清理 unit race 20 条、进程及标签集合 race 29 条通过，无失败或跳过。后者未选中旧目录存储测试，明确不计为存储验收。
+- 原 repository/idempotency_repo_integration_test.go 的三个测试迁到 idempotency/postgres，保留原认领、回收和成功记录断言及事务回滚；隔离 PostgreSQL 真实迁移下 race 全部通过。应用原 24 并发认领与重放/冲突/清理合同另行补验。
+- 精确登记 management.go 的原生幂等 HTTP 依赖及 app 幂等装配测试 import，unit lint 0。阶段原文前 16353 字节摘要仍为 1a03e5525668efaf2b47669135a8f37f3c050b0004729944a959d64314ad0ed9。
+
+### 2026-09-22：合并全仓结果与平台客户端测试归属
+
+- interim-native-owners-check.json 记录本轮完整普通/unit/integration：11,897/19,932/12,895 条通过，4/8/4 项既有跳过；三组测试退出均为零。普通与 unit lint 0；integration 首轮仅缺新迁移夹具的 migrations FS 精确许可，补齐后全仓 integration lint 0，见 native-owners-lint-integration-verified.log。
+- 账号授权刷新 CAS 的四个平台与 Vertex 等锁取消测试迁到 tests/integration/account，直接使用 AccountStore、原生 token 源及 CloneRecord，删除对旧仓储与旧账号转换的依赖。真实 PostgreSQL/Redis race 16 条通过，无失败或跳过。
+- Anthropic OAuth/usage 客户端测试与原 HTTP 夹具迁到 upstream/anthropic；OpenAI OAuth 超时及 Code Assist HTTP 版本断言各归所属 upstream。Gemini token 缓存删除/故障测试归 account/rediscache。普通/unit 定向 race 25 条通过；真实 Redis 工具集中于 testutil/rediscontainer，不以 miniredis 代替。
+- 删除 GeminiTokenCacheKey、AntigravityTokenCacheKey 的旧 service 包装；测试直接读取所属原生键函数。文件映射见 native-platform-test-mapping.json、native-platform-test-split.json；账号执行视图的 token 投影仍有生产消费者，未提前删除。
+
+### 2026-09-22：账号存储合同与备用装配清零
+
+- 账号 SQL 字段保护、自动暂停、托管 Extra、凭据 CAS、查询投影和参数上限测试直接构造 AccountStore；纯 Extra 规则与 Ent 行复制测试归 account/postgres。跨账号/调度/资金合同归 tests/integration/account，使用现有真实 outbox、SnapshotPublisher 与 billing AccountUsageStore，不复制规则。
+- 原完整 AccountRepoSuite、附属排序/协议补丁、影子与选号数据库查询测试同批迁移。原业务断言、事务、取消后的发布、真实 SQL 次数/列、8 位消费重置和健康字段保护均保留；分拆协议迁移文件时只移动账号方法，原 SQL 与分组测试保留。
+- 单元定向 race 61 条、首批 PostgreSQL 29 条、完整原套件 76 条通过；合并账号存储包及跨模块 integration race 367 条通过，均无失败或跳过，集合重叠不相加。映射见 native-account-store-test-mapping.json。
+- NewAccountRepository/newAccountRepositoryWithSQL 测试消费者清零后删除；旧 repository 不再持有 Ent/SQL/缓存备用字段，不再构造 AccountStore 或 AccountUsageStore。account_event_binding、account_snapshot_publisher、account_usage_binding 删除，生产转接直接引用 app 持有的两个存储。
+- 删除已无消费者的 Ent/批量账号转换辅助及 LegacyUsageOptions；全部 unit 编译通过。新夹具增加的实际 import 精确许可并保留角色限制；旧辅助测试函数无消费者后删除，不削弱断言。剩余执行账号投影仍明确保留，尚未宣称 repository/service 全部删除。
+
+### 2026-09-22：原生 Redis 契约与共享技术夹具
+
+- Key 创建限频、计费余额/窗口、兑换、身份邮件、Anthropic 请求指纹和网关会话缓存测试迁至各实际 Redis Adapter；保留命名空间、TTL、错误、一次性消费和竞争断言。Key 键格式测试直接调用原生函数，删除两个仅为旧测试存在的别名/函数包装。
+- testutil/rediscontainer.Suite 每套件仅启动一个隔离 Redis，逐测试沿用原前缀 Hook 与清理；旧 repository 的重复套件、前缀 Hook 和 TTL 辅助删除，剩余测试复用同一工具。未用 miniredis 替代真实存储，也未修改生产缓存协议。
+- 六类缓存编译通过，integration race 64 条通过，无失败或跳过。精确登记实际文件使用 rediscontainer 的依赖，保留对应角色的原基础限制；映射见 native-cache-test-mapping.json。
+
+### 2026-09-22：身份与 Key 存储测试完整归属
+
+- 上一轮存储/缓存合并检查普通、unit、integration 分别取得 11,897/19,932/12,895 条通过事件及 4/8/4 项既有跳过。普通 lint 首轮发现账号资金夹具仅被 integration 使用；已将该夹具与消费者对齐构建标签，普通/unit lint 恢复零，不新增忽略。
+- 邮箱归一化、别名、接纳及兑换字段断言连同 SQLite/SQL 替身迁入 identity/postgres，31 条 race 事件通过。用户状态常量直接引用 identity 原值；仅为 SQLite 驱动和真实迁移 FS 增加精确测试依赖。
+- Key CRUD、排序、字段保护、认证投影、最后活动、数量限制与并发累计完整迁入 tests/integration/apikey；分组纯投影断言归 routing/postgres。真实 PostgreSQL 与原 SQLite 合同共 51 条 race 事件通过，无失败或跳过。
+- 用户主存储、身份档案、排序、关联、字段保护及软删除查询套件迁入 tests/integration/identity，去掉最后的旧执行账号测试数据引用；保留真实提交、逐项清理与外层事务边界。隔离容器统一复用 testutil/postgrescontainer，未启动业务 worker。
+- 身份/Key 两批定向 integration lint 为零；映射和原测试事件保存在 native-identity-store-unit-mapping.json、native-key-store-test-mapping.json、native-user-store-integration-mapping.json 及对应 race 日志。该结果属于中间批次，不替代 S16 最终验收。
+
+### 2026-09-22：身份事务与 Grok 免费层能力收尾
+
+- 用户存储迁移后的真实 PostgreSQL race 取得 81 条通过事件。用户删除/墓碑回滚、分组替换、团队参与、注册赠送、消费重置与认证触发器合同随后同批迁入 tests/integration/identity；合并取得 98 条通过，无失败或跳过。使用原生参与工厂和原 SQL/Ent 连接，未修改生产事务。
+- Grok 免费层裁决、阈值、正负缓存、刷新去重与淘汰归 account.FreeQuotaGate；usage 保留批量优先的窗口统计读取，app 只投影配置、日志及后台任务拥有者。删除旧进程缓存与按缓存索引的全局在途表。普通两条选择链分别持有缓存，高级调度器仍逐实例持有；不合并作用域，不改变首次放行或负缓存。
+- 原门禁断言迁至 account，同步保留三个实际选择入口测试，新增应用缓存作用域与任务关闭合同。Wire 和 unit 编译通过，定向 race 71 条事件通过，无失败或跳过；映射见 native-free-quota-mapping.json。
+- 更新 Grok 上游文档的当前所有权。全仓 unit lint 首轮仅发现已迁完普通消费者的两个 Key 装配夹具只供 integration 使用，已同步构建标签；不增加忽略规则。S16 仍未完成，后续执行实体、HTTP 与旧图继续清零。
+
+### 2026-09-22：Gemini 配额预检直连与装配回归
+
+- Gemini 执行消费者直接绑定唯一 account.GeminiPrecheck；删除旧健康聚合中的三个转接、备用缓存构造及重复 usage 投影。RateLimitService 两个构造入口和应用 provider 不再接收 GeminiQuotaService，所有调用者与替身同批调整；Wire 重新生成。
+- 原第三方 API Key 豁免/官方日配额断言迁至 app 的真实配额装配测试；两个实际 429 冷却消费者显式注入相同原生预检。编译通过；Gemini、健康错误、调度和直接消费者 race 510 条事件通过，无失败或跳过，unit 定向 lint 为零。
+- 前一轮 interim-identity-quota 普通全量仅新增装配测试失败：其 defer cancel 先于 Cleanup 执行，Cleanup 使用已取消 context 产生随机选择。已使用独立五秒清理预算，原作用域和任务拥有者断言保留；连续十轮 race 通过。该项为本次新增测试回归，未扩展历史修复范围，原失败日志保留。
+- 重新串行执行合并完整检查，结果写入 interim-native-quota-verified-check.json；此为中间验证，旧执行模型、HTTP 及旧图清零完成前不更新 17/17。
+
+- 账号旧端口按 Go 类型对象补齐直接方法消费者，见 remaining-account-method-consumers.json：共 18 个直接选择器方法。该清单不涵盖隐式接口满足和运行时类型断言，不能仅凭没有直接调用删除方法或将整个旧仓储包装改名迁入 app；后续结合原生参与端口、执行形状及实际构造一起清零。
+
+- interim-native-quota-verified 普通全量 11,898 条通过/4 项跳过，unit 19,933 条通过/8 项跳过；integration 除 app 外 12,558 条通过/4 项跳过。app 首轮因两个外部集成测试的 NewS16AccountRecovery 别名仍保留已删除参数而未编译，原 build-output 保留；同步调用后 app 全量 integration 补验通过，包含 version、standard/simple SIGTERM、两个精简命令、引导失败释放、监听失败、Web/CLI/AUTO_SETUP。
+- native-quota-lint-final-check.json 记录普通/unit/integration 三套全仓 lint 均退出 0。源 SQL、Ent 与暂存区无变化，diff 检查通过；上述结果仍为中间批次验收，后续旧执行模型与接口继续按 S16 清零。
+
+### 2026-09-22：账号运行时停调、恢复代次与回滚所有权
+
+- account.RuntimeBlockState 统一拥有原七项停调/重试/代次状态；停调延长、清除、过期、刷新失败发布和 Grok 暂定回滚同批迁移，保留锁顺序及原两个两分钟预算。app 独立构造一个实例，后台刷新和管理员恢复直接绑定原生 RefreshFailureObserver/RuntimeUnblocker；执行消费者使用同一实例。
+- 原同账号 OpenAI 429 资格/分类顺序由 account/provider 复用新状态，实际重试循环、响应输出与请求取消仍由网关决定。未建立第二套重试或改变刷新存储失败边界。Wire 已生成，unit/integration 编译通过。
+- 停调不缩短和显式清理的私有状态断言迁到 account；凭据版本阻断测试同批迁移。消费者时间边界通过显式测试时钟验证，不导出可变缓存给测试。初轮定向 race 82 条通过；扩大至原凭据竞争、回滚和恢复消费者的回归另有记录，集合重叠不相加。unit 定向 lint 为零。
+- 恢复的所有生产调用已直连 account.RecoveryService，删除 RateLimitService 的五个无消费者恢复转接；仍被旧健康装配使用的 RecoveryCore 投影暂留，不能据此宣布旧健康聚合已删除。映射见 native-runtime-block-mapping.json。
+
+### 2026-09-22：模型目录 HTTP 整批改绑
+
+- app 直接构造 gateway/httpapi.ModelsHandler 并绑定同一 RequestableCatalogue；删除旧 GatewayHandler 的 Models、AntigravityModels、Gemini List/Get 四个方法及 models_http_adapter.go。平台展示投影归 gateway/provider，原展示值、默认列表及稳定合并归纯叶子 gateway/modeldisplay；JSON 字段、空值和排序保持。
+- 原模型 HTTP 与 Gemini 目录测试迁至 app，目录数据使用原生 account.Record 和 routing.RequestableCatalogue；Codex client_version 路由测试同步直接注入 ModelsHTTP。仍为其它转发测试使用的渠道构造/数据替身单列到执行测试夹具，未删除其调用者或复制业务规则。
+- 模型目录、原生 Gemini、路由、渠道改写和直接消费者 unit race 116 条事件通过，无失败或跳过；Wire 与编译通过。新增纯叶子门禁，精确登记装配、HTTP 和平台数据投影依赖并删除旧文件许可。旧 Gemini 远端选择/GET 尚由 app 只读目标端口衔接，未把该剩余执行能力宣称已迁完。
+- 模型重定向文档锚点迁至原生 HTTP 实现，目录与市场文档同步当前结构。映射见 native-models-http-mapping.json；本批不替代 S16 最终验收。
+
+- 模型目录消费者清零后，删除旧 GatewayService 的目录入口、绑定字段、缓存字段与备用构造；移除三个生产兼容文件及 xhigh 展示包装。原 TTL 配置断言归 app，Grok 别名/Bedrock 市场一致性断言归 tests/integration/catalogue；剩余结算执行交叉测试只保留原生目录的数据装配，不再调用旧目录方法。扩大模型/价格/地域/路由回归取得 771 条 race 通过事件，无失败或跳过，见 native-model-catalogue-detach-race.jsonl。
+- 模型纯叶子的合法、HTTP 依赖拒绝、根包反向依赖拒绝分别在普通/unit/integration 共 9 个场景验证，夹具已删除。初次格式诊断及叠加规则先报告 core-gateway 的结果独立保留；最终实际判定见 models-leaf-depguard.json。
+
+- 模型目录整批清理后定向 lint 为零，已有与新增 Go 文件的 whitespace 检查均通过。运行时停调/恢复与模型目录两批合并进入普通、unit、integration（-p=4）及三种 lint 检查，独立结果写入 interim-runtime-models-check.json。未完成 S16 前不更新 roadmap 完成状态，不自动提交。
+
+### 客户端限制回退批次（2026-09-22）
+
+- 通用网关与 OpenAI 调度入口共同委托 routing.ResolveClientGroup；保留两个入口的缺失快照、非正回退 ID、强制平台及读取/识别顺序差异。旧错误常量消费者直接使用 routing，未复制规则。
+- 原循环检测测试迁入 routing，补充读取顺序及差异契约。编译、目标 lint 与定向 unit race 均通过；证据见 `baseline/S16/native-client-group-{final-compile,lint}.log`、`native-client-group-race.jsonl`。策略文档及稳定锚点同步。
+
+### 推广、权益存储及公开用量批次（2026-09-22）
+
+- 推广返利和 Promo 四个原测试文件迁入 tests/integration/promotion，直接绑定原生 promotion、billing 事务参与者。真实 PostgreSQL race 13 条通过，无失败或跳过；原测试名称及断言保留。首次测试装配遗漏 Ent runtime 已修正，初次失败日志留存，不计通过。
+- 订阅、兑换、平台额度七个集成测试文件迁入 tests/integration/billing；套餐投影测试迁入 billing/postgres。真实 PostgreSQL/Redis race 定向 63 条通过，无失败或跳过。保留外层事务、管理延长竞争、dirty 回填及重置后的额度判断断言，测试用户投影不再 import service。
+- 公开用量三项原展示断言迁入 usage/httpapi；删除旧 Gateway 用量转接、用户/用量/余额单位字段及构造参数，app 删除不再使用的余额单位 provider，Wire 由生成器更新。编译通过，生产路由继续绑定既有 providePublicUsage。
+- 迁出文件的历史许可已删除，目标测试逐文件使用精确 import 门禁；对应 native-*-mapping.json 记录路径。HTTP 文档同步，阶段最终验收未宣布完成。
+
+### 身份、Redis、历史迁移与分组测试收敛（2026-09-22）
+
+- 六个身份会话测试文件迁入 tests/integration/identity，真实 PostgreSQL/Redis 定向 race 11 条通过。保留邮箱创建补偿、pending 竞争、refresh 单次轮换、Passkey 真实 SDK 和双缓存重订阅原断言。
+- 账号健康计数、批任务租约分别归 account/rediscache、batchimage/rediscache；三个缓存订阅停止契约归跨模块 subscriptions 集合，共13条真实 Redis race 通过。旧 repository 的 Redis 测试消费者清零，已删除其容器启动及连接转接。
+- 历史 SQL 测试迁入 tests/integration/migrations，45 条 race 通过；原 SQL、schema 和约束不变。两个混合文件的 GroupRepoSuite 方法按符号归 routing，分组存储集合39条 race通过。扫描 SQL 直接调用 infra，不保留 scanSingleRow 包装。
+- 资金存储集合补齐兑换查询与余额锁后，完整 tests/integration/billing race 105 条通过。清单见 native-identity-session、native-remaining-redis、native-migration、native-routing-store 映射，原编译错误日志保留，未计作通过。
+
+### 存储批次合并检查及计数 HTTP 解耦（2026-09-22）
+
+- repository 测试及共用测试启动/夹具已清零；剩余11个生产文件仍是旧执行账号形状转接，未声明旧 repository 包已删除。最后迁移的授权分组、软删除、账号策略、计划测试、探测和任务资金契约定向 race 14 条通过。
+- 团队、设置、任务存储和 outbox 集合 race 48 条通过，创作 workspace unit race 3 条通过。团队测试恢复原 UTC 进程初始化；首次遗漏导致的 PostgreSQL Local 时区失败为本次夹具迁移回归，已修正，生产查询和原断言未变。
+- 合并检查 Wire、普通及 unit 全量通过：11,904 / 19,938 条通过事件，4 / 8 项既有跳过。普通、unit、integration lint 经精确测试门禁补齐后均为0；保留初次 unit SQLite 门禁诊断。日志前缀 interim-native-storage。此次没有宣称全量 integration 通过；既有 EasyPay 观察仍待范围确认。
+- count_tokens 原生 HTTP 由 app 直接构造，删除旧工厂及 CountTokens 转接。受控 CountTarget 保留原选择、计数转发和失败释放时点，不向 HTTP 暴露旧账号；app 只连接尚未迁出的执行原语。共享报文准备、分组错误、Anthropic 错误展示及兼容指标采样保持唯一实现。
+- 原 SSE 防拼接断言迁入 gateway/httpapi；新增完整 HTTP 计数契约验证资金预检顺序、强制平台、两次独立改写、一次失败释放及同步请求类型。定向 race 100 条通过，目标 lint 0，Wire 和编译通过。映射 native-count-tokens-mapping.json，生命周期文档已同步。
+
+### Qoder Chat 旧 HTTP 依赖清理（2026-09-22）
+
+- Chat 原生构造不再接收 QoderGatewayHandler；错误阶段映射进入 gateway/httpapi，供应商错误解释进入 gateway/provider，删除 qoder_http_compat.go 及无消费者的 Chat 辅助导出。Messages/Responses 暂余的旧单步执行复用同一错误展示器。
+- QoderRequestsAndAttempts 由 app 独立 provider 构造一次，Chat、兼容 HTTP 与平台尝试共享原 StopOrder=15 和进入屏障，未新建 worker。真实 standard/simple SIGTERM 两个场景通过，检查了原资源停止顺序。
+- 原4个 API错误断言迁到 provider，规则覆盖断言迁到 app，兼容换号断言迁到 upstream/qoder。首次迁移曾误复用 Chat 对普通错误的换号策略，原断言捕获后已恢复两个入口的历史差异；该本次回归及失败日志保留。最终定向 race371条通过、目标 lint0，Wire与编译通过。映射 native-qoder-chat-http-mapping.json。
+
+### Qoder 兼容能力整体收尾（2026-09-22）
+
+- Messages/Responses 的生产构造、固定端口、受控账号目标、等待/重试资源、刷新和完成投影已同批迁入 gateway/httpapi 与 app。删除 QoderGatewayHandler、构造器及两份旧单步适配；生产、测试与 Wire 对旧类型的引用清零。
+- 原等待队列拒绝、计数释放、断开后的完成释放、SSE/JSON 错误和成功粘性绑定测试迁入实际所有者。原无生产消费者的刷新集合 helper 删除，排除集合及三账号预算由同名测试直接执行 text.RunQoderCompatible；其 nil 包装断言不再作为生产证据。
+- 两种协议的完整 HTTP 契约新增成功/部分用量分支，检查资金预检先于选择、同一次完成输入、原报文与改写报文区别、失败不刷新/换号/绑定、释放及反馈次序。新增测试最初把 int token 值写成 int64 断言，已修正夹具类型，保留初次日志。
+- 定向 unit race376条通过，目标 lint0；真实 standard/simple SIGTERM通过，唯一 QoderRequestsAndAttempts、队列和共享资源关闭顺序保持。映射 native-qoder-compatible-mapping.json，文档已更新。app 中仍保留旧执行账号的受控调用投影，尚未声明整个旧网关服务清零。
+
+### 模型拒绝展示与 Qoder 原测试归属（2026-09-22）
+
+- 分组模型不支持提示的资格过滤、排序、显式空集合与错误构造进入 routing；站点默认目录与账号规则投影进入 gateway/provider。三个生产选择入口直接调用原生规则，旧 service 仅保留候选读取端口投影，旧 qoder_site 和聚合算法文件删除。
+- 原 Qoder 站点/白名单/映射断言直接使用原生 Record；developer 消息、max_completion_tokens 和并发 conversation store 测试迁至 upstream/qoder。新增规则读取顺序与 nil/空集合契约，定向 unit race503条通过，目标 lint0，编译通过。映射 native-model-rejection-test-mapping.json。
+- 准备将上述稳定批次合并运行计划规定的普通、unit、integration及三组 lint；这属于常规迁移验收，不改变清单外历史问题的修复范围。
+
+### HTTP/平台批次合并全量结果（2026-09-22）
+
+- interim-native-http 的 Wire、普通/unit/integration 全量以及三组 lint 全部退出0。事件摘要见 interim-native-http-summary.json，跳过仍单列；该轮覆盖已迁存储、CountTokens、完整 Qoder HTTP 与模型拒绝规则，不替代 S16 全部旧包清零后的最终验收。
+- 本轮常规全量中的 EasyPay empty_response 通过，支付源文件和夹具未作本阶段修改。此前一次 CloseIdleConnections 失败仍保留为观察，未追加清单外定向复现或修复。
+
+### 提示词固定依赖收尾（2026-09-22）
+
+- HTTP 的 MessagesPrompt 直接使用 promptpolicy.Service 已有方法；原 service 两个提示词转接和 RuntimeReaders.Prompts 字段删除。HTTP 构造及 WS 服务直接接收 app 唯一提示词实例，消费者、测试替身、Wire 和精确门禁同批调整。
+- 普通175条、unit race206条通过，无失败或跳过，目标 lint0；真实双计数 HTTP 验证同一个缓存只回源一次、构造不回源。WS followup 保留原替换内容断言；settings 包装的旧指针断言由该实际行为契约承接。配置和生命周期文档同步，native-prompt-binding-mapping.json 记录对应关系。
+
+### 响应头过滤与执行装配批次（2026-09-22）
+
+- egress 响应头编译从 service 配置读取转为 app 投影 `provideResponseHeaderFilter`，Gateway/Gemini/OpenAI 三个执行构造接收同一编译结果；默认白名单、强制删除、逐跳头和输入切片隔离保持。原测试夹具迁入 app/handler/middleware 精确位置。
+- service ProviderSet 删除，剩余执行构造由 app 的 wireinject-only `gatewayExecutionProviders` 装配，普通生成代码继续使用可见的 `provideOpenAITLSRouters`。Wire、受影响编译通过，响应头普通399（1既有跳过）、race534（1既有跳过）通过，目标 lint0。
+- 首次把 provider-only 装配函数放在 wireinject 文件导致生成代码普通 lint typecheck 失败，已将纯 provider 投影移到普通 app 文件；失败日志保留。
+
+### 本轮批次检查的环境阻塞与回退记录（2026-09-23）
+
+- 日志前缀 s16-final 仅为此次 runner 的文件名，旧 service/handler/repository 仍未清零，不视为 S16 最终完成证据。Ent/Wire、普通和 unit 全量退出0；integration 三项 identity 用例因 Docker socket/端口就绪超时未执行到业务断言。原失败事件保存，必要存储验证保持待复验。
+- 为减少容器启动尝试的共享 sync.Once 夹具错误地把资源挂到首个测试清理，且首次启动失败后导致后续 nil；这一临时修改已全部撤销，恢复 identityDatabase 的独立资源和清理实现，不改生产代码或断言。后续不要以此共享版本作为基线。
+- 当前 unit/integration 定向 lint复验0；本轮非最终 runner 中 build-linux 未设置交叉环境且未执行，不得当作 Linux 构建证据。真正最终验收必须完整按计划另跑。
+
+### 创作执行、图片意图及原生认证边界（2026-09-23）
+
+- 创作 worker 直接接收 app 构造的 creative.Executor；删除旧 CreativeExecutor、CreativeExecution、选择包装及四份测试转接。原请求/结果纯断言迁入 creative/provider，两项旧技术 transport 绑定仍在 service 的明确目标投影测试中。106 条定向 race 通过，额外装配测试验证构造不回源及保留两次分组读取；Wire/编译通过。
+- OpenAI API Key 健康错误归因进入 gateway/provider，原 RateLimit 的观察/空成功方法删除，两个实际失败入口仍调用唯一 account.HealthService；取消、请求级/供应商级错误与独立重试不进入计数。11 条定向 race 通过。
+- 图片意图生产与测试消费者直接使用 media 唯一策略，provider 只绑定平台纯工具解析及 Grok 被动声明例外；稳定错误消息直接引用 media 常量。旧图片意图文件删除，混合测试中的图片输出计数归 protocol/openai，显式/被动工具及 benchmark 原断言迁入 provider（未运行 benchmark）。与创作批次合并普通95、unit race253通过，目标 lint0。
+- Key、失败 Ops 投影和强制平台上下文归 apikey/httpapi；资金来源读取归 gateway/httpapi，identity 根包及旧 middleware 主体/角色/Principal 转接删除，消费者直接读 authctx。字符串编码和取值时机不变。普通98、unit race147通过。
+- JWT、管理员、step-up、会话绑定、后台模式原测试直接验证 identity/httpapi，113条定向race通过；旧七份测试构造/克隆包装删除。废弃 typed-nil 包装的结构断言随包装删除，未认证且 nil 设置仍返回401的业务断言保留。旧 middleware 的认证类型、SecurityClientIP、错误包装和复合模型转接清零，AdminOnly 无调用者删除；原生路由类型、header/响应结构保持。
+- 认证上下文与剩余消费者完整unit lint复验0，映射见 native-auth-context、native-middleware-types、native-identity-http-original-tests。此前三项 Docker 启动超时的原 identity 测试恢复独立夹具后复验通过（5条含父子事件），未改业务逻辑。
+
+### 原生独立测试按符号批量归属（2026-09-23）
+
+- 使用 go/types 记录旧 service 的 unit 集合逐文件实际符号依赖。确认无旧生产符号、无其他测试文件依赖及无反向测试调用后，将29个旧文件拆为30个所属模块或跨模块测试文件，共133个 Test/Benchmark 声明；原标签、名字及断言保持。
+- 覆盖平台报文、身份/加密续接/重放、用量类型、通知与注册邮箱、Key快照及渠道规则。domain_constants 按两个所属常量拆分；没有按文件名推定所有权。
+- 全仓 unit 编译通过；精确原测试名单普通242、unit race294条通过，无失败或跳过。benchmark仅迁移、未执行。路径映射见 native-independent-tests-mapping.json，符号依赖见 remaining-service-test-symbol-dependencies.json。
+
+### 流终态与 HTTP 续接归属收敛（2026-09-23）
+
+- 旧 OpenAI stream helpers 按职责拆分：失败 SSE 构造归 gateway/provider，通用失败 wire 与 WS 请求视图归 protocol/openai，缺失 usage 的采样及日志归 gateway/telemetry。调用点只提取状态码和 ID，采样窗口、累计、错误文本及终态规则不变。
+- Codex ID、版本组合、工具空身份、usage 复制与终态测试直达原生实现，删除五个纯测试转接；混合终态文件按协议、平台与采样拆分，保留原测试及 benchmark（未运行）。普通319、race424通过，各1项既有跳过。
+- HTTP续接归属校验进入 gateway/session，标记及读取进入 gateway/httpapi；删除旧 Set/Validate/Bind 公开转接。app 构造唯一 OpenAIWSStateStore 并由生成Wire注入，旧执行只保留原生存储取得及有序写入投影。141条相关race通过，原同用户跨Key和未知响应拒绝断言保持。
+- integration全仓以 -exec=/usr/bin/true 仅编译测试二进制，不启动TestMain容器，此项不作为行为验证；存储与进程验收仍须正常执行测试。
+
+### 账号策略、请求档位与 Fast 裁决批次（2026-09-23）
+
+- 10个旧账号策略测试文件直接使用 account.Record/RuntimeConfig，保留日期加载注入及原断言；普通116、unit race160条通过。Vertex project 的凭据解析复用 upstream/vertex 唯一函数，账号测试、批量任务及在线转发都保留按需调用，旧 Vertex/Anthropic 认证头实体转接删除；相关race130条通过。
+- 请求原档位、最终档位、模型候选推导、策略快照及字段改写进入 gateway/requeststate；显式 map 字段解析归 protocol/openai。HTTP 分组策略和用量标记、WS 策略与 UsageDecoder 接入同一实现，原静态规则测试移到 routing，混合用例保留真实转发断言。普通143、最终定向race231条通过。
+- Fast 系统/分组/Key 裁决及 HTTP 改写归 tierpolicy，WS 帧和错误事件归 ws，HTTP/SSE 策略错误归 httpapi。生产和测试删除旧算法入口，旧账号边界仅投影资格与惰性读取；原实际转发与配置测试继续验证生产消费者。新增短路/按需查价顺序契约，80条定向race通过。
+- 首次编译中的 HTTP 残留 service 引用、混合测试引用及脚本生成的 import 顺序错误均为本次迁移问题，已修正；原日志保留。各批编译已通过，门禁随准确文件/import更新。native-account-policy-tests、native-credential-projection、native-effort、native-fast-policy 保存对应清单及行为证据；旧执行图仍未清零，不宣布 S16 完成。
+
+### Compact、报文视图与 Responses 兼容整批收尾（2026-09-23）
+
+- Compact 路径、body-signal、种子、协商 Header 和日志已归原生 HTTP；触发项规则归 protocol/openai。OpenAITextHandler 直接执行归一化和结果日志，旧 backend 三项回调及 ForTest 生产入口删除，原先的 ForceCodexCLI 日志字段改为静态 Options 投影。原路径/JSON/日志测试迁入目标；仍被其他真实入口使用的日志捕获夹具暂保留原测试位置。
+- 原 OpenAIRequestView 包装删除，生产及测试直接使用 requeststate；完整解码继续使用 UseNumber 与原错误前缀。原“不写 Gin 缓存”测试改为执行实际剩余 forward Adapter，断言保持。Compact 与视图定向race222条通过。
+- `none` 保留/过滤与 Compact max→xhigh 的平台资格和报文实现归 gateway/provider，原资格测试改为实际 Prelude.CompactEffort，相关race18条通过。协议/日期无新行为变化。
+- 旧 Responses 历史输入、工具 ID、schema、孤立工具输出及 WS 兼容算法整批迁入 provider，在线调用、独立原测试及精确门禁同批更新。恒 false 截断函数及对应生产端口删除；原“不截断”测试现在执行真实 WS 归一化并检查完整结果，原大文本真实转发测试继续保留，原已解码对象的补丁同步时点不变。168条定向race通过。
+- 早期编译捕获的协商 Header 函数名、目标包自引用和遗漏测试常量均为本次机械迁移回归，已修正并保留日志。映射 native-compact、native-request-view、native-response-effort、native-responses-pipeline 记录生产及测试归属。此前档位批次全仓unit lint已退出0；本批门禁继续复核，后续合并稳定批次执行全仓验证。
+
+### 报文与策略批次合并验证（2026-09-23）
+
+- interim-native-policies：Wire、普通全量11930条通过（4既有跳过）、unit全量19964条通过（8既有跳过），退出0。integration取得12922条通过、4项既有跳过，3项失败均为 PostgreSQL 容器在业务断言前启动超时；不是整组通过。
+- 原3项（幂等回收、S02存储合同、outbox合并）保持原断言，使用独立容器串行补验退出0；失败容器已由测试框架清理，未执行额外删除或修改超时。补验不替代最终 -p=4 全量验收。
+- 同一冻结代码的普通/unit/integration三组lint均退出0，记录在 interim-native-policies-recovery-checks.json。原计划正文摘要、SQL与S00—S15冻结资料不变，索引为空。剩余旧生产文件为service248、handler49、repository11；仍需完成旧执行形状、共享健康/调度及HTTP装配等清理，roadmap保持16/17。
+
+### 失败展示、分组派发与无消费预检完整绑定（2026-09-23）
+
+- 空 Chat/Responses 终态的失败事实、稳定 reason 和客户端安全消息归 gateway/forward；观察及展示投影归 gateway/httpapi。删除旧静默拒绝构造与旧失败投影函数，保持两类 Ops 消息差异、原内部失败编码及规则次序。83条定向race通过，目标unit lint退出0。
+- Messages 精确/系列映射归 routing，Grok动态目录由 provider按命中时点读取；HTTP读取已认证Key的分组并登记模型链。旧service派发文件及handler三项包装删除，原规则和HTTP断言直接迁至所有者，22条race通过，全仓unit lint退出0。
+- OpenAI/Grok计数及Responses输入token预检由app直接构造OpenAITokensHandler，生产路由、受控账号目标、固定端口、Wire、测试及门禁同批改绑。删除旧两个执行Adapter和两个HTTP转接文件；不再通过旧OpenAIGatewayHandler创建计数入口。
+- 21条相关race通过：原无槽计数资金顺序、Grok本地估算、错误权限、支持/不支持平台路由断言保持；新增原生HTTP合同验证输入预检两次尝试各释放账号槽、仅一次资金预检及原报文映射顺序。首次新增夹具漏填分组平台，误将空额度平台断言为openai，已补齐夹具而未改生产行为，原失败日志保留。
+- 原计数顺序测试和最小替身已迁入gateway/httpapi；app构造/停止合同通过，证明缺少依赖和共享活动屏障停止均先于body读取。全仓unit lint再次退出0。清单native-error-surface、native-messages-dispatch、native-openai-tokens记录替代位置；完整最终验收仍在全部旧包清零后执行。
+
+### 原生账号夹具与旧仓储写权限收窄（2026-09-23）
+
+- account DTO 的原脱敏/嵌套副本测试直接使用原生Record及Mapper，删除旧记录投影与测试别名，12条race通过。usage/postgres的8个integration文件及共享夹具直接使用account.Record，原Ent写入、数据和断言不变，187条真实PostgreSQL integration race通过。首次重复import的机械迁移错误已修正，未修改业务实现。
+- testutil四个业务构造函数在整个backend中无定义外引用，删除fixtures.go及其历史许可；没有把旧服务图重建到测试目录。native-account-fixtures-mapping.json记录所有消费者。
+- unit/integration的Go类型使用清单确认旧AccountRepository候选方法无直接调用或运行时能力断言。按配置入口成批删除17项接口声明及实际转接，包括创建/删除、绑组、代理回退和额度重置；原生account/billing存储继续唯一执行这些操作。
+- 编译揭示BulkUpdate仍通过account.OpenAIPlanWriter承担套餐观测的隐式接口义务，已恢复这一方法并登记实际绑定。不能仅凭直接调用计数判定可删除。两个构建集合全仓编译通过（仅编译不算行为），健康定向race32条、原生账号存储integration race155条通过。account-repository-config-prune.json保存删除项、保留义务及证据。
+- 旧仓储仍保留执行读取、凭据、健康与尚需的累计转接，未宣布repository或旧实体清零；最终资金销项仍须逐条完成。
+
+### 仓储能力断言、原生健康与完成实例所有权（2026-09-23）
+
+- 在整个内部依赖图按方法名保守登记unit/integration运行时接口断言，补足直接调用与签名文本匹配不能证明的能力需求。已删17项没有运行时断言义务；再删除11个无调用的额外仓储转接、3个空文件及旧OAuth分页类型。两组全仓编译通过，原生刷新/凭据定向race430条通过，真实存储补验81条通过。首次误选internal/account/postgres只执行了1个投影测试，明确不计数据库行为证据，已改用tests/integration/account的实际存储合同补验。
+- 使用现有完整golangci配置在仓库外可丢弃模块验证24个normal/unit/integration门禁场景：合法Adapter、精确既有绑定、新文件拒绝、既有文件新增禁止依赖、改路径后例外失效、非法子包、核心反向依赖、protocol I/O均取得预期结果。初始合法夹具错误选用了未获准的account根包，保留拒绝日志；随后用合法的gateway契约验证，没有放宽规则。所有临时夹具已删除。
+- app独立构造accountHealthRuntime，再以单向纯绑定向旧执行发布同一Health/Recovery/Team/Limits/Upstream实例；Antigravity重试直接依赖原生运行时。unit race3条、真实PostgreSQL及本地协议装配race7条通过，Wire和目标integration lint通过。
+- 完成记录器直接由app组合原生价格、资金、用量、健康及副作用端口。Forward/OpenAI各自保留一份隔离倍率缓存，与对应旧执行入口共享；旧入口接收同一已构造Recorder，生产不再回取或重建完成实例。共用ApplicationBackgroundTasks，构造不查价、不启动工作。删除三项无消费者的旧准备投影API，渠道统计与完成日志出口只保留一份原生实现。
+- 完成/计费定向race409条通过；真实PostgreSQL两条记录链各自验证同ID重放只扣款一次、Key累计一次且只保留一条用量事实，共3条含父子事件通过。首次新夹具漏写QuotaUpdates标记导致其Key累计断言失败，已补齐与真实生产捕获一致的输入，未改算法。
+- standard/simple真实启动与SIGTERM两个场景通过，父子共3事件，停止次序保持。首次进程过滤器缺少“-sigterm”后缀只执行了父级准备，日志明确不计行为通过，随后以正确过滤器补验。当前unit完整lint与目标integration lint均退出0。新的interim-native-completion全仓合并验证正在执行；这些结果不替代旧包全部清零后的最终验收。
+
+### 完成实例合并验证及定价测试所有权收尾（2026-09-23）
+
+- interim-native-completion：Wire、普通全量11940条通过（4既有跳过）、unit全量19974条通过（8既有跳过），退出0。integration取得12940条通过、4既有跳过、1项失败；失败为分组复制回滚测试在业务断言前启动PostgreSQL容器超时，原断言串行补验通过。该首次失败保留，不记作整组通过；后续完整三组lint均退出0，见interim-native-completion-recovery-checks.json。
+- 旧计算器、倍率及DeepSeek的原测试迁入billing，独立测试输入构造仍调用原生Calculator，纯函数直接使用pricing；208条定向race通过。删除14项已无消费者的测试转接，完整unit lint退出0。
+- 渠道测试数据与可注入存储替身归routing/testkit，只提供输入，不复制渠道缓存、匹配或查价实现。原目录别名测试保留更新存储后InvalidateCache的断言。解析器、统一计算和目录别名三组原测试迁入billing；跨网关消费者保留原实际执行路径，共享无状态的billing/testkit构造器，删除重复构造和4个无人调用的区间函数转接。
+- 首次编译暴露了两个可变渠道替身引用，以及混合测试对已迁私有构造器的反向引用；已完整改绑对应消费者。所有原失败日志保留，最终编译通过，定向race与门禁结果见native-resolver-tests-*。未扩大历史问题范围；剩余生产执行及HTTP装配仍按S16继续清理，不标记完成。
+
+### 完成捕获与原生 Live HTTP 批次（2026-09-23）
+
+- 定价/渠道整批最终为538条race通过，unit完整lint退出0。原断言名称、标签、共享测试数据及构造器位置见native-resolver-test-names.json和两个迁移映射；不会把测试构造器当作生产缓存实现。
+- Messages/OpenAI/Cyber完成入参、主体/用量快照和请求ID捕获已归gateway/provider，生产提交点及测试直接使用原生接口；旧service捕获函数和三个入参结构删除。剩余执行账号仅在同步边界提供必要Record字段，不查询存储、不提前冻结；捕获后异步任务不持有原报文或凭据。
+- 历史长上下文专用入口已无生产消费者，删除结构、方法及两层重复字段转接；原取消上下文资金断言改用真实统一完成入口，原固定金额及调用次数断言保留。Header请求ID、Key隔离、Cyber快照和强制请求ID原测试迁入所有者，新增捕获时刻、WS时刻和带类型nil能力标记的合同。614条unit race、真实PostgreSQL一次资金效果3条父子事件通过；unit完整lint退出0。
+- Live HTTP由app直接构造，共用审核、资金准入和并发实例，旧Live Handler门面及工厂删除；app只投影原Live用例结果。Live/WS非报文Key映射、审核端点读取同步归原生HTTP，旧重复入口删除。原解析、权限、审核先于资金与错误形状测试迁入gateway/httpapi，并继续使用真实本地审核HTTP客户端。
+- Live/路由/审核相关race364条通过，原生app构造与共享停止屏障合同另1条通过；Wire、编译及unit完整lint退出0。首次捕获迁移的重复import、遗漏私有测试引用和准确门禁许可均已修正，原日志保留，没有修改生产算法或扩大忽略。
+- 本批同步网关生命周期与路由计费文档，保存native-completion-capture、native-live-http映射及日志。尚存的旧执行、账号形状与其他HTTP装配仍未清零；最终全量验收和17/17状态不得提前宣告。
+
+### 定价、完成捕获和 Live 合并全仓检查（2026-09-23）
+
+- interim-native-capture-live：Wire及普通/unit/integration三组全量命令均退出0，分别取得11945/19979/12946条通过事件；既有跳过分别4/8/4项，名单保留在checks.json，不计为行为通过。integration使用原定-p=4，无容器超时补验或断言调整。
+- 首次普通lint发现两个新迁入的目录夹具符号仅由unit测试使用；给该辅助文件补齐unit标签后，普通/unit/integration三组lint均退出0。没有删除有效测试或新增忽略项，首次诊断与复核分别归档。
+- 原计划正文摘要、SQL与S00—S15冻结资料无变化，索引为空，diff检查通过。此时剩余旧生产文件service242、handler43、repository8；跨包生产引用分别58、4、1个文件，逐符号清单见remaining-boundaries-after-live.json。下一批按会话标识与哈希能力继续清理；以上为阶段中间证据，不代替最后一次完整验收。
+
+### 会话标识、摘要缓存与 Cyber HTTP 状态收尾（2026-09-23）
+
+- 35项会话符号的52个调用文件按类型信息改绑；Header和认证分组判定归HTTP，OpenAI内容种子、Grok隔离种子与Gemini摘要格式归session，续接ID分类归protocol/openai，旧哈希上下文读写同批归requeststate。删除旧OpenAI哈希方法及客户端ID入口，Qoder直接调用已有通用请求哈希，保留观察日志及fallback命名空间。
+- 原Header/优先级、内容稳定性、续接分类、Gemini摘要及会话连续性测试迁入所属模块；混合执行测试保留实际生产链。原benchmark及其唯一共享夹具同批移动，仅编译、未扩展benchmark执行。会话定向race538条、Qoder21条通过；integration全仓仅编译通过，真实Redis会话/归属/TTL竞争另11条父子事件通过，二者分别记载。
+- 首次脚本遇到同名protocol目标文件，已改为独立kind文件并恢复原RemovePreviousResponseIDFromBody实现；重复import和benchmark夹具反向引用也已修正。import整理脚本误将两个重复字符串返回当作重复import删除，经语法树核对受影响文件确认仅两处，已恢复原选号quota_auto_pause与测试JSON回退返回；对应51条race通过。回归核对记录见session-import-dedupe-return-*，不是清单外历史修复。
+- Messages→OpenAI摘要缓存由原生session.AnthropicPromptCache唯一实现，app构造并绑定同一实例；旧执行只投影账号/Key ID、摘要和既有TTL。原最长前缀、命名空间、旧链删除与到期时机保持，无新增清理任务。摘要/真实转发及装配定向race121条通过。
+- Cyber标记复用moderationflow.Mark，HTTP拥有首个标记与turn清除，provider解析供应商事件，forward持有已透传哨兵；旧service文件及消费者全部改绑。相关实际WS/HTTP、摘要与装配race64条通过，完整unit lint退出0。源码、测试、门禁与文档同批更新，映射native-session-identity、native-anthropic-prompt-cache和native-cyber-marker保留全部位置及证据。
+
+### 会话批次全仓检查与候选资格收敛（2026-09-23）
+
+- interim-native-session-cyber的Wire、普通/unit/integration全量及三组lint均退出0。实际通过事件11948/19982/12949，既有跳过4/8/4；所有命令和名单独立保存，未使用跳过替代行为证据。
+- 原账号上的协议准入、模型窗口、剩余时间与可调度性方法改为gateway/provider.ModelPolicy，选择、诊断和跨平台转发调用同一能力；目录与选择共用候选快照。删除model_rate_limit.go与antigravity_quota_scope.go实现及仅供旧测试的常量转接，原取时点、窗口差异和overages许可保持。
+- 原窗口测试、Antigravity状态断言和完整协议保存矩阵随能力迁入provider；混合真实执行测试继续保留其生产入口。首次编译补齐了原Go隐式取地址调用的显式地址，未更改数据或断言。最终编译通过、544条定向race通过、完整unit lint退出0，见native-model-qualification-*。
+
+### HTTP 心跳与输出边界完整收尾（2026-09-23）
+
+- 图片JSON心跳、计时器和Writer包装完整归gateway/httpapi，生产错误展示、媒体尝试和handler都直接使用新入口，旧service实现删除。HTTP状态断言迁到所有者，实际OAuth响应与心跳后故障切换的两项测试继续运行原执行链；等待辅助函数改为读取生产包装器带锁的Written状态，没有增加只供测试访问的生产API。64条定向race通过，完整unit lint退出0。
+- 普通流心跳字节登记、实际输出判断归HTTP，TTFT条件组合归provider。Compact与透传心跳的两组原测试及纯HTTP上下文/SSE夹具同批迁移；旧writer测试别名删除，原生CompactKeepaliveWriter收回为包私有类型。80条定向race通过，编译及完整unit lint退出0，原断言和平台取消语义保持。
+- native-image-keepalive与native-output-boundaries记录源/目标、消费者和日志；同步网关生命周期文档。候选资格和本批输出边界将在后续稳定批次合并做全仓检查，最终验收仍待全部旧包清零后完整执行。
+
+### 完成记录原生验证与旧资金装配删除（2026-09-23）
+
+- interim-native-qualification-output的Wire、普通/unit/integration全量及三组lint均退出0，通过事件11948/19982/12949，既有跳过4/8/4。后续构造器删除仍须再做合并验证。
+- 原完成记录工厂直接组合gateway/testkit.Recording中的原生Dependencies/Options，不再创建旧Gateway/OpenAI对象。十二个共享存储/额度替身同批迁入gateway/testkit；原断言迁入gateway/completion，真实HTTP和资金闭环继续由原生生产实例验证。旧RecordUsage、Cyber补记、历史金额计算方法及私有转接已删除，混合价格/市场测试直接调用同一Recorder计算。
+- 迁移首次暴露两处峰值测试依赖旧service测试进程把time.Local设为UTC。将这两处固定时刻改为明确使用其峰值配置的本地时区，保留12:00处于11:59—12:01及原金额断言，没有修改生产时间策略。记录迁移race154条、计算交叉race528条通过；首次失败日志保留。
+- 删除旧网关按需构造完成器的兜底代码，Getter只返回app绑定实例。HTTP测试补齐显式完成依赖，并复用原输入实例；最初五项WS用量等待失败及未检查到的完成任务panic均已清除，HTTP单包399条通过。最终完成/消费者race799条通过，真实PostgreSQL一次资金效果3条父子事件通过。
+- 两个旧执行构造器各移除七项仅供旧完成装配使用的资金/身份/通知依赖，并删除计费测试时钟字段；app装配参数同批收敛。Wire识别已无消费者的provideUserRepository后删除其注册与函数，再按手写装配生成。Native记录器、资金存储及通知实例均保持唯一。
+- 旧倍率代理方法、缓存字段、singleflight及重复构造清零。Forward/OpenAI两份原生缓存由app直接持有，原RuntimeLocalCaches的一分钟任务调用同一实例；未改变键、TTL、隔离或停止等待。原缓存/singleflight三组断言迁入billing，TTL断言迁入app；175条相关race通过，最终unit lint为0。
+- 后续试删Gateway的usageLogRepo/deferredService被编译拒绝：窗口回源、调度阈值及Anthropic/传输观测仍需要它们。已完整恢复字段、构造输入及原测试值，114条相关race通过，没有保留删除或行为变化。native-gateway-unused-deps-restored.json单独说明，不能将原删项算作完成。
+- 本批清单、消费者、构造器索引及验证见native-recording-*、native-completion-*、native-bound-completion-*与native-rate-*。仍有service233、handler43、repository8个旧生产文件；S16保持实施中，后续继续完成执行账号、平台与HTTP装配的剩余职责。
+
+### 完成与倍率合并验证、账号配置读取收敛（2026-09-23）
+
+- interim-native-recording-rates的Wire及普通/unit/integration全量均退出0，通过11948/19982/12949条事件，既有跳过4/8/4。首次普通lint发现四项仅供unit测试的旧辅助入口；将三个仍有unit消费者的夹具归到正确标签、删除已无生产消费者的完成账号转接后，三种lint均退出0，复核见interim-native-recording-rates-lint-rechecks.json。
+- 账号请求头资格/配置直接调用原生Record，请求覆写唯一调用account/provider及egress。真实转发、账号用量查询与Grok查询同批改绑，原配置/非法Header/大小写/副本隔离测试迁入所有者；84条race通过，unit lint退出0。方法值使用原账号指针的延迟字段投影，保持配置在回调执行时读取，未扩大生产API供私有测试使用。
+- 删除旧Account的八项协议地址方法，消费者显式使用已有ProtocolTarget；编译通过，协议/真实转发race330条通过。RPM、会话、队列及窗口的十一项旧方法也删除，消费者直接使用RuntimeConfig，GetCurrentWindowStartTime继续在原调用点传入time.Now；445条race通过。
+- Codex图片桥接覆盖、显式工具策略归account，旧键、嵌套优先级、remove/drop兼容与显式false保持；指纹模式的资格判断归Record，读取Extra布尔值直接复用原生函数。原指纹模式矩阵迁入account，实际图片与指纹生产消费者继续验证，110条race通过。首次门禁中两处重复import与一个遗漏精确许可已修正，没有放宽目录规则。
+- native-account-header/protocol/runtime/config清单记录消费者和验证；旧账号仍暂存当次AttemptRoute，尚未将其与全部执行输入分离，不能把这批方法删除等同于Account或S16完成。
+
+
+### 账号能力与独立搜索整批收敛（2026-09-23）
+
+- `interim-native-account-config-checks.json`：Wire、普通、unit、integration（`-p=4`）及三套完整 lint 全部退出零；实际测试事件分别为 11,948 / 19,982 / 12,949 通过，4 / 8 / 4 项既有跳过。这里只是合并批次检查，不替代 S16 最终验收。
+- 账号模型映射、白名单、可配置型号、Grok 媒体资格和端点能力消费者同批改用原生规则；删除旧 Account 对应七个方法及三个 Grok 地址方法。拒绝诊断的隐式接口也改绑已有 `ModelRejectionAccount`。当前尝试映射仍通过 `ModelPolicy` 的独立 Route 处理；未把尝试状态放入持久记录。
+- 相关 Qoder、映射快照、端点与 Grok 纯规则测试迁到 account/provider；原断言、标签与混合执行链测试保留。编译首轮定位的隐式接口遗漏已修复，定向 unit race 1,035 条通过、无失败或跳过；完整 unit lint 零。对应 `native-account-model-*` 与 `native-grok-account-address-mapping.json`。
+- 独立 Web/X 搜索 HTTP、平台载荷、单次传输、固定依赖构造、完成捕获、原测试和门禁成批迁移。app 直接构造原生 SearchHandler，旧搜索 Handler 方法及测试包装删除；Grok 单次搜索交换退出旧 GatewayService，共享原 HTTP 池，保留凭据/URL读取、Header、4 MiB 读取边界、错误分类和关闭语义。原生搜索 ProviderSet 单独分组，选号暂通过已登记的旧选择器窄端口投影。
+- 原生 HTTP 契约新增同查询的独立结算 ID、每次单一资金/记录效果和完成快照后释放断言；首次新增夹具的分组倍率缺省为零，补齐为明确倍率 1，未修改生产金额行为。初次编译遗漏、测试结果和修复后日志分别保留。搜索传输及整组定向验证继续记入 `native-search-*`。
+- 文档同步实际账号与搜索所有者；仍有旧文本/媒体执行、账号实体与存储投影、装配及最终门禁未收尾，roadmap 保持 16/17。
+
+- 搜索整批最终定向 unit race 为 293 条通过、无失败或跳过，完整 unit lint 退出零（`native-search-execution-race-recheck.jsonl`、`native-search-execution-lint-recheck.log`）。其中新增实际 HTTP/完成链断言和传输契约已执行；`native-account-search-verification-summary.json` 同时保留初次构建遗漏及新增夹具倍率问题，未把失败计为通过。正在执行账号模型与搜索合并全量检查（`interim-native-search-model-checks.json`）。
+
+
+### 执行凭据完整能力批次与环境补验（2026-09-23）
+
+- 账号模型/搜索合并普通、unit 全量分别为 11,962 / 19,996 条通过，4 / 8 项既有跳过。integration 全量初次在 5 个容器启动场景遇到 Docker socket deadline（含父测试 6 个失败事件）；失败发生于业务断言前，记录于 `interim-native-search-model-environment-failures.json`。Docker 可用后，原 5 个场景补验 8 条通过、无跳过，三套完整 lint 全部退出零（`interim-native-search-model-followup-checks.json`）。不把该初次全量记为通过，后续合并与最终验收仍须完整 integration。
+- Messages 凭据选择迁入 account.MessageCredentialSource；app 复用同一 Claude/Vertex 源。旧 GatewayService.GetAccessToken/getOAuthToken 及原构造器 Claude 字段退出，消费者直接使用原生输入；Grok 存量 token 的纯读取也归 account。编译、Wire、549 条定向 unit race 与完整 unit lint 通过。
+- OpenAI/Grok 凭据选择、影子读透及 setup-token 边界迁入 account.OpenAIExecutionCredentials。旧 OpenAIGatewayService.GetAccessToken 删除；app 绑定原 PostgreSQL 父账号读取和两个 token 源，并在构造完成、开放请求前接入原运行阻断回调。没有第二份缓存、刷新器或查询。
+- 原独立影子/setup-token 测试迁到 account；HTTP 和执行链的存储/token 替身显式绑定原生凭据源，保留原实例及业务断言，不通过生产回退工厂恢复旧图。OpenAI 批次编译、Wire、1,044 条定向 unit race 和完整 unit lint 全部通过；初次遗漏 app 合同测试新增参数的编译结果单独保留。
+- `native-message-credentials-*`、`native-openai-credentials-*` 保留消费者、测试映射、命令和日志。Anthropic/OpenAI 上游文档同步实际凭据所有者。继续收敛旧执行账号、文本/媒体 HTTP、存储与装配，最终验收尚未完成。
+
+
+### 原生执行账号与旧 repository 清零（2026-09-23）
+
+- 凭据合并完整验证 `interim-native-execution-credentials-checks.json`：普通 11,977、unit 20,011、integration 12,977 条通过，既有跳过 4/8/5（integration 另含 TLS profile 环境跳过）；Wire 及三套 lint 均退出零。前一合并批次的 Docker 容器启动失败未更改代码、断言或超时，后续完整 integration 已取得通过结果。
+- 先按 Go 类型核对字段、方法、关联和序列化消费者，再整体替换旧 Account/AccountGroup。删除旧实体、逐方法包装及逐字段递归往返转换；ExecutionAccount 只组合原生 Record 与独立 AttemptRoute，没有复制账号规则、字段定义或缓存。所有旧方法消费者直接读取 Record，原生账号 CloneRecord/CopyRecordInto 是唯一账号图复制实现。
+- 保留按值复制后替换字段、nil 接收者、已绑定方法在应用新记录后读取最新值、自引用关联、nil/空集合与原复制时点；日期读取仍由原显式时钟/位置函数提供。执行目标不参与持久化或公开 JSON，调度完整/轻量编码仍归原 Redis Codec。业务配置、凭据与请求路线未合并成通用共享实体。
+- `execution-account-preview-*`、`execution-account-applied.json`、`execution-account-owner-mapping.json` 记录消费者和所有者。批次普通/unit 编译通过，integration 全包编译通过（仅编译单列），定向 unit race 1,665 条、真实 Redis/PostgreSQL integration race 180 条通过，无失败或跳过；unit lint 零，Linux 服务构建通过。首轮 AST 新 import 插入导致单文件重复 Record 访问的编译问题已修正，初次日志保留。
+- 旧 repository 的八个文件删除。执行存储契约由 gateway/provider 持有，app 的读/写适配仅投影并调用已有 account/postgres、billing/postgres 实例；原可选 CAS、BulkUpdate、资金累计和配置接口全部保留，未把事务、锁、字段保护、outbox 或缓存搬入 app。旧 service.AccountRepository 及仅为测试存在的生产 CN 接口删除，CN 替身在测试文件声明其需要的能力。
+- 新增真实组合根存储合同，验证原生实例、请求副本隔离、配置保留消费字段及外层 Ent 事务写入/回滚；与原健康、完成、窗口及 outbox 合同共 10 条 integration race 通过。新增夹具最初遗漏必要装配参数，随后误用普通读取接口验证未提交值；已分别改为真实生产装配和事务拥有者读取，保留资金/回滚断言，未改变普通 GetByID 的生产语义。失败与最终结果分别保存在 `execution-store-integration-race*.jsonl`。
+- `execution-store-owner-mapping.json` 保留旧文件归宿。旧包实际 Go import 清零，相关测试命令注释和 Project Doc 已同步；三套合并全量与剩余文本/媒体执行清理继续进行，S16 尚未完成，不更新 17/17。
+
+- 实体/存储合并普通全量 11,980 条通过、4 项既有跳过；unit 全量定位到一个本次类型迁移的比较问题：原 Account 没有时钟函数，新 Record 的函数依赖不能作为账号业务字段直接深比较。原 Kimi 持久化失败后的运行阻断断言保留完整业务字段和路线比较，只剔除新增的函数依赖；未改运行逻辑或历史业务断言。初次全量与定向失败保留，后续结果写入 `execution-account-clock-comparison-*` 和 `interim-native-execution-target-store-recheck-*`。
+
+
+### Codex 身份与指纹能力收敛（2026-09-23）
+
+- 实体/存储合并复核完成：unit 20,014、integration 12,982 条通过，既有跳过 8/4；三套完整 lint 退出零（`interim-native-execution-target-store-recheck-checks.json`）。普通集合此前 11,980 条通过；仅 unit 夹具的技术依赖比较调整后未重复无关普通集合。
+- Codex 命名空间、指纹模式与请求头配置组合进入 account/provider；纯 UUID/会话派生测试进入 upstream/openai。HTTP Adapter 分别发布显式身份与指纹状态，沿用 Gin 同步读写，不引入可变共享状态盒；保留原覆盖时点、nil 覆盖、影子继承、跨账号拒绝和 Header/body 共用 IDs。
+- 身份来源仍按原时点解析母账号，保留原目标记录引用，未提前冻结命名空间或增加查询。受控凭据读取与 ChatGPT Header 组合进入 gateway/provider，影子资格算法仍由 account 唯一实现。四个旧 service 文件删除；原生配置/状态/原语测试迁至实际所有者，实际 HTTP/WS 请求构造测试继续验证真实调用链。
+- 编译通过，定向 unit race 723 条通过、1 项原有 WS 分支跳过，unit lint 退出零；`native-codex-identity-*` 记录消费者、测试归宿和结果。继续验证本批门禁与 Agent Identity 装配，未增加历史问题修复，S16 仍实施中。
+
+
+### Agent Identity 运行能力与门禁（2026-09-23）
+
+- 执行账号/原生存储/Codex 边界的 12 类可丢弃夹具分别覆盖普通、unit、integration，36/36 合同通过。包含精确旧执行许可、同目录新文件拒绝、迁出后许可失效、非法子包、核心反向引用、已删除 repository 拒绝和具体平台互引拒绝；夹具已删除，证据 `execution-codex-boundary-gates.json`。八类 go list 集合（普通/unit/integration/wireinject/embed/e2e/Darwin/Linux）无包错误或旧 repository 引用，仅作为选择/可构建性证据。
+- Agent Identity 的旧密钥结构和签名/解密包装删除，原语与协议测试直接使用 upstream/openai，注册客户端复用 account/provider。原定向 20 条 race 通过；初始源和测试映射记录在 `native-agent-key-*`。
+- app 显式构造唯一 OpenAITaskCoordinator，Wire 将同一变量交给请求执行、额度查询、用量查询和账号探测；删除生产 SharedOpenAITaskCoordinator 及可变注册 URL 全局入口。各入口未持久账号互斥保留，未增加跨进程协调、取消承诺或注册重试。
+- 注册、签名请求头、任务恢复、凭据写回及脱敏的执行适配归 gateway/provider.ExecutionAgentIdentity；旧 openai_agent_identity/account_credentials_persistence 实现文件删除。适配只投影原调用与记录赋值，账号协调器仍拥有锁和复查，原生存储仍拥有持久化。恢复标记与错误分别归 requeststate/forward，WS 错误解释归 upstream/openai。
+- 原注册协议、持久化与共享锁测试迁到实际所有者；实际 HTTP/WS/Live 调用继续回归。运行批次 372 条定向 unit race 通过，迁移测试后的对应集合 282 条通过（命令集合不同，不相加），完整 unit lint 退出零；退役测试替身已删除。消费者、装配及映射见 `native-agent-runtime-*`，唯一协调器的 Wire 证据见 `native-agent-coordinator-wire-ownership.json`。
+- 继续执行合并完整检查及剩余 HTTP/执行适配清理，不将当前进展等同于 S16 完成。
+
+
+### 调度纯策略入口与合并验证补记（2026-09-23）
+
+- Agent Identity 合并普通/unit/integration 分别为 11,980 / 20,014 / 12,982 条通过，既有跳过 4/8/4。普通 lint 定位到仅供 unit 使用的影子账号替身尚参与普通构建，已按真实消费者补齐 unit 标签；没有移动或跳过实际测试。三套完整 lint 最终均退出零（`interim-native-agent-identity-lint-final-checks.json`）。
+- 调度分组覆盖、权重校验、全局权重覆盖和粘性参数归一化直接使用 scheduler/policy，删除五个旧转接；配置权重有效性使用相同字段与求和顺序的原生 ValidGlobal。原运行参数中的额外标志在该纯解析器中不参与计算，删除值拷贝未改变其解释。
+- 原六组分组/全局覆盖、显式零值、溢出及指针复制测试迁入 scheduler/policy；编译、54 条定向 unit race 和完整 unit lint 通过。映射与日志为 `native-scheduler-policy-*`。继续收敛调度共享状态、剩余平台执行和 HTTP 适配；S16 未完成。
+
+
+### 调度共享状态从健康适配退出（2026-09-23）
+
+- RateLimitService 不再拥有或构造调度反馈和设置缓存；原五参数构造器、反馈/缓存取回接口与无消费者的粘性开关转接删除。app 将同一个 Feedback/Settings 直接绑定 Messages、OpenAI、Gemini 和诊断。
+- Messages/Gemini 构造器不再先创建未使用的反馈实例；现有独立执行测试保留本对象的惰性原生缓存，生产在开放请求前完成明确绑定。诊断也使用同一参数缓存与反馈，未修改评分、Top-K、EWMA、组覆盖、缺省观测或查询顺序。
+- 原装配合同改为通过真实调度上报观察同一反馈；新增同包绑定合同检查三个执行器和诊断的缓存/反馈身份。原调度测试显式注入原生反馈，业务断言保持。编译与 Wire 通过，定向 unit race 373 条通过，unit lint 最终为零；初次接口参数遗漏与退役方法诊断保留。
+- 证据为 `native-scheduler-state-*`。设置仓储和配置解释的剩余旧投影、HTTP 及平台执行仍需收尾，当前状态仍为 16/17、S16 实施中。
+
+
+### 组合根 Wire 分组与稳定性（2026-09-23）
+
+- 调度状态合并完整验证为普通 11,981、unit 20,015、integration 12,983 条通过，既有跳过 4/8/4；Wire 与三套完整 lint 全部退出零（`interim-native-scheduler-state-checks.json`）。
+- 按 Go 类型的真实返回值、接口绑定与现有集合定义清点 361 个 Wire 登记项，整理为 25 个模块装配集合；只调整手写 wireinject 结构，不移动实现、重建资源或把剩余旧图视为已迁完。原有集合仍只引用一次。
+- 首次生成提示六个跨模块 Bind 必须与具体提供者同处集合，按 Wire 实际约束调整归属后生成成功，原失败保留。初始化函数逐字节规范化比较完全相同，构造顺序不变；生成文件仅移除原先携带的两个 Wire-only 集合声明及无用 import。再次生成完全无差异。
+- 编译与 wireinject lint 通过。清单、生成差异解释及稳定性证据为 `wire-provider-inventory.json`、`wire-module-groups.json`、`wire-regroup-initializer-comparison.json`、`wire-regroup-repeat.json` 和 `wire-regroup-*.log`。25 个新文件沿用 app 角色限制，必要旧 Handler import 仅许可实际装配文件，并保留 S16 退出标记。
+- 继续按剩余执行函数的真实依赖成批收尾；旧 service/handler 尚未清零，最终全项验收和 17/17 标记仍待完成。
+
+
+### 模型决策及响应读取整批清理（2026-09-23）
+
+- OpenAI 普通/Compact/计费与上游模型解析、错误调度型号、Bedrock 路由与 Lite 资格消费者直接使用原生 ModelPolicy/平台原语；删除四个旧纯包装文件并清理混合文件中的对应符号。保留账号映射取值、Passthrough 与 Compact 优先级、区域输入及错误回退。
+- 纯模型决策、Bedrock ID/区域与来源表、价格候选保留及 Lite 测试分别迁至 gateway/provider、modelidentity 和 upstream/bedrock；实际 HTTP/WS/调度测试继续回归。编译、534 条定向 unit race 和完整 unit lint 通过，证据为 `native-model-decisions-*`。初次工具遗漏裸类型与函数值消费者的编译错误及修正日志保留。
+- 上游响应有界读取与共享超限错误归 infra/httpclient；Ops 与原两种 502 envelope 归 gateway/httpapi。读取上限、nil/I/O 错误、onTooLarge 时点和关闭责任保持，流读取错误分类直接注入同一原生错误。配置默认值未改，也未为常量引入额外配置依赖；剩余旧执行器仅保留配置标量投影，待其 Options 收尾时删除。
+- 原读取合同迁到实际所有者，并验证两种错误 envelope；编译、132 条定向 unit race 与完整 unit lint 通过，证据为 `native-response-limit-*`。继续串行运行这两批合并全量检查，未扩大历史问题修复范围。
+
+
+### 调度参数与评分类型整批收尾（2026-09-23）
+
+- 模型/响应合并普通与 unit 全量分别为 11,984 / 20,018 条通过，4/8 项既有跳过；integration 初次 12,985 条通过、4 项跳过，一项容器启动在业务断言前遇到 Docker socket deadline。未更改该测试、生产逻辑或超时，原场景补验通过；三套完整 lint 为零，详见 `interim-native-model-response-followup-checks.json`。初次 integration 不记作全量通过。
+- scheduler.Parameters 由 app 投影静态参数并绑定原生设置仓储及唯一 SettingsRuntime；Messages、OpenAI、Gemini 和只读诊断直接共享它，删除临时 OpenAI 服务、健康适配设置回取及惰性设置构造。最终分组读取顺序、动态读取时点、五秒缓存、全局/分组覆盖和明确零值保持。
+- 原参数覆盖与溢出断言迁到 scheduler，实际平台和装配替身显式绑定参数；原生参数及消费者定向 unit race 405 条通过，无失败或跳过。初次编译遗漏生成参数与测试入口、测试搬迁的常量拼写问题已修正，失败日志单列。
+- Gemini 评分直接使用无凭据 ScoreAccount/ScoreInput 和原核心；删除旧评分实体、往返转换、抽样别名及生产中仅供测试使用的分数转换。原纯评分/Top-K/随机测试及已有 benchmark 随唯一算法迁移；实际 fresh/DB、配额和计费隔离合同仍验证原平台链，不改变业务断言、不运行新增 benchmark。测试映射见 `native-score-test-mapping.json`。
+- 参数与评分的定向结果保存在 `native-scheduler-parameters-score-verification.json`；继续完整能力清理与合并检查，S16 及最终验收尚未完成。
+
+- 参数/评分合并检查的 Wire、普通、unit、integration 和三套 lint 均退出零，但逐测试标签对照发现本次迁移给原普通参数测试误加了 unit 标签，导致普通/integration 各少执行五个父子事件。已恢复原无标签构建条件，并补跑原生普通与 integration 合同；不将该标签遗漏算作通过验收，也不削弱任何原断言。
+
+
+### 健康观测与文本 HTTP 固定绑定（2026-09-23）
+
+- 参数/评分合并检查最终 Wire、三套测试与三套 lint 均退出零；恢复无标签的原参数测试后，普通与 integration 各补验五条原断言事件。原先被误加的 unit 标签已删除，后续完整检查仍包括这些场景。
+- 健康模型进入请求 ExecutionHints 的独立值，thinking 保留三态；平台观测在 gateway/provider 固化原始模型、规范模型及端点。通用错误生产调用直接进入账号原生观测，执行账号仍取得独立记录，返回后仅回写原有 Credentials/Extra，未扩大字段回写。原临时规则结果直接使用 account 类型；旧请求键、四个聚合错误入口与错误策略投影文件删除。
+- 健康批次编译、954 条定向 unit race 和完整 unit lint 通过；初次漏改 OpenAI fastpath 匹配调用与被丢弃 bool 表达式、精确门禁和重复 import 的诊断及修正均保留。证据 `native-health-observation-*`、`native-health-inputs-*`。
+- 选择结果归 gateway/provider.SelectionResult，Gemini 会话选项归 forward；所有生产/测试/装配消费者成批改绑，旧定义和构造转接删除。选择、Lease、反馈快照、nil 选项及按顺序覆盖保持；699 条定向 unit race 通过，映射为 `native-selection-contract-consumers.json`。
+- Messages、通用 Responses/Chat 与 Gemini 原生 HTTP 的绑定实现退出旧 handler；app 直接构造三条原生 HTTP 路径，共享同一原生业务端口与无状态等待 helper。旧测试构造器仅委托，实际执行器构造仍单独登记待清零，未将其标成已经删除。规则与副作用不搬到 app。
+- HTTP 批次 Wire、编译、484 条定向 unit race 与完整 unit lint 通过；初次编译暴露共享旧 backend 的两个入口依赖后，已同批迁完其 HTTP 绑定。路由、前置顺序、会话、审核与流式断言保留；证据 `native-text-http-*`、`native-messages-http-*`。继续合并完整检查与执行器/健康装配清理，roadmap 仍为 16/17。
+
+- 健康观测/选择契约/文本 HTTP 合并完整检查已结束：Wire、普通 11,986、unit 20,020、integration（-p=4）12,988 条通过，既有跳过 4/8/4，三套未截断 lint 均退出零。完整命令、事件与跳过位于 `interim-native-health-text-checks.json`；这些是稳定批次检查，不能代替旧包全部清零后的最终 S16 验收。
+
+
+### 文本选项、终止输出与用户授权检查点（2026-09-23）
+
+- 新参数、健康和 HTTP 边界的 11 类可丢弃夹具在普通/unit/integration 下全部符合预期，共 33/33，通过后已删除夹具；证据为 `native-health-text-boundary-gates.json`。
+- Thinking 的平台型号选择进入 gateway/provider，报文字节修复仍由 requeststate/protocol 唯一实现；混合原测试按平台、协议和解析 benchmark 的实际职责拆分，标签及断言保留。整数解析助手退出 unit 生产集合，作为原 benchmark 的测试资源保留。强制缓存计费标记移入 requeststate 的私有尝试键，原 false/错误类型/父 context 不变断言仍执行；令牌转换原矩阵直接调用实际响应转换函数，不保留测试内的加法副本。
+- 文本选项和状态编译、559 条定向 unit race、完整 unit lint 通过；初次遗漏函数值消费者和测试私有助手的编译结果独立保留。旧函数、公开 context key 与四个旧文件退出，映射见 `native-thinking-*`、`native-cache-billing-consumers.json`。
+- Anthropic/Messages、Responses、Chat 与 Gemini 的终止错误适配归 gateway/httpapi.MessagesErrorOutput；旧 Handler 的错误方法删除，固定依赖、直接消费者与原 fallback 测试同批迁移。保留前导/真实输出区别、凭据安全提示、Retry-After、规则匹配及 Ops 标记顺序。编译、741 条定向 unit race 和完整 unit lint 通过；初次值接收者/测试空壳构造的编译修正记录在 `native-text-error-*`。
+- 用户要求后续完整能力批次验证后提交进度，本次据此制作 S16 阶段检查点；该要求覆盖原计划的“不自动提交”约定，不自动推送。当前构建及原生包普通补验通过，详细事件在 `progress-20260923-verification.json`。S16 尚未完成，保留 16/17；不提交 AGENTS.md、SYNC.md、其他任务计划或 diagnostics。

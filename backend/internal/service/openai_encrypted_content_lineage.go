@@ -3,6 +3,7 @@ package service
 import (
 	"strings"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
@@ -29,7 +30,7 @@ func (s *OpenAIGatewayService) markOpenAIWSInvalidEncryptedContentLineage(groupI
 	if s == nil || len(digests) == 0 || strings.TrimSpace(sessionHash) == "" {
 		return
 	}
-	stateStore := s.getOpenAIWSStateStore()
+	stateStore := s.ResponseStateStore()
 	if stateStore == nil {
 		return
 	}
@@ -42,7 +43,7 @@ func (s *OpenAIGatewayService) sessionInvalidEncryptedContentDigests(groupID int
 	if s == nil || strings.TrimSpace(sessionHash) == "" {
 		return nil
 	}
-	stateStore := s.getOpenAIWSStateStore()
+	stateStore := s.ResponseStateStore()
 	if stateStore == nil || !stateStore.HasAnySessionInvalidEncryptedContent() {
 		return nil
 	}
@@ -57,7 +58,7 @@ func (s *OpenAIGatewayService) openAIWSLineageSessionHashFromContext(c *gin.Cont
 			return fromCtx
 		}
 	}
-	return s.GenerateSessionHash(c, body)
+	return gatewayhttp.GenerateOpenAISessionHash(c, body)
 }
 
 // markOpenAIWSInvalidEncryptedContentLineageFromPayload 在上游以

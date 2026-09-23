@@ -8,15 +8,16 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenAIWSTerminalEvent_ResponseFailedRecordsModelTransient(t *testing.T) {
-	svc := &OpenAIGatewayService{}
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil)
-	account := &Account{ID: 5201, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5201, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	payload := []byte(`{"type":"response.failed","response":{"error":{"code":"server_error","message":"Internal error"}}}`)
 
 	for range 2 {
@@ -31,17 +32,16 @@ func TestOpenAIWSTerminalEvent_ResponseFailedRecordsModelTransient(t *testing.T)
 // TestOpenAIWSTerminalFailureReturnsExplicitPolicyDecision 验证 response.failed
 // 不只写账号状态，还把显式策略结果返回给写客户端事件的调用方。
 func TestOpenAIWSTerminalFailureReturnsExplicitPolicyDecision(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
-	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	account := &Account{
-		ID:       5206,
+	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5206,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusUnprocessableEntity)},
-		},
+		}},
 	}
 	payload := []byte(`{"type":"response.failed","response":{"error":{"status_code":422,"message":"configured"}}}`)
 
@@ -52,24 +52,23 @@ func TestOpenAIWSTerminalFailureReturnsExplicitPolicyDecision(t *testing.T) {
 	require.Equal(t, "response.failed", terminalPolicy.TerminalEvent)
 	require.Equal(t, http.StatusUnprocessableEntity, terminalPolicy.StatusCode)
 	require.Equal(t, accountcore.ErrorPolicyCustomMatched, terminalPolicy.Decision.Policy)
-	require.True(t, terminalPolicy.Decision.ShouldFailover(account, terminalPolicy.StatusCode, false))
+	require.True(t, terminalPolicy.Decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), terminalPolicy.StatusCode, false))
 	require.Equal(t, 1, repo.setErrorCalls)
 }
 
 // TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy 验证内容安全拒绝
 // 即使被语义映射为 502，也不会误命中账号自定义错误码。
 func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
-	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	account := &Account{
-		ID:       5207,
+	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5207,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusBadGateway)},
-		},
+		}},
 	}
 	payload := []byte(`{"type":"response.failed","response":{"error":{"code":"content_policy","message":"request blocked by policy"}}}`)
 
@@ -80,15 +79,15 @@ func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
 	require.Equal(t, http.StatusBadGateway, terminalPolicy.StatusCode)
 	require.Equal(t, accountcore.ErrorPolicyNone, terminalPolicy.Decision.Policy)
 	require.False(t, terminalPolicy.Decision.ShouldFailover(
-		account, terminalPolicy.StatusCode, openai.OpenAIStreamFailedEventShouldFailover(payload, "request blocked by policy"),
+		gatewayprovider.ExecutionErrorPolicy(account), terminalPolicy.StatusCode, openai.OpenAIStreamFailedEventShouldFailover(payload, "request blocked by policy"),
 	))
 	require.Zero(t, repo.setErrorCalls)
 }
 
 func TestOpenAIWSErrorEvent_ServerErrorRecordsModelTransient(t *testing.T) {
-	svc := &OpenAIGatewayService{}
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil)
-	account := &Account{ID: 5203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	payload := []byte(`{"type":"error","error":{"code":"server_error","type":"server_error","message":"Internal error"}}`)
 
 	for range 2 {
@@ -110,9 +109,9 @@ func TestOpenAIWSErrorPolicyStatus_PreservesExplicitStatusAndFallbackMapping(t *
 }
 
 func TestOpenAIWSDial5xxRecordsModelTransient(t *testing.T) {
-	svc := &OpenAIGatewayService{}
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil)
-	account := &Account{ID: 5202, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5202, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	dialErr := &openai.WSDialError{
 		StatusCode:      http.StatusBadGateway,
 		ResponseHeaders: http.Header{"X-Request-Id": []string{"req-ws-502"}},
@@ -131,16 +130,15 @@ func TestOpenAIWSDial5xxRecordsModelTransient(t *testing.T) {
 // TestOpenAIWSPoolModeErrorUsesConfiguredRetry 验证原生 WebSocket 错误也使用
 // 池模式统一决策，不再写入默认模型瞬态冷却。
 func TestOpenAIWSPoolModeErrorUsesConfiguredRetry(t *testing.T) {
-	svc := &OpenAIGatewayService{}
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil, nil)
-	account := &Account{
-		ID:       5204,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5204,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"pool_mode":                    true,
 			"pool_mode_retry_status_codes": []any{float64(http.StatusBadGateway)},
-		},
+		}},
 	}
 
 	decision := svc.applyOpenAIWSEventErrorPolicy(
@@ -148,7 +146,7 @@ func TestOpenAIWSPoolModeErrorUsesConfiguredRetry(t *testing.T) {
 	)
 
 	require.Equal(t, accountcore.ErrorPolicyPoolBypassed, decision.Policy)
-	require.True(t, decision.RetryableOnSameAccount(account, http.StatusBadGateway))
+	require.True(t, decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), http.StatusBadGateway))
 	require.False(t, svc.isOpenAIAccountModelRuntimeBlocked(account, "gpt-5.5"))
 }
 
@@ -166,18 +164,17 @@ func (r *openAIWSPolicyRepo) SetError(context.Context, int64, string) error {
 // TestOpenAIWSCustomNonFailoverStatusStopsScheduling 验证 WebSocket 派生出的
 // 非默认故障转移状态也执行管理员显式策略，并禁止同账号重试。
 func TestOpenAIWSCustomNonFailoverStatusStopsScheduling(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
-	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	account := &Account{
-		ID:       5205,
+	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5205,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"pool_mode":                  true,
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusUnprocessableEntity)},
-		},
+		}},
 	}
 
 	decision := svc.applyOpenAIWSEventErrorPolicy(
@@ -186,6 +183,6 @@ func TestOpenAIWSCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 
 	require.Equal(t, accountcore.ErrorPolicyCustomMatched, decision.Policy)
 	require.True(t, decision.StopScheduling)
-	require.False(t, decision.RetryableOnSameAccount(account, http.StatusUnprocessableEntity))
+	require.False(t, decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), http.StatusUnprocessableEntity))
 	require.Equal(t, 1, repo.setErrorCalls)
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
@@ -104,7 +105,7 @@ func resolveAccountStatsCostWithMapped(
 	}
 	var source billing.AccountStatsSource
 	if channelService != nil {
-		source = LegacyAccountStatsSource{Service: channelService}
+		source = gatewayprovider.AccountStatsSource{Service: channelService}
 	}
 	var calculator *billing.Calculator
 	if billingService != nil {

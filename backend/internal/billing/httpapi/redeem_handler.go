@@ -3,8 +3,8 @@ package httpapi
 
 import (
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	gin "github.com/gin-gonic/gin"
 )
 
@@ -37,7 +37,7 @@ type RedeemResponse struct {
 // Redeem handles redeeming a code
 // POST /api/v1/redeem
 func (h *RedeemHandler) Redeem(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -61,7 +61,7 @@ func (h *RedeemHandler) Redeem(c *gin.Context) {
 // GetHistory returns the user's redemption history
 // GET /api/v1/redeem/history
 func (h *RedeemHandler) GetHistory(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return

@@ -13,6 +13,7 @@ func provideGatewayRouteMount(eCountTokensHTTP *gatewayhttp.CountTokensHandler,
 	eCompatibleTextHTTP *gatewayhttp.CompatibleTextHandler,
 	eGeminiNativeHTTP *gatewayhttp.GeminiNativeHandler,
 	eOpenAITextHTTP *gatewayhttp.OpenAITextHandler,
+	eOpenAITokensHTTP *gatewayhttp.OpenAITokensHandler,
 	eResponsesWSHTTP *gatewayhttp.ResponsesWSHandler,
 	eModelsHTTP *gatewayhttp.ModelsHandler,
 	eMessagesHTTP *gatewayhttp.MessagesHandler,
@@ -25,6 +26,6 @@ func provideGatewayRouteMount(eCountTokensHTTP *gatewayhttp.CountTokensHandler,
 	batch *batchhttp.BatchImageHandler,
 	options gatewayhttp.RouteMiddleware) gatewayRouteMount {
 	return func(r *gin.Engine) {
-		gatewayhttp.RegisterGatewayRoutes(r, gatewayhttp.RouteEndpoints{CountTokens: eCountTokensHTTP, QoderCompatible: eQoderCompatibleHTTP, CompatibleText: eCompatibleTextHTTP, GeminiNative: eGeminiNativeHTTP, OpenAIText: eOpenAITextHTTP, ResponsesWS: eResponsesWSHTTP, Models: eModelsHTTP, Messages: eMessagesHTTP, Media: eMediaHTTP, Auxiliary: eAuxiliaryHTTP, Live: eLiveHTTP, Search: eSearchHTTP, PublicUsage: ePublicUsage.Usage, QoderChat: eQoderChat.ChatCompletions}, options, func(group *gin.RouterGroup) { batchhttp.RegisterGatewayRoutes(group, batch) })
+		gatewayhttp.RegisterGatewayRoutes(r, gatewayhttp.RouteEndpoints{CountTokens: eCountTokensHTTP, QoderCompatible: eQoderCompatibleHTTP, CompatibleText: eCompatibleTextHTTP, GeminiNative: eGeminiNativeHTTP, OpenAIText: eOpenAITextHTTP, OpenAITokens: eOpenAITokensHTTP, ResponsesWS: eResponsesWSHTTP, Models: eModelsHTTP, Messages: eMessagesHTTP, Media: eMediaHTTP, Auxiliary: eAuxiliaryHTTP, Live: eLiveHTTP, Search: eSearchHTTP, PublicUsage: ePublicUsage.Usage, QoderChat: eQoderChat.ChatCompletions}, options, func(group *gin.RouterGroup) { batchhttp.RegisterGatewayRoutes(group, batch) })
 	}
 }

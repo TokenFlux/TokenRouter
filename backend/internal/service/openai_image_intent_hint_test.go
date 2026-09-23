@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/gin-gonic/gin"
@@ -26,7 +28,7 @@ func newOpenAIImageIntentHintTestContext(transport gatewayhttp.OpenAIClientTrans
 func countingOpenAIImageIntentClassifier(calls *atomic.Int64) openAIImageIntentClassifier {
 	return func(endpoint string, requestedModel string, body []byte) bool {
 		calls.Add(1)
-		return IsImageGenerationIntent(endpoint, requestedModel, body)
+		return gatewayprovider.ImageIntent().IsImageGenerationIntent(endpoint, requestedModel, body)
 	}
 }
 
@@ -227,8 +229,8 @@ func TestOpenAIGatewayServicePassthroughCompactImageIntentIsAttemptLocal(t *test
 			c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses/compact", nil)
 			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 			account := newOpenAIImageGenerationControlTestAccount()
-			account.Extra = map[string]any{"openai_passthrough": true}
-			account.Credentials = map[string]any{
+			account.Record.Extra = map[string]any{"openai_passthrough": true}
+			account.Record.Credentials = map[string]any{
 				"api_key": "sk-test",
 				"compact_model_mapping": map[string]any{
 					tt.canonicalModel: tt.compactModel,
@@ -315,7 +317,7 @@ func BenchmarkOpenAIPassthroughImageIntentHintLargeBody(b *testing.B) {
 			c.Set(openAIImageIntentHintContextKey, struct{}{})
 			for range attempts {
 				calls++
-				openAIImageIntentHintBenchmarkSink = IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.4", body)
+				openAIImageIntentHintBenchmarkSink = gatewayprovider.ImageIntent().IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.4", body)
 			}
 		}
 		b.ReportMetric(float64(calls)/float64(b.N), "classifier_calls/op")
@@ -327,7 +329,7 @@ func BenchmarkOpenAIPassthroughImageIntentHintLargeBody(b *testing.B) {
 		calls := 0
 		classify := func(endpoint string, requestedModel string, candidate []byte) bool {
 			calls++
-			return IsImageGenerationIntent(endpoint, requestedModel, candidate)
+			return gatewayprovider.ImageIntent().IsImageGenerationIntent(endpoint, requestedModel, candidate)
 		}
 		for range b.N {
 			c.Set(openAIImageIntentHintContextKey, struct{}{})

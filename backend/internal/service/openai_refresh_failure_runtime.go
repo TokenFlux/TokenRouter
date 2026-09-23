@@ -6,30 +6,27 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
-// PrepareRefreshFailure 在存储操作前记录显式清理代次；发布时只记录该凭据身份。
+// BindRuntimeBlockState 在请求开放前接入应用唯一的内存健康状态。
+func (s *OpenAIGatewayService) BindRuntimeBlockState(state *account.RuntimeBlockState) {
+	s.runtimeBlocks.Store(state)
+}
+
+// 独立构造的消费者保持独占状态；生产由 app 预先绑定，不创建第二份缓存。
+func (s *OpenAIGatewayService) runtimeBlockState() *account.RuntimeBlockState {
+	if state := s.runtimeBlocks.Load(); state != nil {
+		return state
+	}
+	state := account.NewRuntimeBlockState(time.Now)
+	if s.runtimeBlocks.CompareAndSwap(nil, state) {
+		return state
+	}
+	return s.runtimeBlocks.Load()
+}
+
+// PrepareRefreshFailure 委托原生代次保护，保留存储前取得发布资格的时点。
 func (s *OpenAIGatewayService) PrepareRefreshFailure(id int64) func(account.RefreshFailureNotice) {
 	if s == nil {
 		return func(account.RefreshFailureNotice) {}
 	}
-	mu := s.openAIAccountRuntimeBlockLock(id)
-	mu.Lock()
-	generation, _ := s.refreshFailureClearGeneration.Load(id)
-	mu.Unlock()
-	return func(notice account.RefreshFailureNotice) {
-		if notice.AccountID != id || notice.Identity == "" || !isOpenAIAccount(&Account{Platform: notice.Platform, Type: notice.Type}) {
-			return
-		}
-		mu.Lock()
-		defer mu.Unlock()
-		current, _ := s.refreshFailureClearGeneration.Load(id)
-		if current != generation {
-			return
-		}
-		now := time.Now()
-		until := notice.Until
-		if !until.After(now) {
-			until = now.Add(openAIStopSchedulingBridgeCooldown)
-		}
-		s.refreshFailureBlocks.Block(id, notice.Identity, until, now)
-	}
+	return s.runtimeBlockState().PrepareRefreshFailure(id)
 }

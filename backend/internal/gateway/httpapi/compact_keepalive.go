@@ -42,7 +42,7 @@ type openAICompactSSEKeepalive struct {
 // StartOpenAICompactSSEKeepalive 为已标记 body-signal 客户端流式的 compact
 // 请求启动下游心跳，返回幂等的停止函数。interval<=0 或请求未标记时为 no-op。
 //
-// 同时把 c.Writer 替换为 CompactKeepaliveWriter：请求 goroutine 的任何
+// 同时把 c.Writer 替换为 compactKeepaliveWriter：请求 goroutine 的任何
 // 响应构造都会先在心跳互斥锁下停拍，未被显式拦截的写回路径（如 Forward
 // 内部的本地拒绝）也不会与心跳 goroutine 产生数据竞争或字节交错。
 func StartOpenAICompactSSEKeepalive(c *gin.Context, interval time.Duration) func() {
@@ -68,7 +68,7 @@ func StartOpenAISSEKeepalive(c *gin.Context, interval time.Duration) func() {
 		stop:   make(chan struct{}),
 	}
 	c.Set(openAICompactSSEKeepaliveKey, k)
-	wrappedWriter := &CompactKeepaliveWriter{ResponseWriter: originalWriter, k: k}
+	wrappedWriter := &compactKeepaliveWriter{ResponseWriter: originalWriter, k: k}
 	c.Writer = wrappedWriter
 
 	var reqDone <-chan struct{}
@@ -96,7 +96,7 @@ func StartOpenAISSEKeepalive(c *gin.Context, interval time.Duration) func() {
 		k.Stop()
 		// 请求结束后恢复原 writer，避免 compact wrapper 继续引用已回收到池中的
 		// 中间件 writer。
-		if current, ok := c.Writer.(*CompactKeepaliveWriter); ok && current == wrappedWriter {
+		if current, ok := c.Writer.(*compactKeepaliveWriter); ok && current == wrappedWriter {
 			c.Writer = originalWriter
 		}
 	}
@@ -204,25 +204,25 @@ func OpenAICompactKeepaliveAdjustedWrittenSize(c *gin.Context) int {
 	return -1
 }
 
-// CompactKeepaliveWriter 包装 gin.ResponseWriter：写侧方法先停拍心跳
+// compactKeepaliveWriter 包装 gin.ResponseWriter：写侧方法先停拍心跳
 // （互斥锁下建立 happens-before），读侧方法仅加锁不停拍——热路径的状态读取
 // （如 Forward 前的 Size 快照）不能误杀心跳。心跳 goroutine 直接写内层
 // writer（k.writer），不经过本包装器，不会递归。
-type CompactKeepaliveWriter struct {
+type compactKeepaliveWriter struct {
 	gin.ResponseWriter
 	k *openAICompactSSEKeepalive
 }
 
 // suspend 停拍心跳；幂等。任何响应构造（含 Header 访问——写响应必先操作
 // 响应头）都视为请求侧接管 ResponseWriter。
-func (w *CompactKeepaliveWriter) suspend() {
+func (w *compactKeepaliveWriter) suspend() {
 	if w.k == nil {
 		return
 	}
 	w.k.Stop()
 }
 
-func (w *CompactKeepaliveWriter) Header() http.Header {
+func (w *compactKeepaliveWriter) Header() http.Header {
 	w.suspend()
 	if w.ResponseWriter == nil {
 		return http.Header{}
@@ -230,7 +230,7 @@ func (w *CompactKeepaliveWriter) Header() http.Header {
 	return w.ResponseWriter.Header()
 }
 
-func (w *CompactKeepaliveWriter) Write(data []byte) (int, error) {
+func (w *compactKeepaliveWriter) Write(data []byte) (int, error) {
 	w.suspend()
 	if w.ResponseWriter == nil {
 		return 0, nil
@@ -238,7 +238,7 @@ func (w *CompactKeepaliveWriter) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 
-func (w *CompactKeepaliveWriter) WriteString(s string) (int, error) {
+func (w *compactKeepaliveWriter) WriteString(s string) (int, error) {
 	w.suspend()
 	if w.ResponseWriter == nil {
 		return 0, nil
@@ -246,7 +246,7 @@ func (w *CompactKeepaliveWriter) WriteString(s string) (int, error) {
 	return w.ResponseWriter.WriteString(s)
 }
 
-func (w *CompactKeepaliveWriter) WriteHeader(code int) {
+func (w *compactKeepaliveWriter) WriteHeader(code int) {
 	w.suspend()
 	if w.ResponseWriter == nil {
 		return
@@ -254,7 +254,7 @@ func (w *CompactKeepaliveWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-func (w *CompactKeepaliveWriter) WriteHeaderNow() {
+func (w *compactKeepaliveWriter) WriteHeaderNow() {
 	w.suspend()
 	if w.ResponseWriter == nil {
 		return
@@ -262,7 +262,7 @@ func (w *CompactKeepaliveWriter) WriteHeaderNow() {
 	w.ResponseWriter.WriteHeaderNow()
 }
 
-func (w *CompactKeepaliveWriter) Flush() {
+func (w *compactKeepaliveWriter) Flush() {
 	w.suspend()
 	if w.ResponseWriter == nil {
 		return
@@ -271,14 +271,14 @@ func (w *CompactKeepaliveWriter) Flush() {
 }
 
 // 连接能力相关委托在内层 writer 已释放时返回安全空值，避免迟到访问 panic。
-func (w *CompactKeepaliveWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w *compactKeepaliveWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if w.ResponseWriter == nil {
 		return nil, nil, errors.New("response writer released")
 	}
 	return w.ResponseWriter.Hijack()
 }
 
-func (w *CompactKeepaliveWriter) CloseNotify() <-chan bool {
+func (w *compactKeepaliveWriter) CloseNotify() <-chan bool {
 	if w.ResponseWriter == nil {
 		ch := make(chan bool)
 		close(ch)
@@ -287,7 +287,7 @@ func (w *CompactKeepaliveWriter) CloseNotify() <-chan bool {
 	return w.ResponseWriter.CloseNotify()
 }
 
-func (w *CompactKeepaliveWriter) Pusher() http.Pusher {
+func (w *compactKeepaliveWriter) Pusher() http.Pusher {
 	if w.ResponseWriter == nil {
 		return nil
 	}
@@ -295,7 +295,7 @@ func (w *CompactKeepaliveWriter) Pusher() http.Pusher {
 }
 
 // 状态读取只有在 keepalive 与内层 writer 都有效时才加锁委托。
-func (w *CompactKeepaliveWriter) Status() int {
+func (w *compactKeepaliveWriter) Status() int {
 	if w.k == nil || w.ResponseWriter == nil {
 		return 0
 	}
@@ -304,7 +304,7 @@ func (w *CompactKeepaliveWriter) Status() int {
 	return w.ResponseWriter.Status()
 }
 
-func (w *CompactKeepaliveWriter) Size() int {
+func (w *compactKeepaliveWriter) Size() int {
 	if w.k == nil || w.ResponseWriter == nil {
 		return 0
 	}
@@ -313,7 +313,7 @@ func (w *CompactKeepaliveWriter) Size() int {
 	return w.ResponseWriter.Size()
 }
 
-func (w *CompactKeepaliveWriter) Written() bool {
+func (w *compactKeepaliveWriter) Written() bool {
 	if w.k == nil || w.ResponseWriter == nil {
 		return false
 	}

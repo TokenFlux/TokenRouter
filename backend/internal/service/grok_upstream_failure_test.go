@@ -9,6 +9,7 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
@@ -81,21 +82,21 @@ func TestClassifyGrokUpstreamFailure_GrokSubscriptionRequiredIsBilling(t *testin
 }
 
 func TestGrokRetryableOnSameAccount_CapacityAndRateLimit(t *testing.T) {
-	account := &Account{ID: 9105, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9105, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	require.True(t, grokRetryableOnSameAccount(account, http.StatusTooManyRequests,
 		[]byte(`{"error":{"message":"The model is currently at capacity due to high demand"}}`)))
 	require.False(t, grokRetryableOnSameAccount(account, http.StatusTooManyRequests,
 		[]byte(`{"error":{"message":"rate limit exceeded"}}`)))
 	require.False(t, grokRetryableOnSameAccount(account, http.StatusPaymentRequired,
 		[]byte(`{"error":{"message":"You have run out of credits or need a Grok subscription"}}`)))
-	poolAccount := &Account{ID: 9108, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
-		Credentials: map[string]any{"pool_mode": true}}
+	poolAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9108, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth,
+		Credentials: map[string]any{"pool_mode": true}}}
 	require.False(t, grokRetryableOnSameAccount(poolAccount, http.StatusTooManyRequests,
 		[]byte(`{"error":{"code":"subscription:free-usage-exhausted"}}`)),
 		"pool free-usage must fail over instead of retrying the exhausted account")
 	require.False(t, grokRetryableOnSameAccount(account, http.StatusBadRequest,
 		[]byte(`{"error":{"message":"capacity field is invalid"}}`)))
-	nonGrok := &Account{ID: 9106, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	nonGrok := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9106, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	require.False(t, grokRetryableOnSameAccount(nonGrok, http.StatusTooManyRequests,
 		[]byte(`{"error":{"message":"model at capacity"}}`)))
 }
@@ -112,7 +113,7 @@ func TestShouldMarkGrokTeamModelRateLimit_ExcludesCapacity(t *testing.T) {
 }
 
 func TestGrokSameAccountRetryMetadata_CapacityDeadline(t *testing.T) {
-	account := &Account{ID: 9107, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9107, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	retryable, delay, deadline, retryMax := grokSameAccountRetryMetadata(account, http.StatusTooManyRequests,
 		[]byte(`{"error":{"message":"model capacity exceeded"}}`))
 	require.True(t, retryable)
@@ -173,27 +174,27 @@ func TestClassifyGrokUpstreamFailure_GenericShapeErrorDoesNotFailover(t *testing
 }
 
 func TestShouldFailoverGrokUpstreamError_FreeUsageBody(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	body := []byte(`{"error":{"code":"subscription:free-usage-exhausted","message":"free usage exhausted"}}`)
 	require.True(t, svc.shouldFailoverGrokUpstreamError(http.StatusBadRequest, body))
 }
 
 func TestShouldFailoverGrokUpstreamError_CompatibilityBody(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	body := []byte(`{"error":{"message":"Could not decode the compaction blob"}}`)
 	require.True(t, svc.shouldFailoverGrokUpstreamError(http.StatusUnprocessableEntity, body))
 }
 
 func TestShouldFailoverGrokUpstreamError_ContentPolicyStillNoFailover(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	body := []byte(`{"error":{"code":"new_sensitive","message":"text is sensitive"}}`)
 	require.False(t, svc.shouldFailoverGrokUpstreamError(http.StatusForbidden, body))
 }
 
 func TestHandleGrokAccountUpstreamError_FreeUsageBodyCoolsAccount(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9101, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9101, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	before := time.Now()
 	body := []byte(`{"error":{"code":"subscription:free-usage-exhausted","message":"You've used all the included free usage. Usage resets over a rolling 24-hour window."}}`)
 
@@ -209,8 +210,8 @@ func TestHandleGrokAccountUpstreamError_FreeUsageBodyCoolsAccount(t *testing.T) 
 
 func TestHandleGrokAccountUpstreamError_FreeUsageUsesUpstreamReset(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9102, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9102, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"code":"subscription:free-usage-exhausted","message":"free usage exhausted; rolling 24-hour window"}}`)
 
 	svc.handleGrokAccountUpstreamError(context.Background(), account, http.StatusTooManyRequests,
@@ -222,8 +223,8 @@ func TestHandleGrokAccountUpstreamError_FreeUsageUsesUpstreamReset(t *testing.T)
 
 func TestHandleGrokAccountUpstreamError_EmptyOutputCoolsAccount(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9102, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9102, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	before := time.Now()
 
 	svc.handleGrokAccountUpstreamError(
@@ -238,8 +239,8 @@ func TestHandleGrokAccountUpstreamError_EmptyOutputCoolsAccount(t *testing.T) {
 
 func TestHandleGrokAccountUpstreamError_MultiAgentCapacityBlocksOnlyThatModel(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9120, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9120, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	ctx := withGrokTeamRateLimitModel(context.Background(), "grok-4.20-multi-agent-0309")
 
 	svc.handleGrokAccountUpstreamError(
@@ -248,14 +249,14 @@ func TestHandleGrokAccountUpstreamError_MultiAgentCapacityBlocksOnlyThatModel(t 
 	)
 
 	require.Zero(t, repo.tempUnschedCalls)
-	require.True(t, accountcore.IsGrokModelQuotaBlocked(account.ID, "grok-4.20-multi-agent-0309", time.Now()))
-	require.False(t, accountcore.IsGrokModelQuotaBlocked(account.ID, "grok-4.5", time.Now()))
+	require.True(t, accountcore.IsGrokModelQuotaBlocked(account.Record.ID, "grok-4.20-multi-agent-0309", time.Now()))
+	require.False(t, accountcore.IsGrokModelQuotaBlocked(account.Record.ID, "grok-4.5", time.Now()))
 }
 
 func TestHandleGrokAccountUpstreamError_CapacityNeverCoolsAccount(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9121, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9121, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	ctx := withGrokTeamRateLimitModel(context.Background(), "grok-4.6")
 
 	svc.handleGrokAccountUpstreamError(ctx, account, http.StatusTooManyRequests, nil,
@@ -267,14 +268,13 @@ func TestHandleGrokAccountUpstreamError_CapacityNeverCoolsAccount(t *testing.T) 
 
 func TestHandleGrokAccountUpstreamError_FreeUsageDoesNotCoolPoolMode(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{
-		ID:       9103,
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9103,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"pool_mode": true,
-		},
+		}},
 	}
 	body := []byte(`{"error":{"code":"subscription:free-usage-exhausted","message":"free usage exhausted"}}`)
 
@@ -286,8 +286,8 @@ func TestHandleGrokAccountUpstreamError_FreeUsageDoesNotCoolPoolMode(t *testing.
 
 func TestHandleGrokAccountUpstreamError_ContentPolicyStillNoMutation(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9104, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9104, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"code":"new_sensitive","message":"text is sensitive"}}`)
 
 	svc.handleGrokAccountUpstreamError(context.Background(), account, http.StatusForbidden, nil, body)
@@ -297,8 +297,8 @@ func TestHandleGrokAccountUpstreamError_ContentPolicyStillNoMutation(t *testing.
 
 func TestHandleGrokAccountUpstreamError_Entitlement403Unchanged(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9105, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9105, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	before := time.Now()
 
 	svc.handleGrokAccountUpstreamError(

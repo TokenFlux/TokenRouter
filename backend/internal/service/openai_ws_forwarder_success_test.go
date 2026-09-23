@@ -15,11 +15,13 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
@@ -129,16 +131,15 @@ func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {
 	}
 
 	cache := &stubGatewayCache{}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: upstream,
 		cache:        cache,
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          9,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9,
 		Name:        "openai-ws",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -151,7 +152,7 @@ func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"previous_response_id":"resp_prev_1","input":[{"type":"input_text","text":"hello"}]}`)
@@ -171,10 +172,10 @@ func TestOpenAIGatewayService_Forward_WSv2_SuccessAndBindSticky(t *testing.T) {
 	require.True(t, received.StreamExists, "WS 请求应携带 stream 字段")
 	require.False(t, received.Stream, "应保持客户端 stream=false 的原始语义")
 
-	store := svc.getOpenAIWSStateStore()
+	store := svc.ResponseStateStore()
 	mappedAccountID, getErr := store.GetResponseAccount(context.Background(), groupID, "resp_new_1")
 	require.NoError(t, getErr)
-	require.Equal(t, account.ID, mappedAccountID)
+	require.Equal(t, account.Record.ID, mappedAccountID)
 	connID, ok := store.GetResponseConn("resp_new_1")
 	require.True(t, ok)
 	require.NotEmpty(t, connID)
@@ -236,14 +237,13 @@ func TestOpenAIGatewayService_Forward_WSv2_UsesPatchedBodyAfterValidationDecode(
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 30
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 10
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: cfg,
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          10,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 10,
 		Name:        "openai-ws",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -254,7 +254,7 @@ func TestOpenAIGatewayService_Forward_WSv2_UsesPatchedBodyAfterValidationDecode(
 			"api_key":  "sk-test",
 			"base_url": wsServer.URL,
 		},
-		Extra: map[string]any{"responses_websockets_v2_enabled": true},
+		Extra: map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 
 	body := []byte(`{"model":"gpt-5.4","stream":false,"max_completion_tokens":12,"tools":[{"type":"image_generation"}],"input":[{"type":"input_text","text":"hello"}]}`)
@@ -308,15 +308,14 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedCarriesUpstreamWarning(
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 5
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          19,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 19,
 		Name:        "openai-ws-cyber",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -329,7 +328,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedCarriesUpstreamWarning(
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -388,15 +387,14 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedTopLevelErrorCarriesUps
 	cfg.Gateway.OpenAIWS.RetryBackoffInitialMS = 1
 	cfg.Gateway.OpenAIWS.RetryBackoffMaxMS = 1
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          20,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 20,
 		Name:        "openai-ws-cyber-top-level",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -409,7 +407,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedTopLevelErrorCarriesUps
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -470,15 +468,14 @@ func TestOpenAIGatewayService_Forward_WSv2_ErrorEventCarriesCyberWarning(t *test
 	cfg.Gateway.OpenAIWS.RetryBackoffInitialMS = 1
 	cfg.Gateway.OpenAIWS.RetryBackoffMaxMS = 1
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          22,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 22,
 		Name:        "openai-ws-error-cyber",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -491,7 +488,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ErrorEventCarriesCyberWarning(t *test
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -562,15 +559,14 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedTopLevelServerErrorStil
 	cfg.Gateway.OpenAIWS.RetryBackoffMaxMS = 1
 	cfg.Gateway.OpenAIWS.RetryJitterRatio = 0
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          21,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
 		Name:        "openai-ws-server-error-retry",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -583,7 +579,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedTopLevelServerErrorStil
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -679,16 +675,15 @@ func TestOpenAIGatewayService_Forward_WSv2_ImageGenerationCountsOutputs(t *testi
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 5
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          10,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 10,
 		Name:        "openai-ws-image",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -701,7 +696,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ImageGenerationCountsOutputs(t *testi
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.4","stream":false,"input":"draw","tools":[{"type":"image_generation","model":"gpt-image-2","size":"1024x1024"}],"tool_choice":{"type":"image_generation"}}`)
@@ -740,8 +735,8 @@ func TestOpenAIGatewayService_BuildOpenAIWSHeadersPreservesCodexIdentity(t *test
 	c.Request.Header.Set("X-Codex-Installation-ID", "installation-ws")
 	c.Request.Header.Set("X-Test", "blocked")
 
-	svc := &OpenAIGatewayService{}
-	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	headers, _, err := svc.buildOpenAIWSHeaders(
 		context.Background(),
 		c,
@@ -774,11 +769,11 @@ func TestOpenAIGatewayService_BuildOpenAIWSHeadersDeviceModePreservesNamespacedC
 	c.Request.Header.Set("x-sub2api-request-id", "internal-request")
 
 	account := newTestOAuthAccount(1300, map[string]any{accountcore.CodexFingerprintModeExtraKey: "device"})
-	ids := resolveCodexFingerprintIDsFromRequest(account, c.Request.Header)
+	ids := accountprovider.CodexFingerprintIDsFromRequest(account.View(), c.Request.Header)
 	require.NotNil(t, ids)
-	stageCodexFingerprintIDs(c, ids)
+	gatewayhttp.StageCodexFingerprintIDs(c, ids)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	headers, _, err := svc.buildOpenAIWSHeaders(
 		context.Background(),
 		c,
@@ -794,10 +789,10 @@ func TestOpenAIGatewayService_BuildOpenAIWSHeadersDeviceModePreservesNamespacedC
 	require.NoError(t, err)
 	require.Equal(t, ids.InstallationID, headers.Get("x-codex-installation-id"))
 	require.NotEqual(t, "client-installation", headers.Get("x-codex-installation-id"))
-	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "window", "client-window"), headers.Get("x-codex-window-id"))
-	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "session", "client-session"), headers.Get("session-id"))
-	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "thread", "client-thread"), headers.Get("thread-id"))
-	require.Equal(t, scopeCodexAccountIdentityValue(account, 0, "request", "client-request"), headers.Get("x-client-request-id"))
+	require.Equal(t, openai.ScopeCodexAccountIdentityValue(accountprovider.CodexIdentityNamespace(account.View()), 0, "window", "client-window"), headers.Get("x-codex-window-id"))
+	require.Equal(t, openai.ScopeCodexAccountIdentityValue(accountprovider.CodexIdentityNamespace(account.View()), 0, "session", "client-session"), headers.Get("session-id"))
+	require.Equal(t, openai.ScopeCodexAccountIdentityValue(accountprovider.CodexIdentityNamespace(account.View()), 0, "thread", "client-thread"), headers.Get("thread-id"))
+	require.Equal(t, openai.ScopeCodexAccountIdentityValue(accountprovider.CodexIdentityNamespace(account.View()), 0, "request", "client-request"), headers.Get("x-client-request-id"))
 	require.Empty(t, headers.Get("x-sub2api-request-id"))
 }
 
@@ -843,17 +838,16 @@ func TestOpenAIGatewayService_Forward_WSv2_RewriteModelAndToolCallsOnCompletedEv
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          1301,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1301,
 		Name:        "openai-rewrite",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -868,7 +862,7 @@ func TestOpenAIGatewayService_Forward_WSv2_RewriteModelAndToolCallsOnCompletedEv
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"custom-original-model","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -900,24 +894,23 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedIsNotSchedulingSuccess(
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:              cfg,
-		rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, cfg, nil, nil),
+		rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, cfg, nil),
 		httpUpstream:     &httpUpstreamRecorder{},
 		cache:            &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          1302,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1302,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
 		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 	svc.recordOpenAIAccountModelTransientFailure(account, "gpt-5.5", time.Now())
 
@@ -950,17 +943,16 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedCustomStatusFailsOver(t
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 	repo := &openAIWSPolicyRepo{}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:              cfg,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil, nil),
+		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
 		httpUpstream:     &httpUpstreamRecorder{},
 		cache:            &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          1303,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1303,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
 		Status:      billing.StatusActive,
@@ -971,7 +963,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedCustomStatusFailsOver(t
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusUnprocessableEntity)},
 		},
-		Extra: map[string]any{"responses_websockets_v2_enabled": true},
+		Extra: map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"gpt-5.5","stream":false,"input":"hello"}`))
@@ -1049,15 +1041,14 @@ func TestOpenAIGatewayService_Forward_WSv2_PoolReuseNotOneToOne(t *testing.T) {
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 30
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 10
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          19,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 19,
 		Name:        "openai-ws",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1070,7 +1061,7 @@ func TestOpenAIGatewayService_Forward_WSv2_PoolReuseNotOneToOne(t *testing.T) {
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	for i := 0; i < 2; i++ {
@@ -1126,16 +1117,15 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          29,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 29,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -1147,7 +1137,7 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"store":true,"input":[{"type":"input_text","text":"hello","namespace":"native-wsv2"}]}`)
@@ -1167,8 +1157,8 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthStoreFalseByDefault(t *testing.T
 	require.Equal(t, "remote_compaction_v2", captureDialer.lastHeaders.Get("x-codex-beta-features"))
 	// OAuth 账号的 session_id/conversation_id 应同时按 API key 和上游账号隔离，
 	// 测试中未设置 api_key 到 context，apiKeyID=0。
-	require.Equal(t, isolateOpenAIUpstreamSessionID(0, account, "sess-oauth-1"), captureDialer.lastHeaders.Get("session_id"))
-	require.Equal(t, isolateOpenAIUpstreamSessionID(0, account, "conv-oauth-1"), captureDialer.lastHeaders.Get("conversation_id"))
+	require.Equal(t, openai.IsolateOpenAIUpstreamSessionID(0, accountprovider.CodexIdentityNamespace(account.View()), "sess-oauth-1"), captureDialer.lastHeaders.Get("session_id"))
+	require.Equal(t, openai.IsolateOpenAIUpstreamSessionID(0, accountprovider.CodexIdentityNamespace(account.View()), "conv-oauth-1"), captureDialer.lastHeaders.Get("conversation_id"))
 }
 
 func TestOpenAIGatewayService_Forward_WSv2_OAuthSanitizesInvalidNativeToolItemID(t *testing.T) {
@@ -1198,17 +1188,16 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthSanitizesInvalidNativeToolItemID
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          5662,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5662,
 		Name:        "openai-oauth-ws-tool-history",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -1218,7 +1207,7 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthSanitizesInvalidNativeToolItemID
 		Credentials: map[string]any{"access_token": "test-oauth-token"},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.6-sol","stream":false,"instructions":"Continue the task.","input":[{"type":"custom_tool_call","id":"fc_hotfix_probe","call_id":"fc_hotfix","name":"exec","input":"pwd","status":"completed"},{"type":"custom_tool_call_output","call_id":"fc_hotfix","output":"done"}]}`)
@@ -1292,16 +1281,15 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthOriginatorCompatibility(t *testi
 			pool := newOpenAIWSConnPool(cfg)
 			pool.SetClientDialerForTest(captureDialer)
 
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          cfg,
 				httpUpstream: &httpUpstreamRecorder{},
 				cache:        &stubGatewayCache{},
 
 				toolCorrector: openai.NewCodexToolCorrector(),
 				openaiWSPool:  pool,
-			}
-			account := &Account{
-				ID:          129,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 129,
 				Name:        "openai-oauth",
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeOAuth,
@@ -1313,7 +1301,7 @@ func TestOpenAIGatewayService_Forward_WSv2_OAuthOriginatorCompatibility(t *testi
 				},
 				Extra: map[string]any{
 					"responses_websockets_v2_enabled": true,
-				},
+				}},
 			}
 
 			body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -1353,16 +1341,15 @@ func TestOpenAIGatewayService_Forward_WSv2_HeaderSessionFallbackFromPromptCacheK
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          31,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 31,
 		Name:        "openai-oauth",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -1374,7 +1361,7 @@ func TestOpenAIGatewayService_Forward_WSv2_HeaderSessionFallbackFromPromptCacheK
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":true,"prompt_cache_key":"pcache_123","input":[{"type":"input_text","text":"hi"}]}`)
@@ -1384,7 +1371,7 @@ func TestOpenAIGatewayService_Forward_WSv2_HeaderSessionFallbackFromPromptCacheK
 	require.Equal(t, "resp_prompt_cache_key", result.RequestID)
 
 	// OAuth 账号的 session_id 应同时按 API key 和上游账号隔离（apiKeyID=0）。
-	require.Equal(t, isolateOpenAIUpstreamSessionID(0, account, "pcache_123"), captureDialer.lastHeaders.Get("session_id"))
+	require.Equal(t, openai.IsolateOpenAIUpstreamSessionID(0, accountprovider.CodexIdentityNamespace(account.View()), "pcache_123"), captureDialer.lastHeaders.Get("session_id"))
 	require.Empty(t, captureDialer.lastHeaders.Get("conversation_id"))
 	require.NotNil(t, captureConn.lastWrite)
 	require.True(t, gjson.Get(requestToJSONString(captureConn.lastWrite), "stream").Exists())
@@ -1417,16 +1404,15 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseDoneUsageParsed(t *testing.T)
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
-	account := &Account{
-		ID:          32,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 32,
 		Name:        "openai-ws-done",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1438,7 +1424,7 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseDoneUsageParsed(t *testing.T)
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hi"}]}`)
@@ -1477,16 +1463,15 @@ func TestOpenAIGatewayService_Forward_WSv1_Unsupported(t *testing.T) {
 		},
 	}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: upstream,
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          39,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 39,
 		Name:        "openai-ws-v1",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1499,7 +1484,7 @@ func TestOpenAIGatewayService_Forward_WSv1_Unsupported(t *testing.T) {
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"previous_response_id":"resp_prev_v1","input":[{"type":"input_text","text":"hello"}]}`)
@@ -1568,16 +1553,15 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 	cfg.Gateway.OpenAIWS.MinIdlePerAccount = 0
 	cfg.Gateway.OpenAIWS.MaxIdlePerAccount = 0
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          49,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 49,
 		Name:        "openai-turn-state",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1590,7 +1574,7 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	reqBody := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -1603,8 +1587,8 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 	require.NoError(t, err)
 	require.NotNil(t, result1)
 
-	sessionHash := svc.GenerateSessionHash(c1, reqBody)
-	store := svc.getOpenAIWSStateStore()
+	sessionHash := gatewayhttp.GenerateOpenAISessionHash(c1, reqBody)
+	store := svc.ResponseStateStore()
 	turnState, ok := store.GetSessionTurnState(0, sessionHash)
 	require.True(t, ok)
 	require.Equal(t, "turn_state_first", turnState)
@@ -1612,7 +1596,7 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 	// 主动淘汰连接，模拟下一次请求发生重连。
 	connID, hasConn := store.GetResponseConn(result1.RequestID)
 	require.True(t, hasConn)
-	svc.getOpenAIWSConnPool().EvictConnection(account.ID, connID)
+	svc.getOpenAIWSConnPool().EvictConnection(account.Record.ID, connID)
 
 	rec2 := httptest.NewRecorder()
 	c2, _ := gin.CreateTestContext(rec2)
@@ -1659,17 +1643,16 @@ func TestOpenAIGatewayService_Forward_WSv2_GeneratePrewarm(t *testing.T) {
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          59,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 59,
 		Name:        "openai-prewarm",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1681,7 +1664,7 @@ func TestOpenAIGatewayService_Forward_WSv2_GeneratePrewarm(t *testing.T) {
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -1704,23 +1687,22 @@ func TestOpenAIGatewayService_PrewarmReadHonorsParentContext(t *testing.T) {
 	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 5
 	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:           cfg,
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          601,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 601,
 		Name:        "openai-prewarm-timeout",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
-	conn := openai.NewWSConn("prewarm_ctx_conn", account.ID, &openAIWSBlockingConn{
+	conn := openai.NewWSConn("prewarm_ctx_conn", account.Record.ID, &openAIWSBlockingConn{
 		readDelay: 200 * time.Millisecond,
 	}, nil, nil, "")
 	lease := &openai.WSConnLease{
-		AccountID: account.ID,
+		AccountID: account.Record.ID,
 		Conn:      conn,
 	}
 	payload := map[string]any{
@@ -1770,17 +1752,16 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnMetadataInPayloadOnConnReuse(t *t
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          69,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 69,
 		Name:        "openai-turn-metadata",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1792,7 +1773,7 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnMetadataInPayloadOnConnReuse(t *t
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -1881,16 +1862,15 @@ func TestOpenAIGatewayService_Forward_WSv2StoreFalseSessionConnIsolation(t *test
 	cfg.Gateway.OpenAIWS.MaxIdlePerAccount = 4
 	cfg.Gateway.OpenAIWS.StoreDisabledForceNewConn = true
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          79,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 79,
 		Name:        "openai-store-false",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -1903,7 +1883,7 @@ func TestOpenAIGatewayService_Forward_WSv2StoreFalseSessionConnIsolation(t *test
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"store":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -1987,16 +1967,15 @@ func TestOpenAIGatewayService_Forward_WSv2StoreFalseDisableForceNewConnAllowsReu
 	cfg.Gateway.OpenAIWS.MaxIdlePerAccount = 1
 	cfg.Gateway.OpenAIWS.StoreDisabledForceNewConn = false
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 
-	account := &Account{
-		ID:          80,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 80,
 		Name:        "openai-store-false-reuse",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2009,7 +1988,7 @@ func TestOpenAIGatewayService_Forward_WSv2StoreFalseDisableForceNewConnAllowsReu
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"store":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -2077,17 +2056,16 @@ func TestOpenAIGatewayService_Forward_WSv2ReadTimeoutAppliesPerRead(t *testing.T
 		},
 	}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: upstream,
 		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	})
 
-	account := &Account{
-		ID:          81,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 81,
 		Name:        "openai-read-timeout",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -2099,7 +2077,7 @@ func TestOpenAIGatewayService_Forward_WSv2ReadTimeoutAppliesPerRead(t *testing.T
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)

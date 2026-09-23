@@ -10,6 +10,7 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
@@ -30,15 +31,15 @@ type accountRepoStub struct {
 
 // 以下方法在本测试中不应被调用，使用 panic 确保测试失败时能快速定位问题
 
-func (s *accountRepoStub) Create(ctx context.Context, account *Account) error {
+func (s *accountRepoStub) Create(ctx context.Context, account *gatewayprovider.ExecutionAccount) error {
 	panic("unexpected Create call")
 }
 
-func (s *accountRepoStub) GetByID(ctx context.Context, id int64) (*Account, error) {
+func (s *accountRepoStub) GetByID(ctx context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected GetByID call")
 }
 
-func (s *accountRepoStub) GetByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
+func (s *accountRepoStub) GetByIDs(ctx context.Context, ids []int64) ([]*gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected GetByIDs call")
 }
 
@@ -48,11 +49,11 @@ func (s *accountRepoStub) ExistsByID(ctx context.Context, id int64) (bool, error
 	return s.exists, s.existsErr
 }
 
-func (s *accountRepoStub) GetByCRSAccountID(ctx context.Context, crsAccountID string) (*Account, error) {
+func (s *accountRepoStub) GetByCRSAccountID(ctx context.Context, crsAccountID string) (*gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected GetByCRSAccountID call")
 }
 
-func (s *accountRepoStub) FindByExtraField(ctx context.Context, key string, value any) ([]Account, error) {
+func (s *accountRepoStub) FindByExtraField(ctx context.Context, key string, value any) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected FindByExtraField call")
 }
 
@@ -60,7 +61,7 @@ func (s *accountRepoStub) ListCRSAccountIDs(ctx context.Context) (map[string]int
 	panic("unexpected ListCRSAccountIDs call")
 }
 
-func (s *accountRepoStub) Update(ctx context.Context, account *Account) error {
+func (s *accountRepoStub) Update(ctx context.Context, account *gatewayprovider.ExecutionAccount) error {
 	panic("unexpected Update call")
 }
 
@@ -73,27 +74,27 @@ func (s *accountRepoStub) Delete(ctx context.Context, id int64) error {
 
 // 以下是接口要求实现但本测试不关心的方法
 
-func (s *accountRepoStub) List(ctx context.Context, params pagination.PaginationParams) ([]Account, *pagination.PaginationResult, error) {
+func (s *accountRepoStub) List(ctx context.Context, params pagination.PaginationParams) ([]gatewayprovider.ExecutionAccount, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
 
-func (s *accountRepoStub) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]Account, error) {
+func (s *accountRepoStub) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
 
-func (s *accountRepoStub) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
+func (s *accountRepoStub) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]gatewayprovider.ExecutionAccount, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
 }
 
-func (s *accountRepoStub) ListByGroup(ctx context.Context, groupID int64) ([]Account, error) {
+func (s *accountRepoStub) ListByGroup(ctx context.Context, groupID int64) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListByGroup call")
 }
 
-func (s *accountRepoStub) ListActive(ctx context.Context) ([]Account, error) {
+func (s *accountRepoStub) ListActive(ctx context.Context) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListActive call")
 }
 
-func (s *accountRepoStub) ListByPlatform(ctx context.Context, platform string) ([]Account, error) {
+func (s *accountRepoStub) ListByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListByPlatform call")
 }
 
@@ -125,39 +126,39 @@ func (s *accountRepoStub) BindGroups(ctx context.Context, accountID int64, group
 	panic("unexpected BindGroups call")
 }
 
-func (s *accountRepoStub) ListSchedulable(ctx context.Context) ([]Account, error) {
+func (s *accountRepoStub) ListSchedulable(ctx context.Context) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListSchedulable call")
 }
 
-func (s *accountRepoStub) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]Account, error) {
+func (s *accountRepoStub) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListSchedulableByGroupID call")
 }
 
-func (s *accountRepoStub) ListSchedulableByPlatform(ctx context.Context, platform string) ([]Account, error) {
+func (s *accountRepoStub) ListSchedulableByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListSchedulableByPlatform call")
 }
 
-func (s *accountRepoStub) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]Account, error) {
+func (s *accountRepoStub) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListSchedulableByGroupIDAndPlatform call")
 }
 
-func (s *accountRepoStub) ListSchedulableByPlatforms(ctx context.Context, platforms []string) ([]Account, error) {
+func (s *accountRepoStub) ListSchedulableByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListSchedulableByPlatforms call")
 }
 
-func (s *accountRepoStub) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]Account, error) {
+func (s *accountRepoStub) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListSchedulableByGroupIDAndPlatforms call")
 }
 
-func (s *accountRepoStub) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]Account, error) {
+func (s *accountRepoStub) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListSchedulableUngroupedByPlatform call")
 }
 
-func (s *accountRepoStub) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]Account, error) {
+func (s *accountRepoStub) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListSchedulableUngroupedByPlatforms call")
 }
 
-func (s *accountRepoStub) ListModelAvailabilityCandidates(ctx context.Context, groupID *int64, platforms []string, includeGrouped bool) ([]Account, error) {
+func (s *accountRepoStub) ListModelAvailabilityCandidates(ctx context.Context, groupID *int64, platforms []string, includeGrouped bool) ([]gatewayprovider.ExecutionAccount, error) {
 	panic("unexpected ListModelAvailabilityCandidates call")
 }
 
@@ -221,6 +222,6 @@ func (s *accountRepoStub) RevertProxyFallback(ctx context.Context, accountID int
 	panic("unexpected RevertProxyFallback call")
 }
 
-func (s *accountRepoStub) ListShadowsByParent(ctx context.Context, parentID int64) ([]*Account, error) {
+func (s *accountRepoStub) ListShadowsByParent(ctx context.Context, parentID int64) ([]*gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }

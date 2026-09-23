@@ -3,21 +3,18 @@
 package postgres
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"context"
 	"testing"
 	"time"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	"github.com/TokenFlux/TokenRouter/internal/usage"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +29,7 @@ func TestUsageLog_ListWithFilters_ResolvesSoftDeletedUser(t *testing.T) {
 	deleted := mustCreateUser(t, client, &identity.User{Email: "deleted-listfilter@test.com"})
 	apiKey := mustCreateApiKey(t, client, &apikey.APIKey{UserID: deleted.ID, Key: "sk-del-1", Name: "k"})
 	apiKey2 := mustCreateApiKey(t, client, &apikey.APIKey{UserID: active.ID, Key: "sk-act-1", Name: "k"})
-	account := mustCreateAccount(t, client, &service.Account{Name: "acc-listfilter"})
+	account := mustCreateAccount(t, client, &accountcore.Record{Name: "acc-listfilter"})
 
 	now := time.Now().UTC()
 	for _, u := range []struct {

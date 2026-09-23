@@ -3,94 +3,31 @@ package service
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	openai "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
-	"github.com/tidwall/gjson"
 )
 
 type codexAccountIdentityRepoStub struct {
-	AccountRepository
-	account *Account
+	gatewayprovider.ExecutionAccountStore
+
+	account *gatewayprovider.ExecutionAccount
 }
 
-func (s *codexAccountIdentityRepoStub) GetByID(_ context.Context, _ int64) (*Account, error) {
+func (s *codexAccountIdentityRepoStub) GetByID(_ context.Context, _ int64) (*gatewayprovider.ExecutionAccount, error) {
 	return s.account, nil
-}
-
-func TestCodexRequestBodyIdentityNamespaceIsStablePerOAuthAccount(t *testing.T) {
-	body := []byte(`{"model":"gpt-5.6-codex","prompt_cache_key":"client-session","client_metadata":{"x-codex-installation-id":"client-installation","session_id":"client-session","thread_id":"client-thread","x-codex-window-id":"client-window","x-codex-turn-metadata":"{\"installation_id\":\"client-installation\",\"session_id\":\"client-session\",\"thread_id\":\"client-thread\",\"turn_id\":\"client-turn\",\"window_id\":\"client-window\"}"}}`)
-	account11 := &Account{ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "chatgpt-account-11"}}
-	account19 := &Account{ID: 19, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "chatgpt-account-19"}}
-
-	first, changed, err := applyCodexAccountIdentityClientMetadataRaw(body, account11, 77)
-	require.NoError(t, err)
-	require.True(t, changed)
-	firstAgain, changed, err := applyCodexAccountIdentityClientMetadataRaw(body, account11, 77)
-	require.NoError(t, err)
-	require.True(t, changed)
-	second, changed, err := applyCodexAccountIdentityClientMetadataRaw(body, account19, 77)
-	require.NoError(t, err)
-	require.True(t, changed)
-	require.JSONEq(t, string(first), string(firstAgain))
-
-	paths := []string{
-		"prompt_cache_key",
-		"client_metadata.x-codex-installation-id",
-		"client_metadata.session_id",
-		"client_metadata.thread_id",
-		"client_metadata.x-codex-window-id",
-	}
-	for _, path := range paths {
-		require.NotEqual(t, gjson.GetBytes(body, path).String(), gjson.GetBytes(first, path).String(), path)
-		require.NotEqual(t, gjson.GetBytes(first, path).String(), gjson.GetBytes(second, path).String(), path)
-	}
-	require.Equal(t, gjson.GetBytes(first, "prompt_cache_key").String(), gjson.GetBytes(first, "client_metadata.session_id").String())
-
-	var embeddedFirst map[string]any
-	var embeddedSecond map[string]any
-	require.NoError(t, json.Unmarshal([]byte(gjson.GetBytes(first, "client_metadata.x-codex-turn-metadata").String()), &embeddedFirst))
-	require.NoError(t, json.Unmarshal([]byte(gjson.GetBytes(second, "client_metadata.x-codex-turn-metadata").String()), &embeddedSecond))
-	for _, field := range []string{"installation_id", "session_id", "thread_id", "turn_id", "window_id"} {
-		require.NotEqual(t, embeddedFirst[field], embeddedSecond[field], field)
-	}
-}
-
-func TestCodexAccountIdentityNamespaceUsesStableCredentialSource(t *testing.T) {
-	firstRow := &Account{ID: 8, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "shared-upstream-account"}}
-	secondRow := &Account{ID: 19, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "shared-upstream-account"}}
-	require.Equal(t, codexAccountIdentityNamespace(firstRow), codexAccountIdentityNamespace(secondRow))
-
-	firstUser := &Account{ID: 20, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "team-account", "chatgpt_user_id": "user-1"}}
-	sameUser := &Account{ID: 21, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "team-account", "chatgpt_user_id": "user-1"}}
-	secondUser := &Account{ID: 22, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "team-account", "chatgpt_user_id": "user-2"}}
-	require.Equal(t, codexAccountIdentityNamespace(firstUser), codexAccountIdentityNamespace(sameUser))
-	require.NotEqual(t, codexAccountIdentityNamespace(firstUser), codexAccountIdentityNamespace(secondUser))
-
-	seed := "11111111-1111-4111-8111-111111111111"
-	seeded := &Account{ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Extra: map[string]any{accountcore.CodexFingerprintSeedExtraKey: seed}}
-	require.Equal(t, "seed:"+seed, codexAccountIdentityNamespace(seeded))
-
-	// Local row IDs repeat across independent deployments, so they are not a
-	// safe fallback for upstream identity.
-	require.Empty(t, codexAccountIdentityNamespace(&Account{ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}))
-
-	setupTokenA := &Account{ID: 30, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken, Credentials: map[string]any{"access_token": "setup-token-a"}}
-	setupTokenADuplicate := &Account{ID: 31, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken, Credentials: map[string]any{"access_token": "setup-token-a"}}
-	setupTokenB := &Account{ID: 32, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken, Credentials: map[string]any{"access_token": "setup-token-b"}}
-	setupNamespace := codexAccountIdentityNamespace(setupTokenA)
-	require.NotEmpty(t, setupNamespace)
-	require.NotContains(t, setupNamespace, "setup-token-a")
-	require.Equal(t, setupNamespace, codexAccountIdentityNamespace(setupTokenADuplicate))
-	require.NotEqual(t, setupNamespace, codexAccountIdentityNamespace(setupTokenB))
 }
 
 func TestCodexAccountIdentitySourceResolvesShadowAndOverwritesFailoverContext(t *testing.T) {
@@ -100,17 +37,17 @@ func TestCodexAccountIdentitySourceResolvesShadowAndOverwritesFailoverContext(t 
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 
 	parentID := int64(11)
-	parent := &Account{ID: parentID, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{
+	parent := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: parentID, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{
 		"chatgpt_account_id": "team-account",
 		"chatgpt_user_id":    "user-1",
-	}}
-	shadow := &Account{ID: 111, ParentAccountID: &parentID, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
-	service := &OpenAIGatewayService{accountRepo: &codexAccountIdentityRepoStub{account: parent}}
+	}}}
+	shadow := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 111, ParentAccountID: &parentID, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
+	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: &codexAccountIdentityRepoStub{account: parent}}))
 
-	resolved, err := service.prepareCodexAccountIdentitySource(context.Background(), c, shadow)
+	resolved, err := gatewayhttp.PrepareCodexIdentity(context.Background(), c, service.accountRepo, shadow)
 	require.NoError(t, err)
-	require.Same(t, parent, resolved)
-	require.Same(t, parent, codexAccountIdentitySource(c, shadow))
+	require.Same(t, parent.View(), resolved)
+	require.Same(t, parent.View(), gatewayhttp.CodexIdentityRecord(c, shadow.View()))
 
 	req, err := service.buildUpstreamRequest(
 		context.Background(), c, shadow,
@@ -118,16 +55,16 @@ func TestCodexAccountIdentitySourceResolvesShadowAndOverwritesFailoverContext(t 
 		"token", true, "client-session", true,
 	)
 	require.NoError(t, err)
-	require.Equal(t, isolateOpenAIUpstreamSessionID(0, parent, "client-session"), req.Header.Get("session_id"))
+	require.Equal(t, openai.IsolateOpenAIUpstreamSessionID(0, accountprovider.CodexIdentityNamespace(parent.View()), "client-session"), req.Header.Get("session_id"))
 
-	next := &Account{ID: 19, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{
+	next := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 19, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{
 		"chatgpt_account_id": "other-account",
 		"chatgpt_user_id":    "user-2",
-	}}
-	resolved, err = service.prepareCodexAccountIdentitySource(context.Background(), c, next)
+	}}}
+	resolved, err = gatewayhttp.PrepareCodexIdentity(context.Background(), c, service.accountRepo, next)
 	require.NoError(t, err)
-	require.Same(t, next, resolved)
-	require.Same(t, next, codexAccountIdentitySource(c, shadow))
+	require.Same(t, next.View(), resolved)
+	require.Same(t, next.View(), gatewayhttp.CodexIdentityRecord(c, shadow.View()))
 }
 
 func TestBuildOpenAIWSHeadersNamespacesCodexIdentityByOAuthAccount(t *testing.T) {
@@ -141,10 +78,10 @@ func TestBuildOpenAIWSHeadersNamespacesCodexIdentityByOAuthAccount(t *testing.T)
 	c.Request.Header.Set("x-codex-window-id", "client-window")
 	c.Request.Header.Set("x-client-request-id", "client-request")
 
-	account11 := &Account{ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "chatgpt-account-11"}}
-	account19 := &Account{ID: 19, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "chatgpt-account-19"}}
-	service := &OpenAIGatewayService{}
-	build := func(account *Account) http.Header {
+	account11 := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "chatgpt-account-11"}}}
+	account19 := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 19, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"chatgpt_account_id": "chatgpt-account-19"}}}
+	service := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	build := func(account *gatewayprovider.ExecutionAccount) http.Header {
 		headers, _, err := service.buildOpenAIWSHeaders(
 			context.Background(), c, account, "token", egress.OpenAIWSProtocolDecision{Transport: egress.OpenAIUpstreamTransportResponsesWebsocketV2}, true, "", "", "client-session", "", "",
 		)
@@ -172,7 +109,7 @@ func TestBuildOpenAIWSHeadersNamespacesCodexIdentityByOAuthAccount(t *testing.T)
 
 func TestBuildUpstreamRequestNamespacesCodexIdentityByOAuthAccount(t *testing.T) {
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	body := []byte(`{"model":"gpt-5.6-codex","stream":true,"prompt_cache_key":"client-session"}`)
 
 	build := func(accountID int64, chatgptAccountID string) http.Header {
@@ -189,13 +126,12 @@ func TestBuildUpstreamRequestNamespacesCodexIdentityByOAuthAccount(t *testing.T)
 		c.Request.Header.Set("x-client-request-id", "client-request")
 		c.Request.Header.Set("x-codex-turn-metadata", `{"installation_id":"client-installation","session_id":"client-session","thread_id":"client-thread","turn_id":"client-turn","window_id":"client-window"}`)
 
-		account := &Account{
-			ID:       accountID,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: accountID,
 			Platform: capability.PlatformOpenAI,
 			Type:     capability.AccountTypeOAuth,
 			Credentials: map[string]any{
 				"chatgpt_account_id": chatgptAccountID,
-			},
+			}},
 		}
 		req, err := svc.buildUpstreamRequest(
 			context.Background(), c, account, body, "oauth-token", true, "client-session", true,

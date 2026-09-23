@@ -6,6 +6,8 @@ import (
 	json "encoding/json"
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	dto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
@@ -65,7 +67,7 @@ type UserProfileSourceContext struct {
 // GetProfile handles getting user profile
 // GET /api/v1/users/me
 func (h *UserHandler) GetProfile(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -89,7 +91,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 // ChangePassword handles changing user password
 // POST /api/v1/users/me/password
 func (h *UserHandler) ChangePassword(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -117,7 +119,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 // UpdateProfile handles updating user profile
 // PUT /api/v1/users/me
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -173,7 +175,7 @@ type SendEmailBindingCodeRequest struct {
 // StartIdentityBinding returns the backend authorize URL for starting a third-party identity bind flow.
 // POST /api/v1/user/auth-identities/bind/start
 func (h *UserHandler) StartIdentityBinding(c *gin.Context) {
-	if _, ok := GetAuthSubjectFromContext(c); !ok {
+	if _, ok := authctx.GetAuthSubjectFromContext(c); !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
 	}
@@ -199,7 +201,7 @@ func (h *UserHandler) StartIdentityBinding(c *gin.Context) {
 // BindEmailIdentity verifies and binds a local email identity for the current user.
 // POST /api/v1/user/account-bindings/email
 func (h *UserHandler) BindEmailIdentity(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -239,7 +241,7 @@ func (h *UserHandler) BindEmailIdentity(c *gin.Context) {
 // UnbindIdentity removes a third-party sign-in provider from the current user.
 // DELETE /api/v1/user/account-bindings/:provider
 func (h *UserHandler) UnbindIdentity(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -273,7 +275,7 @@ func (h *UserHandler) UnbindIdentity(c *gin.Context) {
 // SendEmailBindingCode sends a verification code for the current user's email binding flow.
 // POST /api/v1/user/account-bindings/email/send-code
 func (h *UserHandler) SendEmailBindingCode(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -305,7 +307,7 @@ type SendNotifyEmailCodeRequest struct {
 // SendNotifyEmailCode sends verification code to extra notification email
 // POST /api/v1/user/notify-email/send-code
 func (h *UserHandler) SendNotifyEmailCode(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -335,7 +337,7 @@ type VerifyNotifyEmailRequest struct {
 // VerifyNotifyEmail verifies code and adds email to notification list
 // POST /api/v1/user/notify-email/verify
 func (h *UserHandler) VerifyNotifyEmail(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -377,7 +379,7 @@ type RemoveNotifyEmailRequest struct {
 // RemoveNotifyEmail removes email from notification list
 // DELETE /api/v1/user/notify-email
 func (h *UserHandler) RemoveNotifyEmail(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -420,7 +422,7 @@ type ToggleNotifyEmailRequest struct {
 // ToggleNotifyEmail toggles the disabled state of a notification email
 // PUT /api/v1/user/notify-email/toggle
 func (h *UserHandler) ToggleNotifyEmail(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return

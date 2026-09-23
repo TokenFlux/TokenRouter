@@ -18,6 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
@@ -37,9 +38,8 @@ type anthropicHTTPUpstreamRecorder struct {
 	err      error
 }
 
-func newAnthropicAPIKeyAccountForTest() *Account {
-	return &Account{
-		ID:          201,
+func newAnthropicAPIKeyAccountForTest() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 201,
 		Name:        "anthropic-apikey-pass-test",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeAPIKey,
@@ -52,7 +52,7 @@ func newAnthropicAPIKeyAccountForTest() *Account {
 			"anthropic_passthrough": true,
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 }
 
@@ -150,17 +150,15 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamPreservesBodyAnd
 			MaxLineSize: defaultMaxLineSize,
 		},
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     &RateLimitService{},
 		deferredService:      &accountcore.DeferredService{},
-		billingCacheService:  nil,
-	}
+	})
 
-	account := &Account{
-		ID:          101,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101,
 		Name:        "anthropic-apikey-pass",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeAPIKey,
@@ -174,7 +172,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamPreservesBodyAnd
 			"anthropic_passthrough": true,
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, parsed)
@@ -231,15 +229,14 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardCountTokensPreservesBo
 			MaxLineSize: defaultMaxLineSize,
 		},
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     &RateLimitService{},
-	}
+	})
 
-	account := &Account{
-		ID:          102,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 102,
 		Name:        "anthropic-apikey-pass-count",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeAPIKey,
@@ -253,7 +250,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardCountTokensPreservesBo
 			"anthropic_passthrough": true,
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -277,16 +274,15 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BearerAuthScheme(t *testing.T
 	c.Request.Header.Set("X-Api-Key", "inbound-api-key")
 	c.Request.Header.Set("Cookie", "secret=1")
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Security: config.SecurityConfig{
 				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 			},
 		},
-	}
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeAPIKey,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "ollama-key",
 			"base_url": "https://ollama.com",
@@ -294,7 +290,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BearerAuthScheme(t *testing.T
 		Extra: map[string]any{
 			"anthropic_passthrough":        true,
 			"anthropic_apikey_auth_scheme": accountcore.AnthropicAPIKeyAuthSchemeAuthorizationBearer,
-		},
+		}},
 	}
 
 	msgReq, wireBody, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(
@@ -411,8 +407,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases(t *test
 				credentials["model_mapping"] = tt.modelMapping
 			}
 
-			account := &Account{
-				ID:          300,
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 300,
 				Name:        "edge-case-test",
 				Platform:    capability.PlatformAnthropic,
 				Type:        capability.AccountTypeAPIKey,
@@ -420,7 +415,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases(t *test
 				Credentials: credentials,
 				Extra:       map[string]any{"anthropic_passthrough": true},
 				Status:      billing.StatusActive,
-				Schedulable: true,
+				Schedulable: true},
 			}
 
 			if tt.endpoint == "messages" {
@@ -435,11 +430,11 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases(t *test
 						Body:       io.NopCloser(strings.NewReader(upstreamJSON)),
 					},
 				}
-				svc := &GatewayService{
+				svc := withSchedulerParametersForTest(&GatewayService{
 					cfg:              &config.Config{},
 					httpUpstream:     upstream,
 					rateLimitService: &RateLimitService{},
-				}
+				})
 
 				result, err := svc.Forward(context.Background(), c, account, parsed)
 				require.NoError(t, err)
@@ -457,11 +452,11 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases(t *test
 						Body:       io.NopCloser(strings.NewReader(upstreamRespBody)),
 					},
 				}
-				svc := &GatewayService{
+				svc := withSchedulerParametersForTest(&GatewayService{
 					cfg:              &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
 					httpUpstream:     upstream,
 					rateLimitService: &RateLimitService{},
-				}
+				})
 
 				err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
 				require.NoError(t, err)
@@ -496,14 +491,13 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingPreservesOtherFie
 		},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:              &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
 		httpUpstream:     upstream,
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
-	account := &Account{
-		ID:          301,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
 		Name:        "preserve-fields-test",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeAPIKey,
@@ -515,7 +509,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingPreservesOtherFie
 		},
 		Extra:       map[string]any{"anthropic_passthrough": true},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -550,11 +544,11 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokensFiltersGenerationF
 		},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:              &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
 		httpUpstream:     upstream,
 		rateLimitService: &RateLimitService{},
-	}
+	})
 	account := newAnthropicAPIKeyAccountForTest()
 
 	err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -596,14 +590,13 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_EmptyModelSkipsMapping(t *tes
 		},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:              &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
 		httpUpstream:     upstream,
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
-	account := &Account{
-		ID:          302,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 302,
 		Name:        "empty-model-test",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeAPIKey,
@@ -615,7 +608,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_EmptyModelSkipsMapping(t *tes
 		},
 		Extra:       map[string]any{"anthropic_passthrough": true},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -681,16 +674,15 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokens404PassthroughNotE
 				},
 			}
 
-			svc := &GatewayService{
+			svc := withSchedulerParametersForTest(&GatewayService{
 				cfg: &config.Config{
 					Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 				},
 				httpUpstream:     upstream,
 				rateLimitService: nil,
-			}
+			})
 
-			account := &Account{
-				ID:          200,
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 200,
 				Name:        "proxy-acc",
 				Platform:    capability.PlatformAnthropic,
 				Type:        capability.AccountTypeAPIKey,
@@ -701,7 +693,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokens404PassthroughNotE
 				},
 				Extra:       map[string]any{"anthropic_passthrough": true},
 				Status:      billing.StatusActive,
-				Schedulable: true,
+				Schedulable: true},
 			}
 
 			err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -743,15 +735,14 @@ func TestGatewayService_QoderCountTokensUnsupported(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(`{"input_tokens":999}`)),
 		},
 	}
-	svc := &GatewayService{httpUpstream: upstream}
-	account := &Account{
-		ID:          301,
+	svc := withSchedulerParametersForTest(&GatewayService{httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
 		Name:        "qoder",
 		Platform:    capability.PlatformQoder,
 		Type:        capability.AccountTypeCosy,
 		Concurrency: 1,
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -773,7 +764,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BuildRequestRejectsInvalidBas
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Security: config.SecurityConfig{
 				URLAllowlist: config.URLAllowlistConfig{
@@ -781,14 +772,13 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_BuildRequestRejectsInvalidBas
 				},
 			},
 		},
-	}
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeAPIKey,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "k",
 			"base_url": "://invalid-url",
-		},
+		}},
 	}
 
 	_, _, err := svc.buildUpstreamRequestAnthropicAPIKeyPassthrough(context.Background(), c, account, []byte(`{}`), "k")
@@ -801,20 +791,19 @@ func TestGatewayService_AnthropicOAuth_NotAffectedByAPIKeyPassthroughToggle(t *t
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 		},
-	}
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeOAuth,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+		Type: capability.AccountTypeOAuth,
 		Extra: map[string]any{
 			"anthropic_passthrough": true,
-		},
+		}},
 	}
 
-	require.False(t, account.IsAnthropicAPIKeyPassthroughEnabled())
+	require.False(t, account.View().IsAnthropicAPIKeyPassthroughEnabled())
 
 	req, _, err := svc.buildUpstreamRequest(context.Background(), c, account, []byte(`{"model":"claude-3-7-sonnet-20250219"}`), "oauth-token", "oauth", "claude-3-7-sonnet-20250219", true, false)
 	require.NoError(t, err)
@@ -839,15 +828,14 @@ func TestGatewayService_AnthropicOAuth_AppliesAccountMappingBeforeNormalization(
 		Body:       io.NopCloser(strings.NewReader(`{"id":"msg_oauth_mapping","type":"message","role":"assistant","model":"claude-sonnet-4-5-20250929","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`)),
 	}}
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     &RateLimitService{},
 		deferredService:      &accountcore.DeferredService{},
-	}
-	account := &Account{
-		ID:          303,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 303,
 		Name:        "anthropic-oauth-mapping",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeOAuth,
@@ -857,7 +845,7 @@ func TestGatewayService_AnthropicOAuth_AppliesAccountMappingBeforeNormalization(
 			"model_mapping": map[string]any{"client-alias": "claude-sonnet-4-5"},
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, parsed)
@@ -926,16 +914,15 @@ func TestGatewayService_AnthropicOAuthMimic_RewritesSystemWithBillingBlock(t *te
 					MaxLineSize: defaultMaxLineSize,
 				},
 			}
-			svc := &GatewayService{
+			svc := withSchedulerParametersForTest(&GatewayService{
 				cfg:                  cfg,
 				responseHeaderFilter: compileResponseHeaderFilter(cfg),
 				httpUpstream:         upstream,
 				rateLimitService:     &RateLimitService{},
 				deferredService:      &accountcore.DeferredService{},
-			}
+			})
 
-			account := &Account{
-				ID:          301,
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
 				Name:        "anthropic-oauth-mimic",
 				Platform:    capability.PlatformAnthropic,
 				Type:        capability.AccountTypeOAuth,
@@ -944,7 +931,7 @@ func TestGatewayService_AnthropicOAuthMimic_RewritesSystemWithBillingBlock(t *te
 					"access_token": "oauth-token",
 				},
 				Status:      billing.StatusActive,
-				Schedulable: true,
+				Schedulable: true},
 			}
 
 			result, err := svc.Forward(context.Background(), c, account, parsed)
@@ -1032,16 +1019,15 @@ func TestGatewayService_AnthropicOAuthRealClaudeCodeHaiku_PreservesClientHeaders
 		Body:       io.NopCloser(strings.NewReader(`{"id":"msg_real_cc","type":"message","role":"assistant","model":"claude-haiku-4-5-20251001","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":12,"output_tokens":7}}`)),
 	}}
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     &RateLimitService{},
 		deferredService:      &accountcore.DeferredService{},
-	}
-	account := &Account{
-		ID: 302, Name: "anthropic-real-cc", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Concurrency: 1,
-		Credentials: map[string]any{"access_token": "oauth-token"}, Status: billing.StatusActive, Schedulable: true,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 302, Name: "anthropic-real-cc", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Concurrency: 1,
+		Credentials: map[string]any{"access_token": "oauth-token"}, Status: billing.StatusActive, Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, parsed)
@@ -1085,16 +1071,15 @@ func TestGatewayService_AnthropicOAuthProxiedClaudeCode_PreservesSystemCachePref
 		Body:       io.NopCloser(strings.NewReader(`{"id":"msg_proxied_cc","type":"message","role":"assistant","model":"claude-sonnet-4-5-20250929","content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":12,"output_tokens":7}}`)),
 	}}
 	cfg := &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     &RateLimitService{},
 		deferredService:      &accountcore.DeferredService{},
-	}
-	account := &Account{
-		ID: 304, Name: "anthropic-proxied-cc", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Concurrency: 1,
-		Credentials: map[string]any{"access_token": "oauth-token"}, Status: billing.StatusActive, Schedulable: true,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 304, Name: "anthropic-proxied-cc", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Concurrency: 1,
+		Credentials: map[string]any{"access_token": "oauth-token"}, Status: billing.StatusActive, Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, parsed)
@@ -1138,17 +1123,17 @@ func TestGatewayService_AnthropicOAuth_SystemPromptInjectionCanBeDisabled(t *tes
 	settingService := newExecutionReadersFixture(&gatewayTTLSettingRepo{data: map[string]string{
 		gateway.SettingKeyEnableClaudeOAuthSystemPromptInjection: "false",
 	}}, cfg)
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
 		rateLimitService:     &RateLimitService{},
-		deferredService:      &accountcore.DeferredService{},
-		settingService:       settingService,
-	}
 
-	account := &Account{
-		ID:          302,
+		settingService:  settingService,
+		deferredService: &accountcore.DeferredService{},
+	})
+
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 302,
 		Name:        "anthropic-oauth-no-system-injection",
 		Platform:    capability.PlatformAnthropic,
 		Type:        capability.AccountTypeOAuth,
@@ -1157,7 +1142,7 @@ func TestGatewayService_AnthropicOAuth_SystemPromptInjectionCanBeDisabled(t *tes
 			"access_token": "oauth-token",
 		},
 		Status:      billing.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, parsed)
@@ -1183,14 +1168,14 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingStillCollectsUsageAf
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				MaxLineSize: defaultMaxLineSize,
 			},
 		},
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -1205,7 +1190,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingStillCollectsUsageAf
 		}, "\n"))),
 	}
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "claude-3-7-sonnet-20250219")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.usage)
@@ -1219,14 +1204,14 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_MissingTerminalEventReturnsEr
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				MaxLineSize: defaultMaxLineSize,
 			},
 		},
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -1239,7 +1224,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_MissingTerminalEventReturnsEr
 		}, "\n"))),
 	}
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, time.Now(), "claude-3-7-sonnet-20250219")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "missing terminal event")
 	require.NotNil(t, result)
@@ -1263,11 +1248,11 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardDirect_NonStreamingSuc
 			Body: io.NopCloser(strings.NewReader(upstreamJSON)),
 		},
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg:              &config.Config{},
 		httpUpstream:     upstream,
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
 	result, err := svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c, newAnthropicAPIKeyAccountForTest(), body, "claude-3-5-sonnet-latest", "claude-3-5-sonnet-latest", false, time.Now())
 	require.NoError(t, err)
@@ -1285,16 +1270,15 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardDirect_InvalidTokenTyp
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	account := &Account{
-		ID:       202,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 202,
 		Name:     "anthropic-oauth",
 		Platform: capability.PlatformAnthropic,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"access_token": "oauth-token",
-		},
+		}},
 	}
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	result, err := svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c, account, []byte(`{}`), "claude-3-5-sonnet-latest", "claude-3-5-sonnet-latest", false, time.Now())
 	require.Nil(t, result)
@@ -1311,14 +1295,14 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardDirect_UpstreamRequest
 	upstream := &anthropicHTTPUpstreamRecorder{
 		err: errors.New("dial tcp timeout"),
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Security: config.SecurityConfig{
 				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 			},
 		},
 		httpUpstream: upstream,
-	}
+	})
 	account := newAnthropicAPIKeyAccountForTest()
 
 	result, err := svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c, account, []byte(`{"model":"x"}`), "x", "x", false, time.Now())
@@ -1345,14 +1329,14 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardDirect_EmptyResponseBo
 			Body:       nil,
 		},
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Security: config.SecurityConfig{
 				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 			},
 		},
 		httpUpstream: upstream,
-	}
+	})
 
 	result, err := svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c, newAnthropicAPIKeyAccountForTest(), []byte(`{"model":"x"}`), "x", "x", false, time.Now())
 	require.Nil(t, result)
@@ -1466,13 +1450,13 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingErrTooLong(t *testin
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				MaxLineSize: 32,
 			},
 		},
-	}
+	})
 
 	// Scanner 初始缓冲为 64KB，构造更长单行触发 bufio.ErrTooLong。
 	longLine := "data: " + strings.Repeat("x", 80*1024)
@@ -1482,7 +1466,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingErrTooLong(t *testin
 		Body:       io.NopCloser(strings.NewReader(longLine)),
 	}
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 2}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2}}, time.Now(), "claude-3-7-sonnet-20250219")
 	require.Error(t, err)
 	require.ErrorIs(t, err, bufio.ErrTooLong)
 	require.NotNil(t, result)
@@ -1494,7 +1478,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingDataIntervalTimeout(
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				StreamDataIntervalTimeout: 1,
@@ -1502,7 +1486,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingDataIntervalTimeout(
 			},
 		},
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
 	pr, pw := io.Pipe()
 	resp := &http.Response{
@@ -1511,7 +1495,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingDataIntervalTimeout(
 		Body:       pr,
 	}
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 5}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5}}, time.Now(), "claude-3-7-sonnet-20250219")
 	_ = pw.Close()
 	_ = pr.Close()
 
@@ -1527,7 +1511,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingSendsKeepaliveDuring
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				StreamKeepaliveInterval: 1,
@@ -1535,7 +1519,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingSendsKeepaliveDuring
 			},
 		},
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
 	pr, pw := io.Pipe()
 	resp := &http.Response{
@@ -1560,7 +1544,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingSendsKeepaliveDuring
 		_ = pw.Close()
 	}()
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 8}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8}}, time.Now(), "claude-3-7-sonnet-20250219")
 	_ = pr.Close()
 	<-done
 
@@ -1576,7 +1560,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingKeepaliveDoesNotInte
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				StreamKeepaliveInterval: 1,
@@ -1584,7 +1568,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingKeepaliveDoesNotInte
 			},
 		},
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
 	pr, pw := io.Pipe()
 	resp := &http.Response{
@@ -1604,7 +1588,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingKeepaliveDoesNotInte
 		_ = pw.Close()
 	}()
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 9}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9}}, time.Now(), "claude-3-7-sonnet-20250219")
 	_ = pr.Close()
 	<-done
 
@@ -1622,13 +1606,13 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingReadError(t *testing
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				MaxLineSize: defaultMaxLineSize,
 			},
 		},
-	}
+	})
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -1638,7 +1622,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingReadError(t *testing
 		},
 	}
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 6}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6}}, time.Now(), "claude-3-7-sonnet-20250219")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream read error")
 	require.NotNil(t, result)
@@ -1652,7 +1636,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingTimeoutAfterClientDi
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	c.Writer = &failWriteResponseWriter{ResponseWriter: c.Writer}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				StreamDataIntervalTimeout: 1,
@@ -1660,7 +1644,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingTimeoutAfterClientDi
 			},
 		},
 		rateLimitService: &RateLimitService{},
-	}
+	})
 
 	pr, pw := io.Pipe()
 	resp := &http.Response{
@@ -1678,7 +1662,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingTimeoutAfterClientDi
 		_ = pw.Close()
 	}()
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 7}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7}}, time.Now(), "claude-3-7-sonnet-20250219")
 	_ = pr.Close()
 	<-done
 
@@ -1695,13 +1679,13 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingContextCanceled(t *t
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				MaxLineSize: defaultMaxLineSize,
 			},
 		},
-	}
+	})
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -1711,7 +1695,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingContextCanceled(t *t
 		},
 	}
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 3}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3}}, time.Now(), "claude-3-7-sonnet-20250219")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream usage incomplete")
 	require.NotNil(t, result)
@@ -1725,13 +1709,13 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingUpstreamReadErrorAft
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	c.Writer = &failWriteResponseWriter{ResponseWriter: c.Writer}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				MaxLineSize: defaultMaxLineSize,
 			},
 		},
-	}
+	})
 
 	resp := &http.Response{
 		StatusCode: http.StatusOK,
@@ -1742,7 +1726,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingUpstreamReadErrorAft
 		},
 	}
 
-	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &Account{ID: 4}, time.Now(), "claude-3-7-sonnet-20250219")
+	result, err := svc.handleStreamingResponseAnthropicAPIKeyPassthrough(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4}}, time.Now(), "claude-3-7-sonnet-20250219")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "stream usage incomplete after disconnect")
 	require.NotNil(t, result)
@@ -1754,7 +1738,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_TransportErrorRecordsOllamaAc
 
 	deferred, activity := newDeferredActivityRecorder(t)
 	upstream := &anthropicHTTPUpstreamRecorder{err: errors.New("dial tcp timeout")}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Security: config.SecurityConfig{
 				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
@@ -1762,17 +1746,16 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_TransportErrorRecordsOllamaAc
 		},
 		httpUpstream:    upstream,
 		deferredService: deferred,
-	}
+	})
 
-	ollama := &Account{
-		ID: 601, Name: "ollama-anthropic", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
+	ollama := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 601, Name: "ollama-anthropic", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"},
 		Extra:       map[string]any{"anthropic_passthrough": true},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	other := newAnthropicAPIKeyAccountForTest()
-	other.ID = 602
+	other.Record.ID = 602
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1797,7 +1780,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ContextCanceledSkipsOllamaAct
 
 	deferred, activity := newDeferredActivityRecorder(t)
 	upstream := &anthropicHTTPUpstreamRecorder{err: context.Canceled}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Security: config.SecurityConfig{
 				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
@@ -1805,13 +1788,12 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ContextCanceledSkipsOllamaAct
 		},
 		httpUpstream:    upstream,
 		deferredService: deferred,
-	}
-	ollama := &Account{
-		ID: 603, Name: "ollama-canceled", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
+	})
+	ollama := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 603, Name: "ollama-canceled", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"},
 		Extra:       map[string]any{"anthropic_passthrough": true},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1836,22 +1818,22 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_Non2xxRecordsOllamaActivity(t
 			Body:       io.NopCloser(strings.NewReader(`{"type":"error","error":{"type":"invalid_request_error","message":"bad"}}`)),
 		},
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		cfg: &config.Config{
 			Security: config.SecurityConfig{
 				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 			},
 		},
-		httpUpstream:     upstream,
-		deferredService:  deferred,
+		httpUpstream: upstream,
+
 		rateLimitService: &RateLimitService{},
-	}
-	ollama := &Account{
-		ID: 604, Name: "ollama-400", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
+		deferredService:  deferred,
+	})
+	ollama := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 604, Name: "ollama-400", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "k-ollama", "base_url": "https://ollama.com"},
 		Extra:       map[string]any{"anthropic_passthrough": true},
-		Status:      billing.StatusActive, Schedulable: true,
+		Status:      billing.StatusActive, Schedulable: true},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)

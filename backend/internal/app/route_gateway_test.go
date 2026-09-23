@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -21,18 +24,12 @@ import (
 
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 
-	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
 func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
 	return newGatewayRoutesTestRouterWithOptions(&config.Config{}, nil, platform...)
-}
-
-// newGatewayRoutesTestRouterWithGatewayHandler 允许路由测试注入可实际处理请求的网关 handler。
-func newGatewayRoutesTestRouterWithGatewayHandler(gatewayHandler *handler.GatewayHandler, platform ...string) *gin.Engine {
-	return newGatewayRoutesTestRouterWithOptions(&config.Config{}, gatewayHandler, platform...)
 }
 
 func newGatewayRoutesTestRouterWithConfig(cfg *config.Config, platform ...string) *gin.Engine {
@@ -63,7 +60,7 @@ func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *h
 }
 
 // newGatewayRoutesTestRouterWithGroup 允许测试显式控制 nil 与空协议集合。
-func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, gatewayHandler *handler.GatewayHandler, group *routing.Group) *gin.Engine {
+func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, gatewayHandler *handler.GatewayHandler, group *routing.Group, models ...*gatewayhttp.ModelsHandler) *gin.Engine {
 
 	router := gin.New()
 
@@ -71,21 +68,25 @@ func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, gatewayHandler *han
 		gatewayHandler = &handler.GatewayHandler{}
 	}
 
+	var modelsHTTP *gatewayhttp.ModelsHandler
+	if len(models) > 0 {
+		modelsHTTP = models[0]
+	}
 	RegisterGatewayRoutes(
 		router,
 		&routeTestHandlers{
 			Gateway:       gatewayHandler,
+			ModelsHTTP:    modelsHTTP,
 			OpenAIGateway: &handler.OpenAIGatewayHandler{},
-			QoderGateway:  &handler.QoderGatewayHandler{},
 		},
-		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
+		keyhttp.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := group.ID
-			c.Set(string(servermiddleware.ContextKeyAPIKey), &apikey.APIKey{
+			c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{
 				User:    &identity.User{ID: 1, Status: billing.StatusActive, Concurrency: 1},
 				GroupID: &groupID,
 				Group:   group,
 			})
-			c.Set(string(servermiddleware.ContextKeyUser), servermiddleware.AuthSubject{UserID: 1, Concurrency: 1})
+			c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 1, Concurrency: 1})
 			c.Next()
 		}),
 		nil,
@@ -237,7 +238,7 @@ func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 			router := gin.New()
 			var deniedReason string
 			router.Use(func(c *gin.Context) {
-				c.Set(string(servermiddleware.ContextKeyAPIKey), &apikey.APIKey{Group: &routing.Group{AllowedProtocols: []protocolcore.ProtocolID{}}})
+				c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{Group: &routing.Group{AllowedProtocols: []protocolcore.ProtocolID{}}})
 				c.Next()
 				deniedReason = c.GetString(gatewayhttp.OpsClientBusinessLimitedReasonKey)
 			})
@@ -260,7 +261,7 @@ func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 func TestRequireGeminiGenerateContentProtocolOnlyGatesTextActions(t *testing.T) {
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set(string(servermiddleware.ContextKeyAPIKey), &apikey.APIKey{
+		c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{
 			Group: &routing.Group{Platform: capability.PlatformQoder, AllowedProtocols: []protocolcore.ProtocolID{}},
 		})
 		c.Next()

@@ -11,6 +11,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -21,27 +22,26 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(
 	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
 	accountRepo := &rateLimitAccountRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
 	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour)
-	account := &Account{
-		ID:          1001,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1001,
 		Platform:    capability.PlatformOpenAI,
 		Status:      billing.StatusActive,
 		Schedulable: true,
 		Extra: map[string]any{
 			"codex_7d_used_percent": 91.5,
 			"codex_7d_reset_at":     until.Format(time.RFC3339),
-		},
+		}},
 	}
 
 	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
 
 	require.True(t, blocked)
 	require.Equal(t, 1, accountRepo.tempCalls)
-	require.NotNil(t, account.TempUnschedulableUntil)
-	require.WithinDuration(t, until, *account.TempUnschedulableUntil, time.Second)
+	require.NotNil(t, account.Record.TempUnschedulableUntil)
+	require.WithinDuration(t, until, *account.Record.TempUnschedulableUntil, time.Second)
 	require.True(t, accountcore.IsAccountSchedulingThresholdReason(accountRepo.lastTempReason))
 
 	var payload map[string]any
@@ -59,12 +59,11 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInR
 	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
 
 	accountRepo := &rateLimitAccountRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
 	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour)
-	account := &Account{
-		ID:          1003,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1003,
 		Platform:    capability.PlatformOpenAI,
 		Status:      billing.StatusActive,
 		Schedulable: true,
@@ -74,7 +73,7 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInR
 		Extra: map[string]any{
 			"codex_7d_used_percent": 85.5,
 			"codex_7d_reset_at":     until.Format(time.RFC3339),
-		},
+		}},
 	}
 
 	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
@@ -113,12 +112,11 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableMo
 	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"anthropic":100}`
 
 	accountRepo := &fableSchedulingThresholdRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
 	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(4 * 24 * time.Hour).Truncate(time.Second)
-	account := &Account{
-		ID:          1004,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1004,
 		Platform:    capability.PlatformAnthropic,
 		Status:      billing.StatusActive,
 		Schedulable: true,
@@ -130,7 +128,7 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableMo
 			"passive_usage_7d_reset":          float64(time.Now().UTC().Add(3 * 24 * time.Hour).Unix()),
 			"passive_usage_7d_oi_utilization": 0.61,
 			"passive_usage_7d_oi_reset":       float64(until.Unix()),
-		},
+		}},
 	}
 
 	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
@@ -141,10 +139,10 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableMo
 	require.Equal(t, accountcore.AnthropicFableRateLimitKey, accountRepo.lastModelScope)
 	require.WithinDuration(t, until, accountRepo.lastModelReset, time.Second)
 	require.True(t, accountcore.IsAccountSchedulingThresholdReason(accountRepo.lastModelReason))
-	require.False(t, account.IsSchedulableForModel("claude-fable-5"))
-	require.False(t, account.IsSchedulableForModel("claude-fable-5[1m]"))
-	require.True(t, account.IsSchedulableForModel("claude-opus-4-8"))
-	require.True(t, account.IsSchedulableForModel("claude-sonnet-4-6"))
+	require.False(t, gatewayprovider.ExecutionModelPolicy(account).Schedulable(context.Background(), "claude-fable-5"))
+	require.False(t, gatewayprovider.ExecutionModelPolicy(account).Schedulable(context.Background(), "claude-fable-5[1m]"))
+	require.True(t, gatewayprovider.ExecutionModelPolicy(account).Schedulable(context.Background(), "claude-opus-4-8"))
+	require.True(t, gatewayprovider.ExecutionModelPolicy(account).Schedulable(context.Background(), "claude-sonnet-4-6"))
 
 	blocked = rl.ApplyAccountSchedulingThreshold(context.Background(), account)
 	require.False(t, blocked)
@@ -157,7 +155,7 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
 	accountRepo := &rateLimitAccountRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
 	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour).Truncate(time.Second)
@@ -169,8 +167,7 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 		Until:            until,
 		Now:              until.Add(-time.Hour),
 	})
-	account := &Account{
-		ID:                      1002,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1002,
 		Platform:                capability.PlatformOpenAI,
 		Status:                  billing.StatusActive,
 		Schedulable:             true,
@@ -179,16 +176,16 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 		Extra: map[string]any{
 			"codex_7d_used_percent": 91.5,
 			"codex_7d_reset_at":     until.Format(time.RFC3339),
-		},
+		}},
 	}
 
 	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
 
 	require.True(t, blocked)
 	require.Equal(t, 0, accountRepo.tempCalls)
-	require.Equal(t, existingReason, account.TempUnschedulableReason)
-	require.NotNil(t, account.TempUnschedulableUntil)
-	require.True(t, until.Equal(*account.TempUnschedulableUntil))
+	require.Equal(t, existingReason, account.Record.TempUnschedulableReason)
+	require.NotNil(t, account.Record.TempUnschedulableUntil)
+	require.True(t, until.Equal(*account.Record.TempUnschedulableUntil))
 }
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_UnsupportedPlatformDoesNotBlock(t *testing.T) {
@@ -197,11 +194,10 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_UnsupportedPlatformDoe
 	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
 	accountRepo := &rateLimitAccountRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil, nil)
+	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
 	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
-	account := &Account{
-		ID:          2002,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2002,
 		Platform:    "kiro",
 		Status:      billing.StatusActive,
 		Schedulable: true,
@@ -211,13 +207,13 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_UnsupportedPlatformDoe
 		Extra: map[string]any{
 			"kiro_sched_utilization": 99.0,
 			"kiro_sched_reset_at":    time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339),
-		},
+		}},
 	}
 
 	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
 
 	require.False(t, blocked)
 	require.Equal(t, 0, accountRepo.tempCalls)
-	require.Nil(t, account.TempUnschedulableUntil)
-	require.Empty(t, account.TempUnschedulableReason)
+	require.Nil(t, account.Record.TempUnschedulableUntil)
+	require.Empty(t, account.Record.TempUnschedulableReason)
 }

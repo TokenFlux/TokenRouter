@@ -4,6 +4,9 @@ import (
 	"context"
 	"strings"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -31,7 +34,7 @@ func WithOpenAIGuardianParentAffinity(ctx context.Context, c *gin.Context, body 
 	}
 
 	headerMetadata := c.GetHeader(codexTurnMetadataHeader)
-	bodyMetadata := openAIRequestPayloadView(body).Get("client_metadata.x-codex-turn-metadata").String()
+	bodyMetadata := protocolopenai.RequestPayloadView(body).Get("client_metadata.x-codex-turn-metadata").String()
 	if !hasUnambiguousOpenAICodexReviewSubagent(
 		c.GetHeader(openAISubagentHeader),
 		codexSubagentKindFromMetadata(headerMetadata),
@@ -124,7 +127,7 @@ func (s *OpenAIGatewayService) resolveOpenAIGuardianParentAccountID(ctx context.
 	if !ok {
 		return 0
 	}
-	lookupCtx := withOpenAILegacySessionHash(ctx, affinity.legacySessionHash)
+	lookupCtx := requeststate.WithOpenAILegacySessionHash(ctx, affinity.legacySessionHash)
 	accountID, err := s.getStickySessionAccountID(lookupCtx, groupID, affinity.currentSessionHash)
 	if err != nil || accountID <= 0 {
 		return 0

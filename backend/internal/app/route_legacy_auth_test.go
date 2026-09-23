@@ -22,7 +22,7 @@ import (
 func RegisterAuthRoutes(
 	v1 *gin.RouterGroup,
 	h *routeTestHandlers,
-	jwtAuth servermiddleware.JWTAuthMiddleware,
+	jwtAuth identityhttp.JWTAuthMiddleware,
 	auditLog servermiddleware.AuditLogMiddleware,
 	rateLimiter *servermiddleware.RateLimiter,
 	settingService *admission.BackendMode,

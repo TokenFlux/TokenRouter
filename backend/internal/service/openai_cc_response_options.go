@@ -6,6 +6,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -31,9 +32,11 @@ func (s *OpenAIGatewayService) nativeCCResponseOptions(c *gin.Context, writeErro
 				observer.ObserveOpenAI(body, "")
 			}
 		},
-		ServiceTier:    tierObserver.ServiceTier,
-		ReadBody:       func(r io.Reader) ([]byte, error) { return ReadUpstreamResponseBody(r, s.cfg, c, openAITooLargeError) },
-		BodyLimitError: ErrUpstreamResponseBodyTooLarge,
+		ServiceTier: tierObserver.ServiceTier,
+		ReadBody: func(r io.Reader) ([]byte, error) {
+			return gatewayhttp.ReadUpstreamResponseBody(r, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.OpenAIResponseTooLarge)
+		},
+		BodyLimitError: httpclient.ErrResponseBodyTooLarge,
 		WriteError:     func(status int, kind, message string) { writeError(c, status, kind, message) },
 	}
 }

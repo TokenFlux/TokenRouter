@@ -4,20 +4,22 @@ package service
 
 import (
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGrokAPIKeyURLPolicyFollowsGlobalSecurityConfig(t *testing.T) {
-	account := &Account{
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeAPIKey,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"base_url": "http://grok.example.test/v1",
-		},
+		}},
 	}
 
 	t.Run("insecure HTTP enabled with allowlist disabled", func(t *testing.T) {
@@ -63,12 +65,11 @@ func TestGrokAPIKeyURLPolicyFollowsGlobalSecurityConfig(t *testing.T) {
 }
 
 func TestGrokAPIKeyURLPolicyAppliesAllowlistAndPrivateHostControls(t *testing.T) {
-	account := &Account{
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeAPIKey,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"base_url": "https://grok.example.test/v1",
-		},
+		}},
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = true
@@ -82,7 +83,7 @@ func TestGrokAPIKeyURLPolicyAppliesAllowlistAndPrivateHostControls(t *testing.T)
 	_, err = buildGrokResponsesURL(account, cfg)
 	require.EqualError(t, err, "invalid base url: base URL rejected by URL security policy")
 
-	account.Credentials["base_url"] = "https://127.0.0.1/v1"
+	account.Record.Credentials["base_url"] = "https://127.0.0.1/v1"
 	cfg.Security.URLAllowlist.UpstreamHosts = []string{"127.0.0.1"}
 	_, err = buildGrokResponsesURL(account, cfg)
 	require.EqualError(t, err, "invalid base url: base URL rejected by URL security policy")
@@ -94,12 +95,11 @@ func TestGrokAPIKeyURLPolicyAppliesAllowlistAndPrivateHostControls(t *testing.T)
 }
 
 func TestGrokAPIKeyURLPolicyRedactsMalformedConfiguredURL(t *testing.T) {
-	account := &Account{
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeAPIKey,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"base_url": "https://%zz:secret@grok.example.test/v1",
-		},
+		}},
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
@@ -111,10 +111,9 @@ func TestGrokAPIKeyURLPolicyRedactsMalformedConfiguredURL(t *testing.T) {
 
 func TestGrokOAuthURLPolicy(t *testing.T) {
 	t.Run("default CLI gateway always allowed under restrictive allowlist", func(t *testing.T) {
-		account := &Account{
-			Platform:    capability.PlatformGrok,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
 			Type:        capability.AccountTypeOAuth,
-			Credentials: map[string]any{},
+			Credentials: map[string]any{}},
 		}
 		cfg := &config.Config{}
 		cfg.Security.URLAllowlist.Enabled = true
@@ -126,12 +125,11 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 	})
 
 	t.Run("stored official API endpoint is honored (manual endpoint switch)", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformGrok,
-			Type:     capability.AccountTypeOAuth,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
 			Credentials: map[string]any{
 				"base_url": xai.DefaultBaseURL,
-			},
+			}},
 		}
 		cfg := &config.Config{}
 
@@ -141,12 +139,11 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 	})
 
 	t.Run("stored regional API endpoint is trusted even under restrictive allowlist", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformGrok,
-			Type:     capability.AccountTypeOAuth,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
 			Credentials: map[string]any{
 				"base_url": "https://us-west-2.api.x.ai/v1",
-			},
+			}},
 		}
 		cfg := &config.Config{}
 		cfg.Security.URLAllowlist.Enabled = true
@@ -158,12 +155,11 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 	})
 
 	t.Run("custom forwarding address follows operator policy", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformGrok,
-			Type:     capability.AccountTypeOAuth,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
 			Credentials: map[string]any{
 				"base_url": "https://relay.example.test/v1",
-			},
+			}},
 		}
 		cfg := &config.Config{}
 		cfg.Security.URLAllowlist.Enabled = false
@@ -174,12 +170,11 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 	})
 
 	t.Run("custom path prefix is preserved", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformGrok,
-			Type:     capability.AccountTypeOAuth,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
 			Credentials: map[string]any{
 				"base_url": "https://relay.example.test/xai/v1",
-			},
+			}},
 		}
 		cfg := &config.Config{}
 
@@ -189,12 +184,11 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 	})
 
 	t.Run("custom forwarding address rejected by allowlist", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformGrok,
-			Type:     capability.AccountTypeOAuth,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
 			Credentials: map[string]any{
 				"base_url": "https://relay.example.test/v1",
-			},
+			}},
 		}
 		cfg := &config.Config{}
 		cfg.Security.URLAllowlist.Enabled = true
@@ -205,12 +199,11 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 	})
 
 	t.Run("insecure HTTP custom address requires operator opt-in", func(t *testing.T) {
-		account := &Account{
-			Platform: capability.PlatformGrok,
-			Type:     capability.AccountTypeOAuth,
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
 			Credentials: map[string]any{
 				"base_url": "http://relay.example.test/v1",
-			},
+			}},
 		}
 		cfg := &config.Config{}
 		cfg.Security.URLAllowlist.Enabled = false
@@ -233,21 +226,19 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 		cfg.Security.URLAllowlist.Enabled = true
 		cfg.Security.URLAllowlist.UpstreamHosts = []string{"cli-chat-proxy.grok.com"}
 
-		custom := &Account{
-			Platform: capability.PlatformGrok,
-			Type:     capability.AccountTypeOAuth,
+		custom := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+			Type: capability.AccountTypeOAuth,
 			Credentials: map[string]any{
 				"base_url": "http://10.0.0.1/v1",
-			},
+			}},
 		}
 		_, err := buildGrokResponsesURL(custom, cfg)
 		require.EqualError(t, err, "invalid base url: base URL rejected by URL security policy")
 
 		// 即使白名单严格限制自定义主机，官方网关仍应正常解析。
-		official := &Account{
-			Platform:    capability.PlatformGrok,
+		official := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
 			Type:        capability.AccountTypeOAuth,
-			Credentials: map[string]any{},
+			Credentials: map[string]any{}},
 		}
 		target, err := buildGrokResponsesURL(official, cfg)
 		require.NoError(t, err)
@@ -257,12 +248,11 @@ func TestGrokOAuthURLPolicy(t *testing.T) {
 
 func TestGrokOAuthMediaURLFollowsCustomForwardingUpstream(t *testing.T) {
 	t.Setenv(xai.EnvAllowUnsafeURLOverrides, "true")
-	account := &Account{
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"base_url": "https://custom.example.test/v1",
-		},
+		}},
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false

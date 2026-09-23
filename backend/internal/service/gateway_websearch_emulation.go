@@ -28,16 +28,16 @@ func (s *GatewayService) SearchToolsRuntime() *searchtools.Emulator {
 	}
 	return gatewayprovider.NewSearchTools(runtime, s.channelService)
 }
-func (s *GatewayService) shouldEmulateWebSearch(ctx context.Context, account *Account, groupID *int64, body []byte) bool {
-	return s.SearchToolsRuntime().ShouldEmulate(ctx, searchtools.PolicyInput{Body: body, Mode: gatewayprovider.SearchAccountMode(&searchtools.AccountPolicy{ID: account.ID, Platform: account.Platform, Type: account.Type, Extra: account.Extra}), Platform: account.Platform, GroupID: groupID})
+func (s *GatewayService) shouldEmulateWebSearch(ctx context.Context, account *gatewayprovider.ExecutionAccount, groupID *int64, body []byte) bool {
+	return s.SearchToolsRuntime().ShouldEmulate(ctx, searchtools.PolicyInput{Body: body, Mode: gatewayprovider.SearchAccountMode(&searchtools.AccountPolicy{ID: account.Record.ID, Platform: account.Record.Platform, Type: account.Record.Type, Extra: account.Record.Extra}), Platform: account.Record.Platform, GroupID: groupID})
 }
-func (s *GatewayService) handleWebSearchEmulation(ctx context.Context, c *gin.Context, account *Account, parsed *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error) {
+func (s *GatewayService) handleWebSearchEmulation(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, parsed *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error) {
 	result, err := s.SearchToolsRuntime().Execute(ctx, searchtools.Request{
 		Body:        parsed.Body.Bytes(),
 		Model:       parsed.Model,
 		Stream:      parsed.Stream,
-		AccountID:   account.ID,
-		AccountName: account.Name,
+		AccountID:   account.Record.ID,
+		AccountName: account.Record.Name,
 		ProxyURL:    resolveAccountProxyURL(account),
 		OnAccepted:  parsed.OnUpstreamAccepted,
 	}, gatewayhttp.SearchOutput{Context: c})
@@ -52,9 +52,9 @@ func (s *GatewayService) handleWebSearchEmulation(ctx context.Context, c *gin.Co
 }
 
 // 该投影仍被 Live 传输使用；不改变代理缺失时的原返回值。
-func resolveAccountProxyURL(account *Account) string {
-	if account.ProxyID != nil && account.Proxy != nil {
-		return account.Proxy.URL()
+func resolveAccountProxyURL(account *gatewayprovider.ExecutionAccount) string {
+	if account.Record.ProxyID != nil && account.Record.Proxy != nil {
+		return account.Record.Proxy.URL()
 	}
 	return ""
 }

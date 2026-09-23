@@ -13,7 +13,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -27,6 +26,7 @@ type OpenAITextOptions struct {
 	MaxBodyBytes             int64
 	MaxSwitches              int
 	CompactKeepaliveInterval time.Duration
+	ForceCodexCLI            bool
 }
 
 // OpenAISessionInput 区分粘性、显式隔离和上游缓存键的读取目的。
@@ -64,9 +64,6 @@ type OpenAITextBackend interface {
 	Dependencies(*gin.Context, *zap.Logger) bool
 	ReadFailure(*zap.Logger, *http.Request, error)
 	TransportHTTP(*gin.Context)
-	CompactOutcome(*gin.Context, time.Time)
-	NormalizeCompact(*gin.Context, *zap.Logger, []byte) ([]byte, bool)
-	CompactFlags(*gin.Context, []byte) (bool, bool)
 	StartCompact(*gin.Context, time.Duration) func()
 	StopCompact(*gin.Context) bool
 	ObserveRequest(*gin.Context, string, bool)
@@ -102,14 +99,10 @@ type OpenAITextBackend interface {
 	RejectCyber(*gin.Context, *apikey.APIKey, []byte, string, protocol.ProtocolID) bool
 	Isolate(context.Context, *apikey.APIKey, int64, string, string) error
 	GuardianContext(context.Context, *gin.Context, []byte, string) context.Context
-	RequiredCapability(bool, bool, bool, string) account.OpenAIEndpointCapability
 	AllowsMessages(*apikey.APIKey) bool
 	MessageAccountModel(context.Context, *apikey.APIKey, string) string
-	MappedBodyCache([]byte) func(bool, string) []byte
 	MetadataSession(*gin.Context, string, string, string, []byte) (string, string)
 	ChatImageModel(string, routing.ChannelMappingResult) bool
-	CountExecution(*gin.Context, OpenAICountCall) textflow.SingleCountPorts
-	InputTokensExecution(*gin.Context, InputTokensCall) textflow.InputTokensPorts
 	ErrorMetadata(*gin.Context) (string, string)
 	MarkStream(*gin.Context, string, string, int)
 	MarkStreamFailure(*gin.Context, string, string, string, int)

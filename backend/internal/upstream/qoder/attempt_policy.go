@@ -13,9 +13,18 @@ func MayRefreshAttempt(err error) bool {
 
 // MaySwitchAttempt 只投影 Qoder 既有错误分类；调用方仍决定重试窗口和次数。
 func MaySwitchAttempt(err error) bool {
+	return maySwitchAttempt(err, true)
+}
+
+// MaySwitchCompatibleAttempt 保留 Messages/Responses 对非供应商错误不换号的原独立边界。
+func MaySwitchCompatibleAttempt(err error) bool {
+	return maySwitchAttempt(err, false)
+}
+
+func maySwitchAttempt(err error, unknown bool) bool {
 	var failure *APIError
 	if !errors.As(err, &failure) {
-		return true
+		return unknown
 	}
 	return failure.IsAgentLimit() || failure.IsEntitlementDenied() || failure.StatusCode == 429 || failure.StatusCode >= 500
 }

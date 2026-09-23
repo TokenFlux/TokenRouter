@@ -11,11 +11,9 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
-	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -61,11 +59,7 @@ func (s *GrokQuotaTransport) baseURL(ctx context.Context, value *account.Record,
 }
 
 func applyGrokQuotaHeaders(value *account.Record, headers http.Header) {
-	if headers == nil {
-		return
-	}
-	policy := egress.RequestPolicy(egress.RequestPolicyInput{Headers: value.HeaderOverrides()})
-	egressprovider.ApplyRequestHeaders(headers, policy, anthropic.ResolveWireCasing)
+	ApplyAccountHeaderOverrides(value, headers)
 }
 
 // ResolveProxy 保留关联对象优先、必要时读取存储，以及原有缺失返回值。

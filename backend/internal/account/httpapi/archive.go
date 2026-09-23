@@ -10,7 +10,6 @@ import (
 
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	transfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
@@ -18,7 +17,10 @@ import (
 )
 
 // ArchiveHandler 只负责备份 HTTP 输入、幂等和管理员响应；资源查询与导入由账号用例拥有。
-type ArchiveHandler struct{ archive *account.Archive }
+type ArchiveHandler struct {
+	idempotencyhttp.Executor
+	archive *account.Archive
+}
 
 func NewArchiveHandler(archive *account.Archive) *ArchiveHandler {
 	return &ArchiveHandler{archive: archive}
@@ -76,7 +78,7 @@ func (h *ArchiveHandler) ImportData(c *gin.Context) {
 		account.DiscardDeprecatedExtra(req.Data.Accounts[index].Extra)
 	}
 
-	idempotencyhttp.ExecuteAdminIdempotentJSON(c, "admin.accounts.import_data", req, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.accounts.import_data", req, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		return h.archive.Import(ctx, req)
 	})
 }

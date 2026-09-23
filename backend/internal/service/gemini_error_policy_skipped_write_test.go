@@ -11,9 +11,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -40,36 +43,34 @@ func newGeminiSkippedWriteService(status int, body string) (*GeminiMessagesCompa
 			Body:       io.NopCloser(strings.NewReader(body)),
 		},
 	}
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		httpUpstream:     httpStub,
 		cfg:              &config.Config{},
-		rateLimitService: NewRateLimitService(&errorPolicyRepoStub{}, nil, &config.Config{}, nil, nil),
-	}
+		rateLimitService: NewRateLimitService(&errorPolicyRepoStub{}, nil, &config.Config{}, nil),
+	})
 	return svc, httpStub
 }
 
-func geminiPoolModeAPIKeyAccount() *Account {
-	return &Account{
-		ID:       700,
+func geminiPoolModeAPIKeyAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 700,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":   "test-key",
 			"pool_mode": true,
-		},
+		}},
 	}
 }
 
-func geminiCustomCodesAPIKeyAccount() *Account {
-	return &Account{
-		ID:       701,
+func geminiCustomCodesAPIKeyAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 701,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":                    "test-key",
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(429)},
-		},
+		}},
 	}
 }
 
@@ -198,12 +199,12 @@ func TestGeminiForwardAsChatCompletions_PoolMode400KeepsUpstreamMessage(t *testi
 
 func TestWriteGeminiMappedError_400KeepsUpstreamMessage(t *testing.T) {
 
-	svc := &GeminiMessagesCompatService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{cfg: &config.Config{}})
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	err := svc.writeGeminiMappedError(c, &Account{ID: 702, Platform: capability.PlatformGemini}, http.StatusBadRequest, "req-1", []byte(geminiSkippedTestUpstreamBody()))
+	err := svc.writeGeminiMappedError(c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 702, Platform: capability.PlatformGemini}}, http.StatusBadRequest, "req-1", []byte(geminiSkippedTestUpstreamBody()))
 
 	require.Error(t, err)
 	require.Equal(t, http.StatusBadRequest, rec.Code)

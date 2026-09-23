@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"net/http"
 
+	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytelemetry "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -16,11 +20,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeMessagesBufferedFailure(c *gin.Context, account *Account, resp *http.Response, requestID, upstreamModel string, finalResponse *wire.ResponsesResponse, usage wire.ForwardUsage) error {
+func (s *OpenAIGatewayService) nativeMessagesBufferedFailure(c *gin.Context, account *gatewayprovider.ExecutionAccount, resp *http.Response, requestID, upstreamModel string, finalResponse *wire.ResponsesResponse, usage wire.ForwardUsage) error {
 
 	payload, _ := json.Marshal(gin.H{"type": "response.failed", "response": finalResponse})
 	if hit, code, msg := openai.DetectOpenAICyberPolicy(payload); hit {
-		MarkOpsCyberPolicy(c, CyberPolicyMark{
+		httpapi.MarkOpsCyberPolicy(c, moderationflow.Mark{
 			Code:           code,
 			Message:        msg,
 			Body:           logredact.TruncateUTF8(string(payload), 4096),
@@ -43,7 +47,7 @@ func (s *OpenAIGatewayService) nativeMessagesBufferedFailure(c *gin.Context, acc
 		httpapi.WriteForwardAnthropicError(c, http.StatusInternalServerError, "api_error", "Upstream gateway error")
 		return fmt.Errorf("upstream response failed: status=%d (not in custom error codes)", policyStatus)
 	}
-	if decision.ShouldFailover(account, policyStatus, openai.OpenAIStreamFailedEventShouldFailover(payload, message)) {
+	if decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), policyStatus, openai.OpenAIStreamFailedEventShouldFailover(payload, message)) {
 		markOpenAIWSFailureSideEffectsApplied(c, policyStatus, decision.StopScheduling)
 		return s.newOpenAIStreamPolicyFailoverErrorWithModel(
 			c, account, false, requestID, resp.Header, policyStatus, payload, message,
@@ -54,7 +58,7 @@ func (s *OpenAIGatewayService) nativeMessagesBufferedFailure(c *gin.Context, acc
 	// 统一走语义状态推断 + body 归一化（与 /v1/responses 路径一致），
 	// 使按错误码配置的透传规则可命中。
 	if status, errType, errMsg, matched := applyOpenAIStreamFailedErrorPassthroughRule(
-		c, account.Platform, payload, message,
+		c, account.Record.Platform, payload, message,
 	); matched {
 		if errMsg == "" {
 			errMsg = message
@@ -67,7 +71,7 @@ func (s *OpenAIGatewayService) nativeMessagesBufferedFailure(c *gin.Context, acc
 	return fmt.Errorf("upstream response failed: %s", message)
 
 }
-func (s *OpenAIGatewayService) nativeMessagesStreamFailure(c *gin.Context, account *Account, resp *http.Response, requestID, upstreamModel string, payloadBytes []byte, message string, clientOutputStarted, isBareErrorEvent bool) openai.ChatFailure {
+func (s *OpenAIGatewayService) nativeMessagesStreamFailure(c *gin.Context, account *gatewayprovider.ExecutionAccount, resp *http.Response, requestID, upstreamModel string, payloadBytes []byte, message string, clientOutputStarted, isBareErrorEvent bool) openai.ChatFailure {
 	policyStatus, decision := s.applyOpenAIStreamFailedAccountPolicy(
 		c.Request.Context(), account, upstreamModel, resp.Header, payloadBytes, message,
 	)
@@ -78,7 +82,7 @@ func (s *OpenAIGatewayService) nativeMessagesStreamFailure(c *gin.Context, accou
 	if isBareErrorEvent {
 		shouldFailoverSignal = openai.OpenAIStreamErrorEventShouldFailover(payloadBytes, message)
 	}
-	if !clientOutputStarted && decision.ShouldFailover(account, policyStatus, shouldFailoverSignal) {
+	if !clientOutputStarted && decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), policyStatus, shouldFailoverSignal) {
 		markOpenAIWSFailureSideEffectsApplied(c, policyStatus, decision.StopScheduling)
 		failure := s.newOpenAIStreamPolicyFailoverErrorWithModel(
 			c, account, false, requestID, resp.Header, policyStatus, payloadBytes, message,
@@ -94,7 +98,7 @@ func (s *OpenAIGatewayService) nativeMessagesStreamFailure(c *gin.Context, accou
 	// 统一走语义状态推断 + body 归一化（与 /v1/responses 路径一致），
 	// 使按错误码配置的透传规则可命中。
 	if status, passthroughType, passthroughMsg, matched := applyOpenAIStreamFailedErrorPassthroughRule(
-		c, account.Platform, payloadBytes, message,
+		c, account.Record.Platform, payloadBytes, message,
 	); matched && !policyGeneric {
 		if passthroughMsg == "" {
 			passthroughMsg = errMsg
@@ -105,7 +109,7 @@ func (s *OpenAIGatewayService) nativeMessagesStreamFailure(c *gin.Context, accou
 	return openai.ChatFailure{Status: errStatus, Type: errType, Message: errMsg}
 
 }
-func (s *OpenAIGatewayService) nativeMessagesResponseOptions(c *gin.Context, account *Account, resp *http.Response, originalModel, billingModel, upstreamModel string) openai.MessagesResponseOptions {
+func (s *OpenAIGatewayService) nativeMessagesResponseOptions(c *gin.Context, account *gatewayprovider.ExecutionAccount, resp *http.Response, originalModel, billingModel, upstreamModel string) openai.MessagesResponseOptions {
 	options := s.nativeChatResponseOptions(c, account, resp, originalModel, billingModel, upstreamModel)
 	options.ReadBuffered = func() (*wire.ResponsesResponse, wire.ForwardUsage, *bridge.BufferedResponseAccumulator, error) {
 		return s.readOpenAICompatBufferedTerminal(resp, c, "openai messages buffered", resp.Header.Get("x-request-id"))
@@ -121,7 +125,14 @@ func (s *OpenAIGatewayService) nativeMessagesResponseOptions(c *gin.Context, acc
 			return s.nativeMessagesStreamFailure(c, account, resp, resp.Header.Get("x-request-id"), upstreamModel, body, message, started, bare)
 		},
 		MissingUsage: func(usage *wire.ForwardUsage, event string, disconnected bool) {
-			logOpenAISuccessMissingUsage(c.Request.Context(), c, account, resp, usage, event, disconnected)
+			if resp == nil {
+				return
+			}
+			var id int64
+			if account != nil {
+				id = account.Record.ID
+			}
+			gatewaytelemetry.SuccessMissingUsage(c.Request.Context(), id, resp.StatusCode, usage, event, disconnected)
 		},
 		MissingTerminal: func(message string) error {
 			return s.newOpenAIStreamFailoverError(c, account, false, resp.Header.Get("x-request-id"), nil, message)

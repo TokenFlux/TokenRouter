@@ -3,7 +3,6 @@ package provider
 import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/search"
@@ -18,7 +17,6 @@ type RuntimeReaders struct {
 	Quota       *account.QuotaSettingsCache
 	Routing     *routing.RuntimeSettings
 	Moderation  *moderation.RuntimeSettings
-	Prompts     *promptpolicy.Service
 	Search      *search.ConfigService
 	Scheduler   settings.Repository
 	Antigravity *AntigravityRuntimeOptions

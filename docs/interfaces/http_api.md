@@ -44,11 +44,11 @@ RequestLogger
 
 网关 HTTP 请求的 Ops 观测键、流错误快照和传输标记由 `gateway/httpapi` 拥有；每个 WS turn 独立保留首个错误及当次账号/模型/规则匹配快照。旧转发消费者直接使用这一实现，采集队列与持久化继续由 Ops 拥有。错误规则只改变原客户端展示与监控跳过语义，不改变重试和结算。
 
-用量与 Dashboard 的用户/管理员入口位于 `usage/httpapi`；`/v1/usage` 及 Antigravity 用量自省直接绑定新的公开 handler，保留 quota_limited/unrestricted、日期范围、余额/指定订阅区别及 best-effort 统计。审计入口位于 `audit/httpapi`，清空的原 TOTP 与管理员 API Key 拒绝规则继续有效；Ops 管理与实时入口位于 `ops/httpapi`。路由路径、中间件顺序、JSON/CSV、分页、ETag/304 和 WebSocket 子协议保持原契约，具体留痕保证见[清理与留存](../operations/observability_and_data_lifecycle.md#data_cleanup)。
+用量与 Dashboard 的用户/管理员入口位于 `usage/httpapi`；`/v1/usage` 及 Antigravity 用量自省由 app 直接构造公开 handler，旧 Gateway 的用量转接和专用构造依赖已删除；保留 quota_limited/unrestricted、日期范围、余额/指定订阅区别及 best-effort 统计。审计入口位于 `audit/httpapi`，清空的原 TOTP 与管理员 API Key 拒绝规则继续有效；Ops 管理与实时入口位于 `ops/httpapi`。路由路径、中间件顺序、JSON/CSV、分页、ETag/304 和 WebSocket 子协议保持原契约，具体留痕保证见[清理与留存](../operations/observability_and_data_lifecycle.md#data_cleanup)。
 
 通知模板、SMTP 测试和公开退订直接绑定 notification/httpapi；搜索配置、管理测试和额度重置绑定 search/httpapi；风险配置、日志、媒体、Cyber 和解封绑定 moderation/httpapi。原 URL、中间件次序、幂等边界和返回字段保持。公开设置及页面由 site/httpapi 提供，旧公开设置和用户用量 handler 包装已删除；原 API 与 embed 契约直接验证原生实例。
 
-网关 HTTP、SSE、模型和计数入口直接绑定 app 构造的 `gateway/httpapi` 对象；Responses WebSocket 与 Live 使用独立 Handler。旧入口只提供兼容调用，路由不为迁移改变 URL、认证顺序、裸路径别名或 Responses 子路径白名单。普通 Key 的协议门禁不提前读取 body，复合 Key 保持原模型读取与报文恢复时机。实际账号循环由 gateway/text、媒体或会话用例拥有；每次 attempt 的模型与完成输入独立。
+网关 HTTP、SSE、模型和计数入口直接绑定 app 构造的 `gateway/httpapi` 对象；Responses WebSocket 与 Live 使用独立 Handler。Qoder Chat、Messages/Responses、Messages 计数、OpenAI/Grok 计数及 Responses 输入 token 预检已解除对旧 Handler 工厂的依赖；每个入口仍保留原重试、部分用量和取消边界。旧入口只提供兼容调用，路由不为迁移改变 URL、认证顺序、裸路径别名或 Responses 子路径白名单。普通 Key 的协议门禁不提前读取 body，复合 Key 保持原模型读取与报文恢复时机。实际账号循环由 gateway/text、媒体或会话用例拥有；每次 attempt 的模型与完成输入独立。
 
 客户端错误由 gateway/httpapi 写出，错误规则及管理位于 gateway/errorpolicy。规则只改变原客户端展示与监控跳过语义，不改变账号健康、重试或扣费资格。停止时，请求与平台尝试共享 app 的进入屏障；在途请求尾部完成后才停止完成队列，超时报告未完成阶段与拥有者状态。
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry"
 
@@ -72,14 +73,14 @@ func apiKeyFastModeForceOnSupported(ctx context.Context, resolver *billing.Price
 }
 
 // openAIAPIKeyFastModeForceOnSupported 将单 Key Fast 强制开启限制到 OpenAI 原生适配器。
-func (s *OpenAIGatewayService) openAIAPIKeyFastModeForceOnSupported(ctx context.Context, account *Account, model string) bool {
-	return account != nil && account.IsOpenAI() && apiKeyFastModeForceOnSupported(ctx, s.resolver, model)
+func (s *OpenAIGatewayService) openAIAPIKeyFastModeForceOnSupported(ctx context.Context, account *gatewayprovider.ExecutionAccount, model string) bool {
+	return account != nil && account.View().IsOpenAI() && apiKeyFastModeForceOnSupported(ctx, s.resolver, model)
 }
 
 // claudeAPIKeyFastModeForceOnSupported 将 Claude Fast 强制开启限制到 Anthropic API Key 直连适配器。
 // Bedrock、Vertex 和 OAuth/Setup Token 路径不会由单 Key 策略注入 Fast。
-func (s *GatewayService) claudeAPIKeyFastModeForceOnSupported(ctx context.Context, account *Account, model string) bool {
-	return account != nil && account.IsAnthropic() && account.Type == capability.AccountTypeAPIKey &&
+func (s *GatewayService) claudeAPIKeyFastModeForceOnSupported(ctx context.Context, account *gatewayprovider.ExecutionAccount, model string) bool {
+	return account != nil && account.View().IsAnthropic() && account.Record.Type == capability.AccountTypeAPIKey &&
 		apiKeyFastModeForceOnSupported(ctx, s.resolver, model)
 }
 
@@ -99,7 +100,7 @@ func addAnthropicBetaToken(header, token string) string {
 // 这里只改写候选请求，最终 beta filter/block 仍由系统策略执行。
 func (s *GatewayService) applyClaudeAPIKeyFastMode(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	model string,
 	body []byte,
 	headers http.Header,
@@ -107,7 +108,7 @@ func (s *GatewayService) applyClaudeAPIKeyFastMode(
 	policy := apiKeyFastModePolicyFromContext(ctx)
 	// 强制关闭只删除客户端已有的 Fast 标记，不能被易滞后的定价能力元数据阻断。
 	if policy == apikey.APIKeyFastModePolicyForceOff {
-		if account == nil || !account.IsAnthropic() {
+		if account == nil || !account.View().IsAnthropic() {
 			return body, headers, nil
 		}
 		if headers == nil {

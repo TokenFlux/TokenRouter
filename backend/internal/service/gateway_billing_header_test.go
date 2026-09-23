@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
@@ -115,7 +117,7 @@ func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
 				require.NoError(t, err)
 
 				cfg := &config.Config{}
-				svc := &GatewayService{cfg: cfg}
+				svc := withSchedulerParametersForTest(&GatewayService{cfg: cfg})
 				cachedUA := "claude-cli/2.9.0 (external, cli)"
 				if tc.identity {
 					svc.identityService = claude.NewRequestFingerprint(&stubIdentityCache{fingerprint: &claude.Fingerprint{
@@ -127,7 +129,7 @@ func TestBuildOAuthRequest_BillingMatchesWireUserAgent(t *testing.T) {
 						gateway.SettingKeyEnableFingerprintUnification: "false",
 					}}, cfg)
 				}
-				account := &Account{ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}
+				account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}
 				var req *http.Request
 				var wireBody []byte
 				if endpoint == "messages" {

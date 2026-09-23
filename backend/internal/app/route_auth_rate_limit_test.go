@@ -29,7 +29,7 @@ func newAuthRoutesTestRouter(redisClient *redis.Client) *gin.Engine {
 			Auth:    &identityHTTP{AuthenticationHandler: &identityhttp.AuthenticationHandler{}, WeChatPaymentHandler: &paymenthttp.WeChatPaymentHandler{}},
 			Passkey: &identityhttp.PasskeyHandler{},
 		},
-		servermiddleware.JWTAuthMiddleware(func(c *gin.Context) {
+		identityhttp.JWTAuthMiddleware(func(c *gin.Context) {
 			c.Next()
 		}),
 		servermiddleware.AuditLogMiddleware(func(c *gin.Context) {

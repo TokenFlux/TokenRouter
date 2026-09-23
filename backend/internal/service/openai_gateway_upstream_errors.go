@@ -1,22 +1,28 @@
 package service
 
 import (
+	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -27,7 +33,7 @@ import (
 func logOpenAIInstructionsRequiredDebug(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	upstreamStatusCode int,
 	upstreamMsg string,
 	requestBody []byte,
@@ -44,8 +50,8 @@ func logOpenAIInstructionsRequiredDebug(
 	accountID := int64(0)
 	accountName := ""
 	if account != nil {
-		accountID = account.ID
-		accountName = strings.TrimSpace(account.Name)
+		accountID = account.Record.ID
+		accountName = strings.TrimSpace(account.Record.Name)
 	}
 
 	userAgent := ""
@@ -154,8 +160,7 @@ func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode i
 	return openai.IsOpenAITransientProcessingError(statusCode, upstreamMsg, upstreamBody)
 }
 
-// OpenAIRequestBodyTooLargeClientMessage 是账号级请求体限制切号耗尽后使用的固定下游文案。
-const OpenAIRequestBodyTooLargeClientMessage = "Request payload is too large"
+// forwardcore.OpenAIRequestBodyTooLargeClientMessage 是账号级请求体限制切号耗尽后使用的固定下游文案。
 
 const openAIRequestBodyTooLargeReason = forwardcore.GatewayFailureReason("openai_request_body_too_large")
 
@@ -185,14 +190,14 @@ func newOpenAIUpstreamFailoverError(
 		failoverErr.Reason = openAIRequestBodyTooLargeReason
 		failoverErr.NextAccountAction = forwardcore.NextAccountRetry
 		failoverErr.ClientStatusCode = http.StatusRequestEntityTooLarge
-		failoverErr.ClientMessage = OpenAIRequestBodyTooLargeClientMessage
+		failoverErr.ClientMessage = forwardcore.OpenAIRequestBodyTooLargeClientMessage
 	}
 	if isOpenAIHTTPUpstreamAccessStateError(statusCode, upstreamMsg, responseBody) {
 		failoverErr.RetryableOnSameAccount = false
 		failoverErr.RequestScopedTransient = false
 		failoverErr.Stage = forwardcore.GatewayFailureStageAccountAuth
 		failoverErr.Scope = forwardcore.GatewayFailureScopeAccount
-		failoverErr.Reason = OpenAIUpstreamAccessStateReason
+		failoverErr.Reason = forwardcore.OpenAIUpstreamAccessStateReason
 		failoverErr.NextAccountAction = forwardcore.NextAccountRetry
 		failoverErr.ClientStatusCode = http.StatusBadGateway
 		failoverErr.ClientMessage = openAIUpstreamAccessUnavailableClientMessage
@@ -206,7 +211,7 @@ func newOpenAIUpstreamFailoverError(
 }
 
 func (s *OpenAIGatewayService) newOpenAIAccountFailoverError(
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	statusCode int,
 	responseHeaders http.Header,
 	responseBody []byte,
@@ -218,7 +223,7 @@ func (s *OpenAIGatewayService) newOpenAIAccountFailoverError(
 }
 
 func (s *OpenAIGatewayService) newOpenAIAccountFailoverErrorWithClassificationHeaders(
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	statusCode int,
 	responseHeaders http.Header,
 	classificationHeaders http.Header,
@@ -244,12 +249,12 @@ func (s *OpenAIGatewayService) newOpenAIAccountFailoverErrorWithClassificationHe
 
 const (
 	openAIUpstreamAccessUnavailableClientMessage = "Upstream access is temporarily unavailable, please retry later"
-	// OpenAIUpstreamAccessStateReason marks a provider credential whose
+	// forwardcore.OpenAIUpstreamAccessStateReason marks a provider credential whose
 	// account, workspace, or organization is unavailable.
-	OpenAIUpstreamAccessStateReason = forwardcore.GatewayFailureReason("openai_upstream_access_state")
-	// OpenAIHTTPContinuationUnsupportedReason identifies accounts that cannot
+
+	// forwardcore.OpenAIHTTPContinuationUnsupportedReason identifies accounts that cannot
 	// preserve an official Responses HTTP continuation without dropping state.
-	OpenAIHTTPContinuationUnsupportedReason = forwardcore.GatewayFailureReason("openai_http_continuation_unsupported")
+
 )
 
 func isOpenAIUpstreamAccessStateError(_ string, body []byte) bool {
@@ -295,12 +300,12 @@ func (s *OpenAIGatewayService) readUpstreamErrorBody(resp *http.Response) []byte
 	return body
 }
 
-func (s *OpenAIGatewayService) handleFailoverSideEffects(ctx context.Context, resp *http.Response, account *Account, responseBody []byte, canonicalModel ...string) bool {
+func (s *OpenAIGatewayService) handleFailoverSideEffects(ctx context.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount, responseBody []byte, canonicalModel ...string) bool {
 	return s.applyFailoverSideEffects(ctx, resp, account, responseBody, canonicalModel...).StopScheduling
 }
 
 // applyFailoverSideEffects 返回完整策略决策，避免自定义未命中被误当作池模式可重试。
-func (s *OpenAIGatewayService) applyFailoverSideEffects(ctx context.Context, resp *http.Response, account *Account, responseBody []byte, canonicalModel ...string) UpstreamErrorDecision {
+func (s *OpenAIGatewayService) applyFailoverSideEffects(ctx context.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount, responseBody []byte, canonicalModel ...string) accountcore.UpstreamErrorDecision {
 	if len(canonicalModel) > 0 {
 		return s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, responseBody, canonicalModel[0])
 	}
@@ -311,15 +316,15 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	ctx context.Context,
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	requestBody []byte,
 	requestedModel ...string,
 ) (*forwardcore.OpenAIResult, error) {
 	body := s.readUpstreamErrorBody(resp)
-	body = s.redactAgentIdentitySensitiveBody(ctx, account, body)
+	body = s.agentIdentity.Redact(ctx, account, body)
 
 	if hit, code, cyberMsg := openai.DetectOpenAICyberPolicy(body); hit {
-		MarkOpsCyberPolicy(c, CyberPolicyMark{
+		gatewayhttp.MarkOpsCyberPolicy(c, moderationflow.Mark{
 			Code:           code,
 			Message:        cyberMsg,
 			Body:           logredact.TruncateUTF8(string(body), 4096),
@@ -338,7 +343,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		}
 		return nil, fmt.Errorf("openai cyber_policy: %s", cyberMsg)
 	}
-	if account != nil && account.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(resp.StatusCode, body) {
+	if account != nil && account.Record.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(resp.StatusCode, body) {
 		clientMsg := grokContentPolicyClientMessage(body)
 		gatewayhttp.SetOpsUpstreamError(c, resp.StatusCode, clientMsg, logredact.TruncateUTF8(string(body), 2048))
 		writeOpenAIPassthroughResponseHeaders(c.Writer.Header(), resp.Header, s.responseHeaderFilter)
@@ -369,9 +374,9 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		logging.LegacyPrintf("service.openai_gateway",
 			"OpenAI upstream error %d (account=%d platform=%s type=%s): %s",
 			resp.StatusCode,
-			account.ID,
-			account.Platform,
-			account.Type,
+			account.Record.ID,
+			account.Record.Platform,
+			account.Record.Type,
 			truncateForLog(body, s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes),
 		)
 	}
@@ -379,9 +384,9 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	if gatewayprovider.IsOpenAICyberWarningPayload(body, upstreamMsg) {
 		errMsg := gatewayprovider.ExtractOpenAICyberWarningMessage(body, upstreamMsg)
 		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+			Platform:           account.Record.Platform,
+			AccountID:          account.Record.ID,
+			AccountName:        account.Record.Name,
 			UpstreamStatusCode: resp.StatusCode,
 			UpstreamRequestID:  resp.Header.Get("x-request-id"),
 			Kind:               "http_error",
@@ -399,9 +404,9 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 
 	if isOpenAIRequestBodyTooLargeError(resp.StatusCode, upstreamMsg, body) {
 		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+			Platform:           account.Record.Platform,
+			AccountID:          account.Record.ID,
+			AccountName:        account.Record.Name,
 			UpstreamStatusCode: resp.StatusCode,
 			UpstreamRequestID:  resp.Header.Get("x-request-id"),
 			Kind:               "http_error",
@@ -424,9 +429,9 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 	if openai.IsOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, body) {
 		// 参数型 400 不影响账号健康；保留上游上下文供 Ops 排障，并向客户端透传完整错误结构。
 		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+			Platform:           account.Record.Platform,
+			AccountID:          account.Record.ID,
+			AccountName:        account.Record.Name,
 			UpstreamStatusCode: resp.StatusCode,
 			UpstreamRequestID:  resp.Header.Get("x-request-id"),
 			Kind:               "http_error",
@@ -452,20 +457,20 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		reqModel = strings.TrimSpace(requestedModel[0])
 	}
 	if reqModel == "" {
-		reqModel, _, _ = extractOpenAIRequestMetaFromBody(requestBody)
-		reqModel = canonicalOpenAIAccountSchedulingModel(account, reqModel)
+		reqModel, _, _ = requeststate.OpenAIRequestMetaFromBody(requestBody)
+		reqModel = gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel(reqModel)
 	}
-	var decision UpstreamErrorDecision
-	if account != nil && account.Platform == capability.PlatformGrok {
+	var decision accountcore.UpstreamErrorDecision
+	if account != nil && account.Record.Platform == capability.PlatformGrok {
 		decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, reqModel)
 	} else {
 		decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, body, reqModel)
 	}
 	if decision.ShouldReturnGenericError() {
 		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+			Platform:           account.Record.Platform,
+			AccountID:          account.Record.ID,
+			AccountName:        account.Record.Name,
 			UpstreamStatusCode: resp.StatusCode,
 			UpstreamRequestID:  resp.Header.Get("x-request-id"),
 			Kind:               "http_error",
@@ -487,16 +492,16 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 
 	kind := "http_error"
 	defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, body)
-	if account != nil && account.Platform == capability.PlatformGrok {
+	if account != nil && account.Record.Platform == capability.PlatformGrok {
 		defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, body)
 	}
-	if decision.ShouldFailoverWithDefaults(account, resp.StatusCode, decision.StopScheduling, defaultFailover) {
+	if decision.ShouldFailoverWithDefaults(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, decision.StopScheduling, defaultFailover) {
 		kind = "failover"
 	}
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-		Platform:           account.Platform,
-		AccountID:          account.ID,
-		AccountName:        account.Name,
+		Platform:           account.Record.Platform,
+		AccountID:          account.Record.ID,
+		AccountName:        account.Record.Name,
 		UpstreamStatusCode: resp.StatusCode,
 		UpstreamRequestID:  resp.Header.Get("x-request-id"),
 		Kind:               kind,
@@ -507,14 +512,14 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		return nil, &forwardcore.UpstreamFailoverError{
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           body,
-			RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
+			RetryableOnSameAccount: decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode),
 		}
 	}
 
 	// 透传规则只改变最终客户端响应，不得绕过已经执行的账号策略。
 	if status, errType, errMsg, matched := gatewayhttp.ApplyErrorPassthroughRule(
 		c,
-		account.Platform,
+		account.Record.Platform,
 		resp.StatusCode,
 		body,
 		http.StatusBadGateway,
@@ -539,7 +544,7 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 
 	// 只有既有分类明确判定不可故障转移的 400 才属于确定性请求错误。
 	// 池模式重试状态码、server_is_overloaded 和瞬时处理错误仍保留原有重试或 502 语义。
-	if account != nil && account.Platform == capability.PlatformOpenAI &&
+	if account != nil && account.Record.Platform == capability.PlatformOpenAI &&
 		isOpenAIDeterministicClientError(resp.StatusCode, defaultFailover) {
 		gatewayhttp.MarkResponseCommitted(c)
 		writeOpenAIUpstreamClientError(c, resp.StatusCode, body, upstreamMsg)
@@ -603,16 +608,16 @@ type compatErrorBodyWriter func(c *gin.Context, statusCode int, body []byte)
 func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	writeError compatErrorWriter,
 	writeErrorBody compatErrorBodyWriter,
 	requestedModel ...string,
 ) (*forwardcore.OpenAIResult, error) {
 	body := s.readUpstreamErrorBody(resp)
-	body = s.redactAgentIdentitySensitiveBody(context.Background(), account, body)
+	body = s.agentIdentity.Redact(context.Background(), account, body)
 
 	if hit, code, cyberMsg := openai.DetectOpenAICyberPolicy(body); hit {
-		MarkOpsCyberPolicy(c, CyberPolicyMark{
+		gatewayhttp.MarkOpsCyberPolicy(c, moderationflow.Mark{
 			Code:           code,
 			Message:        cyberMsg,
 			Body:           logredact.TruncateUTF8(string(body), 4096),
@@ -630,7 +635,7 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 		}
 		return nil, fmt.Errorf("openai cyber_policy: %s", cyberMsg)
 	}
-	if account != nil && account.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(resp.StatusCode, body) {
+	if account != nil && account.Record.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(resp.StatusCode, body) {
 		clientMsg := grokContentPolicyClientMessage(body)
 		gatewayhttp.SetOpsUpstreamError(c, resp.StatusCode, clientMsg, logredact.TruncateUTF8(string(body), 2048))
 		gatewayhttp.MarkResponseCommitted(c)
@@ -657,9 +662,9 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	if openai.IsOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, body) {
 		// 兼容协议也必须保留上游 error 对象中的 code、param 等结构化详情。
 		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+			Platform:           account.Record.Platform,
+			AccountID:          account.Record.ID,
+			AccountName:        account.Record.Name,
 			UpstreamStatusCode: resp.StatusCode,
 			UpstreamRequestID:  resp.Header.Get("x-request-id"),
 			Kind:               "http_error",
@@ -680,17 +685,17 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 	if len(requestedModel) > 0 {
 		modelForCooldown = requestedModel[0]
 	}
-	var decision UpstreamErrorDecision
-	if account.Platform == capability.PlatformGrok {
+	var decision accountcore.UpstreamErrorDecision
+	if account.Record.Platform == capability.PlatformGrok {
 		decision = s.applyGrokAccountUpstreamError(c.Request.Context(), account, resp.StatusCode, resp.Header, body, modelForCooldown)
 	} else {
 		decision = s.applyOpenAIAccountUpstreamError(c.Request.Context(), account, resp.StatusCode, resp.Header, body, modelForCooldown)
 	}
 	if decision.ShouldReturnGenericError() {
 		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+			Platform:           account.Record.Platform,
+			AccountID:          account.Record.ID,
+			AccountName:        account.Record.Name,
 			UpstreamStatusCode: resp.StatusCode,
 			UpstreamRequestID:  resp.Header.Get("x-request-id"),
 			Kind:               "http_error",
@@ -707,16 +712,16 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 
 	kind := "http_error"
 	defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, body)
-	if account.Platform == capability.PlatformGrok {
+	if account.Record.Platform == capability.PlatformGrok {
 		defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, body)
 	}
-	if decision.ShouldFailoverWithDefaults(account, resp.StatusCode, decision.StopScheduling, defaultFailover) {
+	if decision.ShouldFailoverWithDefaults(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, decision.StopScheduling, defaultFailover) {
 		kind = "failover"
 	}
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-		Platform:           account.Platform,
-		AccountID:          account.ID,
-		AccountName:        account.Name,
+		Platform:           account.Record.Platform,
+		AccountID:          account.Record.ID,
+		AccountName:        account.Record.Name,
 		UpstreamStatusCode: resp.StatusCode,
 		UpstreamRequestID:  resp.Header.Get("x-request-id"),
 		Kind:               kind,
@@ -727,13 +732,13 @@ func (s *OpenAIGatewayService) handleCompatErrorResponse(
 		return nil, &forwardcore.UpstreamFailoverError{
 			StatusCode:             resp.StatusCode,
 			ResponseBody:           body,
-			RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
+			RetryableOnSameAccount: decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode),
 		}
 	}
 
 	// 透传规则只负责最终响应格式，不能绕过账号策略。
 	if status, errType, errMsg, matched := gatewayhttp.ApplyErrorPassthroughRule(
-		c, account.Platform, resp.StatusCode, body,
+		c, account.Record.Platform, resp.StatusCode, body,
 		http.StatusBadGateway, "api_error", "Upstream request failed",
 	); matched {
 		gatewayhttp.MarkResponseCommitted(c)

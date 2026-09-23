@@ -8,15 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 	"github.com/stretchr/testify/require"
 )
 
 // 编译期接口断言
-var _ AccountRepository = (*stubAntigravityAccountRepo)(nil)
-var _ SchedulerCache = (*stubSchedulerCache)(nil)
+var _ gatewayprovider.ExecutionAccountStore = (*stubAntigravityAccountRepo)(nil)
 
 type rateLimitCall struct {
 	accountID int64
@@ -35,7 +34,8 @@ type extraUpdateCall struct {
 }
 
 type stubAntigravityAccountRepo struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	rateCalls           []rateLimitCall
 	modelRateLimitCalls []modelRateLimitCall
 	extraUpdateCalls    []extraUpdateCall
@@ -54,27 +54,6 @@ func (s *stubAntigravityAccountRepo) SetModelRateLimit(ctx context.Context, id i
 func (s *stubAntigravityAccountRepo) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
 	s.extraUpdateCalls = append(s.extraUpdateCalls, extraUpdateCall{accountID: id, updates: updates})
 	return nil
-}
-
-func TestAccountIsSchedulableForModel_AntigravityRateLimits(t *testing.T) {
-	now := time.Now()
-	future := now.Add(10 * time.Minute)
-
-	account := &Account{
-		ID:          1,
-		Name:        "acc",
-		Platform:    capability.PlatformAntigravity,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-	}
-
-	account.RateLimitResetAt = &future
-	require.False(t, account.IsSchedulableForModel("claude-sonnet-4-5"))
-	require.False(t, account.IsSchedulableForModel("gemini-3-flash"))
-
-	account.RateLimitResetAt = nil
-	require.True(t, account.IsSchedulableForModel("claude-sonnet-4-5"))
-	require.True(t, account.IsSchedulableForModel("gemini-3-flash"))
 }
 
 func buildGeminiRateLimitBody(delay string) []byte {
@@ -110,33 +89,33 @@ func TestResolveAntigravityForwardBaseURL(t *testing.T) {
 	tests := []struct {
 		name    string
 		env     string
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 		want    string
 	}{
 		{
-			name: "pro defaults to daily", account: &Account{Credentials: map[string]any{"plan_type": " Pro "}},
+			name: "pro defaults to daily", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": " Pro "}}},
 			want: dailyURL,
 		},
 		{
-			name: "ultra defaults to daily", account: &Account{Credentials: map[string]any{"plan_type": "ULTRA"}},
+			name: "ultra defaults to daily", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": "ULTRA"}}},
 			want: dailyURL,
 		},
-		{name: "free defaults to prod", account: &Account{Credentials: map[string]any{"plan_type": "free"}}, want: prodURL},
-		{name: "abnormal defaults to prod", account: &Account{Credentials: map[string]any{"plan_type": "Abnormal"}}, want: prodURL},
-		{name: "unknown defaults to prod", account: &Account{Credentials: map[string]any{"plan_type": "enterprise"}}, want: prodURL},
-		{name: "malformed defaults to prod", account: &Account{Credentials: map[string]any{"plan_type": map[string]any{"name": "pro"}}}, want: prodURL},
-		{name: "missing defaults to prod", account: &Account{Credentials: map[string]any{}}, want: prodURL},
+		{name: "free defaults to prod", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": "free"}}}, want: prodURL},
+		{name: "abnormal defaults to prod", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": "Abnormal"}}}, want: prodURL},
+		{name: "unknown defaults to prod", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": "enterprise"}}}, want: prodURL},
+		{name: "malformed defaults to prod", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": map[string]any{"name": "pro"}}}}, want: prodURL},
+		{name: "missing defaults to prod", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{}}}, want: prodURL},
 		{name: "nil account defaults to prod", account: nil, want: prodURL},
 		{
 			name: "daily override wins for free tier", env: " daily ",
-			account: &Account{Credentials: map[string]any{"plan_type": "free"}},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": "free"}}},
 			want:    dailyURL,
 		},
-		{name: "prod override keeps production for paid tier", env: " prod ", account: &Account{Credentials: map[string]any{"plan_type": "pro"}}, want: prodURL},
-		{name: "unknown override keeps production", env: "unknown", account: &Account{Credentials: map[string]any{"plan_type": "pro"}}, want: prodURL},
+		{name: "prod override keeps production for paid tier", env: " prod ", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": "pro"}}}, want: prodURL},
+		{name: "unknown override keeps production", env: "unknown", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": "pro"}}}, want: prodURL},
 		{
 			name: "prod override wins for paid tier", env: " PROD ",
-			account: &Account{Credentials: map[string]any{"plan_type": "pro"}},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{"plan_type": "pro"}}},
 			want:    prodURL,
 		},
 	}
@@ -147,59 +126,4 @@ func TestResolveAntigravityForwardBaseURL(t *testing.T) {
 			require.Equal(t, tt.want, resolveAntigravityForwardBaseURL(tt.account))
 		})
 	}
-}
-
-// stubSchedulerCache 用于测试的 SchedulerCache 实现
-type stubSchedulerCache struct {
-	SchedulerCache
-	setAccountCalls []*Account
-	setAccountErr   error
-}
-
-func (s *stubSchedulerCache) SetAccount(ctx context.Context, account *Account) error {
-	s.setAccountCalls = append(s.setAccountCalls, account)
-	return s.setAccountErr
-}
-
-// TestSchedulerSnapshotService_UpdateAccountInCache 测试 UpdateAccountInCache 方法
-func TestSchedulerSnapshotService_UpdateAccountInCache(t *testing.T) {
-	t.Run("calls cache.SetAccount", func(t *testing.T) {
-		cache := &stubSchedulerCache{}
-		svc := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
-
-		account := &Account{ID: 123, Name: "test"}
-		err := svc.UpdateAccountInCache(context.Background(), account)
-
-		require.NoError(t, err)
-		require.Len(t, cache.setAccountCalls, 1)
-		require.Equal(t, int64(123), cache.setAccountCalls[0].ID)
-	})
-
-	t.Run("returns nil when cache is nil", func(t *testing.T) {
-		svc := NewSchedulerSnapshotService(nil, nil, nil, nil, nil)
-
-		err := svc.UpdateAccountInCache(context.Background(), &Account{ID: 1})
-
-		require.NoError(t, err)
-	})
-
-	t.Run("returns nil when account is nil", func(t *testing.T) {
-		cache := &stubSchedulerCache{}
-		svc := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
-
-		err := svc.UpdateAccountInCache(context.Background(), nil)
-
-		require.NoError(t, err)
-		require.Empty(t, cache.setAccountCalls)
-	})
-
-	t.Run("propagates cache error", func(t *testing.T) {
-		expectedErr := fmt.Errorf("cache error")
-		cache := &stubSchedulerCache{setAccountErr: expectedErr}
-		svc := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
-
-		err := svc.UpdateAccountInCache(context.Background(), &Account{ID: 1})
-
-		require.ErrorIs(t, err, expectedErr)
-	})
 }

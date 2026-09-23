@@ -17,10 +17,5 @@ func tryModelFilePricing(billingService *billing.Calculator, model string, token
 	return billingService.ModelFileStatsCost(model, tokens, serviceTier, effort)
 }
 
-// displayPricingFromResolved 委托纯定价实现，旧查询与配置投影保留在适配层。
-func displayPricingFromResolved(model string, rateMultiplier float64, resolved *purepricing.ResolvedPricing) (purepricing.ModelDisplayPricing, bool) {
-	return purepricing.DisplayPricingFromResolved(model, rateMultiplier, resolved)
-}
-
 // looksLikeImageModel 委托纯定价实现，旧查询与配置投影保留在适配层。
 func looksLikeImageModel(model string) bool { return purepricing.LooksLikeImageModel(model) }

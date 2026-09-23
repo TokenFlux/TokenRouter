@@ -102,7 +102,7 @@ func (h *CountTokensHandler) CountTokens(c *gin.Context) {
 	h.backend.ObserveRequest(c, "", false)
 
 	// count_tokens 也要先执行用户提示词替换，保证解析、会话 hash 和上游请求体一致。
-	body = h.prompt.ApplyUserPromptReplacement(c.Request.Context(), body, "anthropic_messages")
+	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "anthropic_messages")
 
 	bodyRef := requeststate.NewRequestBodyRef(body)
 	parsedReq, err := requeststate.ParseGatewayRequest(bodyRef, capability.PlatformAnthropic)

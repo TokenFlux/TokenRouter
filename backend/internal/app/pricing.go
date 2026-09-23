@@ -6,12 +6,15 @@ import (
 	"slices"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
-	modelidentity "github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	modelidentity "github.com/TokenFlux/TokenRouter/internal/gateway/provider/modelidentity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -59,5 +62,5 @@ func provideBillingCalculator(cfg *config.Config, catalog *provider.PricingServi
 func provideBillingPriceResolver(channels *routing.ChannelService, calculator *billing.Calculator) *billing.PriceResolver {
 	return billing.NewPriceResolver(channels, calculator, modelidentity.Identity, func(model string, err error) {
 		slog.DebugContext(context.Background(), "failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)
-	}, billingChannelStats{Service: channels})
+	}, gatewayprovider.AccountStatsSource{Service: channels})
 }

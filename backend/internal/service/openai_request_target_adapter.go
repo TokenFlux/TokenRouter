@@ -4,22 +4,23 @@ package service
 import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) openAIRequestTarget(c *gin.Context, a *Account, passthrough bool) forward.RequestTargetOptions {
-	oauth := a.Type == capability.AccountTypeOAuth || a.Type == capability.AccountTypeSetupToken && (!passthrough || a.IsOpenAIOAuthLike())
+func (s *OpenAIGatewayService) openAIRequestTarget(c *gin.Context, a *gatewayprovider.ExecutionAccount, passthrough bool) forward.RequestTargetOptions {
+	oauth := a.Record.Type == capability.AccountTypeOAuth || a.Record.Type == capability.AccountTypeSetupToken && (!passthrough || a.View().IsOpenAIOAuthLike())
 	return forward.RequestTargetOptions{
-		OAuthTarget: oauth, APIKey: a.Type == capability.AccountTypeAPIKey, DefaultURL: openaiPlatformAPIURL, CodexURL: chatgptCodexURL,
+		OAuthTarget: oauth, APIKey: a.Record.Type == capability.AccountTypeAPIKey, DefaultURL: openaiPlatformAPIURL, CodexURL: chatgptCodexURL,
 		BaseURL: func() string {
-			base := a.GetOpenAIBaseURL()
-			if _, unified := a.Credentials[account.UpstreamProtocolsKey]; a.UsesNativeCNResponses() && (unified || a.IsAdaptiveAPIProtocol()) {
-				base = a.GetCNProtocolBaseURL(account.APIProtocolResponses)
+			base := gatewayprovider.ExecutionProtocolTarget(a).GetOpenAIBaseURL()
+			if _, unified := a.Record.Credentials[account.UpstreamProtocolsKey]; gatewayprovider.ExecutionProtocolTarget(a).UsesNativeCNResponses() && (unified || gatewayprovider.ExecutionProtocolTarget(a).IsAdaptiveAPIProtocol()) {
+				base = gatewayprovider.ExecutionProtocolTarget(a).GetCNProtocolBaseURL(account.APIProtocolResponses)
 			}
 			return base
-		}, Validate: s.validateUpstreamBaseURL, FromBase: func(base string) string { return forward.ResponsesEndpoint(a.Platform, base) }, AppendSuffix: func(base string) string {
+		}, Validate: s.validateUpstreamBaseURL, FromBase: func(base string) string { return forward.ResponsesEndpoint(a.Record.Platform, base) }, AppendSuffix: func(base string) string {
 			return appendOpenAIResponsesRequestPathSuffix(base, httpapi.OpenAIResponsesRequestPathSuffix(c))
 		},
 	}

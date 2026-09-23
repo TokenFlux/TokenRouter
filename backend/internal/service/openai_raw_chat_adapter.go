@@ -8,6 +8,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
@@ -19,7 +20,7 @@ import (
 type openAIRawChatAdapter struct{ *openAIRawFallbackAdapter }
 
 func (p *openAIRawChatAdapter) Profile() forward.MessagesProfile {
-	return forward.MessagesProfile{Profile: openAIForwardProfile(p.account), ID: p.account.ID, GrokOAuth: p.account.IsGrokOAuth()}
+	return forward.MessagesProfile{Profile: openAIForwardProfile(p.account), ID: p.account.Record.ID, GrokOAuth: p.account.View().IsGrokOAuth()}
 }
 func (p *openAIRawChatAdapter) Error(status int, kind, message string) {
 	writeChatCompletionsError(p.c, status, kind, message)
@@ -28,7 +29,7 @@ func (p *openAIRawChatAdapter) ReplaceModel(b []byte, m string) []byte {
 	return openai.ReplaceModelInBody(b, m)
 }
 func (p *openAIRawChatAdapter) FastRaw(ctx context.Context, m string, b []byte) ([]byte, error) {
-	updated, err := p.s.applyOpenAIFastPolicyToBody(ctx, p.account, m, b)
+	updated, err := tierpolicy.ApplyBody(b, p.s.fastModeInput(ctx, p.account, m))
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
@@ -62,7 +63,7 @@ func (p *openAIRawChatAdapter) OllamaBody(b []byte) []byte {
 func (p *openAIRawChatAdapter) RawTarget() (string, error) {
 	return p.s.rawChatCompletionsURL(p.account)
 }
-func (p *openAIRawChatAdapter) UserAgent() string     { return p.account.GetOpenAIUserAgent() }
+func (p *openAIRawChatAdapter) UserAgent() string     { return p.account.View().GetOpenAIUserAgent() }
 func (p *openAIRawChatAdapter) GrokUserAgent() string { return grok.DefaultGrokUpstreamUserAgent() }
 func (p *openAIRawChatAdapter) SendRaw(ctx context.Context, url string, b []byte, stream bool, key, ua, identity string) (*http.Response, error) {
 	return p.s.sendCCUpstreamRequest(ctx, p.c, p.account, url, b, stream, key, ua, identity, p.tls...)
@@ -78,10 +79,10 @@ func (p *openAIRawChatAdapter) RawOptions(r *http.Response, billing, model strin
 // GrokDecision 复用平台的健康解释，仅返回编排需要的三个判断。
 func (p *openAIRawChatAdapter) GrokDecision(ctx context.Context, resp *http.Response, b []byte, m string) forward.RawGrokDecision {
 	d := p.s.applyGrokAccountUpstreamError(ctx, p.account, resp.StatusCode, resp.Header, b, m)
-	return forward.RawGrokDecision{Failover: d.ShouldFailover(p.account, resp.StatusCode, p.s.shouldFailoverGrokUpstreamError(resp.StatusCode, b)), Generic: d.ShouldReturnGenericError(), RetrySame: d.RetryableOnSameAccount(p.account, resp.StatusCode)}
+	return forward.RawGrokDecision{Failover: d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(p.account), resp.StatusCode, p.s.shouldFailoverGrokUpstreamError(resp.StatusCode, b)), Generic: d.ShouldReturnGenericError(), RetrySame: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(p.account), resp.StatusCode)}
 }
 func (p *openAIRawChatAdapter) ObserveGrokError(r *http.Response, msg, kind string) {
-	gatewayhttp.AppendOpsUpstreamError(p.c, ops.OpsUpstreamErrorEvent{Platform: p.account.Platform, AccountID: p.account.ID, AccountName: p.account.Name, UpstreamStatusCode: r.StatusCode, UpstreamRequestID: firstNonEmpty(r.Header.Get("x-request-id"), r.Header.Get("xai-request-id")), Kind: kind, Message: msg})
+	gatewayhttp.AppendOpsUpstreamError(p.c, ops.OpsUpstreamErrorEvent{Platform: p.account.Record.Platform, AccountID: p.account.Record.ID, AccountName: p.account.Record.Name, UpstreamStatusCode: r.StatusCode, UpstreamRequestID: firstNonEmpty(r.Header.Get("x-request-id"), r.Header.Get("xai-request-id")), Kind: kind, Message: msg})
 }
 func (p *openAIRawChatAdapter) GrokRetry(status int, b []byte) forward.RawGrokRetry {
 	retry, delay, deadline, max := grokSameAccountRetryMetadata(p.account, status, b)

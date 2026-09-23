@@ -63,10 +63,10 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 	plan := request.Route
 	mapping := service.ChannelMappingFromRoutePlan(plan)
 	body := request.AttemptBody
-	var project func(*service.AccountSelectionResult, *service.Account, bool) *gateway.Selection
-	project = func(selection *service.AccountSelectionResult, account *service.Account, refresh bool) *gateway.Selection {
-		executor, input := b.Qoder.PrepareQoderTarget(qoder.RequestMetadata{APIKeyID: key.ID, ClaudeCode: request.Metadata.ClaudeCode, Headers: http.Header(request.Metadata.Headers).Clone()}, service.AccountRecordView(account), body, protocol.ProtocolOpenAIChatCompletions, request.Model)
-		snapshot := service.AccountSnapshotView(account)
+	var project func(*gatewayprovider.SelectionResult, *gatewayprovider.ExecutionAccount, bool) *gateway.Selection
+	project = func(selection *gatewayprovider.SelectionResult, account *gatewayprovider.ExecutionAccount, refresh bool) *gateway.Selection {
+		executor, input := b.Qoder.PrepareQoderTarget(qoder.RequestMetadata{APIKeyID: key.ID, ClaudeCode: request.Metadata.ClaudeCode, Headers: http.Header(request.Metadata.Headers).Clone()}, gatewayprovider.ExecutionRecord(account), body, protocol.ProtocolOpenAIChatCompletions, request.Model)
+		snapshot := gatewayprovider.ExecutionSnapshot(account)
 		candidate, _ := plan.ResolveCandidate(snapshot)
 		selected := &gateway.Selection{Snapshot: snapshot, Plan: candidate, Acquired: selection.Acquired, Release: selection.ReleaseFunc, WaitPlan: selection.WaitPlan, Executor: executor, Input: input}
 		if refresh {
@@ -74,35 +74,35 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 			selected.Release = nil
 			if selected.WaitPlan == nil {
 				selected.WaitWithoutCounter = true
-				selected.WaitPlan = &scheduler.AccountWaitPlan{AccountID: account.ID, MaxConcurrency: account.Concurrency, Timeout: 30 * time.Second, MaxWaiting: 0}
+				selected.WaitPlan = &scheduler.AccountWaitPlan{AccountID: account.Record.ID, MaxConcurrency: account.Record.Concurrency, Timeout: 30 * time.Second, MaxWaiting: 0}
 			}
 		}
 		selected.Observe = func(result upstream.AttemptResult, err error) {
-			b.Qoder.ObserveQoderFailure(ctx, service.AccountRecordView(account), err)
+			b.Qoder.ObserveQoderFailure(ctx, gatewayprovider.ExecutionRecord(account), err)
 			var legacy *forwardcore.MessagesResult
 			if err == nil || result.Served && result.HasUsage {
 				legacy = forwardcore.MessagesFromAttempt(result)
 			}
-			b.Gateway.ReportAdvancedAccountScheduleResult(selection, account.ID, err == nil, legacy)
+			b.Gateway.ReportAdvancedAccountScheduleResult(selection, account.Record.ID, err == nil, legacy)
 		}
 		selected.Switched = func() { b.Gateway.RecordAdvancedAccountSwitch(selection) }
 		selected.Refresh = func(ctx context.Context) (*gateway.Selection, error) {
-			updated, err := b.Refresh.RefreshAccountSession(ctx, service.AccountRecordView(account))
+			updated, err := b.Refresh.RefreshAccountSession(ctx, gatewayprovider.ExecutionRecord(account))
 			if err != nil || updated == nil {
 				return nil, err
 			}
-			return project(selection, service.AccountFromRecord(updated), true), nil
+			return project(selection, gatewayprovider.NewExecutionAccount(updated), true), nil
 		}
 		selected.Bind = func(ctx context.Context, _ upstream.AttemptResult) {
 			bindCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
-			_ = b.Gateway.BindStickySession(bindCtx, key.GroupID, request.SessionHash, account.ID)
+			_ = b.Gateway.BindStickySession(bindCtx, key.GroupID, request.SessionHash, account.Record.ID)
 		}
 
 		selected.Complete = func(callCtx context.Context, result upstream.AttemptResult) {
-			snapshot := service.CompletionForwardInput(callCtx, &service.RecordUsageInput{
+			snapshot := gatewayprovider.CaptureMessages(callCtx, &gatewayprovider.MessagesCapture{
 				Result: forwardcore.MessagesFromAttempt(result), QuotaPlatform: request.Metadata.QuotaPlatform,
-				APIKey: key, User: key.User, Account: account, Subscription: request.Funding.Subscription,
+				APIKey: key, User: key.User, Account: gatewayprovider.ExecutionCompletionRecord(account), Subscription: request.Funding.Subscription,
 				InboundEndpoint: request.Metadata.InboundEndpoint, UpstreamEndpoint: request.Metadata.UpstreamEndpoint,
 				UserAgent: request.Metadata.UserAgent, IPAddress: request.Metadata.ClientIP,
 				RequestPayloadHash: billing.HashUsageRequestPayload(request.Body), RequestBody: request.Body,

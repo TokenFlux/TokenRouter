@@ -10,58 +10,19 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
-
-func TestNormalizeOpenAIResponsesLitePayloadForAccount_APIKeyOnlyDisablesParallelToolCalls(t *testing.T) {
-	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
-	body := []byte(`{
-		"model":"gpt-5.6-terra",
-		"parallel_tool_calls":true,
-		"reasoning":{"context":"current_turn"},
-		"tools":[{"type":"web_search"}],
-		"input":[{"type":"message","nonce":9007199254740993}]
-	}`)
-
-	updated, changed, err := normalizeOpenAIResponsesLitePayloadForAccount(account, body)
-
-	require.NoError(t, err)
-	require.True(t, changed)
-	require.False(t, gjson.GetBytes(updated, "parallel_tool_calls").Bool())
-	require.Equal(t, "current_turn", gjson.GetBytes(updated, "reasoning.context").String())
-	require.Equal(t, "web_search", gjson.GetBytes(updated, "tools.0.type").String())
-	require.Equal(t, "9007199254740993", gjson.GetBytes(updated, "input.0.nonce").Raw)
-}
-
-func TestNormalizeOpenAIResponsesLitePayloadForAccount_IgnoresNonOpenAIAccount(t *testing.T) {
-	account := &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey}
-	body := []byte(`{"parallel_tool_calls":true}`)
-
-	updated, changed, err := normalizeOpenAIResponsesLitePayloadForAccount(account, body)
-
-	require.NoError(t, err)
-	require.False(t, changed)
-	require.Equal(t, body, updated)
-}
-
-func TestNormalizeOpenAIResponsesLitePayloadForAccount_RejectsNullAPIKeyBody(t *testing.T) {
-	account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
-	body := []byte(`null`)
-
-	updated, changed, err := normalizeOpenAIResponsesLitePayloadForAccount(account, body)
-
-	require.ErrorContains(t, err, "request body must be a JSON object")
-	require.False(t, changed)
-	require.Equal(t, body, updated)
-}
 
 func TestApplyCodexOAuthTransform_PreservesLiteNamespaceToolChoice(t *testing.T) {
 	reqBody := map[string]any{
@@ -102,12 +63,11 @@ func TestOpenAIGatewayServiceForward_NormalizesResponsesLiteToolsForOAuth(t *tes
 						"data: [DONE]\n\n",
 				)),
 			}}
-			svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-			account := &Account{
-				ID: 501, Name: "responses-lite", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 501, Name: "responses-lite", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth,
 				Concurrency: 1, Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
 				Credentials: map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"},
-				Extra:       map[string]any{"openai_passthrough": passthrough},
+				Extra:       map[string]any{"openai_passthrough": passthrough}},
 			}
 			body := []byte(`{
 				"model":"gpt-5.6-terra","stream":true,"instructions":"test",
@@ -203,14 +163,13 @@ func TestOpenAIGatewayServiceForward_DisablesResponsesLiteParallelToolCallsForAP
 			}}
 			cfg := &config.Config{}
 			cfg.Security.URLAllowlist.Enabled = false
-			svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-			account := &Account{
-				ID: 502, Name: "responses-lite-apikey", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 502, Name: "responses-lite-apikey", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
 				Concurrency: 1, Status: billing.StatusActive, Schedulable: true, RateMultiplier: f64p(1),
 				Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://example.com"},
 				Extra: map[string]any{
 					"openai_passthrough": passthrough,
-				},
+				}},
 			}
 			body := []byte(`{
 				"model":"gpt-5.6-terra","stream":true,

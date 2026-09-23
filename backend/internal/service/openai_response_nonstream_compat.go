@@ -20,7 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeFailedResponseTerminal(ctx context.Context, c *gin.Context, account *Account, resp *http.Response, mappedModel string, terminalPayload []byte, msg string) error {
+func (s *OpenAIGatewayService) nativeFailedResponseTerminal(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, resp *http.Response, mappedModel string, terminalPayload []byte, msg string) error {
 	policyStatus, decision := s.applyOpenAIStreamFailedAccountPolicy(
 		ctx, account, mappedModel, resp.Header, terminalPayload, msg,
 	)
@@ -29,7 +29,7 @@ func (s *OpenAIGatewayService) nativeFailedResponseTerminal(ctx context.Context,
 		writeOpenAIPassthroughErrorEnvelope(c, http.StatusInternalServerError, resp.Header, "Upstream gateway error")
 		return fmt.Errorf("upstream compact response failed: status=%d (not in custom error codes)", policyStatus)
 	}
-	if !gatewayhttp.IsResponseCommitted(c) && decision.ShouldFailover(account, policyStatus, openai.OpenAIStreamFailedEventShouldFailover(terminalPayload, msg)) {
+	if !gatewayhttp.IsResponseCommitted(c) && decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), policyStatus, openai.OpenAIStreamFailedEventShouldFailover(terminalPayload, msg)) {
 		markOpenAIWSFailureSideEffectsApplied(c, policyStatus, decision.StopScheduling)
 		return s.newOpenAIStreamPolicyFailoverError(
 			c, account, false, strings.TrimSpace(resp.Header.Get("x-request-id")), resp.Header,
@@ -40,13 +40,13 @@ func (s *OpenAIGatewayService) nativeFailedResponseTerminal(ctx context.Context,
 	err := s.writeOpenAINonStreamingProtocolError(resp, c, msg)
 	return gatewayprovider.WrapOpenAIUpstreamWarningIfCyber(resp.StatusCode, terminalPayload, msg, err)
 }
-func (s *OpenAIGatewayService) nativeNonStreamOptions(ctx context.Context, c *gin.Context, account *Account) openai.NonStreamOptions {
+func (s *OpenAIGatewayService) nativeNonStreamOptions(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount) openai.NonStreamOptions {
 	return openai.NonStreamOptions{
-		OAuthAccount:        account != nil && account.Type == capability.AccountTypeOAuth,
-		GrokCompact:         account != nil && account.IsGrok() && isOpenAIResponsesCompactPath(c),
+		OAuthAccount:        account != nil && account.Record.Type == capability.AccountTypeOAuth,
+		GrokCompact:         account != nil && account.View().IsGrok() && gatewayhttp.IsOpenAIResponsesCompactPath(c),
 		PreserveContentType: s.cfg != nil && !s.cfg.Security.ResponseHeaders.Enabled,
 		ReadBody: func(reader io.Reader) ([]byte, error) {
-			return ReadUpstreamResponseBody(reader, s.cfg, c, openAITooLargeError)
+			return gatewayhttp.ReadUpstreamResponseBody(reader, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.OpenAIResponseTooLarge)
 		},
 		ObserveTier:        func(body []byte) { gatewayhttp.ObserveOpenAIServiceTierInContext(c, body, "response.completed") },
 		ObserveSSE:         func(body string) { gatewayhttp.ObserveOpenAISSEBody(c, body) },

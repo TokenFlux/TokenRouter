@@ -362,13 +362,13 @@ func (h *GroupHandler) Duplicate(c *gin.Context) {
 	}
 	actorScope := idempotencyhttp.AdminActorScope(c)
 
-	result, err := idempotencyhttp.ExecuteAdminIdempotent(
+	result, err := h.ExecuteAdminIdempotent(
 		c,
 		"admin.groups.duplicate",
 		struct {
 			GroupID int64 `json:"group_id"`
 		}{GroupID: groupID},
-		idempotency.DefaultWriteIdempotencyTTL(),
+		h.DefaultWriteIdempotencyTTL(),
 		func(ctx context.Context) (any, error) {
 			group, execErr := h.adminService.DuplicateGroup(ctx, groupID, actorScope, c.GetHeader("Idempotency-Key"))
 			if execErr != nil {
@@ -571,6 +571,8 @@ type GroupAdministration interface {
 
 // GroupHandler 只解码输入和输出 HTTP，业务规则通过窄用例接口调用。
 type GroupHandler struct {
+	idempotencyhttp.Executor
+
 	adminService GroupAdministration
 	resources    GroupResources
 }

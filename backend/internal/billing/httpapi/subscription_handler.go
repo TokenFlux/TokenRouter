@@ -4,6 +4,8 @@ package httpapi
 import (
 	strconv "strconv"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -53,7 +55,7 @@ func NewSubscriptionHandler(subscriptionService *billing.SubscriptionService) *S
 // List handles listing current user's subscriptions
 // GET /api/v1/subscriptions
 func (h *SubscriptionHandler) List(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not found in context")
 		return
@@ -76,7 +78,7 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 // GetActive handles getting current user's active subscriptions
 // GET /api/v1/subscriptions/active
 func (h *SubscriptionHandler) GetActive(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not found in context")
 		return
@@ -99,7 +101,7 @@ func (h *SubscriptionHandler) GetActive(c *gin.Context) {
 // GetProgress handles getting subscription progress for current user
 // GET /api/v1/subscriptions/progress
 func (h *SubscriptionHandler) GetProgress(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not found in context")
 		return
@@ -132,7 +134,7 @@ func (h *SubscriptionHandler) GetProgress(c *gin.Context) {
 // GetSummary handles getting a summary of current user's subscription status
 // GET /api/v1/subscriptions/summary
 func (h *SubscriptionHandler) GetSummary(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not found in context")
 		return
@@ -193,7 +195,7 @@ func (h *SubscriptionHandler) GetSummary(c *gin.Context) {
 // Revoke 撤销当前用户额度耗尽的订阅。
 // POST /api/v1/subscriptions/:id/revoke
 func (h *SubscriptionHandler) Revoke(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not found in context")
 		return

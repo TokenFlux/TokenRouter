@@ -17,6 +17,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -29,7 +30,7 @@ import (
 type geminiExecutionAdapter struct {
 	s                       *AntigravityGatewayService
 	c                       *gin.Context
-	account                 *Account
+	account                 *gatewayprovider.ExecutionAccount
 	token, proxyURL, prefix string
 	retry                   *antigravity.RetryAdapter
 	params                  antigravity.RetryInput
@@ -61,8 +62,8 @@ func (a *geminiExecutionAdapter) ProjectID() (string, error) {
 	return resolveAntigravityProjectID(a.account)
 }
 func (a *geminiExecutionAdapter) Transport() {
-	if a.account.ProxyID != nil && a.account.Proxy != nil {
-		a.proxyURL = a.account.Proxy.URL()
+	if a.account.Record.ProxyID != nil && a.account.Record.Proxy != nil {
+		a.proxyURL = a.account.Record.Proxy.URL()
 	}
 }
 func (a *geminiExecutionAdapter) InjectIdentity(body []byte) ([]byte, error) {
@@ -124,7 +125,7 @@ func (a *geminiExecutionAdapter) Recover(ctx context.Context, in forwardcore.Gem
 			return protocolgemini.CleanNativeThoughtSignatures(body, bridge.DummyThoughtSignature)
 		}, ReadErrorBody: a.s.readUpstreamErrorBody, ErrorDetail: a.s.getUpstreamErrorDetail, Observe: a.retry.Options.Observe,
 	}
-	recovered, err := antigravity.RecoverGemini(ctx, antigravity.GeminiRecoveryInput{AccountID: a.account.ID, AccountName: a.account.Name, ProjectID: in.ProjectID, Model: in.Model, Action: in.UpstreamAction, AccessToken: a.token, Body: in.InjectedBody}, a.response, opts)
+	recovered, err := antigravity.RecoverGemini(ctx, antigravity.GeminiRecoveryInput{AccountID: a.account.Record.ID, AccountName: a.account.Record.Name, ProjectID: in.ProjectID, Model: in.Model, Action: in.UpstreamAction, AccessToken: a.token, Body: in.InjectedBody}, a.response, opts)
 	if err == nil {
 		a.response = recovered.Response
 	}
@@ -167,7 +168,7 @@ func (a *geminiExecutionAdapter) Execute(ctx context.Context, in forwardcore.Gem
 		ctx: ctx, prefix: a.prefix, account: a.account, proxyURL: a.proxyURL, accessToken: a.token, action: in.UpstreamAction, body: in.Body, c: a.c, httpUpstream: a.s.httpUpstream, settingService: a.s.settingService, accountRepo: a.s.accountRepo, handleError: a.s.handleUpstreamError, requestedModel: in.OriginalModel, isStickySession: in.Sticky, groupID: in.GroupID, sessionHash: in.SessionHash,
 	})
 	target := &antigravity.Target{
-		AccountID: a.account.ID, Model: in.Model, Mode: antigravity.ModeGeminiResponse, StartedAt: in.StartedAt, Response: a.s.antigravityResponseAdapter(a.c).Options, Enter: a.s.nativeAttemptActivity,
+		AccountID: a.account.Record.ID, Model: in.Model, Mode: antigravity.ModeGeminiResponse, StartedAt: in.StartedAt, Response: a.s.antigravityResponseAdapter(a.c).Options, Enter: a.s.nativeAttemptActivity,
 		Exchange: func(context.Context) (*http.Response, error) {
 			if err := h.Exchange(); err != nil {
 				return nil, err

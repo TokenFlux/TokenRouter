@@ -1,8 +1,10 @@
 package handler
 
 import (
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
@@ -19,7 +21,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +40,7 @@ func (b *geminiMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 		return textflow.Selection{}, err
 	}
 	b.account = b.selection.Account
-	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
 	return capturedTextSelection(b.account), nil
 
 }
@@ -78,7 +79,7 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 		if b.selection.WaitPlan == nil {
 			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 			b.reqLog.Warn("gateway.select_account_no_slot_no_wait_plan",
-				zap.Int64("account_id", b.account.ID),
+				zap.Int64("account_id", b.account.Record.ID),
 				zap.String("model", b.reqModel),
 				zap.String("platform", b.platform),
 			)
@@ -86,13 +87,13 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 			return false
 		}
 		accountWaitCounted := false
-		waitEntry, err := b.binding().concurrencyHelper.EnterAccountWait(b.c.Request.Context(), b.account.ID, b.selection.WaitPlan.MaxWaiting)
+		waitEntry, err := b.binding().concurrencyHelper.EnterAccountWait(b.c.Request.Context(), b.account.Record.ID, b.selection.WaitPlan.MaxWaiting)
 		canWait := waitEntry.Allowed
 		if err != nil {
-			b.reqLog.Warn("gateway.account_wait_counter_increment_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+			b.reqLog.Warn("gateway.account_wait_counter_increment_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 		} else if !canWait {
 			b.reqLog.Info("gateway.account_wait_queue_full",
-				zap.Int64("account_id", b.account.ID),
+				zap.Int64("account_id", b.account.Record.ID),
 				zap.Int("max_waiting", b.selection.WaitPlan.MaxWaiting),
 			)
 			b.binding().handleStreamingAwareErrorWithCode(b.c, http.StatusTooManyRequests, "rate_limit_error", gatewayhttp.GatewayQueueFullCode, "Too many pending requests, please retry later", (*b.streamStarted))
@@ -110,22 +111,22 @@ func (b *geminiMessageAttemptBridge) Acquire() bool {
 
 		b.accountReleaseFunc, err = b.binding().concurrencyHelper.AcquireAccountSlotWithWaitTimeout(
 			b.c,
-			b.account.ID,
+			b.account.Record.ID,
 			b.selection.WaitPlan.MaxConcurrency,
 			b.selection.WaitPlan.Timeout,
 			b.reqStream,
 			b.streamStarted,
 		)
 		if err != nil {
-			b.reqLog.Warn("gateway.account_slot_acquire_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+			b.reqLog.Warn("gateway.account_slot_acquire_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 			releaseWait()
 			b.binding().handleConcurrencyError(b.c, err, "account", (*b.streamStarted))
 			return false
 		}
 		// Slot acquired: no longer waiting in queue.
 		releaseWait()
-		if err := b.binding().bindSticky(b.c.Request.Context(), b.apiKey.GroupID, b.sessionKey, b.account.ID); err != nil {
-			b.reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+		if err := b.binding().bindSticky(b.c.Request.Context(), b.apiKey.GroupID, b.sessionKey, b.account.Record.ID); err != nil {
+			b.reqLog.Warn("gateway.bind_sticky_session_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 		}
 	}
 	// 账号槽位/等待计数需要在超时或断开时安全回收
@@ -145,7 +146,7 @@ func (b *geminiMessageAttemptBridge) Forward(state textflow.AttemptState) textfl
 	}
 	// 记录 Forward 前已写入字节数，Forward 后若增加则说明 SSE 内容已发，禁止 failover
 	b.writerSizeBeforeForward = b.c.Writer.Size()
-	if b.account.Platform == capability.PlatformAntigravity {
+	if b.account.Record.Platform == capability.PlatformAntigravity {
 		b.result, err = b.binding().forwardAntigravityGemini(
 			requestCtx,
 			b.c,
@@ -155,7 +156,7 @@ func (b *geminiMessageAttemptBridge) Forward(state textflow.AttemptState) textfl
 			b.reqStream,
 			b.forwardBody,
 			b.hasBoundSession,
-			service.WithForwardGeminiSession(derefGroupID(b.apiKey.GroupID), b.sessionKey),
+			forwardcore.WithGeminiSession(derefGroupID(b.apiKey.GroupID), b.sessionKey),
 		)
 	} else {
 		b.result, err = b.binding().forwardGemini(requestCtx, b.c, b.account, b.forwardBody)
@@ -163,7 +164,7 @@ func (b *geminiMessageAttemptBridge) Forward(state textflow.AttemptState) textfl
 	if b.accountReleaseFunc != nil {
 		b.accountReleaseFunc()
 	}
-	b.binding().reportSchedule(b.selection, b.account.ID, err == nil, b.result)
+	b.binding().reportSchedule(b.selection, b.account.Record.ID, err == nil, b.result)
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil, OutputChanged: b.c.Writer.Size() != b.writerSizeBeforeForward}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
 	out.Attempt.RetryCommitted = out.OutputChanged
@@ -180,9 +181,9 @@ func (b *geminiMessageAttemptBridge) Success() {
 	// RPM 计数递增（Forward 成功后）
 	// 注意：TOCTOU 竞态是已知且可接受的设计权衡，与 WindowCost 一致的 soft-limit 模式。
 	// 在高并发下可能短暂超出 RPM 限制，但不会导致请求失败。
-	if b.account.IsAnthropicOAuthOrSetupToken() && b.account.GetBaseRPM() > 0 {
-		if err := b.binding().incrementRPM(b.c.Request.Context(), b.account.ID); err != nil {
-			b.reqLog.Warn("gateway.rpm_increment_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+	if b.account.View().IsAnthropicOAuthOrSetupToken() && gatewaycapture.ExecutionRuntimeConfig(b.account).GetBaseRPM() > 0 {
+		if err := b.binding().incrementRPM(b.c.Request.Context(), b.account.Record.ID); err != nil {
+			b.reqLog.Warn("gateway.rpm_increment_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 		}
 	}
 
@@ -195,7 +196,7 @@ func (b *geminiMessageAttemptBridge) Complete(state textflow.AttemptState) {
 	clientIP := clientip.GetClientIP(b.c)
 	requestPayloadHash := billing.HashUsageRequestPayload(b.body)
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
-	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Platform)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Record.Platform)
 
 	if b.result.ReasoningEffort == nil {
 		b.result.ReasoningEffort = protocol.NormalizeClaudeOutputEffort(b.parsedReq.OutputEffort)
@@ -205,22 +206,22 @@ func (b *geminiMessageAttemptBridge) Complete(state textflow.AttemptState) {
 		if protocolModel == "" {
 			protocolModel = b.result.Model
 		}
-		b.result.ReasoningEffort = service.DefaultEffortForThinkingEnabled(protocolModel)
+		b.result.ReasoningEffort = gatewaycapture.DefaultEffortForThinkingEnabled(protocolModel)
 	}
 
 	// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 	// ForceCacheBilling 提前拍成标量，避免 worker 闭包保活 failover 状态里的响应体。
 	forceCacheBilling := state.ForceCacheBilling
-	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.apiKey)
-	clientSessionID := service.ExtractClientSessionID(b.c)
-	stampForwardRequestedReasoningEffort(b.result, b.c)
+	quotaPlatform := admission.QuotaPlatform(b.c.Request.Context(), b.apiKey)
+	clientSessionID := gatewayhttp.ExtractClientSessionID(b.c)
+	gatewayhttp.StampForwardRequestedReasoningEffort(b.result, b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(b.c), &service.RecordUsageInput{
+	completionInput := gatewaycapture.CaptureMessages(gatewayhttp.CompletionContext(b.c), &gatewaycapture.MessagesCapture{
 		Result:             b.result,
 		QuotaPlatform:      quotaPlatform,
 		APIKey:             b.apiKey,
 		User:               b.apiKey.User,
-		Account:            b.account,
+		Account:            gatewaycapture.ExecutionCompletionRecord(b.account),
 		Subscription:       b.subscription,
 		InboundEndpoint:    inboundEndpoint,
 		UpstreamEndpoint:   upstreamEndpoint,

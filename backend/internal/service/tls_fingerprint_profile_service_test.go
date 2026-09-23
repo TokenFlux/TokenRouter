@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -13,17 +16,15 @@ import (
 func TestTLSFingerprintProfileService_ResolveTLSProfileOpenAI(t *testing.T) {
 	svc := &provider.TLSProfiles{}
 
-	openAIOAuth := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
-		Extra:    map[string]any{"enable_tls_fingerprint": true},
+	openAIOAuth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type:  capability.AccountTypeOAuth,
+		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
 	require.NotNil(t, svc.ResolveRequestTLS(accountTLSSelection(openAIOAuth, nil)), "OpenAI OAuth 开启后应返回内置默认 profile")
 
-	openAIAPIKey := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Extra:    map[string]any{"enable_tls_fingerprint": true},
+	openAIAPIKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type:  capability.AccountTypeAPIKey,
+		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
 	require.Nil(t, svc.ResolveRequestTLS(accountTLSSelection(openAIAPIKey, nil)), "OpenAI API Key 不应启用 TLS 指纹伪装")
 }
@@ -31,34 +32,31 @@ func TestTLSFingerprintProfileService_ResolveTLSProfileOpenAI(t *testing.T) {
 func TestTLSFingerprintProfileService_ResolveTLSProfileQoderCosy(t *testing.T) {
 	svc := &provider.TLSProfiles{}
 
-	qoderCosy := &Account{
-		Platform: capability.PlatformQoder,
-		Type:     capability.AccountTypeCosy,
-		Extra:    map[string]any{"enable_tls_fingerprint": true},
+	qoderCosy := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformQoder,
+		Type:  capability.AccountTypeCosy,
+		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
 	require.NotNil(t, svc.ResolveRequestTLS(accountTLSSelection(qoderCosy, nil)), "Qoder COSY 开启后应返回内置默认 profile")
 
-	qoderOtherType := &Account{
-		Platform: capability.PlatformQoder,
-		Type:     capability.AccountTypeOAuth,
-		Extra:    map[string]any{"enable_tls_fingerprint": true},
+	qoderOtherType := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformQoder,
+		Type:  capability.AccountTypeOAuth,
+		Extra: map[string]any{"enable_tls_fingerprint": true}},
 	}
 	require.Nil(t, svc.ResolveRequestTLS(accountTLSSelection(qoderOtherType, nil)), "非 COSY Qoder 账号不应启用 TLS 指纹伪装")
 }
 
 func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
-	account := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeOAuth,
 		Extra: map[string]any{
 			"enable_tls_fingerprint":     true,
 			"tls_fingerprint_profile_id": int64(10),
-		},
+		}},
 	}
 	profileSvc := provider.NewTLSProfiles(egress.NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: []*egress.TLSFingerprintProfile{{ID: 10, Name: "fixed"}, {ID: 20, Name: "router"}}}, nil))
 	profileSvc.Start()
 
-	svc := &OpenAIGatewayService{tlsFPProfileService: profileSvc}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{tlsFPProfileService: profileSvc})
 
 	// 路由器命中优先使用规则目标模板。
 	routerProfile := svc.resolveOpenAITLSProfile(account, egress.TLSFingerprintRouterMatchResult{

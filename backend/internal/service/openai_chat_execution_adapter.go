@@ -5,22 +5,28 @@ import (
 	"context"
 	"errors"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	tierpolicy "github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	protocolbridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
-	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 	"net/http"
 
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
@@ -40,10 +46,10 @@ func (p *openAIChatExecutionAdapter) PrepareChat(ctx context.Context) (forward.C
 		gatewayhttp.SetActualOpenAIUpstreamEndpoint(p.c, "/v1/chat/completions")
 	}
 	setCodexToolNameReverse(p.c, nil)
-	if _, err := p.s.prepareCodexAccountIdentitySource(ctx, p.c, account); err != nil {
+	if _, err := gatewayhttp.PrepareCodexIdentity(ctx, p.c, p.s.accountRepo, account); err != nil {
 		return forward.ChatProfile{}, err
 	}
-	return forward.ChatProfile{MessagesProfile: forward.MessagesProfile{Profile: openAIForwardProfile(account), ID: account.ID, GrokOAuth: account.IsGrokOAuth(), Shadow: account.IsShadow()}, Protocol: account.attemptRoute.Protocol(), Adaptive: account.IsAdaptiveAPIProtocol(), SupportsNativeCN: account.SupportsNativeCNResponses(), CNProvider: account.IsCNProvider(), OpenAIAPIKey: account.IsOpenAIApiKey()}, nil
+	return forward.ChatProfile{MessagesProfile: forward.MessagesProfile{Profile: openAIForwardProfile(account), ID: account.Record.ID, GrokOAuth: account.View().IsGrokOAuth(), Shadow: account.View().IsShadow()}, Protocol: account.Route.Protocol(), Adaptive: gatewayprovider.ExecutionProtocolTarget(account).IsAdaptiveAPIProtocol(), SupportsNativeCN: account.View().SupportsNativeCNResponses(), CNProvider: account.View().IsCNProvider(), OpenAIAPIKey: account.View().IsOpenAIApiKey()}, nil
 }
 func (p *openAIChatExecutionAdapter) DispatchChat(ctx context.Context, route forward.Dispatch, body []byte, key, model string) (*forward.Result, error) {
 	var r *protocolforward.OpenAIResult
@@ -104,7 +110,7 @@ func (p *openAIChatExecutionAdapter) NormalizeRequestTier(r *protocolopenai.Resp
 	normalizeResponsesRequestServiceTier(r)
 }
 func (p *openAIChatExecutionAdapter) ApplyChatFast(ctx context.Context, model string, body []byte) ([]byte, error) {
-	updated, err := p.s.applyOpenAIFastPolicyToBody(ctx, p.account, model, body)
+	updated, err := tierpolicy.ApplyBody(body, p.s.fastModeInput(ctx, p.account, model))
 	var blocked *tierpolicy.BlockedError
 	if errors.As(err, &blocked) {
 		p.PolicyDenied()
@@ -113,20 +119,20 @@ func (p *openAIChatExecutionAdapter) ApplyChatFast(ctx context.Context, model st
 	return updated, err
 }
 func (p *openAIChatExecutionAdapter) EffectiveEffort(body, original []byte, models ...string) *string {
-	return extractEffectiveOpenAIReasoningEffortFromBody(body, original, models...)
+	return requeststate.ExtractEffectiveOpenAIReasoningEffortFromBody(body, original, models...)
 }
 func (p *openAIChatExecutionAdapter) ThinkingFallback(effort *string, body []byte, model string) *string {
-	return ApplyThinkingEnabledFallback(effort, body, model)
+	return gatewayprovider.ApplyThinkingEnabledFallback(effort, body, model)
 }
 func (p *openAIChatExecutionAdapter) AccessToken(ctx context.Context) (string, error) {
-	token, _, err := p.s.GetAccessToken(ctx, p.account)
+	token, _, err := p.s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(p.account))
 	return token, err
 }
 func (p *openAIChatExecutionAdapter) BuildChat(ctx context.Context, body []byte, token, key string) (*http.Request, error) {
 	return p.s.buildUpstreamRequest(ctx, p.c, p.account, body, token, true, key, false, p.tls...)
 }
 func (p *openAIChatExecutionAdapter) UpstreamSessionKey(id int64, key string) string {
-	return isolateOpenAIUpstreamSessionID(id, codexAccountIdentitySource(p.c, p.account), key)
+	return openai.IsolateOpenAIUpstreamSessionID(id, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(p.c, p.account.View())), key)
 }
 func (p *openAIChatExecutionAdapter) SessionUUID(key string) string {
 	return upstream.GenerateSessionUUID(key)

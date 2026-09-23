@@ -9,12 +9,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
 
-func normalizeOpenAIModelForUpstream(account *Account, model string) string {
-	return accountModelPolicy(account).NormalizeOpenAI(model)
-}
-
-var openAIChatGPTInternalUnsupportedFields = openai.OpenAIChatGPTInternalUnsupportedFields
-
 func applyCodexOAuthTransform(reqBody map[string]any, isCodexCLI bool, isCompact bool) openai.CodexTransformResult {
 	return applyCodexOAuthTransformWithOptions(reqBody, openai.CodexOAuthTransformOptions{IsCodexCLI: isCodexCLI, IsCompact: isCompact})
 }
@@ -29,7 +23,7 @@ func isCodexSparkModel(model string) bool {
 }
 
 func stripOpenAIImageGenerationToolsFromRawPayload(payload []byte) ([]byte, bool, error) {
-	return openai.StripOpenAIImageGenerationToolsFromRawPayload(payload, openAIRequestBodyHasImageGenerationDeclaration(payload))
+	return openai.StripOpenAIImageGenerationToolsFromRawPayload(payload, gatewayprovider.ImageIntent().OpenAIRequestBodyHasImageGenerationDeclaration(payload))
 }
 
 func validateCodexSparkInput(reqBody map[string]any, model string) error {
@@ -53,9 +47,9 @@ func normalizeOpenAIResponsesImageOnlyModel(reqBody map[string]any) bool {
 	return openai.NormalizeOpenAIResponsesImageOnlyModel(reqBody, media.IsImageGenerationModel(openai.FirstNonEmptyString(reqBody["model"])))
 }
 
-func applyCodexClientMetadata(reqBody map[string]any, account *Account) bool {
+func applyCodexClientMetadata(reqBody map[string]any, account *gatewayprovider.ExecutionAccount) bool {
 	if account == nil {
 		return false
 	}
-	return openai.ApplyCodexClientMetadata(reqBody, account.GetOpenAIDeviceID())
+	return openai.ApplyCodexClientMetadata(reqBody, account.View().GetOpenAIDeviceID())
 }

@@ -2,6 +2,8 @@ package handler
 
 import (
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"context"
@@ -20,7 +22,6 @@ import (
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -38,7 +39,7 @@ type embeddingRequestAdapter struct {
 	channelMapping routing.ChannelMappingResult
 	reqLog         *zap.Logger
 	streamStarted  *bool
-	selection      *service.AccountSelectionResult
+	selection      *gatewaycapture.SelectionResult
 }
 
 func (p *embeddingRequestAdapter) SelectEmbedding(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
@@ -47,7 +48,7 @@ func (p *embeddingRequestAdapter) SelectEmbedding(ctx context.Context, excluded 
 	if selection == nil || selection.Account == nil {
 		return accountcore.AccountSnapshot{}, false, err
 	}
-	return service.AccountSnapshotView(selection.Account), true, err
+	return gatewaycapture.ExecutionSnapshot(selection.Account), true, err
 }
 func (p *embeddingRequestAdapter) AcquireEmbedding(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
 	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, p.streamStarted, p.reqLog)
@@ -142,7 +143,7 @@ func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure
 		if !f.Outcome.OutputChanged {
 			p.h.errorResponse(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		}
-		p.reqLog.Warn("openai_embeddings.forward_failed", zap.Int64("account_id", p.selection.Account.ID), zap.Error(f.Err))
+		p.reqLog.Warn("openai_embeddings.forward_failed", zap.Int64("account_id", p.selection.Account.Record.ID), zap.Error(f.Err))
 	}
 }
 
@@ -164,15 +165,15 @@ func (p *embeddingRequestAdapter) CompleteEmbedding(_ context.Context, _ account
 	userAgent := c.GetHeader("User-Agent")
 	clientIP := clientip.GetClientIP(c)
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
-	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
-	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-	clientSessionID := service.ExtractClientSessionID(c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Record.Platform)
+	quotaPlatform := admission.QuotaPlatform(c.Request.Context(), apiKey)
+	clientSessionID := gatewayhttp.ExtractClientSessionID(c)
 	// 异步任务只读取此处固化的渠道结果，不能再读取可变 HTTP Context。
 	channelFields := p.channelMapping.ToUsageFields(p.reqModel, result.UpstreamModel)
 	subscription, reqModel, userID := p.subscription, p.reqModel, p.userID
-	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{Result: result, APIKey: apiKey, User: apiKey.User, Account: account, Subscription: subscription, InboundEndpoint: inboundEndpoint, UpstreamEndpoint: upstreamEndpoint, UserAgent: userAgent, IPAddress: clientIP, APIKeyService: h.apiKeyService, QuotaPlatform: quotaPlatform, ClientSessionID: clientSessionID, ChannelUsageFields: channelFields})
+	completionInput := gatewaycapture.CaptureOpenAI(c.Request.Context(), &gatewaycapture.OpenAICapture{Result: result, APIKey: apiKey, User: apiKey.User, Account: gatewaycapture.ExecutionCompletionRecord(account), Subscription: subscription, InboundEndpoint: inboundEndpoint, UpstreamEndpoint: upstreamEndpoint, UserAgent: userAgent, IPAddress: clientIP, APIKeyService: h.apiKeyService, QuotaPlatform: quotaPlatform, ClientSessionID: clientSessionID, ChannelUsageFields: channelFields})
 	completionRecorder := h.completionRuntime()
-	completionLog := logging.L().With(zap.String("component", "handler.openai_gateway.embeddings"), zap.Int64("user_id", userID), zap.Int64("api_key_id", apiKey.ID), zap.Any("group_id", apiKey.GroupID), zap.String("model", reqModel), zap.Int64("account_id", account.ID))
+	completionLog := logging.L().With(zap.String("component", "handler.openai_gateway.embeddings"), zap.Int64("user_id", userID), zap.Int64("api_key_id", apiKey.ID), zap.Any("group_id", apiKey.GroupID), zap.String("model", reqModel), zap.Int64("account_id", account.Record.ID))
 	h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {
 		if err := completionRecorder.Record(ctx, completionInput, true); err != nil {
 			completionLog.Error("openai_embeddings.record_usage_failed", zap.Error(err))

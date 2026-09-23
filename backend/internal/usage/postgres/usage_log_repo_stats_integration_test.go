@@ -3,19 +3,17 @@
 package postgres
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"context"
 	"testing"
 	"time"
+
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +25,7 @@ func TestUsageLog_GetStatsWithFilters_AggregatesAndEndpoints(t *testing.T) {
 
 	user := mustCreateUser(t, client, &identity.User{Email: "stats@test.com"})
 	apiKey := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-stats-1", Name: "k"})
-	account := mustCreateAccount(t, client, &service.Account{Name: "acc-stats"})
+	account := mustCreateAccount(t, client, &accountcore.Record{Name: "acc-stats"})
 
 	now := time.Now().UTC()
 	inboundEndpoint := "/v1/messages"
@@ -70,7 +68,7 @@ func TestUsageLog_GetModelStats_MergesCompositePrefix(t *testing.T) {
 
 	user := mustCreateUser(t, client, &identity.User{Email: "model-stats-composite@test.com"})
 	apiKey := mustCreateApiKey(t, client, &apikey.APIKey{UserID: user.ID, Key: "sk-model-stats-composite", Name: "k"})
-	account := mustCreateAccount(t, client, &service.Account{Name: "acc-model-stats-composite"})
+	account := mustCreateAccount(t, client, &accountcore.Record{Name: "acc-model-stats-composite"})
 	now := time.Now().UTC()
 
 	for _, requestedModel := range []string{"gpt-5.6-sol", "GPT/gpt-5.6-sol"} {

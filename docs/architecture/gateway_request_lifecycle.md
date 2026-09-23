@@ -39,6 +39,8 @@ HTTP 入口由 app 固定构造。`gateway/text` 拥有文本账号循环与计�
 
 文本入口把 `requeststate.ExecutionHints` 和 `RoutingState` 显式传给执行器，分别携带客户端识别、图片意图、粘性预取等执行提示，以及原生分组、路由计划和客户端协议。分组在写入和读取边界复制，后续 attempt 重新绑定变更后的分组，不能修改先前请求快照。旧单步 Adapter 暂通过私有类型的 context 读取同一状态；`pkg/ctxkey` 已删除，telemetry 只保留观测关联信息。
 
+Messages、通用 Responses/Chat 和 Gemini 原生的 HTTP 绑定由 app 直接构造 `gateway/httpapi` 的目标入口；共同的请求标记、审核、资金与会话前置操作不再由旧 Handler backend 实现。实际文本尝试执行器的剩余兼容装配仍单独保留，未形成第二套账号重试或完成处理。执行边界采用 `gateway/provider.SelectionResult`，保留实际账号目标、等待计划和本次反馈参数；调度核心继续只读取无凭据候选。
+
 `gateway/searchtools` 组织工具模拟，`gateway/moderationflow` 固化审核完成输入；`completion.Recorder` 消费独立资金与用量快照。`ws`、`live` 各自管理连接/turn 状态；摘要、隔离和归属值由 `session` 提供，Redis 协议由 `rediscache` 适配。错误规则与不可变发布快照位于 `errorpolicy`，不承担调度健康或重试决策。
 
 ```text
@@ -98,7 +100,9 @@ HTTP 入口由 app 固定构造。`gateway/text` 拥有文本账号循环与计�
 
 绑定分组的默认组/不可用组回退，以及 Antigravity 等 handler 内的特殊回退，必须在切换后的最终分组上重新检查指定订阅套餐范围和额度。否则认证阶段已验证的原分组会在后续请求中被错误扩大为套餐外分组。
 
-普通 Key 的协议门禁不会读取请求体；复合 Key 的认证阶段会先读取并恢复请求体，以模型前缀确定最终分组，然后才执行同一门禁。禁用协议返回客户端协议原生的 `403`，记录 `LocalPolicyDenied`，不进入账号选择、重试、fallback 或结算。进入协议 handler 后，请求体按端点限制读取并做宽容 JSON/Multipart 处理，再完成用户提示词替换、协议解析、客户端识别、内容审查和 Ops 元数据设置。用户并发槽位在账号选择前获取，避免为已经超过用户并发的请求消耗调度资源。
+身份读取直接使用 authctx 的唯一记录；已认证 Key 与 Ops 的失败加载投影由 apikey HTTP 分开读取，移除旧 middleware 转接不改变授权状态。
+
+普通 Key 的协议门禁不会读取请求体；复合 Key 的认证阶段会先读取并恢复请求体，以模型前缀确定最终分组，然后才执行同一门禁。禁用协议返回客户端协议原生的 `403`，记录 `LocalPolicyDenied`，不进入账号选择、重试、fallback 或结算。进入协议 handler 后，请求体按端点限制读取并做宽容 JSON/Multipart 处理，再完成用户提示词替换、协议解析、客户端识别、内容审查和 Ops 元数据设置。HTTP 与 WS 直接使用 app 注入的同一个 promptpolicy 实例，规则回源和替换仍发生在这些原始调用位置。用户并发槽位在账号选择前获取，避免为已经超过用户并发的请求消耗调度资源。
 
 ## 模型名称链
 
@@ -122,7 +126,15 @@ client_model
 
 `routing.RoutePlan` 保存当次最终分组、入口协议和 Key→渠道模型链，handler 把它交给后续候选解析。候选仍按当前账号快照和最终分组复核协议；账号映射在原使用时点读取，不提前固定账号或把 attempt 结果写入共享缓存。分组发生回退时旧计划不替代重新授权，平台请求改写与响应模型恢复仍由原执行链负责。
 
-`requeststate.AttemptRoute` 固化本次候选结果和协议，`RoutingState.ResolveAttempt` 在 fresh/DB 复核后重新解析。账号持久记录不承载该状态；协议相关地址和 CN 适配规则由 `account.ProtocolTarget` 组合显式协议与记录计算。旧执行账号暂持有该尝试值，读取模型映射仍发生在原调用时点，不能把上一次尝试结果写回共享账号缓存。
+`requeststate.AttemptRoute` 固化本次候选结果和协议，`RoutingState.ResolveAttempt` 在 fresh/DB 复核后重新解析。账号持久记录不承载该状态；协议相关地址和 CN 适配规则由 `account.ProtocolTarget` 组合显式协议与记录计算。执行 Adapter 使用只组合原生 Record 与路线的 ExecutionAccount，已删除旧 Account 的字段和方法转接；读取模型映射仍发生在原调用时点，不能把上一次尝试结果写回共享账号缓存。
+
+候选协议快照、协议准入与模型冷却判断统一由 gateway/provider.ModelPolicy 组合原生账号记录和本次 AttemptRoute。选择与诊断保留“协议 → 账号状态 → 模型窗口”的检查顺序；原始窗口是否冷却、允许 overages 时的可调度性和剩余时间分别计算，不能互相替代。模型目录与候选协议复核使用同一快照投影，不因此提前读取动态模型映射。
+
+计费模型与实际上游模型仍分别解析；OpenAI 普通/Compact 映射和 Bedrock 区域路由直接使用原生 ModelPolicy。Lite 标记由入口确认后，平台适配按账号契约选择完整 OAuth 工具规范化或 API Key 的并行工具限制，保持原入口范围。
+
+协议地址读取直接使用 account.ProtocolTarget，RPM、会话数量、串行队列及窗口配置直接使用 account.RuntimeConfig；旧账号边界只提供即时字段投影。Codex 图片桥接覆盖、显式工具策略与指纹模式由 account 持有，仍保留平台资格、顶层/嵌套设置优先级和旧值兼容。账号 Header 覆写由 account/provider 在原调用点应用 egress 策略，绑定成方法回调时仍在执行时读取账号最新字段，不提前固定凭据或覆写表。
+
+Codex 身份和指纹的请求内状态只由 HTTP Adapter 持有；账号 provider 组合明确输入，平台库只执行纯派生和报文修改。状态发布保持原同步方式，Header 与请求体使用同一组本次 IDs，failover 覆盖顺序不变；异步完成不会持有该 HTTP 状态。
 
 <a id="account_selection_and_failover"></a>
 ## 账号选择与故障转移
@@ -136,6 +148,14 @@ client_model
 
 候选排序与高级评分不读取上游声明倍率，也没有 `upstream_cost` 权重或 OAuth 参考倍率。账户本地 `rate_multiplier` 与渠道上游计费模型来源仍在账号选定和模型映射完成后参与结算，不作为候选资格或排序信号。
 
+Messages 的 `count_tokens` 由 app 直接构造原生 HTTP Handler，不再经过旧 GatewayHandler 工厂。HTTP 只持有受控计数目标与无凭据账号快照；原有选择和平台执行原语由组合根连接。资金预检先于无槽选择，失败后释放本次会话，每次尝试从原报文重建渠道映射；不新增费用提交或完成任务。文本与计数入口共用原有兼容指标采样计数器。
+
+OpenAI 兼容计数、Grok 本地估算和 Responses 输入 token 预检由 app 独立构造 OpenAITokensHandler，直接绑定同一个请求生命周期屏障，已不依赖旧 OpenAIGatewayHandler。计数保持渠道规划后检查资金，再执行单次无槽选择；Responses 预检保持资金检查先于渠道规划，并释放选择器交付的每个账号槽。Grok 本地估算不增加资金检查、选账号或上游请求。这些入口没有生成请求的完成提交端口。
+
+Live 与 sideband 的 HTTP 入口也由 app 直接构造，原生 LivePorts 共享原审核、资金准入和并发服务，不再通过旧 OpenAIGatewayHandler 创建门面。平台与启用门禁先于读取请求体；审核先于资金检查，再取得即时用户槽。会话创建、身份归属及 relay 通过受控执行端口调用已有 Live 运行时，未增加第二份租约或 observer；Live 仍只记录零费用用量。非报文模型重定向由 HTTP Adapter 的唯一函数提供，Live 与 WS 保持相同的一跳映射与追踪语义。
+
+客户端会话 Header、Grok 强制平台/认证分组判定及 OpenAI 会话哈希的请求绑定由 gateway/httpapi 负责；内容种子、Grok 模型隔离种子和 Gemini 摘要格式由 gateway/session 提供。显式信号、内容回退、无状态图片入口和用量日志仍使用各自原有优先级，不把只适用于日志的 Header 扩大为通用选号信号。新旧哈希同时从同一种子派生，旧哈希通过 requeststate 传给既有粘性读取逻辑。Qoder 兼容入口直接调用唯一的通用请求哈希函数，不再要求旧 GatewayService 提供纯计算端口。
+
 `basic` 保留历史选择路径。`advanced` 在上述硬约束完成后调用通用评分核心，按 Top-K 加权顺序尝试候选并在每次尝试前复核并发槽。有效 Top-K、权重和粘性开关按最终高级分组逐字段合并：分组 `advanced_scheduler_overrides` 优先于网关运行时设置，缺失字段继续使用全局值；空对象等于全部继承。OpenAI/Grok 在这一核心上附加 previous response、订阅、transport、Compact 与额度能力；其它平台只提供各自已存在的候选与硬过滤。运行时只对本次实际走高级模式的选择回写错误率、TTFT 和切换统计，基础请求不会污染高级评分。`count_tokens`、可用性探测等仅选账号入口同样按最终分组决定模式，但使用无槽选择，不占用账号并发槽或会话数量。
 
 账号选择由 `scheduler` 的通用/平台选择器执行，旧网关只提供平台资格与执行账号投影。`SelectionInput` 使用最终 RoutePlan 和独立账号候选；每个 attempt、fresh 和 DB 复核重新解析候选，不把模型/协议结果写回共享缓存。
@@ -148,6 +168,8 @@ client_model
 
 <a id="protocol_conversion_boundary"></a>
 ## 转发与流式边界
+
+上游非流响应的有界读取由 infra/httpclient 执行，默认仍为 128 MiB，并保留多读一个字节判断超限及原错误链。gateway/httpapi 在原位置记录 Ops 并输出 Anthropic/OpenAI 形状的 502；读取函数不接管响应体关闭，重试与取消仍由执行链决定。
 
 每次 attempt 都以原始/规范化请求和本次账号重新构造供应商请求，注入凭据、代理、TLS 指纹、客户端标识、Thinking/工具配置及上游模型。平台适配器负责协议转换、上游响应限制和供应商错误解析，handler 负责在客户端协议中返回最终结果。
 
@@ -163,7 +185,7 @@ Qoder 流式已经进入上游后使用完成释放：客户端断开停止下�
 
 上游转发产生可计量 usage 后，handler 把解析出的 token/图片/视频用量、客户端与上游模型、endpoint、账号、订阅快照、请求标识和渠道映射交给有界 UsageRecord worker pool。Anthropic 网关与 OpenAI 兼容的 Messages、Responses、Chat 三条链在终止事件前中断时，只要 service 随错误返回了部分结果，handler 仍提交其中已观测的 usage；无结果不生成记录，`UpstreamFailoverError` 不携带部分结果，避免重试成功后双重计费。国产供应商原生 Anthropic 转 Responses 的流在客户端写失败后停止下游输出，但继续排水上游并推进状态机，直到读到末尾 `message_delta` 的最终 token 或达到有界读超时。OpenAI OAuth 图片响应在 HTTP 成功后若发生上游 body 传输中断，仅在尚未向客户端写出真实图片内容时按 502 进入账号策略和 failover；JSON keepalive 空白不算真实输出，客户端取消、deadline、响应体超限以及首字节后的中断不会换号。worker 使用脱离已结束请求取消信号但受自身超时约束的 Context；队列策略可以同步回退或丢弃，并通过指标/日志暴露压力，不能为每个请求创建无界 goroutine。
 
-完成执行器的唯一实现位于 `gateway/completion`，配置由 app 投影，旧 UsageRecordWorkerPool 名称为类型别名。停止同时等待排队任务和已经接受的同步溢出任务；扩缩容与停止共用屏障，停止后不能重开。显式 drop/sample/sync 与 mandatory 兜底仍保留原入口语义，完成记录与结算编排也由 `gateway/completion.Recorder` 唯一实现，旧 RecordUsage 入口只投影和委托。app 在开放入口前绑定 Forward/OpenAI 完成器；已迁 HTTP 提交点先固化模型、主体和资金输入，再交给队列。媒体与 WS turn 同样在入队前取得快照；creative 与 batchimage 独立拥有任务完成资格、预占/捕获/释放及恢复，不进入网关完成队列。任务生成阶段通过 scheduler.Lease 管理用户与账号槽，供应商返回后即释放，结果交付与结算不占槽。
+完成执行器的唯一实现位于 `gateway/completion`，配置由 app 投影，旧 UsageRecordWorkerPool 转接已删除。停止同时等待排队任务和已经接受的同步溢出任务；扩缩容与停止共用屏障，停止后不能重开。显式 drop/sample/sync 与 mandatory 兜底仍保留原入口语义，完成记录与结算编排也由 `gateway/completion.Recorder` 唯一实现。同步提交点使用 `gateway/provider.CaptureMessages/CaptureOpenAI/CaptureCyber` 读取原生账号、Key、付款主体和用量，再生成独立的 `completion.Input`；旧完成入参、捕获函数、RecordUsage/Cyber补记方法及按需重建完成器的兜底装配均已删除。app 直接从原生价格、资金、用量和提交后端口构造 Forward/OpenAI 完成器，再将同一实例绑定到剩余执行入口；不再从旧网关构造器取回完成器。两条链各自保留独立倍率缓存，由 app 的原一分钟时间轮任务直接清理，旧网关不再持有缓存代理；后台副作用继续由唯一 ApplicationBackgroundTasks 拥有。媒体与 WS turn 同样在入队前取得快照，保留各自原计费时刻、请求 ID 和额度更新标记；creative 与 batchimage 独立拥有任务完成资格、预占/捕获/释放及恢复，不进入网关完成队列。任务生成阶段通过 scheduler.Lease 管理用户与账号槽，供应商返回后即释放，结果交付与结算不占槽。
 
 标准模式中的共同顺序为：
 
@@ -184,6 +206,8 @@ Brave/Tavily 搜索由 search 选择供应商并预占额度。失败释放自�
 
 gateway/searchtools 拥有工具识别、账号/渠道启用裁决、协议事件和合成 usage。app 通过 gateway/provider 直接绑定同一个 search.ConfigService、Registry 和渠道实例；旧全局搜索注册表及设置转接已删除，配置更换仍发布到该注册表。重试与完成处理继续由请求编排拥有。Grok 原生搜索及 OpenAI AlphaSearch 仍由对应 upstream 拥有；不能将通知成功、搜索配额或审核记录当作资金提交证明。
 
+独立 Web/X 搜索由 app 直接构造 `gateway/httpapi.SearchHandler` 和固定的 `SearchPorts`，不再创建旧聚合 Handler 门面。HTTP 继续按解析、认证、资金、审核、选号的顺序执行；平台报文及单次交换由 `gateway/provider` 组合原 Grok 原语与共享传输。选择端口只返回当前请求的受控目标，完成前同步取得账号快照；异步记录不持有 Gin Context。相同查询的每次调用仍生成独立资金请求 ID，完成快照提交后再释放账号资源。
+
 ## 扩展约束
 
 新增网关入口或平台适配器时至少核对：
@@ -202,7 +226,7 @@ gateway/searchtools 拥有工具识别、账号/渠道启用裁决、协议事�
 <a id="qoder_gateway_execution"></a>
 ## Qoder Chat 的新请求编排
 
-Qoder Chat Completions 的生产路由绑定 `gateway/httpapi.QoderChatHandler`，由 `gateway.QoderUseCase` 拥有唯一请求级循环，`upstream/qoder.Executor` 只执行当次平台调用。使用既有认证 `AccessSnapshot`、路由 `RoutePlan`、账号 `AccountSnapshot` 和 scheduler Lease；其余 Qoder HTTP 协议仍通过旧 handler 组合相同平台实现。
+Qoder Chat Completions 的生产路由由 app 直接构造 `gateway/httpapi.QoderChatHandler`，错误投影不再依赖旧 QoderGatewayHandler；供应商错误由 gateway/provider 解释，原生 HTTP presenter 负责状态码、规则覆盖和监控标记。`gateway.QoderUseCase` 拥有唯一请求级循环，`upstream/qoder.Executor` 只执行当次平台调用。使用既有认证 `AccessSnapshot`、路由 `RoutePlan`、账号 `AccountSnapshot` 和 scheduler Lease；Messages/Responses 由 app 直接构造 `QoderCompatibleHandler`，通过受控目标复用相同平台、刷新和完成实例，旧 Qoder Handler 已删除。兼容入口仍使用 `text.RunQoderCompatible`，保留其等待后不追加权益复查、任意真实输出关闭重试，以及普通非供应商错误不换号的历史差异。
 
 app 将固定依赖绑定到 `QoderUseCase.Execute`；HTTP 只提交请求值及同步输出，不再逐请求组装选择、刷新、计费和完成回调。`gateway/session` 复用原会话种子及哈希格式，app 的选号和受控凭据投影仍转接旧能力，未另建状态缓存。资金预检后按原时机登记用户等待，实际等待取得槽位后再次执行 billing 资金检查，二次检查不再累计 RPM。账号尝试持有独立 AttemptLease，完成或失败后归还；只有尚未提交本次输出时才能按原资格进行受限刷新与换号。已服务的部分失败只进入一次完成处理，不产生成功粘性或成功反馈。
 
@@ -214,10 +238,14 @@ Qoder 请求与平台尝试在 app 的 `QoderRequestsAndAttempts` 中同步登�
 <a id="upstream_attempt_ownership"></a>
 ## 平台执行与资源拥有权
 
-各平台的供应商交换、请求构造与原生读取位于 upstream；旧网关在调用点投影账号、出站策略与错误观察接口，不向新平台传入 Gin 或完整 config。OpenAI 的响应读取、图片与辅助查询保留各自取消与终态差异，WS relay 和连接池独立于完整入站 WS 编排。续接报文和失效密文剥离使用平台纯实现，会话归属缓存和每轮价格快照仍由入站持有。
+各平台的供应商交换、请求构造与原生读取位于 upstream；旧网关在调用点投影账号、出站策略与错误观察接口，不向新平台传入 Gin 或完整 config。OpenAI 的响应读取、图片与辅助查询保留各自取消与终态差异，WS relay 和连接池独立于完整入站 WS 编排。续接报文和失效密文剥离使用平台纯实现。HTTP Responses 归属校验由 gateway/session 执行，HTTP 只保存已认证的 user/key 标识；同用户跨 Key 与历史仅 Key 归属的兼容规则保持，失败读取不授权。app 构造唯一 OpenAI 会话状态存储供 HTTP/WS 共用，不另建归属缓存或提前打开连接；每轮价格快照仍由入站持有。缺失 usage 的低频诊断由 gateway/telemetry 持有原单份采样状态，日志不再读取 Gin 或完整账号。
 
 OpenAI 和 Messages 的转发结果由 `gateway/forward` 拥有，WS ingress hook 与 turn capture 由 `gateway/ws` 拥有。WS 重放输入继续保持私有，不随结果 JSON 输出；各协议结果仍保留原字段差异。每次 attempt／turn 的 `forward.ResponseObserver` 独立记录模型和实际服务档位，Gin 存取由 HTTP Adapter 负责；终态优先与冲突回退不改变，出站档位在完成计费时才与观测值结合。
 
 上游风控警告统一用 `gateway/forward.UpstreamWarning` 传递，HTTP、WS 和 Grok 适配共用值类型及错误链契约。警告本身不证明请求可结算，完成资格、失败状态和通知仍按原入口规则决定。
+
+Compact/SSE 注释心跳、非流式图片 JSON 空白心跳及扣除心跳字节后的输出判定由 gateway/httpapi 管理。图片首拍仍会提交 200，迟到错误继续以合法 JSON 写回；这些空白不会关闭原有安全重试窗口。TTFT 的语义/可见输出策略由 gateway/provider 组合平台事件解析，保持其与 HTTP 提交和重试窗口的区别。写入包装器只在 HTTP 内部使用，停止及写入互斥保持原语义。
+
+OpenAI `cyber_policy` 的原生事件识别位于 gateway/provider，当前 HTTP/WS turn 的首个标记及清除由 gateway/httpapi 管理，直接使用 moderationflow.Mark。标记键、正文截断和已观测用量保持原值；清除后下一 turn 才能接受新证据。已透传错误使用 forward 的唯一哨兵通知收尾，不增加换号、响应写入或扣费资格。
 
 GatewayRequestsAndAttempts 由 app 构造一次，HTTP 入口与原生平台尝试引用同一进入屏障；停止后拒绝新进入，并等待请求尾部完成快照入队及在途尝试，先于完成队列和共享存储关闭。它与 HTTPRequests 是并列等待屏障；额度恢复操作先取消，再等待请求结束，不能把 HTTPRequests 的完成时间当作停止监听时间。账号授权会话及底层配额服务随后停止，按需 Live/WS 资源不因构造应用而提前开启。

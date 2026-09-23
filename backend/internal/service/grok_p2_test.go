@@ -8,6 +8,8 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -19,28 +21,27 @@ func TestGrokModelQuotaBlock_FiltersOnlyNamedModel(t *testing.T) {
 	require.True(t, accountcore.IsGrokModelQuotaBlocked(id, "grok-4.5", now))
 	require.False(t, accountcore.IsGrokModelQuotaBlocked(id, "grok-4.3", now))
 
-	accounts := []Account{
-		{ID: id, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
-		{ID: id + 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth},
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id + 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}},
 	}
 	filtered := filterGrokModelQuotaBlockedAccounts(accounts, "grok-4.5", now)
 	require.Len(t, filtered, 1)
-	require.Equal(t, id+1, filtered[0].ID)
+	require.Equal(t, id+1, filtered[0].Record.ID)
 }
 
 func TestGrokModelQuotaBlockFiltersMappedUpstreamModel(t *testing.T) {
 	id := time.Now().UnixNano()%1_000_000 + 7000
 	accountcore.MarkGrokModelQuotaBlock(id, "grok-4.5", time.Now().Add(time.Hour))
-	account := Account{
-		ID:       id,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"gpt-*": "grok-4.5"},
-		},
+		}},
 	}
 
-	require.Empty(t, filterGrokModelQuotaBlockedAccounts([]Account{account}, "gpt-5", time.Now()))
+	require.Empty(t, filterGrokModelQuotaBlockedAccounts([]gatewayprovider.ExecutionAccount{account}, "gpt-5", time.Now()))
 }
 
 func TestIsGrokModelSpecificFreeUsage(t *testing.T) {
@@ -51,9 +52,9 @@ func TestIsGrokModelSpecificFreeUsage(t *testing.T) {
 }
 
 func TestGrokStickyAffinitySeed_ScopesByModel(t *testing.T) {
-	a := grokStickyAffinitySeed("session-1", []byte(`{"model":"grok-4.5"}`))
-	b := grokStickyAffinitySeed("session-1", []byte(`{"model":"grok-4.3"}`))
-	c := grokStickyAffinitySeed("session-1", []byte(`{"model":"grok-4.5"}`))
+	a := gatewaysession.GrokStickyAffinitySeed("session-1", []byte(`{"model":"grok-4.5"}`))
+	b := gatewaysession.GrokStickyAffinitySeed("session-1", []byte(`{"model":"grok-4.3"}`))
+	c := gatewaysession.GrokStickyAffinitySeed("session-1", []byte(`{"model":"grok-4.5"}`))
 	require.NotEqual(t, a, b)
 	require.Equal(t, a, c)
 	require.Contains(t, a, "grok-affinity:v1:")
@@ -67,21 +68,21 @@ func TestExtractGrokModelIDsFromModelsBody(t *testing.T) {
 
 func TestApplyGrokUpstreamFailure_ModelSpecificFreeUsage(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9109, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9109, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"error":{"code":"subscription:free-usage-exhausted","message":"You've used all the included free usage for model grok-4.5. Usage resets over a rolling 24-hour window."}}`)
 
 	svc.handleGrokAccountUpstreamError(context.Background(), account, 400, nil, body)
 
 	require.Zero(t, repo.tempUnschedCalls, "model-scoped free usage must not cool sibling models")
-	require.True(t, accountcore.IsGrokModelQuotaBlocked(account.ID, "grok-4.5", time.Now()))
-	require.False(t, accountcore.IsGrokModelQuotaBlocked(account.ID, "grok-4.3", time.Now()))
+	require.True(t, accountcore.IsGrokModelQuotaBlocked(account.Record.ID, "grok-4.5", time.Now()))
+	require.False(t, accountcore.IsGrokModelQuotaBlocked(account.Record.ID, "grok-4.3", time.Now()))
 }
 
 func TestApplyGrokUpstreamFailure_SpendingLimitRemainsRecoverable(t *testing.T) {
 	repo := &grokQuotaAccountRepo{}
-	svc := &OpenAIGatewayService{accountRepo: repo}
-	account := &Account{ID: 9110, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9110, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	body := []byte(`{"code":"personal-team-blocked:spending-limit","error":"spending limit reached"}`)
 
 	svc.handleGrokAccountUpstreamError(context.Background(), account, 403, nil, body)

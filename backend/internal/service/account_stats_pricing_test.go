@@ -12,6 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
@@ -1241,11 +1242,11 @@ func TestApplyAccountStatsCost_UsesUsageLogServiceTier(t *testing.T) {
 // mapped to the given groupID, suitable for resolveAccountStatsCost tests.
 func newTestChannelServiceForStats(t *testing.T, channel *routing.Channel, groupID int64, platform string) *routing.ChannelService {
 	t.Helper()
-	cache := newEmptyChannelCache()
-	cache.channelByGroupID[groupID] = channel
-	cache.groupPlatform[groupID] = platform
+	cache := routingtestkit.NewChannelData()
+	cache.ByGroup[groupID] = channel
+	cache.Platforms[groupID] = platform
 
-	cache.loadedAt = time.Now()
-	cs := seedChannelFixture(cache)
+	cache.LoadedAt = time.Now()
+	cs := routingtestkit.ChannelFromData(cache)
 	return cs
 }

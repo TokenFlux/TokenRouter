@@ -17,7 +17,9 @@
 
 OpenAI 正式支持 `oauth` 与 `apikey`。OAuth 账号保存 access/refresh token、账号/组织上下文和 Codex 能力元数据，后台与请求路径都可触发刷新；API Key 账号保存 key、base URL、工作负载能力、文本协议路由和管理员压缩开关。其它通用导入类型不构成 OpenAI 转发支持，详见[上游账号能力矩阵](upstream_account_matrix.md)。
 
-OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthorization` 持有，app 直接构造同一实例。`account/provider` 将代理、TLS Router/Profile、动态 Codex UA 和隐私查询投影为供应商调用参数，保留原读取时点；不持有第二份会话或刷新状态。token source/refresher 复用原缓存与协调器。共享 OAuth token 与刷新锁的 Redis Adapter 位于 account/rediscache，由 app 构造唯一实例，保留原键和 TTL。Agent Identity 的共享任务锁、锁内复查和凭据登记也由 account 协调，旧服务仍提供其入站投影。
+OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthorization` 持有，app 直接构造同一实例。`account/provider` 将代理、TLS Router/Profile、动态 Codex UA 和隐私查询投影为供应商调用参数，保留原读取时点；不持有第二份会话或刷新状态。token source/refresher 复用原缓存与协调器。共享 OAuth token 与刷新锁的 Redis Adapter 位于 account/rediscache，由 app 构造唯一实例，保留原键和 TTL。Agent Identity 的任务锁、锁内复查和凭据登记由 account 协调；app 显式构造一个协调器供请求执行、额度查询、用量查询和账号探测共同使用，生产全局入口已删除。gateway/provider 的独立身份适配负责请求签名、恢复与脱敏投影，不持有 Gin、完整配置或第二份注册状态；供应商交换与加解密由 upstream/openai 唯一实现。
+
+推理凭据由 `account.OpenAIExecutionCredentials` 统一选择，app 绑定原母账号读取、OpenAI 和 Grok token 源。影子账号在需要凭据时读取母账号，普通账号不增加查询；Agent Identity、setup-token 与缺少 token 源时的存量凭据回退保持独立。setup-token 不进入刷新，OpenAI 与 Messages 对其它平台 setup-token 的拒绝差异继续保留。token 源的运行阻断回调也由 app 在开放请求前绑定，不再由旧网关构造器安装。
 
 供应商 OAuth/PAT/隐私交换、规范 Codex 身份、请求指纹、Header 组合及 WS 客户端位于 `upstream/openai`；WS v2 relay 与 Live attestation 是平台内的技术子包。WS 池唯一持有连接、预热、队列和租约状态，构造不启动 worker，入站拥有者在首次使用时显式启用。完整入站 WS 编排、每轮资金快照和完成处理仍在旧网关。
 
@@ -29,7 +31,11 @@ OAuth 账号可受 Codex CLI-only、允许客户端、agent identity、privacy s
 
 OpenAI OAuth 账号的 `extra.codex_fingerprint_mode` 控制 Codex Responses 的设备指纹收敛，未配置、空值或无效值都默认 `off`，只有 `device`、`session`、`full` 是显式 opt-in：`device` 只统一 installation ID，`session` 进一步统一 session ID 并按客户端原始 session 稳定派生 thread ID，`full` 再把所有客户端收敛到同一 thread。session/full 的 turn ID 每个请求重新生成，但同一次请求的 HTTP 头、`client_metadata` 和内嵌 turn metadata 必须共用同一组 ID；HTTP 内部重试也不得重新派生。普通转换与 OAuth passthrough 都遵守该配置，透传大 body 只局部改写 `client_metadata`，不做整包解码；旧版 `/responses/compact` 保持既有协议且不应用额外收敛。管理员配置的真实 OpenAI device ID 优先于账号 ID 派生值。Spark 影子账号继承父账号模式、device ID 和稳定种子，不允许以影子 ID 分裂同一 OAuth 凭据的上游设备身份。
 
+Codex 身份命名空间与指纹配置组合由 account/provider 负责，签名、ID 派生和 wire 改写继续复用 upstream/openai。gateway/httpapi 分别发布本 attempt 的身份来源和指纹 IDs，沿用 Gin 的同步读写与原覆盖时点；nil IDs 会覆盖旧值。身份来源保留当前记录引用，命名空间在实际 Header/metadata 生成时读取；影子继承与跨账号旧指纹拒绝仍生效。
+
 OpenAI 兼容请求的显式粘性会话头按 `session-id`、`session_id`、`conversation_id`、OpenCode 会话头和 CodeBuddy 会话头依次读取；其中 `session-id` 是 Codex 客户端使用的连字符形式，优先于旧下划线形式。WebSocket 会话日志采用相同优先级，缺少显式会话头时才回退到 `prompt_cache_key`，避免重连时因头名差异漂移到其它账号。
+
+会话 Header 与哈希请求绑定由 gateway/httpapi 提供，内容种子和摘要格式由 gateway/session 拥有。Messages→OpenAI 的摘要绑定使用 app 构造的唯一 `AnthropicPromptCache`，保留账号/Key 命名空间、最长有效前缀、原 TTL 和替换后删除旧链的顺序；没有新增后台清理或持久化。执行适配只传递标识与摘要值，不再在旧服务内持有另一份绑定算法。
 
 <a id="openai_protocol_dispatch"></a>
 ## 协议与传输
@@ -98,6 +104,10 @@ OpenAI 兼容非流式响应的 usage 按 `usage`、`response.usage`、`data.usa
 ### 远程压缩协议
 
 TokenRouter 同时兼容原生 Remote Compaction V2 和旧版 Compact 端点。两者共享 compaction 输出语义，但请求路径、传输方式、账号能力设置和模型改写边界不同：
+
+HTTP 路径识别、body-signal 提升、会话种子和结果日志由 gateway/httpapi 直接拥有；触发项检测、去重及移到 input 末尾由 protocol/openai 唯一实现。OpenAITextHandler 在原读取和校验位置执行这些步骤，不再向旧 Handler 回调。请求字段视图与按需完整解码统一使用 gateway/requeststate，保留首个重复字段、宽容前缀读取、数字精度以及原错误前缀。
+
+Responses 的历史 Chat 形状转换、工具 ID 清理、平台 schema 选择及 WS 兼容处理由 gateway/provider 组合原生协议实现，在线 HTTP 与 WS 消费者使用同一份算法。转换不截断客户端或工具文本；旧的恒 false 截断钩子已删除，完整对象与字段补丁仍在原时点同步。官方、OAuth 和显式 passthrough 的 `none` 保留规则，以及兼容地址的占位值删除规则保持各自边界。
 
 | 边界 | 原生 `remote_compaction_v2` | 旧版 `/responses/compact` |
 | --- | --- | --- |

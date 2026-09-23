@@ -123,7 +123,7 @@ func TestMergeHostedImageGenToolUsage_EmptyImageGen(t *testing.T) {
 }
 
 func TestParseSSEUsageBytes_ResponseCompletedWithImageGen(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	data := []byte(`{
 		"type": "response.completed",
 		"response": {

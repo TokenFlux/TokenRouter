@@ -10,6 +10,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 
 	wire "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -18,13 +20,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *OpenAIGatewayService) nativeRawResponseOptions(c *gin.Context, resp *http.Response, account *Account, billingModel, upstreamModel string, serviceTier *string, writeError compatErrorWriter) openai.RawResponseOptions {
+func (s *OpenAIGatewayService) nativeRawResponseOptions(c *gin.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount, billingModel, upstreamModel string, serviceTier *string, writeError compatErrorWriter) openai.RawResponseOptions {
 	options := openai.RawResponseOptions{
-		Runtime:        bridge.Runtime{Now: time.Now, ReadRandom: rand.Read},
-		Scanner:        s.newUpstreamSSEScanner,
-		CC:             func() openai.CCResponseOptions { return s.nativeCCResponseOptions(c, writeError) },
-		ReadBody:       func(r io.Reader) ([]byte, error) { return ReadUpstreamResponseBody(r, s.cfg, c, openAITooLargeError) },
-		BodyLimitError: ErrUpstreamResponseBodyTooLarge,
+		Runtime: bridge.Runtime{Now: time.Now, ReadRandom: rand.Read},
+		Scanner: s.newUpstreamSSEScanner,
+		CC:      func() openai.CCResponseOptions { return s.nativeCCResponseOptions(c, writeError) },
+		ReadBody: func(r io.Reader) ([]byte, error) {
+			return gatewayhttp.ReadUpstreamResponseBody(r, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.OpenAIResponseTooLarge)
+		},
+		BodyLimitError: httpclient.ErrResponseBodyTooLarge,
 		Headers: func(dst, src http.Header) {
 			if s.responseHeaderFilter != nil {
 				provider.WriteFilteredHeaders(dst, src, s.responseHeaderFilter)
@@ -50,12 +54,14 @@ func (s *OpenAIGatewayService) nativeRawResponseOptions(c *gin.Context, resp *ht
 		RecordTruncation: func(err error) {
 			recordOpenAIRawStreamTruncation(c, account, resp.Header.Get("x-request-id"), err, "http_error")
 		},
-		SilentRefusal: func() error { return newOpenAISilentRefusalFailoverError(c, account, resp.Header.Get("x-request-id")) },
-		CacheOutput:   s.cacheReasoningItemsFromOutput,
-		CacheEvents:   s.cacheReasoningItemsFromEvents,
+		SilentRefusal: func() error {
+			return gatewayhttp.NewOpenAISilentRefusalFailoverError(c, upstreamErrorAccount(account), resp.Header.Get("x-request-id"))
+		},
+		CacheOutput: s.cacheReasoningItemsFromOutput,
+		CacheEvents: s.cacheReasoningItemsFromEvents,
 	}
 	if account != nil {
-		options.AccountID = account.ID
+		options.AccountID = account.Record.ID
 	}
 	return options
 }

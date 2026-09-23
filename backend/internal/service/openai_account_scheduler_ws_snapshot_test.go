@@ -5,11 +5,13 @@ package service
 import (
 	"context"
 	"testing"
+	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -19,8 +21,7 @@ import (
 func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapshotFlags(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(10105)
-	account := &Account{
-		ID:          35001,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 35001,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Status:      billing.StatusActive,
@@ -29,12 +30,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapsh
 		GroupIDs:    []int64{groupID},
 		Extra: map[string]any{
 			"openai_oauth_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
-		},
+		}},
 	}
 
 	snapshotCache := &openAISnapshotCacheStub{
-		snapshotAccounts: []*Account{account},
-		accountsByID:     map[int64]*Account{account.ID: account},
+		snapshotAccounts: []*gatewayprovider.ExecutionAccount{account},
+		accountsByID:     map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}
 	cfg := &config.Config{}
 	cfg.Gateway.OpenAIWS.Enabled = true
@@ -44,8 +45,8 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapsh
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
 	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 
-	svc := &OpenAIGatewayService{
-		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []Account{*account}},
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
+		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{*account}},
 		cache:             &schedulerTestGatewayCache{},
 		cfg:               cfg,
 		rateLimitService:  newAdvancedSchedulerRateLimitService("true"),
@@ -54,7 +55,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapsh
 			Event: logging.Event,
 		},
 		),
-	}
+	}))
 
 	selection, decision, err := svc.SelectAccountWithScheduler(
 		ctx,
@@ -67,6 +68,6 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapsh
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.Account)
-	require.Equal(t, account.ID, selection.Account.ID)
+	require.Equal(t, account.Record.ID, selection.Account.Record.ID)
 	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
 }

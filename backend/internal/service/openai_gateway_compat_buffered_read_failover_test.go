@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -43,8 +45,8 @@ func TestChatCompletionsBufferedResponsesReadErrorReturnsFailover(t *testing.T) 
 				Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "X-Request-Id": []string{"upstream-rid"}},
 				Body:       &openAICompatBufferedReadErrorCloser{err: test.err},
 			}
-			result, err := (&OpenAIGatewayService{}).handleChatBufferedStreamingResponse(
-				resp, c, &Account{ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI},
+			result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).handleChatBufferedStreamingResponse(
+				resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},
 				"gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(),
 			)
 			require.Error(t, err)
@@ -68,8 +70,8 @@ func TestChatCompletionsBufferedResponsesReadErrorDoesNotFailoverAfterClientCanc
 	cancel()
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(requestContext)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: &openAICompatBufferedReadErrorCloser{err: io.ErrUnexpectedEOF}}
-	result, err := (&OpenAIGatewayService{}).handleChatBufferedStreamingResponse(
-		resp, c, &Account{ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI},
+	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).handleChatBufferedStreamingResponse(
+		resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},
 		"gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(),
 	)
 	require.Error(t, err)
@@ -84,8 +86,8 @@ func TestChatCompletionsBufferedResponsesOversizedLineDoesNotFailover(t *testing
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: &openAICompatBufferedReadErrorCloser{err: bufio.ErrTooLong}}
-	result, err := (&OpenAIGatewayService{}).handleChatBufferedStreamingResponse(
-		resp, c, &Account{ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI},
+	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).handleChatBufferedStreamingResponse(
+		resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},
 		"gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(),
 	)
 	require.ErrorIs(t, err, bufio.ErrTooLong)
@@ -100,8 +102,8 @@ func TestAnthropicBufferedResponsesReadErrorKeepsExistingBehavior(t *testing.T) 
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: &openAICompatBufferedReadErrorCloser{err: io.ErrUnexpectedEOF}}
-	result, err := (&OpenAIGatewayService{}).handleAnthropicBufferedStreamingResponse(
-		resp, c, &Account{ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI},
+	result, err := (withSchedulerParametersForTest(&OpenAIGatewayService{})).handleAnthropicBufferedStreamingResponse(
+		resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 40, Name: "openai-oauth", Platform: capability.PlatformOpenAI}},
 		"gpt-5.6-sol", "gpt-5.6-sol", "gpt-5.6-sol", time.Now(),
 	)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)

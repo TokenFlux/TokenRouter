@@ -16,8 +16,8 @@ type anthropicPassthroughAdapter struct{ *messageExecutionAdapter }
 
 func (a *anthropicPassthroughAdapter) TokenKind() string { return a.tokenType }
 func (a *anthropicPassthroughAdapter) ResolveProxy() {
-	if a.account.ProxyID != nil && a.account.Proxy != nil {
-		a.proxyURL = a.account.Proxy.URL()
+	if a.account.Record.ProxyID != nil && a.account.Record.Proxy != nil {
+		a.proxyURL = a.account.Record.Proxy.URL()
 	}
 }
 func (a *anthropicPassthroughAdapter) MarkPassthrough() {
@@ -28,7 +28,7 @@ func (a *anthropicPassthroughAdapter) MarkPassthrough() {
 func (a *anthropicPassthroughAdapter) ExecutePassthrough(ctx context.Context, in *forwardcore.APIKeyInput, h forwardcore.MessageHooks) (upstream.AttemptResult, error) {
 	options := a.s.anthropicPassthroughExchangeOptions(ctx, a.c, a.account, a.token, a.proxyURL, in)
 	target := &claude.Target{
-		AccountID: a.account.ID, Model: in.RequestModel, Passthrough: true, Exchange: options,
+		AccountID: a.account.Record.ID, Model: in.RequestModel, Passthrough: true, Exchange: options,
 		Response: a.s.anthropicResponseOptions(ctx, a.c, a.account, in.RequestModel, true), StartedAt: in.StartTime,
 		BeforeResponse: func(ctx context.Context, resp *http.Response, wire []byte) (bool, error) {
 			a.response = resp

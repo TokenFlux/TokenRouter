@@ -121,7 +121,7 @@ Grok Build CLI 的模型配置必须指向 TokenRouter 对外地址（以 `/v1` 
 - `XAI_BASE_URL`
 - `XAI_GROK_CLI_VERSION`：覆盖 Grok CLI 客户端版本；内置版本与最低允许版本均为 `0.2.114`，覆盖值必须是规范 SemVer 且不得低于该版本
 
-进程配置 `gateway.grok` 还包含 Free OAuth 账号的本地滚动窗口软门禁：默认 24 小时、500000 token、95% 停调阈值和 60 秒统计缓存。只有明确标记为 Free 的账号参与；未知或付费层级以及数据库/统计失败均 fail-open。管理端主动额度查询和导入探测不经过该软门禁。
+进程配置 `gateway.grok` 还包含 Free OAuth 账号的本地滚动窗口软门禁：默认 24 小时、500000 token、95% 停调阈值和 60 秒统计缓存。只有明确标记为 Free 的账号参与；未知或付费层级以及数据库/统计失败均 fail-open。管理端主动额度查询和导入探测不经过该软门禁。门禁裁决与缓存由 `account.FreeQuotaGate` 拥有，app 投影配置、绑定 usage 批量统计和后台任务屏障；两条普通选择链分别共享自身缓存，高级调度器按实例保持独立缓存，首次缺失仍放行并后台刷新。
 
 自定义 base URL 和媒体/billing 子路径都必须通过同一 URL allowlist/SSRF 校验。环境变量中的 client secret、token 和上游 URL 不得进入前端配置或错误响应。
 

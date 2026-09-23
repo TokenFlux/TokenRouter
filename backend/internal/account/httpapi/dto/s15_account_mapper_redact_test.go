@@ -3,15 +3,16 @@ package dto_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAccountFromServiceShallow_RedactsSensitiveCredentials(t *testing.T) {
-	src := &service.Account{
+	src := &account.Record{Now: time.Now, LoadLocation: time.LoadLocation,
 		ID:       42,
 		Name:     "demo",
 		Platform: "anthropic",
@@ -26,7 +27,7 @@ func TestAccountFromServiceShallow_RedactsSensitiveCredentials(t *testing.T) {
 		},
 	}
 
-	got := AccountFromServiceShallow(src)
+	got := dto.AccountFromRecordShallow(src)
 	require.NotNil(t, got)
 
 	// 敏感键不在 Credentials 里
@@ -55,7 +56,7 @@ func TestAccountFromServiceShallow_RedactsSensitiveCredentials(t *testing.T) {
 	require.Contains(t, string(raw), "credentials_status")
 	require.Contains(t, string(raw), "has_refresh_token")
 
-	// 原始 service.Account 不应被改动
+	// 原始 account.Record 不应被改动
 	require.Equal(t, "rt-secret", src.Credentials["refresh_token"])
 }
 
@@ -66,7 +67,7 @@ func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) 
 		"next_refresh_at": "2026-07-22T13:00:00Z",
 		"data":            map[string]any{"plan": "Pro"},
 	}
-	src := &service.Account{
+	src := &account.Record{Now: time.Now, LoadLocation: time.LoadLocation,
 		ID: 9, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"base_url": "https://ollama.com", "api_key": "secret-key",
@@ -80,7 +81,7 @@ func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) 
 		},
 	}
 
-	got := AccountFromServiceShallow(src)
+	got := dto.AccountFromRecordShallow(src)
 	require.NotContains(t, got.Extra, account.OllamaCloudUsageSessionExtraKey)
 	require.NotContains(t, got.Extra, account.OllamaCloudUsageAutoRefreshExtraKey)
 	require.NotContains(t, got.Extra, account.OllamaCloudUsageSnapshotExtraKey)
@@ -99,7 +100,7 @@ func TestAccountFromServiceShallow_RedactsOllamaCloudManagedExtra(t *testing.T) 
 }
 
 func TestAccountFromServiceShallow_RedactsLegacyUpstreamUsageSecrets(t *testing.T) {
-	src := &service.Account{
+	src := &account.Record{Now: time.Now, LoadLocation: time.LoadLocation,
 		ID: 10, Type: capability.AccountTypeAPIKey,
 		Extra: map[string]any{
 			account.UpstreamUsageQueryExtraKey: map[string]any{
@@ -108,7 +109,7 @@ func TestAccountFromServiceShallow_RedactsLegacyUpstreamUsageSecrets(t *testing.
 			},
 		},
 	}
-	got := AccountFromServiceShallow(src)
+	got := dto.AccountFromRecordShallow(src)
 	require.Equal(t, map[string]any{
 		"enabled": true,
 	}, got.Extra[account.UpstreamUsageQueryExtraKey])
@@ -122,28 +123,28 @@ func TestAccountFromServiceShallow_RedactsLegacyUpstreamUsageSecrets(t *testing.
 }
 
 func TestAccountFromServiceShallow_PreservesZivvAdapterSelection(t *testing.T) {
-	src := &service.Account{
+	src := &account.Record{Now: time.Now, LoadLocation: time.LoadLocation,
 		ID: 11, Type: capability.AccountTypeAPIKey,
 		Extra: map[string]any{account.UpstreamUsageQueryExtraKey: map[string]any{
 			"enabled": true, "adapter": account.UpstreamUsageAdapterZivv,
 		}},
 	}
-	got := AccountFromServiceShallow(src)
+	got := dto.AccountFromRecordShallow(src)
 	require.Equal(t, map[string]any{
 		"enabled": true, "adapter": account.UpstreamUsageAdapterZivv,
 	}, got.Extra[account.UpstreamUsageQueryExtraKey])
 }
 
 func TestAccountFromServiceShallow_NilCredentialsOmitsStatus(t *testing.T) {
-	src := &service.Account{ID: 1, Name: "n", Platform: "anthropic", Type: "oauth"}
-	got := AccountFromServiceShallow(src)
+	src := &account.Record{Now: time.Now, LoadLocation: time.LoadLocation, ID: 1, Name: "n", Platform: "anthropic", Type: "oauth"}
+	got := dto.AccountFromRecordShallow(src)
 	require.NotNil(t, got)
 	require.Nil(t, got.Credentials)
 	require.Nil(t, got.CredentialsStatus)
 }
 
 func TestAccountFromServiceShallow_OpenAIOAuthTLSFingerprint(t *testing.T) {
-	src := &service.Account{
+	src := &account.Record{Now: time.Now, LoadLocation: time.LoadLocation,
 		ID:       3,
 		Name:     "openai-oauth",
 		Platform: capability.PlatformOpenAI,
@@ -154,7 +155,7 @@ func TestAccountFromServiceShallow_OpenAIOAuthTLSFingerprint(t *testing.T) {
 		},
 	}
 
-	got := AccountFromServiceShallow(src)
+	got := dto.AccountFromRecordShallow(src)
 	require.NotNil(t, got)
 	require.NotNil(t, got.EnableTLSFingerprint)
 	require.True(t, *got.EnableTLSFingerprint)

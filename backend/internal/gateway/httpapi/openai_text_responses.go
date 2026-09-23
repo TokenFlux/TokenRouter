@@ -9,6 +9,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -30,7 +31,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
 	compactStartedAt := time.Now()
-	defer h.backend.CompactOutcome(c, compactStartedAt)
+	defer h.LogRemoteCompactOutcome(c, compactStartedAt)
 	h.backend.TransportHTTP(c)
 
 	requestStart := time.Now()
@@ -76,11 +77,11 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	}
 
 	h.backend.ObserveRequest(c, "", false)
-	body, ok = h.backend.NormalizeCompact(c, reqLog, body)
+	body, ok = h.normalizeOpenAIResponsesCompactRequest(c, reqLog, body)
 	if !ok {
 		return
 	}
-	legacyCompact, nativeCompactionV2 := h.backend.CompactFlags(c, body)
+	legacyCompact, nativeCompactionV2 := IsOpenAIResponsesCompactPath(c), IsBareOpenAIResponsesPath(c) && IsOpenAIRemoteCompactionV2Request(body)
 	// body-signal compact：上游 unary 等待期间向下游发 SSE 注释行心跳，防止
 	// 反向代理空闲超时掐断长压缩连接（#3887）。首拍延迟一个心跳间隔，快速
 	// 失败仍走 JSON+状态码链路；未标记客户端流式或间隔为 0 时是 no-op。
@@ -94,7 +95,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 		return
 	}
 	// 用户提示词替换必须在 compact 归一化之后、模型解析之前执行。
-	body = h.prompt.ApplyUserPromptReplacement(c.Request.Context(), body, "openai_responses")
+	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "openai_responses")
 	sessionHashBody := body
 
 	// 使用 gjson 只读提取字段做校验，避免完整 Unmarshal
@@ -280,7 +281,7 @@ func (h *OpenAITextHandler) Responses(c *gin.Context) {
 	// 复用前置权限与并发阶段按渠道模型 C 和未再修改的 forwardBody 确认的显式生图意图，
 	// 避免大 tools 请求重复扫描。
 	// 该判断已排除 Codex 被动 image_gen namespace，避免 CC-only 账号被误过滤（#4476）。
-	requiredCapability := h.backend.RequiredCapability(
+	requiredCapability := textflow.RequiredResponsesCapability(
 		imageIntent,
 		nativeCompactionV2,
 		legacyCompact,

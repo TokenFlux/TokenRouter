@@ -16,12 +16,14 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache/codec"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/antigravity"
 )
 
 // provideAntigravityRetry 在健康配置绑定完成后组合唯一平台适配，尚存网关只持有同一实例。
-func provideAntigravityRetry(source *service.AntigravityGatewayService, store *accountpostgres.AccountStore, counter account.Internal500CounterCache, limits *service.RateLimitService, _ *account.RecoveryService, snapshots *service.SchedulerSnapshotService, transport httpclient.UpstreamTransport, cfg *config.Config) *provider.AntigravityRetry {
+func provideAntigravityRetry(source *service.AntigravityGatewayService, store *accountpostgres.AccountStore, counter account.Internal500CounterCache, runtime *accountHealthRuntime, snapshots *scheduler.SnapshotService, transport httpclient.UpstreamTransport, cfg *config.Config) *provider.AntigravityRetry {
 	health := &account.AntigravityHealth{Store: store, Counter: counter, ModelKeys: provider.AntigravityModelLimitKeys, Error: slog.Error, Warn: slog.Warn, Info: slog.Info,
 		Logf: func(format string, values ...any) {
 			logging.LegacyPrintf("service.antigravity_gateway", format, values...)
@@ -29,10 +31,10 @@ func provideAntigravityRetry(source *service.AntigravityGatewayService, store *a
 	}
 	if snapshots != nil {
 		health.Publish = func(ctx context.Context, value *account.Record) error {
-			return snapshots.UpdateAccountInCache(ctx, service.AccountFromRecord(value))
+			return snapshots.UpdateAccountInCache(ctx, codec.WrapRecord(value))
 		}
 	}
-	core := &provider.AntigravityRetry{Health: health, Policy: limits.HealthCore(), Do: transport.Do,
+	core := &provider.AntigravityRetry{Health: health, Policy: runtime.Health, Do: transport.Do,
 		BaseURL: func(value *account.Record) string {
 			return antigravity.ResolveAntigravityForwardBaseURL(os.Getenv("GATEWAY_ANTIGRAVITY_FORWARD_BASE_URL"), provider.AntigravityPaidTier(value))
 		},
@@ -62,7 +64,7 @@ func provideAntigravityRetry(source *service.AntigravityGatewayService, store *a
 		DefaultDuration: func() time.Duration {
 			return provider.AntigravityFallbackDuration(cfg.Gateway.AntigravityFallbackCooldownMinutes, os.Getenv("GATEWAY_ANTIGRAVITY_FALLBACK_COOLDOWN_SECONDS"))
 		},
-		SetRateLimited: store.SetRateLimited, Other: limits.UpstreamHealth(),
+		SetRateLimited: store.SetRateLimited, Other: runtime.Observer,
 	})
 	source.BindAntigravityHealth(health)
 	source.BindAntigravityRetry(core)

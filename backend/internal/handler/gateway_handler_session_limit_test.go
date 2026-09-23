@@ -13,11 +13,16 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	scheduler "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
@@ -27,7 +32,6 @@ import (
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/testutil"
 	"github.com/gin-gonic/gin"
@@ -85,28 +89,31 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 	t.Helper()
 	groupID := int64(11)
 	group := &routing.Group{ID: groupID, Hydrated: true, Platform: capability.PlatformAnthropic, Status: billing.StatusActive}
-	accounts := []*service.Account{{
-		ID: 12, Name: "session-test", Platform: capability.PlatformAnthropic, Type: accountType,
+	accounts := []*gatewayprovider.ExecutionAccount{{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Name: "session-test", Platform: capability.PlatformAnthropic, Type: accountType,
 		Credentials: map[string]any{"access_token": "test-token"}, Extra: map[string]any{"max_sessions": 1},
 		Concurrency: 2, Status: billing.StatusActive, Schedulable: true,
-		AccountGroups: []service.AccountGroup{{AccountID: 12, GroupID: groupID}},
+		AccountGroups: []accountcore.GroupMembership{{AccountID: 12, GroupID: groupID}}},
 	}}
 	if failover {
 		second := *accounts[0]
-		second.ID, second.Priority = 13, 1
-		second.AccountGroups = []service.AccountGroup{{AccountID: second.ID, GroupID: groupID}}
+		second.Record.ID, second.Record.Priority = 13, 1
+		second.Record.AccountGroups = []accountcore.GroupMembership{{AccountID: second.Record.ID, GroupID: groupID}}
 		accounts = append(accounts, &second)
 	}
 	sessions := &gatewaySessionLimitCacheStub{registered: make(map[int64][]string), unregistered: make(map[int64][]string)}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	snapshots := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: accounts}, nil, nil, nil, nil)
+	snapshots := scheduler.NewSnapshotService(&fakeSchedulerCache{accounts: accounts}, nil, nil, nil, nil, scheduler.SnapshotBindings{})
 	billingCache := newBillingEligibilityFixture(cfg)
 	billingCache.Start()
 	t.Cleanup(billingCache.Stop)
+	completionInput1 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	gateway := service.NewGatewayService(
-		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, cfg, snapshots, nil, billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil), nil, billingCache, nil, upstream, nil, nil, sessions, sessions,
-		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, &fakeGroupRepo{group: group}, nil, nil, cfg, snapshots, nil, nil, nil, upstream, nil, nil, sessions, sessions,
+		nil, nil, nil, nil, nil, nil, responseHeaderFilterForTest(cfg),
 	)
+	gateway.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput1, billingCache, nil,
+		nil, nil, false))
+
 	h := &GatewayHandler{
 		cfg: cfg, gatewayService: gateway, billingCacheService: newFundingAdmissionFixture(billingCache, cfg),
 		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -133,8 +140,8 @@ func serveGatewaySessionMessage(h *GatewayHandler, key *apikey.APIKey, stream bo
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewBufferString(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Request = c.Request.WithContext(requeststate.WithGroup(c.Request.Context(), key.Group))
-	c.Set(string(middleware.ContextKeyAPIKey), key)
-	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: key.UserID, Concurrency: 10})
+	c.Set(string(keyhttp.ContextKeyAPIKey), key)
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: key.UserID, Concurrency: 10})
 	h.Messages(c)
 	return recorder
 }

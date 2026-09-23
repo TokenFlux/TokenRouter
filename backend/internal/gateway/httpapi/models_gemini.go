@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// @project-doc docs/domains/api_key_model_redirects.md#model_list_projection
 func (h *ModelsHandler) GeminiV1BetaListModels(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "google")
 	if !accepted {

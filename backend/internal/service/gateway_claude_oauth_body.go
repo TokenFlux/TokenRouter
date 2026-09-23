@@ -2,6 +2,7 @@ package service
 
 import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -23,7 +24,7 @@ func (s *GatewayService) replaceModelInBody(body []byte, newModel string) []byte
 	return openaiprotocol.ReplaceModelInBody(body, newModel)
 }
 
-func (s *GatewayService) buildOAuthMetadataUserID(parsed *requeststate.ParsedRequest, account *Account, fp *claude.Fingerprint) string {
+func (s *GatewayService) buildOAuthMetadataUserID(parsed *requeststate.ParsedRequest, account *gatewayprovider.ExecutionAccount, fp *claude.Fingerprint) string {
 	if parsed == nil || account == nil {
 		return ""
 	}
@@ -31,7 +32,7 @@ func (s *GatewayService) buildOAuthMetadataUserID(parsed *requeststate.ParsedReq
 		return ""
 	}
 
-	userID := strings.TrimSpace(account.GetClaudeUserID())
+	userID := strings.TrimSpace(account.View().GetClaudeUserID())
 	if userID == "" && fp != nil {
 		userID = fp.ClientID
 	}
@@ -48,7 +49,7 @@ func (s *GatewayService) buildOAuthMetadataUserID(parsed *requeststate.ParsedReq
 	if parsed.Body != nil {
 		firstUserText = claude.ExtractFirstUserText(parsed.Body.Bytes())
 	}
-	seed := claude.BuildStableSessionSeed(account.ID, sessionContextDiscriminator(parsed.SessionContext), firstUserText)
+	seed := claude.BuildStableSessionSeed(account.Record.ID, sessionContextDiscriminator(parsed.SessionContext), firstUserText)
 	sessionID := upstream.GenerateSessionUUID(seed)
 
 	// 根据指纹 UA 版本选择输出格式
@@ -56,7 +57,7 @@ func (s *GatewayService) buildOAuthMetadataUserID(parsed *requeststate.ParsedReq
 	if fp != nil {
 		uaVersion = claude.ExtractCLIVersion(fp.UserAgent)
 	}
-	accountUUID := strings.TrimSpace(account.GetExtraString("account_uuid"))
+	accountUUID := strings.TrimSpace(account.View().GetExtraString("account_uuid"))
 	return claude.FormatMetadataUserID(userID, accountUUID, sessionID, uaVersion)
 }
 
@@ -82,13 +83,13 @@ func (s *GatewayService) buildOAuthMetadataUserID(parsed *requeststate.ParsedReq
 func (s *GatewayService) applyClaudeCodeOAuthMimicryToBody(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	systemRaw any,
 	model string,
 ) []byte {
 	adapter := &mimicExecutionAdapter{messageExecutionAdapter: newMessageExecutionAdapter(s, c, account), systemRaw: systemRaw}
-	return forwardcore.Mimic(ctx, adapter, account != nil && account.IsOAuth(), body, model)
+	return forwardcore.Mimic(ctx, adapter, account != nil && account.View().IsOAuth(), body, model)
 }
 
 // buildOAuthMetadataUserIDFromBody 是 buildOAuthMetadataUserID 的变体，
@@ -100,7 +101,7 @@ func (s *GatewayService) applyClaudeCodeOAuthMimicryToBody(
 //     自行决定是否覆盖）。
 func (s *GatewayService) buildOAuthMetadataUserIDFromBody(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	fp *claude.Fingerprint,
 	body []byte,
 ) string {
@@ -112,7 +113,7 @@ func (s *GatewayService) buildOAuthMetadataUserIDFromBody(
 		return ""
 	}
 
-	userID := strings.TrimSpace(account.GetClaudeUserID())
+	userID := strings.TrimSpace(account.View().GetClaudeUserID())
 	if userID == "" && fp != nil {
 		userID = fp.ClientID
 	}
@@ -126,14 +127,14 @@ func (s *GatewayService) buildOAuthMetadataUserIDFromBody(
 	if fp != nil {
 		clientDiscriminator = fp.ClientID
 	}
-	seed := claude.BuildStableSessionSeed(account.ID, clientDiscriminator, claude.ExtractFirstUserText(body))
+	seed := claude.BuildStableSessionSeed(account.Record.ID, clientDiscriminator, claude.ExtractFirstUserText(body))
 	sessionID := upstream.GenerateSessionUUID(seed)
 
 	var uaVersion string
 	if fp != nil {
 		uaVersion = claude.ExtractCLIVersion(fp.UserAgent)
 	}
-	accountUUID := strings.TrimSpace(account.GetExtraString("account_uuid"))
+	accountUUID := strings.TrimSpace(account.View().GetExtraString("account_uuid"))
 	return claude.FormatMetadataUserID(userID, accountUUID, sessionID, uaVersion)
 }
 
@@ -146,8 +147,8 @@ func sessionContextDiscriminator(sc *requeststate.SessionContext) string {
 	return sc.ClientIP + ":" + requeststate.NormalizeSessionUserAgent(sc.UserAgent) + ":" + strconv.FormatInt(sc.APIKeyID, 10)
 }
 
-func (s *GatewayService) shouldInjectAnthropicCacheTTL1h(ctx context.Context, account *Account) bool {
-	if account == nil || !account.IsAnthropicOAuthOrSetupToken() || s == nil || s.settingService == nil {
+func (s *GatewayService) shouldInjectAnthropicCacheTTL1h(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
+	if account == nil || !account.View().IsAnthropicOAuthOrSetupToken() || s == nil || s.settingService == nil {
 		return false
 	}
 	return s.settingService.Gateway.IsAnthropicCacheTTL1hInjectionEnabled(ctx)
@@ -157,8 +158,8 @@ func (s *GatewayService) shouldInjectAnthropicCacheTTL1h(ctx context.Context, ac
 // dateline should be normalized before forwarding to Anthropic. The switch is
 // scoped to Anthropic OAuth/SetupToken accounts only; API-Key accounts and
 // non-Anthropic platforms bypass this step entirely.
-func (s *GatewayService) shouldNormalizeClientDateline(ctx context.Context, account *Account) bool {
-	if account == nil || !account.IsAnthropicOAuthOrSetupToken() || s == nil || s.settingService == nil {
+func (s *GatewayService) shouldNormalizeClientDateline(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
+	if account == nil || !account.View().IsAnthropicOAuthOrSetupToken() || s == nil || s.settingService == nil {
 		return false
 	}
 	return s.settingService.Gateway.IsClientDatelineNormalizationEnabled(ctx)
@@ -168,7 +169,7 @@ func (s *GatewayService) shouldNormalizeClientDateline(ctx context.Context, acco
 // the switch is on and the account qualifies. Returns (nextBody, true) only
 // when the body actually changed; otherwise returns (nil, false) so callers
 // can skip the writeback.
-func (s *GatewayService) normalizeClientDatelineIfEnabled(ctx context.Context, account *Account, body []byte) ([]byte, bool) {
+func (s *GatewayService) normalizeClientDatelineIfEnabled(ctx context.Context, account *gatewayprovider.ExecutionAccount, body []byte) ([]byte, bool) {
 	if !s.shouldNormalizeClientDateline(ctx, account) {
 		return nil, false
 	}

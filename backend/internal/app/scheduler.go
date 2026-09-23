@@ -10,12 +10,10 @@ import (
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/repository"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	schedulerredis "github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,9 +24,6 @@ func provideSchedulerCache(rdb *redis.Client, cfg *config.Config) *schedulerredi
 		options.WriteChunkSize = cfg.Gateway.Scheduling.SnapshotWriteChunkSize
 	}
 	return schedulerredis.NewSnapshotCache(rdb, codec.AccountCodec{}, options)
-}
-func provideLegacySchedulerCache(cache *schedulerredis.SnapshotCache) service.SchedulerCache {
-	return repository.WrapSchedulerCache(cache)
 }
 func provideSchedulerSnapshot(cache scheduler.SnapshotCache, outbox scheduler.SchedulerOutboxRepository, accounts *accountpostgres.AccountStore, groups *routingpostgres.GroupStore, cfg *config.Config) *scheduler.SnapshotService {
 	var options *scheduler.SnapshotOptions
@@ -46,9 +41,7 @@ func provideSchedulerSnapshot(cache scheduler.SnapshotCache, outbox scheduler.Sc
 			Event: logging.Event},
 		})
 }
-func provideLegacySchedulerSnapshot(core *scheduler.SnapshotService, groups routing.GroupRepository) *service.SchedulerSnapshotService {
-	return service.WrapSchedulerSnapshot(core, groups)
-}
+
 func provideConcurrencyCache(rdb *redis.Client, cfg *config.Config) scheduler.ConcurrencyCache {
 	ttl := int(cfg.Gateway.Scheduling.StickySessionWaitTimeout.Seconds())
 	if cfg.Gateway.Scheduling.FallbackWaitTimeout > cfg.Gateway.Scheduling.StickySessionWaitTimeout {

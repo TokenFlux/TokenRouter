@@ -146,7 +146,7 @@ func (h *CompatibleTextHandler) Responses(c *gin.Context) {
 		return
 	}
 	// 用户提示词替换必须早于模型解析、内容审计和会话 hash，确保后续链路看到同一份请求体。
-	body = h.prompt.ApplyUserPromptReplacement(c.Request.Context(), body, "openai_responses")
+	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "openai_responses")
 
 	// 按原字段规则读取模型与流标志
 	modelResult := gjson.GetBytes(body, "model")
@@ -329,7 +329,7 @@ func (h *CompatibleTextHandler) ChatCompletions(c *gin.Context) {
 	}
 
 	// 用户提示词替换必须早于模型解析、内容审计和会话 hash，确保后续链路看到同一份请求体。
-	body = h.prompt.ApplyUserPromptReplacement(c.Request.Context(), body, "chat_completions")
+	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "chat_completions")
 
 	// 读取模型与流标志
 	modelResult := gjson.GetBytes(body, "model")

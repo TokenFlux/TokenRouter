@@ -8,6 +8,8 @@ import (
 	strconv "strconv"
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	ip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
@@ -99,7 +101,7 @@ func (h *PasskeyHandler) FinishLogin(c *gin.Context) {
 }
 
 func (h *PasskeyHandler) BeginRegistration(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -113,7 +115,7 @@ func (h *PasskeyHandler) BeginRegistration(c *gin.Context) {
 }
 
 func (h *PasskeyHandler) FinishRegistration(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -138,7 +140,7 @@ func (h *PasskeyHandler) FinishRegistration(c *gin.Context) {
 }
 
 func (h *PasskeyHandler) List(c *gin.Context) {
-	subject, ok := GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -199,16 +201,16 @@ func BindPasskeyFinishRequest(c *gin.Context) (*PasskeyFinishRequest, bool) {
 	return &req, true
 }
 
-func PasskeyMutationTarget(c *gin.Context) (AuthSubject, int64, bool) {
-	subject, ok := GetAuthSubjectFromContext(c)
+func PasskeyMutationTarget(c *gin.Context) (authctx.AuthSubject, int64, bool) {
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
-		return AuthSubject{}, 0, false
+		return authctx.AuthSubject{}, 0, false
 	}
 	credentialID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || credentialID <= 0 {
 		response.BadRequest(c, "Invalid passkey ID")
-		return AuthSubject{}, 0, false
+		return authctx.AuthSubject{}, 0, false
 	}
 	return subject, credentialID, true
 }

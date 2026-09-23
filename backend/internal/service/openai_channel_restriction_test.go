@@ -5,10 +5,14 @@ package service
 import (
 	"context"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +20,7 @@ import (
 func TestOpenAISelectAccountForModelWithExclusions_ChannelMappedRestrictionRejectsEarly(t *testing.T) {
 	t.Parallel()
 
-	channelSvc := newTestChannelService(makeStandardRepo(routing.Channel{
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(routing.Channel{
 		ID:                 1,
 		Status:             billing.StatusActive,
 		GroupIDs:           []int64{10},
@@ -30,12 +34,12 @@ func TestOpenAISelectAccountForModelWithExclusions_ChannelMappedRestrictionRejec
 		},
 	}, map[int64]string{10: capability.PlatformOpenAI}))
 
-	svc := &OpenAIGatewayService{
-		accountRepo: stubOpenAIAccountRepo{accounts: []Account{
-			{ID: 1, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, Schedulable: true},
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
+		accountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Status: billing.StatusActive, Schedulable: true}},
 		}},
 		channelService: channelSvc,
-	}
+	}))
 
 	groupID := int64(10)
 	_, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "", "gpt-4.1", nil)
@@ -46,7 +50,7 @@ func TestOpenAISelectAccountForModelWithExclusions_ChannelMappedRestrictionRejec
 func TestOpenAISelectAccountForModelWithExclusions_UpstreamRestrictionSkipsDisallowedAccount(t *testing.T) {
 	t.Parallel()
 
-	channelSvc := newTestChannelService(makeStandardRepo(routing.Channel{
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(routing.Channel{
 		ID:                 1,
 		Status:             billing.StatusActive,
 		GroupIDs:           []int64{10},
@@ -57,43 +61,41 @@ func TestOpenAISelectAccountForModelWithExclusions_UpstreamRestrictionSkipsDisal
 		},
 	}, map[int64]string{10: capability.PlatformOpenAI}))
 
-	svc := &OpenAIGatewayService{
-		accountRepo: stubOpenAIAccountRepo{accounts: []Account{
-			{
-				ID:          1,
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
+		accountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
 				Priority:    10,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"gpt-4.1": "gpt-4o"},
-				},
+				}},
 			},
-			{
-				ID:          2,
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
 				Priority:    20,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"gpt-4.1": "o3-mini"},
-				},
+				}},
 			},
 		}},
 		channelService: channelSvc,
-	}
+	}))
 
 	groupID := int64(10)
 	account, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "", "gpt-4.1", nil)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(2), account.ID)
+	require.Equal(t, int64(2), account.Record.ID)
 }
 
 func TestOpenAISelectAccountForModelWithExclusions_StickyRestrictedUpstreamFallsBack(t *testing.T) {
 	t.Parallel()
 
-	channelSvc := newTestChannelService(makeStandardRepo(routing.Channel{
+	channelSvc := routingtestkit.ChannelWithRepository(routingtestkit.StandardChannelRepository(routing.Channel{
 		ID:                 1,
 		Status:             billing.StatusActive,
 		GroupIDs:           []int64{10},
@@ -107,38 +109,36 @@ func TestOpenAISelectAccountForModelWithExclusions_StickyRestrictedUpstreamFalls
 	cache := &stubGatewayCache{
 		sessionBindings: map[string]int64{"openai:sticky-session": 1},
 	}
-	svc := &OpenAIGatewayService{
-		accountRepo: stubOpenAIAccountRepo{accounts: []Account{
-			{
-				ID:          1,
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
+		accountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
 				Priority:    10,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"gpt-4.1": "gpt-4o"},
-				},
+				}},
 			},
-			{
-				ID:          2,
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 				Platform:    capability.PlatformOpenAI,
 				Status:      billing.StatusActive,
 				Schedulable: true,
 				Priority:    20,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"gpt-4.1": "o3-mini"},
-				},
+				}},
 			},
 		}},
 		channelService: channelSvc,
 		cache:          cache,
-	}
+	}))
 
 	groupID := int64(10)
 	account, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "sticky-session", "gpt-4.1", nil)
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(2), account.ID)
+	require.Equal(t, int64(2), account.Record.ID)
 	require.Equal(t, 1, cache.deletedSessions["openai:sticky-session"])
 	require.Equal(t, int64(2), cache.sessionBindings["openai:sticky-session"])
 }

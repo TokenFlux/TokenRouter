@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -30,15 +31,15 @@ func TestS09QoderNativeChainCompletionFailures(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			account, platform, client := gatewaytestkit.NewDefaultQoderFixture()
 			client.Body = qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"content": "served"}}}}) + qoderWrappedSSELineForTest(t, map[string]any{"usage": map[string]any{"prompt_tokens": 12, "completion_tokens": 3}}) + qoderWrappedErrorSSELineForTest(t, 502, map[string]any{"code": "500", "message": "fixture failure"})
-			usageRepo := &openAIRecordUsageLogRepoStub{}
-			billingRepo := &openAIRecordUsageBillingRepoStub{}
+			usageRepo := &gatewaytestkit.UsageLogStore{}
+			billingRepo := &gatewaytestkit.SettlementStore{}
 			if tc.billingFail {
-				billingRepo.err = errors.New("fixture billing unavailable")
+				billingRepo.Err = errors.New("fixture billing unavailable")
 			}
 			if tc.logFail {
-				usageRepo.err = usage.MarkUsageLogCreateNotPersisted(errors.New("fixture usage unavailable"))
+				usageRepo.Err = usage.MarkUsageLogCreateNotPersisted(errors.New("fixture usage unavailable"))
 			}
-			completion := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+			completion := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &gatewaytestkit.UserStore{}, &gatewaytestkit.SubscriptionStore{})
 			rec := httptest.NewRecorder()
 			body := []byte(`{"model":"auto","stream":true,"messages":[{"role":"user","content":"hi"}]}`)
 			// 与生产桥接使用相同目标投影和结果转换，实际调用保留的完成用例。
@@ -48,7 +49,7 @@ func TestS09QoderNativeChainCompletionFailures(t *testing.T) {
 			ports := gateway.RequestPorts{CanFailover: func(error) bool { return true }, Select: func(context.Context, map[int64]struct{}) (*gateway.Selection, error) {
 				return &gateway.Selection{Acquired: true, Release: func() { released++ }, Executor: executor, Input: input, Bind: func(context.Context, upstream.AttemptResult) { bound++ }, Complete: func(ctx context.Context, r upstream.AttemptResult) {
 					completed++
-					completionErr = completion.RecordUsage(ctx, &RecordUsageInput{Result: forwardcore.MessagesFromAttempt(r), APIKey: &apikey.APIKey{ID: 505}, User: &identity.User{ID: 605}, Account: AccountFromRecord(account)})
+					completionErr = completion.RecordMessages(ctx, &gatewaycapture.MessagesCapture{Result: forwardcore.MessagesFromAttempt(r), APIKey: &apikey.APIKey{ID: 505}, User: &identity.User{ID: 605}, Account: gatewaycapture.ExecutionCompletionRecord(gatewaycapture.NewExecutionAccount(account))})
 				}}, nil
 			}}
 			err := gateway.NewQoderUseCase(3, time.Second).Run(context.Background(), gateway.Request{Stream: true}, ports, &gateway.OutputTracker{Sink: gatewayhttp.ResponseSink{Writer: rec}})
@@ -58,13 +59,13 @@ func TestS09QoderNativeChainCompletionFailures(t *testing.T) {
 			require.Equal(t, 1, completed)
 			require.Equal(t, 1, released)
 			require.Zero(t, bound)
-			require.Equal(t, 1, billingRepo.calls)
-			require.Equal(t, 1, usageRepo.calls)
-			require.Equal(t, 12, usageRepo.lastLog.InputTokens)
-			require.Equal(t, 3, usageRepo.lastLog.OutputTokens)
+			require.Equal(t, 1, billingRepo.Calls)
+			require.Equal(t, 1, usageRepo.Calls)
+			require.Equal(t, 12, usageRepo.LastLog.InputTokens)
+			require.Equal(t, 3, usageRepo.LastLog.OutputTokens)
 			if tc.billingFail {
-				require.ErrorIs(t, completionErr, billingRepo.err)
-				require.Zero(t, usageRepo.lastLog.ActualCost)
+				require.ErrorIs(t, completionErr, billingRepo.Err)
+				require.Zero(t, usageRepo.LastLog.ActualCost)
 			} else {
 				require.NoError(t, completionErr)
 			}

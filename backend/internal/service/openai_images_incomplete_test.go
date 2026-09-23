@@ -95,7 +95,7 @@ func TestSummarizeNoOutputBody_IncompleteReasonAndTruncation(t *testing.T) {
 // 但不附原始上游 body 片段，避免绕过 Ops 日志体积/隐私开关。
 func TestSummarizeNoOutputBody_RespectsLogBodyConfig(t *testing.T) {
 	body := []byte("data: {\"type\":\"response.in_progress\",\"response\":{\"status\":\"in_progress\"}}\n\n")
-	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 
 	summary := svc.summarizeOpenAIImagesNoOutputBody(body)
 	if !strings.Contains(summary, "last_event=response.in_progress") {
@@ -125,7 +125,7 @@ func TestImagesOAuthNonStreaming_CompletedNoImageTriggersSameAccountRetry(t *tes
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	_, _, _, err := svc.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, "b64_json", "gpt-image-2")
 
 	if err == nil {
@@ -158,7 +158,7 @@ func TestImagesOAuthNonStreaming_ContentRefusalReturns400NoRetry(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(upstreamSSE))}
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	_, _, _, err := svc.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, "b64_json", "gpt-image-2")
 
 	if err == nil {
@@ -193,7 +193,7 @@ func TestImagesOAuthNonStreaming_TextFallbackReturnsCapabilityError(t *testing.T
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(upstreamSSE))}
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	_, _, _, err := svc.handleOpenAIImagesOAuthNonStreamingResponse(resp, c, "b64_json", "gpt-image-2")
 
 	var imgErr *openai.OpenAIImagesUpstreamError
@@ -219,7 +219,7 @@ func TestImagesOAuthStreaming_TextFallbackReturnsCapabilityError(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(upstreamSSE))}
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	_, _, _, _, err := svc.handleOpenAIImagesOAuthStreamingResponse(resp, c, time.Now(), "b64_json", "image_generation", "gpt-image-2")
 
 	var imgErr *openai.OpenAIImagesUpstreamError
@@ -250,7 +250,7 @@ func TestImagesOAuthStreaming_SplitSafetyRefusalReturns400(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
 	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(upstreamSSE))}
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	_, _, _, _, err := svc.handleOpenAIImagesOAuthStreamingResponse(resp, c, time.Now(), "b64_json", "image_generation", "gpt-image-2")
 
 	var imgErr *openai.OpenAIImagesUpstreamError

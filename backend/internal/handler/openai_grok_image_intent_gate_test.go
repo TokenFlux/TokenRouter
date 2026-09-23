@@ -6,6 +6,11 @@ import (
 	"strings"
 	"testing"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -19,7 +24,6 @@ import (
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -30,7 +34,7 @@ func TestOpenAIGatewayHandlerResponses_GrokPassiveImageToolDeclarationBypassesPe
 	rec := runOpenAIResponsesImagePermissionGateTest(t, capability.PlatformGrok, body)
 
 	require.NotEqual(t, http.StatusForbidden, rec.Code)
-	require.NotContains(t, rec.Body.String(), service.ImageGenerationPermissionMessage())
+	require.NotContains(t, rec.Body.String(), gatewaymedia.ImageGenerationPermissionMessage)
 }
 
 func TestOpenAIGatewayHandlerResponses_GrokResponsesLiteImageToolDeclarationBypassesPermissionGate(t *testing.T) {
@@ -38,7 +42,7 @@ func TestOpenAIGatewayHandlerResponses_GrokResponsesLiteImageToolDeclarationBypa
 	rec := runOpenAIResponsesImagePermissionGateTest(t, capability.PlatformGrok, body)
 
 	require.NotEqual(t, http.StatusForbidden, rec.Code)
-	require.NotContains(t, rec.Body.String(), service.ImageGenerationPermissionMessage())
+	require.NotContains(t, rec.Body.String(), gatewaymedia.ImageGenerationPermissionMessage)
 }
 
 func TestOpenAIGatewayHandlerResponses_ImagePermissionHardSignalsStillRejected(t *testing.T) {
@@ -74,7 +78,7 @@ func TestOpenAIGatewayHandlerResponses_ImagePermissionHardSignalsStillRejected(t
 			rec := runOpenAIResponsesImagePermissionGateTest(t, tt.platform, tt.body)
 
 			require.Equal(t, http.StatusForbidden, rec.Code)
-			require.Contains(t, rec.Body.String(), service.ImageGenerationPermissionMessage())
+			require.Contains(t, rec.Body.String(), gatewaymedia.ImageGenerationPermissionMessage)
 		})
 	}
 }
@@ -97,7 +101,7 @@ func runOpenAIResponsesImagePermissionGateTest(t *testing.T, platform string, bo
 
 	groupID := int64(6301)
 	userID := int64(6302)
-	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
+	c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      6303,
 		GroupID: &groupID,
 		Group: &routing.Group{
@@ -107,7 +111,7 @@ func runOpenAIResponsesImagePermissionGateTest(t *testing.T, platform string, bo
 		},
 		User: &identity.User{ID: userID, Status: billing.StatusActive},
 	})
-	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: userID, Concurrency: 1})
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: userID, Concurrency: 1})
 
 	h := &OpenAIGatewayHandler{
 		gatewayService:      &service.OpenAIGatewayService{},

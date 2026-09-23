@@ -6,14 +6,10 @@ package service
 import (
 	"net/http"
 
-	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 )
 
-func removeThinkingDependentContextStrategies(body []byte) []byte {
-	return protocolanthropic.RemoveThinkingDependentContextStrategies(body)
-}
 func (s *GatewayService) computeFinalAnthropicBeta(
 	tokenType string,
 	mimicClaudeCode bool,

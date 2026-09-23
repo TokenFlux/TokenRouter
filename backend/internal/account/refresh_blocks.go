@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// RefreshFailureBlocks 只保存凭据版本级临时阻断，原账号级配额/容量阻断由原拥有者保留。
+// RefreshFailureBlocks 只保存凭据版本级临时阻断，账号级配额/容量阻断由 RuntimeBlockState 统一拥有。
 // 多个在途版本独立保留截止时间，迟到的旧版本不能覆盖新版本的阻断；无后台协程。
 type RefreshFailureBlocks struct {
 	mu      sync.Mutex

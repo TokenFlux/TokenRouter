@@ -127,7 +127,7 @@ func TestOpenAIResponsesRequestPathSuffixRejectsNonConformingSubpaths(t *testing
 				"path %q must never contribute an upstream path suffix", path)
 			require.Equal(t, chatgptCodexURL,
 				appendOpenAIResponsesRequestPathSuffix(chatgptCodexURL, httpapi.OpenAIResponsesRequestPathSuffix(c)))
-			require.False(t, isOpenAIResponsesCompactPath(c))
+			require.False(t, httpapi.IsOpenAIResponsesCompactPath(c))
 		})
 	}
 

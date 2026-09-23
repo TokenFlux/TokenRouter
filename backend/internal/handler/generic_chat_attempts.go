@@ -1,6 +1,8 @@
 package handler
 
 import (
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
@@ -17,7 +19,6 @@ import (
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -38,7 +39,7 @@ func (b *genericChatAttemptBridge) Select(excluded map[int64]struct{}) (textflow
 		return textflow.Selection{}, err
 	}
 	b.account = b.selection.Account
-	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
 	return capturedTextSelection(b.account), nil
 
 }
@@ -76,14 +77,14 @@ func (b *genericChatAttemptBridge) Acquire() bool {
 		}
 		b.accountReleaseFunc, err = b.binding().concurrencyHelper.AcquireAccountSlotWithWaitTimeout(
 			b.c,
-			b.account.ID,
+			b.account.Record.ID,
 			b.selection.WaitPlan.MaxConcurrency,
 			b.selection.WaitPlan.Timeout,
 			b.reqStream,
 			b.streamStarted,
 		)
 		if err != nil {
-			b.reqLog.Warn("gateway.cc.account_slot_acquire_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+			b.reqLog.Warn("gateway.cc.account_slot_acquire_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 			b.binding().handleConcurrencyError(b.c, err, "account", (*b.streamStarted))
 			return false
 		}
@@ -97,7 +98,7 @@ func (b *genericChatAttemptBridge) Acquire() bool {
 func (b *genericChatAttemptBridge) Forward(_ textflow.AttemptState) textflow.Outcome {
 	var err error
 
-	if b.groupPlatform == capability.PlatformGemini && b.account.Platform != capability.PlatformGemini {
+	if b.groupPlatform == capability.PlatformGemini && b.account.Record.Platform != capability.PlatformGemini {
 		if b.accountReleaseFunc != nil {
 			b.accountReleaseFunc()
 		}
@@ -111,7 +112,7 @@ func (b *genericChatAttemptBridge) Forward(_ textflow.AttemptState) textflow.Out
 		b.forwardBody = b.binding().replaceModel(b.body, b.channelMapping.MappedModel)
 	}
 	gatewayhttp.SetActualUpstreamEndpoint(b.c, "")
-	if b.account.Platform == capability.PlatformGemini {
+	if b.account.Record.Platform == capability.PlatformGemini {
 		if !b.binding().geminiAvailable {
 			b.binding().chatCompletionsErrorResponse(b.c, http.StatusBadGateway, "upstream_error", "Gemini compatibility service is not configured")
 			if b.accountReleaseFunc != nil {
@@ -137,7 +138,7 @@ func (b *genericChatAttemptBridge) Forward(_ textflow.AttemptState) textflow.Out
 	if b.accountReleaseFunc != nil {
 		b.accountReleaseFunc()
 	}
-	b.binding().reportSchedule(b.selection, b.account.ID, err == nil, b.result)
+	b.binding().reportSchedule(b.selection, b.account.Record.ID, err == nil, b.result)
 
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil, OutputChanged: b.c.Writer.Size() != b.writerSizeBeforeForward}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
@@ -156,13 +157,13 @@ func (b *genericChatAttemptBridge) Forward(_ textflow.AttemptState) textflow.Out
 
 // OtherFailure 保留通用 ChatCompletions 适配；循环复用 gateway/text。
 func (b *genericChatAttemptBridge) OtherFailure(err error) {
-	upstreamErrorAlreadyCommunicated := gatewayForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
+	upstreamErrorAlreadyCommunicated := gatewayhttp.ForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
 	wroteFallback := false
 	if !upstreamErrorAlreadyCommunicated {
 		wroteFallback = b.binding().ensureForwardErrorResponse(b.c, (*b.streamStarted))
 	}
 	b.reqLog.Error("gateway.cc.forward_failed",
-		zap.Int64("account_id", b.account.ID),
+		zap.Int64("account_id", b.account.Record.ID),
 		zap.Bool("fallback_error_response_written", wroteFallback),
 		zap.Bool("upstream_error_response_already_written", upstreamErrorAlreadyCommunicated),
 		zap.Error(err),
@@ -176,18 +177,18 @@ func (b *genericChatAttemptBridge) Complete(_ textflow.AttemptState) {
 	clientIP := clientip.GetClientIP(b.c)
 	requestPayloadHash := billing.HashUsageRequestPayload(b.body)
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
-	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Platform)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Record.Platform)
 
-	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.apiKey)
-	clientSessionID := service.ExtractClientSessionID(b.c)
-	stampForwardRequestedReasoningEffort(b.result, b.c)
+	quotaPlatform := admission.QuotaPlatform(b.c.Request.Context(), b.apiKey)
+	clientSessionID := gatewayhttp.ExtractClientSessionID(b.c)
+	gatewayhttp.StampForwardRequestedReasoningEffort(b.result, b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(b.c), &service.RecordUsageInput{
+	completionInput := gatewaycapture.CaptureMessages(gatewayhttp.CompletionContext(b.c), &gatewaycapture.MessagesCapture{
 		Result:             b.result,
 		QuotaPlatform:      quotaPlatform,
 		APIKey:             b.apiKey,
 		User:               b.apiKey.User,
-		Account:            b.account,
+		Account:            gatewaycapture.ExecutionCompletionRecord(b.account),
 		Subscription:       b.subscription,
 		InboundEndpoint:    inboundEndpoint,
 		UpstreamEndpoint:   upstreamEndpoint,

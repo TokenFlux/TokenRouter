@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -24,11 +25,11 @@ func (s *AntigravityGatewayService) writeClaudeError(c *gin.Context, status int,
 }
 
 // WriteMappedClaudeError 导出版本，供 handler 层使用（如 fallback 错误处理）
-func (s *AntigravityGatewayService) WriteMappedClaudeError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
+func (s *AntigravityGatewayService) WriteMappedClaudeError(c *gin.Context, account *gatewayprovider.ExecutionAccount, upstreamStatus int, upstreamRequestID string, body []byte) error {
 	return s.writeMappedClaudeError(c, account, upstreamStatus, upstreamRequestID, body)
 }
 
-func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, account *Account, upstreamStatus int, upstreamRequestID string, body []byte) error {
+func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, account *gatewayprovider.ExecutionAccount, upstreamStatus int, upstreamRequestID string, body []byte) error {
 	gatewayhttp.MarkResponseCommitted(c)
 	upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(body))
 	upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
@@ -36,9 +37,9 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 	upstreamDetail := s.getUpstreamErrorDetail(body)
 	gatewayhttp.SetOpsUpstreamError(c, upstreamStatus, upstreamMsg, upstreamDetail)
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-		Platform:           account.Platform,
-		AccountID:          account.ID,
-		AccountName:        account.Name,
+		Platform:           account.Record.Platform,
+		AccountID:          account.Record.ID,
+		AccountName:        account.Record.Name,
 		UpstreamStatusCode: upstreamStatus,
 		UpstreamRequestID:  upstreamRequestID,
 		Kind:               "http_error",
@@ -53,7 +54,7 @@ func (s *AntigravityGatewayService) writeMappedClaudeError(c *gin.Context, accou
 
 	// 检查错误透传规则
 	if ptStatus, ptErrType, ptErrMsg, matched := gatewayhttp.ApplyErrorPassthroughRule(
-		c, account.Platform, upstreamStatus, body,
+		c, account.Record.Platform, upstreamStatus, body,
 		0, "", "",
 	); matched {
 		c.JSON(ptStatus, gin.H{

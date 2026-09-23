@@ -20,7 +20,7 @@ func (a *mimicExecutionAdapter) MimicMetadata(ctx context.Context, body []byte) 
 	if a.s.identityService == nil || a.c == nil || a.c.Request == nil {
 		return ""
 	}
-	fp, err := a.s.identityService.GetOrCreateFingerprint(ctx, a.account.ID, a.c.Request.Header)
+	fp, err := a.s.identityService.GetOrCreateFingerprint(ctx, a.account.Record.ID, a.c.Request.Header)
 	if err != nil || fp == nil {
 		return ""
 	}

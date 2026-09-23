@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
@@ -22,168 +24,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 )
-
-const (
-	openCodeSessionAffinityHeader = "X-Session-Affinity"
-	openCodeSessionIDHeader       = "X-Session-Id"
-	openCodeNativeSessionHeader   = "X-OpenCode-Session"
-	codeBuddyConversationHeader   = "X-Conversation-ID"
-)
-
-var explicitOpenAIHeaderSessionNames = []string{
-	"session-id",
-	"session_id",
-	"conversation_id",
-	openCodeSessionAffinityHeader,
-	openCodeSessionIDHeader,
-	openCodeNativeSessionHeader,
-	codeBuddyConversationHeader,
-}
-
-// explicitOpenAIHeaderSessionID 提取 OpenAI 兼容客户端发送的稳定会话标识。
-// 这里只接收会话级字段；每轮变化的请求或消息 ID 会破坏粘性路由和上游提示缓存。
-func explicitOpenAIHeaderSessionID(c *gin.Context) string {
-	if c == nil {
-		return ""
-	}
-
-	for _, header := range explicitOpenAIHeaderSessionNames {
-		if sessionID := strings.TrimSpace(c.GetHeader(header)); sessionID != "" {
-			return sessionID
-		}
-	}
-	return ""
-}
-
-// ExtractSessionID extracts the raw session ID from headers or body without hashing.
-// Used by ForwardAsAnthropic to pass as prompt_cache_key for upstream cache.
-func (s *OpenAIGatewayService) ExtractSessionID(c *gin.Context, body []byte) string {
-	return explicitOpenAIRequestSessionID(c, body)
-}
-
-func explicitOpenAISessionID(c *gin.Context, body []byte) string {
-	if c == nil {
-		return ""
-	}
-
-	sessionID := explicitOpenAIHeaderSessionID(c)
-	if sessionID == "" && len(body) > 0 {
-		// WS response.create 将会话字段包在 response 内，先解包再读取统一信号。
-		sessionID = strings.TrimSpace(openAIRequestPayloadView(body).Get("prompt_cache_key").String())
-	}
-	return sessionID
-}
-
-// explicitOpenAIRequestSessionID 仅对认证到 Grok 分组的请求，将 Grok 原生会话头加入
-// 通用 OpenAI 会话信号，避免无关的 x-grok-conv-id 改变非 Grok 分组的调度或上游会话行为。
-func explicitOpenAIRequestSessionID(c *gin.Context, body []byte) string {
-	if c == nil {
-		return ""
-	}
-
-	sessionID := explicitOpenAIHeaderSessionID(c)
-	if sessionID == "" && isGrokRequestContext(c) {
-		sessionID = strings.TrimSpace(c.GetHeader(grokConversationIDHeader))
-	}
-	if sessionID == "" && len(body) > 0 {
-		sessionID = strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String())
-	}
-	if sessionID == "" && isGrokRequestContext(c) && len(body) > 0 {
-		sessionID = grokPreviousResponseSessionSeed(body)
-	}
-	return sessionID
-}
-
-// grokPreviousResponseSessionSeed 根据 Responses 的 previous_response_id 返回稳定的粘性种子。
-// 仅接受 resp_* 响应 ID，消息 ID 与未知格式不得固定粘性路由或提示缓存身份。
-func grokPreviousResponseSessionSeed(body []byte) string {
-	id := strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String())
-	if id == "" {
-		return ""
-	}
-	if ClassifyOpenAIPreviousResponseIDKind(id) != OpenAIPreviousResponseIDKindResponseID {
-		return ""
-	}
-	// 增加命名空间，避免内容派生种子与响应 ID 冲突。
-	return "grok-prev-resp:" + id
-}
-
-// GenerateExplicitSessionHash generates a sticky-session hash only from explicit
-// client session signals. It intentionally skips content-derived fallback and is
-// used by stateless endpoints such as /v1/images.
-func (s *OpenAIGatewayService) GenerateExplicitSessionHash(c *gin.Context, body []byte) string {
-	sessionID := explicitOpenAIRequestSessionID(c, body)
-	if sessionID == "" {
-		return ""
-	}
-
-	currentHash, legacyHash := scheduler.DeriveSessionHashes(sessionID)
-	attachOpenAILegacySessionHashToGin(c, legacyHash)
-	return currentHash
-}
-
-// GenerateSessionHash 为 OpenAI 请求生成粘性会话哈希。
-// 优先级依次为：session-id/session_id、conversation_id、OpenCode 会话头、
-// CodeBuddy 会话头、Grok 分组会话头、prompt_cache_key，最后才使用内容回退。
-func (s *OpenAIGatewayService) GenerateSessionHash(c *gin.Context, body []byte) string {
-	if c == nil {
-		return ""
-	}
-
-	sessionID := explicitOpenAIRequestSessionID(c, body)
-	if sessionID == "" && len(body) > 0 {
-		sessionID = deriveOpenAIContentSessionSeed(body)
-	}
-	if sessionID == "" {
-		return ""
-	}
-
-	if isGrokRequestContext(c) {
-		sessionID = grokStickyAffinitySeed(sessionID, body)
-	}
-
-	currentHash, legacyHash := scheduler.DeriveSessionHashes(sessionID)
-	attachOpenAILegacySessionHashToGin(c, legacyHash)
-	return currentHash
-}
-
-// grokStickyAffinitySeed 按模型隔离粘性路由，同时不改变
-// applyGrokResponsesCacheIdentity 写入的上游 prompt_cache_key。
-func grokStickyAffinitySeed(sessionID string, body []byte) string {
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return ""
-	}
-	model := ""
-	if len(body) > 0 {
-		model = strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "model").String()))
-	}
-	if model == "" {
-		return "grok-affinity:v1:" + sessionID
-	}
-	return "grok-affinity:v1:" + model + ":" + sessionID
-}
-
-// GenerateSessionHashWithFallback 先按常规信号生成会话哈希；
-// 当未携带 session_id/conversation_id/prompt_cache_key 时，使用 fallbackSeed 生成稳定哈希。
-// 该方法用于 WS ingress，避免会话信号缺失时发生跨账号漂移。
-func (s *OpenAIGatewayService) GenerateSessionHashWithFallback(c *gin.Context, body []byte, fallbackSeed string) string {
-	sessionHash := s.GenerateSessionHash(c, body)
-	if sessionHash != "" {
-		return sessionHash
-	}
-
-	seed := strings.TrimSpace(fallbackSeed)
-	if seed == "" {
-		return ""
-	}
-
-	currentHash, legacyHash := scheduler.DeriveSessionHashes(seed)
-	attachOpenAILegacySessionHashToGin(c, legacyHash)
-	return currentHash
-}
 
 func resolveOpenAIUpstreamOriginator(c *gin.Context, isOfficialClient bool, routerMatch ...egress.TLSFingerprintRouterMatchResult) string {
 	return resolveOpenAIUpstreamOriginatorForClient(func() string {
@@ -210,18 +51,18 @@ func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *i
 }
 
 // SelectAccount selects an OpenAI account with sticky session support
-func (s *OpenAIGatewayService) SelectAccount(ctx context.Context, groupID *int64, sessionHash string) (*Account, error) {
+func (s *OpenAIGatewayService) SelectAccount(ctx context.Context, groupID *int64, sessionHash string) (*gatewayprovider.ExecutionAccount, error) {
 	return s.SelectAccountForModel(ctx, groupID, sessionHash, "")
 }
 
 // SelectAccountForModel selects an account supporting the requested model
-func (s *OpenAIGatewayService) SelectAccountForModel(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*Account, error) {
+func (s *OpenAIGatewayService) SelectAccountForModel(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*gatewayprovider.ExecutionAccount, error) {
 	return s.SelectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, nil)
 }
 
 // SelectAccountForModelWithExclusions selects an account supporting the requested model while excluding specified accounts.
 // SelectAccountForModelWithExclusions 选择支持指定模型的账号，同时排除指定的账号。
-func (s *OpenAIGatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*Account, error) {
+func (s *OpenAIGatewayService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*gatewayprovider.ExecutionAccount, error) {
 	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	resolvedCtx, resolvedGroupID, err := s.resolveOpenAISchedulerGroup(ctx, groupID)
 	if err != nil {
@@ -252,7 +93,7 @@ func (s *OpenAIGatewayService) SelectAccountForModelWithExclusions(ctx context.C
 	return s.selectAccountForModelWithExclusions(ctx, groupID, capability.PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, 0, "")
 }
 
-func shouldUseGroupModelUnsupportedError(ctx context.Context, accounts []Account, requestedModel string) bool {
+func shouldUseGroupModelUnsupportedError(ctx context.Context, accounts []gatewayprovider.ExecutionAccount, requestedModel string) bool {
 	requestedModel = strings.TrimSpace(requestedModel)
 	if requestedModel == "" || len(accounts) == 0 {
 		return false
@@ -260,7 +101,7 @@ func shouldUseGroupModelUnsupportedError(ctx context.Context, accounts []Account
 	hasRelevantAccount := false
 	for i := range accounts {
 		acc := &accounts[i]
-		if !acc.IsOpenAI() || !acc.IsSchedulable() {
+		if !acc.View().IsOpenAI() || !acc.View().IsSchedulable() {
 			continue
 		}
 		hasRelevantAccount = true
@@ -283,7 +124,7 @@ func (s *OpenAIGatewayService) SelectAccountForTokenCount(
 	requestedModel string,
 	requiredCapability accountcore.OpenAIEndpointCapability,
 	platform string,
-) (*Account, error) {
+) (*gatewayprovider.ExecutionAccount, error) {
 	ctx = s.withOpenAIQuotaAutoPauseContext(ctx)
 	return s.selectAccountForModelWithExclusions(
 		ctx,
@@ -299,18 +140,18 @@ func (s *OpenAIGatewayService) SelectAccountForTokenCount(
 }
 
 // noAvailableOpenAISelectionErrorForRouting 使用账号层模型 C/D 判断能力，同时保留 R 的对外错误语义。
-func noAvailableOpenAISelectionErrorForRouting(ctx context.Context, requestedModel string, routingModel string, compactBlocked bool, accounts ...[]Account) error {
+func noAvailableOpenAISelectionErrorForRouting(ctx context.Context, requestedModel string, routingModel string, compactBlocked bool, accounts ...[]gatewayprovider.ExecutionAccount) error {
 	return noAvailableOpenAISelectionErrorForRoutingWithDetails(ctx, requestedModel, routingModel, compactBlocked, "", accounts...)
 }
 
 // noAvailableOpenAISelectionErrorForRoutingWithDetails 仅在通用无账号错误中追加调度诊断；
 // compact 能力错误和 fork 的模型业务错误继续保留原有类型与消息。
-func noAvailableOpenAISelectionErrorForRoutingWithDetails(ctx context.Context, requestedModel string, routingModel string, compactBlocked bool, details string, accounts ...[]Account) error {
+func noAvailableOpenAISelectionErrorForRoutingWithDetails(ctx context.Context, requestedModel string, routingModel string, compactBlocked bool, details string, accounts ...[]gatewayprovider.ExecutionAccount) error {
 	if compactBlocked {
 		return scheduler.ErrNoAvailableCompactAccounts
 	}
 	if len(accounts) > 0 && shouldUseGroupModelUnsupportedError(ctx, accounts[0], routingModel) {
-		if err := newGroupModelUnsupportedError(capability.PlatformOpenAI, requestedModel, accounts[0]); err != nil {
+		if err := routing.NewGroupModelRejection(capability.PlatformOpenAI, requestedModel, modelRejectionSources(accounts[0])); err != nil {
 			return err
 		}
 	}
@@ -339,20 +180,22 @@ func (e openAINoAvailableSelectionError) Unwrap() error {
 
 // openAIAccountSupportsRoutingModel 按当前入口的真实转发模式检查账号模型规则。
 // HTTP Responses 自动透传只替换认证，因此不会执行账号普通映射和最终白名单。
-func openAIAccountSupportsRoutingModel(ctx context.Context, account *Account, routingModel string) bool {
+func openAIAccountSupportsRoutingModel(ctx context.Context, account *gatewayprovider.ExecutionAccount, routingModel string) bool {
 	routingModel = strings.TrimSpace(routingModel)
 	if routingModel == "" {
 		return true
 	}
-	if openAIHTTPPassthroughRoutingFromContext(ctx) && account != nil && account.IsOpenAIPassthroughEnabled() {
+	if openAIHTTPPassthroughRoutingFromContext(ctx) && account != nil && account.View().IsOpenAIPassthroughEnabled() {
 		return true
 	}
-	return account != nil && account.IsModelSupported(routingModel)
+	return account != nil && gatewayprovider.ExecutionProtocolRecord(account).IsModelSupported(routingModel, accountprovider.
+
+		// allowsOpenAICompatibleCompact 统一读取 OpenAI 管理员开关和 Grok 固有的 Compact 资格。
+		ModelDefaults(), accountprovider.ModelRules(gatewayprovider.ExecutionProtocolRecord(account)))
 }
 
-// allowsOpenAICompatibleCompact 统一读取 OpenAI 管理员开关和 Grok 固有的 Compact 资格。
-func allowsOpenAICompatibleCompact(account *Account) bool {
-	return account != nil && (account.IsGrok() || account.AllowsOpenAICompact())
+func allowsOpenAICompatibleCompact(account *gatewayprovider.ExecutionAccount) bool {
+	return account != nil && (account.View().IsGrok() || account.View().AllowsOpenAICompact())
 }
 
 // isOpenAICompatibleAccountEligibleForRequest 判断 OpenAI 兼容账号是否满足本次请求的调度条件。
@@ -360,37 +203,37 @@ func allowsOpenAICompatibleCompact(account *Account) bool {
 //
 // 注意：对 spark 影子账号，调用方还须额外调用 parentHealthyForShadow(account, lookup)
 // 检查母账号凭据可用性；该检查未内置于本函数，以避免注入 DB 依赖。
-func isOpenAICompatibleAccountEligibleForRequest(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) bool {
+func isOpenAICompatibleAccountEligibleForRequest(ctx context.Context, account *gatewayprovider.ExecutionAccount, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) bool {
 	return openAICompatibleAccountEligibilityFailureReason(ctx, account, platform, requestedModel, requireCompact, requiredCapability) == ""
 }
 
 // openAICompatibleAccountEligibilityFailureReason 在保留旧布尔判定的同时返回首个拦截原因。
 // 负载批处理只使用该原因生成服务端无账号诊断，不改变实际准入行为。
-func openAICompatibleAccountEligibilityFailureReason(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) string {
+func openAICompatibleAccountEligibilityFailureReason(ctx context.Context, account *gatewayprovider.ExecutionAccount, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) string {
 	// fork 已按产品决策跳过 group profit control，这里只返回普通资格门的首个原因。
 	return openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx, account, platform, requestedModel, requireCompact, requiredCapability)
 }
 
-func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) string {
+func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Context, account *gatewayprovider.ExecutionAccount, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) string {
 	platform = routing.NormalizeOpenAICompatiblePlatform(platform)
 	if account == nil {
 		return "account_nil"
 	}
-	if account.Platform != platform || !account.IsOpenAICompatible() {
+	if account.Record.Platform != platform || !account.View().IsOpenAICompatible() {
 		return "platform_mismatch"
 	}
-	if !account.IsSchedulableForModelWithContext(ctx, requestedModel) {
-		if account.IsSchedulable() {
+	if !gatewayprovider.ExecutionModelPolicy(account).Schedulable(ctx, requestedModel) {
+		if account.View().IsSchedulable() {
 			return "model_rate_limited"
 		}
 		return "not_schedulable"
 	}
-	if account.IsOpenAI() {
+	if account.View().IsOpenAI() {
 		if paused, reason := shouldAutoPauseOpenAIAccountByQuota(ctx, account); paused {
 			// Debug level: this fires per-candidate on the scheduling hot path, so Info
 			// would amplify into log spam once several accounts cross the threshold.
 			slog.Debug("account_auto_paused_by_quota",
-				"account_id", account.ID,
+				"account_id", account.Record.ID,
 				"window", reason.window,
 				"threshold", reason.threshold,
 				"utilization", reason.utilization,
@@ -401,10 +244,10 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 			return "quota_auto_pause"
 		}
 	}
-	if account.IsGrok() {
+	if account.View().IsGrok() {
 		if paused, reason := shouldAutoPauseGrokAccountByQuota(account); paused {
 			slog.Debug("grok_account_auto_paused_by_quota",
-				"account_id", account.ID,
+				"account_id", account.Record.ID,
 				"window", reason.window,
 				"threshold", reason.threshold,
 				"utilization", reason.utilization,
@@ -419,9 +262,9 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 		return "model_not_supported"
 	}
 	if !supportsOpenAIRequestCapability(ctx, account, requiredCapability) {
-		if account.IsGrok() && requiredCapability == accountcore.OpenAIEndpointCapabilityGrokMediaGeneration {
-			_, reason := account.GrokMediaGenerationEligibility()
-			slog.Debug("grok_media_account_ineligible", "account_id", account.ID, "reason", reason)
+		if account.View().IsGrok() && requiredCapability == accountcore.OpenAIEndpointCapabilityGrokMediaGeneration {
+			_, reason := accountcore.GrokMediaGenerationEligibility(gatewayprovider.ExecutionRecord(account), accountprovider.GrokTierRules())
+			slog.Debug("grok_media_account_ineligible", "account_id", account.Record.ID, "reason", reason)
 		}
 		return "capability_mismatch"
 	}
@@ -437,23 +280,23 @@ type openAIQuotaAutoPauseDecision struct {
 	utilization float64
 }
 
-func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *Account) (bool, openAIQuotaAutoPauseDecision) {
+func shouldAutoPauseOpenAIAccountByQuota(ctx context.Context, account *gatewayprovider.ExecutionAccount) (bool, openAIQuotaAutoPauseDecision) {
 	return evaluateOpenAIQuotaAutoPause(ctx, account, time.Now())
 }
 
 // EvaluateOpenAIQuotaAutoPause 返回 OpenAI 账号当前是否因 5h/7d 配额阈值被自动暂停。
 // 这是给展示层和容量统计使用的无副作用派生判断，不能在这里写数据库或修改调度缓存。
-func EvaluateOpenAIQuotaAutoPause(ctx context.Context, account *Account) bool {
+func EvaluateOpenAIQuotaAutoPause(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
 	paused, _ := evaluateOpenAIQuotaAutoPause(ctx, account, time.Now())
 	return paused
 }
 
 // evaluateOpenAIQuotaAutoPause 只转换旧账号与请求设置，不复制健康裁决。
-func evaluateOpenAIQuotaAutoPause(ctx context.Context, v *Account, now time.Time) (bool, openAIQuotaAutoPauseDecision) {
+func evaluateOpenAIQuotaAutoPause(ctx context.Context, v *gatewayprovider.ExecutionAccount, now time.Time) (bool, openAIQuotaAutoPauseDecision) {
 	if v == nil {
 		return false, openAIQuotaAutoPauseDecision{}
 	}
-	paused, d := accountcore.EvaluateQuotaAutoPause(v.Platform, v.Extra, openAIQuotaAutoPauseSettingsFromContext(ctx), now)
+	paused, d := accountcore.EvaluateQuotaAutoPause(v.Record.Platform, v.Record.Extra, openAIQuotaAutoPauseSettingsFromContext(ctx), now)
 	return paused, openAIQuotaAutoPauseDecision{window: d.Window, threshold: d.Threshold, utilization: d.Utilization}
 }
 
@@ -508,50 +351,13 @@ func openAIHTTPPassthroughRoutingFromContext(ctx context.Context) bool {
 	return enabled
 }
 
-// resolveOpenAIAccountUpstreamModelForRequest 按真实转发顺序解析 OpenAI 最终上游模型。
-// HTTP 自动透传只执行 compact 专属映射；其它入口依次执行账号映射、compact 映射和 OAuth 模型归一化。
-func resolveOpenAIAccountUpstreamModelForRequest(account *Account, requestedModel string, requireCompact bool, passthrough ...bool) string {
-	return accountModelPolicy(account).OpenAIUpstream(requestedModel, requireCompact, len(passthrough) > 0 && passthrough[0])
-}
-
-// ResolveOpenAIAccountUpstreamModelForRequest 暴露调度层实际采用的账号模型。
-func ResolveOpenAIAccountUpstreamModelForRequest(account *Account, requestedModel string, requireCompact bool) string {
-	return resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, requireCompact)
-}
-
-// resolveOpenAIForwardMappedModels 返回计费模型与最终上游模型，保持两条链路一致。
-func resolveOpenAIForwardMappedModels(account *Account, requestedModel string, requireCompact bool) (billingModel, upstreamModel string) {
-	requestedModel = strings.TrimSpace(requestedModel)
-	if account != nil && account.IsOpenAIPassthroughEnabled() {
-		billingModel = requestedModel
-	} else if account != nil {
-		billingModel = strings.TrimSpace(account.GetMappedModel(requestedModel))
-	}
-	if billingModel == "" {
-		billingModel = requestedModel
-	}
-	upstreamModel = resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, requireCompact)
-	if strings.TrimSpace(upstreamModel) == "" {
-		upstreamModel = billingModel
-	}
-	return billingModel, upstreamModel
-}
-
-// resolveOpenAIErrorSchedulingModel 优先使用已观测的真实上游模型。
-func resolveOpenAIErrorSchedulingModel(billingModel, upstreamModel string) string {
-	if upstream := strings.TrimSpace(upstreamModel); upstream != "" {
-		return upstream
-	}
-	return strings.TrimSpace(billingModel)
-}
-
-func (s *OpenAIGatewayService) selectAccountForModelWithExclusions(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability accountcore.OpenAIEndpointCapability) (*Account, error) {
+func (s *OpenAIGatewayService) selectAccountForModelWithExclusions(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability accountcore.OpenAIEndpointCapability) (*gatewayprovider.ExecutionAccount, error) {
 	routingModel := s.resolveChannelRoutingModel(ctx, groupID, requestedModel)
 	return s.selectAccountForModelWithExclusionsForRouting(ctx, groupID, platform, sessionHash, requestedModel, routingModel, excludedIDs, requireCompact, stickyAccountID, requiredCapability)
 }
 
 // selectAccountForModelWithExclusionsForRouting 使用已解析的账号层模型执行旧版调度。
-func (s *OpenAIGatewayService) selectAccountForModelWithExclusionsForRouting(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, routingModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability accountcore.OpenAIEndpointCapability) (*Account, error) {
+func (s *OpenAIGatewayService) selectAccountForModelWithExclusionsForRouting(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, routingModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability accountcore.OpenAIEndpointCapability) (*gatewayprovider.ExecutionAccount, error) {
 	core, scope := (&defaultOpenAIAccountScheduler{service: s}).platformSelector()
 	selected, err := core.SelectBasicOnly(ctx, scheduler.PlatformSelectionInput{GroupID: groupID, Platform: platform, SessionHash: sessionHash, RequestedModel: requestedModel, RoutingModel: routingModel, ExcludedIDs: excludedIDs, RequireCompact: requireCompact, StickyAccountID: stickyAccountID, RequiredCapability: requiredCapability})
 	return scope.oldAccount(selected), err
@@ -578,26 +384,26 @@ func (s *OpenAIGatewayService) selectAccountForModelWithExclusionsForRouting(ctx
 // Rules: higher priority (lower value) wins; same priority: never used > least recently used.
 
 // SelectAccountWithLoadAwareness selects an account with load-awareness and wait plan.
-func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*AccountSelectionResult, error) {
+func (s *OpenAIGatewayService) SelectAccountWithLoadAwareness(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*gatewayprovider.SelectionResult, error) {
 	return s.selectAccountWithLoadAwareness(s.withOpenAIQuotaAutoPauseContext(ctx), groupID, capability.PlatformOpenAI, sessionHash, requestedModel, excludedIDs, false, "")
 }
 
-func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) (*AccountSelectionResult, error) {
+func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) (*gatewayprovider.SelectionResult, error) {
 	routingModel := s.resolveChannelRoutingModel(ctx, groupID, requestedModel)
 	return s.selectAccountWithLoadAwarenessForRouting(ctx, groupID, platform, sessionHash, requestedModel, routingModel, excludedIDs, requireCompact, requiredCapability)
 }
 
 // selectAccountWithLoadAwarenessForRouting 使用已解析的账号层模型执行负载感知调度。
-func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, routingModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) (*AccountSelectionResult, error) {
+func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, routingModel string, excludedIDs map[int64]struct{}, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) (*gatewayprovider.SelectionResult, error) {
 	core, scope := (&defaultOpenAIAccountScheduler{service: s}).platformSelector()
 	selected, err := core.SelectBasic(ctx, scheduler.PlatformSelectionInput{GroupID: groupID, Platform: platform, SessionHash: sessionHash, RequestedModel: requestedModel, RoutingModel: routingModel, ExcludedIDs: excludedIDs, RequireCompact: requireCompact, RequiredCapability: requiredCapability})
 	return scope.restore(selected), err
 }
 
-func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string) ([]Account, error) {
+func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, groupID *int64, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	platform = routing.NormalizeOpenAICompatiblePlatform(platform)
 	if s.schedulerSnapshot != nil {
-		accounts, _, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, false)
+		accounts, _, err := readSnapshotAccounts(ctx, s.schedulerSnapshot, groupID, platform, false)
 		if err != nil {
 			return accounts, err
 		}
@@ -607,7 +413,7 @@ func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, grou
 		}
 		return accounts, nil
 	}
-	var accounts []Account
+	var accounts []gatewayprovider.ExecutionAccount
 	var err error
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		accounts, err = s.accountRepo.ListSchedulableByPlatform(ctx, platform)
@@ -636,7 +442,7 @@ func (s *OpenAIGatewayService) tryAcquireAccountSlot(ctx context.Context, accoun
 	return s.concurrencyService.AcquireAccountSlot(ctx, accountID, maxConcurrency)
 }
 
-func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccount(ctx context.Context, account *Account, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) *Account {
+func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccount(ctx context.Context, account *gatewayprovider.ExecutionAccount, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) *gatewayprovider.ExecutionAccount {
 	if account == nil {
 		return nil
 	}
@@ -644,7 +450,7 @@ func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccount(ctx context.
 
 	fresh := account
 	if s.schedulerSnapshot != nil {
-		current, err := s.getSchedulableAccount(ctx, account.ID)
+		current, err := s.getSchedulableAccount(ctx, account.Record.ID)
 		if err != nil || current == nil {
 			return nil
 		}
@@ -654,8 +460,8 @@ func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccount(ctx context.
 	if !isOpenAICompatibleAccountEligibleForRequest(ctx, fresh, platform, requestedModel, requireCompact, requiredCapability) {
 		return nil
 	}
-	if !s.shadowProtocolsAllowed(ctx, fresh) || !accountcore.ParentHealthyForShadow(AccountRecordView(fresh), func(id int64) *accountcore.Record {
-		return AccountRecordView(s.parentAccountLookup(ctx)(id))
+	if !s.shadowProtocolsAllowed(ctx, fresh) || !accountcore.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(fresh), func(id int64) *accountcore.Record {
+		return gatewayprovider.ExecutionRecord(s.parentAccountLookup(ctx)(id))
 	}) {
 		return nil
 	}
@@ -675,8 +481,8 @@ func (s *OpenAIGatewayService) resolveFreshSchedulableOpenAIAccount(ctx context.
 // 按 ID 取当前 Account(repo 为空时 fail-closed 返回 nil)。统一调度/粘连各路径的母账号解析,
 // 取代各调用点重复内联的同一闭包(历史上 recheck 等路径还漏写过 accountRepo==nil 守卫)。
 // L2 候选循环改用带 per-pass 缓存的 parentLookupL2,不走此方法。
-func (s *OpenAIGatewayService) parentAccountLookup(ctx context.Context) func(int64) *Account {
-	return func(id int64) *Account {
+func (s *OpenAIGatewayService) parentAccountLookup(ctx context.Context) func(int64) *gatewayprovider.ExecutionAccount {
+	return func(id int64) *gatewayprovider.ExecutionAccount {
 		if s.accountRepo == nil {
 			return nil
 		}
@@ -685,7 +491,7 @@ func (s *OpenAIGatewayService) parentAccountLookup(ctx context.Context) func(int
 	}
 }
 
-func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDB(ctx context.Context, account *Account, groupID *int64, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) *Account {
+func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDB(ctx context.Context, account *gatewayprovider.ExecutionAccount, groupID *int64, platform string, requestedModel string, requireCompact bool, requiredCapability accountcore.OpenAIEndpointCapability) *gatewayprovider.ExecutionAccount {
 	if account == nil {
 		return nil
 	}
@@ -700,8 +506,8 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDB(ctx context.Co
 		if s.isOpenAIAccountBlockedBySchedulingThreshold(ctx, account) {
 			return nil
 		}
-		if !s.shadowProtocolsAllowed(ctx, account) || !accountcore.ParentHealthyForShadow(AccountRecordView(account), func(id int64) *accountcore.Record {
-			return AccountRecordView(s.parentAccountLookup(ctx)(id))
+		if !s.shadowProtocolsAllowed(ctx, account) || !accountcore.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(account), func(id int64) *accountcore.Record {
+			return gatewayprovider.ExecutionRecord(s.parentAccountLookup(ctx)(id))
 		}) {
 			return nil
 		}
@@ -711,7 +517,7 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDB(ctx context.Co
 		return account
 	}
 
-	latest, err := s.accountRepo.GetByID(ctx, account.ID)
+	latest, err := s.accountRepo.GetByID(ctx, account.Record.ID)
 	if err != nil || latest == nil {
 		return nil
 	}
@@ -724,8 +530,8 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDB(ctx context.Co
 	if !isOpenAICompatibleAccountEligibleForRequest(ctx, latest, platform, requestedModel, requireCompact, requiredCapability) {
 		return nil
 	}
-	if !s.shadowProtocolsAllowed(ctx, latest) || !accountcore.ParentHealthyForShadow(AccountRecordView(latest), func(id int64) *accountcore.Record {
-		return AccountRecordView(s.parentAccountLookup(ctx)(id))
+	if !s.shadowProtocolsAllowed(ctx, latest) || !accountcore.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(latest), func(id int64) *accountcore.Record {
+		return gatewayprovider.ExecutionRecord(s.parentAccountLookup(ctx)(id))
 	}) {
 		return nil
 	}
@@ -741,7 +547,7 @@ func (s *OpenAIGatewayService) recheckSelectedOpenAIAccountFromDB(ctx context.Co
 	return latest
 }
 
-func (s *OpenAIGatewayService) openAIAccountMatchesSchedulingGroup(account *Account, groupID *int64) bool {
+func (s *OpenAIGatewayService) openAIAccountMatchesSchedulingGroup(account *gatewayprovider.ExecutionAccount, groupID *int64) bool {
 	if s != nil && s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		return account != nil
 	}
@@ -749,17 +555,17 @@ func (s *OpenAIGatewayService) openAIAccountMatchesSchedulingGroup(account *Acco
 }
 
 // openAIAccountPassesPrivacyRequirement 判断账号是否满足当前分组的隐私资格。
-func (s *OpenAIGatewayService) openAIAccountPassesPrivacyRequirement(ctx context.Context, groupID *int64, account *Account) bool {
-	return account != nil && (!s.openAIGroupRequiresPrivacySet(ctx, groupID) || account.IsPrivacySet())
+func (s *OpenAIGatewayService) openAIAccountPassesPrivacyRequirement(ctx context.Context, groupID *int64, account *gatewayprovider.ExecutionAccount) bool {
+	return account != nil && (!s.openAIGroupRequiresPrivacySet(ctx, groupID) || account.View().IsPrivacySet())
 }
 
-func (s *OpenAIGatewayService) getSchedulableAccount(ctx context.Context, accountID int64) (*Account, error) {
+func (s *OpenAIGatewayService) getSchedulableAccount(ctx context.Context, accountID int64) (*gatewayprovider.ExecutionAccount, error) {
 	var (
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 		err     error
 	)
 	if s.schedulerSnapshot != nil {
-		account, err = s.schedulerSnapshot.GetAccount(ctx, accountID)
+		account, err = readSnapshotAccount(ctx, s.schedulerSnapshot, accountID)
 	} else {
 		account, err = s.accountRepo.GetByID(ctx, accountID)
 	}
@@ -770,8 +576,8 @@ func (s *OpenAIGatewayService) getSchedulableAccount(ctx context.Context, accoun
 		return nil, nil
 	}
 	// 即使关闭高级调度器，旧版粘性路由仍必须对 Grok OAuth 执行免费层门禁。
-	if account.IsGrok() {
-		if gated := s.filterGrokFreeQuotaAccountsForOpenAI(ctx, []Account{*account}); len(gated) == 0 {
+	if account.View().IsGrok() {
+		if gated := s.filterGrokFreeQuotaAccountsForOpenAI(ctx, []gatewayprovider.ExecutionAccount{*account}); len(gated) == 0 {
 			return nil, nil
 		}
 	}
@@ -780,19 +586,19 @@ func (s *OpenAIGatewayService) getSchedulableAccount(ctx context.Context, accoun
 
 // filterGrokFreeQuotaAccountsForOpenAI 为 OpenAI 兼容旧版选择路径应用与
 // GatewayService 和高级调度器一致的本地免费层软性门禁。
-func (s *OpenAIGatewayService) filterGrokFreeQuotaAccountsForOpenAI(ctx context.Context, accounts []Account) []Account {
+func (s *OpenAIGatewayService) filterGrokFreeQuotaAccountsForOpenAI(ctx context.Context, accounts []gatewayprovider.ExecutionAccount) []gatewayprovider.ExecutionAccount {
 	if s == nil {
 		return accounts
 	}
-	return filterGrokFreeQuotaAccountsCore(ctx, s.cfg, s.usageLogRepo, &openaiGrokFreeQuotaGateCache, accounts)
+	return filterFreeQuotaProjection(s.freeQuotaGate, accounts)
 }
 
-func (s *OpenAIGatewayService) filterOpenAIAccountsBySchedulingThreshold(ctx context.Context, accounts []Account) []Account {
+func (s *OpenAIGatewayService) filterOpenAIAccountsBySchedulingThreshold(ctx context.Context, accounts []gatewayprovider.ExecutionAccount) []gatewayprovider.ExecutionAccount {
 	if len(accounts) == 0 {
 		return accounts
 	}
 
-	filtered := make([]Account, 0, len(accounts))
+	filtered := make([]gatewayprovider.ExecutionAccount, 0, len(accounts))
 	for i := range accounts {
 		if s.isOpenAIAccountBlockedBySchedulingThreshold(ctx, &accounts[i]) {
 			continue
@@ -802,33 +608,33 @@ func (s *OpenAIGatewayService) filterOpenAIAccountsBySchedulingThreshold(ctx con
 	return filtered
 }
 
-func (s *OpenAIGatewayService) isOpenAIAccountBlockedBySchedulingThreshold(ctx context.Context, account *Account) bool {
+func (s *OpenAIGatewayService) isOpenAIAccountBlockedBySchedulingThreshold(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
 	if s == nil || s.rateLimitService == nil || account == nil {
 		return false
 	}
 	return s.rateLimitService.ApplyAccountSchedulingThreshold(ctx, account)
 }
 
-func (s *OpenAIGatewayService) hydrateSelectedAccount(ctx context.Context, account *Account) (*Account, error) {
+func (s *OpenAIGatewayService) hydrateSelectedAccount(ctx context.Context, account *gatewayprovider.ExecutionAccount) (*gatewayprovider.ExecutionAccount, error) {
 	if account == nil || s.schedulerSnapshot == nil {
 		return account, nil
 	}
-	hydrated, err := s.schedulerSnapshot.GetAccount(ctx, account.ID)
+	hydrated, err := readSnapshotAccount(ctx, s.schedulerSnapshot, account.Record.ID)
 	if err != nil {
 		return nil, err
 	}
 	if hydrated == nil {
-		return nil, fmt.Errorf("selected openai account %d not found during hydration", account.ID)
+		return nil, fmt.Errorf("selected openai account %d not found during hydration", account.Record.ID)
 	}
 	return hydrated, nil
 }
 
-func (s *OpenAIGatewayService) newSelectionResult(ctx context.Context, account *Account, acquired bool, release func(), waitPlan *scheduler.AccountWaitPlan) (*AccountSelectionResult, error) {
+func (s *OpenAIGatewayService) newSelectionResult(ctx context.Context, account *gatewayprovider.ExecutionAccount, acquired bool, release func(), waitPlan *scheduler.AccountWaitPlan) (*gatewayprovider.SelectionResult, error) {
 	hydrated, err := s.hydrateSelectedAccount(ctx, account)
 	if err != nil {
 		return nil, err
 	}
-	return &AccountSelectionResult{
+	return &gatewayprovider.SelectionResult{
 		Account:     hydrated,
 		Acquired:    acquired,
 		ReleaseFunc: release,
@@ -836,7 +642,7 @@ func (s *OpenAIGatewayService) newSelectionResult(ctx context.Context, account *
 	}, nil
 }
 
-func (s *OpenAIGatewayService) newAcquiredSelectionResult(ctx context.Context, account *Account, release func()) (*AccountSelectionResult, error) {
+func (s *OpenAIGatewayService) newAcquiredSelectionResult(ctx context.Context, account *gatewayprovider.ExecutionAccount, release func()) (*gatewayprovider.SelectionResult, error) {
 	selection, err := s.newSelectionResult(ctx, account, true, release, nil)
 	if err != nil && release != nil {
 		release()
@@ -868,7 +674,7 @@ func resolveOpenAIUpstreamOriginatorForClient(read func() string, official bool,
 }
 
 // 旧调度入口只投影账号，窗口规则由 account 唯一拥有。
-func shouldAutoPauseGrokAccountByQuota(value *Account) (bool, openAIQuotaAutoPauseDecision) {
-	paused, decision := accountcore.EvaluateGrokQuotaAutoPause(AccountRecordView(value), time.Now)
+func shouldAutoPauseGrokAccountByQuota(value *gatewayprovider.ExecutionAccount) (bool, openAIQuotaAutoPauseDecision) {
+	paused, decision := accountcore.EvaluateGrokQuotaAutoPause(gatewayprovider.ExecutionRecord(value), time.Now)
 	return paused, openAIQuotaAutoPauseDecision{window: decision.Window, threshold: decision.Threshold, utilization: decision.Utilization}
 }

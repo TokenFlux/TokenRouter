@@ -27,3 +27,9 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 本次使用 Go 1.27.0。普通、unit、integration 的 `go test -run=^$ -p=4` 用于编译检查，不计为业务测试通过；目录与路由的 unit race 取得 399 条通过事件，无失败或跳过，三套 lint 均退出零。
 
 既有合并检查日志分别记录普通、unit、integration 的测试事件：通过 11,877 / 19,912 / 12,874，跳过 4 / 8 / 5，无失败事件或失败包。集合存在重叠，不求和；这些阶段性记录不替代 S16 最终验收。E2E 本次仅验证编译与命令入口，未连接真实供应商执行。
+
+## 2026-09-23 网关清理检查点
+
+`progress-20260923-manifest.json` 记录相对原归档新增或变化的完整证据及分卷 SHA-256；每个分卷都已重新读取并逐文件验哈希。先解压原 `s16-evidence.tar.gz`，再按文件名顺序解压 `progress-20260923-*.tar.gz` 即可还原当前证据；原始文件仍保留在本地。
+
+最新稳定合并检查为普通 11,986、unit 20,020、integration 12,988 条通过，既有跳过 4/8/4，三套 lint 为零。此后文本选项与输出的定向 race 分别为 559/741 条通过，当前构建、2,110 条原生包普通补验及 unit lint 通过。各集合有重叠，不相加；S16 和最终验收仍未完成。完整命令与结果见归档内 `interim-native-health-text-checks.json` 和 `progress-20260923-verification.json`。

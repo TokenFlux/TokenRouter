@@ -8,6 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,10 +35,10 @@ func (s *OpenAIGatewayService) nativeOpenAIClientPolicy() *provider.OpenAIProbeP
 	return policy
 }
 
-func (s *OpenAIGatewayService) applyOpenAIUpstreamUserAgent(ctx context.Context, _ *gin.Context, value *Account, req *http.Request, passthrough bool, matches ...egress.TLSFingerprintRouterMatchResult) {
+func (s *OpenAIGatewayService) applyOpenAIUpstreamUserAgent(ctx context.Context, _ *gin.Context, value *gatewayprovider.ExecutionAccount, req *http.Request, passthrough bool, matches ...egress.TLSFingerprintRouterMatchResult) {
 	var match egress.TLSFingerprintRouterMatchResult
 	if len(matches) > 0 {
 		match = matches[0]
 	}
-	s.nativeOpenAIClientPolicy().ApplyUserAgent(ctx, AccountRecordView(value), req, passthrough, match)
+	s.nativeOpenAIClientPolicy().ApplyUserAgent(ctx, gatewayprovider.ExecutionRecord(value), req, passthrough, match)
 }

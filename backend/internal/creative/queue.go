@@ -33,7 +33,7 @@ type CreativeRunJobLockRefresher interface {
 }
 
 // CreativeRunQueue 是创作台任务的 Redis 队列抽象。
-// 实现位于 internal/repository/creative_queue.go，语义与批量图片队列一致。
+// 实现位于 internal/creative/rediscache/queue.go，语义与批量图片队列一致。
 type CreativeRunQueue interface {
 	Enqueue(ctx context.Context, runID string) error
 	Reserve(ctx context.Context, blockTimeout time.Duration) (ReservedCreativeRun, error)

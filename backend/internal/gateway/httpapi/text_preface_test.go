@@ -39,7 +39,7 @@ func (p *prefaceBackend) ObserveRequest(_ *gin.Context, m string, _ bool) {
 	p.events = append(p.events, "request:"+m)
 }
 func (p *prefaceBackend) ObserveEndpoint(*gin.Context, bool) { p.events = append(p.events, "endpoint") }
-func (p *prefaceBackend) ApplyUserPromptReplacement(_ context.Context, b []byte, protocol string) []byte {
+func (p *prefaceBackend) ApplyUserPromptReplacementToBody(_ context.Context, b []byte, protocol string) []byte {
 	p.events = append(p.events, "prompt:"+protocol)
 	return b
 }

@@ -9,11 +9,14 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 )
 
 // 仅为尚待迁移的 CN 监控契约投影原内存仓储，查询算法与共享状态由原生模块承担。
-type usageFixtureReader struct{ source AccountRepository }
+type usageFixtureReader struct {
+	source gatewayprovider.ExecutionAccountStore
+}
 
 // CN 与账号探测的旧夹具仍接收完整配置；只恢复原显式测试值。
 func testUpstreamUsageConfig() *config.Config {
@@ -22,10 +25,10 @@ func testUpstreamUsageConfig() *config.Config {
 
 func (r usageFixtureReader) GetByID(ctx context.Context, id int64) (*account.Record, error) {
 	value, err := r.source.GetByID(ctx, id)
-	return AccountRecordView(value), err
+	return gatewayprovider.ExecutionRecord(value), err
 }
 
-func NewUpstreamUsageService(repo AccountRepository, transport httpclient.UpstreamTransport, cfg *config.Config, tls *egressprovider.TLSProfiles) *account.UpstreamUsageService {
+func NewUpstreamUsageService(repo gatewayprovider.ExecutionAccountStore, transport httpclient.UpstreamTransport, cfg *config.Config, tls *egressprovider.TLSProfiles) *account.UpstreamUsageService {
 	options := accountprovider.UsageHTTPOptions{Available: repo != nil && transport != nil}
 	if cfg != nil {
 		value := cfg.Security.URLAllowlist
@@ -40,15 +43,15 @@ func NewUpstreamUsageService(repo AccountRepository, transport httpclient.Upstre
 	return account.NewUpstreamUsageService(usageFixtureReader{repo}, accountprovider.NewUpstreamUsageHTTPExecution(options), account.UpstreamUsageOptions{Now: time.Now})
 }
 
-func EffectiveUpstreamUsageConfig(value *Account) (account.UpstreamUsageQueryConfig, error) {
-	return account.EffectiveUpstreamUsageConfig(protocolRecord(value))
+func EffectiveUpstreamUsageConfig(value *gatewayprovider.ExecutionAccount) (account.UpstreamUsageQueryConfig, error) {
+	return account.EffectiveUpstreamUsageConfig(gatewayprovider.ExecutionProtocolRecord(value))
 }
 
-func cnUpstreamUsageAdapterName(value *Account) string {
-	return account.CNUpstreamUsageAdapterName(protocolRecord(value))
+func cnUpstreamUsageAdapterName(value *gatewayprovider.ExecutionAccount) string {
+	return account.CNUpstreamUsageAdapterName(gatewayprovider.ExecutionProtocolRecord(value))
 }
 
-func upstreamUsageContextFingerprint(value *Account, config account.UpstreamUsageQueryConfig) string {
-	record := AccountRecordView(value)
+func upstreamUsageContextFingerprint(value *gatewayprovider.ExecutionAccount, config account.UpstreamUsageQueryConfig) string {
+	record := gatewayprovider.ExecutionRecord(value)
 	return account.UpstreamUsageContextFingerprint(record, config, accountprovider.UpstreamUsageBaseURL(record))
 }

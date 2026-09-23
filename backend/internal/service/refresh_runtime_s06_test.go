@@ -5,18 +5,19 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRefreshRuntimePublicationHonorsClearAndOtherVersions(t *testing.T) {
-	gateway := &OpenAIGatewayService{}
-	value := func(token string) *Account {
-		return &Account{ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"access_token": token}}
+	gateway := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	value := func(token string) *gatewayprovider.ExecutionAccount {
+		return &gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth, Credentials: map[string]any{"access_token": token}}}
 	}
 	a, b, c := value("a"), value("b"), value("c")
-	notice := func(v *Account) account.RefreshFailureNotice {
-		n := account.FailureNotice(AccountRecordView(v))
+	notice := func(v *gatewayprovider.ExecutionAccount) account.RefreshFailureNotice {
+		n := account.FailureNotice(gatewayprovider.ExecutionRecord(v))
 		n.Until = time.Now().Add(time.Minute)
 		return n
 	}
@@ -38,7 +39,7 @@ func TestRefreshRuntimePublicationHonorsClearAndOtherVersions(t *testing.T) {
 	require.True(t, gateway.isOpenAIAccountRuntimeBlocked(c))
 	// 原 Grok 临时阻断的回滚不得抹掉独立的刷新身份阻断。
 	publishAfterProbe := gateway.PrepareRefreshFailure(1)
-	release := gateway.blockGrokCredentialRuntime(&Account{ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}, time.Now().Add(time.Minute), "credential_probe")
+	release := gateway.blockGrokCredentialRuntime(&gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}, time.Now().Add(time.Minute), "credential_probe")
 	release()
 	publishAfterProbe(notice(value("d")))
 	require.True(t, gateway.isOpenAIAccountRuntimeBlocked(value("d")))

@@ -9,23 +9,25 @@ import (
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
 type legacyCNMonitorFixtureStore struct {
-	AccountRepository
-	CNUsageMonitorSnapshotRepository
+	gatewayprovider.ExecutionAccountStore
+
+	cnMonitorSnapshotFixture
 }
 
 func (r legacyCNMonitorFixtureStore) GetByID(ctx context.Context, id int64) (*acctcore.Record, error) {
-	v, err := r.AccountRepository.GetByID(ctx, id)
-	return AccountRecordView(v), err
+	v, err := r.ExecutionAccountStore.GetByID(ctx, id)
+	return gatewayprovider.ExecutionRecord(v), err
 }
 func (r legacyCNMonitorFixtureStore) ListByPlatform(ctx context.Context, platform string) ([]acctcore.Record, error) {
-	v, err := r.AccountRepository.ListByPlatform(ctx, platform)
-	return AccountRecordsView(v), err
+	v, err := r.ExecutionAccountStore.ListByPlatform(ctx, platform)
+	return gatewayprovider.ExecutionRecords(v), err
 }
 func (r legacyCNMonitorFixtureStore) SetCNUsageDecisionCAS(ctx context.Context, id int64, expected, until time.Time, reason string, clear bool) (bool, error) {
-	if writer, ok := r.AccountRepository.(interface {
+	if writer, ok := r.ExecutionAccountStore.(interface {
 		SetCNUsageDecisionCAS(context.Context, int64, time.Time, time.Time, string, bool) (bool, error)
 	}); ok {
 		return writer.SetCNUsageDecisionCAS(ctx, id, expected, until, reason, clear)
@@ -34,7 +36,7 @@ func (r legacyCNMonitorFixtureStore) SetCNUsageDecisionCAS(ctx context.Context, 
 }
 func (r *cnUsageMonitorRepo) SetCNUsageDecisionCAS(ctx context.Context, id int64, expected, until time.Time, reason string, clear bool) (bool, error) {
 	r.mu.Lock()
-	matches := r.accounts[id] != nil && r.accounts[id].UpdatedAt.Equal(expected)
+	matches := r.accounts[id] != nil && r.accounts[id].Record.UpdatedAt.Equal(expected)
 	r.mu.Unlock()
 	if !matches {
 		return false, nil
@@ -44,7 +46,7 @@ func (r *cnUsageMonitorRepo) SetCNUsageDecisionCAS(ctx context.Context, id int64
 	}
 	return true, r.SetTempUnschedulable(ctx, id, until, reason)
 }
-func newCNMonitorLegacyFixture(repo AccountRepository, usage *acctcore.UpstreamUsageService, cfg *config.Config, configure ...func(*acctcore.CNMonitorOptions)) *acctcore.CNUsageMonitor {
+func newCNMonitorLegacyFixture(repo gatewayprovider.ExecutionAccountStore, usage *acctcore.UpstreamUsageService, cfg *config.Config, configure ...func(*acctcore.CNMonitorOptions)) *acctcore.CNUsageMonitor {
 	o := acctcore.CNMonitorOptions{Now: time.Now, InstanceID: "fixture-owner", RoundTimeout: time.Second, ProbeTimeout: time.Second, BalanceThreshold: 0.5}
 	if cfg != nil {
 		v := cfg.Gateway.CNProviders
@@ -58,9 +60,14 @@ func newCNMonitorLegacyFixture(repo AccountRepository, usage *acctcore.UpstreamU
 	for _, apply := range configure {
 		apply(&o)
 	}
-	snapshots, ok := repo.(CNUsageMonitorSnapshotRepository)
+	snapshots, ok := repo.(cnMonitorSnapshotFixture)
 	if !ok {
 		panic("fixture lacks snapshot CAS")
 	}
 	return acctcore.NewCNUsageMonitor(legacyCNMonitorFixtureStore{repo, snapshots}, usage, o)
+}
+
+// 测试替身仅声明监控所需的原条件写入，不在生产代码保留旧仓储类型。
+type cnMonitorSnapshotFixture interface {
+	UpdateCNUsageMonitorSnapshotCAS(context.Context, int64, time.Time, *acctcore.CNUsageMonitorSnapshot, string) (bool, error)
 }

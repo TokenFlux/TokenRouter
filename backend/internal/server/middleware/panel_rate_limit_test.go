@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
 
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
@@ -139,8 +141,8 @@ func newPanelTestRouter(limiter gin.HandlerFunc, identity *panelTestIdentity) *g
 	router := gin.New()
 	if identity != nil {
 		router.Use(func(c *gin.Context) {
-			c.Set(string(ContextKeyUser), AuthSubject{UserID: identity.userID})
-			c.Set(string(ContextKeyUserRole), identity.role)
+			c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: identity.userID})
+			c.Set(string(authctx.ContextKeyUserRole), identity.role)
 			c.Next()
 		})
 	}

@@ -8,7 +8,7 @@ import (
 )
 
 func TestShouldFailoverGrokUpstreamError405IsGrokOnly(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	require.True(t, svc.shouldFailoverGrokUpstreamError(http.StatusMethodNotAllowed, nil),
 		"Grok 405 应触发切号，使粘性会话可以迁移到支持该端点的账号")
@@ -17,7 +17,7 @@ func TestShouldFailoverGrokUpstreamError405IsGrokOnly(t *testing.T) {
 }
 
 func TestShouldFailoverGrokUpstreamErrorExistingCodesStillWork(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	for _, code := range []int{401, 402, 403, 405, 429, 500, 502, 503, 504, 529} {
 		require.True(t, svc.shouldFailoverGrokUpstreamError(code, nil), "状态码 %d 应触发 Grok 切号", code)

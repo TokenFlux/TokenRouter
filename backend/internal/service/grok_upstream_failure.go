@@ -7,17 +7,18 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
 // grokRetryableOnSameAccount 标记共享 failover 循环可在同账号重试的瞬态错误。
 // 模型容量压力允许有限重试；免费额度和计费耗尽属于账号状态，应立即切换账号。
-func grokRetryableOnSameAccount(account *Account, statusCode int, responseBody []byte) bool {
-	if account == nil || !account.IsGrok() {
+func grokRetryableOnSameAccount(account *gatewayprovider.ExecutionAccount, statusCode int, responseBody []byte) bool {
+	if account == nil || !account.View().IsGrok() {
 		return false
 	}
 	// 显式错误码策略优先于池模式默认状态列表，命中后不得在同一账号重试。
-	if account.IsCustomErrorCodesEnabled() && account.ShouldHandleErrorCode(statusCode) {
+	if account.View().IsCustomErrorCodesEnabled() && account.View().ShouldHandleErrorCode(statusCode) {
 		return false
 	}
 	decision := grok.ClassifyGrokUpstreamFailure(statusCode, responseBody, "")
@@ -31,10 +32,10 @@ func grokRetryableOnSameAccount(account *Account, statusCode int, responseBody [
 			return true
 		}
 	}
-	return account.IsPoolMode() && account.IsPoolModeRetryableStatus(statusCode)
+	return account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(statusCode)
 }
 
-func grokSameAccountRetryMetadata(account *Account, statusCode int, responseBody []byte) (bool, time.Duration, time.Time, int) {
+func grokSameAccountRetryMetadata(account *gatewayprovider.ExecutionAccount, statusCode int, responseBody []byte) (bool, time.Duration, time.Time, int) {
 	if !grokRetryableOnSameAccount(account, statusCode, responseBody) {
 		return false, 0, time.Time{}, 0
 	}
@@ -51,7 +52,7 @@ func grokSameAccountRetryMetadata(account *Account, statusCode int, responseBody
 // 调用方不能再次应用状态码默认逻辑。
 func (s *OpenAIGatewayService) applyGrokUpstreamFailureDecision(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	decision grok.GrokUpstreamFailureDecision,
 ) bool {
 	if s == nil || account == nil || !decision.ShouldCooldown || decision.Cooldown <= 0 {
@@ -66,7 +67,7 @@ func (s *OpenAIGatewayService) applyGrokUpstreamFailureDecision(
 		low := strings.ToLower(decision.Reason)
 		if decision.Model != "" && accountcore.IsGrokModelSpecificFreeUsage(low, decision.Model) {
 			until := time.Now().Add(decision.Cooldown)
-			accountcore.MarkGrokModelQuotaBlock(account.ID, decision.Model, until)
+			accountcore.MarkGrokModelQuotaBlock(account.Record.ID, decision.Model, until)
 			// 上游已明确限定到单模型，账号级冷却会错误移除健康的其它模型。
 			return true
 		}
@@ -74,7 +75,7 @@ func (s *OpenAIGatewayService) applyGrokUpstreamFailureDecision(
 		low := strings.ToLower(decision.Reason)
 		if strings.Contains(low, "spending") || strings.Contains(low, "credits") {
 			// 消费上限或 credits 耗尽属于账单窗口条件，保留账号可恢复状态并由常规限流恢复解除。
-			s.rateLimitGrok(ctx, account, accountcore.GrokSpendingLimitResetAt(AccountRecordView(account), time.Now()))
+			s.rateLimitGrok(ctx, account, accountcore.GrokSpendingLimitResetAt(gatewayprovider.ExecutionRecord(account), time.Now()))
 			return true
 		}
 		// 保留历史 402/payment 原因，兼容运维界面和回归测试。

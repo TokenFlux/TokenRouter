@@ -4,10 +4,13 @@ package service
 
 import (
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -61,7 +64,7 @@ func TestBuildUsageBillingCommand_BillableAmountTracksActualCost(t *testing.T) {
 				Cost:         &pricing.CostBreakdown{TotalCost: tt.totalCost, ActualCost: tt.actualCost},
 				User:         &identity.User{ID: 1},
 				APIKey:       &apikey.APIKey{ID: 2, GroupID: &groupID},
-				Account:      &Account{ID: 3},
+				Account:      &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3}},
 				Subscription: &billing.UserSubscription{ID: subID},
 			}
 
@@ -125,7 +128,7 @@ func TestBuildUsageBillingCommand_AccountQuotaUsesAccountStatsCost(t *testing.T)
 				},
 				User:                  &identity.User{ID: 1},
 				APIKey:                &apikey.APIKey{ID: 2},
-				Account:               &Account{ID: 3, Type: capability.AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}},
+				Account:               &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Type: capability.AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}}},
 				AccountRateMultiplier: tt.accountRateMultiplier,
 			}
 
@@ -154,7 +157,7 @@ func TestBuildUsageBillingCommand_IncludesRequestGroupID(t *testing.T) {
 			ID:      20,
 			GroupID: &groupID,
 		},
-		Account: &Account{ID: 30, Type: capability.AccountTypeAPIKey},
+		Account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 30, Type: capability.AccountTypeAPIKey}},
 	}
 
 	cmd := buildUsageBillingCommand("req-group", nil, p)
@@ -196,7 +199,7 @@ func TestBuildUsageBillingCommand_NonTokenModesKeepAllocationRates(t *testing.T)
 				},
 				User:                            &identity.User{ID: 1},
 				APIKey:                          &apikey.APIKey{ID: 2},
-				Account:                         &Account{ID: 3},
+				Account:                         &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3}},
 				SubscriptionRateMultiplier:      0.15,
 				SubscriptionRateMultiplierScale: 1,
 				BalanceRateMultiplier:           2,
@@ -231,7 +234,7 @@ func TestBuildUsageBillingCommand_TokenModeKeepsAllocationRates(t *testing.T) {
 		},
 		User:                            &identity.User{ID: 1},
 		APIKey:                          &apikey.APIKey{ID: 2},
-		Account:                         &Account{ID: 3},
+		Account:                         &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3}},
 		SubscriptionRateMultiplier:      0.8,
 		SubscriptionRateMultiplierScale: 1.5,
 		BalanceRateMultiplier:           0.3,
@@ -271,7 +274,7 @@ func TestBuildUsageBillingCommand_UsesOverrideBaseAmountForFreeFast(t *testing.T
 		BillingBaseAmountUSD:  &standardBase,
 		User:                  &identity.User{ID: 1},
 		APIKey:                &apikey.APIKey{ID: 2, GroupID: &groupID},
-		Account:               &Account{ID: 3, Type: capability.AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}},
+		Account:               &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Type: capability.AccountTypeAPIKey, Extra: map[string]any{"quota_limit": 100}}},
 		AccountRateMultiplier: accountRate,
 	})
 

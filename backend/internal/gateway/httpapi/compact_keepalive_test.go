@@ -21,7 +21,7 @@ func newNativeCompactWriterTestContext(t *testing.T) (*gin.Context, *httptest.Re
 }
 
 func TestOpenAICompactKeepaliveWriter_NilInnerWriter_NoPanic(t *testing.T) {
-	w := &CompactKeepaliveWriter{
+	w := &compactKeepaliveWriter{
 		k: &openAICompactSSEKeepalive{stop: make(chan struct{})},
 	}
 	w.ResponseWriter = nil
@@ -74,7 +74,7 @@ func TestOpenAICompactKeepaliveWriter_NilInnerWriter_NoPanic(t *testing.T) {
 
 func TestOpenAICompactKeepaliveWriter_NilKeepalive_NoPanic(t *testing.T) {
 	c, rec := newNativeCompactWriterTestContext(t)
-	w := &CompactKeepaliveWriter{ResponseWriter: c.Writer}
+	w := &compactKeepaliveWriter{ResponseWriter: c.Writer}
 
 	assert.NotPanics(t, func() {
 		assert.Equal(t, 0, w.Status())

@@ -62,3 +62,11 @@ func ShouldEnsureCodexFingerprintSeedForExtraUpdates(updates map[string]any) boo
 	}
 	return CodexFingerprintModeRequiresSeed(CodexFingerprintModeFromExtra(updates))
 }
+
+// GetCodexFingerprintMode 仅对 OAuth 类账号读取原有指纹模式，其他账号保持关闭。
+func (a *Record) GetCodexFingerprintMode() CodexFingerprintMode {
+	if a == nil || !a.IsOpenAIOAuthLike() {
+		return CodexFingerprintOff
+	}
+	return CodexFingerprintModeFromExtra(a.Extra)
+}

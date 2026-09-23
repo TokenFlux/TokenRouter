@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/modeldisplay"
+
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -34,18 +36,7 @@ type ModelHTTPResponse struct {
 	Headers    http.Header
 	Body       []byte
 }
-type ModelsCatalog interface {
-	OpenAIModels() []OpenAIModel
-	OpenAIModelIDs() []string
-	GrokModels() []GrokModel
-	GrokModelIDs() []string
-	GrokSupportsXHigh(string) bool
-	ClaudeModels(string) []ClaudeModel
-	QoderModelIDs() []string
-	GeminiList(bool) GeminiModelsList
-	GeminiModel(string, bool) GeminiModel
-	HasGeminiFallback(string) bool
-}
+type ModelsCatalog = modeldisplay.Catalog
 type ModelsHandler struct {
 	requestLifetime
 
@@ -65,37 +56,11 @@ func customListEnabled(g *routing.Group) bool {
 	return (&routing.Group{ModelsListConfig: g.ModelsListConfig}).CustomModelsListEnabled()
 }
 
-type ClaudeModel struct {
-	ID          string `json:"id"`
-	Type        string `json:"type"`
-	DisplayName string `json:"display_name"`
-	CreatedAt   string `json:"created_at"`
-}
-type OpenAIModel struct {
-	ID          string `json:"id"`
-	Object      string `json:"object"`
-	Created     int64  `json:"created"`
-	OwnedBy     string `json:"owned_by"`
-	Type        string `json:"type"`
-	DisplayName string `json:"display_name"`
-}
-type GrokModel struct {
-	ID          string `json:"id"`
-	Object      string `json:"object"`
-	Type        string `json:"type,omitempty"`
-	Created     int64  `json:"created,omitempty"`
-	OwnedBy     string `json:"owned_by"`
-	DisplayName string `json:"display_name,omitempty"`
-}
-type GeminiModel struct {
-	Name                       string   `json:"name"`
-	DisplayName                string   `json:"displayName,omitempty"`
-	Description                string   `json:"description,omitempty"`
-	SupportedGenerationMethods []string `json:"supportedGenerationMethods,omitempty"`
-}
-type GeminiModelsList struct {
-	Models []GeminiModel `json:"models"`
-}
+type ClaudeModel = modeldisplay.ClaudeModel
+type OpenAIModel = modeldisplay.OpenAIModel
+type GrokModel = modeldisplay.GrokModel
+type GeminiModel = modeldisplay.GeminiModel
+type GeminiModelsList = modeldisplay.GeminiModelsList
 
 func (h *ModelsHandler) Models(c *gin.Context) {
 	done, accepted := h.beginRequest(c, "openai")
@@ -422,42 +387,7 @@ func (h *ModelsHandler) WriteClaudeCompatiblePlatformModelsList(c *gin.Context, 
 }
 
 func (h *ModelsHandler) DefaultModelIDsForPlatform(platform string) []string {
-	switch platform {
-	case capability.PlatformOpenAI:
-		return h.catalog.OpenAIModelIDs()
-	case capability.PlatformGemini:
-		ids := make([]string, 0, len(h.catalog.ClaudeModels(capability.PlatformGemini)))
-		for _, model := range h.catalog.ClaudeModels(capability.PlatformGemini) {
-			ids = append(ids, model.ID)
-		}
-		return ids
-	case capability.PlatformAntigravity:
-		models := h.catalog.ClaudeModels(capability.PlatformAntigravity)
-		ids := make([]string, 0, len(models))
-		for _, model := range models {
-			ids = append(ids, model.ID)
-		}
-		return ids
-	case capability.PlatformQoder:
-		return h.catalog.QoderModelIDs()
-	case capability.PlatformAnthropic:
-		ids := make([]string, 0, len(h.catalog.ClaudeModels(capability.PlatformAnthropic))+len(h.catalog.ClaudeModels(capability.PlatformAntigravity)))
-		for _, model := range h.catalog.ClaudeModels(capability.PlatformAnthropic) {
-			ids = append(ids, model.ID)
-		}
-		for _, model := range h.catalog.ClaudeModels(capability.PlatformAntigravity) {
-			ids = append(ids, model.ID)
-		}
-		return MergeModelIDs(ids, nil)
-	case capability.PlatformGrok:
-		return h.catalog.GrokModelIDs()
-	default:
-		ids := make([]string, 0, len(h.catalog.ClaudeModels(capability.PlatformAnthropic)))
-		for _, model := range h.catalog.ClaudeModels(capability.PlatformAnthropic) {
-			ids = append(ids, model.ID)
-		}
-		return ids
-	}
+	return modeldisplay.DefaultModelIDs(h.catalog, platform)
 }
 
 func FilterModelsByCustomList(availableModels, fallbackModels, selectedModels []string) []string {
@@ -512,22 +442,7 @@ func CustomModelsListAllowsModel(availablePatterns []string, model string) bool 
 }
 
 func MergeModelIDs(primary, secondary []string) []string {
-	seen := make(map[string]struct{}, len(primary)+len(secondary))
-	merged := make([]string, 0, len(primary)+len(secondary))
-	for _, models := range [][]string{primary, secondary} {
-		for _, model := range models {
-			model = strings.TrimSpace(model)
-			if model == "" {
-				continue
-			}
-			if _, ok := seen[model]; ok {
-				continue
-			}
-			seen[model] = struct{}{}
-			merged = append(merged, model)
-		}
-	}
-	return merged
+	return modeldisplay.MergeModelIDs(primary, secondary)
 }
 
 func GrokModelSupportsConfigurableReasoning(modelID string) bool {

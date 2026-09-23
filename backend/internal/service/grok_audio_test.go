@@ -5,19 +5,21 @@ import (
 	"io"
 	"sync/atomic"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBuildGrokVoiceURL_UsesAPIDefaultForCLIProxyBase(t *testing.T) {
-	account := &Account{
-		Platform: capability.PlatformGrok,
-		Type:     capability.AccountTypeOAuth,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
+		Type: capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"base_url": xai.DefaultCLIBaseURL,
-		},
+		}},
 	}
 	url, err := buildGrokVoiceURL(account, nil, "tts")
 	require.NoError(t, err)
@@ -29,10 +31,9 @@ func TestBuildGrokVoiceURL_UsesAPIDefaultForCLIProxyBase(t *testing.T) {
 }
 
 func TestBuildGrokVoiceURL_EmptyBaseFallsBackToAPI(t *testing.T) {
-	account := &Account{
-		Platform:    capability.PlatformGrok,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok,
 		Type:        capability.AccountTypeOAuth,
-		Credentials: map[string]any{},
+		Credentials: map[string]any{}},
 	}
 	url, err := buildGrokVoiceURL(account, nil, "stt")
 	require.NoError(t, err)
@@ -40,13 +41,13 @@ func TestBuildGrokVoiceURL_EmptyBaseFallsBackToAPI(t *testing.T) {
 }
 
 func TestBuildGrokVoiceURL_RequiresEndpoint(t *testing.T) {
-	account := &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	_, err := buildGrokVoiceURL(account, nil, "  ")
 	require.Error(t, err)
 }
 
 func TestBuildGrokVoiceURL_EncodesCustomVoicePathSegments(t *testing.T) {
-	account := &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 	got, err := buildGrokVoiceURL(account, nil, "custom-voices/nlbqfwie/audio")
 	require.NoError(t, err)
 	require.Equal(t, xai.DefaultBaseURL+"/custom-voices/nlbqfwie/audio", got)
@@ -56,8 +57,8 @@ func TestBuildGrokVoiceURL_EncodesCustomVoicePathSegments(t *testing.T) {
 }
 
 func TestForwardGrokVoice_RejectsNonGrok(t *testing.T) {
-	svc := &OpenAIGatewayService{}
-	_, err := svc.ForwardGrokVoice(context.Background(), nil, &Account{Platform: capability.PlatformOpenAI}, "tts", []byte(`{}`), "application/json")
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	_, err := svc.ForwardGrokVoice(context.Background(), nil, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI}}, "tts", []byte(`{}`), "application/json")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not supported")
 }
@@ -83,8 +84,8 @@ func TestGrokRealtimeEventHasAudio(t *testing.T) {
 }
 
 func TestForwardGrokVoice_RejectsUnknownEndpoint(t *testing.T) {
-	svc := &OpenAIGatewayService{}
-	_, err := svc.ForwardGrokVoice(context.Background(), nil, &Account{Platform: capability.PlatformGrok}, "unknown", []byte(`{}`), "application/json")
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	_, err := svc.ForwardGrokVoice(context.Background(), nil, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok}}, "unknown", []byte(`{}`), "application/json")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unsupported")
 }

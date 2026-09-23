@@ -4,6 +4,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
@@ -16,6 +17,6 @@ func grokOperatorPolicyValidator(cfg *config.Config) grok.BaseURLValidator {
 	return policy.Validate
 }
 
-func grokBaseURLValidator(value *Account, cfg *config.Config) (grok.BaseURLValidator, error) {
-	return provider.GrokBaseURLValidator(AccountRecordView(value), grokOperatorPolicyValidator(cfg))
+func grokBaseURLValidator(value *gatewayprovider.ExecutionAccount, cfg *config.Config) (grok.BaseURLValidator, error) {
+	return provider.GrokBaseURLValidator(gatewayprovider.ExecutionRecord(value), grokOperatorPolicyValidator(cfg))
 }

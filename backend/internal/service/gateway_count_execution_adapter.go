@@ -1,6 +1,10 @@
 package service
 
 import (
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+
 	"context"
 	"errors"
 	"net/http"
@@ -41,11 +45,11 @@ func (a *countExecutionAdapter) SendCount(ctx context.Context, passthrough bool)
 	// 代理只在首发前解析；签名重试保留原快照，TLS Profile 仍逐次读取。
 	if !a.proxyReady {
 		a.proxyReady = true
-		if a.account.ProxyID != nil && a.account.Proxy != nil && (passthrough || !a.account.IsCustomBaseURLEnabled() || a.account.GetCustomBaseURL() == "") {
-			a.proxyURL = a.account.Proxy.URL()
+		if a.account.Record.ProxyID != nil && a.account.Record.Proxy != nil && (passthrough || !a.account.View().IsCustomBaseURLEnabled() || a.account.View().GetCustomBaseURL() == "") {
+			a.proxyURL = a.account.Record.Proxy.URL()
 		}
 	}
-	resp, err := a.s.httpUpstream.DoWithTLS(a.request, a.proxyURL, a.account.ID, a.account.Concurrency, a.s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(a.account, nil)))
+	resp, err := a.s.httpUpstream.DoWithTLS(a.request, a.proxyURL, a.account.Record.ID, a.account.Record.Concurrency, a.s.tlsFPProfileService.ResolveRequestTLS(accountTLSSelection(a.account, nil)))
 	if err != nil {
 		return nil, err
 	}
@@ -53,20 +57,20 @@ func (a *countExecutionAdapter) SendCount(ctx context.Context, passthrough bool)
 	return &forwardcore.ExchangeResponse{StatusCode: resp.StatusCode, Headers: resp.Header, RequestID: resp.Header.Get("x-request-id")}, nil
 }
 func (a *countExecutionAdapter) ReadCount() ([]byte, error) {
-	body, err := ReadUpstreamResponseBody(a.response.Body, a.s.cfg, a.c, func(c *gin.Context) {
+	body, err := gatewayhttp.ReadUpstreamResponseBody(a.response.Body, resolveUpstreamResponseReadLimit(a.s.cfg), a.c, func(c *gin.Context) {
 		a.s.countTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream response too large")
 	})
 	_ = a.response.Body.Close()
 	return body, err
 }
 func (a *countExecutionAdapter) IsTooLarge(err error) bool {
-	return errors.Is(err, ErrUpstreamResponseBodyTooLarge)
+	return errors.Is(err, httpclient.ErrResponseBodyTooLarge)
 }
 func (a *countExecutionAdapter) RectifyCount(ctx context.Context, body []byte, model string) bool {
 	return a.s.shouldRectifySignatureError(ctx, a.account, body, model)
 }
 func (a *countExecutionAdapter) FilterCountRetry(body []byte, model string) []byte {
-	return FilterThinkingBlocksForRetry(body, model)
+	return gatewayprovider.FilterThinkingBlocksForRetry(body, model)
 }
 func (a *countExecutionAdapter) CountError(status int, kind, message string) {
 	a.s.countTokensError(a.c, status, kind, message)
@@ -84,14 +88,14 @@ func (a *countExecutionAdapter) UnsupportedCount(status int, body []byte) bool {
 	return isCountTokensUnsupported404(status, body)
 }
 func (a *countExecutionAdapter) CountHealth(ctx context.Context, status int, headers map[string][]string, body []byte, model string) forwardcore.ErrorDecision {
-	d := upstreamErrorDecisionWithoutPersistence(a.account, status)
+	d := accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(a.account), status)
 	if a.s.rateLimitService != nil {
-		d = a.s.rateLimitService.ApplyUpstreamError(ctx, a.account, status, headers, body, model)
+		d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.rateLimitService.UpstreamHealth(), a.account, gatewayprovider.HealthObservationFromContext(ctx, status, headers, body, []string{model}))
 	}
 	return forwardcore.ErrorDecision{
 		Generic:          d.ShouldReturnGenericError(),
-		Failover:         d.ShouldFailover(a.account, status, forwardcore.ShouldFailover(status)),
-		RetrySameAccount: d.RetryableOnSameAccount(a.account, status),
+		Failover:         d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(a.account), status, forwardcore.ShouldFailover(status)),
+		RetrySameAccount: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(a.account), status),
 	}
 }
 func (a *countExecutionAdapter) CountFailover(status int, headers map[string][]string, body []byte, retry bool) error {

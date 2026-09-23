@@ -9,7 +9,7 @@ func (h *GatewayHandler) completionRuntime() *completion.Recorder {
 	if h.completionRecorder != nil {
 		return h.completionRecorder
 	}
-	return h.gatewayService.CompletionRecorder(h.apiKeyService)
+	return h.gatewayService.CompletionRecorder()
 }
 
 // BindCompletionRecorder 在开放 HTTP 前接入应用唯一实例。
@@ -20,16 +20,5 @@ func (h *OpenAIGatewayHandler) completionRuntime() *completion.Recorder {
 	if h.completionRecorder != nil {
 		return h.completionRecorder
 	}
-	return h.gatewayService.CompletionRecorder(h.apiKeyService)
-}
-
-// BindCompletionRecorder 在开放 HTTP 前接入应用唯一实例。
-func (h *QoderGatewayHandler) BindCompletionRecorder(r *completion.Recorder) {
-	h.completionRecorder = r
-}
-func (h *QoderGatewayHandler) completionRuntime() *completion.Recorder {
-	if h.completionRecorder != nil {
-		return h.completionRecorder
-	}
-	return h.gatewayService.CompletionRecorder(h.apiKeyService)
+	return h.gatewayService.CompletionRecorder()
 }

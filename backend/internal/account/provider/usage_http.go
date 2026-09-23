@@ -8,12 +8,10 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
-	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/usagecontract"
 )
@@ -70,10 +68,7 @@ func usageHTTPRequest(value *account.Record, query account.UpstreamUsageQueryCon
 		WalletUserID:      value.GetCredential(account.NewAPIUserIDCredentialKey),
 		ZhipuOrganization: value.GetCredential("zhipu_organization"), ZhipuProject: value.GetCredential("zhipu_project"),
 		ApplyHeaders: func(headers http.Header) {
-			if headers != nil {
-				policy := egress.RequestPolicy(egress.RequestPolicyInput{Headers: value.HeaderOverrides()})
-				egressprovider.ApplyRequestHeaders(headers, policy, anthropic.ResolveWireCasing)
-			}
+			ApplyAccountHeaderOverrides(value, headers)
 		},
 		Endpoint: httpclient.BuildOpenAIEndpointURL,
 		Context: func(ctx context.Context) context.Context {

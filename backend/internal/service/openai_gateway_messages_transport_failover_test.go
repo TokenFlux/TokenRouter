@@ -26,10 +26,10 @@ func TestForwardAsAnthropic_TransportError_ReturnsFailoverError(t *testing.T) {
 	upstream := &httpUpstreamRecorder{
 		err: errors.New(`dial tcp 1.2.3.4:443: connect: connection refused`),
 	}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
@@ -51,10 +51,10 @@ func TestForwardAsAnthropic_TransportError_DoesNotWriteResponse(t *testing.T) {
 	upstream := &httpUpstreamRecorder{
 		err: errors.New(`read tcp: connection reset by peer`),
 	}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	account := rawChatCompletionsTestAccount()
 	_, _ = svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")
@@ -76,10 +76,10 @@ func TestForwardAsAnthropic_TransportError_ClientCanceled_NoFailover(t *testing.
 	upstream := &httpUpstreamRecorder{
 		err: context.Canceled,
 	}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          rawChatCompletionsTestConfig(),
 		httpUpstream: upstream,
-	}
+	})
 
 	account := rawChatCompletionsTestAccount()
 	_, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")

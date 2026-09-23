@@ -12,6 +12,7 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -38,12 +39,12 @@ func assertOpenAIClientToolsLowered(t *testing.T, body []byte) {
 }
 
 func openAIClientToolsTestService(upstream *httpUpstreamRecorder) *OpenAIGatewayService {
-	return &OpenAIGatewayService{
+	return withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream: upstream,
 		cfg: &config.Config{Security: config.SecurityConfig{
 			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 		}},
-	}
+	})
 }
 
 func TestAdaptOpenAIResponsesClientToolsLeavesNamespaceOnlyBodyUnchanged(t *testing.T) {
@@ -129,15 +130,14 @@ func TestDeepSeekResponsesForwardRestoresClientToolsStreaming(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(sse)),
 	}}
 	svc := openAIClientToolsTestService(upstream)
-	account := &Account{
-		ID:       5661,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5661,
 		Platform: capability.PlatformDeepseek,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":      "test-key",
 			"api_protocol": accountcore.APIProtocolResponses,
 			"base_url":     "https://relay.example",
-		},
+		}},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -168,8 +168,7 @@ func TestDeepSeekAdaptiveResponsesForwardRestoresClientToolsNonStreaming(t *test
 			"usage":{"input_tokens":1,"output_tokens":1}}`)),
 	}}
 	svc := openAIClientToolsTestService(upstream)
-	account := &Account{
-		ID:       5662,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5662,
 		Platform: capability.PlatformDeepseek,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
@@ -178,7 +177,7 @@ func TestDeepSeekAdaptiveResponsesForwardRestoresClientToolsNonStreaming(t *test
 			"api_base_urls": map[string]any{
 				accountcore.APIProtocolResponses: "https://relay.example",
 			},
-		},
+		}},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -206,15 +205,14 @@ func TestDeepSeekResponsesCompactSkipsClientToolAdaptation(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(`{"id":"resp_compact","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
 	}}
 	svc := openAIClientToolsTestService(upstream)
-	account := &Account{
-		ID:       5663,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5663,
 		Platform: capability.PlatformDeepseek,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":      "test-key",
 			"api_protocol": accountcore.APIProtocolResponses,
 			"base_url":     "https://relay.example",
-		},
+		}},
 	}
 
 	_, err := svc.Forward(context.Background(), c, account, body)
@@ -239,7 +237,7 @@ func TestOpenAIPassthroughAPIKeyRestoresClientToolsNonStreaming(t *testing.T) {
 			{"type":"function_call","id":"i2","call_id":"c2","name":"apply_patch","arguments":"{\"input\":\"*** Begin Patch\"}"}],"usage":{}}`)),
 	}}
 	svc := openAIClientToolsTestService(upstream)
-	account := &Account{ID: 5659, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5659, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}}
 
 	result, err := svc.forwardOpenAIPassthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, false, time.Now())
 
@@ -265,7 +263,7 @@ func TestOpenAIPassthroughAPIKeyPreservesCustomToolOutputContentParts(t *testing
 		Body:       io.NopCloser(strings.NewReader(`{"id":"resp_tools","status":"completed","output":[],"usage":{}}`)),
 	}}
 	svc := openAIClientToolsTestService(upstream)
-	account := &Account{ID: 6240, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6240, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}}
 
 	result, err := svc.forwardOpenAIPassthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, false, time.Now())
 
@@ -295,7 +293,7 @@ func TestOpenAIPassthroughAPIKeyRestoresClientToolsStreaming(t *testing.T) {
 	}, "\n\n") + "\n\n"
 	upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(sse))}}
 	svc := openAIClientToolsTestService(upstream)
-	account := &Account{ID: 5660, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5660, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key"}}}
 
 	result, err := svc.forwardOpenAIPassthrough(context.Background(), c, account, body, body, "gpt-5.4", false, nil, true, time.Now())
 

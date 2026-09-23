@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -21,9 +23,8 @@ import (
 // thinking-enabled 兜底，导致 kimi/zhipu/deepseek 平台分组的 /v1/messages 请求
 // usage_log.reasoning_effort 恒为 NULL。
 
-func nativeAnthropicTestAccount() *Account {
-	return &Account{
-		ID:          702,
+func nativeAnthropicTestAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 702,
 		Name:        "kimi-native",
 		Platform:    capability.PlatformKimi,
 		Type:        capability.AccountTypeAPIKey,
@@ -34,14 +35,14 @@ func nativeAnthropicTestAccount() *Account {
 			"api_base_urls": map[string]any{
 				accountcore.APIProtocolAnthropic: "http://anthropic.example",
 			},
-		},
+		}},
 	}
 }
 
-func nativeAnthropicGLMTestAccount() *Account {
+func nativeAnthropicGLMTestAccount() *gatewayprovider.ExecutionAccount {
 	account := nativeAnthropicTestAccount()
-	account.Name = "zhipu-native"
-	account.Platform = capability.PlatformZhipu
+	account.Record.Name = "zhipu-native"
+	account.Record.Platform = capability.PlatformZhipu
 	return account
 }
 
@@ -90,7 +91,7 @@ func TestNativeAnthropicPassthroughRecordsOutputConfigEffort(t *testing.T) {
 		`"output_config":{"effort":"low"},` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
 	upstream := &httpUpstreamRecorder{resp: nativeAnthropicBufferedResponse()}
-	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 
 	result, err := svc.ForwardAsAnthropic(context.Background(),
 		adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicTestAccount(), body, "", "")
@@ -107,7 +108,7 @@ func TestNativeAnthropicPassthroughThinkingEnabledFallback(t *testing.T) {
 		`"thinking":{"type":"enabled","budget_tokens":1024},` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
 	upstream := &httpUpstreamRecorder{resp: nativeAnthropicBufferedResponse()}
-	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 
 	result, err := svc.ForwardAsAnthropic(context.Background(),
 		adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicTestAccount(), body, "", "")
@@ -123,7 +124,7 @@ func TestNativeAnthropicPassthroughStreamRecordsEffort(t *testing.T) {
 		`"output_config":{"effort":"max"},` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
 	upstream := &httpUpstreamRecorder{resp: nativeAnthropicStreamResponse()}
-	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 
 	result, err := svc.ForwardAsAnthropic(context.Background(),
 		adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicTestAccount(), body, "", "")
@@ -139,7 +140,7 @@ func TestNativeAnthropicPassthroughNoEffortStaysNil(t *testing.T) {
 	body := []byte(`{"model":"k3","max_tokens":32,"stream":false,` +
 		`"messages":[{"role":"user","content":"hi"}]}`)
 	upstream := &httpUpstreamRecorder{resp: nativeAnthropicBufferedResponse()}
-	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 
 	result, err := svc.ForwardAsAnthropic(context.Background(),
 		adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicTestAccount(), body, "", "")
@@ -181,7 +182,7 @@ func TestNativeAnthropicPassthroughNormalizesGLM53Thinking(t *testing.T) {
 				response = nativeAnthropicStreamResponse()
 			}
 			upstream := &httpUpstreamRecorder{resp: response}
-			svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 
 			_, err := svc.ForwardAsAnthropic(context.Background(),
 				adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicGLMTestAccount(), body, "", "")
@@ -206,7 +207,7 @@ func TestNativeAnthropicPassthroughLeavesOtherThinkingUntouched(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body := []byte(tt.body)
 			upstream := &httpUpstreamRecorder{resp: nativeAnthropicBufferedResponse()}
-			svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 			_, err := svc.ForwardAsAnthropic(context.Background(),
 				adaptiveProtocolTestContext("/v1/messages", body), nativeAnthropicGLMTestAccount(), body, "", "")
 			require.NoError(t, err)

@@ -15,11 +15,11 @@ func (r *tokenRefreshAccountRepo) UpdateOAuthCredentialsIfUnchanged(ctx context.
 	if current == nil {
 		return false, nil
 	}
-	expected := current.Credentials
+	expected := current.Record.Credentials
 	if expected == nil {
 		expected = map[string]any{}
 	}
-	if current.ID != version.ID || current.Platform != version.Platform || current.Type != version.Type || current.Status != version.Status || !reflect.DeepEqual(current.ProxyID, version.ProxyID) || !reflect.DeepEqual(expected, version.Credentials) {
+	if current.Record.ID != version.ID || current.Record.Platform != version.Platform || current.Record.Type != version.Type || current.Record.Status != version.Status || !reflect.DeepEqual(current.Record.ProxyID, version.ProxyID) || !reflect.DeepEqual(expected, version.Credentials) {
 		return false, nil
 	}
 	err := r.UpdateCredentials(ctx, version.ID, credentials)

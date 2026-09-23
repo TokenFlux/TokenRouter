@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
@@ -125,12 +128,11 @@ func TestResolveAccountUpstreamModelRegistersFinalRedirectStage(t *testing.T) {
 		context.Background(),
 		modeltrace.NewAPIKeyModelRedirectTrace("model-alias", "model-alias", "key-target"),
 	)
-	account := &Account{
-		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeAPIKey,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+		Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"key-target": "upstream-target"},
-		},
+		}},
 	}
 
 	require.Equal(t, "upstream-target", resolveAccountUpstreamModel(ctx, account, "key-target"))

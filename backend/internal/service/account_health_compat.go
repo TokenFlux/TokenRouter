@@ -7,16 +7,19 @@ import (
 	time "time"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // legacyHealthStore 只转换旧账号形状，健康写入仍使用原存储的独立操作。
-type legacyHealthStore struct{ AccountRepository }
+type legacyHealthStore struct {
+	gatewayprovider.ExecutionAccountStore
+}
 
 func (s legacyHealthStore) GetByID(ctx context.Context, id int64) (*account.Record, error) {
-	v, err := s.AccountRepository.GetByID(ctx, id)
-	return AccountRecordView(v), err
+	v, err := s.ExecutionAccountStore.GetByID(ctx, id)
+	return gatewayprovider.ExecutionRecord(v), err
 }
 
 // HealthOptions 在原调用点读取动态设置，不冻结启动时的业务设置。
@@ -57,7 +60,7 @@ func (s *RateLimitService) HealthOptions() account.HealthOptions {
 	}, HasThresholdSettings: func() bool { return s.settingService != nil }, Thresholds: func(ctx context.Context) map[string]int {
 		return s.settingService.Account.GetAccountSchedulingThresholds(ctx)
 	}, Now: time.Now, Warn: slog.Warn, Info: slog.Info, TimeoutCounter: s.timeoutCounterCache, Block: func(v *account.Record, until time.Time, reason string) {
-		s.notifyAccountSchedulingBlocked(AccountFromRecord(v), until, reason)
+		s.notifyAccountSchedulingBlocked(gatewayprovider.NewExecutionAccount(v), until, reason)
 	}, StreamSettings: func(ctx context.Context) (*account.StreamTimeoutSettings, error, bool) {
 		if s.settingService == nil {
 			return nil, nil, false

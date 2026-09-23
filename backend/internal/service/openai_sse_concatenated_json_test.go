@@ -11,9 +11,11 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -56,16 +58,15 @@ func TestOpenAIWSv2StreamingRepairsConcatenatedJSONDocumentsInSingleMessage(t *t
 
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		cache:        &stubGatewayCache{},
 		httpUpstream: &httpUpstreamRecorder{},
 
 		openaiWSPool:  pool,
 		toolCorrector: openaicore.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          2,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:        "ws-test",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -73,7 +74,7 @@ func TestOpenAIWSv2StreamingRepairsConcatenatedJSONDocumentsInSingleMessage(t *t
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 
 	recorder := httptest.NewRecorder()
@@ -128,16 +129,15 @@ func TestOpenAIWSv2RejectsMalformedEventAfterWritingDownstream(t *testing.T) {
 
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		cache:        &stubGatewayCache{},
 		httpUpstream: &httpUpstreamRecorder{},
 
 		openaiWSPool:  pool,
 		toolCorrector: openaicore.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          5,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Name:        "ws-malformed-event-after-output",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -145,7 +145,7 @@ func TestOpenAIWSv2RejectsMalformedEventAfterWritingDownstream(t *testing.T) {
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 
 	recorder := httptest.NewRecorder()
@@ -190,16 +190,15 @@ func testOpenAIWSv2RejectsMalformedEventBeforeWritingDownstream(t *testing.T, ma
 
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		cache:        &stubGatewayCache{},
 		httpUpstream: &httpUpstreamRecorder{},
 
 		openaiWSPool:  pool,
 		toolCorrector: openaicore.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          4,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:        "ws-malformed-event",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -207,7 +206,7 @@ func testOpenAIWSv2RejectsMalformedEventBeforeWritingDownstream(t *testing.T, ma
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 
 	recorder := httptest.NewRecorder()
@@ -265,16 +264,15 @@ func TestOpenAIWSv2StreamingBreaksConnectionWhenTerminalHasTrailingDocument(t *t
 
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		cache:        &stubGatewayCache{},
 		httpUpstream: &httpUpstreamRecorder{},
 
 		openaiWSPool:  pool,
 		toolCorrector: openaicore.NewCodexToolCorrector(),
-	}
-	account := &Account{
-		ID:          3,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 		Name:        "ws-terminal-tail",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -282,7 +280,7 @@ func TestOpenAIWSv2StreamingBreaksConnectionWhenTerminalHasTrailingDocument(t *t
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test"},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 
 	recorder := httptest.NewRecorder()
@@ -320,14 +318,14 @@ func testOpenAIStreamingRepairsConcatenatedJSONDocuments(t *testing.T, passthrou
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Gateway: config.GatewayConfig{
 			MaxLineSize:               defaultMaxLineSize,
 			StreamDataIntervalTimeout: streamDataIntervalTimeout,
 		}},
 		toolCorrector: openaicore.NewCodexToolCorrector(),
-	}
-	account := &Account{ID: 1, Name: "test", Platform: capability.PlatformOpenAI}
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Name: "test", Platform: capability.PlatformOpenAI}}
 
 	var usage *openai.ForwardUsage
 	var err error

@@ -6,18 +6,19 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/stretchr/testify/require"
 )
 
 func accWithWindowEnd(id int64, end *time.Time) accountWithLoad {
 	return accountWithLoad{
-		account: &Account{
-			ID:               id,
+		account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
 			Schedulable:      true,
 			Status:           billing.StatusActive,
-			SessionWindowEnd: end,
+			SessionWindowEnd: end},
 		},
 		loadInfo: &scheduler.AccountLoadInfo{AccountID: id},
 	}
@@ -34,7 +35,7 @@ func TestFilterBySoonestReset_PicksSoonestFutureWindow(t *testing.T) {
 	}
 	got := filterBySoonestReset(accounts)
 	require.Len(t, got, 1)
-	require.Equal(t, int64(2), got[0].account.ID, "重置时间最早的账号被选中")
+	require.Equal(t, int64(2), got[0].account.Record.ID, "重置时间最早的账号被选中")
 }
 
 func TestFilterBySoonestReset_IgnoresNilAndExpiredWindows(t *testing.T) {
@@ -48,7 +49,7 @@ func TestFilterBySoonestReset_IgnoresNilAndExpiredWindows(t *testing.T) {
 	}
 	got := filterBySoonestReset(accounts)
 	require.Len(t, got, 1)
-	require.Equal(t, int64(3), got[0].account.ID, "仅保留拥有未来重置时间的账号")
+	require.Equal(t, int64(3), got[0].account.Record.ID, "仅保留拥有未来重置时间的账号")
 }
 
 func TestFilterBySoonestReset_NoActiveWindowReturnsAll(t *testing.T) {
@@ -72,7 +73,7 @@ func TestFilterBySoonestReset_TiedSoonestKeepsAll(t *testing.T) {
 	}
 	got := filterBySoonestReset(accounts)
 	require.Len(t, got, 2, "并列最早重置的账号都保留，交由后续 LRU 决定")
-	ids := map[int64]bool{got[0].account.ID: true, got[1].account.ID: true}
+	ids := map[int64]bool{got[0].account.Record.ID: true, got[1].account.Record.ID: true}
 	require.True(t, ids[1] && ids[2])
 }
 

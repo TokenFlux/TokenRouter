@@ -48,7 +48,7 @@ func isOpenAIRecordUsageInputLiteral(expr ast.Expr) bool {
 		return false
 	}
 	pkg, ok := selector.X.(*ast.Ident)
-	return ok && pkg.Name == "service" && selector.Sel.Name == "OpenAIRecordUsageInput"
+	return ok && pkg.Name == "gatewaycapture" && selector.Sel.Name == "OpenAICapture"
 }
 
 func compositeLiteralHasKey(literal *ast.CompositeLit, key string) bool {

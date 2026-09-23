@@ -16,6 +16,7 @@ type RouteEndpoints struct {
 	CompatibleText         *CompatibleTextHandler
 	GeminiNative           *GeminiNativeHandler
 	OpenAIText             *OpenAITextHandler
+	OpenAITokens           *OpenAITokensHandler
 	ResponsesWS            *ResponsesWSHandler
 	Models                 *ModelsHandler
 	Messages               *MessagesHandler
@@ -64,7 +65,7 @@ func RegisterGatewayRoutes(r *gin.Engine, endpoints RouteEndpoints, options Rout
 	}
 	responsesInputTokensHandler := func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-			openAITextHTTP.ResponsesInputTokens(c)
+			endpoints.OpenAITokens.ResponsesInputTokens(c)
 			return
 		}
 		options.ObserveBusinessLimit(c, RouteLimitLocalFeatureGate)
@@ -102,9 +103,9 @@ func RegisterGatewayRoutes(r *gin.Engine, endpoints RouteEndpoints, options Rout
 				},
 			})
 		case capability.PlatformOpenAI, capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek:
-			openAITextHTTP.CountTokens(c)
+			endpoints.OpenAITokens.CountTokens(c)
 		case capability.PlatformGrok:
-			openAITextHTTP.GrokCountTokens(c)
+			endpoints.OpenAITokens.GrokCountTokens(c)
 		default:
 			countTokensHTTP.CountTokens(c)
 		}

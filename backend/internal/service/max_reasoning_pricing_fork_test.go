@@ -10,12 +10,18 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -26,7 +32,7 @@ import (
 // 核对区间、缓存桶和分组倍率的组合，并确保按次费用不受推理倍率影响。
 func TestMaxReasoningPricing_IntervalsAndBillingModes(t *testing.T) {
 	bs := newTestBillingService()
-	resolver := NewModelPricingResolver(nil, bs)
+	resolver := billingtestkit.PriceResolver(nil, bs)
 	for _, factor := range []float64{1, 1.5, 3} {
 		resolved := &pricing.ResolvedPricing{
 			Mode:        routing.BillingModeToken,
@@ -88,16 +94,17 @@ func TestMaxReasoningPricing_AccountStatsPriority(t *testing.T) {
 // OpenAI 兼容转发的账单按结果档位计算，策略前的 max 仅用于审计。
 func TestMaxReasoningPricing_OpenAIUsageUsesFinalEffort(t *testing.T) {
 	bs := newTestBillingService()
-	for _, resolver := range []*billing.PriceResolver{nil, NewModelPricingResolver(nil, bs)} {
-		svc := &OpenAIGatewayService{billingService: bs, resolver: resolver}
+	for _, resolver := range []*billing.PriceResolver{nil, billingtestkit.PriceResolver(nil, bs)} {
+		svc := completion.NewRecorder(completion.Dependencies{Calculator: bs, Prices: resolver}, completion.RecorderOptions{DefaultMultiplier: 1})
+
 		requested, final := "max", "xhigh"
 		result := &forwardcore.OpenAIResult{ReasoningEffort: &final, RequestedReasoningEffort: &requested}
 		key := &apikey.APIKey{Group: &routing.Group{ID: 1, Platform: capability.PlatformOpenAI}}
 		tokens := pricing.UsageTokens{InputTokens: 1000}
-		standard, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{"claude-fable-5-1"}, 2, 1, 1, 1, tokens, "")
+		standard, err := svc.CalculateOpenAIRecordUsageCostAt(context.Background(), gatewaycapture.ProjectOpenAICompletionResult(result, nil), gatewaycapture.ProjectCompletionKey(key), []string{"claude-fable-5-1"}, 2, 1, 1, 1, tokens, "", time.Time{})
 		require.NoError(t, err)
 		final = "max"
-		cost, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{"claude-fable-5-1"}, 2, 1, 1, 1, tokens, "")
+		cost, err := svc.CalculateOpenAIRecordUsageCostAt(context.Background(), gatewaycapture.ProjectOpenAICompletionResult(result, nil), gatewaycapture.ProjectCompletionKey(key), []string{"claude-fable-5-1"}, 2, 1, 1, 1, tokens, "", time.Time{})
 		require.NoError(t, err)
 		require.InDelta(t, standard.TotalCost*3, cost.TotalCost, 1e-12)
 		require.InDelta(t, standard.ActualCost*3, cost.ActualCost, 1e-12)
@@ -117,8 +124,8 @@ func TestMaxReasoningPricing_AnthropicForwardReportsOutboundEffort(t *testing.T)
 			t.Run(protocol+"/"+effort, func(t *testing.T) {
 				stream := "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"model\":\"claude-fable-5-1\",\"usage\":{\"input_tokens\":100}}}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":1}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
 				upstream := &httpUpstreamRecorder{responses: []*http.Response{{StatusCode: 200, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(stream))}}}
-				svc := &GatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-				account := &Account{ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key", "base_url": "https://api.anthropic.com"}}
+				svc := withSchedulerParametersForTest(&GatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+				account := &gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key", "base_url": "https://api.anthropic.com"}}}
 				c, _ := gin.CreateTestContext(httptest.NewRecorder())
 				c.Request = httptest.NewRequest(http.MethodPost, "/v1/"+protocol, nil)
 				var result *forwardcore.MessagesResult

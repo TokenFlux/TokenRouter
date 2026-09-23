@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing"
 	"github.com/gin-gonic/gin"
 )
@@ -92,7 +94,7 @@ func ServerTimingHeaderValue(c *gin.Context) string {
 	if c == nil || c.Request == nil {
 		return ""
 	}
-	role, ok := GetUserRoleFromContext(c)
+	role, ok := authctx.GetUserRoleFromContext(c)
 	if !ok || role == "" {
 		return ""
 	}

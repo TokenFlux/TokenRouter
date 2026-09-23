@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
@@ -32,13 +34,13 @@ type AntigravityGatewayService struct {
 	nativeRetry           *accountprovider.AntigravityRetry
 	nativeError           *accountprovider.AntigravityErrorObserver
 	nativeAttemptActivity func() (func(), error)
-	accountRepo           AccountRepository
+	accountRepo           gatewayprovider.ExecutionAccountStore
 	tokenProvider         *accountcore.AntigravityTokenSource
 	rateLimitService      *RateLimitService
 	httpUpstream          httpclient.UpstreamTransport
 	settingService        *gatewayprovider.RuntimeReaders
 	cache                 session.GatewayCache // 用于模型级限流时清除粘性会话绑定
-	schedulerSnapshot     *SchedulerSnapshotService
+	schedulerSnapshot     *scheduler.SnapshotService
 	internal500Cache      accountcore.Internal500CounterCache // INTERNAL 500 渐进惩罚计数器
 }
 
@@ -59,9 +61,9 @@ func (s *AntigravityGatewayService) readUpstreamErrorBody(resp *http.Response) [
 }
 
 func NewAntigravityGatewayService(
-	accountRepo AccountRepository,
+	accountRepo gatewayprovider.ExecutionAccountStore,
 	cache session.GatewayCache,
-	schedulerSnapshot *SchedulerSnapshotService,
+	schedulerSnapshot *scheduler.SnapshotService,
 	tokenProvider *accountcore.AntigravityTokenSource,
 	rateLimitService *RateLimitService,
 	httpUpstream httpclient.UpstreamTransport,
@@ -105,12 +107,12 @@ func (s *AntigravityGatewayService) getUpstreamErrorDetail(body []byte) string {
 
 // getMappedModel 获取映射后的模型名
 // 完全依赖映射配置：账户映射（通配符）→ 默认映射兜底
-func (s *AntigravityGatewayService) getMappedModel(account *Account, requestedModel string) string {
+func (s *AntigravityGatewayService) getMappedModel(account *gatewayprovider.ExecutionAccount, requestedModel string) string {
 	return mapAntigravityModel(account, requestedModel)
 }
 
-func resolveAntigravityProjectID(account *Account) (string, error) {
-	return accountcore.ResolveAntigravityProjectID(AccountRecordView(account), antigravity.ErrProjectIDRequired)
+func resolveAntigravityProjectID(account *gatewayprovider.ExecutionAccount) (string, error) {
+	return accountcore.ResolveAntigravityProjectID(gatewayprovider.ExecutionRecord(account), antigravity.ErrProjectIDRequired)
 }
 
 // IsModelSupported 检查模型是否被支持
@@ -136,8 +138,8 @@ func (s *AntigravityGatewayService) BindNativeAttemptActivity(enter func() (func
 }
 
 // 旧映射入口只转换账号；支持判断与单跳规则由原生适配器拥有。
-func mapAntigravityModel(value *Account, model string) string {
-	return accountprovider.MapAntigravityModel(AccountRecordView(value), model)
+func mapAntigravityModel(value *gatewayprovider.ExecutionAccount, model string) string {
+	return accountprovider.MapAntigravityModel(gatewayprovider.ExecutionRecord(value), model)
 }
 
 // BindAntigravityErrorObserver 绑定 app 构造的无状态平台观测器。

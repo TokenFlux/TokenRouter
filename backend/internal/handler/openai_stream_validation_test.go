@@ -6,6 +6,9 @@ import (
 	"strings"
 	"testing"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
@@ -13,7 +16,6 @@ import (
 
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -152,13 +154,13 @@ func newOpenAICompatibleStreamValidationContext(path, body string, claudeCodeOnl
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	groupID := int64(7)
-	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
+	c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      11,
 		GroupID: &groupID,
 		Group:   &routing.Group{ID: groupID, ClaudeCodeOnly: claudeCodeOnly},
 		User:    &identity.User{ID: 13},
 	})
-	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 13, Concurrency: 1})
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 13, Concurrency: 1})
 
 	return c, rec
 }

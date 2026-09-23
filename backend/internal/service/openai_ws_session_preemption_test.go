@@ -87,10 +87,10 @@ func (c *openAIWSSessionPreemptCacheStub) CompareAndDeleteOpenAIResponsesSession
 
 func TestOpenAIWSSessionPreemptContextEligibilityAndLocalCancellation(t *testing.T) {
 	stateStore := session.NewOpenAIWSStateStore(nil, gatewayprovider.LogOpenAIWSModeInfo)
-	svc := &OpenAIGatewayService{openaiWSStateStore: stateStore}
-	oauth := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
-	apiKey := &Account{ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
-	grok := &Account{ID: 3, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{openaiWSStateStore: stateStore})
+	oauth := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
+	apiKey := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	grok := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 
 	_, cleanup, armed, _ := svc.beginOpenAIWSSessionPreemptContext(context.Background(), apiKey, 7, 11, "sess", false)
 	cleanup()
@@ -130,8 +130,8 @@ func TestOpenAIWSIngressSessionPreemptionSurvivesNestedForwardCleanup(t *testing
 		return c
 	}
 
-	svc := &OpenAIGatewayService{}
-	account := &Account{ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	firstMessage := []byte(`{"type":"response.create","prompt_cache_key":"session-1","input":"hello"}`)
 
 	firstCtx, firstCleanup, armed := svc.BeginOpenAIWSIngressSessionPreemption(
@@ -167,21 +167,20 @@ func TestOpenAIWSIngressSessionPreemptionRespectsResolvedMode(t *testing.T) {
 		c.Set("api_key", &apikey.APIKey{ID: 11, GroupID: &groupID})
 		return c
 	}
-	newAccount := func(mode string) *Account {
-		return &Account{
-			ID:       1,
+	newAccount := func(mode string) *gatewayprovider.ExecutionAccount {
+		return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 			Platform: capability.PlatformOpenAI,
 			Type:     capability.AccountTypeOAuth,
 			Extra: map[string]any{
 				"openai_oauth_responses_websockets_v2_mode": mode,
-			},
+			}},
 		}
 	}
 	firstMessage := []byte(`{"type":"response.create","prompt_cache_key":"session-1","input":"hello"}`)
 	cfg := &config.Config{}
 	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
 	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
-	svc := &OpenAIGatewayService{cfg: cfg}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg})
 
 	passthrough := newAccount(accountcore.OpenAIWSIngressModePassthrough)
 	firstCtx, firstCleanup, armed := svc.BeginOpenAIWSIngressSessionPreemption(
@@ -213,7 +212,7 @@ func TestOpenAIWSIngressSessionPreemptionRespectsResolvedMode(t *testing.T) {
 
 func TestOpenAIWSSessionPreemptRemoteClaimAndStaleReleaseAreAtomic(t *testing.T) {
 	cache := &openAIWSSessionPreemptCacheStub{}
-	svc := &OpenAIGatewayService{cache: cache}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cache: cache})
 	key := openAIWSSessionPreemptKey{groupID: 7, apiKeyID: 11, sessionHash: "sess"}
 
 	previous, ok := svc.claimOpenAIWSSessionPreemptOwner(context.Background(), key, "owner-a")

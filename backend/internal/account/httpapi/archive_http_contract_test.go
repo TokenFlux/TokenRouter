@@ -60,11 +60,11 @@ type dataAccount struct {
 	Priority    int            `json:"priority"`
 }
 
-func setupAccountDataRouter() (*gin.Engine, *archiveHTTPFixture) {
-	return setupAccountDataRouterWithSettings(nil)
+func setupAccountDataRouter(coordinators ...*idempotency.IdempotencyCoordinator) (*gin.Engine, *archiveHTTPFixture) {
+	return setupAccountDataRouterWithSettings(nil, coordinators...)
 }
 
-func setupAccountDataRouterWithSettings(settingService *accountcore.RuntimeSettings) (*gin.Engine, *archiveHTTPFixture) {
+func setupAccountDataRouterWithSettings(settingService *accountcore.RuntimeSettings, coordinators ...*idempotency.IdempotencyCoordinator) (*gin.Engine, *archiveHTTPFixture) {
 
 	router := gin.New()
 	adminSvc := newArchiveHTTPFixture()
@@ -75,6 +75,9 @@ func setupAccountDataRouterWithSettings(settingService *accountcore.RuntimeSetti
 	}
 	core := accountcore.NewArchive(adminSvc, egress.NewProxyTransfer(adminSvc, nil, time.Now), options)
 	h := NewArchiveHandler(core)
+	if len(coordinators) > 0 {
+		h.BindIdempotency(coordinators[0])
+	}
 
 	router.GET("/api/v1/admin/accounts/data", h.ExportData)
 	router.POST("/api/v1/admin/accounts/data", h.ImportData)
@@ -327,16 +330,12 @@ func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {
 
 func TestImportDataIdempotencyIgnoresDeprecatedLongContextBillingExtra(t *testing.T) {
 	const deprecatedKey = "openai_long_context_billing_enabled"
-	previousCoordinator := idempotency.DefaultIdempotencyCoordinator()
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(
+	coordinator := idempotency.NewIdempotencyCoordinator(
 		idempotencytest.NewMemoryStore(),
 		idempotency.DefaultIdempotencyConfig(),
-	))
-	t.Cleanup(func() {
-		idempotency.SetDefaultIdempotencyCoordinator(previousCoordinator)
-	})
+	)
 
-	router, adminSvc := setupAccountDataRouter()
+	router, adminSvc := setupAccountDataRouter(coordinator)
 	call := func(extra map[string]any) *httptest.ResponseRecorder {
 		t.Helper()
 		account := map[string]any{

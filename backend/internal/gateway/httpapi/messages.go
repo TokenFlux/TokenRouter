@@ -31,7 +31,7 @@ type MessagesHTTPOptions struct {
 	MaxSwitches, MaxGeminiSwitches int
 }
 type MessagesPrompt interface {
-	ApplyUserPromptReplacement(context.Context, []byte, string) []byte
+	ApplyUserPromptReplacementToBody(context.Context, []byte, string) []byte
 }
 
 // MessagesCall 不携带旧实体或完整配置，单次请求的派生值不会写入共享缓存。
@@ -143,7 +143,7 @@ func (h *MessagesHandler) Messages(c *gin.Context) {
 	h.backend.ObserveRequest(c, "", false)
 
 	// 用户提示词替换必须早于解析、内容审计和会话 hash，确保后续链路看到同一份请求体。
-	body = h.prompt.ApplyUserPromptReplacement(c.Request.Context(), body, "anthropic_messages")
+	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "anthropic_messages")
 
 	bodyRef := requeststate.NewRequestBodyRef(body)
 	parsedReq, err := requeststate.ParseGatewayRequest(bodyRef, capability.PlatformAnthropic)

@@ -28,15 +28,15 @@ type FailoverErrorHooks struct {
 }
 
 // WriteFailoverExhausted 按原顺序解释已分类错误，再匹配展示规则与默认映射。
-func (h *OpenAITextHandler) WriteFailoverExhausted(c *gin.Context, failure *OpenAIFailoverError, started bool, rules ErrorRuleMatcher, hooks FailoverErrorHooks) {
+func WriteOpenAIFailoverExhausted(c *gin.Context, failure *OpenAIFailoverError, started bool, rules ErrorRuleMatcher, hooks FailoverErrorHooks, write func(*gin.Context, int, string, string, bool)) {
 	if failure == nil {
 		status, kind, message := MapOpenAIUpstreamError(http.StatusBadGateway)
-		h.handleStreamingAwareError(c, status, kind, message, started)
+		write(c, status, kind, message, started)
 		return
 	}
 	if failure.TooLarge {
 		hooks.Upstream(c, http.StatusRequestEntityTooLarge, failure.TooLargeMessage)
-		h.handleStreamingAwareError(c, http.StatusRequestEntityTooLarge, "invalid_request_error", failure.TooLargeMessage, started)
+		write(c, http.StatusRequestEntityTooLarge, "invalid_request_error", failure.TooLargeMessage, started)
 		return
 	}
 	if failure.ContinuationUnsupported {
@@ -44,12 +44,12 @@ func (h *OpenAITextHandler) WriteFailoverExhausted(c *gin.Context, failure *Open
 		if message == "" {
 			message = "previous_response_id requires an OpenAI API-key account for HTTP requests"
 		}
-		h.handleStreamingAwareError(c, http.StatusBadRequest, "invalid_request_error", message, started)
+		write(c, http.StatusBadRequest, "invalid_request_error", message, started)
 		return
 	}
 	CopyFailoverRetryAfter(c, failure.Headers)
 	if failure.Credential {
-		h.handleStreamingAwareError(c, failure.CredentialStatus, "upstream_error", failure.CredentialMessage, started)
+		write(c, failure.CredentialStatus, "upstream_error", failure.CredentialMessage, started)
 		return
 	}
 	if failure.CapacityShed && strings.TrimSpace(failure.ClientMessage) != "" {
@@ -57,12 +57,12 @@ func (h *OpenAITextHandler) WriteFailoverExhausted(c *gin.Context, failure *Open
 		if status <= 0 {
 			status = http.StatusServiceUnavailable
 		}
-		h.handleStreamingAwareError(c, status, "server_error", failure.ClientMessage, started)
+		write(c, status, "server_error", failure.ClientMessage, started)
 		return
 	}
 	if failure.SilentRefusal {
 		hooks.Upstream(c, failure.Status, failure.SilentMessage)
-		h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", failure.SilentMessage, started)
+		write(c, http.StatusBadGateway, "upstream_error", failure.SilentMessage, started)
 		return
 	}
 	if failure.CyberWarning {
@@ -71,7 +71,7 @@ func (h *OpenAITextHandler) WriteFailoverExhausted(c *gin.Context, failure *Open
 		if status < 400 || status > 599 {
 			status = http.StatusBadGateway
 		}
-		h.handleStreamingAwareError(c, status, "invalid_request_error", failure.CyberMessage, started)
+		write(c, status, "invalid_request_error", failure.CyberMessage, started)
 		return
 	}
 	if rules != nil && len(failure.Body) > 0 {
@@ -87,13 +87,13 @@ func (h *OpenAITextHandler) WriteFailoverExhausted(c *gin.Context, failure *Open
 			if rule.SkipMonitoring {
 				hooks.SkipMonitoring(c)
 			}
-			h.handleStreamingAwareError(c, status, "upstream_error", message, started)
+			write(c, status, "upstream_error", message, started)
 			return
 		}
 	}
 	hooks.Upstream(c, failure.Status, failure.UpstreamMessage)
 	status, kind, message := MapOpenAIUpstreamError(failure.Status)
-	h.handleStreamingAwareError(c, status, kind, message, started)
+	write(c, status, kind, message, started)
 }
 
 func CopyFailoverRetryAfter(c *gin.Context, headers http.Header) {
@@ -139,4 +139,9 @@ func MapOpenAIUpstreamError(statusCode int) (int, string, string) {
 	default:
 		return http.StatusBadGateway, "upstream_error", "Upstream request failed"
 	}
+}
+
+// WriteFailoverExhausted 使用当前文本入口的输出状态，裁决仅保留一份。
+func (h *OpenAITextHandler) WriteFailoverExhausted(c *gin.Context, failure *OpenAIFailoverError, started bool, rules ErrorRuleMatcher, hooks FailoverErrorHooks) {
+	WriteOpenAIFailoverExhausted(c, failure, started, rules, hooks, h.handleStreamingAwareError)
 }

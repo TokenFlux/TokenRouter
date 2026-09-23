@@ -10,6 +10,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
@@ -24,7 +25,7 @@ func ensureOpenAIChatStreamUsage(body []byte) ([]byte, error) {
 func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	c *gin.Context,
 	resp *http.Response,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,

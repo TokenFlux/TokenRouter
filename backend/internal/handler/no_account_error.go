@@ -2,12 +2,9 @@ package handler
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -71,7 +68,7 @@ func classifyOpenAICompatibleNoAccountErrorFromGin(
 		apiKey,
 		routingModel,
 		displayModel,
-		openAICompatibleRequestPlatform(apiKey),
+		gatewayhttp.OpenAICompatibleRequestPlatform(apiKey),
 	)
 }
 
@@ -90,33 +87,4 @@ func (d openAIResolvedRoutingModelDiagnoser) DiagnoseModelAvailabilityForPlatfor
 		return routing.ModelAvailabilityDiagnosis{HasAccountsInPool: true, HasModelSupport: true}
 	}
 	return d.service.DiagnoseRoutingModelAvailabilityForPlatform(ctx, groupID, routingModel, platform)
-}
-
-// classifyOpenAICompatibleResolvedRoutingNoAccountErrorFromGin 用 D 诊断能力，用 R 输出错误信息。
-func classifyOpenAICompatibleResolvedRoutingNoAccountErrorFromGin(
-	c *gin.Context,
-	gatewayService *service.OpenAIGatewayService,
-	apiKey *apikey.APIKey,
-	routingModel string,
-	displayModel string,
-) noAccountErrorClassification {
-	return classifyOpenAICompatibleNoAccountErrorFromGin(
-		c,
-		openAIResolvedRoutingModelDiagnoser{service: gatewayService},
-		apiKey,
-		routingModel,
-		displayModel,
-	)
-}
-
-// openAICompatibleSelectionErrorForLog 将 Grok 选择失败日志中的平台名称改为实际平台。
-func openAICompatibleSelectionErrorForLog(err error, platform string) error {
-	if err == nil || platform != capability.PlatformGrok {
-		return err
-	}
-	message := strings.ReplaceAll(err.Error(), "OpenAI accounts", "Grok accounts")
-	if message == err.Error() {
-		return err
-	}
-	return fmt.Errorf("%s", message)
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -18,14 +19,14 @@ import (
 // compactModelAdapter 按原时点读取旧账号/配置；不保存另一份模型目录。
 type compactModelAdapter struct {
 	s       *OpenAIGatewayService
-	account *Account
+	account *gatewayprovider.ExecutionAccount
 }
 
 func (p compactModelAdapter) AccountModel(model string) (string, bool) {
 	if p.account == nil {
 		return "", false
 	}
-	return p.account.ResolveCompactMappedModel(model)
+	return p.account.View().ResolveCompactMappedModel(model)
 }
 func (p compactModelAdapter) GlobalModel() string {
 	if p.s == nil || p.s.cfg == nil {
@@ -34,9 +35,9 @@ func (p compactModelAdapter) GlobalModel() string {
 	return p.s.cfg.Gateway.OpenAICompactModel
 }
 func (p compactModelAdapter) ResolveGlobalModel(model string) string {
-	return resolveOpenAIAccountUpstreamModelForRequest(p.account, model, false, false)
+	return gatewayprovider.ExecutionModelPolicy(p.account).OpenAIUpstream(model, false, false)
 }
-func compactRecovery(s *OpenAIGatewayService, account *Account) compact.Recovery {
+func compactRecovery(s *OpenAIGatewayService, account *gatewayprovider.ExecutionAccount) compact.Recovery {
 	return compact.Recovery{Models: compactModelAdapter{s: s, account: account}, ContextWindow: openai.IsOpenAIContextWindowError, RewriteModel: openaiprotocol.ReplaceModelInBody}
 }
 
@@ -44,7 +45,7 @@ func compactRecovery(s *OpenAIGatewayService, account *Account) compact.Recovery
 type compactRetryAdapter struct {
 	s        *OpenAIGatewayService
 	c        *gin.Context
-	account  *Account
+	account  *gatewayprovider.ExecutionAccount
 	response *http.Response
 }
 
@@ -55,9 +56,9 @@ func (p *compactRetryAdapter) observe(payload []byte, message string, passthroug
 	in := compact.RetryObservation{Status: http.StatusBadRequest, Passthrough: passthrough}
 	if p.account != nil {
 		in.AccountPresent = true
-		in.AccountID = p.account.ID
-		in.AccountName = p.account.Name
-		in.Platform = p.account.Platform
+		in.AccountID = p.account.Record.ID
+		in.AccountName = p.account.Record.Name
+		in.Platform = p.account.Record.Platform
 	}
 	if p.response != nil {
 		in.Status = p.response.StatusCode
@@ -86,7 +87,7 @@ func (p *compactRetryAdapter) SetModel(model string) { gatewayhttp.SetOpsUpstrea
 func (p *compactRetryAdapter) LogRetry(from, model, code string) {
 	name := ""
 	if p.account != nil {
-		name = p.account.Name
+		name = p.account.Record.Name
 	}
 	logging.LegacyPrintf("service.openai_gateway", "[OpenAI passthrough] Retrying explicit compact request once with fallback model (account: %s, from: %s, to: %s, upstream_code: %s)", name, from, model, code)
 }

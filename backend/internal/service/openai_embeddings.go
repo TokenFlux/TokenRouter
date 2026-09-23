@@ -1,6 +1,8 @@
 package service
 
 import (
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +22,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
 
@@ -36,7 +39,7 @@ import (
 func (s *OpenAIGatewayService) ForwardEmbeddings(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	defaultMappedModel string,
 ) (*forwardcore.OpenAIResult, error) {
@@ -48,8 +51,8 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		return nil, fmt.Errorf("missing model in request")
 	}
 
-	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	billingModel := gatewayprovider.ExecutionModelPolicy(account).ForwardModel(originalModel, defaultMappedModel)
+	upstreamModel := gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(billingModel)
 	gatewayhttp.SetOpsUpstreamModel(c, upstreamModel)
 	upstreamBody := body
 	if upstreamModel != originalModel {
@@ -57,19 +60,19 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	}
 
 	logging.L().Debug("openai embeddings: forwarding",
-		zap.Int64("account_id", account.ID),
+		zap.Int64("account_id", account.Record.ID),
 		zap.String("original_model", originalModel),
 		zap.String("billing_model", billingModel),
 		zap.String("upstream_model", upstreamModel),
 	)
 
-	apiKey := strings.TrimSpace(account.GetOpenAIProtocolAPIKey())
+	apiKey := strings.TrimSpace(account.View().GetOpenAIProtocolAPIKey())
 	if apiKey == "" {
-		return nil, fmt.Errorf("account %d missing api_key", account.ID)
+		return nil, fmt.Errorf("account %d missing api_key", account.Record.ID)
 	}
 	// 协议感知：Anthropic 协议账号的凭证 base_url 指向 /anthropic 端点，
 	// embeddings 需使用 OpenAI 格式 base。
-	baseURL := account.GetOpenAIFormatBaseURL()
+	baseURL := gatewayprovider.ExecutionProtocolTarget(account).GetOpenAIFormatBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
@@ -80,8 +83,8 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	targetURL := buildOpenAIEmbeddingsURL(validatedURL)
 
 	proxyURL := ""
-	if account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	if account.Record.Proxy != nil {
+		proxyURL = account.Record.Proxy.URL()
 	}
 	forwardHeaders := make(http.Header)
 	for key, values := range c.Request.Header {
@@ -91,7 +94,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	}
 	target := &mediaprovider.EmbeddingsOptions{
 
-		AccountID: account.ID,
+		AccountID: account.Record.ID,
 
 		Model: upstreamModel,
 
@@ -101,9 +104,9 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 
 		ForwardHeaders: forwardHeaders,
 
-		UserAgent: account.GetOpenAIUserAgent(),
+		UserAgent: account.View().GetOpenAIUserAgent(),
 
-		ApplyHeaders: account.ApplyHeaderOverrides,
+		ApplyHeaders: bindAccountHeaders(account),
 
 		RequestContext: detachUpstreamContext,
 
@@ -112,7 +115,7 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		StartedAt: startTime,
 
 		Do: func(request *http.Request) (*http.Response, error) {
-			return s.httpUpstream.Do(request, proxyURL, account.ID, account.Concurrency)
+			return s.httpUpstream.Do(request, proxyURL, account.Record.ID, account.Record.Concurrency)
 		},
 
 		TransportError: func(err error) error {
@@ -120,11 +123,11 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 			gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
 			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
-				Platform: account.Platform,
+				Platform: account.Record.Platform,
 
-				AccountID: account.ID,
+				AccountID: account.Record.ID,
 
-				AccountName: account.Name,
+				AccountName: account.Record.Name,
 
 				UpstreamStatusCode: 0,
 
@@ -140,11 +143,11 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 
 		HTTPError: func(resp *http.Response, respBody []byte) error {
 			upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
-			var decision UpstreamErrorDecision
+			var decision accountcore.UpstreamErrorDecision
 			return gatewaymedia.ResolveEmbeddingFailure(resp.StatusCode, gatewaymedia.EmbeddingFailurePorts{
 				InvalidRequest: func() bool { return openai.IsOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) },
 				ApplyPolicy: func() {
-					if account.Platform == capability.PlatformGrok {
+					if account.Record.Platform == capability.PlatformGrok {
 						decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 					} else {
 						decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
@@ -153,10 +156,10 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 				Generic: func() bool { return decision.ShouldReturnGenericError() },
 				Failover: func() bool {
 					defaultFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
-					if account.Platform == capability.PlatformGrok {
+					if account.Record.Platform == capability.PlatformGrok {
 						defaultFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
 					}
-					return decision.ShouldFailover(account, resp.StatusCode, defaultFailover)
+					return decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, defaultFailover)
 				},
 				RecordFailover: func() {
 					upstreamDetail := ""
@@ -169,11 +172,11 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 					}
 					gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
 
-						Platform: account.Platform,
+						Platform: account.Record.Platform,
 
-						AccountID: account.ID,
+						AccountID: account.Record.ID,
 
-						AccountName: account.Name,
+						AccountName: account.Record.Name,
 
 						UpstreamStatusCode: resp.StatusCode,
 
@@ -188,8 +191,8 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 				},
 				NewFailover: func() error {
 					shouldDisable := s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
-					retryableOnSameAccount := !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode)
-					if account.IsOpenAIOAuth() && resp.StatusCode == http.StatusTooManyRequests {
+					retryableOnSameAccount := !shouldDisable && account.View().IsPoolMode() && account.View().IsPoolModeRetryableStatus(resp.StatusCode)
+					if account.View().IsOpenAIOAuth() && resp.StatusCode == http.StatusTooManyRequests {
 						return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, respBody, upstreamMsg, shouldDisable, retryableOnSameAccount)
 					}
 					if isOpenAIHTTPUpstreamAccessStateError(resp.StatusCode, upstreamMsg, respBody) {
@@ -205,11 +208,11 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 		},
 
 		ReadBody: func(reader io.Reader) ([]byte, error) {
-			return ReadUpstreamResponseBody(reader, s.cfg, c, openAITooLargeError)
+			return gatewayhttp.ReadUpstreamResponseBody(reader, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.OpenAIResponseTooLarge)
 		},
 
 		ReadFailure: func(err error) error {
-			if !errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
+			if !errors.Is(err, httpclient.ErrResponseBodyTooLarge) {
 				gatewayhttp.WriteEmbeddingsError(c, http.StatusBadGateway, "api_error", "Failed to read upstream response")
 			}
 			return fmt.Errorf("read upstream body: %w", err)

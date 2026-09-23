@@ -4,6 +4,8 @@ package httpapi
 import (
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	ip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	gin "github.com/gin-gonic/gin"
@@ -18,7 +20,7 @@ func SessionBindingContext(settings func() ForwardedIPSettings) gin.HandlerFunc 
 	return func(c *gin.Context) {
 		forwardedIPSettings := settings()
 		ip.SetForwardedIPSettings(c, forwardedIPSettings.TrustForwardedIP, forwardedIPSettings.Headers)
-		userAgent := normalizePersistentText(c.Request.UserAgent(), maxPersistentUserAgentBytes)
+		userAgent := normalizePersistentText(c.Request.UserAgent(), authctx.MaxPersistentUserAgentBytes)
 		c.Request.Header.Set("User-Agent", userAgent)
 		binding := &identity.SessionBinding{
 			IP:        ip.GetSecurityClientIP(c, forwardedIPSettings.TrustForwardedIP),
@@ -37,7 +39,7 @@ func RequestSessionBinding(c *gin.Context) *identity.SessionBinding {
 	}
 	return &identity.SessionBinding{
 		IP:        ip.GetTrustedClientIP(c),
-		UserAgent: normalizePersistentText(c.Request.UserAgent(), maxPersistentUserAgentBytes),
+		UserAgent: normalizePersistentText(c.Request.UserAgent(), authctx.MaxPersistentUserAgentBytes),
 	}
 }
 
@@ -85,7 +87,7 @@ func EnforceSessionBinding(
 		if path == "" {
 			path = c.Request.URL.Path
 		}
-		auditService.RecordBindingMismatch(c.Request.Context(), BindingMismatchEvent{UserID: uid, Email: claims.Email, Role: claims.Role, Method: c.Request.Method, Path: path, ClientIP: binding.IP, UserAgent: normalizePersistentText(c.Request.UserAgent(), maxPersistentUserAgentBytes)})
+		auditService.RecordBindingMismatch(c.Request.Context(), BindingMismatchEvent{UserID: uid, Email: claims.Email, Role: claims.Role, Method: c.Request.Method, Path: path, ClientIP: binding.IP, UserAgent: normalizePersistentText(c.Request.UserAgent(), authctx.MaxPersistentUserAgentBytes)})
 	}
 	AbortWithError(c, 401, "SESSION_BINDING_MISMATCH", "Session network fingerprint changed, please login again")
 	return false

@@ -20,14 +20,14 @@ const (
 	IdempotencyStoreUnavailableFailOpen
 )
 
-func ExecuteAdminIdempotent(
+func (e *Executor) ExecuteAdminIdempotent(
 	c *gin.Context,
 	scope string,
 	payload any,
 	ttl time.Duration,
 	execute func(context.Context) (any, error),
 ) (*idempotency.IdempotencyExecuteResult, error) {
-	coordinator := idempotency.DefaultIdempotencyCoordinator()
+	coordinator := e.coordinator
 	if coordinator == nil {
 		data, err := execute(c.Request.Context())
 		if err != nil {
@@ -56,27 +56,27 @@ func AdminActorScope(c *gin.Context) string {
 	return actorScope
 }
 
-func ExecuteAdminIdempotentJSON(
+func (e *Executor) ExecuteAdminIdempotentJSON(
 	c *gin.Context,
 	scope string,
 	payload any,
 	ttl time.Duration,
 	execute func(context.Context) (any, error),
 ) {
-	ExecuteAdminIdempotentJSONWithMode(c, scope, payload, ttl, IdempotencyStoreUnavailableFailClose, execute)
+	e.ExecuteAdminIdempotentJSONWithMode(c, scope, payload, ttl, IdempotencyStoreUnavailableFailClose, execute)
 }
 
-func ExecuteAdminIdempotentJSONFailOpenOnStoreUnavailable(
+func (e *Executor) ExecuteAdminIdempotentJSONFailOpenOnStoreUnavailable(
 	c *gin.Context,
 	scope string,
 	payload any,
 	ttl time.Duration,
 	execute func(context.Context) (any, error),
 ) {
-	ExecuteAdminIdempotentJSONWithMode(c, scope, payload, ttl, IdempotencyStoreUnavailableFailOpen, execute)
+	e.ExecuteAdminIdempotentJSONWithMode(c, scope, payload, ttl, IdempotencyStoreUnavailableFailOpen, execute)
 }
 
-func ExecuteAdminIdempotentJSONWithMode(
+func (e *Executor) ExecuteAdminIdempotentJSONWithMode(
 	c *gin.Context,
 	scope string,
 	payload any,
@@ -84,14 +84,14 @@ func ExecuteAdminIdempotentJSONWithMode(
 	mode IdempotencyStoreUnavailableMode,
 	execute func(context.Context) (any, error),
 ) {
-	result, err := ExecuteAdminIdempotent(c, scope, payload, ttl, execute)
+	result, err := e.ExecuteAdminIdempotent(c, scope, payload, ttl, execute)
 	if err != nil {
 		if response.ErrorCode(err) == response.ErrorCode(idempotency.ErrIdempotencyStoreUnavail) {
 			strategy := "fail_close"
 			if mode == IdempotencyStoreUnavailableFailOpen {
 				strategy = "fail_open"
 			}
-			idempotency.RecordIdempotencyStoreUnavailable(c.FullPath(), scope, "handler_"+strategy)
+			e.coordinator.RecordIdempotencyStoreUnavailable(c.FullPath(), scope, "handler_"+strategy)
 			logger.LegacyPrintf("handler.idempotency", "[Idempotency] store unavailable: method=%s route=%s scope=%s strategy=%s", c.Request.Method, c.FullPath(), scope, strategy)
 			if mode == IdempotencyStoreUnavailableFailOpen {
 				data, fallbackErr := execute(c.Request.Context())

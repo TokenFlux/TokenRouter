@@ -4,6 +4,7 @@ package service
 import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 )
@@ -12,14 +13,14 @@ func newOpenAIWSConnPool(cfg *config.Config) *openai.WSConnPool {
 	return openai.NewWSConnPool(openAIWSPoolOptions(cfg))
 }
 
-func activeCodexFingerprintMode(account *Account) accountcore.CodexFingerprintMode {
-	if account == nil || account.GetCodexFingerprintMode() == accountcore.CodexFingerprintOff {
+func activeCodexFingerprintMode(account *gatewayprovider.ExecutionAccount) accountcore.CodexFingerprintMode {
+	if account == nil || gatewayprovider.ExecutionProtocolRecord(account).GetCodexFingerprintMode() == accountcore.CodexFingerprintOff {
 		return accountcore.CodexFingerprintOff
 	}
-	if _, ok := accountcore.CodexFingerprintSeed(account.Extra); !ok {
+	if _, ok := accountcore.CodexFingerprintSeed(account.Record.Extra); !ok {
 		return accountcore.CodexFingerprintOff
 	}
-	return account.GetCodexFingerprintMode()
+	return gatewayprovider.ExecutionProtocolRecord(account).GetCodexFingerprintMode()
 }
 
 // 原配置在取值时投影；不把完整配置或账号凭据交给原生池。
@@ -48,9 +49,9 @@ func openAIWSPoolOptions(cfg *config.Config) *openai.WSPoolOptions {
 		DialTimeoutSeconds:    options.DialTimeoutSeconds,
 	}
 }
-func openAIWSPoolAccountView(account *Account) *openai.WSPoolAccount {
+func openAIWSPoolAccountView(account *gatewayprovider.ExecutionAccount) *openai.WSPoolAccount {
 	if account == nil {
 		return nil
 	}
-	return &openai.WSPoolAccount{ID: account.ID, Concurrency: account.Concurrency, Type: account.Type, FingerprintMode: string(activeCodexFingerprintMode(account))}
+	return &openai.WSPoolAccount{ID: account.Record.ID, Concurrency: account.Record.Concurrency, Type: account.Record.Type, FingerprintMode: string(activeCodexFingerprintMode(account))}
 }

@@ -2,68 +2,37 @@ package service
 
 import (
 	"context"
-	"strings"
-	"sync/atomic"
 	"time"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-
-	"github.com/gin-gonic/gin"
 )
 
-type openAILegacySessionHashContextKey struct{}
-
-var openAILegacySessionHashKey = openAILegacySessionHashContextKey{}
-
-var schedulerStickyStats atomic.Pointer[scheduler.StickyStats]
-
-func SchedulerStickyStats() *scheduler.StickyStats {
-	if v := schedulerStickyStats.Load(); v != nil {
+// stickyStats 读取当前网关的观测实例，独立构造不会污染其他运行时。
+func (s *OpenAIGatewayService) stickyStats() *scheduler.StickyStats {
+	if s == nil {
+		return &scheduler.StickyStats{}
+	}
+	if v := s.schedulerStickyStats.Load(); v != nil {
 		return v
 	}
 	candidate := &scheduler.StickyStats{}
-	if schedulerStickyStats.CompareAndSwap(nil, candidate) {
+	if s.schedulerStickyStats.CompareAndSwap(nil, candidate) {
 		return candidate
 	}
-	return schedulerStickyStats.Load()
+	return s.schedulerStickyStats.Load()
 }
 
 // BindSchedulerStickyStats 绑定 app 唯一观测，旧入口不会保留第二份计数。
-func BindSchedulerStickyStats(value *scheduler.StickyStats) { schedulerStickyStats.Store(value) }
-
-func openAIStickyCompatStats() (int64, int64, int64) { return SchedulerStickyStats().Snapshot() }
+func (s *OpenAIGatewayService) BindSchedulerStickyStats(value *scheduler.StickyStats) {
+	s.schedulerStickyStats.Store(value)
+}
 
 // DeriveSessionHashFromSeed computes the current-format sticky-session hash
 // from an arbitrary seed string.
 func DeriveSessionHashFromSeed(seed string) string {
 	currentHash, _ := scheduler.DeriveSessionHashes(seed)
 	return currentHash
-}
-
-func withOpenAILegacySessionHash(ctx context.Context, legacyHash string) context.Context {
-	if ctx == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(legacyHash)
-	if trimmed == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, openAILegacySessionHashKey, trimmed)
-}
-
-func openAILegacySessionHashFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	value, _ := ctx.Value(openAILegacySessionHashKey).(string)
-	return strings.TrimSpace(value)
-}
-
-func attachOpenAILegacySessionHashToGin(c *gin.Context, legacyHash string) {
-	if c == nil || c.Request == nil {
-		return
-	}
-	c.Request = c.Request.WithContext(withOpenAILegacySessionHash(c.Request.Context(), legacyHash))
 }
 
 func (s *OpenAIGatewayService) openAISessionHashReadOldFallbackEnabled() bool {
@@ -85,18 +54,18 @@ func (s *OpenAIGatewayService) schedulerSticky() *scheduler.StickySession {
 	if s != nil {
 		cache = s.cache
 	}
-	return scheduler.NewStickySession(cache, scheduler.StickyOptions{Prefix: "openai:", ReadLegacy: s.openAISessionHashReadOldFallbackEnabled(), DualWriteLegacy: s.openAISessionHashDualWriteOldEnabled(), DefaultTTL: openaiStickySessionTTL}, SchedulerStickyStats())
+	return scheduler.NewStickySession(cache, scheduler.StickyOptions{Prefix: "openai:", ReadLegacy: s.openAISessionHashReadOldFallbackEnabled(), DualWriteLegacy: s.openAISessionHashDualWriteOldEnabled(), DefaultTTL: openaiStickySessionTTL}, s.stickyStats())
 }
 
 func (s *OpenAIGatewayService) getStickySessionAccountID(ctx context.Context, groupID *int64, sessionHash string) (int64, error) {
-	return s.schedulerSticky().Get(ctx, derefGroupID(groupID), sessionHash, openAILegacySessionHashFromContext(ctx))
+	return s.schedulerSticky().Get(ctx, derefGroupID(groupID), sessionHash, requeststate.OpenAILegacySessionHashFromContext(ctx))
 }
 func (s *OpenAIGatewayService) setStickySessionAccountID(ctx context.Context, groupID *int64, sessionHash string, accountID int64, ttl time.Duration) error {
-	return s.schedulerSticky().Set(ctx, derefGroupID(groupID), sessionHash, openAILegacySessionHashFromContext(ctx), accountID, ttl)
+	return s.schedulerSticky().Set(ctx, derefGroupID(groupID), sessionHash, requeststate.OpenAILegacySessionHashFromContext(ctx), accountID, ttl)
 }
 func (s *OpenAIGatewayService) refreshStickySessionTTL(ctx context.Context, groupID *int64, sessionHash string, ttl time.Duration) error {
-	return s.schedulerSticky().Refresh(ctx, derefGroupID(groupID), sessionHash, openAILegacySessionHashFromContext(ctx), ttl)
+	return s.schedulerSticky().Refresh(ctx, derefGroupID(groupID), sessionHash, requeststate.OpenAILegacySessionHashFromContext(ctx), ttl)
 }
 func (s *OpenAIGatewayService) deleteStickySessionAccountID(ctx context.Context, groupID *int64, sessionHash string) error {
-	return s.schedulerSticky().Delete(ctx, derefGroupID(groupID), sessionHash, openAILegacySessionHashFromContext(ctx))
+	return s.schedulerSticky().Delete(ctx, derefGroupID(groupID), sessionHash, requeststate.OpenAILegacySessionHashFromContext(ctx))
 }

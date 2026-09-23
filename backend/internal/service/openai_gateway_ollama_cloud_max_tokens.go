@@ -2,23 +2,24 @@
 package service
 
 import (
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/ollama"
 	"go.uber.org/zap"
 )
 
-func ollamaCloudMaxTokensCap(account *Account) int64 {
+func ollamaCloudMaxTokensCap(account *gatewayprovider.ExecutionAccount) int64 {
 	if account == nil {
 		return ollama.MaxTokensCap(nil, false)
 	}
-	value, ok := account.Extra[ollama.MaxTokensCapExtraKey]
+	value, ok := account.Record.Extra[ollama.MaxTokensCapExtraKey]
 	return ollama.MaxTokensCap(value, ok)
 }
-func clampOllamaCloudMaxTokens(account *Account, body []byte) []byte {
+func clampOllamaCloudMaxTokens(account *gatewayprovider.ExecutionAccount, body []byte) []byte {
 	cap := ollamaCloudMaxTokensCap(account)
 	out, clamped := ollama.ClampMaxTokens(body, cap)
 	if clamped && account != nil {
-		logging.L().Debug("openai chat_completions raw: clamped max_tokens for ollama cloud account", zap.Int64("account_id", account.ID), zap.Int64("cap", cap))
+		logging.L().Debug("openai chat_completions raw: clamped max_tokens for ollama cloud account", zap.Int64("account_id", account.Record.ID), zap.Int64("cap", cap))
 	}
 	return out
 }

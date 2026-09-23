@@ -9,6 +9,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -16,7 +17,6 @@ import (
 
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
@@ -95,7 +95,7 @@ func messageObservedAttempt(result *forwardcore.MessagesResult, err error) upstr
 }
 
 // capturedTextSelection 在候选返回时立即取得实际计划，结束后不再查看可变候选状态。
-func capturedTextSelection(account *service.Account) textflow.Selection {
-	plan, provided := service.CapturedAccountCandidatePlan(account)
-	return textflow.Selection{Account: service.AccountSnapshotView(account), RetryLimit: account.GetPoolModeRetryCount(), Plan: plan, PlanProvided: provided}
+func capturedTextSelection(account *gatewayprovider.ExecutionAccount) textflow.Selection {
+	plan, provided := gatewayprovider.ExecutionCandidatePlan(account)
+	return textflow.Selection{Account: gatewayprovider.ExecutionSnapshot(account), RetryLimit: account.View().GetPoolModeRetryCount(), Plan: plan, PlanProvided: provided}
 }

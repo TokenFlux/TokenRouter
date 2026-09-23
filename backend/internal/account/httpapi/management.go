@@ -6,6 +6,8 @@ import (
 	errors "errors"
 	strconv "strconv"
 
+	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
@@ -38,6 +40,8 @@ func (f AccountRuntimePresenterFunc) Present(ctx context.Context, v *accountcore
 
 // ManagementHandler 保留原管理员 HTTP 契约，运行投影与 Ollama 用量通过已装配端口取得。
 type ManagementHandler struct {
+	idempotencyhttp.Executor
+
 	models           *accountcore.ModelSyncService
 	reports          AccountReportOptions
 	tier             *accountcore.TierManagement

@@ -35,11 +35,11 @@ func (r *grokQuotaAccountRepo) UpdateExtra(_ context.Context, id int64, updates 
 		if account == nil {
 			return nil
 		}
-		if account.Extra == nil {
-			account.Extra = make(map[string]any)
+		if account.Record.Extra == nil {
+			account.Record.Extra = make(map[string]any)
 		}
 		for key, value := range updates {
-			account.Extra[key] = value
+			account.Record.Extra[key] = value
 		}
 	}
 	return nil

@@ -154,3 +154,7 @@ refactor/baseline/S16/*
 !refactor/baseline/S16/commit-verification.json
 !refactor/baseline/S16/commit-*.log.gz
 !refactor/baseline/S16/interim-search-catalogue-check.json
+
+# 用户授权的 S16 网关清理检查点：增量证据及逐文件校验。
+!refactor/baseline/S16/progress-20260923-*.tar.gz
+!refactor/baseline/S16/progress-20260923-manifest.json

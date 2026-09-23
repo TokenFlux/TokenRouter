@@ -7,14 +7,16 @@ import (
 	"net/http"
 
 	accountmodule "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/gin-gonic/gin"
 )
 
-func (s *GatewayService) anthropicRequestOptions(ctx context.Context, c *gin.Context, account *Account, model, tokenType string, mimic bool) claude.RequestOptions {
-	o := claude.RequestOptions{InjectAPIKeyBeta: s.cfg != nil && s.cfg.Gateway.InjectBetaForAPIKey, AccountID: account.ID, OAuth: account.IsOAuth(), AccountUUID: account.GetExtraString("account_uuid"), MaskSession: account.IsSessionIDMaskingEnabled(), APIKeyBearer: account.GetAnthropicAPIKeyAuthScheme() == accountmodule.AnthropicAPIKeyAuthSchemeAuthorizationBearer, ClientHeaders: http.Header{}, ApplyOverrides: account.ApplyHeaderOverrides}
+func (s *GatewayService) anthropicRequestOptions(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, model, tokenType string, mimic bool) claude.RequestOptions {
+	o := claude.RequestOptions{InjectAPIKeyBeta: s.cfg != nil && s.cfg.Gateway.InjectBetaForAPIKey, AccountID: account.Record.ID, OAuth: account.View().IsOAuth(), AccountUUID: account.View().GetExtraString("account_uuid"), MaskSession: account.View().IsSessionIDMaskingEnabled(), APIKeyBearer: gatewayprovider.ExecutionProtocolRecord(account).GetAnthropicAPIKeyAuthScheme() == accountmodule.AnthropicAPIKeyAuthSchemeAuthorizationBearer, ClientHeaders: http.Header{}, ApplyOverrides: bindAccountHeaders(account)}
 	if c != nil && c.Request != nil {
 		o.ClientHeaders = c.Request.Header
 	}
@@ -23,18 +25,18 @@ func (s *GatewayService) anthropicRequestOptions(ctx context.Context, c *gin.Con
 	}
 	o.URL = func() (string, error) {
 		url := claude.ClaudeAPIURL
-		if account.Type == capability.AccountTypeAPIKey {
-			if base := account.GetBaseURL(); base != "" {
+		if account.Record.Type == capability.AccountTypeAPIKey {
+			if base := account.View().GetBaseURL(); base != "" {
 				validated, err := s.validateUpstreamBaseURL(base)
 				if err != nil {
 					return "", err
 				}
 				url = validated + "/v1/messages?beta=true"
 			}
-		} else if account.IsCustomBaseURLEnabled() {
-			custom := account.GetCustomBaseURL()
+		} else if account.View().IsCustomBaseURLEnabled() {
+			custom := account.View().GetCustomBaseURL()
 			if custom == "" {
-				return "", fmt.Errorf("custom_base_url is enabled but not configured for account %d", account.ID)
+				return "", fmt.Errorf("custom_base_url is enabled but not configured for account %d", account.Record.ID)
 			}
 			validated, err := s.validateUpstreamBaseURL(custom)
 			if err != nil {
@@ -55,7 +57,9 @@ func (s *GatewayService) anthropicRequestOptions(ctx context.Context, c *gin.Con
 		return fp, mpt
 	}
 	o.FilterSet = func(ctx context.Context) map[string]struct{} { return s.getBetaPolicyFilterSet(ctx, c, account, model) }
-	o.BetaOverride = func() (string, bool) { return account.HeaderOverrideValue("anthropic-beta") }
+	o.BetaOverride = func() (string, bool) {
+		return accountprovider.HeaderOverrideValue(gatewayprovider.ExecutionProtocolRecord(account), "anthropic-beta")
+	}
 	o.CheckFastBeta = func(ctx context.Context) error {
 		if err := s.checkBetaPolicyBlockForTokens(ctx, []string{claude.BetaFastMode}, account, model); err != nil {
 			return err
@@ -77,22 +81,22 @@ func (s *GatewayService) anthropicRequestOptions(ctx context.Context, c *gin.Con
 }
 
 // count_tokens 只改变原端点选择，保留代理参数与动态设置的原调用时机。
-func (s *GatewayService) countTokensRequestOptions(ctx context.Context, c *gin.Context, value *Account, model, tokenType string, mimic, passthrough bool) claude.RequestOptions {
+func (s *GatewayService) countTokensRequestOptions(ctx context.Context, c *gin.Context, value *gatewayprovider.ExecutionAccount, model, tokenType string, mimic, passthrough bool) claude.RequestOptions {
 	options := s.anthropicRequestOptions(ctx, c, value, model, tokenType, mimic)
 	options.URL = func() (string, error) {
 		target := claude.ClaudeAPICountTokensURL
-		if passthrough || value.Type == capability.AccountTypeAPIKey {
-			if base := value.GetBaseURL(); base != "" {
+		if passthrough || value.Record.Type == capability.AccountTypeAPIKey {
+			if base := value.View().GetBaseURL(); base != "" {
 				validated, err := s.validateUpstreamBaseURL(base)
 				if err != nil {
 					return "", err
 				}
 				target = validated + "/v1/messages/count_tokens?beta=true"
 			}
-		} else if value.IsCustomBaseURLEnabled() {
-			custom := value.GetCustomBaseURL()
+		} else if value.View().IsCustomBaseURLEnabled() {
+			custom := value.View().GetCustomBaseURL()
 			if custom == "" {
-				return "", fmt.Errorf("custom_base_url is enabled but not configured for account %d", value.ID)
+				return "", fmt.Errorf("custom_base_url is enabled but not configured for account %d", value.Record.ID)
 			}
 			validated, err := s.validateUpstreamBaseURL(custom)
 			if err != nil {

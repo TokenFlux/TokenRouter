@@ -154,7 +154,7 @@ func (s *PassthroughSession) Run(ctx context.Context, clientConn ClientSocket, f
 	// usage 上报：filter 命中时 service_tier 已经从 firstClientMessage 中删除，
 	// 最终出站 tier 应为 nil，而不是用户最初请求的 "priority"。观察到的回包
 	// tier 单独保存在 UpstreamResponseServiceTier，由 usage 阶段统一决策。
-	// HTTP 入口（line ~2728 extractOpenAIServiceTier(reqBody)）
+	// HTTP 入口（line ~2728 requeststate.ExtractOpenAIServiceTier(reqBody)）
 	// 与 WS ingress（openai_ws_forwarder.go:2991 取自 payload）的语义一致。
 	//
 	// 多轮 passthrough：OpenAI Realtime / Responses WS 协议允许客户端在
@@ -389,7 +389,7 @@ func (s *PassthroughSession) Run(ctx context.Context, clientConn ClientSocket, f
 			// 多轮 passthrough usage：仅在成功（non-block / non-err）
 			// 的 response.create 帧上更新 usageMeta，使用
 			// filter 处理后的 payload，与首帧 policy-after-extract 语义
-			// 保持一致（参见上方 extractOpenAIServiceTierFromBody 注释）。
+			// 保持一致（参见上方 requeststate.ExtractOpenAIServiceTierFromBody 注释）。
 			//   - 非 response.create 帧（response.cancel /
 			//     conversation.item.create / session.update 等）不携带
 			//     per-response metadata，不应覆盖前一轮值。
@@ -397,7 +397,7 @@ func (s *PassthroughSession) Run(ctx context.Context, clientConn ClientSocket, f
 			//     上一轮值。
 			//   - policyErr != nil：异常路径，保持上一轮值。
 			//   - 不带 service_tier 的 response.create 会让
-			//     extractOpenAIServiceTierFromBody 返回 nil；这里有意
+			//     requeststate.ExtractOpenAIServiceTierFromBody 返回 nil；这里有意
 			//     覆盖（Store(nil)），因为 OpenAI 上游对该帧实际不传
 			//     service_tier 时按 default 处理，billing 应如实反映。
 			if policyErr == nil && blocked == nil && isResponseCreate {

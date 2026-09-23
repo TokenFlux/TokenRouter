@@ -6,10 +6,11 @@ import (
 	strconv "strconv"
 	time "time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	gin "github.com/gin-gonic/gin"
 )
 
@@ -43,7 +44,7 @@ func (h *QuotaHandler) respond(c *gin.Context, records []billing.UserPlatformQuo
 	response.Success(c, map[string]any{"platform_quotas": out})
 }
 func (h *QuotaHandler) GetMyPlatformQuotas(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -121,7 +122,7 @@ func (h *QuotaHandler) ResetUserPlatformQuotaWindow(c *gin.Context) {
 	h.respond(c, records, true)
 }
 func adminID(c *gin.Context) int64 {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		return 0
 	}

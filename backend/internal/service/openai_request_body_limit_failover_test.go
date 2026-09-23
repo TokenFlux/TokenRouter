@@ -9,10 +9,13 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -43,12 +46,11 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 				},
 				Body: body,
 			}}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 				httpUpstream: upstream,
-			}
-			account := &Account{
-				ID:          161,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 161,
 				Name:        name,
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
@@ -65,7 +67,7 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 					"openai_passthrough": passthrough,
 				},
 				Status:      billing.StatusActive,
-				Schedulable: true,
+				Schedulable: true},
 			}
 
 			result, err := svc.Forward(context.Background(), c, account, requestBody)
@@ -105,21 +107,20 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 
 			const upstreamBody = `{"error":{"message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"invalid_request_error"}}`
 			body := &passthroughCloseTrackingReadCloser{Reader: strings.NewReader(upstreamBody)}
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
 				httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 					StatusCode: http.StatusRequestEntityTooLarge,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},
 					Body:       body,
 				}},
-			}
-			account := &Account{
-				ID: 162, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 162, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://api.example.test"},
 				Extra: map[string]any{
 					"openai_passthrough": passthrough,
 				},
-				Status: billing.StatusActive, Schedulable: true,
+				Status: billing.StatusActive, Schedulable: true},
 			}
 
 			result, err := svc.Forward(context.Background(), c, account, requestBody)
@@ -149,8 +150,8 @@ func TestOpenAIRequestBodyLimitFailover_CompatAndWSBridgeKeepAccountFailover(t *
 		StatusCode: http.StatusRequestEntityTooLarge,
 		Header:     http.Header{"X-Request-Id": []string{"rid-compat-413"}},
 	}
-	account := &Account{ID: 163, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
-	svc := &OpenAIGatewayService{}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 163, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
 	failoverErr := svc.failoverOpenAIUpstreamHTTPError(
 		context.Background(), c, account, resp, upstreamBody, upstreamMessage, "gpt-5.2",

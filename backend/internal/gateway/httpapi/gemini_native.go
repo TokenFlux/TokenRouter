@@ -162,7 +162,7 @@ func (h *GeminiNativeHandler) GeminiV1BetaModels(c *gin.Context) {
 	h.backend.ObserveRequest(c, modelName, stream)
 	h.backend.ObserveEndpoint(c, stream)
 	// 用户提示词替换必须早于内容审计、会话 hash 和转发，避免审计与上游请求不一致。
-	body = h.prompt.ApplyUserPromptReplacement(c.Request.Context(), body, "gemini")
+	body = h.prompt.ApplyUserPromptReplacementToBody(c.Request.Context(), body, "gemini")
 
 	if decision := h.backend.Moderate(c, reqLog, apiKey, authSubject, modelName, body); decision != nil && decision.Blocked {
 		WriteGoogleError(c, ModerationHTTPStatus(decision), decision.Message)

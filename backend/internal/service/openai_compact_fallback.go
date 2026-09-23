@@ -5,6 +5,9 @@ import (
 	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/compact"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/gin-gonic/gin"
 )
@@ -28,10 +31,10 @@ func asOpenAICompactFallbackSignal(err error) (*openAICompactFallbackSignal, boo
 }
 
 func isExplicitOpenAICompactContext(c *gin.Context) bool {
-	return isOpenAIResponsesCompactPath(c) || isOpenAINativeCompactionV2(c)
+	return gatewayhttp.IsOpenAIResponsesCompactPath(c) || gatewayhttp.IsOpenAINativeCompactionV2(c)
 }
 func isExplicitOpenAICompactRequest(c *gin.Context, body []byte) bool {
-	return isOpenAIResponsesCompactPath(c) || HasCompactionTriggerInInput(body)
+	return gatewayhttp.IsOpenAIResponsesCompactPath(c) || protocolopenai.HasCompactionTriggerInInput(body)
 }
 func newOpenAICompactFallbackSignal(c *gin.Context, payload []byte, message string) error {
 	signal := compactRecovery(nil, nil).NewFailure(isExplicitOpenAICompactContext(c), payload, message)
@@ -42,7 +45,7 @@ func newOpenAICompactFallbackSignal(c *gin.Context, payload []byte, message stri
 }
 
 // 旧调用签名仅负责当前请求/账号投影；恢复规则由 gateway/compact 唯一实现。
-func (s *OpenAIGatewayService) resolveOpenAICompactFallbackModel(account *Account, model string) string {
+func (s *OpenAIGatewayService) resolveOpenAICompactFallbackModel(account *gatewayprovider.ExecutionAccount, model string) string {
 	return compactRecovery(s, account).ResolveModel(model)
 }
 func isOpenAICompactModelFailure(status int, message string, body []byte) bool {
@@ -53,15 +56,15 @@ func openAICompactFallbackErrorResponse(resp *http.Response, signal *openAICompa
 	return gatewayhttp.CompactFallbackErrorResponse(resp, signal.native())
 }
 
-func (s *OpenAIGatewayService) appendOpenAICompactFallbackRetryOps(c *gin.Context, account *Account, resp *http.Response, payload []byte, message string, passthrough bool) {
+func (s *OpenAIGatewayService) appendOpenAICompactFallbackRetryOps(c *gin.Context, account *gatewayprovider.ExecutionAccount, resp *http.Response, payload []byte, message string, passthrough bool) {
 	p := compactRetryAdapter{s: s, c: c, account: account, response: resp}
 	p.observe(payload, message, passthrough)
 }
-func (s *OpenAIGatewayService) prepareOpenAICompactFallbackRetry(c *gin.Context, account *Account, requested string, body []byte, status int, message string, payload []byte, tried bool) ([]byte, string, bool) {
+func (s *OpenAIGatewayService) prepareOpenAICompactFallbackRetry(c *gin.Context, account *gatewayprovider.ExecutionAccount, requested string, body []byte, status int, message string, payload []byte, tried bool) ([]byte, string, bool) {
 	in := compact.Request{Explicit: isExplicitOpenAICompactRequest(c, body), AlreadyRetried: tried, RequestedModel: requested, Body: body}
 	return compactRecovery(s, account).Prepare(in, status, message, payload)
 }
-func (s *OpenAIGatewayService) applyOpenAIPassthroughCompactFallbackFromSignal(c *gin.Context, account *Account, requested string, body []byte, err error, tried bool, resp *http.Response) ([]byte, string, bool) {
+func (s *OpenAIGatewayService) applyOpenAIPassthroughCompactFallbackFromSignal(c *gin.Context, account *gatewayprovider.ExecutionAccount, requested string, body []byte, err error, tried bool, resp *http.Response) ([]byte, string, bool) {
 	signal, ok := asOpenAICompactFallbackSignal(err)
 	if !ok {
 		return body, "", false

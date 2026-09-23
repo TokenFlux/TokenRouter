@@ -206,3 +206,8 @@ func RegisterAgentIdentityTask(ctx context.Context, key AgentIdentityKey, proxyU
 	}
 	return DecryptAgentTaskID(key, encrypted)
 }
+
+// IsAgentTaskInvalidWSDialError 复用同一 HTTP 响应解释，不改变 WS 恢复资格。
+func IsAgentTaskInvalidWSDialError(err *WSDialError) bool {
+	return err != nil && IsAgentTaskInvalidHTTPResponse(err.StatusCode, err.ResponseBody)
+}

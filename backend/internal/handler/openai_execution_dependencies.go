@@ -11,37 +11,37 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 type openAIExecutionDependencies struct {
 	recorder                            *completion.Recorder
-	apiKeyService                       service.APIKeyQuotaUpdater
+	apiKeyService                       gatewaycapture.QuotaUpdater
 	diagnoser                           routing.ModelAvailabilityDiagnoser
 	resolvedDiagnoser                   routing.ModelAvailabilityDiagnoser
-	enforceOpenAIClientPolicyForRequest func(ctx context.Context, c *gin.Context, account *service.Account, body []byte, tlsRouterMatch egress.TLSFingerprintRouterMatchResult) error
-	forward                             func(ctx context.Context, c *gin.Context, account *service.Account, body []byte) (*forwardcore.OpenAIResult, error)
-	forwardAsAnthropic                  func(ctx context.Context, c *gin.Context, account *service.Account, body []byte, promptCacheKey, defaultMappedModel string, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error)
+	enforceOpenAIClientPolicyForRequest func(ctx context.Context, c *gin.Context, account *gatewaycapture.ExecutionAccount, body []byte, tlsRouterMatch egress.TLSFingerprintRouterMatchResult) error
+	forward                             func(ctx context.Context, c *gin.Context, account *gatewaycapture.ExecutionAccount, body []byte) (*forwardcore.OpenAIResult, error)
+	forwardAsAnthropic                  func(ctx context.Context, c *gin.Context, account *gatewaycapture.ExecutionAccount, body []byte, promptCacheKey, defaultMappedModel string, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error)
 	forwardAsChatCompletions            func(
 		ctx context.Context,
 		c *gin.Context,
-		account *service.Account,
+		account *gatewaycapture.ExecutionAccount,
 		body []byte,
 		promptCacheKey string,
 		defaultMappedModel string,
 		tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
 	) (*forwardcore.OpenAIResult, error)
-	matchOpenAITLSFingerprintRouterForRequest func(c *gin.Context, account *service.Account) egress.TLSFingerprintRouterMatchResult
-	observeOpenAIAccountHealthFailure         func(ctx context.Context, account *service.Account, observedErr error) bool
-	recordOpenAIAccountSwitchForSelection     func(selection *service.AccountSelectionResult)
+	matchOpenAITLSFingerprintRouterForRequest func(c *gin.Context, account *gatewaycapture.ExecutionAccount) egress.TLSFingerprintRouterMatchResult
+	observeOpenAIAccountHealthFailure         func(ctx context.Context, account *gatewaycapture.ExecutionAccount, observedErr error) bool
+	recordOpenAIAccountSwitchForSelection     func(selection *gatewaycapture.SelectionResult)
 	replaceModelInBody                        func(body []byte, newModel string) []byte
-	reportOpenAIAccountScheduleResult         func(accountOrID *service.Account, model string, success bool, firstTokenMs *int, observedErr ...error) bool
+	reportOpenAIAccountScheduleResult         func(accountOrID *gatewaycapture.ExecutionAccount, model string, success bool, firstTokenMs *int, observedErr ...error) bool
 	selectAccountWithSchedulerForCapability   func(
 		ctx context.Context,
 		groupID *int64,
@@ -54,7 +54,7 @@ type openAIExecutionDependencies struct {
 		requireCompact bool,
 		previousResponseCanMove bool,
 		platformOverride ...string,
-	) (*service.AccountSelectionResult, scheduler.PlatformDecision, error)
+	) (*gatewaycapture.SelectionResult, scheduler.PlatformDecision, error)
 	selectAccountWithSchedulerForCapabilityAndRoutingModel func(
 		ctx context.Context,
 		groupID *int64,
@@ -68,13 +68,13 @@ type openAIExecutionDependencies struct {
 		requireCompact bool,
 		previousResponseCanMove bool,
 		platformOverride ...string,
-	) (*service.AccountSelectionResult, scheduler.PlatformDecision, error)
+	) (*gatewaycapture.SelectionResult, scheduler.PlatformDecision, error)
 	updateCodexUsageSnapshotFromHeaders func(ctx context.Context, accountID int64, headers http.Header)
 	acquireResponsesAccountSlot         func(
 		c *gin.Context,
 		groupID *int64,
 		sessionHash string,
-		selection *service.AccountSelectionResult,
+		selection *gatewaycapture.SelectionResult,
 		reqStream bool,
 		streamStarted *bool,
 		reqLog *zap.Logger,
@@ -83,7 +83,7 @@ type openAIExecutionDependencies struct {
 	deriveOpenAIForwardAttemptBody func(
 		reqLog *zap.Logger,
 		canonicalBody []byte,
-		account *service.Account,
+		account *gatewaycapture.ExecutionAccount,
 		state *openAIPassthroughFailoverState,
 	) []byte
 	ensureAnthropicErrorResponse         func(c *gin.Context, streamStarted bool) bool
@@ -94,9 +94,9 @@ type openAIExecutionDependencies struct {
 	handleFailoverExhaustedSimple        func(c *gin.Context, statusCode int, streamStarted bool)
 	handleOpenAISelectionBusinessError   func(c *gin.Context, err error, streamStarted bool) bool
 	handleStreamingAwareError            func(c *gin.Context, status int, errType, message string, streamStarted bool)
-	recordCyberPolicyIfMarked            func(c *gin.Context, apiKey *apikey.APIKey, account *service.Account, subscription *billing.UserSubscription, model string, forwardErrored bool, cyberBlockArg []byte, channelFields routing.ChannelUsageFields, requestPayloadHash string, nativeCompaction ...bool) bool
-	recordOpenAICyberWarning             func(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *service.Account, model string, statusCode int, responseBody []byte, warningText string)
-	recordOpenAIForwardErrorCyberWarning func(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *service.Account, model string, statusCode int, err error) bool
+	recordCyberPolicyIfMarked            func(c *gin.Context, apiKey *apikey.APIKey, account *gatewaycapture.ExecutionAccount, subscription *billing.UserSubscription, model string, forwardErrored bool, cyberBlockArg []byte, channelFields routing.ChannelUsageFields, requestPayloadHash string, nativeCompaction ...bool) bool
+	recordOpenAICyberWarning             func(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewaycapture.ExecutionAccount, model string, statusCode int, responseBody []byte, warningText string)
+	recordOpenAIForwardErrorCyberWarning func(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewaycapture.ExecutionAccount, model string, statusCode int, err error) bool
 	submitOpenAIUsageRecordTask          func(c *gin.Context, result *forwardcore.OpenAIResult, task completion.UsageRecordTask)
 }
 
@@ -126,7 +126,7 @@ func newOpenAIExecutionDependencies(h *OpenAIGatewayHandler) *openAIExecutionDep
 	d.handleFailoverExhaustedSimple = h.handleFailoverExhaustedSimple
 	d.handleOpenAISelectionBusinessError = h.handleOpenAISelectionBusinessError
 	d.handleStreamingAwareError = h.handleStreamingAwareError
-	d.recordCyberPolicyIfMarked = func(c *gin.Context, key *apikey.APIKey, account *service.Account, subscription *billing.UserSubscription, model string, failed bool, body []byte, fields routing.ChannelUsageFields, hash string, compact ...bool) bool {
+	d.recordCyberPolicyIfMarked = func(c *gin.Context, key *apikey.APIKey, account *gatewaycapture.ExecutionAccount, subscription *billing.UserSubscription, model string, failed bool, body []byte, fields routing.ChannelUsageFields, hash string, compact ...bool) bool {
 		return h.recordCyberPolicyIfMarked(c, key, account, subscription, model, failed, body, fields, hash, compact...)
 	}
 	d.recordOpenAICyberWarning = h.recordOpenAICyberWarning
@@ -141,7 +141,7 @@ func newOpenAIExecutionDependencies(h *OpenAIGatewayHandler) *openAIExecutionDep
 		d.observeOpenAIAccountHealthFailure = s.ObserveOpenAIAccountHealthFailure
 		d.recordOpenAIAccountSwitchForSelection = s.RecordOpenAIAccountSwitchForSelection
 		d.replaceModelInBody = s.ReplaceModelInBody
-		d.reportOpenAIAccountScheduleResult = func(a *service.Account, model string, success bool, first *int, errs ...error) bool {
+		d.reportOpenAIAccountScheduleResult = func(a *gatewaycapture.ExecutionAccount, model string, success bool, first *int, errs ...error) bool {
 			return s.ReportOpenAIAccountScheduleResult(a, model, success, first, errs...)
 		}
 		d.selectAccountWithSchedulerForCapability = s.SelectAccountWithSchedulerForCapability

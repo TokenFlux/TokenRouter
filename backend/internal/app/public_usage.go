@@ -4,11 +4,13 @@ package app
 import (
 	"context"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
@@ -31,19 +33,14 @@ func providePublicUsage(u *usage.UsageService, k *keycore.APIKeyService, users *
 		return &usagehttp.PublicUserBalance{Balance: v.Balance}, nil
 	}), publicBalanceUnit{store}, usagehttp.PublicUsageContext{
 		Key: func(c *gin.Context) (*keycore.APIKey, bool) {
-			value, ok := middleware.GetAPIKeyFromContext(c)
+			value, ok := keyhttp.GetAPIKeyFromContext(c)
 			return keycore.CopyAPIKey(value), ok
 		},
 		Billing: func(c *gin.Context) (*billing.APIKeyBillingContext, bool) {
-			return middleware.GetAPIKeyBillingContext(c)
+			return gatewayhttp.GetAPIKeyBillingContext(c)
 		},
 		Subscription: func(c *gin.Context) (*billing.UserSubscription, bool) {
-			return middleware.GetSubscriptionFromContext(c)
+			return gatewayhttp.SubscriptionFromContext(c)
 		},
 	}, calendar)
-}
-
-// providePublicBalanceUnit 让旧 HTTP 消费者直接使用唯一 billing 展示规则。
-func providePublicBalanceUnit(store *settings.Store) usagehttp.BalanceUnitReader {
-	return publicBalanceUnit{store}
 }

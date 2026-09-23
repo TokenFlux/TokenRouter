@@ -9,7 +9,6 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/idempotency"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 )
 
@@ -38,14 +37,7 @@ func Initialize(ctx context.Context, cfg *config.Config, buildInfo BuildInfo, re
 		}
 	})
 	manager.Register(lifecycle.Hook{Name: "LogBackend", StartOrder: -2000, StopOrder: 1000, Stop: func(context.Context) error { logging.Sync(); return logging.CloseFiles() }})
-	tasks := installLegacyBackground(manager)
-	previousCoordinator := idempotency.DefaultIdempotencyCoordinator()
-	manager.Register(lifecycle.Hook{Name: "DefaultIdempotencyCoordinator", StartOrder: -999, StopOrder: 850, Stop: func(context.Context) error {
-		idempotency.SetDefaultIdempotencyCoordinator(previousCoordinator)
-		return nil
-	}})
-	restore := idempotency.SetObserver(idempotency.ObserverFunc(func(component, message string) { logging.LegacyPrintf(component, "%s", message) }))
-	manager.Register(lifecycle.Hook{Name: "IdempotencyObserver", StartOrder: -1000, StopOrder: 850, Stop: func(context.Context) error { restore(); return nil }})
+	tasks := installBackgroundTasks(manager)
 	defer func() {
 		if err != nil {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

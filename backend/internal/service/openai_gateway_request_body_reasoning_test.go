@@ -2,7 +2,10 @@ package service
 
 import (
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	openaicore "github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -296,81 +299,6 @@ func TestNormalizeOpenAIParallelToolCallsWithoutTools_KeepsResponsesLiteAddition
 	require.Equal(t, gjson.False, gjson.GetBytes(normalized, "parallel_tool_calls").Type)
 }
 
-func TestFilterOpenAIResponsesNoneReasoningEffortForAccount(t *testing.T) {
-	tests := []struct {
-		name          string
-		account       *Account
-		body          string
-		wantNested    bool
-		wantFlat      bool
-		wantSummary   bool
-		wantReasoning bool
-	}{
-		{
-			name:          "Kimi removes none placeholder",
-			account:       &Account{Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey},
-			body:          `{"reasoning":{"effort":"none"},"reasoning_effort":"NONE"}`,
-			wantReasoning: false,
-		},
-		{
-			name:          "custom compatible endpoint removes none placeholder",
-			account:       &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{"base_url": "https://compat.example/v1"}},
-			body:          `{"reasoning":{"effort":"none"},"reasoning_effort":"NONE"}`,
-			wantReasoning: false,
-		},
-		{
-			name:          "preserves other reasoning members",
-			account:       &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeAPIKey},
-			body:          `{"reasoning":{"effort":" none ","summary":"auto"}}`,
-			wantSummary:   true,
-			wantReasoning: true,
-		},
-		{
-			name:          "official OpenAI API preserves none",
-			account:       &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey},
-			body:          `{"reasoning":{"effort":"none"},"reasoning_effort":"none"}`,
-			wantNested:    true,
-			wantFlat:      true,
-			wantReasoning: true,
-		},
-		{
-			name:          "OpenAI OAuth preserves none",
-			account:       &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
-			body:          `{"reasoning":{"effort":"none"}}`,
-			wantNested:    true,
-			wantReasoning: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := filterOpenAIResponsesNoneReasoningEffortForAccount(tt.account, []byte(tt.body))
-			require.NoError(t, err)
-			require.Equal(t, tt.wantNested, gjson.GetBytes(got, "reasoning.effort").Exists())
-			require.Equal(t, tt.wantFlat, gjson.GetBytes(got, "reasoning_effort").Exists())
-			require.Equal(t, tt.wantSummary, gjson.GetBytes(got, "reasoning.summary").Exists())
-			require.Equal(t, tt.wantReasoning, gjson.GetBytes(got, "reasoning").Exists())
-		})
-	}
-}
-
-func TestFilterOpenAIResponsesNoneReasoningEffortForAccount_APIKeyAutomaticPassthroughPreservesRequest(t *testing.T) {
-	body := []byte(`{"model":"qwen3.8-27b","input":"hi","max_output_tokens":20,"reasoning":{"effort":"none"},"presence_penalty":1.5}`)
-	account := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Credentials: map[string]any{
-			"base_url": "https://compat.example/v1",
-		},
-		Extra: map[string]any{"openai_passthrough": true},
-	}
-
-	got, err := filterOpenAIResponsesNoneReasoningEffortForAccount(account, body)
-
-	require.NoError(t, err)
-	require.JSONEq(t, string(body), string(got))
-}
-
 // Lite 工具迁移到 input[].additional_tools 后，仍应按有工具请求处理。
 func TestNormalizeOpenAIParallelToolCallsWithoutTools_KeepsResponsesLiteAdditionalToolsUpstreamRegression(t *testing.T) {
 	liteBody := []byte(`{"input":[{"type":"message","role":"user","content":"hi"},{"type":"additional_tools","tools":[{"type":"function","name":"spawn_agent"}]}],"parallel_tool_calls":false}`)
@@ -432,20 +360,18 @@ func TestNormalizeOpenAIResponsesReasoningContentReplayKeepsPortableShapes(t *te
 func TestNormalizeOpenAIResponsesWebSocketCompatibilityBodyStripsReasoningContentOnlyForOpenAI(t *testing.T) {
 	body := []byte(`{"type":"response.create","model":"gpt-5.6-sol","store":true,"input":[{"type":"reasoning","summary":[{"type":"summary_text","text":"keep"}],"content":[{"type":"reasoning_text","text":"remove"}]}]}`)
 	for _, accountType := range []string{capability.AccountTypeAPIKey, capability.AccountTypeOAuth} {
-		normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{
-			Platform: capability.PlatformOpenAI,
-			Type:     accountType,
-		}, false)
+		normalized, changed, err := gatewayprovider.NormalizeOpenAIResponsesWebSocketCompatibilityBody(body, gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+			Type: accountType},
+		}), false)
 		require.NoError(t, err)
 		require.True(t, changed)
 		require.False(t, gjson.GetBytes(normalized, "input.0.content").Exists())
 		require.Equal(t, "keep", gjson.GetBytes(normalized, "input.0.summary.0.text").String())
 	}
 
-	normalized, changed, err := normalizeOpenAIResponsesWebSocketCompatibilityBody(body, &Account{
-		Platform: capability.PlatformZhipu,
-		Type:     capability.AccountTypeAPIKey,
-	}, false)
+	normalized, changed, err := gatewayprovider.NormalizeOpenAIResponsesWebSocketCompatibilityBody(body, gatewayprovider.ExecutionProtocolRecord(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformZhipu,
+		Type: capability.AccountTypeAPIKey},
+	}), false)
 	require.NoError(t, err)
 	require.False(t, changed)
 	require.JSONEq(t, string(body), string(normalized))

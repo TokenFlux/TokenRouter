@@ -7,14 +7,15 @@ import (
 	"testing"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	upstreamollama "github.com/TokenFlux/TokenRouter/internal/upstream/ollama"
 	"github.com/stretchr/testify/require"
 )
 
 // ollamaMaxTokensCapTestAccount 构造带自定义 cap 的 Ollama Cloud usage 账号。
-func ollamaMaxTokensCapTestAccount(id int64, cap any) *Account {
+func ollamaMaxTokensCapTestAccount(id int64, cap any) *gatewayprovider.ExecutionAccount {
 	account := ollamaUsageAccount(id)
-	account.Extra[upstreamollama.MaxTokensCapExtraKey] = cap
+	account.Record.Extra[upstreamollama.MaxTokensCapExtraKey] = cap
 	return account
 }
 
@@ -23,7 +24,7 @@ func TestOllamaCloudMaxTokensClamp(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 		body    string
 		want    string
 		raw     bool // want 非法 JSON 时按原始字节比较
@@ -144,15 +145,15 @@ func TestApplyOllamaCloudRawChatCompletionsRequestClampsMaxTokens(t *testing.T) 
 
 	// 官方 DeepSeek（api.deepseek.com + force_chat_completions）→ 字节级不变。
 	official := rawChatCompletionsTestAccount()
-	official.Credentials["base_url"] = "https://api.deepseek.com"
-	official.Extra = map[string]any{
+	official.Record.Credentials["base_url"] = "https://api.deepseek.com"
+	official.Record.Extra = map[string]any{
 		accountcore.ExtraKeyTextRouteMode: string(accountcore.TextRouteModeForceChatCompletions),
 	}
 	require.Equal(t, body, applyOllamaCloudRawChatCompletionsRequest(official, body))
 
 	// ollama.com 但无 force_chat_completions（Extra 缺键）→ 不通过钩子判定门槛，字节级不变。
 	noForce := ollamaCloudRawChatCompletionsTestAccount()
-	noForce.Extra = nil
+	noForce.Record.Extra = nil
 	require.Equal(t, body, applyOllamaCloudRawChatCompletionsRequest(noForce, body))
 
 	// 空 body → 原样返回。

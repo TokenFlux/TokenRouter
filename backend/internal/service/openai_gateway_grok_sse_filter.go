@@ -4,12 +4,13 @@ package service
 import (
 	"io"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 )
 
-func newGrokResponsesBillingPingFilterBody(source io.ReadCloser, account *Account, maxLineSize int) io.ReadCloser {
-	if account == nil || account.Platform != capability.PlatformGrok {
+func newGrokResponsesBillingPingFilterBody(source io.ReadCloser, account *gatewayprovider.ExecutionAccount, maxLineSize int) io.ReadCloser {
+	if account == nil || account.Record.Platform != capability.PlatformGrok {
 		return source
 	}
 	return grok.NewGrokResponsesBillingPingFilterBody(source, maxLineSize)

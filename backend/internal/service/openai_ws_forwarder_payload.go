@@ -1,7 +1,9 @@
 package service
 
 import (
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 
 	"context"
@@ -20,34 +22,34 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func validateOpenAIWSBearerToken(account *Account, token string) error {
+func validateOpenAIWSBearerToken(account *gatewayprovider.ExecutionAccount, token string) error {
 	if account == nil {
 		return errors.New("account is nil")
 	}
-	if strings.TrimSpace(token) == "" && !account.IsOpenAIAgentIdentity() {
+	if strings.TrimSpace(token) == "" && !account.View().IsOpenAIAgentIdentity() {
 		return errors.New("token is empty")
 	}
 	return nil
 }
 
-func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *Account) (string, error) {
+func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *gatewayprovider.ExecutionAccount) (string, error) {
 	if account == nil {
 		return "", errors.New("account is nil")
 	}
 	var targetURL string
-	switch account.Type {
+	switch account.Record.Type {
 	case capability.AccountTypeOAuth:
 		targetURL = chatgptCodexURL
 	case capability.AccountTypeSetupToken:
-		if account.IsOpenAIOAuthLike() {
+		if account.View().IsOpenAIOAuthLike() {
 			targetURL = chatgptCodexURL
 		} else {
 			targetURL = openaiPlatformAPIURL
 		}
 	case capability.AccountTypeAPIKey:
-		baseURL := account.GetOpenAIBaseURL()
-		if _, unified := account.Credentials[accountcore.UpstreamProtocolsKey]; account.UsesNativeCNResponses() && (unified || account.IsAdaptiveAPIProtocol()) {
-			baseURL = account.GetCNProtocolBaseURL(accountcore.APIProtocolResponses)
+		baseURL := gatewayprovider.ExecutionProtocolTarget(account).GetOpenAIBaseURL()
+		if _, unified := account.Record.Credentials[accountcore.UpstreamProtocolsKey]; gatewayprovider.ExecutionProtocolTarget(account).UsesNativeCNResponses() && (unified || gatewayprovider.ExecutionProtocolTarget(account).IsAdaptiveAPIProtocol()) {
+			baseURL = gatewayprovider.ExecutionProtocolTarget(account).GetCNProtocolBaseURL(accountcore.APIProtocolResponses)
 		}
 		if baseURL == "" {
 			targetURL = openaiPlatformAPIURL
@@ -56,7 +58,7 @@ func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *Account) (stri
 			if err != nil {
 				return "", err
 			}
-			targetURL = forward.ResponsesEndpoint(account.Platform, validatedURL)
+			targetURL = forward.ResponsesEndpoint(account.Record.Platform, validatedURL)
 		}
 	default:
 		targetURL = openaiPlatformAPIURL
@@ -82,7 +84,7 @@ func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *Account) (stri
 func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	token string,
 	decision egress.OpenAIWSProtocolDecision,
 	isCodexCLI bool,
@@ -95,7 +97,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 ) (http.Header, gatewayhttp.OpenAIWSSessionHeaderResolution, error) {
 	var sessionResolution gatewayhttp.OpenAIWSSessionHeaderResolution
 	headers, err := upstreamopenai.BuildWSHeaders(ctx, upstreamopenai.WSHeaderOptions{
-		AgentIdentity: account != nil && account.IsOpenAIAgentIdentity(), Token: token,
+		AgentIdentity: account != nil && account.View().IsOpenAIAgentIdentity(), Token: token,
 		TurnState: turnState, TurnMetadata: turnMetadata,
 		BetaV1: openAIWSBetaV1Value, BetaV2: openAIWSBetaV2Value,
 		LegacyWS: decision.Transport == egress.OpenAIUpstreamTransportResponsesWebsocket,
@@ -123,21 +125,23 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 			s.applyOpenAIUpstreamUserAgentHeader(reqCtx, c, account, headers, true, routerMatch...)
 		},
 		ResponsesRequestOptions: upstreamopenai.ResponsesRequestOptions{
-			UsesCodex: func() bool { return account != nil && account.UsesOpenAICodexProtocol() },
+			UsesCodex: func() bool { return account != nil && account.View().UsesOpenAICodexProtocol() },
 			APIKeyID:  func() int64 { return gatewayhttp.APIKeyIDFromContext(c) },
 			IsolateSession: func(keyID int64, value string) string {
-				return isolateOpenAIUpstreamSessionID(keyID, codexAccountIdentitySource(c, account), value)
+				return upstreamopenai.IsolateOpenAIUpstreamSessionID(keyID, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(c, account.View())), value)
 			},
 			ApplyAccountIdentity: func(headers http.Header) {
-				applyCodexAccountIdentityHeaders(headers, codexAccountIdentitySource(c, account), gatewayhttp.APIKeyIDFromContext(c))
+				upstreamopenai.ApplyCodexAccountIdentityHeaders(headers, accountprovider.CodexIdentityNamespace(gatewayhttp.CodexIdentityRecord(c, account.View())), gatewayhttp.APIKeyIDFromContext(c))
 			},
-			ApplyFingerprint: func(headers http.Header) { applyStagedCodexFingerprintHeaders(c, account, headers) },
+			ApplyFingerprint: func(headers http.Header) { gatewayhttp.ApplyStagedCodexFingerprintHeaders(c, account.View(), headers) },
 			AccountHeaders: func(ctx context.Context, headers http.Header) error {
-				return resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, headers, account)
+				return gatewayprovider.CredentialChatGPTHeaders(ctx, s.accountRepo, headers, account)
 			},
 			Originator:      func() string { return resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...) },
-			OverrideHeaders: account.ApplyHeaderOverrides,
-			BetaFeatures:    func(headers http.Header) { applyOpenAICodexBetaFeatures(c, account, headers) },
+			OverrideHeaders: bindAccountHeaders(account),
+			BetaFeatures: func(headers http.Header) {
+				gatewayhttp.ApplyOpenAICodexBetaFeatures(c, account != nil && account.View().IsOpenAIOAuthLike(), headers)
+			},
 			RoutingHint: func(headers http.Header, _ []byte) {
 				setOpenAICodexRoutingHint(headers, account, routingModel, routingServiceTier)
 			},
@@ -149,7 +153,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	return headers, sessionResolution, err
 }
 
-func (s *OpenAIGatewayService) buildOpenAIWSCreatePayload(reqBody map[string]any, account *Account) map[string]any {
+func (s *OpenAIGatewayService) buildOpenAIWSCreatePayload(reqBody map[string]any, account *gatewayprovider.ExecutionAccount) map[string]any {
 	// OpenAI WS Mode 协议：response.create 字段与 HTTP /responses 基本一致。
 	// 保留 stream 字段（与 Codex CLI 一致），仅移除 background。
 	payload := make(map[string]any, len(reqBody)+1)
@@ -164,14 +168,14 @@ func (s *OpenAIGatewayService) buildOpenAIWSCreatePayload(reqBody map[string]any
 	payload["type"] = "response.create"
 
 	// OAuth 默认保持 store=false，避免误依赖服务端历史。
-	if account != nil && account.UsesOpenAICodexProtocol() && !s.isOpenAIWSStoreRecoveryAllowed(account) {
+	if account != nil && account.View().UsesOpenAICodexProtocol() && !s.isOpenAIWSStoreRecoveryAllowed(account) {
 		payload["store"] = false
 	}
 	return payload
 }
 
-func (s *OpenAIGatewayService) isOpenAIWSStoreRecoveryAllowed(account *Account) bool {
-	if account != nil && account.IsOpenAIWSAllowStoreRecoveryEnabled() {
+func (s *OpenAIGatewayService) isOpenAIWSStoreRecoveryAllowed(account *gatewayprovider.ExecutionAccount) bool {
+	if account != nil && account.View().IsOpenAIWSAllowStoreRecoveryEnabled() {
 		return true
 	}
 	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.AllowStoreRecovery {
@@ -180,8 +184,8 @@ func (s *OpenAIGatewayService) isOpenAIWSStoreRecoveryAllowed(account *Account) 
 	return false
 }
 
-func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequest(reqBody map[string]any, account *Account) bool {
-	if account != nil && account.UsesOpenAICodexProtocol() && !s.isOpenAIWSStoreRecoveryAllowed(account) {
+func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequest(reqBody map[string]any, account *gatewayprovider.ExecutionAccount) bool {
+	if account != nil && account.View().UsesOpenAICodexProtocol() && !s.isOpenAIWSStoreRecoveryAllowed(account) {
 		return true
 	}
 	if len(reqBody) == 0 {
@@ -198,8 +202,8 @@ func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequest(reqBody map[stri
 	return !storeEnabled
 }
 
-func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequestRaw(reqBody []byte, account *Account) bool {
-	if account != nil && account.UsesOpenAICodexProtocol() && !s.isOpenAIWSStoreRecoveryAllowed(account) {
+func (s *OpenAIGatewayService) isOpenAIWSStoreDisabledInRequestRaw(reqBody []byte, account *gatewayprovider.ExecutionAccount) bool {
+	if account != nil && account.View().UsesOpenAICodexProtocol() && !s.isOpenAIWSStoreRecoveryAllowed(account) {
 		return true
 	}
 	if len(reqBody) == 0 {

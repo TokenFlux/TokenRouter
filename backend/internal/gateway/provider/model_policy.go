@@ -35,9 +35,15 @@ func (p ModelPolicy) Mapped(model string) string {
 	if p.Record == nil {
 		return model
 	}
-	mapped, _ := p.Route.ResolveModel(p.Record.ID, p.Record.Platform, account.ResolveModelMapping(p.Record, accountprovider.ModelDefaults()), model)
+	mapped, _ := p.ResolveMapped(model)
 	return mapped
 }
+
+// ResolveMapped 保留单步映射命中信息，并在当次尝试的匹配时点读取账号配置。
+func (p ModelPolicy) ResolveMapped(model string) (string, bool) {
+	return p.Route.ResolveModel(p.Record.ID, p.Record.Platform, account.ResolveModelMapping(p.Record, accountprovider.ModelDefaults()), model)
+}
+
 func (p ModelPolicy) ForwardModel(requested, dispatchMapped string) string {
 	model := requested
 	if dispatchMapped = strings.TrimSpace(dispatchMapped); dispatchMapped != "" {
@@ -132,13 +138,21 @@ func (p ModelPolicy) CanonicalSchedulingModel(requested string) string {
 	}
 	return model
 }
-func (p ModelPolicy) Bedrock(model string) (string, bool) {
-	var input *bedrock.RouteInput
-	if p.Record != nil {
-		input = &bedrock.RouteInput{Region: p.Record.GetCredential("aws_region"), ForceGlobal: p.Record.GetCredential("aws_force_global") == "true", Model: p.Mapped(model)}
+func (p ModelPolicy) bedrockInput(model string) *bedrock.RouteInput {
+	if p.Record == nil {
+		return nil
 	}
-	return bedrock.ResolveBedrockModelID(input, model)
+	return &bedrock.RouteInput{Region: p.Record.GetCredential("aws_region"), ForceGlobal: p.Record.GetCredential("aws_force_global") == "true", Model: p.Mapped(model)}
 }
+func (p ModelPolicy) Bedrock(model string) (string, bool) {
+	return bedrock.ResolveBedrockModelID(p.bedrockInput(model), model)
+}
+
+// BedrockRoute 复用账号单步映射和平台区域规则，不改变资格或来源区域。
+func (p ModelPolicy) BedrockRoute(model string) (bedrock.BedrockModelRoute, error) {
+	return bedrock.ResolveBedrockModelRoute(p.bedrockInput(model), model)
+}
+
 func (p ModelPolicy) AnthropicUpstream(mapped string) string {
 	if p.Record == nil {
 		return ""
@@ -302,4 +316,30 @@ func (p ModelPolicy) ListingModels(ctx context.Context, requested string) []stri
 	}
 	add(p.UpstreamModel(ctx, requested))
 	return models
+}
+
+// ForwardMappedModels 保留计费模型与最终上游模型的独立解析和 Compact 优先级。
+func (p ModelPolicy) ForwardMappedModels(requested string, compact bool) (billingModel, upstreamModel string) {
+	requested = strings.TrimSpace(requested)
+	if p.Record != nil && p.Record.IsOpenAIPassthroughEnabled() {
+		billingModel = requested
+	} else if p.Record != nil {
+		billingModel = strings.TrimSpace(p.Mapped(requested))
+	}
+	if billingModel == "" {
+		billingModel = requested
+	}
+	upstreamModel = p.OpenAIUpstream(requested, compact, false)
+	if strings.TrimSpace(upstreamModel) == "" {
+		upstreamModel = billingModel
+	}
+	return billingModel, upstreamModel
+}
+
+// ErrorSchedulingModel 只使用已经观测的型号，缺失时才回退计费型号。
+func ErrorSchedulingModel(billingModel, upstreamModel string) string {
+	if upstream := strings.TrimSpace(upstreamModel); upstream != "" {
+		return upstream
+	}
+	return strings.TrimSpace(billingModel)
 }

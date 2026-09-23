@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -28,7 +30,7 @@ import (
 func (s *OpenAIGatewayService) forwardGrokResponses(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	originalModel string,
 	reqStream bool,
@@ -93,12 +95,6 @@ func normalizeGrokChatReasoningEffort(body []byte, upstreamModel string) ([]byte
 		NormalizeGrokChatReasoningEffort(body, upstreamModel)
 }
 
-func GrokSupportsXHighReasoningEffort(model string) bool {
-	return (grok.BodyCodec{
-		NewID: uuid.NewString}).
-		GrokSupportsXHighReasoningEffort(model)
-}
-
 func sanitizeGrokResponsesInput(body []byte) ([]byte, error) {
 	return (grok.BodyCodec{
 		NewID: uuid.NewString}).
@@ -108,7 +104,7 @@ func sanitizeGrokResponsesInput(body []byte) ([]byte, error) {
 func (s *OpenAIGatewayService) bridgeGrokComposerImageInputs(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	token string,
 ) ([]byte, openai.ForwardUsage, bool, error) {
@@ -122,7 +118,7 @@ func (s *OpenAIGatewayService) bridgeGrokComposerImageInputs(
 func (s *OpenAIGatewayService) describeGrokComposerImage(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	token string,
 	imageURL string,
 	index int,
@@ -131,7 +127,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 	return grokforward.DescribeImage(ctx, adapter, adapter.options(), adapter.input(nil, "", false, time.Time{}), imageURL, index)
 }
 
-func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token, cacheIdentity string, cfg *config.Config, settings ...*gatewayprovider.RuntimeReaders) (*http.Request, error) {
+func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, token, cacheIdentity string, cfg *config.Config, settings ...*gatewayprovider.RuntimeReaders) (*http.Request, error) {
 	targetURL, err := buildGrokResponsesURL(account, cfg, settings...)
 	if err != nil {
 		return nil, err
@@ -148,7 +144,7 @@ func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Acc
 
 		CacheIdentity: cacheIdentity,
 
-		OAuth: account.IsGrokOAuth(),
+		OAuth: account.View().IsGrokOAuth(),
 
 		OpenAIBeta: beta,
 
@@ -156,19 +152,19 @@ func buildGrokResponsesRequest(ctx context.Context, c *gin.Context, account *Acc
 			return upstream.WithHTTPUpstreamProfile(ctx, upstream.HTTPUpstreamProfileGrok)
 		},
 
-		ApplyOverrides: account.ApplyHeaderOverrides,
+		ApplyOverrides: bindAccountHeaders(account),
 	})
 }
 
-func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, account *Account, snapshot *grok.QuotaSnapshot) {
+func (s *OpenAIGatewayService) updateGrokUsageSnapshot(ctx context.Context, account *gatewayprovider.ExecutionAccount, snapshot *grok.QuotaSnapshot) {
 	s.updateGrokUsageSnapshotWithRateLimit(ctx, account, snapshot, true)
 }
 
-func (s *OpenAIGatewayService) updateGrokUsageSnapshotWithRateLimit(ctx context.Context, account *Account, snapshot *grok.QuotaSnapshot, installRateLimit bool) {
-	if s == nil || account == nil || account.ID <= 0 || snapshot == nil {
+func (s *OpenAIGatewayService) updateGrokUsageSnapshotWithRateLimit(ctx context.Context, account *gatewayprovider.ExecutionAccount, snapshot *grok.QuotaSnapshot, installRateLimit bool) {
+	if s == nil || account == nil || account.Record.ID <= 0 || snapshot == nil {
 		return
 	}
-	accountID := account.ID
+	accountID := account.Record.ID
 	now := time.Now()
 	resetAt, hasActiveLimit := grokRateLimitResetAtForAccount(account, snapshot, now)
 	if hasActiveLimit {
@@ -199,16 +195,16 @@ func (s *OpenAIGatewayService) updateGrokUsageSnapshotWithRateLimit(ctx context.
 	}
 	// 请求路径中的 Account 指针来自每次 Redis/DB 解码，不是进程内共享缓存；
 	// 这里与 token 刷新和限流写入保持一致，调用方不得跨 goroutine 复用同一指针。
-	if account.Extra == nil {
-		account.Extra = map[string]any{}
+	if account.Record.Extra == nil {
+		account.Record.Extra = map[string]any{}
 	}
-	account.Extra[grokQuotaSnapshotExtraKey] = snapshot
+	account.Record.Extra[grokQuotaSnapshotExtraKey] = snapshot
 	if s.accountRepo != nil {
 		_ = s.accountRepo.UpdateExtra(stateCtx, accountID, updates)
 	}
 	// 池模式上游本身负责在真实账号池中切换，额度头只作为观测数据保留，不能反向
 	// 冷却本地这个聚合账号。非池模式仍将错误响应或成功后耗尽的窗口写成真实限流。
-	if installRateLimit && hasActiveLimit && !account.IsPoolMode() {
+	if installRateLimit && hasActiveLimit && !account.View().IsPoolMode() {
 		s.rateLimitGrok(stateCtx, account, resetAt)
 	} else if recovery {
 		clearGrokRateLimitAfterRecovery(stateCtx, s.accountRepo, account)
@@ -216,23 +212,23 @@ func (s *OpenAIGatewayService) updateGrokUsageSnapshotWithRateLimit(ctx context.
 }
 
 // updateGrokUsageFromResponse 委托原生观测编排，账号领域写入继续使用唯一旧能力。
-func (s *OpenAIGatewayService) updateGrokUsageFromResponse(ctx context.Context, account *Account, headers http.Header, statusCode int) {
+func (s *OpenAIGatewayService) updateGrokUsageFromResponse(ctx context.Context, account *gatewayprovider.ExecutionAccount, headers http.Header, statusCode int) {
 	grokforward.ObserveResponse(ctx, grokObservationAdapter{s: s, account: account}, headers, statusCode, grokRequestedModelFromCtx(ctx))
 }
 
-func grokRateLimitResetAtForAccount(account *Account, snapshot *grok.QuotaSnapshot, now time.Time) (time.Time, bool) {
-	return accountcore.GrokRateLimitResetAtForAccount(AccountRecordView(account), snapshot, now)
+func grokRateLimitResetAtForAccount(account *gatewayprovider.ExecutionAccount, snapshot *grok.QuotaSnapshot, now time.Time) (time.Time, bool) {
+	return accountcore.GrokRateLimitResetAtForAccount(gatewayprovider.ExecutionRecord(account), snapshot, now)
 }
 
-func normalizeGrokRateLimitResetAt(account *Account, resetAt, now time.Time) time.Time {
-	return accountcore.NormalizeGrokRateLimitResetAt(AccountRecordView(account), resetAt, now)
+func normalizeGrokRateLimitResetAt(account *gatewayprovider.ExecutionAccount, resetAt, now time.Time) time.Time {
+	return accountcore.NormalizeGrokRateLimitResetAt(gatewayprovider.ExecutionRecord(account), resetAt, now)
 }
 
-func isSuccessfulGrokRateLimitRecovery(account *Account, snapshot *grok.QuotaSnapshot) bool {
-	return accountcore.IsSuccessfulGrokRateLimitRecovery(AccountRecordView(account), snapshot)
+func isSuccessfulGrokRateLimitRecovery(account *gatewayprovider.ExecutionAccount, snapshot *grok.QuotaSnapshot) bool {
+	return accountcore.IsSuccessfulGrokRateLimitRecovery(gatewayprovider.ExecutionRecord(account), snapshot)
 }
 
-func (s *OpenAIGatewayService) rateLimitGrok(ctx context.Context, account *Account, resetAt time.Time) {
+func (s *OpenAIGatewayService) rateLimitGrok(ctx context.Context, account *gatewayprovider.ExecutionAccount, resetAt time.Time) {
 	if s == nil || account == nil {
 		return
 	}
@@ -240,8 +236,8 @@ func (s *OpenAIGatewayService) rateLimitGrok(ctx context.Context, account *Accou
 	resetAt = normalizeGrokRateLimitResetAt(account, resetAt, now)
 
 	runtimeUntil := resetAt
-	if account.TempUnschedulableUntil != nil && account.TempUnschedulableUntil.After(runtimeUntil) {
-		runtimeUntil = *account.TempUnschedulableUntil
+	if account.Record.TempUnschedulableUntil != nil && account.Record.TempUnschedulableUntil.After(runtimeUntil) {
+		runtimeUntil = *account.Record.TempUnschedulableUntil
 	}
 	s.BlockAccountScheduling(account, runtimeUntil, "429")
 	persistGrokRateLimit(ctx, s.accountRepo, account, resetAt)
@@ -276,7 +272,7 @@ func grokRequestedModelFromCtx(ctx context.Context) string {
 	return strings.TrimSpace(model)
 }
 
-func persistGrokTransientModelCooldown(account *Account, decision grok.GrokUpstreamFailureDecision) bool {
+func persistGrokTransientModelCooldown(account *gatewayprovider.ExecutionAccount, decision grok.GrokUpstreamFailureDecision) bool {
 	if account == nil {
 		return false
 	}
@@ -288,7 +284,7 @@ func persistGrokTransientModelCooldown(account *Account, decision grok.GrokUpstr
 	if cooldown <= 0 {
 		cooldown = 3 * time.Minute
 	}
-	accountcore.MarkGrokModelTransientBlock(account.ID, model, time.Now().Add(cooldown))
+	accountcore.MarkGrokModelTransientBlock(account.Record.ID, model, time.Now().Add(cooldown))
 	return true
 }
 
@@ -296,28 +292,28 @@ func persistGrokTransientModelCooldown(account *Account, decision grok.GrokUpstr
 // 调用方应传入账号映射后的模型；这里仅补做幂等的平台规范化，绝不再次执行账号映射。
 func (s *OpenAIGatewayService) applyGrokAccountUpstreamError(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	statusCode int,
 	headers http.Header,
 	responseBody []byte,
 	canonicalModel ...string,
-) UpstreamErrorDecision {
+) accountcore.UpstreamErrorDecision {
 	if s == nil || account == nil {
-		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
+		return accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	if isOpenAIAccountPolicyRequestScopedError(account, statusCode, responseBody) {
-		return UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
+		return accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
-	if model := firstRequestedModel(canonicalModel); model != "" {
-		canonicalModel = []string{normalizeOpenAIModelForUpstream(account, model)}
+	if model := requeststate.FirstHealthModel(canonicalModel); model != "" {
+		canonicalModel = []string{gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(model)}
 	}
 	stateCtx, cancel := openAIAccountStateContext(ctx)
 	defer cancel()
-	stateCtx = withTempUnschedulableModel(stateCtx, canonicalModel)
+	stateCtx = requeststate.WithHealthModel(stateCtx, canonicalModel)
 
 	now := time.Now()
 	quotaSnapshot := grok.ParseQuotaObservation(headers, statusCode, now)
-	quotaModel := firstRequestedModel(canonicalModel)
+	quotaModel := requeststate.FirstHealthModel(canonicalModel)
 	if quotaModel == "" {
 		quotaModel = grokRequestedModelFromCtx(ctx)
 	}
@@ -326,13 +322,13 @@ func (s *OpenAIGatewayService) applyGrokAccountUpstreamError(
 	snapshotFailure := grok.ClassifyGrokUpstreamFailure(statusCode, responseBody, quotaModel)
 	s.updateGrokUsageSnapshotWithRateLimit(stateCtx, account, quotaSnapshot, snapshotFailure.Class != grok.GrokFailureModelCapacity)
 
-	decision := upstreamErrorDecisionWithoutPersistence(account, statusCode)
+	decision := accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(account), statusCode)
 	if s.rateLimitService != nil {
-		if account.IsPoolMode() || account.IsCustomErrorCodesEnabled() {
-			decision.Policy = s.rateLimitService.ApplyExplicitErrorPolicy(stateCtx, account, statusCode, responseBody, canonicalModel...)
+		if account.View().IsPoolMode() || account.View().IsCustomErrorCodesEnabled() {
+			decision.Policy = s.rateLimitService.UpstreamHealth().ApplyExplicitErrorPolicy(stateCtx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(stateCtx, statusCode, nil, responseBody, canonicalModel))
 			decision.StopScheduling = decision.Policy == accountcore.ErrorPolicyCustomMatched || decision.Policy == accountcore.ErrorPolicyTempUnscheduled
 		} else {
-			decision = UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
+			decision = accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 		}
 	}
 	switch decision.Policy {
@@ -354,11 +350,11 @@ func (s *OpenAIGatewayService) applyGrokAccountUpstreamError(
 	}
 	// 普通账号先保留模型不存在等精确处理，再应用管理员临时规则。
 	if s.rateLimitService != nil && statusCode != http.StatusUnauthorized &&
-		!account.IsPoolMode() && !account.IsCustomErrorCodesEnabled() &&
+		!account.View().IsPoolMode() && !account.View().IsCustomErrorCodesEnabled() &&
 		s.rateLimitService.HandleTempUnschedulable(stateCtx, account, statusCode, responseBody, canonicalModel...) {
 		decision.Policy = accountcore.ErrorPolicyTempUnscheduled
 		decision.StopScheduling = true
-		if firstRequestedModel(canonicalModel) == "" {
+		if requeststate.FirstHealthModel(canonicalModel) == "" {
 			s.BlockAccountScheduling(account, time.Time{}, "upstream_disable")
 		}
 		return decision
@@ -366,11 +362,11 @@ func (s *OpenAIGatewayService) applyGrokAccountUpstreamError(
 
 	// Grok API Key 的 5xx 与 OpenAI API Key 共用账号+最终模型的瞬态冷却；
 	// OAuth 和模型未知的请求继续沿用账号级退避，避免扩大既有行为变化。
-	model := firstRequestedModel(canonicalModel)
+	model := requeststate.FirstHealthModel(canonicalModel)
 	if model == "" {
 		model = quotaModel
 	}
-	if account.Type == capability.AccountTypeAPIKey && model != "" && statusCode >= 500 &&
+	if account.Record.Type == capability.AccountTypeAPIKey && model != "" && statusCode >= 500 &&
 		shouldCooldownOpenAITransientUpstreamError(statusCode, responseBody) {
 		s.recordOpenAICompatibleModelTransientFailure(account, model)
 		return decision
@@ -382,7 +378,7 @@ func (s *OpenAIGatewayService) applyGrokAccountUpstreamError(
 		if failure.Class == grok.GrokFailureFreeUsage {
 			if resetAt, limited := grokRateLimitResetAtForAccount(account, quotaSnapshot, now); limited && resetAt.After(now) {
 				if failure.Model != "" && accountcore.IsGrokModelSpecificFreeUsage(strings.ToLower(failure.Reason), failure.Model) {
-					accountcore.MarkGrokModelQuotaBlock(account.ID, failure.Model, resetAt)
+					accountcore.MarkGrokModelQuotaBlock(account.Record.ID, failure.Model, resetAt)
 					decision.StopScheduling = true
 					return decision
 				}
@@ -434,18 +430,18 @@ func (s *OpenAIGatewayService) applyGrokAccountUpstreamError(
 	return decision
 }
 
-func (s *OpenAIGatewayService) tempUnscheduleGrok(ctx context.Context, account *Account, cooldown time.Duration, reason string) {
+func (s *OpenAIGatewayService) tempUnscheduleGrok(ctx context.Context, account *gatewayprovider.ExecutionAccount, cooldown time.Duration, reason string) {
 	if s == nil || account == nil {
 		return
 	}
 	until := time.Now().Add(cooldown)
-	if account.TempUnschedulableUntil != nil && account.TempUnschedulableUntil.After(until) {
-		until = *account.TempUnschedulableUntil
+	if account.Record.TempUnschedulableUntil != nil && account.Record.TempUnschedulableUntil.After(until) {
+		until = *account.Record.TempUnschedulableUntil
 	}
 	s.BlockAccountScheduling(account, until, reason)
 	if s.accountRepo != nil {
 		stateCtx, cancel := openAIAccountStateContext(ctx)
 		defer cancel()
-		_ = s.accountRepo.SetTempUnschedulable(stateCtx, account.ID, until, reason)
+		_ = s.accountRepo.SetTempUnschedulable(stateCtx, account.Record.ID, until, reason)
 	}
 }

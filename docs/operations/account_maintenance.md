@@ -61,13 +61,15 @@ Google One 单条/批量 tier 刷新由 `TierManagement` 拥有资格、查询�
 
 实时模型同步请求由 `ModelSyncService` 跟踪在途并在停止时取消、等待；构造不请求供应商。临时凭据预览保持原无持久化流程，错误契约由 account 唯一拥有；`account/provider.ModelCatalogue` 负责实际 endpoint、Header、响应报文解析及读取上限，app 直接绑定原生账号存储和凭据来源。模型预览与账号测试共享一个 ProbeTasks 作用域，持久账号仍由同一 task 协调器串行处理。账号管理的全部 HTTP 路由已直接绑定新 handler；旧 AccountHandler 及管理、刷新、导入、展示转接已删除，原断言在所属模块直接验证。高级调度诊断通过只读安全投影调用原 S07 算法，app 保留同一反馈实例及 gateway 绑定顺序。
 
+执行入口、管理接口和调度快照共用原生账号规则，但不共用公开数据形状。旧 Account/AccountGroup 与 repository 转接包已删除；执行目标由原生 Record 和请求路线组成，原有复制边界保留自引用关联与 map 隔离。账号与 billing 的 SQL 实例仍只在 app 构造一次，配置更新、CAS 与消费累计各由原存储负责。
+
 ## 状态与临时不可调度
 
 `account.HealthService` 拥有通用错误规则匹配、显式错误/池模式优先级、认证失败/过载状态转换、403 累计冷却、CN 可恢复冷却、429 默认回避、流超时计数阈值及账号/模型额度阈值判断；供应商报文分类与模型规范化由执行 Adapter 提供。原持久化、缓存和调度反馈顺序保持，长期状态与临时窗口不互相替代。临时停调、403 和超时计数由 app 构造的 `account/rediscache` 实现提供；旧构造只委托，Lua 与 key/TTL 语义保持。可选仓储缺省时保留原跳过行为，适配包装不把缺失依赖当成已配置后端。
 
 Anthropic 的限流响应头由 upstream 解析为窗口观测，account 负责维持 5h 会话、账号耗尽窗口和 Fable 模型级窗口；被动采样仍按原独立写入顺序执行。OpenAI 图片错误分类由 upstream 提供，account 负责池模式、错误码策略和图片能力冷却；图片能力窗口不会因此升级为账号级限流。Grok 管理额度、账单与模型维护通过原生 provider 组合唯一探测运行时，旧 `GrokQuotaService` 包装已删除。
 
-平台错误通过 `account/provider.UpstreamHealth` 接收显式 `HealthObservation`，模型、thinking 与图片端点意图按当前 attempt 投影。401 凭据母账号处理、图片/模型冷却、API Key 滚动熔断和 Team 联动分别由账号用例维护；Team 去重仅有一份进程内状态。app 绑定同一健康核心、窗口观测与 Team 实例，旧 RateLimitService 的剩余入口只负责兼容记录和调度调用的衔接。
+平台错误通过 `account/provider.UpstreamHealth` 接收显式 `HealthObservation`，模型、thinking 与图片端点意图按当前 attempt 投影。401 凭据母账号处理、图片/模型冷却、API Key 滚动熔断和 Team 联动分别由账号用例维护；Team 去重仅有一份进程内状态。app 先独立构造同一健康核心、恢复用例、窗口观测与 Team 实例，再向原生消费者发布；Antigravity 重试直接接收这些实例。旧 RateLimitService 通过单向绑定消费同一对象，剩余入口只负责兼容记录和调度调用的衔接。
 
 账号长期状态、`schedulable`、全账号限流、模型限流和临时不可调度规则是不同层次：
 

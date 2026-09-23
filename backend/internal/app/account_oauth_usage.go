@@ -26,7 +26,7 @@ func provideOAuthUsageStats(store *usagepostgres.Store, cache *account.OAuthUsag
 }
 
 // provideOAuthUsageCore 直接绑定原生读取、平台查询和生命周期，不通过旧服务取回实例。
-func provideOAuthUsageCore(store *accountpostgres.AccountStore, usageStore *usagepostgres.Store, cache *account.OAuthUsageCache, stats *account.LocalUsageStatistics, gemini *account.GeminiQuotaService, antigravity *account.AntigravityQuota, grokView *account.GrokQuotaView, grok *account.GrokQuotaService, openAI *account.OpenAIQuotaService, fetcher accountprovider.ClaudeUsageClient, fingerprints anthropic.FingerprintCache, profiles *egressprovider.TLSProfiles, transport httpclient.UpstreamTransport, settings *account.QuotaSettingsCache, gateway *service.OpenAIGatewayService, manager *lifecycle.Manager) *account.OAuthUsageService {
+func provideOAuthUsageCore(store *accountpostgres.AccountStore, usageStore *usagepostgres.Store, cache *account.OAuthUsageCache, stats *account.LocalUsageStatistics, gemini *account.GeminiQuotaService, antigravity *account.AntigravityQuota, grokView *account.GrokQuotaView, grok *account.GrokQuotaService, openAI *account.OpenAIQuotaService, fetcher accountprovider.ClaudeUsageClient, fingerprints anthropic.FingerprintCache, profiles *egressprovider.TLSProfiles, transport httpclient.UpstreamTransport, settings *account.QuotaSettingsCache, gateway *service.OpenAIGatewayService, manager *lifecycle.Manager, coordinator *account.OpenAITaskCoordinator) *account.OAuthUsageService {
 	taskOptions := account.OpenAITaskOptions{
 		Read: store.GetByID,
 		Register: func(ctx context.Context, value *account.Record) (string, error) {
@@ -40,7 +40,7 @@ func provideOAuthUsageCore(store *accountpostgres.AccountStore, usageStore *usag
 	}
 	requests := &accountprovider.OAuthUsageTransport{
 		Transport: transport, Profiles: profiles, Fingerprints: fingerprints,
-		Tasks: account.SharedOpenAITaskCoordinator(), TaskOptions: taskOptions,
+		Tasks: coordinator, TaskOptions: taskOptions,
 	}
 	// 用量查询的会话保持原独立作用域，不与请求执行的会话缓存合并。
 	sessions := accountprovider.NewQoderTokenProvider(qoder.SessionBuilder{})

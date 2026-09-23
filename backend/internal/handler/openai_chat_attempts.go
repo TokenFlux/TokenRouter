@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
@@ -17,7 +20,6 @@ import (
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -56,9 +58,9 @@ func (b *openAIChatAttemptBridge) Select(excluded map[int64]struct{}) (textflow.
 	}
 	b.account = b.selection.Account
 	b.sessionHash = ensureOpenAIPoolModeSessionHash(b.sessionHash, b.account)
-	b.reqLog.Debug("openai_chat_completions.account_selected", zap.Int64("account_id", b.account.ID), zap.String("account_name", b.account.Name))
+	b.reqLog.Debug("openai_chat_completions.account_selected", zap.Int64("account_id", b.account.Record.ID), zap.String("account_name", b.account.Record.Name))
 	_ = scheduleDecision
-	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
 
 	return b.selectedView(), nil
 }
@@ -75,7 +77,7 @@ func (b *openAIChatAttemptBridge) SelectionFailure(err error, excludedCount int,
 		return
 	}
 	b.reqLog.Warn("openai_chat_completions.account_select_failed",
-		zap.Error(openAICompatibleSelectionErrorForLog(err, b.requestPlatform)),
+		zap.Error(gatewayhttp.OpenAICompatibleSelectionErrorForLog(err, b.requestPlatform)),
 		zap.Int("excluded_account_count", excludedCount),
 	)
 	if excludedCount == 0 {
@@ -123,7 +125,7 @@ func (b *openAIChatAttemptBridge) Forward() textflow.ResponseOutcome {
 		return b.binding().forwardAsChatCompletions(b.c.Request.Context(), b.c, b.account, b.forwardBody, b.promptCacheKey, "", tlsRouterMatch)
 	}()
 	var cyberBlockBodyChat []byte
-	if service.GetOpsCyberPolicy(b.c) != nil {
+	if gatewayhttp.GetOpsCyberPolicy(b.c) != nil {
 		cyberBlockBodyChat = b.body
 	}
 	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyChat, gatewayhttp.ClientRequestedUsageFields(b.c, b.channelMapping, b.reqModel, ""), billing.HashUsageRequestPayload(b.body))
@@ -155,19 +157,19 @@ func (b *openAIChatAttemptBridge) Complete() {
 	if res == nil {
 		return
 	}
-	stampOpenAIRequestedReasoningEffort(res, b.c)
+	gatewayhttp.StampOpenAIRequestedReasoningEffort(res, b.c)
 	userAgent := b.c.GetHeader("User-Agent")
 	clientIP := clientip.GetClientIP(b.c)
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
 	upstreamEndpoint := resolveOpenAIUpstreamEndpoint(b.c, b.account, res)
-	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.apiKey)
-	clientSessionID := service.ExtractClientSessionID(b.c)
+	quotaPlatform := admission.QuotaPlatform(b.c.Request.Context(), b.apiKey)
+	clientSessionID := gatewayhttp.ExtractClientSessionID(b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionOpenAIInput(gatewayhttp.CompletionContext(b.c), &service.OpenAIRecordUsageInput{
+	completionInput := gatewaycapture.CaptureOpenAI(gatewayhttp.CompletionContext(b.c), &gatewaycapture.OpenAICapture{
 		Result:             res,
 		APIKey:             b.apiKey,
 		User:               b.apiKey.User,
-		Account:            b.account,
+		Account:            gatewaycapture.ExecutionCompletionRecord(b.account),
 		Subscription:       b.subscription,
 		InboundEndpoint:    inboundEndpoint,
 		UpstreamEndpoint:   upstreamEndpoint,
@@ -200,7 +202,7 @@ func (b *openAIChatAttemptBridge) Complete() {
 // PartialImages 保留 OpenAI Chat 适配差异，循环复用 gateway/text。
 func (b *openAIChatAttemptBridge) PartialImages(err error) {
 	b.reqLog.Warn("openai_chat_completions.forward_partial_error_with_image_result",
-		zap.Int64("account_id", b.account.ID),
+		zap.Int64("account_id", b.account.Record.ID),
 		zap.Int("image_count", b.result.ImageCount),
 		zap.Error(err),
 	)
@@ -215,7 +217,7 @@ func (b *openAIChatAttemptBridge) RetryReady(failure *textflow.AttemptFailure) b
 	}
 	if gatewayhttp.FailoverClientGone(b.c) {
 		b.reqLog.Info("openai_chat_completions.failover_aborted_client_disconnected",
-			zap.Int64("account_id", b.account.ID),
+			zap.Int64("account_id", b.account.Record.ID),
 			zap.Int("upstream_status", failoverErr.StatusCode),
 		)
 		return false
@@ -237,7 +239,7 @@ func (b *openAIChatAttemptBridge) RetryWait(failure *textflow.AttemptFailure, re
 	var failoverErr *forwardcore.UpstreamFailoverError
 	errors.As(failure.Cause, &failoverErr)
 	b.reqLog.Warn("openai_chat_completions.pool_mode_same_account_retry",
-		zap.Int64("account_id", b.account.ID),
+		zap.Int64("account_id", b.account.Record.ID),
 		zap.Int("upstream_status", failoverErr.StatusCode),
 		zap.Int("retry_limit", retryLimit),
 		zap.Int("retry_count", retryCount),
@@ -250,7 +252,7 @@ func (b *openAIChatAttemptBridge) Switching(failure *textflow.AttemptFailure, sw
 	var failoverErr *forwardcore.UpstreamFailoverError
 	errors.As(failure.Cause, &failoverErr)
 	b.reqLog.Warn("openai_chat_completions.upstream_failover_switching",
-		zap.Int64("account_id", b.account.ID),
+		zap.Int64("account_id", b.account.Record.ID),
 		zap.Int("upstream_status", failoverErr.StatusCode),
 		zap.Int("switch_count", switchCount),
 		zap.Int("max_switches", maxAccountSwitches),
@@ -277,7 +279,7 @@ func (b *openAIChatAttemptBridge) OtherFailure(err error) {
 		}
 	}
 	b.reqLog.Warn("openai_chat_completions.forward_failed",
-		zap.Int64("account_id", b.account.ID),
+		zap.Int64("account_id", b.account.Record.ID),
 		zap.Bool("fallback_error_response_written", b.wroteFallback),
 		zap.Bool("upstream_error_response_already_written", upstreamErrorAlreadyCommunicated),
 		zap.Error(err),
@@ -297,7 +299,7 @@ func (b *openAIChatAttemptBridge) Success() {
 // Completed 保留 OpenAI Chat 适配差异，循环复用 gateway/text。
 func (b *openAIChatAttemptBridge) Completed(switchCount int) {
 	b.reqLog.Debug("openai_chat_completions.request_completed",
-		zap.Int64("account_id", b.account.ID),
+		zap.Int64("account_id", b.account.Record.ID),
 		zap.Int("switch_count", switchCount),
 	)
 }

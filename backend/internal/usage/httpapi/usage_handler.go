@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
@@ -153,7 +154,7 @@ func NewUsageHandler(
 }
 
 func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) (*userUsageFilters, bool) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return nil, false
@@ -348,7 +349,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 // ListErrors 列出当前用户自己的失败请求脱敏视图。
 // GET /api/v1/usage/errors
 func (h *UsageHandler) ListErrors(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -433,7 +434,7 @@ func (h *UsageHandler) ListErrors(c *gin.Context) {
 // GetErrorDetail 获取当前用户自己的单条失败请求脱敏详情。
 // GET /api/v1/usage/errors/:id
 func (h *UsageHandler) GetErrorDetail(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -462,7 +463,7 @@ func (h *UsageHandler) GetErrorDetail(c *gin.Context) {
 // GetByID 获取当前用户自己的单条用量记录。
 // GET /api/v1/usage/:id
 func (h *UsageHandler) GetByID(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -492,7 +493,7 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 // Ranking 获取指定时间范围内的用量排行。
 // GET /api/v1/usage/ranking
 func (h *UsageHandler) Ranking(c *gin.Context) {
-	if _, ok := middleware2.GetAuthSubjectFromContext(c); !ok {
+	if _, ok := authctx.GetAuthSubjectFromContext(c); !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
 	}
@@ -616,7 +617,7 @@ func apiKeyDailyUsageRange(days int, userTZ string, calendar timezone.Calendar) 
 // DashboardStats 获取用户仪表盘统计。
 // GET /api/v1/usage/dashboard/stats
 func (h *UsageHandler) DashboardStats(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -803,7 +804,7 @@ type BatchAPIKeysUsageRequest struct {
 // DashboardAPIKeysUsage 获取当前用户多个 API Key 的用量统计。
 // POST /api/v1/usage/dashboard/api-keys-usage
 func (h *UsageHandler) DashboardAPIKeysUsage(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return
@@ -849,7 +850,7 @@ func (h *UsageHandler) DashboardAPIKeysUsage(c *gin.Context) {
 // GetMyAPIKeyDailyUsage 获取当前用户指定 API Key 的按日用量明细。
 // GET /api/v1/user/api-keys/:id/usage/daily?days=30
 func (h *UsageHandler) GetMyAPIKeyDailyUsage(c *gin.Context) {
-	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
 		return

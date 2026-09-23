@@ -5,9 +5,12 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -102,7 +105,7 @@ func assertJSONTokenOrder(t *testing.T, body string, tokens ...string) {
 }
 
 func TestReplaceModelInBody_PreservesTopLevelFieldOrder(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	body := []byte(`{"alpha":1,"model":"claude-3-5-sonnet-latest","messages":[],"omega":2}`)
 
 	result := svc.replaceModelInBody(body, "claude-3-5-sonnet-20241022")
@@ -187,16 +190,16 @@ func TestGatewayCacheTTLGlobalSetting_TargetResolution(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		gateway.SettingKeyEnableAnthropicCacheTTL1hInjection: "true",
 	}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(repo, &config.Config{}),
-	}
-	account := &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}
 
 	target, ok := svc.resolveCacheTTLUsageOverrideTarget(context.Background(), account)
 	require.True(t, ok)
 	require.Equal(t, cacheTTLTarget5m, target)
 
-	account.Extra = map[string]any{
+	account.Record.Extra = map[string]any{
 		"cache_ttl_override_enabled": true,
 		"cache_ttl_override_target":  "1h",
 	}
@@ -209,16 +212,16 @@ func TestGatewayCacheTTLGlobalSetting_RequestInjectionScope(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		gateway.SettingKeyEnableAnthropicCacheTTL1hInjection: "true",
 	}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(repo, &config.Config{}),
-	}
+	})
 
-	require.True(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}))
-	require.True(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}))
-	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}))
-	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}))
+	require.True(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}))
+	require.True(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}}))
+	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}))
+	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}))
 
 	repo.data[gateway.SettingKeyEnableAnthropicCacheTTL1hInjection] = "false"
 	svc.settingService.Gateway.InvalidateForwarding()
-	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}))
+	require.False(t, svc.shouldInjectAnthropicCacheTTL1h(context.Background(), &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}))
 }

@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 
 	dto "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/dto"
 	"github.com/gin-gonic/gin"
@@ -111,7 +112,7 @@ func setupCleanupRouter(cleanupService *usage.UsageCleanupService, userID int64)
 	router := gin.New()
 	if userID > 0 {
 		router.Use(func(c *gin.Context) {
-			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: userID})
+			c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: userID})
 			c.Next()
 		})
 	}

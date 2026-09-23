@@ -35,9 +35,9 @@ func TestOpenAIAdministratorProtocolOverridesAllLegacyProbeState(t *testing.T) {
 					upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: http.StatusBadRequest,
 						Header: http.Header{"Content-Type": []string{"application/json"}},
 						Body:   io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"test endpoint reached"}}`))}}
-					svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
+					svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream})
 					account := rawChatCompletionsTestAccount()
-					account.Extra = map[string]any{"openai_text_route_mode": mode, "openai_responses_supported": legacy, "openai_responses_probe_status": "unsupported"}
+					account.Record.Extra = map[string]any{"openai_text_route_mode": mode, "openai_responses_supported": legacy, "openai_responses_probe_status": "unsupported"}
 					var err error
 					switch inbound {
 					case "responses":

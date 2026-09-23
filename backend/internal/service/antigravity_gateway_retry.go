@@ -24,7 +24,7 @@ type antigravityRetryLoopParams struct {
 	userAgent       string // 指定账号探测显式提供，普通转发保持空值。
 	ctx             context.Context
 	prefix          string
-	account         *Account
+	account         *gatewayprovider.ExecutionAccount
 	proxyURL        string
 	accessToken     string
 	action          string
@@ -32,8 +32,8 @@ type antigravityRetryLoopParams struct {
 	c               *gin.Context
 	httpUpstream    httpclient.UpstreamTransport
 	settingService  *gatewayprovider.RuntimeReaders
-	accountRepo     AccountRepository // 用于智能重试的模型级别限流
-	handleError     func(ctx context.Context, prefix string, account *Account, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult
+	accountRepo     gatewayprovider.ExecutionAccountStore // 用于智能重试的模型级别限流
+	handleError     func(ctx context.Context, prefix string, account *gatewayprovider.ExecutionAccount, statusCode int, headers http.Header, body []byte, requestedModel string, groupID int64, sessionHash string, isStickySession bool) *handleModelRateLimitResult
 	requestedModel  string // 用于限流检查的原始请求模型
 	isStickySession bool   // 是否为粘性会话（用于账号切换时的缓存计费判断）
 	groupID         int64  // 用于模型级限流时清除粘性会话
@@ -94,15 +94,15 @@ func (s *AntigravityGatewayService) getDefaultRateLimitDuration() time.Duration 
 }
 
 // 旧端点入口只投影账号，付费资格仍由原生平台适配器判断。
-func accountHasAntigravityPaidTier(value *Account) bool {
-	return accountprovider.AntigravityPaidTier(AccountRecordView(value))
+func accountHasAntigravityPaidTier(value *gatewayprovider.ExecutionAccount) bool {
+	return accountprovider.AntigravityPaidTier(gatewayprovider.ExecutionRecord(value))
 }
 
 // 旧转发只转换请求观测；平台判断和写入顺序由原生 Adapter 拥有。
 type handleModelRateLimitResult = accountprovider.AntigravityModelLimitResult
 
-func (s *AntigravityGatewayService) handleUpstreamError(ctx context.Context, prefix string, value *Account, status int, headers http.Header, body []byte, model string, groupID int64, sessionHash string, sticky bool) *handleModelRateLimitResult {
-	view := AccountRecordView(value)
+func (s *AntigravityGatewayService) handleUpstreamError(ctx context.Context, prefix string, value *gatewayprovider.ExecutionAccount, status int, headers http.Header, body []byte, model string, groupID int64, sessionHash string, sticky bool) *handleModelRateLimitResult {
+	view := gatewayprovider.ExecutionRecord(value)
 	observer := s.nativeError
 	if observer == nil {
 		observer = &accountprovider.AntigravityErrorObserver{Health: s.antigravityHealth(), LogConfig: s.getLogConfig, TruncateString: logredact.TruncateUTF8, ResetTime: ParseGeminiRateLimitResetTime, DefaultDuration: s.getDefaultRateLimitDuration}
@@ -113,13 +113,13 @@ func (s *AntigravityGatewayService) handleUpstreamError(ctx context.Context, pre
 			observer.Other = s.rateLimitService.UpstreamHealth()
 		}
 	}
-	input := accountprovider.AntigravityErrorInput{Context: ctx, Account: view, Prefix: prefix, Status: status, Headers: headers, Body: body, RequestedModel: model, Thinking: modelHealthThinking(ctx), OtherObservation: healthObservation(ctx, status, headers, body, nil), Sticky: sticky}
+	input := accountprovider.AntigravityErrorInput{Context: ctx, Account: view, Prefix: prefix, Status: status, Headers: headers, Body: body, RequestedModel: model, Thinking: requeststate.HealthThinking(ctx), OtherObservation: gatewayprovider.HealthObservationFromContext(ctx, status, headers, body, nil), Sticky: sticky}
 	if s.cache != nil && sessionHash != "" {
 		input.ClearSticky = func() { _ = s.cache.DeleteSessionAccountID(ctx, groupID, sessionHash) }
 	}
 	result := observer.Observe(input)
 	if value != nil && view != nil {
-		value.Extra, value.Credentials = view.Extra, view.Credentials
+		value.Record.Extra, value.Record.Credentials = view.Extra, view.Credentials
 	}
 	return result
 }

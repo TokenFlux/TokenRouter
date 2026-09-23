@@ -27,7 +27,7 @@
        \        |          /
        service 与已迁用例
           |             |
- repository/基础设施   上游供应商
+ 模块存储/基础设施   上游供应商
        |       |        |
  PostgreSQL  Redis   对象存储/HTTP
 ```
@@ -37,27 +37,29 @@
 <a id="dependency_layers"></a>
 ## 依赖层次
 
-`backend/internal/app/wire.go` 是完整应用依赖图的手写入口，旁边的 `wire_gen.go` 是生成结果。`cmd/server` 保留参数解析、构建版本变量和原 `go generate ./cmd/server` 入口。配置只加载一次，日志、数据库引导和应用图共用该配置；JWT secret 在数据库引导完成后补齐并重新校验。
+`backend/internal/app/wire.go` 是完整应用依赖图的手写入口，旁边的 `wire_gen.go` 是生成结果。 根入口按模块引用 `assembly_*_wire.go` 集合，保留现有子集合；跨模块接口绑定与具体提供者放在同一 Wire 集合内。生命周期登记另有独立集合，这些文件只参与 wireinject 构建。剩余执行构造在 app 的 `gatewayExecutionProviders` 分组，旧 service ProviderSet 已删除；响应头配置也由 app 投影给 egress，再把不可变编译结果注入各执行入口。`cmd/server` 保留参数解析、构建版本变量和原 `go generate ./cmd/server` 入口。配置只加载一次，日志、数据库引导和应用图共用该配置；JWT secret 在数据库引导完成后补齐并重新校验。
 
 | 层 | 主要路径 | 当前责任 |
 | --- | --- | --- |
 | 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
 | 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
 | 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress`、`scheduler`、`usage`、`audit`、`ops`、`notification`、`moderation`、`search`、`creative`、`batchimage` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略、调度/并发/会话选择、用量/观测、通知、审核、搜索及创作/批量任务 |
-| 旧业务图 | `internal/service`、`repository` | 剩余实体投影和适配实现；service 的 provider set 仍参与构造，repository/handler 的聚合 provider 已删除 |
+| 剩余执行适配 | `internal/service`、`handler` | 文本、媒体与调度等剩余适配由 app 分组构造；旧聚合 ProviderSet 与 repository 包已删除 |
 | 平台执行 | `internal/upstream` 与各平台子包 | 供应商交换、原生报文、媒体、单次执行和连接资源；业务凭据写入由 account 提供 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
 | HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`creative/httpapi`、`batchimage/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
 
-settings 的通用实现位于 `settings` 与 `settings/postgres`，app 直接构造唯一 Store，并将同一对象绑定到存取接口；旧 `SettingService` 聚合、构造和转接已经删除，生产与测试直接使用所属模块能力。idempotency 的核心、观察出口与 SQL Adapter 已独立，app 从 Ent 驱动取得同一 SQL 连接池，直接投影协调器和清理任务的配置；HTTP 默认入口引用该原生协调器，旧 service 委托已删除。时间轮也由 app 直接构造，仍由统一生命周期启动。资金、任务、探测和上游客户端的原生存储与构造器由 app 分组绑定，不再经过 repository 聚合入口。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；Ent schema 与生成代码直接使用所属模块类型，旧 domain/model 包已删除。
+settings 的通用实现位于 `settings` 与 `settings/postgres`，app 直接构造唯一 Store，并将同一对象绑定到存取接口；旧 `SettingService` 聚合、构造和转接已经删除，生产与测试直接使用所属模块能力。idempotency 的核心、观察出口与 SQL Adapter 已独立，app 从 Ent 驱动取得同一 SQL 连接池，直接投影协调器和清理任务的配置；所有需要幂等的用户与管理员 HTTP 处理器由 app 显式绑定同一协调器，默认期限随该实例读取；协调器与清理任务各自接收日志观察出口，旧 service 委托、进程默认协调器和全局观察绑定已删除。时间轮也由 app 直接构造，仍由统一生命周期启动。资金、任务、探测和上游客户端的原生存储与构造器由 app 分组绑定，不再经过 repository 聚合入口。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；Ent schema 与生成代码直接使用所属模块类型，旧 domain/model 包已删除。
 
-`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain、PricingService、BillingService 和 ModelPricingResolver 转接已删除，消费者直接使用原生目录、计算器与解析器。billing 的 Calculator、PriceResolver 和资金分配规则接收显式投影；普通结算与任务资金由 Funds 进入 billing/postgres 的闭合事务，Redis 缓存位于 billing/rediscache。供应商交换、报文与流解析由 upstream 各平台实现；网关完成处理由 gateway/completion 消费已冻结输入，支付订单编排仍在旧图，纯定价和协议不读取配置或 I/O。
+执行账号不再使用旧 Account/AccountGroup 实体。`gateway/provider.ExecutionAccount` 只组合原生 `account.Record` 与独立 `AttemptRoute`；它不参与数据库或缓存编码，账号规则仍由 Record 唯一实现。管理 DTO、无凭据候选快照和执行目标保持分开。app 中的执行存储适配只调用同一 account/billing PostgreSQL 实例并投影结果，CAS、事务、字段保护、outbox 和消费累计没有移入 app。
 
-公告与 billing 的用户读取由 app 直接投影 identity；公告有效订阅直接适配 billing 存取接口，匹配规则仍由 site 执行。模块不导入 app。旧图的跨层构造暂留原 provider，应用级启停和新旧模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
+`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain、PricingService、BillingService 和 ModelPricingResolver 转接已删除，消费者直接使用原生目录、计算器与解析器。billing 的 Calculator、PriceResolver 和资金分配规则接收显式投影；普通结算与任务资金由 Funds 进入 billing/postgres 的闭合事务，Redis 缓存位于 billing/rediscache。供应商交换、报文与流解析由 upstream 各平台实现；网关完成处理由 gateway/completion 消费已冻结输入，其记录器、隔离倍率缓存和提交后端口直接在 app 装配。支付订单编排由 payment 拥有，纯定价和协议不读取配置或 I/O。
 
-身份的注册、绑定、会话和强认证进入 identity，团队事务进入 team，Key 的访问快照、L1/L2 与认证 outbox 进入 apikey。旧 `service.AuthService` 及其注册、绑定和 OAuth 转接已删除；认证测试直接组合 identity 原生用例与存储端口，JWT 中间件测试直接使用 SessionService。仍保留的 HTTP 测试门面显式接收事务连接，不再通过旧认证服务取回核心或连接。app 构造唯一生产实例与事务参与工厂，旧 service/repository 只保留形状转换和委托；跨模块写入沿用现有 Ent context 与调用方连接。分组/渠道由 routing、账号管理与维护由 account、代理与 TLS 策略由 egress 提供；通知直接绑定 notification；推广支付仍经窄端口连接旧图，账号授权与刷新通过 provider 端口调用 upstream 的供应商交换。模型匹配由纯 `routing/modelmap` 共享，网关仍拥有请求改写顺序。
+公告与 billing 的用户读取由 app 直接投影 identity；公告有效订阅直接适配 billing 存取接口，匹配规则仍由 site 执行。模块不导入 app。剩余执行适配由 app 分组构造，应用级启停和模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
 
-app 直接构造身份、账号、路由、推广、用量、审计、面板与后台模式的设置读取器，共享同一 settings.Store；网关的执行端口只引用这些已构造实例，不再借助旧设置聚合取得缓存；认证与配置合同测试也使用同一组原生接口。站点名称、菜单和前端地址由 site.DisplaySettings 按原时点读取，公开投影、搜索运行时和提示规则不依赖旧设置聚合的构造。登录、TOTP、Passkey 与邮件挑战直接绑定原生能力；普通和管理员 Key、管理员用户、用户属性的 HTTP 构造由 app 完成。旧 AdminService 聚合及其构造器已删除；身份、Key、分组、账号、代理和兑换管理分别直接使用 identity、apikey、routing、account、egress、billing 的用例，跨模块授权和资金写入仍通过原连接参与接口协作。订阅与兑换的旧 service 构造转接也已删除，调用方直接绑定 billing 原生用例和 PostgreSQL 事务参与端口。邮件呈现与验证码生命周期分别属于 notification 和 identity，生产图不再构造旧 EmailService。三个网关旧适配仍在清理，不能将 handler ProviderSet 的删除视为网关迁移完成。
+身份的注册、绑定、会话和强认证进入 identity，团队事务进入 team，Key 的访问快照、L1/L2 与认证 outbox 进入 apikey。旧 `service.AuthService` 及其注册、绑定和 OAuth 转接已删除；认证测试直接组合 identity 原生用例与存储端口，JWT 中间件测试直接使用 SessionService。仍保留的 HTTP 测试门面显式接收事务连接，不再通过旧认证服务取回核心或连接。app 构造唯一生产实例与事务参与工厂，旧 repository 包已删除，存储直接绑定所属模块；跨模块写入沿用现有 Ent context 与调用方连接。分组/渠道由 routing、账号管理与维护由 account、代理与 TLS 策略由 egress 提供；通知直接绑定 notification；推广支付仍经窄端口连接旧图，账号授权与刷新通过 provider 端口调用 upstream 的供应商交换。 Agent Identity 协调器也由 app 构造一次；各入口保留自身未持久账号互斥，已持久账号仍共用原进程内按账号锁。模型匹配由纯 `routing/modelmap` 共享，网关仍拥有请求改写顺序。
+
+app 直接构造身份、账号、路由、推广、用量、审计、面板与后台模式的设置读取器，共享同一 settings.Store；网关的执行端口只引用这些已构造实例，不再借助旧设置聚合取得缓存；认证与配置合同测试也使用同一组原生接口。站点名称、菜单和前端地址由 site.DisplaySettings 按原时点读取，公开投影、搜索运行时和提示规则不依赖旧设置聚合的构造。登录、TOTP、Passkey 与邮件挑战直接绑定原生能力；普通和管理员 Key、管理员用户、用户属性的 HTTP 构造由 app 完成。旧 AdminService 聚合及其构造器已删除；身份、Key、分组、账号、代理和兑换管理分别直接使用 identity、apikey、routing、account、egress、billing 的用例，跨模块授权和资金写入仍通过原连接参与接口协作。订阅与兑换的旧 service 构造转接也已删除，调用方直接绑定 billing 原生用例和 PostgreSQL 事务参与端口。邮件呈现与验证码生命周期分别属于 notification 和 identity，生产图不再构造旧 EmailService。Messages/OpenAI 的旧聚合适配与执行接口仍在清理，Qoder 旧 HTTP 聚合已删除，独立搜索、Live 和计数入口由 app 直接构造原生 HTTP 适配器；其余文本与媒体聚合仍在清理，不能将 handler ProviderSet 的删除视为网关迁移完成。
 
 `usage` 拥有用量事实、统计口径、查询缓存、Dashboard、聚合与清理；`audit` 拥有通用操作审计；`ops` 拥有观测查询、队列、采样、告警、报告和发布查询。各模块的 HTTP、PostgreSQL、Redis 与技术 provider 通过独立端口接入。app 绑定唯一生产实例并投影身份、账号、并发和认证健康数据；旧 `UsageLog` 的关联形状只通过展示投影兼容，不进入新事实模型。用户最后活动排序、Key 最近使用 IP 和团队用量由 `usage/postgres/query` 参与调用方原有连接与查询，排序继续发生在分页前。
 
@@ -67,7 +69,7 @@ Anthropic 请求指纹由原生 `RequestFingerprint` 直接注入，与用户身
 
 notification 拥有模板、语言/退订、投递协调、队列与 SMTP Adapter；identity 拥有验证码和重置凭据，billing/account/业务用例先确定通知事件，通知模块不反向查询资金或账号。site 同时拥有公告、页面权限和公开信息投影，文件读取位于 site/filesystem；web 只接收公开投影。moderation 的规则、裁决、观测和记录使用自己的核心与 Adapter，用户写入通过 identity 命令或同连接参与能力完成。search 拥有配置发布、供应商选择和额度意图，Brave/Tavily HTTP 与 Redis 状态分别进入 Adapter；gateway/searchtools 拥有工具协议、账号三态启用规则与合成结果，app 直接绑定唯一 search 注册表，旧全局 Manager 转接已经删除；gateway/completion 保持原完成资格、资金与分析事实的次序。
 
-creative 与 batchimage 各自拥有任务创建、状态、恢复、结果读取和完成资格；HTTP、PostgreSQL、Redis 与平台 Adapter 分离。app 固定两个 Public 核心，批量任务提交、轮询、下载和清理共享一个 provider registry；两类任务仍保留独立队列与素材生命周期。资金只调用 billing.Funds，任务表更新通过本次 SQL Tx 的参与者完成。创作台先持久化供应商成功元数据与 outbox，再短暂重试 Redis 输出保存；结果不可交付时按已确认成功捕获资金并记为 result_lost，不重新推理。
+creative 与 batchimage 各自拥有任务创建、状态、恢复、结果读取和完成资格；HTTP、PostgreSQL、Redis 与平台 Adapter 分离。app 固定两个 Public 核心，创作 worker 直接接收原生 Executor，批量任务提交、轮询、下载和清理共享一个 provider registry；两类任务仍保留独立队列与素材生命周期。资金只调用 billing.Funds，任务表更新通过本次 SQL Tx 的参与者完成。创作台先持久化供应商成功元数据与 outbox，再短暂重试 Redis 输出保存；结果不可交付时按已确认成功捕获资金并记为 result_lost，不重新推理。
 
 `pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型与计算；`server/httpx`、`server/clientip` 拥有 HTTP 适配。错误、日志、代理/TLS、IP、搜索及统计的旧 pkg/util 转接已删除，技术日志事件由 `infra/telemetry/logevent` 定义；协议转换和请求状态的剩余旧入口仍在收尾。
 
@@ -108,9 +110,11 @@ SIGINT、SIGTERM、监听失败和 Linux 手动重启进入同一关闭流程。
 
 Stop 和 Cleanup 共享一次执行结果。超时报告未完成任务，停止推进依赖资源的关闭并以失败状态结束进程；进程退出不代表 drain 成功。旧单步 Stop 的无界等待以及日志报告都受应用总预算约束。日志轮转仍使用原 lumberjack 算法，文件句柄由应用最终关闭；该库内部维护循环保留其既有进程生命周期，不把它宣称为可单独停止的应用 worker。
 
+应用派生任务由 `lifecycle.Tasks` 统一等待，网关快照写回、免费额度统计刷新、Live observer、审核和结算副作用通过实例端口接入；不再安装旧全局后台任务 runner。其关闭仍先于邮件及共享存储资源，保持在途任务派生工作的原有等待规则。
+
 新增 goroutine、定时器、队列或连接时，必须登记实际拥有者、启动点、接收封闭方式和完成等待。按需资源由已有拥有者管理，不能在运行时从业务模块反向调用 app 注册新组件。应用清理表按职责拆在 app 的运行时绑定文件中，并与 Wire 图一起验证。
 
-调度快照、并发、串行队列和运行反馈由 app 绑定唯一 scheduler 实例，构造不启动。完整 handler 结束后停止调度新认领、取消等待并等待在途资源释放，再关闭 Redis/SQL。快照的初始重建仍异步，重复启动不重建，停止后不重开；遗留持久 outbox 留待下次消费或周期重建恢复。
+调度快照、并发、串行队列和运行反馈由 app 绑定唯一 scheduler 实例，构造不启动。快照启停与网关读取直接调用 `scheduler.SnapshotService`，账号事件通过其窄发布端口更新快照；旧执行实体的转换只留在执行边界。模型目录短缓存由同一时间轮直接清理 `routing.ModelList`，不经旧网关包装。完整 handler 结束后停止调度新认领、取消等待并等待在途资源释放，再关闭 Redis/SQL。快照的初始重建仍异步，重复启动不重建，停止后不重开；遗留持久 outbox 留待下次消费或周期重建恢复。
 
 usage 聚合器在停止时取消运行 context 和重试等待，拒绝新重算并等待已进入的工作；审计与系统日志 sink 的重复 Start 不会创建第二个 worker，Stop 后不能重开。Ops 错误采集队列仍在第一次入队时启动工作，队列实例与清理 hook 已在 app 构造期绑定。实时采样与订阅计数由 Ops 持有，WebSocket 握手和帧由 HTTP Adapter 处理；空闲停止与应用停止使用同一实例。
 

@@ -1,6 +1,8 @@
 package handler
 
 import (
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
@@ -20,7 +22,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"go.uber.org/zap"
 )
 
@@ -45,13 +46,13 @@ func (b *nativeGeminiAttemptBridge) Select(excluded map[int64]struct{}) (textflo
 		return textflow.Selection{}, err
 	}
 	b.account = b.selection.Account
-	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.ID, b.account.Platform)
-	change := b.signatureState.Select(b.account.ID, b.sessionKey != "", b.body)
+	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
+	change := b.signatureState.Select(b.account.Record.ID, b.sessionKey != "", b.body)
 	if change.Clean {
 		if change.Missing {
 			b.reqLog.Info("gemini.sticky_session_binding_missing", zap.Bool("clean_thought_signature", true))
 		} else {
-			b.reqLog.Info("gemini.sticky_session_account_switched", zap.Int64("from_account_id", change.PreviousAccountID), zap.Int64("to_account_id", b.account.ID), zap.Bool("clean_thought_signature", true))
+			b.reqLog.Info("gemini.sticky_session_account_switched", zap.Int64("from_account_id", change.PreviousAccountID), zap.Int64("to_account_id", b.account.Record.ID), zap.Bool("clean_thought_signature", true))
 		}
 		b.body = protocolgemini.CleanNativeThoughtSignatures(b.body, bridge.DummyThoughtSignature)
 	}
@@ -87,13 +88,13 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 			return false
 		}
 		accountWaitCounted := false
-		waitEntry, err := b.geminiConcurrency.EnterAccountWait(b.c.Request.Context(), b.account.ID, b.selection.WaitPlan.MaxWaiting)
+		waitEntry, err := b.geminiConcurrency.EnterAccountWait(b.c.Request.Context(), b.account.Record.ID, b.selection.WaitPlan.MaxWaiting)
 		canWait := waitEntry.Allowed
 		if err != nil {
-			b.reqLog.Warn("gemini.account_wait_counter_increment_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+			b.reqLog.Warn("gemini.account_wait_counter_increment_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 		} else if !canWait {
 			b.reqLog.Info("gemini.account_wait_queue_full",
-				zap.Int64("account_id", b.account.ID),
+				zap.Int64("account_id", b.account.Record.ID),
 				zap.Int("max_waiting", b.selection.WaitPlan.MaxWaiting),
 			)
 			googleError(b.c, http.StatusTooManyRequests, "Too many pending requests, please retry later")
@@ -110,14 +111,14 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 
 		b.accountReleaseFunc, err = b.geminiConcurrency.AcquireAccountSlotWithWaitTimeout(
 			b.c,
-			b.account.ID,
+			b.account.Record.ID,
 			b.selection.WaitPlan.MaxConcurrency,
 			b.selection.WaitPlan.Timeout,
 			b.stream,
 			b.streamStarted,
 		)
 		if err != nil {
-			b.reqLog.Warn("gemini.account_slot_acquire_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+			b.reqLog.Warn("gemini.account_slot_acquire_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 			googleError(b.c, http.StatusTooManyRequests, err.Error())
 			return false
 		}
@@ -125,8 +126,8 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 			waitEntry.Release()
 			accountWaitCounted = false
 		}
-		if err := b.binding().bindSticky(b.c.Request.Context(), b.apiKey.GroupID, b.sessionKey, b.account.ID); err != nil {
-			b.reqLog.Warn("gemini.bind_sticky_session_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+		if err := b.binding().bindSticky(b.c.Request.Context(), b.apiKey.GroupID, b.sessionKey, b.account.Record.ID); err != nil {
+			b.reqLog.Warn("gemini.bind_sticky_session_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 		}
 	}
 	// 账号槽位/等待计数需要在超时或断开时安全回收
@@ -145,7 +146,7 @@ func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflo
 		requestCtx = requeststate.WithAccountSwitchCount(requestCtx, state.SwitchCount)
 	}
 	sessionGroupID := derefGroupID(b.apiKey.GroupID)
-	if b.account.Platform == capability.PlatformAntigravity && b.account.Type != capability.AccountTypeAPIKey {
+	if b.account.Record.Platform == capability.PlatformAntigravity && b.account.Record.Type != capability.AccountTypeAPIKey {
 		b.result, err = b.binding().forwardAntigravityGemini(
 			requestCtx,
 			b.c,
@@ -155,7 +156,7 @@ func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflo
 			b.stream,
 			b.body,
 			b.hasBoundSession,
-			service.WithForwardGeminiSession(sessionGroupID, b.sessionKey),
+			forwardcore.WithGeminiSession(sessionGroupID, b.sessionKey),
 		)
 	} else {
 		b.result, err = b.binding().forwardGeminiNative(requestCtx, b.c, b.account, b.modelName, b.action, b.stream, b.body)
@@ -163,7 +164,7 @@ func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflo
 	if b.accountReleaseFunc != nil {
 		b.accountReleaseFunc()
 	}
-	b.binding().reportSchedule(b.selection, b.account.ID, err == nil, b.result)
+	b.binding().reportSchedule(b.selection, b.account.Record.ID, err == nil, b.result)
 	out := textflow.Outcome{Attempt: messageObservedAttempt(b.result, err), Err: err, HasResult: b.result != nil}
 	out.Attempt.HTTPCommitted = b.c.Writer.Written()
 	var retry *forwardcore.UpstreamFailoverError
@@ -177,7 +178,7 @@ func (b *nativeGeminiAttemptBridge) Forward(state textflow.AttemptState) textflo
 // OtherFailure 保留 Gemini 原生适配，重试与完成资格由文本核心控制。
 func (b *nativeGeminiAttemptBridge) OtherFailure(err error) {
 	// ForwardNative already wrote the response
-	b.reqLog.Error("gemini.forward_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+	b.reqLog.Error("gemini.forward_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 }
 
 // Complete 保留 Gemini 原生适配，重试与完成资格由文本核心控制。
@@ -196,28 +197,28 @@ func (b *nativeGeminiAttemptBridge) Complete(state textflow.AttemptState) {
 			b.geminiPrefixHash,
 			b.geminiDigestChain,
 			b.geminiSessionUUID,
-			b.account.ID,
+			b.account.Record.ID,
 			b.matchedDigestChain,
 		); err != nil {
-			b.reqLog.Warn("gemini.digest_session_save_failed", zap.Int64("account_id", b.account.ID), zap.Error(err))
+			b.reqLog.Warn("gemini.digest_session_save_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
 		}
 	}
 
 	// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 	requestPayloadHash := billing.HashUsageRequestPayload(b.body)
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
-	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Platform)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(b.c, b.account.Record.Platform)
 	// ForceCacheBilling 提前拍成标量，避免 worker 闭包保活 failover 状态里的响应体。
 	forceCacheBilling := state.ForceCacheBilling
-	quotaPlatform := service.QuotaPlatform(b.c.Request.Context(), b.apiKey)
-	clientSessionID := service.ExtractClientSessionID(b.c)
+	quotaPlatform := admission.QuotaPlatform(b.c.Request.Context(), b.apiKey)
+	clientSessionID := gatewayhttp.ExtractClientSessionID(b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
-	completionInput := service.CompletionForwardInput(gatewayhttp.CompletionContext(b.c), &service.RecordUsageInput{
+	completionInput := gatewaycapture.CaptureMessages(gatewayhttp.CompletionContext(b.c), &gatewaycapture.MessagesCapture{
 		Result:             b.result,
 		QuotaPlatform:      quotaPlatform,
 		APIKey:             b.apiKey,
 		User:               b.apiKey.User,
-		Account:            b.account,
+		Account:            gatewaycapture.ExecutionCompletionRecord(b.account),
 		Subscription:       b.subscription,
 		InboundEndpoint:    inboundEndpoint,
 		UpstreamEndpoint:   upstreamEndpoint,
@@ -245,7 +246,7 @@ func (b *nativeGeminiAttemptBridge) Complete(state textflow.AttemptState) {
 		}
 	})
 	b.reqLog.Debug("gemini.request_completed",
-		zap.Int64("account_id", b.account.ID),
+		zap.Int64("account_id", b.account.Record.ID),
 		zap.Int("switch_count", state.SwitchCount),
 	)
 }

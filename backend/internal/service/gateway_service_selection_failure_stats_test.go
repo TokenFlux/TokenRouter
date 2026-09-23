@@ -6,40 +6,40 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 func TestCollectSelectionFailureStats(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	model := "gpt-5.4"
 	resetAt := time.Now().Add(2 * time.Minute).Format(time.RFC3339)
 
-	accounts := []Account{
+	accounts := []gatewayprovider.
 		// excluded
-		{
-			ID:          1,
+		ExecutionAccount{
+
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 			Platform:    capability.PlatformOpenAI,
 			Status:      billing.StatusActive,
-			Schedulable: true,
+			Schedulable: true},
 		},
 		// unschedulable
-		{
-			ID:          2,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 			Platform:    capability.PlatformOpenAI,
 			Status:      billing.StatusActive,
-			Schedulable: false,
+			Schedulable: false},
 		},
 		// platform filtered
-		{
-			ID:          3,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 			Platform:    capability.PlatformAntigravity,
 			Status:      billing.StatusActive,
-			Schedulable: true,
+			Schedulable: true},
 		},
 		// model unsupported
-		{
-			ID:          4,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 			Platform:    capability.PlatformOpenAI,
 			Status:      billing.StatusActive,
 			Schedulable: true,
@@ -47,11 +47,10 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 				"model_mapping": map[string]any{
 					"gpt-image": "gpt-image",
 				},
-			},
+			}},
 		},
 		// model rate limited
-		{
-			ID:          5,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 			Platform:    capability.PlatformOpenAI,
 			Status:      billing.StatusActive,
 			Schedulable: true,
@@ -61,14 +60,13 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 						"rate_limit_reset_at": resetAt,
 					},
 				},
-			},
+			}},
 		},
 		// eligible
-		{
-			ID:          6,
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6,
 			Platform:    capability.PlatformOpenAI,
 			Status:      billing.StatusActive,
-			Schedulable: true,
+			Schedulable: true},
 		},
 	}
 
@@ -99,12 +97,11 @@ func TestCollectSelectionFailureStats(t *testing.T) {
 }
 
 func TestDiagnoseSelectionFailure_UnschedulableDetail(t *testing.T) {
-	svc := &GatewayService{}
-	acc := &Account{
-		ID:          7,
+	svc := withSchedulerParametersForTest(&GatewayService{})
+	acc := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Platform:    capability.PlatformOpenAI,
 		Status:      billing.StatusActive,
-		Schedulable: false,
+		Schedulable: false},
 	}
 
 	diagnosis := svc.diagnoseSelectionFailure(context.Background(), acc, "gpt-5.4", capability.PlatformOpenAI, map[int64]struct{}{}, false)
@@ -117,11 +114,10 @@ func TestDiagnoseSelectionFailure_UnschedulableDetail(t *testing.T) {
 }
 
 func TestDiagnoseSelectionFailure_ModelRateLimitedDetail(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	model := "gpt-5.4"
 	resetAt := time.Now().Add(2 * time.Minute).UTC().Format(time.RFC3339)
-	acc := &Account{
-		ID:          8,
+	acc := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Platform:    capability.PlatformOpenAI,
 		Status:      billing.StatusActive,
 		Schedulable: true,
@@ -131,7 +127,7 @@ func TestDiagnoseSelectionFailure_ModelRateLimitedDetail(t *testing.T) {
 					"rate_limit_reset_at": resetAt,
 				},
 			},
-		},
+		}},
 	}
 
 	diagnosis := svc.diagnoseSelectionFailure(context.Background(), acc, model, capability.PlatformOpenAI, map[int64]struct{}{}, false)

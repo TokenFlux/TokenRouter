@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	idempotencytest "github.com/TokenFlux/TokenRouter/internal/idempotency/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/idempotency"
@@ -20,7 +22,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -96,18 +97,18 @@ func (s *blockingDuplicateAdminServiceStub) RecoverDuplicateAccount(_ context.Co
 	return nil, s.recoverErr
 }
 
-func setupDuplicateAccountRouter(t *testing.T, svc AccountManagement) *gin.Engine {
+func setupDuplicateAccountRouter(t *testing.T, svc AccountManagement, coordinators ...*idempotency.IdempotencyCoordinator) *gin.Engine {
 	t.Helper()
-	previousCoordinator := idempotency.DefaultIdempotencyCoordinator()
-	idempotency.SetDefaultIdempotencyCoordinator(nil)
-	t.Cleanup(func() { idempotency.SetDefaultIdempotencyCoordinator(previousCoordinator) })
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 77})
+		c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 77})
 		c.Next()
 	})
 	handler := NewManagementHandler(svc, ManagementOptions{Presenter: NewRuntimePresenter(accountcore.NewRuntimeStatusReader(accountcore.RuntimeStatusOptions{}), svc, nil)})
+	if len(coordinators) > 0 {
+		handler.BindIdempotency(coordinators[0])
+	}
 	router.POST("/api/v1/admin/accounts/:id/duplicate", handler.Duplicate)
 	return router
 }
@@ -168,9 +169,9 @@ func TestDuplicateAccountHandlerReplaysSameIdempotencyKey(t *testing.T) {
 			Schedulable: false,
 		},
 	}
-	router := setupDuplicateAccountRouter(t, svc)
 	repo := idempotencytest.NewMemoryStore()
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(repo, idempotency.DefaultIdempotencyConfig()))
+	coordinator := idempotency.NewIdempotencyCoordinator(repo, idempotency.DefaultIdempotencyConfig())
+	router := setupDuplicateAccountRouter(t, svc, coordinator)
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
@@ -203,9 +204,9 @@ func TestDuplicateAccountHandlerRecoversAfterMarkSucceededFailure(t *testing.T) 
 			Schedulable: false,
 		},
 	}
-	router := setupDuplicateAccountRouter(t, svc)
 	repo := &failOnceMarkSucceededRepo{MemoryStore: idempotencytest.NewMemoryStore(), failNext: true}
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(repo, idempotency.DefaultIdempotencyConfig()))
+	coordinator := idempotency.NewIdempotencyCoordinator(repo, idempotency.DefaultIdempotencyConfig())
+	router := setupDuplicateAccountRouter(t, svc, coordinator)
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
@@ -241,9 +242,9 @@ func TestDuplicateAccountHandlerPreservesIdempotencyErrorWhenRecoveryLookupFails
 		},
 		recoverErr: errors.New("recovery database unavailable"),
 	}
-	router := setupDuplicateAccountRouter(t, svc)
 	repo := &failOnceMarkSucceededRepo{MemoryStore: idempotencytest.NewMemoryStore(), failNext: true}
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(repo, idempotency.DefaultIdempotencyConfig()))
+	coordinator := idempotency.NewIdempotencyCoordinator(repo, idempotency.DefaultIdempotencyConfig())
+	router := setupDuplicateAccountRouter(t, svc, coordinator)
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/42/duplicate", nil)
 	request.Header.Set("Idempotency-Key", "duplicate-account-42-recovery-error")
@@ -271,8 +272,8 @@ func TestDuplicateAccountHandlerDoesNotReexecuteWhileOriginalIsProcessing(t *tes
 		release:    make(chan struct{}),
 		recoverErr: errors.New("recovery database unavailable"),
 	}
-	router := setupDuplicateAccountRouter(t, svc)
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(idempotencytest.NewMemoryStore(), idempotency.DefaultIdempotencyConfig()))
+	coordinator := idempotency.NewIdempotencyCoordinator(idempotencytest.NewMemoryStore(), idempotency.DefaultIdempotencyConfig())
+	router := setupDuplicateAccountRouter(t, svc, coordinator)
 
 	call := func() *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()

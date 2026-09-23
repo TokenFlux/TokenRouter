@@ -10,9 +10,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
@@ -36,9 +39,8 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 		Header:     http.Header{"X-Request-Id": []string{"gemini-response-1"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{
-		ID:          201,
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 201,
 		Platform:    capability.PlatformGemini,
 		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
@@ -47,7 +49,7 @@ func TestGeminiForwardAsResponsesReturnsResponsesFormat(t *testing.T) {
 			"model_mapping": map[string]any{
 				"channel-model": "gemini-2.5-pro",
 			},
-		},
+		}},
 	}
 	body := []byte(`{"model":"channel-model","input":"weather","tools":[{"type":"function","name":"get_weather","parameters":{"type":"object"}}]}`)
 	recorder := httptest.NewRecorder()
@@ -87,20 +89,19 @@ func TestGeminiForwardAsResponsesOAuthCollectsReasoningTextAndTools(t *testing.T
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		tokenProvider: newGeminiTokenSourceForTest(),
 		httpUpstream:  httpStub,
 		cfg:           &config.Config{},
-	}
-	account := &Account{
-		ID:          204,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 204,
 		Platform:    capability.PlatformGemini,
 		Type:        capability.AccountTypeOAuth,
 		Concurrency: 1,
 		Credentials: map[string]any{
 			"access_token": "ya29.test-token",
 			"project_id":   "project-1",
-		},
+		}},
 	}
 	body := []byte(`{"model":"gemini-2.5-pro","input":"hello","tools":[{"type":"function","name":"lookup","parameters":{"type":"object"}}]}`)
 	recorder := httptest.NewRecorder()
@@ -134,8 +135,8 @@ func TestGeminiForwardAsResponsesStreamsReasoningTextToolAndUsage(t *testing.T) 
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{ID: 202, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 202, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}}
 	body := []byte(`{"model":"gemini-2.5-flash","input":"hello","stream":true,"tools":[{"type":"function","name":"lookup","parameters":{"type":"object"}}]}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -182,8 +183,8 @@ func TestGeminiForwardAsResponsesCommitsStreamBeforeReadFailure(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       &geminiResponsesFailingStream{},
 	}}
-	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{ID: 203, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 203, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}}
 	body := []byte(`{"model":"gemini-2.5-flash","input":"hello","stream":true}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -204,8 +205,8 @@ func TestGeminiForwardAsResponsesMapsUpstreamError(t *testing.T) {
 			`{"error":{"code":400,"message":"invalid generation request","status":"INVALID_ARGUMENT"}}`,
 		)),
 	}}
-	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{ID: 205, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 205, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}}
 	body := []byte(`{"model":"gemini-2.5-flash","input":"hello"}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -232,8 +233,8 @@ func TestGeminiForwardAsResponsesReturnsFailoverBeforeResponseStarts(t *testing.
 			`{"error":{"code":403,"message":"insufficient authentication scope","status":"PERMISSION_DENIED"}}`,
 		)),
 	}}
-	svc := &GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}}
-	account := &Account{ID: 206, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{httpUpstream: httpStub, cfg: &config.Config{}})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 206, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "gemini-key"}}}
 	body := []byte(`{"model":"gemini-2.5-flash","input":"hello"}`)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)

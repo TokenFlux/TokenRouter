@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -96,23 +97,16 @@ func TestRateLimitService_HandleUpstreamError_OpenAIOAuth403UsesTempUnschedulabl
 	})
 	require.NoError(t, err)
 	settingRepo.data[accountcore.SettingKeyOpenAI403CooldownSettings] = string(data)
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
 	service.SetOpenAI403CounterCache(counter)
 	service.SetSettingService(newExecutionReadersFixture(settingRepo, &config.Config{}))
-	account := &Account{
-		ID:       104,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 104,
 		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+		Type:     capability.AccountTypeOAuth},
 	}
 
 	before := time.Now()
-	shouldDisable := service.HandleUpstreamError(
-		context.Background(),
-		account,
-		http.StatusForbidden,
-		http.Header{},
-		[]byte(`{"error":{"message":"temporary forbidden"}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"temporary forbidden"}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
 	require.Equal(t, 0, repo.setErrorCalls)
@@ -129,22 +123,15 @@ func TestRateLimitService_HandleUpstreamError_OpenAIOAuth403DisabledUsesSetError
 	data, err := json.Marshal(accountcore.OpenAI403CooldownSettings{Enabled: false, CooldownMinutes: 7})
 	require.NoError(t, err)
 	settingRepo.data[accountcore.SettingKeyOpenAI403CooldownSettings] = string(data)
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
 	service.SetOpenAI403CounterCache(counter)
 	service.SetSettingService(newExecutionReadersFixture(settingRepo, &config.Config{}))
-	account := &Account{
-		ID:       105,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 105,
 		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+		Type:     capability.AccountTypeOAuth},
 	}
 
-	shouldDisable := service.HandleUpstreamError(
-		context.Background(),
-		account,
-		http.StatusForbidden,
-		http.Header{},
-		[]byte(`{"error":{"message":"temporary forbidden"}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"temporary forbidden"}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
 	require.Equal(t, 1, repo.setErrorCalls)
@@ -154,20 +141,13 @@ func TestRateLimitService_HandleUpstreamError_OpenAIOAuth403DisabledUsesSetError
 
 func TestRateLimitService_HandleUpstreamError_OpenAIOAuth403WithoutCounterUsesSetError(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	account := &Account{
-		ID:       106,
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 106,
 		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+		Type:     capability.AccountTypeOAuth},
 	}
 
-	shouldDisable := service.HandleUpstreamError(
-		context.Background(),
-		account,
-		http.StatusForbidden,
-		http.Header{},
-		[]byte(`{"error":{"message":"temporary forbidden"}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"temporary forbidden"}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
 	require.Equal(t, 1, repo.setErrorCalls)
@@ -177,20 +157,13 @@ func TestRateLimitService_HandleUpstreamError_OpenAIOAuth403WithoutCounterUsesSe
 
 func TestRateLimitService_HandleUpstreamError_NonOpenAIOAuth403UsesSetError(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	account := &Account{
-		ID:       107,
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 107,
 		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeOAuth,
+		Type:     capability.AccountTypeOAuth},
 	}
 
-	shouldDisable := service.HandleUpstreamError(
-		context.Background(),
-		account,
-		http.StatusForbidden,
-		http.Header{},
-		[]byte(`{"error":{"message":"forbidden"}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"forbidden"}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
 	require.Equal(t, 1, repo.setErrorCalls)

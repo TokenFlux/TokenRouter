@@ -8,11 +8,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
@@ -29,26 +32,25 @@ func newOpenAIImagesTestContext(t *testing.T, body []byte) (*gin.Context, *httpt
 }
 
 func newOpenAIImagesTestService(upstream httpclient.UpstreamTransport) *OpenAIGatewayService {
-	return &OpenAIGatewayService{
+	return withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream: upstream,
 		cfg: &config.Config{
 			Security: config.SecurityConfig{
 				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 			},
 		},
-	}
+	})
 }
 
-func newOpenAIImagesAPIKeyAccount() *Account {
-	return &Account{
-		ID:       31,
+func newOpenAIImagesAPIKeyAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 31,
 		Name:     "openai-apikey-images",
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"api_key":  "sk-test",
 			"base_url": "https://api.openai.com/v1",
-		},
+		}},
 	}
 }
 

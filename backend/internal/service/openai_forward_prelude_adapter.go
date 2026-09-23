@@ -4,10 +4,12 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/tidwall/gjson"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
@@ -24,12 +26,12 @@ import (
 type openAIForwardPreludeAdapter struct {
 	s       *OpenAIGatewayService
 	c       *gin.Context
-	account *Account
+	account *gatewayprovider.ExecutionAccount
 	ctx     context.Context
 }
 
-func openAIForwardProfile(account *Account) forward.Profile {
-	return forward.Profile{Platform: account.Platform, Name: account.Name, Type: account.Type, UsesCodex: account.UsesOpenAICodexProtocol(), OpenAI: account.IsOpenAI(), OAuth: account.IsOAuth(), OAuthLike: account.IsOpenAIOAuthLike(), APIKey: account.Type == capability.AccountTypeAPIKey, Grok: account.Platform == capability.PlatformGrok, DeepSeek: account.Platform == capability.PlatformDeepseek, NativeCN: account.UsesNativeCNResponses(), Anthropic: account.IsAnthropicProtocol(), RawChat: shouldForwardOpenAIResponsesViaRawChatCompletions(account), ResolvedChat: account.attemptRoute.Protocol() == protocol.ProtocolOpenAIChatCompletions, Passthrough: account.IsOpenAIPassthroughEnabled()}
+func openAIForwardProfile(account *gatewayprovider.ExecutionAccount) forward.Profile {
+	return forward.Profile{Platform: account.Record.Platform, Name: account.Record.Name, Type: account.Record.Type, UsesCodex: account.View().UsesOpenAICodexProtocol(), OpenAI: account.View().IsOpenAI(), OAuth: account.View().IsOAuth(), OAuthLike: account.View().IsOpenAIOAuthLike(), APIKey: account.Record.Type == capability.AccountTypeAPIKey, Grok: account.Record.Platform == capability.PlatformGrok, DeepSeek: account.Record.Platform == capability.PlatformDeepseek, NativeCN: gatewayprovider.ExecutionProtocolTarget(account).UsesNativeCNResponses(), Anthropic: gatewayprovider.ExecutionProtocolTarget(account).IsAnthropicProtocol(), RawChat: shouldForwardOpenAIResponsesViaRawChatCompletions(account), ResolvedChat: account.Route.Protocol() == protocol.ProtocolOpenAIChatCompletions, Passthrough: account.View().IsOpenAIPassthroughEnabled()}
 }
 func (p openAIForwardPreludeAdapter) BlockGroupImages() bool {
 	if source, _ := requeststate.ClientProtocolFromContext(p.ctx); source == protocol.ProtocolOpenAIResponses {
@@ -50,7 +52,7 @@ func (p openAIForwardPreludeAdapter) Begin() {
 	}
 }
 func (p openAIForwardPreludeAdapter) FilterNoneReasoning(body []byte) ([]byte, error) {
-	return filterOpenAIResponsesNoneReasoningEffortForAccount(p.account, body)
+	return gatewayprovider.FilterOpenAIResponsesNoneReasoningEffortForAccount(gatewayprovider.ExecutionProtocolRecord(p.account), body)
 }
 func (p openAIForwardPreludeAdapter) ClearMappings() {
 	clearGrokResponsesClientToolMapping(p.c)
@@ -59,7 +61,7 @@ func (p openAIForwardPreludeAdapter) ClearMappings() {
 	setCodexToolNameReverse(p.c, nil)
 }
 func (p openAIForwardPreludeAdapter) PrepareIdentity(ctx context.Context) error {
-	_, err := p.s.prepareCodexAccountIdentitySource(ctx, p.c, p.account)
+	_, err := gatewayhttp.PrepareCodexIdentity(ctx, p.c, p.s.accountRepo, p.account)
 	return err
 }
 func (p openAIForwardPreludeAdapter) MatchTLS() egress.TLSFingerprintRouterMatchResult {
@@ -86,16 +88,20 @@ func (p openAIForwardPreludeAdapter) Reject(v forward.Rejection) {
 	gatewayhttp.WriteOpenAIForwardRejection(p.c, v.Status, v.Type, v.Message, v.Param)
 }
 func (p openAIForwardPreludeAdapter) CompactEffort(body []byte) ([]byte, bool, error) {
-	return normalizeOpenAICodexCompactReasoningEffortForAccount(p.c, p.account, body)
+	if p.account == nil || !p.account.View().IsOpenAIOAuthLike() || !gatewayhttp.IsOpenAIResponsesCompactPath(p.c) {
+		return body, false, nil
+	}
+	requestedModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	return gatewayprovider.NormalizeOpenAICodexCompactReasoningEffort(body, gatewayprovider.ExecutionModelPolicy(p.account).Mapped(requestedModel))
 }
 func (p openAIForwardPreludeAdapter) ToolSchemas(body []byte) ([]byte, bool, error) {
-	return sanitizeOpenAIResponsesToolSchemasForPlatform(body, p.account.Platform)
+	return gatewayprovider.SanitizeOpenAIResponsesToolSchemasForPlatform(body, p.account.Record.Platform)
 }
 func (p openAIForwardPreludeAdapter) LiteHeader() bool {
-	return isOpenAIResponsesLiteHeader(p.c.GetHeader(media.ResponsesLiteHeader))
+	return gatewayprovider.ImageIntent().IsOpenAIResponsesLiteHeader(p.c.GetHeader(media.ResponsesLiteHeader))
 }
 func (p openAIForwardPreludeAdapter) LitePayload(body []byte) ([]byte, bool, string, error) {
-	updated, changed, err := normalizeOpenAIResponsesLitePayloadForAccount(p.account, body)
+	updated, changed, err := gatewayprovider.NormalizeResponsesLiteForAccount(p.account.View(), body)
 	param := "tools"
 	var validation *openai.ResponsesLiteValidationError
 	if errors.As(err, &validation) {
@@ -108,7 +114,9 @@ func (p openAIForwardPreludeAdapter) Transport() forward.TransportDecision {
 	v = gatewayhttp.ResolveOpenAIWSDecisionByClientTransport(v, gatewayhttp.GetOpenAIClientTransport(p.c))
 	return forward.TransportDecision{Transport: string(v.Transport), Reason: v.Reason}
 }
-func (p openAIForwardPreludeAdapter) CompactPath() bool { return isOpenAIResponsesCompactPath(p.c) }
+func (p openAIForwardPreludeAdapter) CompactPath() bool {
+	return gatewayhttp.IsOpenAIResponsesCompactPath(p.c)
+}
 func (p openAIForwardPreludeAdapter) CompactBody(body []byte) ([]byte, bool, error) {
 	return openai.NormalizeOpenAICompactRequestBody(body)
 }
@@ -141,13 +149,13 @@ func (p openAIForwardPreludeAdapter) AdaptClientTools(body []byte) ([]byte, erro
 	return body, err
 }
 func (p openAIForwardPreludeAdapter) ValidateEffort(body []byte, model string) error {
-	return validateOpenAIReasoningEffort(body, model)
+	return requeststate.ValidateOpenAIReasoningEffort(body, model)
 }
 func (p openAIForwardPreludeAdapter) ReasoningReplay(body []byte) ([]byte, bool, error) {
 	return openai.NormalizeOpenAIResponsesReasoningContentReplay(body)
 }
 func (p openAIForwardPreludeAdapter) InputItemIDs(body []byte) ([]byte, bool, error) {
-	return sanitizeOpenAIResponsesInputItemIDs(body)
+	return gatewayprovider.SanitizeOpenAIResponsesInputItemIDs(body)
 }
 func (p openAIForwardPreludeAdapter) MessagesBridge(body []byte) bool {
 	return isOpenAICompatMessagesBridgeBody(body)
@@ -159,7 +167,7 @@ func (p openAIForwardPreludeAdapter) CodexClient() bool {
 	return openai.IsCodexOfficialClientByHeaders(p.c.GetHeader("User-Agent"), p.c.GetHeader("originator")) || (p.s.cfg != nil && p.s.cfg.Gateway.ForceCodexCLI)
 }
 func (p openAIForwardPreludeAdapter) ImageToolPolicy() string {
-	return p.account.CodexImageGenerationExplicitToolPolicy()
+	return gatewayprovider.ExecutionProtocolRecord(p.account).CodexImageGenerationExplicitToolPolicy()
 }
 func (p openAIForwardPreludeAdapter) ObserveTransport(v forward.TransportDecision, model string, stream bool) {
 	if p.c != nil {
@@ -167,14 +175,14 @@ func (p openAIForwardPreludeAdapter) ObserveTransport(v forward.TransportDecisio
 		p.c.Set("openai_ws_transport_reason", v.Reason)
 	}
 	if v.Transport == string(egress.OpenAIUpstreamTransportResponsesWebsocketV2) {
-		gatewayprovider.LogOpenAIWSModeDebug("selected account_id=%d account_type=%s transport=%s reason=%s model=%s stream=%v", p.account.ID, p.account.Type, gatewayprovider.NormalizeOpenAIWSLogValue(v.Transport), gatewayprovider.NormalizeOpenAIWSLogValue(v.Reason), model, stream)
+		gatewayprovider.LogOpenAIWSModeDebug("selected account_id=%d account_type=%s transport=%s reason=%s model=%s stream=%v", p.account.Record.ID, p.account.Record.Type, gatewayprovider.NormalizeOpenAIWSLogValue(v.Transport), gatewayprovider.NormalizeOpenAIWSLogValue(v.Reason), model, stream)
 	}
 }
 func (p openAIForwardPreludeAdapter) MappedModel(model string) string {
-	return p.account.GetMappedModel(model)
+	return gatewayprovider.ExecutionModelPolicy(p.account).Mapped(model)
 }
 func (p openAIForwardPreludeAdapter) PassthroughEffort(body []byte, model string) *string {
-	return ApplyThinkingEnabledFallback(extractOpenAIReasoningEffortFromBody(body, model), body, model)
+	return gatewayprovider.ApplyThinkingEnabledFallback(requeststate.ExtractOpenAIReasoningEffortFromBody(body, model), body, model)
 }
 func (p openAIForwardPreludeAdapter) Log(format string, args ...any) {
 	logging.LegacyPrintf("service.openai_gateway", format, args...)

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"context"
 
 	service "github.com/TokenFlux/TokenRouter/internal/audit"
@@ -122,7 +124,7 @@ func (h *AuditLogHandler) Clear(c *gin.Context) {
 		return
 	}
 
-	subject, ok := identityhttp.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok || subject.UserID <= 0 {
 		response.Unauthorized(c, "Unauthorized")
 		return
@@ -142,7 +144,7 @@ func (h *AuditLogHandler) Clear(c *gin.Context) {
 	}
 
 	uid := subject.UserID
-	role, _ := identityhttp.GetUserRoleFromContext(c)
+	role, _ := authctx.GetUserRoleFromContext(c)
 	trace := &service.AuditLog{
 		ActorUserID:      &uid,
 		ActorEmail:       c.GetString(ContextKeyAuthEmail),

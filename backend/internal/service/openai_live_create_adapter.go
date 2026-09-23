@@ -11,6 +11,7 @@ import (
 
 	gatewaylive "github.com/TokenFlux/TokenRouter/internal/gateway/live"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -19,7 +20,7 @@ import (
 // liveCreatePorts 仅投影账号与平台能力；selected 只用于旧返回值兼容，不参与核心规则。
 type liveCreatePorts struct {
 	service  *OpenAIGatewayService
-	selected *Account
+	selected *gatewayprovider.ExecutionAccount
 }
 
 func (p *liveCreatePorts) PrepareAttestation(ctx context.Context) (string, string, error) {
@@ -33,8 +34,8 @@ func (p *liveCreatePorts) Select(ctx context.Context, groupID *int64, model stri
 	result := &gatewaylive.Candidate{Acquired: selection.Acquired, ReleaseFunc: selection.ReleaseFunc}
 	if selection.Account != nil {
 		p.selected = selection.Account
-		result.ID = selection.Account.ID
-		result.Concurrency = selection.Account.Concurrency
+		result.ID = selection.Account.Record.ID
+		result.Concurrency = selection.Account.Record.Concurrency
 		result.Target = &liveCreateTarget{service: p.service, account: selection.Account, groupID: groupID}
 	}
 	return result, nil
@@ -57,13 +58,15 @@ func (p *liveCreatePorts) ShouldFailover(err error) bool {
 	return p.service.shouldFailoverLiveCreateError(err)
 }
 func (p *liveCreatePorts) Observe(record *session.LiveCallRecord) {
-	RunBackgroundTask("service/openai_live.go:CreateLiveCall", BackgroundCall1(p.service.observeLiveCall, record))
+	p.service.RunBackgroundTask("service/openai_live.go:CreateLiveCall", func() {
+		p.service.observeLiveCall(record)
+	})
 }
 
 // liveCreateTarget 保存本次选择取得的凭据视图，避免迁移引入第二次账号查询。
 type liveCreateTarget struct {
 	service *OpenAIGatewayService
-	account *Account
+	account *gatewayprovider.ExecutionAccount
 	groupID *int64
 	router  egress.TLSFingerprintRouterMatchResult
 }
@@ -73,13 +76,13 @@ func (t *liveCreateTarget) ResolveModel(ctx context.Context, model string) (stri
 	if err != nil {
 		return "", "", err
 	}
-	return routing, resolveOpenAIAccountUpstreamModelForRequest(t.account, routing, false, false), nil
+	return routing, gatewayprovider.ExecutionModelPolicy(t.account).OpenAIUpstream(routing, false, false), nil
 }
 func (t *liveCreateTarget) AllowsClient(ctx context.Context, identity session.LiveCallIdentity) bool {
 	t.router = t.service.matchLiveTLSFingerprintRouter(t.account, identity.UserAgent)
 	result := t.service.liveClientPolicyResult(ctx, t.account, identity, t.router)
 	if result.Enabled && !result.Matched {
-		logging.FromContext(ctx).Warn("OpenAI Live 客户端策略拒绝候选账号", zap.Int64("account_id", t.account.ID), zap.String("policy", result.Policy), zap.String("reason", result.Reason))
+		logging.FromContext(ctx).Warn("OpenAI Live 客户端策略拒绝候选账号", zap.Int64("account_id", t.account.Record.ID), zap.String("policy", result.Policy), zap.String("reason", result.Reason))
 		return false
 	}
 	return true

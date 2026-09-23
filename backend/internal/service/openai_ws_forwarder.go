@@ -56,7 +56,7 @@ func openAIWSFastModePolicyContext(ctx context.Context, hooks *gatewayws.OpenAII
 
 // resolveOpenAIWSTurnModels 按 R -> C -> U 顺序解析单个 WebSocket turn 的模型。
 // originalModel 始终由调用方另行保留，返回值只用于账号能力判断后的上游请求。
-func resolveOpenAIWSTurnModels(account *Account, hooks *gatewayws.OpenAIIngressHooks, turn int, requestedModel string, payload []byte) (string, string, error) {
+func resolveOpenAIWSTurnModels(account *gatewayprovider.ExecutionAccount, hooks *gatewayws.OpenAIIngressHooks, turn int, requestedModel string, payload []byte) (string, string, error) {
 	routingModel := strings.TrimSpace(requestedModel)
 	if hooks != nil && hooks.ResolveRoutingModel != nil {
 		resolved, err := hooks.ResolveRoutingModel(turn, routingModel, payload)
@@ -73,7 +73,7 @@ func resolveOpenAIWSTurnModels(account *Account, hooks *gatewayws.OpenAIIngressH
 		)
 	}
 
-	upstreamModel := normalizeOpenAIModelForUpstream(account, resolveAccountMappedModelForForward(account, routingModel))
+	upstreamModel := gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(resolveAccountMappedModelForForward(account, routingModel))
 	if upstreamModel == "" {
 		upstreamModel = routingModel
 	}
@@ -137,7 +137,7 @@ func (s *OpenAIGatewayService) SnapshotOpenAIWSPerformanceMetrics() OpenAIWSPerf
 	return snapshot
 }
 
-func (s *OpenAIGatewayService) getOpenAIWSStateStore() session.OpenAIWSStateStore {
+func (s *OpenAIGatewayService) ResponseStateStore() session.OpenAIWSStateStore {
 	if s == nil {
 		return nil
 	}
@@ -149,7 +149,7 @@ func (s *OpenAIGatewayService) getOpenAIWSStateStore() session.OpenAIWSStateStor
 	return s.openaiWSStateStore
 }
 
-func (s *OpenAIGatewayService) openAIWSResponseStickyTTL() time.Duration {
+func (s *OpenAIGatewayService) OpenAIHTTPResponseStickyTTL() time.Duration {
 	if s != nil && s.cfg != nil {
 		seconds := s.cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds
 		if seconds > 0 {

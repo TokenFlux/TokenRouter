@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -111,7 +113,7 @@ func (r *openAICodexExtraListRepo) SetRateLimited(_ context.Context, _ int64, re
 	return nil
 }
 
-func (r *openAICodexExtraListRepo) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
+func (r *openAICodexExtraListRepo) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]gatewayprovider.ExecutionAccount, *pagination.PaginationResult, error) {
 	_ = platform
 	_ = accountType
 	_ = status
@@ -181,8 +183,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 
-	account := Account{
-		ID:          501,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 501,
 		Name:        "openai-ws-rate-limit-event",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -195,12 +196,12 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
-	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
+	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
 	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
 		httpUpstream:     upstream,
@@ -208,7 +209,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 		cfg:              cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
-	}
+	}))
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
 	result, err := svc.Forward(context.Background(), c, &account, body)
@@ -247,8 +248,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 		},
 	})
 
-	account := Account{
-		ID:          506,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 506,
 		Name:        "openai-ws-forbidden-event",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -260,12 +260,12 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
-	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
+	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
 	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
 		httpUpstream:     upstream,
@@ -274,7 +274,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	}))
 
 	before := time.Now()
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -319,8 +319,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
 
-	account := Account{
-		ID:          502,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 502,
 		Name:        "openai-ws-rate-limit-handshake",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -333,12 +332,12 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
-	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
+	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
 	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
 		httpUpstream:     upstream,
@@ -346,7 +345,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 		cfg:              cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
-	}
+	}))
 
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
 	result, err := svc.Forward(context.Background(), c, &account, body)
@@ -383,8 +382,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 		err:    errors.New("temporary forbidden"),
 	})
 
-	account := Account{
-		ID:          504,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 504,
 		Name:        "openai-ws-forbidden-handshake",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -396,12 +394,12 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
-	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
+	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
 	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
 		httpUpstream:     upstream,
@@ -410,7 +408,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	}))
 
 	before := time.Now()
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":[{"type":"input_text","text":"hello"}]}`)
@@ -435,24 +433,23 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake502RecordsModelTransient(t *t
 	cfg := newOpenAIWSV2TestConfig()
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
-	account := Account{
-		ID:          504,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 504,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
 		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-test", "base_url": server.URL},
-		Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:              cfg,
-		rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, cfg, nil, nil),
+		rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, cfg, nil),
 		httpUpstream:     &httpUpstreamRecorder{},
 		cache:            &stubGatewayCache{},
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
-	}
+	})
 	body := []byte(`{"model":"gpt-5.5","stream":false,"input":"hello"}`)
 
 	for range 2 {
@@ -492,8 +489,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 	pool := newOpenAIWSConnPool(cfg)
 	pool.SetClientDialerForTest(captureDialer)
 
-	account := Account{
-		ID:          503,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 503,
 		Name:        "openai-ingress-rate-limit",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -505,12 +501,12 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
-	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
+	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
 	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
 		httpUpstream:     &httpUpstreamRecorder{},
@@ -519,7 +515,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	}))
 
 	serverErrCh := make(chan error, 1)
 	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -595,8 +591,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 		err:    errors.New("temporary forbidden"),
 	})
 
-	account := Account{
-		ID:          505,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 505,
 		Name:        "openai-ingress-forbidden-handshake",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -608,12 +603,12 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
-	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
+	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
 	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
 		httpUpstream:     &httpUpstreamRecorder{},
@@ -622,7 +617,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	}))
 
 	serverErrCh := make(chan error, 1)
 	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -699,8 +694,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 		},
 	})
 
-	account := Account{
-		ID:          507,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 507,
 		Name:        "openai-ingress-forbidden-event",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -712,12 +706,12 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 		},
 		Extra: map[string]any{
 			"responses_websockets_v2_enabled": true,
-		},
+		}},
 	}
-	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
+	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
 	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
 		httpUpstream:     &httpUpstreamRecorder{},
@@ -726,7 +720,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
-	}
+	}))
 
 	serverErrCh := make(chan error, 1)
 	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -788,7 +782,7 @@ func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_ExhaustedSnapshotDoesNotS
 		updateExtraCh: make(chan map[string]any, 1),
 		rateLimitCh:   make(chan time.Time, 1),
 	}
-	svc := &OpenAIGatewayService{accountRepo: repo}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
 	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         ptrFloat64WS(100),
 		PrimaryResetAfterSeconds:   ptrIntWS(3600),
@@ -818,7 +812,7 @@ func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_NonExhaustedSnapshotDoesN
 		updateExtraCh: make(chan map[string]any, 1),
 		rateLimitCh:   make(chan time.Time, 1),
 	}
-	svc := &OpenAIGatewayService{accountRepo: repo}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
 	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         ptrFloat64WS(94),
 		PrimaryResetAfterSeconds:   ptrIntWS(3600),
@@ -846,10 +840,10 @@ func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_ThrottlesExtraWrites(t *t
 	repo := &openAICodexSnapshotAsyncRepo{
 		updateExtraCh: make(chan map[string]any, 2),
 	}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		accountRepo:           repo,
 		codexSnapshotThrottle: newAccountWriteThrottle(time.Hour),
-	}
+	}))
 	snapshot := &openai.OpenAICodexUsageSnapshot{
 		PrimaryUsedPercent:         ptrFloat64WS(94),
 		PrimaryResetAfterSeconds:   ptrIntWS(3600),
@@ -880,8 +874,7 @@ func ptrIntWS(v int) *int             { return &v }
 
 func TestOpenAIGatewayService_GetSchedulableAccount_ExhaustedCodexExtraDoesNotSetRateLimit(t *testing.T) {
 	resetAt := time.Now().Add(6 * 24 * time.Hour)
-	account := Account{
-		ID:          701,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 701,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Status:      billing.StatusActive,
@@ -890,15 +883,15 @@ func TestOpenAIGatewayService_GetSchedulableAccount_ExhaustedCodexExtraDoesNotSe
 		Extra: map[string]any{
 			"codex_7d_used_percent": 100.0,
 			"codex_7d_reset_at":     resetAt.UTC().Format(time.RFC3339),
-		},
+		}},
 	}
-	repo := &openAICodexExtraListRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}, rateLimitCh: make(chan time.Time, 1)}
-	svc := &OpenAIGatewayService{accountRepo: repo}
+	repo := &openAICodexExtraListRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}, rateLimitCh: make(chan time.Time, 1)}
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
 
-	fresh, err := svc.getSchedulableAccount(context.Background(), account.ID)
+	fresh, err := svc.getSchedulableAccount(context.Background(), account.Record.ID)
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
-	require.Nil(t, fresh.RateLimitResetAt)
+	require.Nil(t, fresh.Record.RateLimitResetAt)
 	select {
 	case persisted := <-repo.rateLimitCh:
 		t.Fatalf("不应将已耗尽的 codex extra 提升为运行时限流状态: %v", persisted)
@@ -912,14 +905,13 @@ func TestOpenAIWSErrorHTTPStatusFromRaw_UsageLimitReachedIs429(t *testing.T) {
 }
 
 func TestOpenAIWSRateLimitFailoverError_OAuthKeepsSameAccountDeadline(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	headers := http.Header{"Retry-After": []string{"30"}}
 	body := []byte(`{"error":{"type":"rate_limit_error","message":"limited"}}`)
 
-	oauthErr := svc.newOpenAIWSRateLimitFailoverError(&Account{
-		ID:       904,
+	oauthErr := svc.newOpenAIWSRateLimitFailoverError(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 904,
 		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+		Type:     capability.AccountTypeOAuth},
 	}, headers, body, "limited")
 	require.True(t, oauthErr.RetryableOnSameAccount)
 	require.False(t, oauthErr.SameAccountRetryDeadline.IsZero())
@@ -928,10 +920,9 @@ func TestOpenAIWSRateLimitFailoverError_OAuthKeepsSameAccountDeadline(t *testing
 	require.Equal(t, body, oauthErr.ResponseBody)
 	require.Equal(t, "30", http.Header(oauthErr.ResponseHeaders).Get("Retry-After"))
 
-	apiKeyErr := svc.newOpenAIWSRateLimitFailoverError(&Account{
-		ID:       905,
+	apiKeyErr := svc.newOpenAIWSRateLimitFailoverError(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 905,
 		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
+		Type:     capability.AccountTypeAPIKey},
 	}, headers, body, "limited")
 	require.False(t, apiKeyErr.RetryableOnSameAccount)
 	require.True(t, apiKeyErr.SameAccountRetryDeadline.IsZero())

@@ -6,6 +6,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
 // computePeakAwareMultipliers 把"基础 token 倍率 base"（已含系统/分组/用户级倍率，但不含高峰）
@@ -13,5 +14,5 @@ import (
 // gateway_service.recordUsageCore 与 openai_gateway_service.RecordUsage 共用此函数，
 // 锁死"高峰因子只乘入 token 倍率、图片按次倍率不受影响"这一叠加顺序——任何调换都会被 group_peak_rate_test 覆盖。
 func computePeakAwareMultipliers(apiKey *apikey.APIKey, base float64, now time.Time) (text, image float64) {
-	return completion.ComputePeakAwareMultipliers(completionKey(apiKey), base, now)
+	return completion.ComputePeakAwareMultipliers(gatewaycapture.ProjectCompletionKey(apiKey), base, now)
 }

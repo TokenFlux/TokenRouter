@@ -18,13 +18,19 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
+
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
@@ -59,7 +65,7 @@ func newChannelServiceWithPricings(groupID int64, pricings []routing.ChannelMode
 		GroupIDs:     []int64{groupID},
 	}
 
-	cs := seedChannelFixture(populateChannelCache([]routing.Channel{ch}, map[int64]string{groupID: capability.PlatformOpenAI}))
+	cs := routingtestkit.ChannelFromData(routingtestkit.ChannelDataFromRows([]routing.Channel{ch}, map[int64]string{groupID: capability.PlatformOpenAI}))
 	return cs
 }
 
@@ -68,18 +74,18 @@ func recordUsageWithChannelPricing(t *testing.T, requestedModel string, pricings
 	t.Helper()
 	const groupID = int64(777)
 
-	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+	usageRepo := &gatewaytestkit.UsageLogStore{Inserted: true}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &gatewaytestkit.UserStore{}, &gatewaytestkit.SubscriptionStore{}, nil)
 	cs := newChannelServiceWithPricings(groupID, pricings)
-	svc.channelService = cs
-	svc.resolver = NewModelPricingResolver(cs, svc.billingService)
+	svc.Channels = cs
+	svc.Dependencies.Prices = billingtestkit.PriceResolver(cs, svc.Dependencies.Calculator)
 
 	group := &routing.Group{
 		ID:             groupID,
 		Platform:       capability.PlatformOpenAI,
 		RateMultiplier: 1,
 	}
-	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+	err := svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
 		Result: &forwardcore.OpenAIResult{
 			RequestID:    "resp_luna_5256",
 			Model:        requestedModel,
@@ -100,11 +106,11 @@ func recordUsageWithChannelPricing(t *testing.T, requestedModel string, pricings
 			Group:   group,
 		},
 		User:    &identity.User{ID: 1},
-		Account: &Account{ID: 1, Platform: capability.PlatformOpenAI},
+		Account: gatewaycapture.ExecutionCompletionRecord(&gatewaycapture.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI}}),
 	})
 	require.NoError(t, err)
-	require.NotNil(t, usageRepo.lastLog)
-	return usageRepo.lastLog
+	require.NotNil(t, usageRepo.LastLog)
+	return usageRepo.LastLog
 }
 
 // 基线：请求模型与渠道定价 key 完全一致 → 按渠道价计。

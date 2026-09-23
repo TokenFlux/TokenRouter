@@ -44,6 +44,16 @@ func ParseVertexServiceAccountJSON(raw []byte) (*google.ServiceAccountKey, error
 	key.TokenURI = DefaultTokenURL
 	return &key, nil
 }
+
+// ServiceAccountProjectID 复用完整凭据校验，供账号按需解析项目标识。
+func ServiceAccountProjectID(raw []byte) (string, error) {
+	key, err := ParseVertexServiceAccountJSON(raw)
+	if err != nil {
+		return "", err
+	}
+	return key.ProjectID, nil
+}
+
 func BuildVertexGeminiURL(projectID, location, model, action string, stream bool) (string, error) {
 	projectID = strings.TrimSpace(projectID)
 	location = strings.TrimSpace(location)

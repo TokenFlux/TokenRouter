@@ -8,6 +8,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -41,12 +42,12 @@ var gatewayTransportFailoverBody = []byte(`{"type":"error","error":{"type":"upst
 //
 // It deliberately does NOT write to the response: the handler owns the
 // response (failover, or a protocol-correct error once failover is exhausted).
-func (s *GatewayService) handleUpstreamTransportError(ctx context.Context, c *gin.Context, account *Account, err error, event ops.OpsUpstreamErrorEvent) error {
+func (s *GatewayService) handleUpstreamTransportError(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, err error, event ops.OpsUpstreamErrorEvent) error {
 	safeErr := logredact.SanitizeUpstreamQueries(err.Error())
 	gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
-	event.Platform = account.Platform
-	event.AccountID = account.ID
-	event.AccountName = account.Name
+	event.Platform = account.Record.Platform
+	event.AccountID = account.Record.ID
+	event.AccountName = account.Record.Name
 	event.UpstreamStatusCode = 0
 	event.Kind = "request_error"
 	event.Message = safeErr
@@ -82,7 +83,7 @@ func (s *GatewayService) handleUpstreamTransportError(ctx context.Context, c *gi
 //   - "gateway.account_temp_unscheduled_transport" — DB write succeeded.
 //   - "gateway.account_temp_unschedule_transport_failed" — DB write attempted
 //     but returned an error (the account remains schedulable).
-func (s *GatewayService) tempUnscheduleTransportError(ctx context.Context, account *Account, safeErr string) {
+func (s *GatewayService) tempUnscheduleTransportError(ctx context.Context, account *gatewayprovider.ExecutionAccount, safeErr string) {
 	if s == nil || account == nil || s.accountRepo == nil {
 		return
 	}
@@ -91,19 +92,19 @@ func (s *GatewayService) tempUnscheduleTransportError(ctx context.Context, accou
 
 	bgCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), openAIAccountStateUpdateTimeout)
 	defer cancel()
-	if err := s.accountRepo.SetTempUnschedulable(bgCtx, account.ID, until, reason); err != nil {
+	if err := s.accountRepo.SetTempUnschedulable(bgCtx, account.Record.ID, until, reason); err != nil {
 		logging.L().With(zap.String("component", "service.gateway")).Warn(
 			"gateway.account_temp_unschedule_transport_failed",
-			zap.Int64("account_id", account.ID),
+			zap.Int64("account_id", account.Record.ID),
 			zap.Error(err),
 		)
 		return
 	}
 	logging.L().With(zap.String("component", "service.gateway")).Warn(
 		"gateway.account_temp_unscheduled_transport",
-		zap.Int64("account_id", account.ID),
-		zap.String("account_name", account.Name),
-		zap.String("platform", account.Platform),
+		zap.Int64("account_id", account.Record.ID),
+		zap.String("account_name", account.Record.Name),
+		zap.String("platform", account.Record.Platform),
 		zap.Time("until", until),
 		zap.String("reason", reason),
 	)

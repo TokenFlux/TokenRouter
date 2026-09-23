@@ -5,6 +5,7 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	gatewaylive "github.com/TokenFlux/TokenRouter/internal/gateway/live"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -77,7 +78,7 @@ func (p livePorts) RecordZeroUsage(ctx context.Context, record *session.LiveCall
 type liveTarget struct {
 	service *OpenAIGatewayService
 	record  *session.LiveCallRecord
-	account *Account
+	account *gatewayprovider.ExecutionAccount
 }
 
 func (t liveTarget) Dial(ctx context.Context) (gatewaylive.FrameConn, error) {
@@ -119,7 +120,7 @@ func (c liveDownstreamFrames) Close() error             { return c.conn.CloseNow
 // liveModelResolver 适配当前账号能力与路由结果，不实施报文改写。
 type liveModelResolver struct {
 	service *OpenAIGatewayService
-	account *Account
+	account *gatewayprovider.ExecutionAccount
 }
 
 func (r liveModelResolver) ResolveModel(ctx context.Context, groupID *int64, model string) (string, string, error) {
@@ -127,5 +128,5 @@ func (r liveModelResolver) ResolveModel(ctx context.Context, groupID *int64, mod
 	if err != nil {
 		return "", "", err
 	}
-	return routing, resolveOpenAIAccountUpstreamModelForRequest(r.account, routing, false, false), nil
+	return routing, gatewayprovider.ExecutionModelPolicy(r.account).OpenAIUpstream(routing, false, false), nil
 }

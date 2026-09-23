@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
@@ -58,16 +61,15 @@ func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testi
 			pool := newOpenAIWSConnPool(cfg)
 			pool.SetClientDialerForTest(captureDialer)
 
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          cfg,
 				httpUpstream: &httpUpstreamRecorder{},
 				cache:        &stubGatewayCache{},
 
 				toolCorrector: openai.NewCodexToolCorrector(),
 				openaiWSPool:  pool,
-			}
-			account := &Account{
-				ID:          5882,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5882,
 				Name:        "openai-ws-v2-tier",
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
@@ -75,7 +77,7 @@ func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testi
 				Schedulable: true,
 				Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test"},
-				Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+				Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 			}
 
 			body := []byte(fmt.Sprintf(

@@ -89,11 +89,6 @@ type systemUpdateErrorEnvelope struct {
 func newSystemHandlerTestRouter(t *testing.T, updateSvc *systemHandlerUpdateServiceStub, repo *systemOperationFixture) *gin.Engine {
 	t.Helper()
 
-	idempotency.SetDefaultIdempotencyCoordinator(nil)
-	t.Cleanup(func() {
-		idempotency.SetDefaultIdempotencyCoordinator(nil)
-	})
-
 	lockSvc := maintenance.NewSystemOperationLockService(repo, maintenance.Options{Log: logging.LegacyPrintf,
 		ProcessingTimeout:  time.Second,
 		SystemOperationTTL: time.Minute,
@@ -348,8 +343,6 @@ type s14RestartRecorder struct{ calls int }
 
 func (r *s14RestartRecorder) RequestRestart() error { r.calls++; return nil }
 func TestSystemHandlerRestartPreservesResponse(t *testing.T) {
-	idempotency.SetDefaultIdempotencyCoordinator(nil)
-	t.Cleanup(func() { idempotency.SetDefaultIdempotencyCoordinator(nil) })
 	repo := newSystemOperationFixture()
 	lock := maintenance.NewSystemOperationLockService(repo, maintenance.Options{Log: logging.LegacyPrintf, ProcessingTimeout: time.Hour, SystemOperationTTL: time.Hour})
 	restart := &s14RestartRecorder{}

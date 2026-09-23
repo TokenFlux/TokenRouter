@@ -176,7 +176,7 @@ func (s *GeminiAccountTest) buildGeminiServiceAccountRequest(ctx context.Context
 	if err != nil {
 		return nil, fmt.Errorf("failed to get service account access token: %w", err)
 	}
-	fullURL, err := vertex.BuildVertexGeminiURL(value.VertexProjectID(vertexTestProjectID), value.VertexLocation(modelID), modelID, "streamGenerateContent", true)
+	fullURL, err := vertex.BuildVertexGeminiURL(value.VertexProjectID(vertex.ServiceAccountProjectID), value.VertexLocation(modelID), modelID, "streamGenerateContent", true)
 	if err != nil {
 		return nil, err
 	}
@@ -299,12 +299,4 @@ func (s *GeminiAccountTest) resolveTLSProfile(value *accountcore.Record) *tlsfin
 		return nil
 	}
 	return s.Profiles.ResolveRequestTLS(egress.TLSSelection{Enabled: value.IsTLSFingerprintEnabled(), DirectProfileID: value.GetTLSFingerprintProfileID()})
-}
-
-func vertexTestProjectID(raw []byte) (string, error) {
-	key, err := vertex.ParseVertexServiceAccountJSON(raw)
-	if err != nil {
-		return "", err
-	}
-	return key.ProjectID, nil
 }

@@ -3,10 +3,6 @@
 package postgres
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -14,9 +10,12 @@ import (
 	"testing"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +39,7 @@ func TestS08QueryShapeMatchesPlanning(t *testing.T) {
 	tx := testEntTx(t)
 	client := tx.Client()
 	writer := NewUsageLogRepositoryWithSQL(client, tx, timezone.NewCalendar(time.Local))
-	account := mustCreateAccount(t, client, &service.Account{Name: "s08-query-shape"})
+	account := mustCreateAccount(t, client, &accountcore.Record{Name: "s08-query-shape"})
 	ids := []int64{}
 	keys := []int64{}
 	for i := 0; i < 8; i++ {

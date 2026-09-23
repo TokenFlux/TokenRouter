@@ -39,7 +39,7 @@ func TestHandleCCBufferedFromAnthropic_ToolArgumentsAreValidJSON(t *testing.T) {
 		``,
 	}, "\n")))}
 
-	_, err := (&GatewayService{}).handleCCBufferedFromAnthropic(resp, c, "gpt-5", "claude-sonnet-4.5", nil, time.Now())
+	_, err := (withSchedulerParametersForTest(&GatewayService{})).handleCCBufferedFromAnthropic(resp, c, "gpt-5", "claude-sonnet-4.5", nil, time.Now())
 	require.NoError(t, err)
 
 	var body struct {
@@ -121,7 +121,7 @@ func TestHandleCCBufferedFromAnthropic_PreservesMessageStartCacheUsageAndReasoni
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleCCBufferedFromAnthropic(resp, c, "gpt-5", "claude-sonnet-4.5", &reasoningEffort, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -157,7 +157,7 @@ func TestHandleCCBufferedFromAnthropic_CompactSSEFormat(t *testing.T) {
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleCCBufferedFromAnthropic(resp, c, "k3", "k3", nil, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -192,7 +192,7 @@ func TestHandleCCStreamingFromAnthropic_CompactSSEFormat(t *testing.T) {
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleCCStreamingFromAnthropic(resp, c, "k3", "k3", nil, time.Now(), true)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -231,7 +231,7 @@ func TestHandleCCStreamingFromAnthropic_PreservesMessageStartCacheUsageAndReason
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleCCStreamingFromAnthropic(resp, c, "gpt-5", "claude-sonnet-4.5", &reasoningEffort, time.Now(), true)
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -268,7 +268,7 @@ func TestHandleCCBufferedFromAnthropic_WritesToolCall(t *testing.T) {
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleCCBufferedFromAnthropic(resp, c, "gpt-5", "claude-sonnet-4.5", nil, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, result)

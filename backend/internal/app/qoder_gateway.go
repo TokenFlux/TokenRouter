@@ -4,6 +4,9 @@ import (
 	"log/slog"
 	"time"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -24,37 +27,38 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // provideQoderChat 在组合根一次绑定依赖；HTTP 入口不再组装业务回调。
-func provideQoderChat(g *service.GatewayService, q *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, c *scheduler.ConcurrencyService, b *admission.FundingAdmission, k *apikey.APIKeyService, h *handler.QoderGatewayHandler, r *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, manager *lifecycle.Manager, requests *gatewayRequestActivity) *gatewayhttp.QoderChatHandler {
-	activity := lifecycle.NewOperations("QoderRequestsAndAttempts")
-	manager.Register(lifecycle.Hook{Name: "QoderRequestsAndAttempts", StopOrder: 15, Stop: activity.StopContext})
-	q.BindAttemptActivity(activity.Enter)
-	h.BindRequestActivity(activity.Enter)
+func provideQoderChat(g *service.GatewayService, q *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, c *scheduler.ConcurrencyService, b *admission.FundingAdmission, k *apikey.APIKeyService, r *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, activity *qoderRequestActivity, requests *gatewayRequestActivity) *gatewayhttp.QoderChatHandler {
 	runtime := &qoderRuntime{Gateway: g, Qoder: q, Refresh: refresh, Billing: b, Keys: k, Completions: pool, Recorder: recorders.Forward}
 	useCase := gateway.NewQoderExecutor(3, 30*time.Second, c, runtime)
 	useCase.Enter = activity.Enter
-	result := &gatewayhttp.QoderChatHandler{Executor: useCase, Failure: h.QoderClientFailure}
+	var matcher gatewayhttp.ErrorRuleMatcher
+	if r != nil {
+		matcher = r
+	}
+	presenter := gatewayhttp.QoderErrorPresenter{Rules: matcher, Describe: gatewayprovider.DescribeQoderError, ReadAccess: keyhttp.GetAPIKeyFromContext, Catalogue: gatewayprovider.ModelDisplayCatalogue{}}
+	result := &gatewayhttp.QoderChatHandler{Executor: useCase, Failure: presenter.Failure}
 	result.BindRequestActivity(requests.Enter)
 	result.Preflight = qoderPreflight
 	result.PrepareRequest = func(c *gin.Context, parsed gatewayhttp.ParsedRequest) (gateway.Request, error) {
 		if err := qoderPreflight(c); err != nil {
 			return gateway.Request{}, err
 		}
-		key, _ := middleware.GetAPIKeyFromContext(c)
-		subject, _ := middleware.GetAuthSubjectFromContext(c)
-		subscription, _ := middleware.GetSubscriptionFromContext(c)
+		key, _ := keyhttp.GetAPIKeyFromContext(c)
+		subject, _ := authctx.GetAuthSubjectFromContext(c)
+		subscription, _ := gatewayhttp.SubscriptionFromContext(c)
 		if r != nil {
 			gatewayhttp.BindErrorPassthroughService(c, r)
 		}
-		handler.ObserveQoderRequest(c, parsed.Model, parsed.Stream)
+		gatewayhttp.SetOpsRequestContext(c, parsed.Model, parsed.Stream)
+		gatewayhttp.SetOpsEndpointContext(c, "", int16(usage.RequestTypeFromLegacy(parsed.Stream, false)))
 		var access *apikey.AccessSnapshot
 		if value, ok := c.Get("apikey_access_snapshot"); ok {
 			access, _ = value.(*apikey.AccessSnapshot)
@@ -63,12 +67,12 @@ func provideQoderChat(g *service.GatewayService, q *gatewayprovider.QoderRuntime
 		if !ok {
 			keyView = apikey.CopyAPIKey(key)
 		}
-		inbound, outbound := handler.QoderEndpoints(c, capability.PlatformQoder)
+		inbound, outbound := gatewayhttp.GetInboundEndpoint(c), gatewayhttp.GetUpstreamEndpoint(c, capability.PlatformQoder)
 		request := gateway.Request{
 			Access: access, UserID: subject.UserID, Concurrency: subject.Concurrency, Stream: parsed.Stream,
 			Body: append([]byte(nil), parsed.Body...), Model: parsed.Model,
 			Funding:  gateway.FundingState{Key: keyView, Subscription: subscription},
-			Metadata: gateway.RequestMetadata{Headers: c.Request.Header.Clone(), UserAgent: c.GetHeader("User-Agent"), ClientIP: clientip.GetClientIP(c), InboundEndpoint: inbound, UpstreamEndpoint: outbound, QuotaPlatform: service.QuotaPlatform(c.Request.Context(), key), ClaudeCode: requeststate.IsClaudeCodeClient(c.Request.Context()), StartedAt: parsed.StartedAt},
+			Metadata: gateway.RequestMetadata{Headers: c.Request.Header.Clone(), UserAgent: c.GetHeader("User-Agent"), ClientIP: clientip.GetClientIP(c), InboundEndpoint: inbound, UpstreamEndpoint: outbound, QuotaPlatform: admission.QuotaPlatform(c.Request.Context(), key), ClaudeCode: requeststate.IsClaudeCodeClient(c.Request.Context()), StartedAt: parsed.StartedAt},
 		}
 		request.SessionHash = session.QoderRequestHash(request.Metadata.Headers, request.Body, "anthropic", &requeststate.SessionContext{ClientIP: request.Metadata.ClientIP, UserAgent: request.Metadata.UserAgent, APIKeyID: key.ID}, slog.Info)
 		return request, nil
@@ -76,16 +80,15 @@ func provideQoderChat(g *service.GatewayService, q *gatewayprovider.QoderRuntime
 	result.Observer = func(c *gin.Context, request gateway.Request) gateway.ExecutionObserver {
 		return &qoderHTTPObservation{c: c, stream: request.Stream}
 	}
-	h.BindChatHandler(result)
 	return result
 }
 
 // qoderPreflight 保持读取请求体前的鉴权错误顺序。
 func qoderPreflight(c *gin.Context) error {
-	if _, ok := middleware.GetAPIKeyFromContext(c); !ok {
+	if _, ok := keyhttp.GetAPIKeyFromContext(c); !ok {
 		return &gatewayhttp.HTTPFailure{Status: 401, Type: "authentication_error", Message: "Invalid API key"}
 	}
-	if _, ok := middleware.GetAuthSubjectFromContext(c); !ok {
+	if _, ok := authctx.GetAuthSubjectFromContext(c); !ok {
 		return &gatewayhttp.HTTPFailure{Status: 500, Type: "api_error", Message: "User context not found"}
 	}
 	return nil
@@ -102,8 +105,18 @@ func (o *qoderHTTPObservation) Prepared(request gateway.Request) {
 	gatewayhttp.SetOpsLatencyMs(o.c, gatewayhttp.OpsAuthLatencyMsKey, time.Since(request.Metadata.StartedAt).Milliseconds())
 }
 func (o *qoderHTTPObservation) Selected(snapshot account.AccountSnapshot) {
-	handler.ObserveQoderSelection(o.c, snapshot.ID, snapshot.Platform)
+	gatewayhttp.SetOpsSelectedAccount(o.c, snapshot.ID, snapshot.Platform)
 }
 func (o *qoderHTTPObservation) Waiting(string) scheduler.WaitObserver {
 	return gatewayhttp.WaitObserver(o.c, gatewayhttp.SSEPingFormatComment, 10*time.Second, o.stream, &o.started, true)
+}
+
+// qoderRequestActivity 让 Chat、兼容入口与平台执行共享一个现有停止拥有者。
+type qoderRequestActivity struct{ *lifecycle.Operations }
+
+func provideQoderRequestActivity(manager *lifecycle.Manager, runtime *gatewayprovider.QoderRuntime) *qoderRequestActivity {
+	activity := lifecycle.NewOperations("QoderRequestsAndAttempts")
+	manager.Register(lifecycle.Hook{Name: "QoderRequestsAndAttempts", StopOrder: 15, Stop: activity.StopContext})
+	runtime.BindAttemptActivity(activity.Enter)
+	return &qoderRequestActivity{Operations: activity}
 }

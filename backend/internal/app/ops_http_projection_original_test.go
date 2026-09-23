@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -56,7 +58,7 @@ func TestGetOpsAPIKeyFallsBackToOpsFallbackKey(t *testing.T) {
 		User:    &identity.User{ID: 7},
 		Group:   &routing.Group{ID: groupID, Platform: capability.PlatformAnthropic},
 	}
-	c.Set(string(middleware2.ContextKeyOpsFallbackAPIKey), apiKey)
+	c.Set(string(keyhttp.ContextKeyOpsFallbackAPIKey), apiKey)
 
 	got := provideOpsObservationAccess().APIKey(c)
 	require.NotNil(t, got)
@@ -77,7 +79,7 @@ func TestGetOpsAPIKeyPrefersPrimaryContextKey(t *testing.T) {
 	primary := &apikey.APIKey{ID: 1}
 	fallback := &apikey.APIKey{ID: 2}
 	c.Set("gateway_effective_key", primary)
-	c.Set(string(middleware2.ContextKeyOpsFallbackAPIKey), fallback)
+	c.Set(string(keyhttp.ContextKeyOpsFallbackAPIKey), fallback)
 
 	got := provideOpsObservationAccess().APIKey(c)
 	require.NotNil(t, got)

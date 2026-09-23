@@ -156,7 +156,7 @@ func TestClassifyOpenAICompatibleNoAccountError_GrokUsesGrokPlatform(t *testing.
 	require.True(t, gatewayhttp.HasOpsClientBusinessLimited(c))
 	require.Equal(t, gatewayhttp.OpsClientBusinessLimitedReasonLocalModelConfiguration, gatewayhttp.OpsClientBusinessLimitedReason(c))
 
-	logErr := openAICompatibleSelectionErrorForLog(
+	logErr := gatewayhttp.OpenAICompatibleSelectionErrorForLog(
 		fmt.Errorf("no available OpenAI accounts supporting model: grok-4.5"),
 		capability.PlatformGrok,
 	)

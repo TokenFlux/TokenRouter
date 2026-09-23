@@ -75,12 +75,12 @@ func TestOpenAIWSIngressPreviousResponseRecoveryEnabled(t *testing.T) {
 	var nilService *OpenAIGatewayService
 	require.True(t, nilService.openAIWSIngressPreviousResponseRecoveryEnabled(), "nil service should default to enabled")
 
-	svcWithNilCfg := &OpenAIGatewayService{}
+	svcWithNilCfg := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	require.True(t, svcWithNilCfg.openAIWSIngressPreviousResponseRecoveryEnabled(), "nil config should default to enabled")
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{},
-	}
+	})
 	require.False(t, svc.openAIWSIngressPreviousResponseRecoveryEnabled(), "explicit config default should be false")
 
 	svc.cfg.Gateway.OpenAIWS.IngressPreviousResponseRecoveryEnabled = true
@@ -99,7 +99,7 @@ func TestApplyOpenAIWSReasoningEffortPolicyUsesSessionModel(t *testing.T) {
 	}
 	payload := []byte(`{"type":"response.create","reasoning":{"effort":"none"}}`)
 
-	updated, err := applyOpenAIWSReasoningEffortPolicy(payload, hooks, "gpt-6-astra")
+	updated, err := ws.ApplyReasoningEffortPolicy(payload, hooks, "gpt-6-astra")
 	require.NoError(t, err)
 	require.Equal(t, "low", gjson.GetBytes(updated, "reasoning.effort").String())
 }
@@ -190,7 +190,7 @@ func TestStripCodexSparkImageGenerationToolFromRawPayload(t *testing.T) {
 		updated, changed, err := stripCodexSparkImageGenerationToolFromRawPayload(payload, "gpt-5.3-codex-spark")
 		require.NoError(t, err)
 		require.True(t, changed)
-		require.False(t, IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.3-codex-spark", updated))
+		require.False(t, gatewayprovider.ImageIntent().IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.3-codex-spark", updated))
 		require.Equal(t, "hello", gjson.GetBytes(updated, "input.0.content").String())
 		require.False(t, gjson.GetBytes(updated, "tool_choice").Exists())
 	})
@@ -252,7 +252,7 @@ func TestStripOpenAIImageGenerationToolsFromRawPayload(t *testing.T) {
 
 		require.NoError(t, err)
 		require.True(t, changed)
-		require.False(t, IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.5", updated))
+		require.False(t, gatewayprovider.ImageIntent().IsImageGenerationIntent(media.OpenAIResponsesEndpoint, "gpt-5.5", updated))
 		require.True(t, gjson.GetBytes(updated, `tools.#(name=="code_tools")`).Exists())
 		require.Equal(t, "hello", gjson.GetBytes(updated, "input.0.content").String())
 		require.False(t, gjson.GetBytes(updated, "tool_choice").Exists())

@@ -106,8 +106,28 @@ func cloneRecord(record *Record, seen map[*Record]*Record) *Record {
 	if copy, ok := seen[record]; ok {
 		return copy
 	}
-	out := *record
-	seen[record] = &out
+	out := new(Record)
+	copyRecordInto(out, record, seen)
+	return out
+}
+
+// CopyRecordInto 在既有记录地址内复制账号图，保留根自引用及原字段隔离。
+func CopyRecordInto(out, record *Record) {
+	if out == nil {
+		return
+	}
+	if record == nil {
+		*out = Record{}
+		return
+	}
+	copyRecordInto(out, record, make(map[*Record]*Record))
+}
+func copyRecordInto(out, record *Record, seen map[*Record]*Record) {
+	// 先固定源字段，使原地替换与自引用关联也复用同一个复制过程。
+	snapshot := *record
+	seen[record] = out
+	record = &snapshot
+	*out = snapshot
 	out.Credentials = CloneValues(record.Credentials)
 	out.Extra = CloneValues(record.Extra)
 	out.Notes = clonePointer(record.Notes)
@@ -146,5 +166,4 @@ func cloneRecord(record *Record, seen map[*Record]*Record) *Record {
 			out.AccountGroups[i].Group = accessview.CloneGroupConfig(link.Group)
 		}
 	}
-	return &out
 }

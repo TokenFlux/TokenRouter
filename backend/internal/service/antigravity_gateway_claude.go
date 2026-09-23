@@ -16,6 +16,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -39,16 +40,16 @@ import (
 //	      └─ retryDelay <  7s → 等待后重试 1 次
 //	          ├─ 成功 → 正常返回
 //	          └─ 失败 → 设置模型限流 + 清除粘性绑定 → 切换账号
-func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte, isStickySession bool) (*forwardcore.MessagesResult, error) {
+func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, isStickySession bool) (*forwardcore.MessagesResult, error) {
 	// 上游透传账号直接转发，不走 OAuth token 刷新
-	if account.Type == capability.AccountTypeUpstream {
+	if account.Record.Type == capability.AccountTypeUpstream {
 		return s.ForwardUpstream(ctx, c, account, body)
 	}
 
 	startTime := time.Now()
 
 	sessionID := getSessionID(c)
-	prefix := logPrefix(sessionID, account.Name)
+	prefix := logPrefix(sessionID, account.Record.Name)
 
 	// 解析 Claude 请求
 	var claudeReq protocolanthropic.ClaudeRequest
@@ -63,7 +64,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 	// thinking 状态必须参与最终模型解析，确保调度限制与真正转发的模型一致。
 	thinkingEnabled := claudeReq.Thinking != nil && (claudeReq.Thinking.Type == "enabled" || claudeReq.Thinking.Type == "adaptive")
 	modelCtx := requeststate.WithThinkingEnabled(ctx, thinkingEnabled)
-	mappedModel := resolveFinalAntigravityModelKey(modelCtx, account, claudeReq.Model)
+	mappedModel := gatewayprovider.ExecutionModelPolicy(account).FinalAntigravityModel(modelCtx, claudeReq.Model)
 	if mappedModel == "" {
 		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 		return nil, s.writeClaudeError(c, http.StatusForbidden, "permission_error", fmt.Sprintf("model %s not in whitelist", claudeReq.Model))
@@ -90,8 +91,8 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 
 	// 代理 URL
 	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	if account.Record.ProxyID != nil && account.Record.Proxy != nil {
+		proxyURL = account.Record.Proxy.URL()
 	}
 
 	// 获取转换选项
@@ -128,7 +129,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 		groupID:         0,               // Forward 方法没有 groupID，由上层处理粘性会话清除
 		sessionHash:     "",              // Forward 方法没有 sessionHash，由上层处理粘性会话清除
 	})
-	target := &antigravity.Target{AccountID: account.ID, Model: billingModel, Mode: antigravity.ModeClaudeResponse, StartedAt: startTime, Response: s.antigravityResponseAdapter(c).Options, Enter: s.nativeAttemptActivity}
+	target := &antigravity.Target{AccountID: account.Record.ID, Model: billingModel, Mode: antigravity.ModeClaudeResponse, StartedAt: startTime, Response: s.antigravityResponseAdapter(c).Options, Enter: s.nativeAttemptActivity}
 	target.Exchange = func(context.Context) (*http.Response, error) {
 		result, err := retry.AntigravityRetryLoop(params)
 		if err != nil {
@@ -154,7 +155,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 			}
 			return value.Resp, nil
 		}, SignatureEnabled: s.settingService.Gateway.IsSignatureRectifierEnabled, BudgetEnabled: s.settingService.Gateway.IsBudgetRectifierEnabled, TransformOptions: s.getClaudeTransformOptions, LogConfig: s.getLogConfig, ErrorDetail: s.getUpstreamErrorDetail, ReadErrorBody: s.readUpstreamErrorBody, Observe: retry.Options.Observe, IsBudgetConstraint: anthropic.IsThinkingBudgetConstraintError, BudgetTokens: anthropic.BudgetRectifyBudgetTokens, MinMaxTokens: anthropic.BudgetRectifyMinMaxTokens, MaxTokens: anthropic.BudgetRectifyMaxTokens, TruncateForLog: truncateForLog, TruncateString: logredact.TruncateUTF8}
-		return antigravity.RecoverClaude(ctx, antigravity.ClaudeRecoveryInput{AccountID: account.ID, AccountName: account.Name, Prefix: prefix, ProjectID: projectID, Model: mappedModel, Request: claudeReq, InitialOptions: transformOpts}, result.Resp, options), nil
+		return antigravity.RecoverClaude(ctx, antigravity.ClaudeRecoveryInput{AccountID: account.Record.ID, AccountName: account.Record.Name, Prefix: prefix, ProjectID: projectID, Model: mappedModel, Request: claudeReq, InitialOptions: transformOpts}, result.Resp, options), nil
 	}
 	target.BeforeResponse = func(ctx context.Context, resp *http.Response) (bool, error) {
 		if resp.StatusCode < 400 {
@@ -172,9 +173,9 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 					logging.LegacyPrintf("service.antigravity_gateway", "%s status=400 prompt_too_long=true upstream_message=%q request_id=%s body=%s", prefix, upstreamMsg, resp.Header.Get("x-request-id"), truncateForLog(respBody, maxBytes))
 				}
 				gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-					Platform:           account.Platform,
-					AccountID:          account.ID,
-					AccountName:        account.Name,
+					Platform:           account.Record.Platform,
+					AccountID:          account.Record.ID,
+					AccountName:        account.Record.Name,
 					UpstreamStatusCode: resp.StatusCode,
 					UpstreamRequestID:  resp.Header.Get("x-request-id"),
 					Kind:               "prompt_too_long",
@@ -196,11 +197,11 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 				if upstream.IsGoogleProjectConfigError(msg) {
 					upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(googlewire.ExtractPlatformMessage(respBody)))
 					upstreamDetail := s.getUpstreamErrorDetail(respBody)
-					log.Printf("%s status=400 google_config_error failover=true upstream_message=%q account=%d", prefix, upstreamMsg, account.ID)
+					log.Printf("%s status=400 google_config_error failover=true upstream_message=%q account=%d", prefix, upstreamMsg, account.Record.ID)
 					gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-						Platform:           account.Platform,
-						AccountID:          account.ID,
-						AccountName:        account.Name,
+						Platform:           account.Record.Platform,
+						AccountID:          account.Record.ID,
+						AccountName:        account.Record.Name,
 						UpstreamStatusCode: resp.StatusCode,
 						UpstreamRequestID:  resp.Header.Get("x-request-id"),
 						Kind:               "failover",
@@ -216,9 +217,9 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 				upstreamMsg = logredact.SanitizeUpstreamQueries(upstreamMsg)
 				upstreamDetail := s.getUpstreamErrorDetail(respBody)
 				gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-					Platform:           account.Platform,
-					AccountID:          account.ID,
-					AccountName:        account.Name,
+					Platform:           account.Record.Platform,
+					AccountID:          account.Record.ID,
+					AccountName:        account.Record.Name,
 					UpstreamStatusCode: resp.StatusCode,
 					UpstreamRequestID:  resp.Header.Get("x-request-id"),
 					Kind:               "failover",

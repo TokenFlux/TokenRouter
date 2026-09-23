@@ -7,8 +7,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -28,23 +31,22 @@ func newOpenCodeSessionTestContext(t *testing.T, value string) *gin.Context {
 }
 
 func openCodeSessionTestService() *OpenAIGatewayService {
-	return &OpenAIGatewayService{cfg: &config.Config{
+	return withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{
 		Security: config.SecurityConfig{
 			URLAllowlist: config.URLAllowlistConfig{Enabled: false},
 		},
-	}}
+	}})
 }
 
-func openCodeSessionTestAccount(baseURL string) *Account {
-	return &Account{
-		ID:       1,
+func openCodeSessionTestAccount(baseURL string) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
-			"base_url":                   baseURL,
-			credKeyHeaderOverrideEnabled: true,
-			credKeyHeaderOverrides:       map[string]any{"x-opencode-session": "fixed-account-value"},
-		},
+			"base_url":                baseURL,
+			"header_override_enabled": true,
+			"header_overrides":        map[string]any{"x-opencode-session": "fixed-account-value"},
+		}},
 	}
 }
 
@@ -63,7 +65,7 @@ func requireSingleOpenCodeSessionHeader(t *testing.T, headers http.Header, want 
 func TestApplyOpenCodeSessionHeaderTrustBoundary(t *testing.T) {
 	tests := []struct {
 		name      string
-		account   *Account
+		account   *gatewayprovider.ExecutionAccount
 		targetURL string
 		incoming  string
 		want      string
@@ -100,7 +102,7 @@ func TestApplyOpenCodeSessionHeaderTrustBoundary(t *testing.T) {
 		},
 		{
 			name:      "oauth account",
-			account:   &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth},
+			account:   &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}},
 			targetURL: "https://opencode.ai/zen/v1/responses",
 			incoming:  "conversation-123",
 		},
@@ -210,11 +212,10 @@ func TestOpenCodeSessionIsNotForwardedToOtherUpstreams(t *testing.T) {
 		"https://api.opencode.ai/v1",
 	} {
 		t.Run(baseURL, func(t *testing.T) {
-			account := &Account{
-				ID:          1,
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
-				Credentials: map[string]any{"base_url": baseURL},
+				Credentials: map[string]any{"base_url": baseURL}},
 			}
 			c := newOpenCodeSessionTestContext(t, "private-conversation")
 			req, err := svc.buildUpstreamRequest(context.Background(), c, account, body, "token", false, "", false)

@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/gin-gonic/gin"
 )
@@ -202,5 +203,5 @@ func SetAccessPrincipal(c *gin.Context, a *apikey.AccessSnapshot) {
 		return
 	}
 	c.Set("apikey_access_snapshot", a)
-	identityhttp.SetAuthenticatedPrincipal(c, identity.Principal{UserID: a.ActorUserID, CredentialKind: "api_key"})
+	authctx.SetAuthenticatedPrincipal(c, identity.Principal{UserID: a.ActorUserID, CredentialKind: "api_key"})
 }

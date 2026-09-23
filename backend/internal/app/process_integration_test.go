@@ -292,8 +292,8 @@ func TestS02ProcessModes(t *testing.T) {
 			// S12 支付生产者先退出，再等待通知任务，最后关闭共享存储。
 			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started PaymentOrderExpiryService"))
 			require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped PaymentOrderExpiryService"))
-			require.Contains(t, logs, "[Lifecycle] stopped LegacyBackgroundTasks")
-			for _, pair := range [][2]string{{"HTTPRequests", "PaymentOrderExpiryService"}, {"PaymentOrderExpiryService", "LegacyBackgroundTasks"}, {"LegacyBackgroundTasks", "EmailQueueService"}, {"EmailQueueService", "Redis"}, {"PaymentOrderExpiryService", "Ent"}} {
+			require.Contains(t, logs, "[Lifecycle] stopped ApplicationBackgroundTasks")
+			for _, pair := range [][2]string{{"HTTPRequests", "PaymentOrderExpiryService"}, {"PaymentOrderExpiryService", "ApplicationBackgroundTasks"}, {"ApplicationBackgroundTasks", "EmailQueueService"}, {"EmailQueueService", "Redis"}, {"PaymentOrderExpiryService", "Ent"}} {
 				require.Less(t, strings.Index(logs, "stopped "+pair[0]), strings.Index(logs, "stopped "+pair[1]), pair)
 			}
 

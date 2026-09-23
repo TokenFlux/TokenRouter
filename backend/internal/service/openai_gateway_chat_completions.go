@@ -12,7 +12,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
@@ -47,7 +49,7 @@ var cursorResponsesUnsupportedFields = forward.CursorResponsesUnsupportedFields
 func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	promptCacheKey string,
 	defaultMappedModel string,
@@ -57,7 +59,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 }
 
 // 旧调用面只投影固定实例和本次参数，Chat 转换与恢复只由目标执行器推进。
-func (s *OpenAIGatewayService) forwardAsChatCompletions(ctx context.Context, c *gin.Context, account *Account, body []byte, promptCacheKey, defaultMappedModel string, compatPromptCacheTenantIsolated bool, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error) {
+func (s *OpenAIGatewayService) forwardAsChatCompletions(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, promptCacheKey, defaultMappedModel string, compatPromptCacheTenantIsolated bool, tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult) (*forwardcore.OpenAIResult, error) {
 	p := &openAIChatExecutionAdapter{openAIMessagesExecutionAdapter: &openAIMessagesExecutionAdapter{s: s, c: c, account: account, tls: tlsRouterMatch}}
 	result, err := forward.RunChat(ctx, body, promptCacheKey, defaultMappedModel, compatPromptCacheTenantIsolated, p)
 	return openAIForwardResultFromHTTP(result), err
@@ -102,7 +104,7 @@ func openAICompatFailedResponseMessage(resp *protocolopenai.ResponsesResponse) s
 func (s *OpenAIGatewayService) handleChatCompletionsErrorResponse(
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	requestedModel ...string,
 ) (*forwardcore.OpenAIResult, error) {
 	return s.handleCompatErrorResponse(resp, c, account, writeChatCompletionsError, writeChatCompletionsErrorBody, requestedModel...)
@@ -111,7 +113,7 @@ func (s *OpenAIGatewayService) handleChatCompletionsErrorResponse(
 func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
@@ -123,7 +125,7 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 
 func (s *OpenAIGatewayService) newOpenAICompatBufferedReadFailoverError(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	resp *http.Response,
 	requestID string,
 	err error,
@@ -136,7 +138,7 @@ func (s *OpenAIGatewayService) newOpenAICompatBufferedReadFailoverError(
 	if c != nil && c.Request != nil {
 		requestContext = c.Request.Context()
 	}
-	if !shouldClassifyOpenAIUpstreamStreamReadError(readErr.Unwrap(), requestContext) {
+	if !openai.ShouldClassifyUpstreamStreamReadError(readErr.Unwrap(), httpclient.ErrResponseBodyTooLarge, requestContext) {
 		return err
 	}
 	classifiedErr := openai.NewUpstreamStreamReadError(readErr.Unwrap())
@@ -166,7 +168,7 @@ func (s *OpenAIGatewayService) newOpenAICompatBufferedReadFailoverError(
 func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	resp *http.Response,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,

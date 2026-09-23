@@ -9,11 +9,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -249,19 +252,18 @@ func TestForwardAsChatCompletions_ServiceTierFastNormalizedToPriorityUpstream(t 
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"stop"}}`)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
-	}
-	account := &Account{
-		ID:          21,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
 		Name:        "openai-compatible",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-compatible"},
-		Extra:       map[string]any{},
+		Extra:       map[string]any{}},
 	}
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
@@ -285,19 +287,18 @@ func TestForwardAsChatCompletions_ServiceTierPriorityPreservedUpstream(t *testin
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"stop"}}`)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
-	}
-	account := &Account{
-		ID:          2,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:        "openai-compatible",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-compatible"},
-		Extra:       map[string]any{},
+		Extra:       map[string]any{}},
 	}
 
 	_, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
@@ -322,13 +323,12 @@ func TestForward_ResponsesServiceTierFastNormalizedToPriorityUpstream(t *testing
 		)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
-	}
-	account := &Account{
-		ID:          7,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -336,7 +336,7 @@ func TestForward_ResponsesServiceTierFastNormalizedToPriorityUpstream(t *testing
 		Credentials: map[string]any{"api_key": "sk-test"},
 		Extra:       map[string]any{},
 		Status:      billingcore.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -366,13 +366,12 @@ func TestForward_ResponsesServiceTierOmittedStaysOmitted(t *testing.T) {
 		)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
-	}
-	account := &Account{
-		ID:          7,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -380,7 +379,7 @@ func TestForward_ResponsesServiceTierOmittedStaysOmitted(t *testing.T) {
 		Credentials: map[string]any{"api_key": "sk-test"},
 		Extra:       map[string]any{},
 		Status:      billingcore.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -415,13 +414,12 @@ func TestForwardStreaming_ServiceTierPropagatedToResult(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(streamPayload)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
-	}
-	account := &Account{
-		ID:          7,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -429,7 +427,7 @@ func TestForwardStreaming_ServiceTierPropagatedToResult(t *testing.T) {
 		Credentials: map[string]any{"api_key": "sk-test"},
 		Extra:       map[string]any{},
 		Status:      billingcore.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -464,13 +462,12 @@ func TestForward_ResponsesKeepsOutboundAndObservedServiceTiersSeparate(t *testin
 		)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
-	}
-	account := &Account{
-		ID:          7,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -478,7 +475,7 @@ func TestForward_ResponsesKeepsOutboundAndObservedServiceTiersSeparate(t *testin
 		Credentials: map[string]any{"api_key": "sk-test"},
 		Extra:       map[string]any{},
 		Status:      billingcore.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -510,13 +507,12 @@ func TestForwardStreaming_KeepsOutboundAndObservedServiceTiersSeparate(t *testin
 		Body:       io.NopCloser(strings.NewReader(streamPayload)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
-	}
-	account := &Account{
-		ID:          7,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -524,7 +520,7 @@ func TestForwardStreaming_KeepsOutboundAndObservedServiceTiersSeparate(t *testin
 		Credentials: map[string]any{"api_key": "sk-test"},
 		Extra:       map[string]any{},
 		Status:      billingcore.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)
@@ -556,13 +552,12 @@ func TestForwardAsChatCompletions_KeepsOutboundAndObservedServiceTiersSeparate(t
 		Body:       io.NopCloser(strings.NewReader(streamPayload)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(&openAIFastPolicyRepoStub{values: map[string]string{}}, &config.Config{}),
-	}
-	account := &Account{
-		ID:          21,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
 		Name:        "openai-compatible",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -570,7 +565,7 @@ func TestForwardAsChatCompletions_KeepsOutboundAndObservedServiceTiersSeparate(t
 		Credentials: map[string]any{"api_key": "sk-compatible"},
 		Extra:       map[string]any{},
 		Status:      billingcore.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.5")
@@ -614,13 +609,12 @@ func TestForward_ServiceTierFilteredByPolicyBillsStandard(t *testing.T) {
 		)),
 	}}
 
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:            &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream:   upstream,
 		settingService: newExecutionReadersFixture(repo, &config.Config{}),
-	}
-	account := &Account{
-		ID:          7,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -628,7 +622,7 @@ func TestForward_ServiceTierFilteredByPolicyBillsStandard(t *testing.T) {
 		Credentials: map[string]any{"api_key": "sk-test"},
 		Extra:       map[string]any{},
 		Status:      billingcore.StatusActive,
-		Schedulable: true,
+		Schedulable: true},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)

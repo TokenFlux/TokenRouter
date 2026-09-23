@@ -44,15 +44,12 @@ func (storeUnavailableRepoStub) DeleteExpired(context.Context, time.Time, int) (
 
 func TestExecuteAdminIdempotentJSONFailCloseOnStoreUnavailable(t *testing.T) {
 
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(storeUnavailableRepoStub{}, idempotency.DefaultIdempotencyConfig()))
-	t.Cleanup(func() {
-		idempotency.SetDefaultIdempotencyCoordinator(nil)
-	})
+	executor := Executor{coordinator: idempotency.NewIdempotencyCoordinator(storeUnavailableRepoStub{}, idempotency.DefaultIdempotencyConfig())}
 
 	var executed int
 	router := gin.New()
 	router.POST("/idempotent", func(c *gin.Context) {
-		ExecuteAdminIdempotentJSON(c, "admin.test.high", map[string]any{"a": 1}, time.Minute, func(ctx context.Context) (any, error) {
+		executor.ExecuteAdminIdempotentJSON(c, "admin.test.high", map[string]any{"a": 1}, time.Minute, func(ctx context.Context) (any, error) {
 			executed++
 			return gin.H{"ok": true}, nil
 		})
@@ -70,15 +67,12 @@ func TestExecuteAdminIdempotentJSONFailCloseOnStoreUnavailable(t *testing.T) {
 
 func TestExecuteAdminIdempotentJSONFailOpenOnStoreUnavailable(t *testing.T) {
 
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(storeUnavailableRepoStub{}, idempotency.DefaultIdempotencyConfig()))
-	t.Cleanup(func() {
-		idempotency.SetDefaultIdempotencyCoordinator(nil)
-	})
+	executor := Executor{coordinator: idempotency.NewIdempotencyCoordinator(storeUnavailableRepoStub{}, idempotency.DefaultIdempotencyConfig())}
 
 	var executed int
 	router := gin.New()
 	router.POST("/idempotent", func(c *gin.Context) {
-		ExecuteAdminIdempotentJSONFailOpenOnStoreUnavailable(c, "admin.test.medium", map[string]any{"a": 1}, time.Minute, func(ctx context.Context) (any, error) {
+		executor.ExecuteAdminIdempotentJSONFailOpenOnStoreUnavailable(c, "admin.test.medium", map[string]any{"a": 1}, time.Minute, func(ctx context.Context) (any, error) {
 			executed++
 			return gin.H{"ok": true}, nil
 		})
@@ -100,15 +94,12 @@ func TestExecuteAdminIdempotentJSONConcurrentRetryOnlyOneSideEffect(t *testing.T
 	repo := idempotencytest.NewMemoryStore()
 	cfg := idempotency.DefaultIdempotencyConfig()
 	cfg.ProcessingTimeout = 2 * time.Second
-	idempotency.SetDefaultIdempotencyCoordinator(idempotency.NewIdempotencyCoordinator(repo, cfg))
-	t.Cleanup(func() {
-		idempotency.SetDefaultIdempotencyCoordinator(nil)
-	})
+	executor := Executor{coordinator: idempotency.NewIdempotencyCoordinator(repo, cfg)}
 
 	var executed atomic.Int32
 	router := gin.New()
 	router.POST("/idempotent", func(c *gin.Context) {
-		ExecuteAdminIdempotentJSON(c, "admin.test.concurrent", map[string]any{"a": 1}, time.Minute, func(ctx context.Context) (any, error) {
+		executor.ExecuteAdminIdempotentJSON(c, "admin.test.concurrent", map[string]any{"a": 1}, time.Minute, func(ctx context.Context) (any, error) {
 			executed.Add(1)
 			time.Sleep(120 * time.Millisecond)
 			return gin.H{"ok": true}, nil

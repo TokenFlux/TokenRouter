@@ -6,6 +6,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
@@ -14,7 +15,7 @@ import (
 
 // ForwardCountTokens 转发 count_tokens 请求到上游 API
 // 特点：不记录使用量、仅支持非流式响应
-func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context, account *Account, parsed *requeststate.ParsedRequest) error {
+func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, parsed *requeststate.ParsedRequest) error {
 	adapter := &countExecutionAdapter{messageExecutionAdapter: newMessageExecutionAdapter(s, c, account)}
 	return forwardcore.CountTokens(ctx, adapter, adapter.input(), parsed)
 }
@@ -22,7 +23,7 @@ func (s *GatewayService) ForwardCountTokens(ctx context.Context, c *gin.Context,
 func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	token string,
 ) (*http.Request, error) {
@@ -30,7 +31,7 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	return claude.BuildCountTokensRequestPassthrough(ctx, body, token, o)
 }
 
-func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token, tokenType, modelID string, mimicClaudeCode bool) (*http.Request, []byte, error) {
+func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, token, tokenType, modelID string, mimicClaudeCode bool) (*http.Request, []byte, error) {
 	o := s.countTokensRequestOptions(ctx, c, account, modelID, tokenType, mimicClaudeCode, false)
 	return claude.BuildCountTokensRequest(ctx, body, token, tokenType, modelID, mimicClaudeCode, o)
 }

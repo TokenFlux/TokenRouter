@@ -13,6 +13,11 @@ import (
 	"testing"
 	"time"
 
+	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
+
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	testkit "github.com/TokenFlux/TokenRouter/internal/apikey/testkit"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -429,7 +434,7 @@ func TestAPIKeyAuthSimpleUsageKeepsPreferredSubscriptionSource(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, cfg)))
 	usage := func(c *gin.Context) {
-		billing, ok := GetAPIKeyBillingContext(c)
+		billing, ok := gatewayhttp.GetAPIKeyBillingContext(c)
 		if !ok || billing == nil {
 			c.Status(http.StatusInternalServerError)
 			return
@@ -504,9 +509,9 @@ func TestAPIKeyAuthAntigravityUsageKeepsUnavailablePreferredSubscription(t *test
 	subscriptionService := newSubscriptionAuthFixture(subscriptionRepo)
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, cfg)))
-	var got *APIKeyBillingContext
+	var got *billingcore.APIKeyBillingContext
 	router.GET("/antigravity/v1/usage", func(c *gin.Context) {
-		got, _ = GetAPIKeyBillingContext(c)
+		got, _ = gatewayhttp.GetAPIKeyBillingContext(c)
 		c.Status(http.StatusOK)
 	})
 
@@ -1087,7 +1092,7 @@ func TestAPIKeyAuthSetsOpsFallbackKeyOnEarlyAbort(t *testing.T) {
 	var fallbackOK bool
 	router.Use(func(c *gin.Context) {
 		c.Next()
-		fallback, fallbackOK = GetOpsFallbackAPIKey(c)
+		fallback, fallbackOK = keyhttp.GetOpsFallbackAPIKey(c)
 	})
 	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, nil, cfg)))
 	router.GET("/t", func(c *gin.Context) {
@@ -1156,7 +1161,7 @@ func TestAPIKeyAuthGoogleSetsOpsFallbackKeyOnEarlyAbort(t *testing.T) {
 	var fallbackOK bool
 	router.Use(func(c *gin.Context) {
 		c.Next()
-		fallback, fallbackOK = GetOpsFallbackAPIKey(c)
+		fallback, fallbackOK = keyhttp.GetOpsFallbackAPIKey(c)
 	})
 	router.Use(gin.HandlerFunc(APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, cfg)))
 	router.GET("/t", func(c *gin.Context) {
@@ -1238,7 +1243,7 @@ func TestAPIKeyAuthGoogleRejectsExclusiveGroupWhenUserNoLongerAllowed(t *testing
 
 func TestRequireGroupAssignmentMarksUngroupedKeyBusinessLimited(t *testing.T) {
 
-	settingService := routing.NewRuntimeSettings(&bmSettingRepo{
+	settingService := routing.NewRuntimeSettings(&ungroupedSettingProbe{
 		values: map[string]string{
 			routing.SettingKeyAllowUngroupedKeyScheduling: "false",
 		},
@@ -1263,10 +1268,10 @@ func TestRequireGroupAssignmentMarksUngroupedKeyBusinessLimited(t *testing.T) {
 		}
 	})
 	router.Use(func(c *gin.Context) {
-		c.Set(string(ContextKeyAPIKey), apiKey)
+		c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
 		c.Next()
 	})
-	router.Use(RequireGroupAssignment(settingService, AnthropicErrorWriter))
+	router.Use(RequireGroupAssignment(settingService, gatewayhttp.AnthropicErrorWriter))
 	router.GET("/t", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
@@ -1343,7 +1348,7 @@ func TestAPIKeyAuthFallsBackDisabledGroupToPlatformDefault(t *testing.T) {
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, nil, cfg)))
 	router.GET("/t", func(c *gin.Context) {
-		currentKey, ok := GetAPIKeyFromContext(c)
+		currentKey, ok := keyhttp.GetAPIKeyFromContext(c)
 		if !ok || currentKey.GroupID == nil || *currentKey.GroupID != defaultGroupID {
 			c.JSON(http.StatusInternalServerError, gin.H{"ok": false})
 			return
@@ -2094,7 +2099,7 @@ func newAuthTestRouter(apiKeyService *apikey.APIKeyService, subscriptionService 
 func requireAPIKeyAuthError(t *testing.T, w *httptest.ResponseRecorder, code, message string) {
 	t.Helper()
 
-	var resp ErrorResponse
+	var resp httpx.ErrorResponse
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
 	require.Equal(t, code, resp.Code)
 	require.Equal(t, message, resp.Message)
@@ -2415,4 +2420,18 @@ func (r *stubUserSubscriptionRepo) IncrementUsage(ctx context.Context, id int64,
 
 func (r *stubUserSubscriptionRepo) BatchUpdateExpiredStatus(ctx context.Context) (int64, error) {
 	return 0, errors.New("not implemented")
+}
+
+// ungroupedSettingProbe 只提供原无分组门禁单键值，其余存储调用保持未配置。
+type ungroupedSettingProbe struct {
+	settingscore.Repository
+	values map[string]string
+}
+
+func (p *ungroupedSettingProbe) GetValue(_ context.Context, key string) (string, error) {
+	value, ok := p.values[key]
+	if !ok {
+		return "", settingscore.ErrSettingNotFound
+	}
+	return value, nil
 }

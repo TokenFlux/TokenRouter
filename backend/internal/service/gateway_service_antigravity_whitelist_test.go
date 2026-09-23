@@ -5,24 +5,26 @@ package service
 import (
 	"context"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 func TestGatewayService_isModelSupportedByAccount_AntigravityModelMapping(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	// 使用 model_mapping 作为白名单（通配符匹配）
-	account := &Account{
-		Platform: capability.PlatformAntigravity,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"claude-*":   "claude-sonnet-4-5",
 				"gemini-3-*": "gemini-3-flash",
 			},
-		},
+		}},
 	}
 
 	// claude-* 通配符匹配
@@ -46,13 +48,12 @@ func TestGatewayService_isModelSupportedByAccount_AntigravityModelMapping(t *tes
 }
 
 func TestGatewayService_isModelSupportedByAccount_AntigravityNoMapping(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	// 未配置 model_mapping 时，使用默认映射（domain.DefaultAntigravityModelMapping）
 	// 只有默认映射中的模型才被支持
-	account := &Account{
-		Platform:    capability.PlatformAntigravity,
-		Credentials: map[string]any{},
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity,
+		Credentials: map[string]any{}},
 	}
 
 	// 默认映射中的模型应该被支持
@@ -72,7 +73,7 @@ func TestGatewayService_isModelSupportedByAccount_AntigravityNoMapping(t *testin
 // TestGatewayService_isModelSupportedByAccountWithContext_ThinkingMode 测试 thinking 模式下的模型支持检查
 // 验证调度时使用映射后的最终模型名（包括 thinking 后缀）来检查 model_mapping 支持
 func TestGatewayService_isModelSupportedByAccountWithContext_ThinkingMode(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	tests := []struct {
 		name            string
@@ -161,11 +162,10 @@ func TestGatewayService_isModelSupportedByAccountWithContext_ThinkingMode(t *tes
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			account := &Account{
-				Platform: capability.PlatformAntigravity,
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity,
 				Credentials: map[string]any{
 					"model_mapping": tt.modelMapping,
-				},
+				}},
 			}
 
 			ctx := requeststate.WithThinkingEnabled(context.Background(), tt.thinkingEnabled)
@@ -181,11 +181,10 @@ func TestGatewayService_isModelSupportedByAccountWithContext_ThinkingMode(t *tes
 // TestGatewayService_isModelSupportedByAccount_CustomMappingNotInDefault 测试自定义模型映射中
 // 不在 DefaultAntigravityModelMapping 中的模型能通过调度
 func TestGatewayService_isModelSupportedByAccount_CustomMappingNotInDefault(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	// 自定义映射中包含不在默认映射中的模型
-	account := &Account{
-		Platform: capability.PlatformAntigravity,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"my-custom-model":   "actual-upstream-model",
@@ -193,7 +192,7 @@ func TestGatewayService_isModelSupportedByAccount_CustomMappingNotInDefault(t *t
 				"llama-3-70b":       "llama-3-70b-upstream",
 				"claude-sonnet-4-5": "claude-sonnet-4-5",
 			},
-		},
+		}},
 	}
 
 	// 自定义模型应该通过（不在 DefaultAntigravityModelMapping 中也可以）
@@ -213,18 +212,17 @@ func TestGatewayService_isModelSupportedByAccount_CustomMappingNotInDefault(t *t
 // TestGatewayService_isModelSupportedByAccountWithContext_CustomMappingThinking
 // 测试自定义映射 + thinking 模式的交互
 func TestGatewayService_isModelSupportedByAccountWithContext_CustomMappingThinking(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	// 自定义映射同时配置基础模型和 thinking 变体
-	account := &Account{
-		Platform: capability.PlatformAntigravity,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{
 				"claude-sonnet-4-5":          "claude-sonnet-4-5",
 				"claude-sonnet-4-5-thinking": "claude-sonnet-4-5-thinking",
 				"my-custom-model":            "upstream-model",
 			},
-		},
+		}},
 	}
 
 	// thinking=true: claude-sonnet-4-5 → mapped=claude-sonnet-4-5 → +thinking → check IsModelSupported(claude-sonnet-4-5-thinking)=true

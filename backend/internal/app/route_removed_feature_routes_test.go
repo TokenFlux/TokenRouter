@@ -22,18 +22,18 @@ func TestRemovedFeatureRoutesReturnNotFound(t *testing.T) {
 	RegisterUserRoutes(
 		router.Group("/api/v1"),
 		allHandlers,
-		middleware.JWTAuthMiddleware(func(c *gin.Context) { c.Next() }),
+		identityhttp.JWTAuthMiddleware(func(c *gin.Context) { c.Next() }),
 		middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() }),
-		middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }),
+		identityhttp.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }),
 		nil,
 		nil,
 	)
 	RegisterAdminRoutes(
 		router.Group("/api/v1"),
 		allHandlers,
-		middleware.AdminAuthMiddleware(func(c *gin.Context) { c.Next() }),
+		identityhttp.AdminAuthMiddleware(func(c *gin.Context) { c.Next() }),
 		middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() }),
-		middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }),
+		identityhttp.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }),
 		nil, func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	removedPath := "/api/v1/" + "data" + "-sharing"

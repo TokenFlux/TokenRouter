@@ -7,24 +7,27 @@ import (
 	"net/http"
 	"strings"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
 	openaicore "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
-
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/gin-gonic/gin"
 )
 
 // nativeForwardHTTPOptions 不预热读取器，保留响应到达后才读取运行设置及绑定输出观察。
-func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *gin.Context, account *Account, input forward.HTTPInput, exchange openai.HTTPExchangeOptions, retryEncrypted func([]byte) ([]byte, bool, error), markLineage func([]byte)) forward.HTTPOptions {
+func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, input forward.HTTPInput, exchange openai.HTTPExchangeOptions, retryEncrypted func([]byte) ([]byte, bool, error), markLineage func([]byte)) forward.HTTPOptions {
 	return forward.HTTPOptions{
 		Exchange: exchange, Sink: gatewayhttp.ResponseSink{Writer: c.Writer},
 		StreamOptions: func() openai.StreamOptions {
@@ -32,13 +35,13 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 		},
 		NonStreamOptions: func() openai.NonStreamOptions { return s.nativeNonStreamOptions(ctx, c, account) },
 		ReadErrorBody:    s.readUpstreamErrorBody,
-		IsAgentIdentity:  func(ctx context.Context) bool { return s.isAgentIdentityAccount(ctx, account) },
+		IsAgentIdentity:  func(ctx context.Context) bool { return s.agentIdentity.UsesAgentIdentity(ctx, account) },
 		InvalidAgentTask: openai.IsAgentTaskInvalidHTTPResponse,
 		RecoverAgentTask: func(ctx context.Context) error {
-			return s.recoverAgentIdentityTask(ctx, account, account.GetCredential("task_id"))
+			return s.agentIdentity.Recover(ctx, account, account.View().GetCredential("task_id"))
 		},
 		RedactErrorBody: func(ctx context.Context, body []byte) []byte {
-			return s.redactAgentIdentitySensitiveBody(ctx, account, body)
+			return s.agentIdentity.Redact(ctx, account, body)
 		},
 		ErrorDetails: func(body []byte) (string, string) {
 			return logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body))), upstream.ExtractErrorCode(body)
@@ -70,23 +73,23 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 				}
 				detail = logredact.TruncateUTF8(string(payload), limit)
 			}
-			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Platform, AccountID: account.ID, AccountName: account.Name, UpstreamStatusCode: resp.StatusCode, UpstreamRequestID: resp.Header.Get("x-request-id"), Kind: "failover", Message: message, Detail: detail})
+			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Record.Platform, AccountID: account.Record.ID, AccountName: account.Record.Name, UpstreamStatusCode: resp.StatusCode, UpstreamRequestID: resp.Header.Get("x-request-id"), Kind: "failover", Message: message, Detail: detail})
 			decision := s.applyFailoverSideEffects(ctx, resp, account, payload, model)
 			if decision.ShouldReturnGenericError() {
 				return nil
 			}
-			return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, payload, message, decision.RetryableOnSameAccount(account, resp.StatusCode))
+			return newOpenAIUpstreamFailoverError(resp.StatusCode, resp.Header, payload, message, decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode))
 		},
 		CompactFailover: func(resp *http.Response, payload []byte, message, model string) error {
-			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Platform, AccountID: account.ID, AccountName: account.Name, UpstreamStatusCode: resp.StatusCode, UpstreamRequestID: resp.Header.Get("x-request-id"), Kind: "failover", Message: message})
+			gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{Platform: account.Record.Platform, AccountID: account.Record.ID, AccountName: account.Record.Name, UpstreamStatusCode: resp.StatusCode, UpstreamRequestID: resp.Header.Get("x-request-id"), Kind: "failover", Message: message})
 			disabled := s.handleFailoverSideEffects(ctx, resp, account, payload, model)
-			return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, payload, message, disabled, !disabled && account.IsPoolMode() && (account.IsPoolModeRetryableStatus(resp.StatusCode) || openai.IsOpenAITransientProcessingError(resp.StatusCode, message, payload)))
+			return s.newOpenAIAccountFailoverError(account, resp.StatusCode, resp.Header, payload, message, disabled, !disabled && account.View().IsPoolMode() && (account.View().IsPoolModeRetryableStatus(resp.StatusCode) || openai.IsOpenAITransientProcessingError(resp.StatusCode, message, payload)))
 		},
 		ErrorResponse: func(resp *http.Response, body []byte, model string) error {
 			_, err := s.handleErrorResponse(ctx, resp, c, account, body, model)
 			return err
 		},
-		ErrorSchedulingModel: resolveOpenAIErrorSchedulingModel,
+		ErrorSchedulingModel: gatewayprovider.ErrorSchedulingModel,
 		WrapResponseBody: func(resp *http.Response) {
 			if mapping, ok := openAIResponsesClientToolMapping(c); ok && isEventStreamResponse(resp.Header) {
 				limit := defaultMaxLineSize
@@ -99,13 +102,13 @@ func (s *OpenAIGatewayService) nativeForwardHTTPOptions(ctx context.Context, c *
 		BindResponseOwner: func(ctx context.Context, id string) { s.bindHTTPResponseAccount(ctx, c, account, id) },
 		UpdateUsageSnapshot: func(ctx context.Context, headers http.Header) {
 			if snapshot := openai.ParseCodexRateLimitHeaders(headers); snapshot != nil {
-				s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
+				s.updateCodexUsageSnapshot(ctx, account.Record.ID, snapshot)
 			}
 		},
 		ObserveUpstreamModel: func(model string) { gatewayhttp.SetOpsUpstreamModel(c, model) },
 		ObservedServiceTier:  func() string { return gatewayhttp.ObservedUpstreamResponseServiceTier(c) },
 		ResolvedServiceTier:  func(tier *string) *string { return gatewayhttp.ResolvedOpenAIUpstreamServiceTier(c, tier) },
-		ExtractServiceTier:   extractOpenAIServiceTierFromBody,
+		ExtractServiceTier:   requeststate.ExtractOpenAIServiceTierFromBody,
 		Log: func(format string, args ...any) {
 			logging.LegacyPrintf("service.openai_gateway", format, args...)
 		},

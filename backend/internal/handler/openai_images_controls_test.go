@@ -6,6 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -16,7 +21,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -32,7 +36,7 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = req
 	groupID := int64(111)
-	c.Set(string(middleware2.ContextKeyAPIKey), &apikey.APIKey{
+	c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{
 		ID:      222,
 		GroupID: &groupID,
 		Group: &routing.Group{
@@ -41,7 +45,7 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 		},
 		User: &identity.User{ID: 333},
 	})
-	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 333, Concurrency: 1})
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 333, Concurrency: 1})
 
 	h := &OpenAIGatewayHandler{
 		gatewayService:      &service.OpenAIGatewayService{},
@@ -54,14 +58,14 @@ func TestOpenAIGatewayHandlerImages_DisabledGroupRejectsBeforeScheduling(t *test
 
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	require.Equal(t, "permission_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
-	require.Contains(t, rec.Body.String(), service.ImageGenerationPermissionMessage())
+	require.Contains(t, rec.Body.String(), gatewaymedia.ImageGenerationPermissionMessage)
 }
 
 // TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel 验证同步 Images 入口在渠道映射后校验模型族。
 func TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel(t *testing.T) {
 
 	groupID := int64(112)
-	channelService := newGatewayModelsChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
+	channelService := newGatewayExecutionChannelServiceForTest(groupID, capability.PlatformOpenAI, routing.Channel{
 		ID:     112,
 		Status: billing.StatusActive,
 		ModelMapping: map[string]map[string]string{
@@ -79,7 +83,7 @@ func TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel(t *testing.T) {
 		wantStatus int
 		wantText   string
 	}{
-		{name: "普通别名映射为生图模型", model: "draw-alias", wantStatus: http.StatusForbidden, wantText: service.ImageGenerationPermissionMessage()},
+		{name: "普通别名映射为生图模型", model: "draw-alias", wantStatus: http.StatusForbidden, wantText: gatewaymedia.ImageGenerationPermissionMessage},
 		{name: "生图别名映射为普通模型", model: "gpt-image-2", allowImage: true, wantStatus: http.StatusBadRequest, wantText: `got "gpt-5.4"`},
 	}
 
@@ -101,8 +105,8 @@ func TestOpenAIGatewayHandlerImagesValidatesChannelMappedModel(t *testing.T) {
 				},
 				User: &identity.User{ID: 334},
 			}
-			c.Set(string(middleware2.ContextKeyAPIKey), apiKey)
-			c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 334, Concurrency: 1})
+			c.Set(string(keyhttp.ContextKeyAPIKey), apiKey)
+			c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 334, Concurrency: 1})
 
 			newOpenAIImageChatRejectionHandlerWithChannel(t, channelService).Images(c)
 

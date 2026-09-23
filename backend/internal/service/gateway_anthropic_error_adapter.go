@@ -1,6 +1,8 @@
 package service
 
 import (
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	"bytes"
 	"context"
 	"io"
@@ -8,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -22,17 +25,17 @@ import (
 type anthropicErrorAdapter struct {
 	s       *GatewayService
 	c       *gin.Context
-	account *Account
+	account *gatewayprovider.ExecutionAccount
 	resp    *http.Response
 	body    []byte
 }
 
 func (a *anthropicErrorAdapter) input(models []string) forwardcore.ErrorInput {
 	in := forwardcore.ErrorInput{
-		AccountID:       a.account.ID,
-		AccountName:     a.account.Name,
-		AccountType:     a.account.Type,
-		Platform:        a.account.Platform,
+		AccountID:       a.account.Record.ID,
+		AccountName:     a.account.Record.Name,
+		AccountType:     a.account.Record.Type,
+		Platform:        a.account.Record.Platform,
 		RequestID:       a.resp.Header.Get("x-request-id"),
 		Status:          a.resp.StatusCode,
 		RequestedModels: models,
@@ -56,12 +59,12 @@ func (a *anthropicErrorAdapter) ResetBody(body []byte) {
 	a.resp.Body = io.NopCloser(bytes.NewReader(body))
 }
 func (a *anthropicErrorAdapter) Health(ctx context.Context, status int, models []string) forwardcore.ErrorDecision {
-	d := upstreamErrorDecisionWithoutPersistence(a.account, status)
+	d := accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(a.account), status)
 	if a.s.rateLimitService != nil {
 		if len(models) > 0 {
-			d = a.s.rateLimitService.ApplyUpstreamError(ctx, a.account, status, a.resp.Header, a.body, models[0])
+			d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.rateLimitService.UpstreamHealth(), a.account, gatewayprovider.HealthObservationFromContext(ctx, status, a.resp.Header, a.body, []string{models[0]}))
 		} else {
-			d = a.s.rateLimitService.ApplyUpstreamError(ctx, a.account, status, a.resp.Header, a.body)
+			d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.rateLimitService.UpstreamHealth(), a.account, gatewayprovider.HealthObservationFromContext(ctx, status, a.resp.Header, a.body, nil))
 		}
 	}
 	return a.decision(d, status)
@@ -69,11 +72,11 @@ func (a *anthropicErrorAdapter) Health(ctx context.Context, status int, models [
 func (a *anthropicErrorAdapter) RetryHealth(ctx context.Context, models []string) forwardcore.ErrorDecision {
 	return a.decision(a.s.handleRetryExhaustedSideEffects(ctx, a.resp, a.account, models...), a.resp.StatusCode)
 }
-func (a *anthropicErrorAdapter) decision(d UpstreamErrorDecision, status int) forwardcore.ErrorDecision {
+func (a *anthropicErrorAdapter) decision(d accountcore.UpstreamErrorDecision, status int) forwardcore.ErrorDecision {
 	return forwardcore.ErrorDecision{
 		Generic:          d.ShouldReturnGenericError(),
-		Failover:         d.ShouldFailover(a.account, status, false),
-		RetrySameAccount: d.RetryableOnSameAccount(a.account, status),
+		Failover:         d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(a.account), status, false),
+		RetrySameAccount: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(a.account), status),
 	}
 }
 func (a *anthropicErrorAdapter) Failover(status int, body []byte, retry bool) error {

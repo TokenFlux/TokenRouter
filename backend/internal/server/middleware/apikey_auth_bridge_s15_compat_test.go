@@ -33,11 +33,11 @@ func newGatewayAuthorization(keys *apikey.APIKeyService, subscriptions *billing.
 		BusinessLimited: func(c *gin.Context, reason string) {
 			gatewayhttp.MarkOpsClientBusinessLimited(c, reason)
 		},
-		Loaded: func(c *gin.Context, key *apikey.APIKey) { SetOpsFallbackAPIKey(c, apikey.CopyAPIKey(key)) },
+		Loaded: func(c *gin.Context, key *apikey.APIKey) { keyhttp.SetOpsFallbackAPIKey(c, apikey.CopyAPIKey(key)) },
 	},
 		BindLegacyKey: func(c *gin.Context, key *apikey.APIKey) {
 			legacy := apikey.CopyAPIKey(key)
-			c.Set(string(ContextKeyAPIKey), legacy)
+			c.Set(string(keyhttp.ContextKeyAPIKey), legacy)
 			setGroupContext(c, legacy.Group)
 		},
 	}

@@ -9,6 +9,10 @@ import (
 	"testing"
 	"time"
 
+	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
+	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
@@ -18,46 +22,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolveMessagesDispatchModelCNProvidersSkipOpenAIMapping(t *testing.T) {
-	for _, platform := range []string{capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
-		group := &routing.Group{
-			Platform: platform,
-			MessagesDispatchModelConfig: routing.OpenAIMessagesDispatchModelConfig{
-				SonnetMappedModel: "gpt-5.4",
-			},
-		}
-		require.Empty(t, ResolveMessagesDispatchModel(group, "claude-sonnet-4-5"), platform)
-	}
-
-	openAIGroup := &routing.Group{
-		Platform: capability.PlatformOpenAI,
-		MessagesDispatchModelConfig: routing.OpenAIMessagesDispatchModelConfig{
-			SonnetMappedModel: "gpt-5.4",
-		},
-	}
-	require.Equal(t, "gpt-5.4", ResolveMessagesDispatchModel(openAIGroup, "claude-sonnet-4-5"))
-}
-
 func TestFilterCNProviderBillingModelCandidates(t *testing.T) {
-	svc := &OpenAIGatewayService{}
-	apiKey := &apikey.APIKey{Group: &routing.Group{ID: 1, Platform: capability.PlatformKimi}}
-	cnAccount := &Account{ID: 1, Platform: capability.PlatformKimi}
+	svc := completion.NewRecorder(completion.Dependencies{}, completion.RecorderOptions{DefaultMultiplier: 1})
 
-	filtered := svc.filterCNProviderBillingModelCandidates(
-		context.Background(),
-		cnAccount,
-		apiKey,
-		[]string{"kimi-k2-0905-preview", "claude-sonnet-4-5", "sonnet-custom", "moonshot-v1-8k"},
+	apiKey := &apikey.APIKey{Group: &routing.Group{ID: 1, Platform: capability.PlatformKimi}}
+	cnAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformKimi}}
+
+	filtered := svc.FilterCNProviderBillingModelCandidates(
+		context.Background(), gatewayprovider.ProjectCompletionAccount(gatewayprovider.ExecutionCompletionRecord(cnAccount)), gatewayprovider.ProjectCompletionKey(apiKey), []string{"kimi-k2-0905-preview", "claude-sonnet-4-5", "sonnet-custom", "moonshot-v1-8k"},
 	)
 	require.Equal(t, []string{"kimi-k2-0905-preview", "moonshot-v1-8k"}, filtered)
 
-	require.Empty(t, svc.filterCNProviderBillingModelCandidates(
-		context.Background(), cnAccount, apiKey, []string{"claude-sonnet-4-5"},
+	require.Empty(t, svc.FilterCNProviderBillingModelCandidates(
+		context.Background(), gatewayprovider.ProjectCompletionAccount(gatewayprovider.ExecutionCompletionRecord(cnAccount)), gatewayprovider.ProjectCompletionKey(apiKey), []string{"claude-sonnet-4-5"},
 	))
 
-	openAIAccount := &Account{ID: 2, Platform: capability.PlatformOpenAI}
-	require.Equal(t, []string{"claude-sonnet-4-5"}, svc.filterCNProviderBillingModelCandidates(
-		context.Background(), openAIAccount, apiKey, []string{"claude-sonnet-4-5"},
+	openAIAccount := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI}}
+	require.Equal(t, []string{"claude-sonnet-4-5"}, svc.FilterCNProviderBillingModelCandidates(
+		context.Background(), gatewayprovider.ProjectCompletionAccount(gatewayprovider.ExecutionCompletionRecord(openAIAccount)), gatewayprovider.ProjectCompletionKey(apiKey), []string{"claude-sonnet-4-5"},
 	))
 }
 
@@ -65,10 +47,11 @@ func TestFilterCNProviderBillingModelCandidatesKeepsExplicitGroupPricing(t *test
 	inputPrice := 0.000001
 	outputPrice := 0.000002
 	billing := NewBillingService(&config.Config{}, nil)
-	svc := &OpenAIGatewayService{
-		billingService: billing,
-		resolver:       NewModelPricingResolver(nil, billing),
-	}
+	svc := completion.NewRecorder(completion.Dependencies{
+		Calculator: billing,
+		Prices:     billingtestkit.PriceResolver(nil, billing),
+	}, completion.RecorderOptions{DefaultMultiplier: 1})
+
 	group := &routing.Group{
 		ID:       1,
 		Platform: capability.PlatformKimi,
@@ -80,20 +63,21 @@ func TestFilterCNProviderBillingModelCandidatesKeepsExplicitGroupPricing(t *test
 		}},
 	}
 	apiKey := &apikey.APIKey{Group: group}
-	account := &Account{Platform: capability.PlatformKimi}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformKimi}}
 
-	require.Equal(t, []string{"claude-sonnet-4-5"}, svc.filterCNProviderBillingModelCandidates(
-		context.Background(), account, apiKey, []string{"claude-sonnet-4-5"},
+	require.Equal(t, []string{"claude-sonnet-4-5"}, svc.FilterCNProviderBillingModelCandidates(
+		context.Background(), gatewayprovider.ProjectCompletionAccount(gatewayprovider.ExecutionCompletionRecord(account)), gatewayprovider.ProjectCompletionKey(apiKey), []string{"claude-sonnet-4-5"},
 	))
 }
 
 func TestCalculateOpenAIRecordUsageCostEmptyCandidatesIsPricingUnavailable(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := completion.NewRecorder(completion.Dependencies{}, completion.RecorderOptions{DefaultMultiplier: 1})
+
 	apiKey := &apikey.APIKey{Group: &routing.Group{ID: 1, Platform: capability.PlatformKimi}}
 
-	_, err := svc.calculateOpenAIRecordUsageCost(
-		context.Background(), nil, apiKey, nil,
-		1, 1, 1, 1, pricing.UsageTokens{InputTokens: 100}, "",
+	_, err := svc.CalculateOpenAIRecordUsageCostAt(
+		context.Background(), gatewayprovider.ProjectOpenAICompletionResult(nil, nil), gatewayprovider.ProjectCompletionKey(apiKey), nil,
+		1, 1, 1, 1, pricing.UsageTokens{InputTokens: 100}, "", time.Time{},
 	)
 	require.Error(t, err)
 	require.True(t, isUsagePricingUnavailableError(err), err)
@@ -103,15 +87,12 @@ func TestHandle403_OtherCNProviderWithKimiConcurrencyMessageUsesNormalPolicy(t *
 	repo := &rateLimitAccountRepoStub{}
 	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
 	blocker := &runtimeBlockRecorder{}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
 	service.SetOpenAI403CounterCache(counter)
 	service.SetAccountRuntimeBlocker(blocker)
-	account := &Account{ID: 405, Platform: capability.PlatformZhipu, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 405, Platform: capability.PlatformZhipu, Type: capability.AccountTypeAPIKey}}
 
-	shouldDisable := service.HandleUpstreamError(
-		context.Background(), account, http.StatusForbidden, http.Header{},
-		[]byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
 	require.Equal(t, 1, repo.setErrorCalls, "non-Kimi CN provider must retain the normal permanent-error policy")
@@ -124,15 +105,12 @@ func TestHandle403_CNProviderConcurrencyLimitAlwaysUsesTemporaryCooldown(t *test
 	repo := &rateLimitAccountRepoStub{}
 	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
 	blocker := &runtimeBlockRecorder{}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
 	service.SetOpenAI403CounterCache(counter)
 	service.SetAccountRuntimeBlocker(blocker)
-	account := &Account{ID: 403, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 403, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}}
 
-	shouldDisable := service.HandleUpstreamError(
-		context.Background(), account, http.StatusForbidden, http.Header{},
-		[]byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable, "the request must still fail over to another account")
 	require.Equal(t, 0, repo.setErrorCalls)
@@ -148,23 +126,23 @@ func TestHandle403_KimiConcurrencyLimitRepositoryFailureKeepsRuntimeBlock(t *tes
 	repo := &rateLimitAccountRepoStub{tempErr: errors.New("repository unavailable")}
 	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
 	blocker := &runtimeBlockRecorder{}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
 	service.SetOpenAI403CounterCache(counter)
 	service.SetAccountRuntimeBlocker(blocker)
-	account := &Account{ID: 406, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 406, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}}
 
-	shouldDisable := service.HandleUpstreamError(
-		context.Background(), account, http.StatusForbidden, http.Header{},
-		[]byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable, "the current request must fail over even when persistence fails")
 	require.Equal(t, 1, repo.tempCalls, "the temporary cooldown should still be persisted when possible")
 	require.Equal(t, 0, repo.setErrorCalls, "persistence failure must not fall back to permanent account error")
 	require.Equal(t, []int64{accountcore.OpenAI403DisableThresholdDefault}, counter.counts, "persistence failure must not enter the permanent-error counter path")
 	require.Len(t, blocker.accounts, 1, "the in-memory runtime block must survive repository failure")
-	// 跨新旧类型边界比较完整投影，原同一输入断言在账号核心测试继续验证。
-	require.Equal(t, account, blocker.accounts[0])
+	// 原实体没有时钟依赖；保留全部业务字段和路线比较，函数本身不属于运行阻断数据。
+	expectedAccount, observedAccount := *account, *blocker.accounts[0]
+	expectedAccount.Record.Now, observedAccount.Record.Now = nil, nil
+	expectedAccount.Record.LoadLocation, observedAccount.Record.LoadLocation = nil, nil
+	require.Equal(t, expectedAccount, observedAccount)
 	require.Equal(t, accountcore.CNConcurrencyLimitReason, blocker.reasons[0])
 	require.True(t, blocker.until[0].After(time.Now()))
 }
@@ -172,14 +150,11 @@ func TestHandle403_KimiConcurrencyLimitRepositoryFailureKeepsRuntimeBlock(t *tes
 func TestHandle403_CNProviderNearMatchRetainsNormalPermanentErrorPolicy(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{}
 	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
 	service.SetOpenAI403CounterCache(counter)
-	account := &Account{ID: 404, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 404, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}}
 
-	shouldDisable := service.HandleUpstreamError(
-		context.Background(), account, http.StatusForbidden, http.Header{},
-		[]byte(`{"error":{"message":"You've reached your concurrent request limit. Please contact support."}}`),
-	)
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please contact support."}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
 	require.Equal(t, 1, repo.setErrorCalls, "non-exact 403 must retain existing permission/auth protection")

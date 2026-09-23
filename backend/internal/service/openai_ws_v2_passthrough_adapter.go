@@ -14,6 +14,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 
@@ -23,16 +25,6 @@ import (
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 )
-
-type wsUsageDecoder struct{}
-
-func (wsUsageDecoder) ServiceTier(body []byte) *string { return extractOpenAIServiceTierFromBody(body) }
-func (wsUsageDecoder) ReasoningEffort(body []byte, models ...string) *string {
-	return extractOpenAIReasoningEffortFromBody(body, models...)
-}
-func (wsUsageDecoder) RequestedReasoningEffort(body []byte, models ...string) *string {
-	return CanonicalRequestedReasoningEffort(body, models...)
-}
 
 const openaiWSV2PassthroughModeFields = "ws_mode=passthrough ws_router=v2"
 
@@ -53,7 +45,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	ctx context.Context,
 	c *gin.Context,
 	clientConn *coderws.Conn,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	token string,
 	firstClientMessage []byte,
 	hooks *gatewayws.OpenAIIngressHooks,
@@ -77,7 +69,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	if hooks != nil {
 		coreHooks = &gatewayws.PassthroughHooks{IngressHooks: wsIngressHooks(hooks), InitialRequestModel: hooks.InitialRequestModel, InitialTurnStartedAt: hooks.InitialTurnStartedAt, OnUpstreamError: hooks.OnUpstreamError}
 	}
-	runtime := gatewayws.PassthroughSession{Port: port, Hooks: coreHooks, Options: gatewayws.PassthroughOptions{AccountID: account.ID, OAuth: account.IsOpenAIOAuth(), WriteTimeout: s.openAIWSWriteTimeout(), IdleTimeout: s.openAIWSPassthroughIdleTimeout(), InterTurnIdleTimeout: s.openAIWSIngressInterTurnIdleTimeout()}}
+	runtime := gatewayws.PassthroughSession{Port: port, Hooks: coreHooks, Options: gatewayws.PassthroughOptions{AccountID: account.Record.ID, OAuth: account.View().IsOpenAIOAuth(), WriteTimeout: s.openAIWSWriteTimeout(), IdleTimeout: s.openAIWSPassthroughIdleTimeout(), InterTurnIdleTimeout: s.openAIWSIngressInterTurnIdleTimeout()}}
 	return runtime.Run(ctx, gatewayhttp.WSClientFrames{Conn: clientConn}, firstClientMessage)
 }
 
@@ -110,7 +102,7 @@ func markOpenAIWSV2PassthroughCyberPolicy(c *gin.Context, payload []byte) bool {
 	}
 	usage := openai.ForwardUsage{}
 	openai.ParseWSResponseUsageFromCompletedEvent(payload, &usage)
-	MarkOpsCyberPolicy(c, CyberPolicyMark{
+	gatewayhttp.MarkOpsCyberPolicy(c, moderationflow.Mark{
 		Code:           code,
 		Message:        message,
 		Body:           logredact.TruncateUTF8(string(payload), 4096),

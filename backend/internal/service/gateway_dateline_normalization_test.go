@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	anthropicfp "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 	"github.com/stretchr/testify/require"
@@ -16,27 +19,27 @@ import (
 // 平台始终跳过。
 func TestGatewayClientDatelineNormalization_Scope(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(repo, &config.Config{}),
-	}
+	})
 	ctx := context.Background()
 
 	// 默认缺省：parseSettings 与缓存加载器的 fallback 都是 true。
-	require.True(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}))
-	require.True(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}))
-	require.False(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}))
-	require.False(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}))
+	require.True(t, svc.shouldNormalizeClientDateline(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}))
+	require.True(t, svc.shouldNormalizeClientDateline(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}}))
+	require.False(t, svc.shouldNormalizeClientDateline(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}))
+	require.False(t, svc.shouldNormalizeClientDateline(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}))
 
 	// 关闭开关：任何账号都不归一化。
 	repo.data[gateway.SettingKeyEnableClientDatelineNormalization] = "false"
 	svc.settingService.Gateway.InvalidateForwarding()
-	require.False(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}))
-	require.False(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}))
+	require.False(t, svc.shouldNormalizeClientDateline(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}))
+	require.False(t, svc.shouldNormalizeClientDateline(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}}))
 
 	// 重新开启开关：OAuth 再次通过。
 	repo.data[gateway.SettingKeyEnableClientDatelineNormalization] = "true"
 	svc.settingService.Gateway.InvalidateForwarding()
-	require.True(t, svc.shouldNormalizeClientDateline(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}))
+	require.True(t, svc.shouldNormalizeClientDateline(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}))
 }
 
 // TestGatewayClientDatelineNormalization_HelperNoRewrite 覆盖 Forward 使用的辅助路径：
@@ -46,16 +49,16 @@ func TestGatewayClientDatelineNormalization_HelperNoRewrite(t *testing.T) {
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		gateway.SettingKeyEnableClientDatelineNormalization: "true",
 	}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(repo, &config.Config{}),
-	}
+	})
 	ctx := context.Background()
 
 	dirty := []byte(`{"messages":[{"role":"user","content":"<system-reminder>\nToday’s date is 2026/07/01.\n</system-reminder>"}]}`)
 	clean := []byte(`{"messages":[{"role":"user","content":"just hello"}]}`)
 
 	// API-Key 账号：即使请求体包含指纹也不改写。
-	next, ok := svc.normalizeClientDatelineIfEnabled(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}, dirty)
+	next, ok := svc.normalizeClientDatelineIfEnabled(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}, dirty)
 	require.False(t, ok)
 	require.Nil(t, next)
 
@@ -65,12 +68,12 @@ func TestGatewayClientDatelineNormalization_HelperNoRewrite(t *testing.T) {
 	require.Nil(t, next)
 
 	// OAuth 账号 + 干净请求体：没有变化，ok=false。
-	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}, clean)
+	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}, clean)
 	require.False(t, ok)
 	require.Nil(t, next)
 
 	// OAuth 账号 + 带指纹请求体：完成改写，ok=true。
-	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}, dirty)
+	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}, dirty)
 	require.True(t, ok)
 	require.NotNil(t, next)
 	require.Contains(t, string(next), "Today's date is 2026-07-01.")
@@ -78,14 +81,14 @@ func TestGatewayClientDatelineNormalization_HelperNoRewrite(t *testing.T) {
 	require.NotContains(t, string(next), "Today’s date is")
 
 	// SetupToken 账号 + 带指纹请求体：完成改写，ok=true。
-	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}, dirty)
+	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}}, dirty)
 	require.True(t, ok)
 	require.Contains(t, string(next), "Today's date is 2026-07-01.")
 
 	// 关闭开关：即使 OAuth 账号也不改写。
 	repo.data[gateway.SettingKeyEnableClientDatelineNormalization] = "false"
 	svc.settingService.Gateway.InvalidateForwarding()
-	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}, dirty)
+	next, ok = svc.normalizeClientDatelineIfEnabled(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}, dirty)
 	require.False(t, ok)
 	require.Nil(t, next)
 }
@@ -96,14 +99,14 @@ func TestGatewayClientDatelineNormalization_LeavesUserProseUntouched(t *testing.
 	repo := &gatewayTTLSettingRepo{data: map[string]string{
 		gateway.SettingKeyEnableClientDatelineNormalization: "true",
 	}}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		settingService: newExecutionReadersFixture(repo, &config.Config{}),
-	}
+	})
 	ctx := context.Background()
 
 	// 用户文本如果只是在 <system-reminder> 外碰巧包含类似指纹的句子，必须逐字节保留。
 	body := []byte(`{"messages":[{"role":"user","content":"I wrote: Today’s date is 2026/07/01. What do you think?"}]}`)
-	next, ok := svc.normalizeClientDatelineIfEnabled(ctx, &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}, body)
+	next, ok := svc.normalizeClientDatelineIfEnabled(ctx, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth}}, body)
 	require.False(t, ok, "must not rewrite user prose outside <system-reminder>")
 	require.Nil(t, next)
 

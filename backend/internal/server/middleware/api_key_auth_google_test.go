@@ -164,7 +164,7 @@ func TestAPIKeyAuthWithSubscriptionGoogle_UsageKeepsUnavailablePreferredSubscrip
 	router := gin.New()
 	router.Use(APIKeyAuthWithSubscriptionGoogle(apiKeyService, subscriptionService, &config.Config{RunMode: config.RunModeStandard}))
 	router.GET("/v1/usage", func(c *gin.Context) {
-		billing, ok := GetAPIKeyBillingContext(c)
+		billing, ok := gatewayhttp.GetAPIKeyBillingContext(c)
 		if !ok || billing == nil || billing.Subscription == nil {
 			c.Status(http.StatusInternalServerError)
 			return

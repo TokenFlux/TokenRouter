@@ -8,10 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/audit"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/server/runtimeconfig"
 	settingshttp "github.com/TokenFlux/TokenRouter/internal/settings/httpapi"
 	"github.com/gin-gonic/gin"
@@ -75,7 +76,7 @@ func TestUpdateSettingsEnableStepUpFailsClosedWithoutUserService(t *testing.T) {
 	h, repo := newStepUpSwitchTestHandler(t, map[string]string{})
 
 	rec := doUpdateSettings(t, h, map[string]any{"step_up_enabled": true}, func(c *gin.Context) {
-		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1})
+		c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 1})
 	})
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)

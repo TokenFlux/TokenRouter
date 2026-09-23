@@ -6,18 +6,27 @@ import (
 	"net/http"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+
 	grokforward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+
 	bridge "github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
+
 	uuid "github.com/google/uuid"
 )
 
@@ -25,7 +34,7 @@ import (
 type grokForwardAdapter struct {
 	s               *OpenAIGatewayService
 	c               *gin.Context
-	account         *Account
+	account         *gatewayprovider.ExecutionAccount
 	token, proxyURL string
 }
 
@@ -39,13 +48,13 @@ func (a *grokForwardAdapter) options() grokforward.Options {
 }
 func (a *grokForwardAdapter) input(body []byte, model string, stream bool, start time.Time) grokforward.Input {
 	return grokforward.Input{
-		AccountID:     a.account.ID,
-		AccountName:   a.account.Name,
-		AccountType:   a.account.Type,
-		Platform:      a.account.Platform,
-		OAuth:         a.account.IsGrokOAuth(),
+		AccountID:     a.account.Record.ID,
+		AccountName:   a.account.Record.Name,
+		AccountType:   a.account.Record.Type,
+		Platform:      a.account.Record.Platform,
+		OAuth:         a.account.View().IsGrokOAuth(),
 		HTTPPresent:   a.c != nil,
-		Compact:       isOpenAIResponsesCompactPath(a.c),
+		Compact:       gatewayhttp.IsOpenAIResponsesCompactPath(a.c),
 		Body:          body,
 		OriginalModel: model,
 		Stream:        stream,
@@ -53,10 +62,10 @@ func (a *grokForwardAdapter) input(body []byte, model string, stream bool, start
 	}
 }
 func (a *grokForwardAdapter) BillingModel(model string) string {
-	return resolveOpenAIForwardModel(a.account, model, "")
+	return gatewayprovider.ExecutionModelPolicy(a.account).ForwardModel(model, "")
 }
 func (a *grokForwardAdapter) UpstreamModel(model string) string {
-	return normalizeOpenAIModelForUpstream(a.account, model)
+	return gatewayprovider.ExecutionModelPolicy(a.account).NormalizeOpenAI(model)
 }
 func (a *grokForwardAdapter) ImageModel(model string) bool {
 	return media.IsGrokImageGenerationModel(model)
@@ -85,8 +94,8 @@ func (a *grokForwardAdapter) Detach(ctx context.Context) (context.Context, func(
 	return detachUpstreamContext(ctx)
 }
 func (a *grokForwardAdapter) ResolveProxy() {
-	if a.account.ProxyID != nil && a.account.Proxy != nil {
-		a.proxyURL = a.account.Proxy.URL()
+	if a.account.Record.ProxyID != nil && a.account.Record.Proxy != nil {
+		a.proxyURL = a.account.Record.Proxy.URL()
 	}
 }
 func (a *grokForwardAdapter) Build(ctx context.Context, body []byte, identity string, settings bool) (*http.Request, error) {
@@ -96,7 +105,7 @@ func (a *grokForwardAdapter) Build(ctx context.Context, body []byte, identity st
 	return buildGrokResponsesRequest(ctx, a.c, a.account, body, a.token, identity, a.s.cfg)
 }
 func (a *grokForwardAdapter) Do(req *http.Request) (*http.Response, error) {
-	return a.s.httpUpstream.Do(req, a.proxyURL, a.account.ID, a.account.Concurrency)
+	return a.s.httpUpstream.Do(req, a.proxyURL, a.account.Record.ID, a.account.Record.Concurrency)
 }
 func (a *grokForwardAdapter) ReadError(resp *http.Response) []byte {
 	return a.s.readUpstreamErrorBody(resp)
@@ -108,7 +117,7 @@ func (a *grokForwardAdapter) TransportError(ctx context.Context, err error) erro
 	return a.s.handleOpenAIUpstreamTransportError(ctx, a.c, a.account, err, false)
 }
 func (a *grokForwardAdapter) ReplayNotice(identity bool) {
-	slog.Info("grok_replay_decode_retry", "account_id", a.account.ID, "cache_identity_present", identity)
+	slog.Info("grok_replay_decode_retry", "account_id", a.account.Record.ID, "cache_identity_present", identity)
 }
 func (a *grokForwardAdapter) ErrorMessage(body []byte) string {
 	return logredact.SanitizeUpstreamQueries(upstream.ExtractErrorMessage(body))
@@ -120,8 +129,8 @@ func (a *grokForwardAdapter) Health(ctx context.Context, status int, headers htt
 	d := a.s.applyGrokAccountUpstreamError(ctx, a.account, status, headers, body, model)
 	return grokforward.Decision{
 		Generic:          d.ShouldReturnGenericError(),
-		Failover:         d.ShouldFailover(a.account, status, a.s.shouldFailoverGrokUpstreamError(status, body)),
-		RetrySameAccount: d.RetryableOnSameAccount(a.account, status),
+		Failover:         d.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(a.account), status, a.s.shouldFailoverGrokUpstreamError(status, body)),
+		RetrySameAccount: d.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(a.account), status),
 	}
 }
 func (a *grokForwardAdapter) Observe(n grokforward.Notice) {
@@ -208,10 +217,10 @@ func (a *grokForwardAdapter) Sink() upstream.OutputSink {
 	return gatewayhttp.ResponseSink{Writer: a.c.Writer}
 }
 func (a *grokForwardAdapter) Effort(body []byte, model string) *string {
-	return extractOpenAIReasoningEffortFromBody(body, model)
+	return requeststate.ExtractOpenAIReasoningEffortFromBody(body, model)
 }
 func (a *grokForwardAdapter) ReadBody(resp *http.Response) ([]byte, error) {
-	return ReadUpstreamResponseBody(resp.Body, a.s.cfg, a.c, nil)
+	return gatewayhttp.ReadUpstreamResponseBody(resp.Body, resolveUpstreamResponseReadLimit(a.s.cfg), a.c, nil)
 }
 func (a *grokForwardAdapter) HasTokens(usage *protocolopenai.ForwardUsage) bool {
 	return protocolopenai.OpenAIUsageHasTokens(usage)

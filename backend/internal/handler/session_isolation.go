@@ -1,16 +1,12 @@
 package handler
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"context"
 	"errors"
 	"net/http"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-
 	"github.com/gin-gonic/gin"
 )
 

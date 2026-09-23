@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -33,12 +36,11 @@ func (s *sessionLimitReleaseCacheStub) UnregisterSession(_ context.Context, acco
 	return nil
 }
 
-func newSessionLimitTestAccount() *Account {
-	return &Account{
-		ID:       42,
+func newSessionLimitTestAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 42,
 		Platform: capability.PlatformAnthropic,
 		Type:     capability.AccountTypeOAuth,
-		Extra:    map[string]any{"max_sessions": 1},
+		Extra:    map[string]any{"max_sessions": 1}},
 	}
 }
 
@@ -47,7 +49,7 @@ func newSessionLimitTestAccount() *Account {
 // 该账号上注册的会话（不等待空闲超时）。
 func TestReleaseAccountSession_ReleasesRegisteredSlot(t *testing.T) {
 	cache := newSessionLimitReleaseCacheStub()
-	svc := &GatewayService{sessionLimitCache: cache}
+	svc := withSchedulerParametersForTest(&GatewayService{sessionLimitCache: cache})
 	acc := newSessionLimitTestAccount()
 
 	svc.ReleaseAccountSession(context.Background(), acc, "session-hash-1")
@@ -62,22 +64,20 @@ func TestReleaseAccountSession_ReleasesRegisteredSlot(t *testing.T) {
 // - 空 sessionID
 // 以上场景均为 no-op，不得触发 UnregisterSession。
 func TestReleaseAccountSession_NoOpForInapplicableAccounts(t *testing.T) {
-	apiKeyAcc := &Account{
-		ID:       43,
+	apiKeyAcc := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 43,
 		Platform: capability.PlatformAnthropic,
 		Type:     capability.AccountTypeAPIKey,
-		Extra:    map[string]any{"max_sessions": 1},
+		Extra:    map[string]any{"max_sessions": 1}},
 	}
-	noLimitAcc := &Account{
-		ID:       44,
+	noLimitAcc := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 44,
 		Platform: capability.PlatformAnthropic,
-		Type:     capability.AccountTypeOAuth,
+		Type:     capability.AccountTypeOAuth},
 	}
 	enabledAcc := newSessionLimitTestAccount()
 
 	cases := []struct {
 		name      string
-		account   *Account
+		account   *gatewayprovider.ExecutionAccount
 		sessionID string
 	}{
 		{"api_key_account", apiKeyAcc, "session-hash"},
@@ -89,7 +89,7 @@ func TestReleaseAccountSession_NoOpForInapplicableAccounts(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cache := newSessionLimitReleaseCacheStub()
-			svc := &GatewayService{sessionLimitCache: cache}
+			svc := withSchedulerParametersForTest(&GatewayService{sessionLimitCache: cache})
 			svc.ReleaseAccountSession(context.Background(), tc.account, tc.sessionID)
 			require.Empty(t, cache.unregistered, "不适用账号不应触发释放")
 		})
@@ -100,12 +100,12 @@ func TestReleaseAccountSession_NoOpForInapplicableAccounts(t *testing.T) {
 // sessionLimitCache 不可用时 no-op；UnregisterSession 返回错误时不 panic（仅记录日志）。
 func TestReleaseAccountSession_NilCacheAndErrorTolerance(t *testing.T) {
 	// nil cache：no-op
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	svc.ReleaseAccountSession(context.Background(), newSessionLimitTestAccount(), "session-hash")
 
 	// 底层错误：不 panic
 	cache := &sessionLimitReleaseCacheStub{err: errors.New("redis down")}
-	svc = &GatewayService{sessionLimitCache: cache}
+	svc = withSchedulerParametersForTest(&GatewayService{sessionLimitCache: cache})
 	svc.ReleaseAccountSession(context.Background(), newSessionLimitTestAccount(), "session-hash")
 }
 
@@ -113,7 +113,7 @@ func TestReleaseAccountSession_NilCacheAndErrorTolerance(t *testing.T) {
 // （failover 链上按次释放 + defer 兜底可能对同一账号重复释放）。
 func TestReleaseAccountSession_Idempotent(t *testing.T) {
 	cache := newSessionLimitReleaseCacheStub()
-	svc := &GatewayService{sessionLimitCache: cache}
+	svc := withSchedulerParametersForTest(&GatewayService{sessionLimitCache: cache})
 	acc := newSessionLimitTestAccount()
 
 	svc.ReleaseAccountSession(context.Background(), acc, "session-hash")

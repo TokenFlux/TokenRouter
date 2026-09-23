@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	coderws "github.com/coder/websocket"
 )
@@ -23,11 +24,12 @@ func (s *s11PlanningLiveStore) ClaimLiveController(ctx context.Context, hash, co
 }
 
 type s11PlanningLiveAccounts struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	reads atomic.Int32
 }
 
-func (r *s11PlanningLiveAccounts) GetByID(ctx context.Context, id int64) (*Account, error) {
+func (r *s11PlanningLiveAccounts) GetByID(ctx context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	r.reads.Add(1)
 	return nil, ctx.Err()
 }
@@ -37,7 +39,7 @@ func TestLiveHandoffCancellationStopsBeforeAccountLookup(t *testing.T) {
 	record := &session.LiveCallRecord{CallHash: "planning", Controller: session.LiveControllerPending, AccountID: 7, ExpiresAt: time.Now().Add(time.Minute)}
 	store := &s11PlanningLiveStore{liveTestStore: liveTestStore{record: record}, cancel: cancel}
 	accounts := &s11PlanningLiveAccounts{}
-	s := &OpenAIGatewayService{cache: store, accountRepo: accounts, liveObserverStopped: true}
+	s := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{cache: store, accountRepo: accounts, liveObserverStopped: true}))
 	start := time.Now()
 	err := s.ProxyLiveSideband(ctx, record, &coderws.Conn{})
 	if err != context.Canceled {

@@ -5,44 +5,21 @@ import (
 	"fmt"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	protocolcore "github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
-// ResolveProtocolRoute 对每个候选提取独立能力快照，旧上下文与账号归属留 S06。
-// @project-doc docs/interfaces/protocol_capabilities.md#group_protocol_routes
-func ResolveProtocolRoute(account *Account, group *routing.Group, source protocolcore.ProtocolID) (protocolcore.ProtocolID, bool) {
-	if account == nil {
-		return "", false
-	}
-	var routeGroup *routing.Group
-	if group != nil {
-		routeGroup = &routing.Group{ID: group.ID, Platform: group.Platform, SchedulerType: group.SchedulerType, AllowedProtocols: group.AllowedProtocols, ProtocolFallbacks: group.ProtocolFallbacks}
-	}
-	plan := routing.Plan(routing.PlanInput{Group: routeGroup, ClientProtocol: source})
-	candidate, ok := (scheduler.SelectionInput{RoutePlan: plan}).ResolveCandidate(AccountSnapshotView(account))
-	return candidate.UpstreamProtocol, ok
-}
-
-func (a *Account) allowsProtocolRequest(ctx context.Context) bool {
-	source, _ := requeststate.ClientProtocolFromContext(ctx)
-	if source == "" {
-		return true
-	}
-	group, _ := requeststate.GroupFromContext(ctx)
-	_, ok := ResolveProtocolRoute(a, group, source)
-	return ok
-}
-
 // accountForProtocolAttempt 使用当前计划重新验证候选，模型规则仍在原匹配时机读取。
-func accountForProtocolAttempt(ctx context.Context, value *Account) (*Account, error) {
+func accountForProtocolAttempt(ctx context.Context, value *gatewayprovider.ExecutionAccount) (*gatewayprovider.ExecutionAccount, error) {
 	if value == nil {
 		return nil, fmt.Errorf("account is nil")
 	}
-	attempt, resolved, err := requeststate.RoutingStateFromContext(ctx).ResolveAttempt(AccountSnapshotView(value), value.attemptRoute)
+	attempt, resolved, err := requeststate.RoutingStateFromContext(ctx).ResolveAttempt(gatewayprovider.ExecutionSnapshot(value), value.Route)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +27,7 @@ func accountForProtocolAttempt(ctx context.Context, value *Account) (*Account, e
 		return value, nil
 	}
 	copied := *value
-	copied.attemptRoute = attempt
+	copied.Route = attempt
 	return &copied, nil
 }
 
@@ -65,9 +42,9 @@ func groupResponsesExplicitToolPolicy(group *routing.Group, inherited string) st
 	}
 	switch group.ResponsesImagePolicy {
 	case "block":
-		return codexImageGenerationExplicitToolPolicyStrip
+		return accountcore.CodexImagePolicyStrip
 	case "enabled", "disabled":
-		return codexImageGenerationExplicitToolPolicyAllow
+		return accountcore.CodexImagePolicyAllow
 	default:
 		return inherited
 	}
@@ -81,31 +58,31 @@ func responsesPolicyGroup(ctx context.Context, group *routing.Group) *routing.Gr
 	return group
 }
 
-func (s *OpenAIGatewayService) shadowProtocolsAllowed(ctx context.Context, account *Account) bool {
-	if account == nil || !account.IsShadow() {
+func (s *OpenAIGatewayService) shadowProtocolsAllowed(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
+	if account == nil || !account.View().IsShadow() {
 		return true
 	}
 	if source, _ := requeststate.ClientProtocolFromContext(ctx); source == "" {
 		return true
 	}
-	parent := s.parentAccountLookup(ctx)(*account.ParentAccountID)
-	return parent != nil && parent.allowsProtocolRequest(ctx)
+	parent := s.parentAccountLookup(ctx)(*account.Record.ParentAccountID)
+	return parent != nil && gatewayprovider.ExecutionModelPolicy(parent).AllowsProtocol(ctx)
 }
 
-func supportsOpenAIRequestCapability(ctx context.Context, account *Account, capability accountcore.OpenAIEndpointCapability) bool {
+func supportsOpenAIRequestCapability(ctx context.Context, account *gatewayprovider.ExecutionAccount, capability accountcore.OpenAIEndpointCapability) bool {
 	if account == nil {
 		return false
 	}
 	source, _ := requeststate.ClientProtocolFromContext(ctx)
 	if source == protocolcore.ProtocolResponsesWebSocket || source == protocolcore.ProtocolResponsesCompact {
 		if capability == accountcore.OpenAIEndpointCapabilityTextGeneration || capability == accountcore.OpenAIEndpointCapabilityResponses {
-			return account.allowsProtocolRequest(ctx)
+			return gatewayprovider.ExecutionModelPolicy(account).AllowsProtocol(ctx)
 		}
 		if capability == accountcore.OpenAIEndpointCapabilityRemoteCompactionV2 {
-			return account.allowsProtocolRequest(ctx) && account.AllowsOpenAINativeCompactionV2()
+			return gatewayprovider.ExecutionModelPolicy(account).AllowsProtocol(ctx) && account.View().AllowsOpenAINativeCompactionV2()
 		}
 	}
-	return account.SupportsOpenAIEndpointCapability(capability)
+	return accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(account), capability)
 }
 
 func creativeOperationsForGroup(group *routing.Group) []string {

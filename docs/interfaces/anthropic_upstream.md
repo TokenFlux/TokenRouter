@@ -23,13 +23,15 @@ Anthropic 管理端正式支持以下账号：
 | `bedrock` | `sigv4` 使用 AWS 凭据和区域签名；`apikey` 使用 Bedrock API Key；可配置全局端点和模型映射 |
 | `service_account` | 使用 Google Service Account 换取 Vertex AI token，并携带 project/location 等 Vertex 上下文 |
 
+Messages 及其协议转换入口的凭据选择由 `account.MessageCredentialSource` 拥有，app 固定绑定同一 Claude/Vertex token 源。OAuth 与 setup-token 保持不同的刷新资格；普通 API Key、Grok 存量凭据及 Bedrock 签名分支仍按原顺序读取，旧网关不再解释这些凭据规则。
+
 Claude 浏览器 OAuth 固定从 `https://claude.com/cai/oauth/authorize` 发起授权，token 交换仍使用 `https://platform.claude.com/v1/oauth/token`，回调仍是 `https://platform.claude.com/oauth/code/callback`。三者分别承担授权、换取凭据和接收授权码，不能因域名相近而互相替换。
 
 `upstream` 和其它历史类型即使能被通用导入器保存，也没有 Anthropic 平台的正式 token provider 契约。完整分类见[上游账号能力矩阵](upstream_account_matrix.md)。所有 base URL、代理和自定义 Header 仍受[上游传输安全](../operations/upstream_transport_security.md)约束。
 
 ## 协议分派
 
-Anthropic wire 类型与纯 Beta 常量由 `protocol/anthropic` 拥有，跨 Responses/Chat 的转换由 `protocol/bridge` 唯一实现，旧 apicompat 只保留兼容入口。`gateway/clientmeta` 只解析客户端字符串与版本；CLI 版本环境覆盖、默认 Header 和平台指纹常量由 `upstream/anthropic` 持有，仍在进程初始化时解析一次。入站许可裁决继续由调用方执行。
+Anthropic wire 类型与纯 Beta 常量由 `protocol/anthropic` 拥有，跨 Responses/Chat 的转换由 `protocol/bridge` 唯一实现，旧 apicompat 兼容入口已删除。`gateway/clientmeta` 只解析客户端字符串与版本；CLI 版本环境覆盖、默认 Header 和平台指纹常量由 `upstream/anthropic` 持有，仍在进程初始化时解析一次。入站许可裁决继续由调用方执行。
 
 Anthropic 原生入口是 `POST /v1/messages` 和 `POST /v1/messages/count_tokens`。同一 Anthropic 分组还可从 OpenAI Chat Completions 和 Responses 入口进入：处理器先把客户端形状归一化为 Anthropic 请求，按 attempt 选账号并转发，再把非流或 SSE 结果恢复成原协议。
 

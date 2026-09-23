@@ -12,6 +12,9 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -99,8 +102,7 @@ func TestProxyResponsesWebSocketFromClient_RewritesCapacityShedCodeForClient(t *
 			pool := newOpenAIWSConnPool(cfg)
 			pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 
-			account := Account{
-				ID:          5401,
+			account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5401,
 				Name:        "openai-ingress-capacity-shed",
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
@@ -108,10 +110,10 @@ func TestProxyResponsesWebSocketFromClient_RewritesCapacityShedCodeForClient(t *
 				Schedulable: true,
 				Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test"},
-				Extra:       map[string]any{"responses_websockets_v2_enabled": true},
+				Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 			}
-			repo := &openAIWSIngressCapacityShedRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
-			svc := &OpenAIGatewayService{
+			repo := &openAIWSIngressCapacityShedRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
+			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 				accountRepo:      repo,
 				rateLimitService: &RateLimitService{accountRepo: repo},
 				httpUpstream:     &httpUpstreamRecorder{},
@@ -120,7 +122,7 @@ func TestProxyResponsesWebSocketFromClient_RewritesCapacityShedCodeForClient(t *
 
 				toolCorrector: openai.NewCodexToolCorrector(),
 				openaiWSPool:  pool,
-			}
+			}))
 
 			serverDone := make(chan struct{})
 			wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -230,24 +232,23 @@ func TestProxyResponsesWebSocketFromClient_MarksCyberPolicyBeforeEarlyReturn(t *
 			pool := newOpenAIWSConnPool(cfg)
 			t.Cleanup(pool.Close)
 			pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
-			svc := &OpenAIGatewayService{
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 				cfg:          cfg,
 				httpUpstream: &httpUpstreamRecorder{},
 				cache:        &stubGatewayCache{},
 
 				toolCorrector: openai.NewCodexToolCorrector(),
 				openaiWSPool:  pool,
-			}
-			account := &Account{
-				ID: 5402, Name: "openai-ingress-cyber", Platform: capability.PlatformOpenAI,
+			})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5402, Name: "openai-ingress-cyber", Platform: capability.PlatformOpenAI,
 				Type: capability.AccountTypeAPIKey, Status: billing.StatusActive, Schedulable: true, Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test"},
 				Extra: map[string]any{
 					"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModeCtxPool,
-				},
+				}},
 			}
 
-			markCh := make(chan *CyberPolicyMark, 1)
+			markCh := make(chan *moderationflow.Mark, 1)
 			serverErrCh := make(chan error, 1)
 			wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := coderws.Accept(w, r, &coderws.AcceptOptions{CompressionMode: coderws.CompressionContextTakeover})
@@ -269,7 +270,7 @@ func TestProxyResponsesWebSocketFromClient_MarksCyberPolicyBeforeEarlyReturn(t *
 				ginCtx, _ := gin.CreateTestContext(recorder)
 				ginCtx.Request = r.Clone(r.Context())
 				hooks := &gatewayws.OpenAIIngressHooks{AfterTurn: func(_ gatewayws.OpenAITurnCapture) {
-					markCh <- GetOpsCyberPolicy(ginCtx)
+					markCh <- gatewayhttp.GetOpsCyberPolicy(ginCtx)
 				}}
 				serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, hooks)
 			}))

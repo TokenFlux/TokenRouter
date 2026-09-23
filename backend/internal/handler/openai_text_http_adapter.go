@@ -2,18 +2,18 @@
 package handler
 
 import (
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaysession "github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	upstream "github.com/TokenFlux/TokenRouter/internal/upstream"
 
-	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	media "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
 	"context"
 	"net/http"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	usage "github.com/TokenFlux/TokenRouter/internal/usage"
@@ -27,7 +27,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 
-	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -40,10 +39,11 @@ func (h *OpenAIGatewayHandler) NewOpenAITextHTTPHandler() *gatewayhttp.OpenAITex
 	options := gatewayhttp.OpenAITextOptions{}
 	var prompt gatewayhttp.MessagesPrompt
 	if h != nil {
+		options.ForceCodexCLI = h.cfg != nil && h.cfg.Gateway.ForceCodexCLI
 		options.MaxBodyBytes = gatewayMaxBodySize(h.cfg)
 		options.MaxSwitches = h.maxAccountSwitches
 		options.CompactKeepaliveInterval = h.openAICompactKeepaliveInterval()
-		prompt = h.gatewayService
+		prompt = h.prompts
 	}
 	return gatewayhttp.NewOpenAITextHandler(options, openAITextHTTPBackend{h}, prompt, h.NewOpenAITextExecutor())
 }
@@ -51,7 +51,7 @@ func (p openAITextHTTPBackend) Access(c *gin.Context) (*apikey.APIKey, bool) {
 	if key, ok := gatewayhttp.EffectiveAPIKey(c); ok {
 		return key, true
 	}
-	key, ok := middleware.GetAPIKeyFromContext(c)
+	key, ok := keyhttp.GetAPIKeyFromContext(c)
 	return apikey.CopyAPIKey(key), ok
 }
 func (p openAITextHTTPBackend) Dependencies(c *gin.Context, log *zap.Logger) bool {
@@ -61,15 +61,7 @@ func (p openAITextHTTPBackend) ReadFailure(log *zap.Logger, r *http.Request, err
 	gatewayhttp.LogRequestBodyReadFailure(log, r, err)
 }
 func (p openAITextHTTPBackend) TransportHTTP(c *gin.Context) { setOpenAIClientTransportHTTP(c) }
-func (p openAITextHTTPBackend) CompactOutcome(c *gin.Context, t time.Time) {
-	p.h.logOpenAIRemoteCompactOutcome(c, t)
-}
-func (p openAITextHTTPBackend) NormalizeCompact(c *gin.Context, log *zap.Logger, body []byte) ([]byte, bool) {
-	return p.h.normalizeOpenAIResponsesCompactRequest(c, log, body)
-}
-func (p openAITextHTTPBackend) CompactFlags(c *gin.Context, body []byte) (bool, bool) {
-	return isOpenAILegacyCompactPath(c), isBareOpenAIResponsesPath(c) && isOpenAIRemoteCompactionV2Request(body)
-}
+
 func (p openAITextHTTPBackend) StartCompact(c *gin.Context, t time.Duration) func() {
 	return gatewayhttp.StartOpenAICompactSSEKeepalive(c, t)
 }
@@ -86,10 +78,10 @@ func (p openAITextHTTPBackend) Snapshot(c *gin.Context, proto protocol.ProtocolI
 	gatewayhttp.SetOpenAICyberWarningRequestSnapshot(c, openAITextModerationProtocol(proto), body)
 }
 func (p openAITextHTTPBackend) Reasoning(c *gin.Context, key *apikey.APIKey, body []byte) ([]byte, bool, error) {
-	return applyOpenAIReasoningEffortPolicyForRequest(c, apikey.CopyAPIKey(key), body)
+	return gatewayhttp.ApplyOpenAIReasoningEffortPolicyForRequest(c, apikey.CopyAPIKey(key), body)
 }
 func (p openAITextHTTPBackend) MessageReasoning(c *gin.Context, key *apikey.APIKey, body []byte) {
-	bindOpenAIReasoningEffortPolicyForMessagesRequest(c, apikey.CopyAPIKey(key), body)
+	gatewayhttp.BindOpenAIReasoningEffortPolicyForMessagesRequest(c, apikey.CopyAPIKey(key), body)
 }
 func (p openAITextHTTPBackend) PolicyDenied(c *gin.Context) {
 	gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalPolicyDenied)
@@ -105,13 +97,13 @@ func (p openAITextHTTPBackend) ValidateTier(body []byte) error {
 	return err
 }
 func (p openAITextHTTPBackend) PreviousKind(id string) string {
-	return service.ClassifyOpenAIPreviousResponseIDKind(id)
+	return protocolopenai.ClassifyOpenAIPreviousResponseIDKind(id)
 }
 func (p openAITextHTTPBackend) ValidateOwner(ctx context.Context, group int64, id string, user, key int64) (bool, error) {
-	return p.h.gatewayService.ValidateOpenAIHTTPResponseOwner(ctx, group, id, user, key)
+	return gatewaysession.ValidateHTTPResponseOwner(ctx, func() gatewaysession.HTTPResponseOwnerReader { return p.h.gatewayService.ResponseStateStore() }, group, id, user, key)
 }
 func (p openAITextHTTPBackend) SetOwner(c *gin.Context, user, key int64) {
-	service.SetOpenAIHTTPResponseOwner(c, user, key)
+	gatewayhttp.SetHTTPResponseOwner(c, user, key)
 }
 func (p openAITextHTTPBackend) Moderate(c *gin.Context, log *zap.Logger, key *apikey.APIKey, subject authctx.AuthSubject, proto protocol.ProtocolID, model string, body []byte) *moderation.Decision {
 	return p.h.checkContentModeration(c, log, apikey.CopyAPIKey(key), subject, openAITextModerationProtocol(proto), model, body)
@@ -127,7 +119,7 @@ func (p openAITextHTTPBackend) ImageIntent(model string, body []byte, mapping ro
 	return resolveOpenAIChannelMappedImageIntent("/v1/responses", model, body, routing.ChannelMappingResult(mapping), platform, p.h.gatewayService.ReplaceModelInBody)
 }
 func (p openAITextHTTPBackend) ExplicitImageIntent(path, model string, body []byte) bool {
-	return service.IsExplicitImageGenerationIntent(path, model, body)
+	return gatewayprovider.ImageIntent().IsExplicitImageGenerationIntent(path, model, body)
 }
 func (p openAITextHTTPBackend) PassthroughContext(ctx context.Context) context.Context {
 	return service.WithOpenAIHTTPPassthroughRouting(ctx)
@@ -142,7 +134,7 @@ func (p openAITextHTTPBackend) FeatureDenied(c *gin.Context) {
 	gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 }
 func (p openAITextHTTPBackend) ImagePermissionMessage() string {
-	return service.ImageGenerationPermissionMessage()
+	return media.ImageGenerationPermissionMessage
 }
 func (p openAITextHTTPBackend) ImageSlot(c *gin.Context, started bool) (func(), bool) {
 	return p.h.acquireImageGenerationSlot(c, started)
@@ -159,7 +151,7 @@ func (p openAITextHTTPBackend) BindErrors(c *gin.Context) {
 	}
 }
 func (p openAITextHTTPBackend) Platform(key *apikey.APIKey) string {
-	return openAICompatibleRequestPlatform(apikey.CopyAPIKey(key))
+	return gatewayhttp.OpenAICompatibleRequestPlatform(apikey.CopyAPIKey(key))
 }
 func (p openAITextHTTPBackend) AuthLatency(c *gin.Context, ms int64) {
 	gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsAuthLatencyMsKey, ms)
@@ -169,16 +161,16 @@ func (p openAITextHTTPBackend) UserSlot(c *gin.Context, user int64, limit int, s
 }
 func (p openAITextHTTPBackend) Eligibility(ctx context.Context, key *apikey.APIKey, sub *billing.UserSubscription) error {
 	old := apikey.CopyAPIKey(key)
-	return p.h.billingCacheService.CheckKey(ctx, old, sub, service.QuotaPlatform(ctx, old), false)
+	return p.h.billingCacheService.CheckKey(ctx, old, sub, admission.QuotaPlatform(ctx, old), false)
 }
 func (p openAITextHTTPBackend) SessionHash(c *gin.Context, kind gatewayhttp.OpenAISessionInput, body []byte) string {
 	switch kind {
 	case gatewayhttp.OpenAIExplicitSession:
-		return p.h.gatewayService.GenerateExplicitSessionHash(c, body)
+		return gatewayhttp.GenerateExplicitOpenAISessionHash(c, body)
 	case gatewayhttp.OpenAIPromptCacheSession:
-		return p.h.gatewayService.ExtractSessionID(c, body)
+		return gatewayhttp.ExplicitOpenAIRequestSessionID(c, body)
 	default:
-		return p.h.gatewayService.GenerateSessionHash(c, body)
+		return gatewayhttp.GenerateOpenAISessionHash(c, body)
 	}
 }
 func (p openAITextHTTPBackend) RejectCyber(c *gin.Context, key *apikey.APIKey, body []byte, model string, proto protocol.ProtocolID) bool {
@@ -197,14 +189,12 @@ func (p openAITextHTTPBackend) Isolate(ctx context.Context, key *apikey.APIKey, 
 func (p openAITextHTTPBackend) GuardianContext(ctx context.Context, c *gin.Context, body []byte, model string) context.Context {
 	return service.WithOpenAIGuardianParentAffinity(ctx, c, body, model)
 }
-func (p openAITextHTTPBackend) RequiredCapability(image, native, legacy bool, platform string) account.OpenAIEndpointCapability {
-	return openAIResponsesRequiredCapabilityForRequest(image, native, legacy, platform)
-}
+
 func (p openAITextHTTPBackend) AllowsMessages(key *apikey.APIKey) bool {
 	return allowOpenAICompatibleMessagesDispatch(apikey.CopyAPIKey(key))
 }
 func (p openAITextHTTPBackend) MessageAccountModel(ctx context.Context, key *apikey.APIKey, model string) string {
-	return resolveOpenAIMessagesAccountLayerModelForRequest(ctx, apikey.CopyAPIKey(key), model)
+	return gatewayhttp.ResolveOpenAIMessagesAccountLayerModelForRequest(ctx, apikey.CopyAPIKey(key), model)
 }
 
 func (p openAITextHTTPBackend) MetadataSession(c *gin.Context, hash, key, model string, body []byte) (string, string) {
@@ -242,15 +232,6 @@ func (p openAITextHTTPBackend) MarkStreamFailure(c *gin.Context, kind, code, mes
 	gatewayhttp.MarkOpsStreamFailure(c, kind, code, message, status)
 }
 
-// projectOpenAIFailoverError 只投影平台已确认的展示信息，规则解释在新 HTTP 层。
-func projectOpenAIFailoverError(err *forwardcore.UpstreamFailoverError) *gatewayhttp.OpenAIFailoverError {
-	if err == nil {
-		return nil
-	}
-	credentialStatus, credentialMessage := credentialFailoverClientResponse(err)
-	return &gatewayhttp.OpenAIFailoverError{Status: err.StatusCode, ClientStatus: err.ClientStatusCode, ClientMessage: err.ClientMessage, CredentialStatus: credentialStatus, CredentialMessage: credentialMessage, Headers: err.ResponseHeaders, Body: err.ResponseBody, TooLarge: gatewayprovider.IsOpenAIRequestBodyTooLarge(err), TooLargeMessage: service.OpenAIRequestBodyTooLargeClientMessage, ContinuationUnsupported: err.Reason == service.OpenAIHTTPContinuationUnsupportedReason, Credential: err.IsCredentialFailure(), CapacityShed: gatewayprovider.IsOpenAICapacityShed(err), SilentRefusal: service.IsOpenAISilentRefusalErrorBody(err.ResponseBody), SilentMessage: service.OpenAISilentRefusalClientMessage(), CyberWarning: gatewayprovider.IsOpenAICyberWarningPayload(err.ResponseBody, ""), CyberMessage: gatewayprovider.ExtractOpenAICyberWarningMessage(err.ResponseBody, ""), UpstreamMessage: upstream.ExtractErrorMessage(err.ResponseBody)}
-}
-
 // NewOpenAITextExecutor 在唯一 Recorder 已绑定后构造，供 Responses/Chat/Messages 共用。
 func (h *OpenAIGatewayHandler) NewOpenAITextExecutor() *textflow.ResponsesExecutor {
 	maxSwitches := 0
@@ -258,9 +239,4 @@ func (h *OpenAIGatewayHandler) NewOpenAITextExecutor() *textflow.ResponsesExecut
 		maxSwitches = h.maxAccountSwitches
 	}
 	return textflow.NewResponsesExecutor(&fixedOpenAITextRuntime{dependencies: newOpenAIExecutionDependencies(h)}, textflow.ResponseOptions{MaxSwitches: maxSwitches}, textflow.ResponseOptions{MaxSwitches: maxSwitches, FirstOutputBudget: true})
-}
-
-// MappedBodyCache 仅为尚未改绑的无消费 token 入口保留。
-func (p openAITextHTTPBackend) MappedBodyCache(body []byte) func(bool, string) []byte {
-	return newOpenAIModelMappedBodyCache(body, p.h.gatewayService.ReplaceModelInBody)
 }

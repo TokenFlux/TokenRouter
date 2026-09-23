@@ -9,7 +9,6 @@ import (
 
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	dto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -21,6 +20,8 @@ import (
 
 // APIKeyHandler 只持有 Key 用例与路由展示端口；分组算法和容量查询仍由其原所有者提供。
 type APIKeyHandler[G any] struct {
+	idempotencyhttp.Executor
+
 	apiKeyService        *apikey.APIKeyService
 	groupCapacityService GroupCapacityReader
 	presentGroup         func(*routing.Group, *accessview.GroupCapacitySummary) *G
@@ -269,7 +270,7 @@ func (h *APIKeyHandler[G]) Create(c *gin.Context) {
 		svcReq.RateLimit7d = *req.RateLimit7d
 	}
 
-	idempotencyhttp.ExecuteUserIdempotentJSON(c, "user.api_keys.create", req, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteUserIdempotentJSON(c, "user.api_keys.create", req, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		key, err := h.apiKeyService.Create(ctx, subject.UserID, svcReq)
 		if err != nil {
 			return nil, err

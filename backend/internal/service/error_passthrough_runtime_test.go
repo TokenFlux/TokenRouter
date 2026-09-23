@@ -9,10 +9,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -47,14 +50,14 @@ func TestGatewayHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	respBody := []byte(`{"error":{"message":"Invalid schema for field messages"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusUnprocessableEntity,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 11, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
 	require.Error(t, err)
@@ -73,14 +76,14 @@ func TestOpenAIHandleErrorResponse_NoRuleKeepsDefault(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"Invalid schema for field messages"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusUnprocessableEntity,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
@@ -99,7 +102,7 @@ func TestOpenAIHandleErrorResponse_InvalidRequest400PassesThrough(t *testing.T) 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"Invalid property name in input arguments","type":"invalid_request_error","param":"input[35].arguments","code":"property_name_above_max_length"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusBadRequest,
@@ -109,7 +112,7 @@ func TestOpenAIHandleErrorResponse_InvalidRequest400PassesThrough(t *testing.T) 
 			"X-Request-Id": {"req_invalid_arguments"},
 		},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 
@@ -126,14 +129,14 @@ func TestOpenAIHandleErrorResponse_TransientInvalidRequest400KeepsGatewayError(t
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com if the error persists. Please include the request ID req_123 in your message.","type":"invalid_request_error"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 
@@ -147,14 +150,14 @@ func TestOpenAIHandleErrorResponse_OtherInvalidRequest400PassesThroughDetails(t 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"Unknown parameter: input[0].namespace","type":"invalid_request_error","param":"input[0].namespace","code":"unknown_parameter"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 
@@ -172,13 +175,13 @@ func TestOpenAIHandleErrorResponsePassthrough_InvalidRequest400PassesThrough(t *
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"Invalid property name in input arguments","type":"invalid_request_error","param":"input[35].arguments","code":"property_name_above_max_length"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Header:     http.Header{"Content-Type": {"application/json"}},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 
 	err := svc.handleErrorResponsePassthrough(context.Background(), resp, c, account, []byte(`{"model":"gpt-5.5"}`), respBody)
 
@@ -195,14 +198,14 @@ func TestOpenAIHandleCompatErrorResponse_InvalidRequest400PreservesDetails(t *te
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"Invalid property name in input arguments","type":"invalid_request_error","param":"input[35].arguments","code":"property_name_above_max_length"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 
 	_, err := svc.handleCompatErrorResponse(resp, c, account, writeChatCompletionsError, writeChatCompletionsErrorBody)
 
@@ -219,14 +222,14 @@ func TestOpenAIHandleCompatMessagesErrorResponse_InvalidRequest400PreservesDetai
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"Invalid property name in input arguments","type":"invalid_request_error","param":"input[35].arguments","code":"property_name_above_max_length"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12, Name: "openai", Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 
 	_, err := svc.handleCompatErrorResponse(resp, c, account, httpapi.WriteForwardAnthropicError, httpapi.WriteForwardAnthropicErrorBody)
 
@@ -241,14 +244,14 @@ func TestOpenAIHandleErrorResponse_ContextWindow502KeepsMessageWithoutFailover(t
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"upstream_error","code":null}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusBadGateway,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 14, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 14, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
@@ -269,9 +272,9 @@ func TestGeminiWriteGeminiMappedError_NoRuleKeepsDefault(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &GeminiMessagesCompatService{}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{})
 	respBody := []byte(`{"error":{"code":422,"message":"Invalid schema for field messages","status":"INVALID_ARGUMENT"}}`)
-	account := &Account{ID: 13, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 13, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}}
 
 	err := svc.writeGeminiMappedError(c, account, http.StatusUnprocessableEntity, "req-2", respBody)
 	require.Error(t, err)
@@ -293,14 +296,14 @@ func TestGatewayHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "上游请求失败")})
 	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	respBody := []byte(`{"error":{"message":"Invalid schema for field messages"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusUnprocessableEntity,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
 	require.Error(t, err)
@@ -322,14 +325,14 @@ func TestOpenAIHandleErrorResponse_AppliesRuleFor422(t *testing.T) {
 	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "OpenAI上游失败")})
 	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	respBody := []byte(`{"error":{"message":"Invalid schema for field messages"}}`)
 	resp := &http.Response{
 		StatusCode: http.StatusUnprocessableEntity,
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
@@ -351,9 +354,9 @@ func TestGeminiWriteGeminiMappedError_AppliesRuleFor422(t *testing.T) {
 	ruleSvc := newErrorRulesTestService([]*errorpolicy.ErrorPassthroughRule{newNonFailoverPassthroughRule(http.StatusUnprocessableEntity, "invalid schema", http.StatusTeapot, "Gemini上游失败")})
 	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
-	svc := &GeminiMessagesCompatService{}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{})
 	respBody := []byte(`{"error":{"code":422,"message":"Invalid schema for field messages","status":"INVALID_ARGUMENT"}}`)
-	account := &Account{ID: 3, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}}
 
 	err := svc.writeGeminiMappedError(c, account, http.StatusUnprocessableEntity, "req-1", respBody)
 	require.Error(t, err)
@@ -429,13 +432,13 @@ func TestHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	resp := &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"temperature: range: 0..1"}}`))),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 100, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 100, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
 	require.Error(t, err)
@@ -454,13 +457,13 @@ func TestHandleErrorResponse_PassthroughRuleSetsCommitted(t *testing.T) {
 	})
 	httpapi.BindErrorPassthroughService(c, ruleSvc)
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	resp := &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"temperature: range: 0..1"}}`))),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 200, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 200, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account)
 	require.Error(t, err)
@@ -478,13 +481,13 @@ func TestOpenAIHandleErrorResponse_SetsResponseCommitted(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	resp := &http.Response{
 		StatusCode: http.StatusTooManyRequests,
 		Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"rate limit exceeded"}}`))),
 		Header:     http.Header{},
 	}
-	account := &Account{ID: 101, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 	require.Error(t, err)
@@ -496,9 +499,9 @@ func TestGeminiWriteGeminiMappedError_SetsResponseCommitted(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	svc := &GeminiMessagesCompatService{}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{})
 	body := []byte(`{"error":{"message":"invalid field"}}`)
-	account := &Account{ID: 102, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 102, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}}
 
 	err := svc.writeGeminiMappedError(c, account, http.StatusBadRequest, "req-99", body)
 	require.Error(t, err)

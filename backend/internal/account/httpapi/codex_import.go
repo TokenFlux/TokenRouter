@@ -5,14 +5,16 @@ import (
 	context "context"
 
 	account "github.com/TokenFlux/TokenRouter/internal/account"
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
 )
 
 // CodexImportHandler 只拥有管理 HTTP 和原幂等响应。
-type CodexImportHandler struct{ core *account.CodexImporter }
+type CodexImportHandler struct {
+	idempotencyhttp.Executor
+	core *account.CodexImporter
+}
 
 func NewCodexImportHandler(core *account.CodexImporter) *CodexImportHandler {
 	return &CodexImportHandler{core: core}
@@ -51,7 +53,7 @@ func (h *CodexImportHandler) ImportCodexSession(c *gin.Context) {
 		return
 	}
 
-	idempotencyhttp.ExecuteAdminIdempotentJSON(c, "admin.accounts.import_codex_session", req, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.accounts.import_codex_session", req, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		return h.core.Import(ctx, req, entries)
 	})
 }

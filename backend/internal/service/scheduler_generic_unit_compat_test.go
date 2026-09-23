@@ -6,6 +6,7 @@ import (
 	"context"
 	"time"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
@@ -71,9 +72,9 @@ func selectByLRU(accounts []accountWithLoad, preferOAuth bool) *accountWithLoad 
 	return nil
 }
 
-func sortAccountsByPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
+func sortAccountsByPriorityAndLastUsed(accounts []*gatewayprovider.ExecutionAccount, preferOAuth bool) {
 	values := make([]*scheduler.BasicAccount, len(accounts))
-	restore := make(map[*scheduler.BasicAccount]*Account, len(accounts))
+	restore := make(map[*scheduler.BasicAccount]*gatewayprovider.ExecutionAccount, len(accounts))
 	for i, a := range accounts {
 		values[i] = basicAccountProjection(a)
 		restore[values[i]] = a
@@ -85,7 +86,7 @@ func sortAccountsByPriorityAndLastUsed(accounts []*Account, preferOAuth bool) {
 }
 
 // selectAccountForModelWithPlatform 选择单平台账户（完全隔离）
-func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, platform string) (*Account, error) {
+func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, platform string) (*gatewayprovider.ExecutionAccount, error) {
 	core, scope := s.genericSelector()
 	selected, err := core.SelectPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
 	return scope.oldAccount(selected), err
@@ -93,18 +94,18 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 
 // selectAccountWithMixedScheduling 选择账户（支持混合调度）
 // 查询原生平台账户 + 启用 mixed_scheduling 的 antigravity 账户
-func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, nativePlatform string) (*Account, error) {
+func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, nativePlatform string) (*gatewayprovider.ExecutionAccount, error) {
 	core, scope := s.genericSelector()
 	selected, err := core.SelectMixed(ctx, groupID, sessionHash, requestedModel, excludedIDs, nativePlatform)
 	return scope.oldAccount(selected), err
 }
 
 // 基础选择旧入口只投影排序字段，指针对应表保留原对象及同 ID 候选差异。
-func basicAccountProjection(a *Account) *scheduler.BasicAccount {
+func basicAccountProjection(a *gatewayprovider.ExecutionAccount) *scheduler.BasicAccount {
 	if a == nil {
 		return nil
 	}
-	return &scheduler.BasicAccount{ID: a.ID, Type: a.Type, Priority: a.Priority, LastUsedAt: a.LastUsedAt, SessionWindowEnd: a.SessionWindowEnd}
+	return &scheduler.BasicAccount{ID: a.Record.ID, Type: a.Record.Type, Priority: a.Record.Priority, LastUsedAt: a.Record.LastUsedAt, SessionWindowEnd: a.Record.SessionWindowEnd}
 }
 
 func basicLoadProjections(accounts []accountWithLoad) ([]scheduler.BasicCandidate, map[*scheduler.BasicAccount]accountWithLoad) {

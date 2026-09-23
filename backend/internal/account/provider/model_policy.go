@@ -30,3 +30,10 @@ func ModelRules(value *account.Record) account.ModelPlatformRules {
 		},
 	}
 }
+
+// SupportsOpenAIEndpoint 在端点能力检查实际需要时提供平台媒体资格，不提前读取资格。
+func SupportsOpenAIEndpoint(value *account.Record, capability account.OpenAIEndpointCapability) bool {
+	return value.SupportsOpenAIEndpointCapability(capability, func() (bool, string) {
+		return account.GrokMediaGenerationEligibility(value, GrokTierRules())
+	})
+}

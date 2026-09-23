@@ -3,8 +3,8 @@ package app
 
 import (
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
 	provider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 
@@ -15,7 +15,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	usage "github.com/TokenFlux/TokenRouter/internal/usage"
 
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
@@ -30,25 +29,20 @@ import (
 )
 
 func provideGatewayForRouting(nativeUsageStore *usagepostgres.Store,
-	models *routing.ModelList,
-	catalogue *routing.RequestableCatalogue,
-	accountRepo service.AccountRepository,
+	accountRepo gatewayprovider.ExecutionAccountStore,
 	groupRepo routing.GroupRepository,
 	usageLogRepo usage.UsageLogRepository,
-	usageBillingRepo completion.Store,
-	userRepo identity.UserRepository,
-	userSubRepo billing.UserSubscriptionRepository,
-	userGroupRateRepo billing.UserGroupRateRepository,
+
 	cache session.GatewayCache,
 	cfg *config.Config,
-	schedulerSnapshot *service.SchedulerSnapshotService,
+	schedulerSnapshot *scheduler.SnapshotService,
 	concurrencyService *scheduler.ConcurrencyService,
-	billingService *billing.Calculator,
+
 	rateLimitService *service.RateLimitService,
-	billingCacheService *billing.Eligibility,
+
 	identityService *anthropic.RequestFingerprint,
 	httpUpstream httpclient.UpstreamTransport, deferredService *account.DeferredService,
-	claudeTokenProvider *account.ClaudeTokenSource,
+	messageCredentials *account.MessageCredentialSource,
 	sessionLimitCache scheduler.SessionLimitCache,
 	windowCostCache billing.WindowCostCache,
 	rpmCache scheduler.RPMCache,
@@ -57,20 +51,24 @@ func provideGatewayForRouting(nativeUsageStore *usagepostgres.Store,
 	tlsFPProfileService *provider.TLSProfiles,
 	channelService *routing.ChannelService,
 	resolver *billing.PriceResolver,
-	balanceNotifyService *billing.BalanceNotifyService,
-	userPlatformQuotaRepo billing.UserPlatformQuotaRepository,
+
+	headerFilter *egress.CompiledHeaderFilter, recorders GatewayCompletionRecorders,
 ) *service.GatewayService {
-	gateway := service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo, cache, cfg, schedulerSnapshot, concurrencyService, billingService, rateLimitService, billingCacheService, identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, windowCostCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, balanceNotifyService, userPlatformQuotaRepo, models)
+	gateway := service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, cache, cfg, schedulerSnapshot, concurrencyService, rateLimitService, identityService, httpUpstream, deferredService, messageCredentials, sessionLimitCache, windowCostCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, headerFilter)
 	gateway.BindUsageWindowSource(usageWindowStats{nativeUsageStore})
-	gateway.BindModelCatalogue(catalogue)
+	gateway.BindCompletionRecorder(recorders.Forward)
 	return gateway
 }
 
 // provideRoutingModelList 由 app 投影原 15 秒默认 TTL；缓存无构造启动副作用。
 func provideRoutingModelList(repo *accountpostgres.AccountStore, cfg *config.Config) *routing.ModelList {
-	ttl := 15 * time.Second
-	if cfg != nil && cfg.Gateway.ModelsListCacheTTLSeconds > 0 {
-		ttl = time.Duration(cfg.Gateway.ModelsListCacheTTLSeconds) * time.Second
+	return routing.NewModelList(catalogueReader(repo), resolveModelsListCacheTTL(cfg))
+}
+
+// resolveModelsListCacheTTL 保留默认十五秒及显式正数配置，投影仅属于组合根。
+func resolveModelsListCacheTTL(cfg *config.Config) time.Duration {
+	if cfg == nil || cfg.Gateway.ModelsListCacheTTLSeconds <= 0 {
+		return 15 * time.Second
 	}
-	return routing.NewModelList(catalogueReader(repo), ttl)
+	return time.Duration(cfg.Gateway.ModelsListCacheTTLSeconds) * time.Second
 }

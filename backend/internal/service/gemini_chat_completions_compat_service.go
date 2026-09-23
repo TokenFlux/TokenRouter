@@ -10,6 +10,7 @@ import (
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	"context"
@@ -34,7 +35,7 @@ import (
 func (s *GeminiMessagesCompatService) ForwardAsResponses(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	_ *requeststate.ParsedRequest,
 ) (*protocolforward.MessagesResult, error) {
@@ -82,7 +83,7 @@ func (s *GeminiMessagesCompatService) ForwardAsResponses(
 func (s *GeminiMessagesCompatService) ForwardAsChatCompletions(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 ) (*protocolforward.MessagesResult, error) {
 	startTime := time.Now()
@@ -133,7 +134,7 @@ func (s *GeminiMessagesCompatService) ForwardAsChatCompletions(
 func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	claudeBody []byte,
 	originalModel string,
 	clientStream bool,
@@ -164,12 +165,12 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 	geminiReq = ensureGeminiFunctionCallThoughtSignatures(geminiReq)
 
 	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
+	if account.Record.ProxyID != nil && account.Record.Proxy != nil {
+		proxyURL = account.Record.Proxy.URL()
 	}
 
 	useUpstreamStream := clientStream
-	if account.Type == capability.AccountTypeOAuth && !clientStream && strings.TrimSpace(account.GetCredential("project_id")) != "" {
+	if account.Record.Type == capability.AccountTypeOAuth && !clientStream && strings.TrimSpace(account.View().GetCredential("project_id")) != "" {
 		useUpstreamStream = true
 	}
 
@@ -185,7 +186,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 	options.Build = buildReq
 	options.RequestIDHeader = requestIDHeader
 	options.Do = func(req *http.Request) (*http.Response, error) {
-		return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+		return s.httpUpstream.Do(req, proxyURL, account.Record.ID, account.Record.Concurrency)
 	}
 	var requestID string
 	var compatibilityResult *protocolforward.MessagesResult
@@ -195,7 +196,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 	if protocol == gemininative.OpenAICompatResponses {
 		clientProtocol = protocolcore.ProtocolOpenAIResponses
 	}
-	target := &gemininative.Target{AccountID: account.ID, Model: mappedModel, Mode: gemininative.OpenAIResponse, Exchange: options, Response: s.geminiResponseAdapter(c).Options, StartedAt: startTime, UpstreamStream: useUpstreamStream, OAuth: account.Type == capability.AccountTypeOAuth, Enter: s.nativeAttemptActivity}
+	target := &gemininative.Target{AccountID: account.Record.ID, Model: mappedModel, Mode: gemininative.OpenAIResponse, Exchange: options, Response: s.geminiResponseAdapter(c).Options, StartedAt: startTime, UpstreamStream: useUpstreamStream, OAuth: account.Record.Type == capability.AccountTypeOAuth, Enter: s.nativeAttemptActivity}
 	target.OpenAIProtocol = protocol
 	target.IncludeUsage = includeUsage
 	target.ClientTools = clientToolMapping
@@ -217,12 +218,12 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 				reasoningEffort = extractCCReasoningEffortFromBody(originalBody, mappedModel)
 			}
 			// 国产模型没有显式 effort 档位时，thinking 启用后补默认展示值。
-			reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, originalBody, mappedModel)
+			reasoningEffort = gatewayprovider.ApplyThinkingEnabledFallback(reasoningEffort, originalBody, mappedModel)
 
 			if resp.StatusCode >= 400 {
 				respBody := s.readUpstreamErrorBody(resp)
 				decision := s.applyGeminiUpstreamErrorPolicy(ctx, account, resp.StatusCode, resp.Header, respBody, mappedModel)
-				evBody := gemininative.UnwrapIfNeeded(account.Type == capability.AccountTypeOAuth, respBody)
+				evBody := gemininative.UnwrapIfNeeded(account.Record.Type == capability.AccountTypeOAuth, respBody)
 				if decision.Policy == accountcore.ErrorPolicyCustomSkipped || decision.Policy == accountcore.ErrorPolicyPoolBypassed {
 					if failoverErr := s.skippedErrorPolicyFailoverError(c, account, resp.StatusCode, respBody, requestID); failoverErr != nil {
 						return nil, failoverErr
@@ -241,12 +242,12 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 
 				msg400 := strings.ToLower(strings.TrimSpace(upstream.ExtractErrorMessage(respBody)))
 				googleConfigError := resp.StatusCode == http.StatusBadRequest && upstream.IsGoogleProjectConfigError(msg400)
-				if decision.ShouldFailover(account, resp.StatusCode, googleConfigError || s.shouldFailoverGeminiUpstreamError(resp.StatusCode)) {
+				if decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, googleConfigError || s.shouldFailoverGeminiUpstreamError(resp.StatusCode)) {
 					upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(evBody)))
 					gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-						Platform:           account.Platform,
-						AccountID:          account.ID,
-						AccountName:        account.Name,
+						Platform:           account.Record.Platform,
+						AccountID:          account.Record.ID,
+						AccountName:        account.Record.Name,
 						UpstreamStatusCode: resp.StatusCode,
 						UpstreamRequestID:  requestID,
 						Kind:               "failover",
@@ -255,7 +256,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 					return nil, &protocolforward.UpstreamFailoverError{
 						StatusCode:             resp.StatusCode,
 						ResponseBody:           evBody,
-						RetryableOnSameAccount: decision.RetryableOnSameAccount(account, resp.StatusCode),
+						RetryableOnSameAccount: decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode),
 					}
 				}
 
@@ -303,7 +304,7 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsOpenAICompat(
 }
 
 func (s *GeminiMessagesCompatService) buildGeminiChatCompletionsUpstreamRequestFunc(
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	mappedModel string,
 	geminiReq []byte,
 	clientStream bool,
@@ -317,7 +318,7 @@ func (s *GeminiMessagesCompatService) buildGeminiChatCompletionsUpstreamRequestF
 
 func (s *GeminiMessagesCompatService) writeGeminiOpenAICompatMappedError(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	upstreamStatus int,
 	upstreamRequestID string,
 	body []byte,
@@ -327,9 +328,9 @@ func (s *GeminiMessagesCompatService) writeGeminiOpenAICompatMappedError(
 	gatewayhttp.SetOpsUpstreamError(c, upstreamStatus, upstreamMsg, "")
 	if account != nil {
 		gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+			Platform:           account.Record.Platform,
+			AccountID:          account.Record.ID,
+			AccountName:        account.Record.Name,
 			UpstreamStatusCode: upstreamStatus,
 			UpstreamRequestID:  upstreamRequestID,
 			Kind:               "http_error",
@@ -406,7 +407,7 @@ func (s *GeminiMessagesCompatService) writeGeminiOpenAICompatMappedError(
 	}
 	// 池模式的 4xx 不会切换账号，客户端需要看到上游给出的具体校验原因；
 	// 普通账号仍保留兼容层的通用错误文案。
-	if account != nil && account.IsPoolMode() && upstreamStatus >= http.StatusBadRequest && upstreamMsg != "" {
+	if account != nil && account.View().IsPoolMode() && upstreamStatus >= http.StatusBadRequest && upstreamMsg != "" {
 		errMsg = upstreamMsg
 	}
 	return s.writeGeminiOpenAICompatError(c, protocol, statusCode, errType, errMsg)

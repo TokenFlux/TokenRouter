@@ -5,6 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+
+	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+
 	opshttp "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 
@@ -16,15 +20,15 @@ func TestOpsAdminRoutesRequireAdminAuthentication(t *testing.T) {
 
 	router := gin.New()
 	handlers := &routeTestHandlers{Admin: &routeTestAdminHandlers{Ops: opshttp.NewOpsHandler(nil)}}
-	adminAuth := servermiddleware.AdminAuthMiddleware(func(c *gin.Context) {
+	adminAuth := identityhttp.AdminAuthMiddleware(func(c *gin.Context) {
 		if c.GetHeader("Authorization") == "" {
-			servermiddleware.AbortWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization required")
+			httpx.AbortWithError(c, http.StatusUnauthorized, "UNAUTHORIZED", "Authorization required")
 			return
 		}
-		servermiddleware.AbortWithError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
+		httpx.AbortWithError(c, http.StatusForbidden, "FORBIDDEN", "Admin access required")
 	})
 	auditLog := servermiddleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
-	stepUp := servermiddleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
+	stepUp := identityhttp.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
 	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil, func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	for _, path := range []string{

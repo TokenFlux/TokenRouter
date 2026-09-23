@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 	"github.com/stretchr/testify/require"
@@ -120,12 +122,12 @@ func (c *openAIWSBlockingConn) Close() error {
 
 // 应用关闭后不得通过按需入口创建第二个池，既有池也不得再次发起获取。
 func TestOpenAIWSConnPoolShutdownSealsLazyCreation(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.CloseOpenAIWSPool()
 	require.Nil(t, svc.getOpenAIWSConnPool())
 	pool := newOpenAIWSConnPool(nil)
 	pool.Close()
-	_, err := pool.Acquire(context.Background(), openai.WSAcquireRequest{Account: openAIWSPoolAccountView(&Account{ID: 1}), WSURL: "wss://example.test"})
+	_, err := pool.Acquire(context.Background(), openai.WSAcquireRequest{Account: openAIWSPoolAccountView(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}), WSURL: "wss://example.test"})
 	require.ErrorIs(t, err, openai.ErrWSConnClosed)
 	pool.Close()
 }

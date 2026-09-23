@@ -13,6 +13,7 @@ import (
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
@@ -31,15 +32,15 @@ const (
 )
 
 // 兼容入口委托原生单账号重试规则。
-func (s *GatewayService) shouldRetryUpstreamError(account *Account, statusCode int) bool {
-	return forwardcore.ShouldRetry(account.IsOAuth(), statusCode)
+func (s *GatewayService) shouldRetryUpstreamError(account *gatewayprovider.ExecutionAccount, statusCode int) bool {
+	return forwardcore.ShouldRetry(account.View().IsOAuth(), statusCode)
 }
 func (s *GatewayService) shouldFailoverUpstreamError(statusCode int) bool {
 	return forwardcore.ShouldFailover(statusCode)
 }
 
 // Forward 转发请求到Claude API
-func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, parsed *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error) {
+func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, parsed *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error) {
 	adapter := newMessageExecutionAdapter(s, c, account)
 	result, err := forwardcore.Messages(ctx, adapter, adapter.input(), parsed)
 	return legacyForwardExecutionResult(result), err
@@ -93,7 +94,7 @@ func (s *GatewayService) checkChannelPricingRestriction(ctx context.Context, gro
 
 // isUpstreamModelRestrictedByChannel 检查账号映射后的上游模型是否受渠道定价限制。
 // 仅在 BillingModelSource="upstream" 且 RestrictModels=true 时由调度循环调用。
-func (s *GatewayService) isUpstreamModelRestrictedByChannel(ctx context.Context, groupID int64, account *Account, requestedModel string) bool {
+func (s *GatewayService) isUpstreamModelRestrictedByChannel(ctx context.Context, groupID int64, account *gatewayprovider.ExecutionAccount, requestedModel string) bool {
 	if s.channelService == nil {
 		return false
 	}
@@ -122,18 +123,18 @@ func (s *GatewayService) channelMappedModelForGroup(ctx context.Context, groupID
 
 // resolveAccountMappedModelForForward 执行账号模型映射，并对空映射结果保持原模型透传。
 // 所有实际转发和调度检查都应从渠道映射后的模型调用本函数。
-func resolveAccountMappedModelForForward(value *Account, requestedModel string) string {
-	return accountcore.ResolveForwardMappedModel(AccountRecordView(value), requestedModel, accountprovider.ModelDefaults())
+func resolveAccountMappedModelForForward(value *gatewayprovider.ExecutionAccount, requestedModel string) string {
+	return accountcore.ResolveForwardMappedModel(gatewayprovider.ExecutionRecord(value), requestedModel, accountprovider.ModelDefaults())
 }
 
 // resolveAnthropicAccountUpstreamModel 执行账号映射后的 Anthropic 平台最终模型规范化。
-func resolveAnthropicAccountUpstreamModel(account *Account, accountMappedModel string) string {
-	return accountModelPolicy(account).AnthropicUpstream(accountMappedModel)
+func resolveAnthropicAccountUpstreamModel(account *gatewayprovider.ExecutionAccount, accountMappedModel string) string {
+	return gatewayprovider.ExecutionModelPolicy(account).AnthropicUpstream(accountMappedModel)
 }
 
 // resolveAccountUpstreamModel 解析真正发送给平台上游的最终模型。
-func resolveAccountUpstreamModel(ctx context.Context, account *Account, requestedModel string) string {
-	return accountModelPolicy(account).UpstreamModel(ctx, requestedModel)
+func resolveAccountUpstreamModel(ctx context.Context, account *gatewayprovider.ExecutionAccount, requestedModel string) string {
+	return gatewayprovider.ExecutionModelPolicy(account).UpstreamModel(ctx, requestedModel)
 }
 
 // needsUpstreamChannelRestrictionCheck 判断是否需要在调度循环中逐账号检查上游模型的渠道限制。

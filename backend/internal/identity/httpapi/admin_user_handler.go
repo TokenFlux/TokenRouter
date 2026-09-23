@@ -6,8 +6,9 @@ import (
 	strconv "strconv"
 	strings "strings"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	billingdto "github.com/TokenFlux/TokenRouter/internal/billing/httpapi/dto"
-	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	dto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
@@ -35,6 +36,8 @@ type UserAdministration interface {
 
 // AdminUserHandler 不接收旧聚合管理服务；Key 展示和并发读取由独立端口提供。
 type AdminUserHandler[K any] struct {
+	idempotencyhttp.Executor
+
 	adminService UserAdministration
 	listKeys     func(context.Context, int64, int, int, string, string) ([]K, int64, error)
 	concurrency  func(context.Context, []identity.User) (map[int64]int, error)
@@ -42,13 +45,13 @@ type AdminUserHandler[K any] struct {
 }
 
 func NewAdminUserHandler[K any](users UserAdministration, keys func(context.Context, int64, int, int, string, string) ([]K, int64, error), concurrency func(context.Context, []identity.User) (map[int64]int, error), stepUp func(*gin.Context) bool) *AdminUserHandler[K] {
-	return &AdminUserHandler[K]{users, keys, concurrency, stepUp}
+	return &AdminUserHandler[K]{adminService: users, listKeys: keys, concurrency: concurrency, stepUp: stepUp}
 }
 func (h *AdminUserHandler[K]) userResponse(u *identity.User) *dto.AdminUser[K] {
 	return dto.AdminUserFromIdentity[K](u, nil)
 }
 func adminID(c *gin.Context) int64 {
-	s, ok := GetAuthSubjectFromContext(c)
+	s, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		return 0
 	}
@@ -409,7 +412,7 @@ func (h *AdminUserHandler[K]) UpdateBalance(c *gin.Context) {
 		UserID: userID,
 		Body:   req,
 	}
-	idempotencyhttp.ExecuteAdminIdempotentJSON(c, "admin.users.balance.update", idempotencyPayload, idempotency.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.users.balance.update", idempotencyPayload, h.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		user, execErr := h.adminService.UpdateUserBalance(ctx, userID, req.Balance, req.Operation, req.Notes)
 		if execErr != nil {
 			return nil, execErr

@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -32,10 +35,10 @@ func newCompactBridgeTestContext(t *testing.T, markClientStream bool) (*gin.Cont
 
 func newCompactBridgeTestService() *OpenAIGatewayService {
 	cfg := &config.Config{}
-	return &OpenAIGatewayService{
+	return withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:           cfg,
 		toolCorrector: openai.NewCodexToolCorrector(),
-	}
+	})
 }
 
 // parseCompactBridgeSSE 把合成的 SSE 文本拆成 (eventType, dataJSON) 序列。
@@ -207,7 +210,7 @@ func TestHandleNonStreamingResponse_CompactClientStreamBridgesToSSE(t *testing.T
 		}`)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeOAuth}}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -241,7 +244,7 @@ func TestHandleNonStreamingResponse_PathBasedCompactStaysJSON(t *testing.T) {
 		}`)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeOAuth}}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -266,7 +269,7 @@ func TestHandleSSEToJSON_CompactClientStreamBridgesToSSE(t *testing.T) {
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeOAuth}}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -299,7 +302,7 @@ func TestHandleSSEToJSON_CompactRawOutputItemDoneRepairsEmptyTerminalOutput(t *t
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeOAuth}}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -368,7 +371,7 @@ func TestHandleSSEToJSON_PathBasedCompactRawOutputItemDoneRepairsJSON(t *testing
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeOAuth}}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
@@ -461,7 +464,7 @@ func TestHandleSSEToJSON_CompactSupplementsMissingCompactionIntoNonEmptyOutput(t
 		Body:       io.NopCloser(strings.NewReader(upstreamSSE)),
 	}
 
-	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &Account{ID: 1, Type: capability.AccountTypeOAuth}, "gpt-5.5", "gpt-5.5")
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Type: capability.AccountTypeOAuth}}, "gpt-5.5", "gpt-5.5")
 	require.NoError(t, err)
 	require.NotNil(t, result)
 

@@ -23,6 +23,8 @@ import (
 // RestartRequester 只请求进程关闭，不授予 handler 直接退出进程的能力。
 type RestartRequester = maintenance.RestartRequester
 type SystemHandler struct {
+	idemhttp.Executor
+
 	updateSvc  systemUpdateService
 	operations *maintenance.Operations
 }
@@ -73,7 +75,7 @@ func (h *SystemHandler) CheckUpdates(c *gin.Context) {
 func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 	operationID := buildSystemOperationID(c, "update")
 	payload := gin.H{"operation_id": operationID}
-	idemhttp.ExecuteAdminIdempotentJSON(c, "admin.system.update", payload, idempotency.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.system.update", payload, h.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		return h.operations.Update(ctx, operationID)
 	})
 }
@@ -113,7 +115,7 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 	}
 	operationID := buildSystemOperationID(c, operation)
 	payload := gin.H{"operation_id": operationID, "version": targetVersion}
-	idemhttp.ExecuteAdminIdempotentJSON(c, "admin.system.rollback", payload, idempotency.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.system.rollback", payload, h.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		return h.operations.Rollback(ctx, operationID, targetVersion)
 	})
 }
@@ -123,7 +125,7 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 func (h *SystemHandler) RestartService(c *gin.Context) {
 	operationID := buildSystemOperationID(c, "restart")
 	payload := gin.H{"operation_id": operationID}
-	idemhttp.ExecuteAdminIdempotentJSON(c, "admin.system.restart", payload, idempotency.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
+	h.ExecuteAdminIdempotentJSON(c, "admin.system.restart", payload, h.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		return h.operations.Restart(ctx, operationID)
 	})
 }

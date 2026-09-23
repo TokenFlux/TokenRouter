@@ -7,6 +7,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	forward "github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -54,7 +55,7 @@ var openaiCCRawAllowedHeaders = map[string]bool{
 func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	defaultMappedModel string,
 	tlsRouterMatch ...egress.TLSFingerprintRouterMatchResult,
@@ -64,8 +65,8 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	return openAIForwardResultFromHTTP(result), err
 }
 
-func (s *OpenAIGatewayService) rawChatCompletionsURL(account *Account) (string, error) {
-	if account.Platform == capability.PlatformGrok {
+func (s *OpenAIGatewayService) rawChatCompletionsURL(account *gatewayprovider.ExecutionAccount) (string, error) {
+	if account.Record.Platform == capability.PlatformGrok {
 		targetURL, err := buildGrokChatCompletionsURL(account, s.cfg, s.settingService)
 		if err != nil {
 			return "", fmt.Errorf("invalid grok base_url: %w", err)

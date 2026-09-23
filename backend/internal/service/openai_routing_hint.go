@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -17,7 +18,7 @@ const openAICodexRoutingHintHeader = "x-codex-routing-hint"
 
 // setOpenAICodexRoutingHint 为 OpenAI OAuth 请求生成 Codex 后端路由提示。
 // model 必须是最终上游模型名，serviceTier 必须已应用本地策略改写与过滤。
-func setOpenAICodexRoutingHint(headers http.Header, account *Account, model string, serviceTier string) {
+func setOpenAICodexRoutingHint(headers http.Header, account *gatewayprovider.ExecutionAccount, model string, serviceTier string) {
 	if headers == nil {
 		return
 	}
@@ -26,7 +27,7 @@ func setOpenAICodexRoutingHint(headers http.Header, account *Account, model stri
 	// Provider 凭证路径透传调用方或账号头覆盖注入的提示；Header.Del 只会
 	// 删除规范化键，而入站映射可能保留原始小写键。
 	deleteOpenAIHeaderEqualFold(headers, openAICodexRoutingHintHeader)
-	if account == nil || !account.IsOpenAIOAuthLike() {
+	if account == nil || !account.View().IsOpenAIOAuthLike() {
 		return
 	}
 
@@ -68,7 +69,7 @@ func deleteOpenAIHeaderEqualFold(headers http.Header, name string) {
 	}
 }
 
-func setOpenAICodexRoutingHintFromBody(headers http.Header, account *Account, body []byte) {
+func setOpenAICodexRoutingHintFromBody(headers http.Header, account *gatewayprovider.ExecutionAccount, body []byte) {
 	fields := gjson.GetManyBytes(body, "model", "service_tier")
 	setOpenAICodexRoutingHint(headers, account, fields[0].String(), fields[1].String())
 }
@@ -77,7 +78,7 @@ func setOpenAICodexRoutingHintFromBody(headers http.Header, account *Account, bo
 // 信息的链路中，因此明确不记录任何请求头值、令牌或凭证。
 func logOpenAIRoutingDiagnostics(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	transport string,
 	model string,
 	serviceTier string,
@@ -89,7 +90,7 @@ func logOpenAIRoutingDiagnostics(
 	}
 	accountID := int64(0)
 	if account != nil {
-		accountID = account.ID
+		accountID = account.Record.ID
 	}
 
 	logging.FromContext(ctx).Debug("openai routing decision",
@@ -105,7 +106,7 @@ func logOpenAIRoutingDiagnostics(
 
 func logOpenAIRoutingDiagnosticsFromBody(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	transport string,
 	headers http.Header,
 	body []byte,

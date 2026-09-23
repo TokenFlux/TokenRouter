@@ -6,9 +6,10 @@ import (
 	"net/http"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
 	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
-	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/gin-gonic/gin"
@@ -74,7 +75,7 @@ func apiKeyUsageSubscriptionPayload(subscription *billingcore.UserSubscription) 
 
 // buildAPIKeyUsageBilling 生成 /v1/usage 的稳定资金来源视图。
 // 返回内容严格遵循 Key 的结算模式，不能因为查询时套餐失效而泄露或回退到余额。
-func (h *PublicUsageHandler) buildAPIKeyUsageBilling(c *gin.Context, ctx context.Context, apiKey *keycore.APIKey, subject identityhttp.AuthSubject, balanceUnitName string) (gin.H, *billingcore.UserSubscription, *float64, error) {
+func (h *PublicUsageHandler) buildAPIKeyUsageBilling(c *gin.Context, ctx context.Context, apiKey *keycore.APIKey, subject authctx.AuthSubject, balanceUnitName string) (gin.H, *billingcore.UserSubscription, *float64, error) {
 	mode := keycore.APIKeyEffectiveBillingMode(apiKey)
 	billing := gin.H{
 		"mode":                      mode,
@@ -127,7 +128,7 @@ func (h *PublicUsageHandler) buildAPIKeyUsageBilling(c *gin.Context, ctx context
 }
 
 // usageUnrestricted 处理 unrestricted 模式的响应（向后兼容）
-func (h *PublicUsageHandler) UsageUnrestricted(c *gin.Context, ctx context.Context, apiKey *keycore.APIKey, subject identityhttp.AuthSubject, usageData gin.H, dailyUsage any, modelStats any, balanceUnitName string) {
+func (h *PublicUsageHandler) UsageUnrestricted(c *gin.Context, ctx context.Context, apiKey *keycore.APIKey, subject authctx.AuthSubject, usageData gin.H, dailyUsage any, modelStats any, balanceUnitName string) {
 	billing, subscription, balance, billingErr := h.buildAPIKeyUsageBilling(c, ctx, apiKey, subject, balanceUnitName)
 	if billingErr != nil {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "Failed to get billing source")
@@ -203,7 +204,7 @@ func (h *PublicUsageHandler) UsageUnrestricted(c *gin.Context, ctx context.Conte
 }
 
 // usageQuotaLimited 处理 quota_limited 模式的响应
-func (h *PublicUsageHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, apiKey *keycore.APIKey, subject identityhttp.AuthSubject, usageData gin.H, dailyUsage any, modelStats any, balanceUnitName string) {
+func (h *PublicUsageHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, apiKey *keycore.APIKey, subject authctx.AuthSubject, usageData gin.H, dailyUsage any, modelStats any, balanceUnitName string) {
 	resp := gin.H{
 		"mode":    "quota_limited",
 		"isValid": apiKey.Status == keycore.StatusAPIKeyActive || apiKey.Status == keycore.StatusAPIKeyQuotaExhausted || apiKey.Status == keycore.StatusAPIKeyExpired,
@@ -397,7 +398,7 @@ func (h *PublicUsageHandler) Usage(c *gin.Context) {
 		return
 	}
 
-	subject, ok := identityhttp.GetAuthSubjectFromContext(c)
+	subject, ok := authctx.GetAuthSubjectFromContext(c)
 	if !ok {
 		h.errorResponse(c, http.StatusUnauthorized, "authentication_error", "Invalid API key")
 		return

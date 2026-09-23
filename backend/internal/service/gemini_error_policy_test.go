@@ -11,6 +11,7 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -22,7 +23,7 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestShouldFailoverGeminiUpstreamError(t *testing.T) {
-	svc := &GeminiMessagesCompatService{}
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{})
 
 	tests := []struct {
 		name       string
@@ -57,21 +58,20 @@ func TestShouldFailoverGeminiUpstreamError(t *testing.T) {
 func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 	tests := []struct {
 		name       string
-		account    *Account
+		account    *gatewayprovider.ExecutionAccount
 		statusCode int
 		body       []byte
 		expected   accountcore.ErrorPolicyResult
 	}{
 		{
 			name: "gemini_apikey_custom_codes_hit",
-			account: &Account{
-				ID:       100,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 100,
 				Type:     capability.AccountTypeAPIKey,
 				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(429), float64(500)},
-				},
+				}},
 			},
 			statusCode: 429,
 			body:       []byte(`{"error":"rate limited"}`),
@@ -79,14 +79,13 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 		},
 		{
 			name: "gemini_apikey_custom_codes_miss",
-			account: &Account{
-				ID:       101,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101,
 				Type:     capability.AccountTypeAPIKey,
 				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(429)},
-				},
+				}},
 			},
 			statusCode: 500,
 			body:       []byte(`{"error":"internal"}`),
@@ -94,10 +93,9 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 		},
 		{
 			name: "gemini_apikey_no_custom_codes_returns_none",
-			account: &Account{
-				ID:       102,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 102,
 				Type:     capability.AccountTypeAPIKey,
-				Platform: capability.PlatformGemini,
+				Platform: capability.PlatformGemini},
 			},
 			statusCode: 500,
 			body:       []byte(`{"error":"internal"}`),
@@ -105,8 +103,7 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 		},
 		{
 			name: "gemini_apikey_temp_unschedulable_hit",
-			account: &Account{
-				ID:       103,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 103,
 				Type:     capability.AccountTypeAPIKey,
 				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
@@ -118,7 +115,7 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 							"duration_minutes": float64(10),
 						},
 					},
-				},
+				}},
 			},
 			statusCode: 503,
 			body:       []byte(`overloaded service`),
@@ -126,8 +123,7 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 		},
 		{
 			name: "gemini_apikey_temp_unschedulable_401_second_hit_returns_none",
-			account: &Account{
-				ID:                      105,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 105,
 				Type:                    capability.AccountTypeAPIKey,
 				Platform:                capability.PlatformGemini,
 				TempUnschedulableReason: `{"status_code":401,"until_unix":1735689600}`,
@@ -140,7 +136,7 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 							"duration_minutes": float64(10),
 						},
 					},
-				},
+				}},
 			},
 			statusCode: 401,
 			body:       []byte(`unauthorized`),
@@ -148,8 +144,7 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 		},
 		{
 			name: "gemini_custom_codes_override_temp_unschedulable",
-			account: &Account{
-				ID:       104,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 104,
 				Type:     capability.AccountTypeAPIKey,
 				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
@@ -163,7 +158,7 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 							"duration_minutes": float64(10),
 						},
 					},
-				},
+				}},
 			},
 			statusCode: 503,
 			body:       []byte(`overloaded`),
@@ -174,9 +169,9 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &errorPolicyRepoStub{}
-			svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+			svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
 
-			result := svc.CheckErrorPolicy(context.Background(), tt.account, tt.statusCode, tt.body)
+			result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(tt.account), gatewayprovider.HealthObservationFromContext(context.Background(), tt.statusCode, nil, tt.body, nil))
 			require.Equal(t, tt.expected, result)
 		})
 	}
@@ -194,7 +189,7 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 
 	tests := []struct {
 		name                 string
-		account              *Account
+		account              *gatewayprovider.ExecutionAccount
 		statusCode           int
 		respBody             []byte
 		expectFailover       bool // expect UpstreamFailoverError
@@ -204,14 +199,13 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 	}{
 		{
 			name: "custom_codes_matched_429_failover",
-			account: &Account{
-				ID:       200,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 200,
 				Type:     capability.AccountTypeAPIKey,
 				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(429)},
-				},
+				}},
 			},
 			statusCode:        429,
 			respBody:          []byte(`{"error":"rate limited"}`),
@@ -220,14 +214,13 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 		},
 		{
 			name: "custom_codes_skipped_500_no_failover",
-			account: &Account{
-				ID:       201,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 201,
 				Type:     capability.AccountTypeAPIKey,
 				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(429)},
-				},
+				}},
 			},
 			statusCode:        500,
 			respBody:          []byte(`{"error":"internal"}`),
@@ -236,8 +229,7 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 		},
 		{
 			name: "temp_unschedulable_matched_failover",
-			account: &Account{
-				ID:       202,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 202,
 				Type:     capability.AccountTypeAPIKey,
 				Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
@@ -249,7 +241,7 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 							"duration_minutes": float64(10),
 						},
 					},
-				},
+				}},
 			},
 			statusCode:        503,
 			respBody:          []byte(`overloaded`),
@@ -259,10 +251,9 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 		},
 		{
 			name: "no_policy_429_failover_via_shouldFailover",
-			account: &Account{
-				ID:       203,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 203,
 				Type:     capability.AccountTypeAPIKey,
-				Platform: capability.PlatformGemini,
+				Platform: capability.PlatformGemini},
 			},
 			statusCode:           429,
 			respBody:             []byte(`{"error":"rate limited"}`),
@@ -272,10 +263,9 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 		},
 		{
 			name: "no_policy_400_no_failover",
-			account: &Account{
-				ID:       204,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 204,
 				Type:     capability.AccountTypeAPIKey,
-				Platform: capability.PlatformGemini,
+				Platform: capability.PlatformGemini},
 			},
 			statusCode:        400,
 			respBody:          []byte(`{"error":"bad request"}`),
@@ -287,11 +277,11 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &geminiErrorPolicyRepo{}
-			rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-			svc := &GeminiMessagesCompatService{
+			rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+			svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 				accountRepo:      repo,
 				rateLimitService: rlSvc,
-			}
+			})
 
 			writer := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(writer)
@@ -309,7 +299,7 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 			headers := http.Header{}
 
 			if svc.rateLimitService != nil {
-				policy := svc.rateLimitService.CheckErrorPolicy(ctx, account, statusCode, respBody, "gemini-2.5-pro")
+				policy := svc.rateLimitService.UpstreamHealth().CheckErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, statusCode, nil, respBody, []string{"gemini-2.5-pro"}))
 				switch policy {
 				case accountcore.ErrorPolicyCustomSkipped:
 					// Skipped → return error directly (no handleGeminiUpstreamError, no failover)
@@ -358,23 +348,22 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
-	svc := &GeminiMessagesCompatService{
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
 		rateLimitService: nil,
-	}
+	})
 
 	// When rateLimitService is nil, error policy is skipped → falls through to
 	// shouldFailoverGeminiUpstreamError (original logic).
 	// Verify this doesn't panic and follows expected behavior.
 
 	ctx := context.Background()
-	account := &Account{
-		ID:       300,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 300,
 		Type:     capability.AccountTypeAPIKey,
 		Platform: capability.PlatformGemini,
 		Credentials: map[string]any{
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(429)},
-		},
+		}},
 	}
 
 	// The nil check should prevent CheckErrorPolicy from being called
@@ -400,20 +389,20 @@ func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
 func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t *testing.T) {
 	repo := &rateLimit429AccountRepoStub{}
 	quotaSvc := accountcore.NewGeminiQuotaService(accountcore.GeminiQuotaOptions{})
-	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, quotaSvc, nil)
-	svc := &GeminiMessagesCompatService{
+	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
+		quotaPrecheck:    accountcore.NewGeminiPrecheck(quotaSvc, nil, accountcore.GeminiPrecheckOptions{Now: time.Now, Location: geminiQuotaLocation()}),
 		accountRepo:      repo,
 		rateLimitService: rlSvc,
-	}
+	})
 
-	account := &Account{
-		ID:       511,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 511,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeOAuth,
 		Credentials: map[string]any{
 			"oauth_type": "google_one",
 			"tier_id":    "google_ai_pro",
-		},
+		}},
 	}
 	body := []byte(`{"error":{"code":429,"details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","domain":"cloudcode-pa.googleapis.com","metadata":{"model":"gemini-3.1-pro-preview"},"reason":"MODEL_CAPACITY_EXHAUSTED"}],"message":"No capacity available for model gemini-3.1-pro-preview on the server","status":"RESOURCE_EXHAUSTED"}}`)
 
@@ -431,18 +420,18 @@ func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t 
 func TestHandleGeminiUpstreamError_ThirdPartyAPIKeyIgnoresOfficialQuotaMessage(t *testing.T) {
 	repo := &rateLimit429AccountRepoStub{}
 	quotaSvc := accountcore.NewGeminiQuotaService(accountcore.GeminiQuotaOptions{})
-	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, quotaSvc, nil)
-	svc := &GeminiMessagesCompatService{
+	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
+		quotaPrecheck:    accountcore.NewGeminiPrecheck(quotaSvc, nil, accountcore.GeminiPrecheckOptions{Now: time.Now, Location: geminiQuotaLocation()}),
 		accountRepo:      repo,
 		rateLimitService: rlSvc,
-	}
-	account := &Account{
-		ID:       512,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 512,
 		Platform: capability.PlatformGemini,
 		Type:     capability.AccountTypeAPIKey,
 		Credentials: map[string]any{
 			accountcore.GeminiProviderTypeCredentialKey: accountcore.GeminiProviderTypeThirdParty,
-		},
+		}},
 	}
 
 	before := time.Now()
@@ -460,15 +449,14 @@ func TestHandleGeminiUpstreamError_ThirdPartyAPIKeyIgnoresOfficialQuotaMessage(t
 // 也不会继续执行 Gemini 默认 429 限流写入。
 func TestGeminiPoolMode429BypassesLocalRateLimit(t *testing.T) {
 	repo := &geminiErrorPolicyRepo{}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	svc := &GeminiMessagesCompatService{accountRepo: repo, rateLimitService: rateLimitService}
-	account := &Account{
-		ID:       520,
+	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{accountRepo: repo, rateLimitService: rateLimitService})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 520,
 		Type:     capability.AccountTypeAPIKey,
 		Platform: capability.PlatformGemini,
 		Credentials: map[string]any{
 			"pool_mode": true,
-		},
+		}},
 	}
 
 	decision := svc.applyGeminiUpstreamErrorPolicy(
@@ -476,7 +464,7 @@ func TestGeminiPoolMode429BypassesLocalRateLimit(t *testing.T) {
 	)
 
 	require.Equal(t, accountcore.ErrorPolicyPoolBypassed, decision.Policy)
-	require.True(t, decision.RetryableOnSameAccount(account, http.StatusTooManyRequests))
+	require.True(t, decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), http.StatusTooManyRequests))
 	require.Zero(t, repo.setRateLimitedCalls)
 	require.Zero(t, repo.setTempCalls)
 	require.Zero(t, repo.setErrorCalls)
@@ -486,42 +474,39 @@ func TestHandleGeminiUpstreamError_PoolMode429SkipsAccountLimit(t *testing.T) {
 	body := []byte(`{"error":{"code":429,"message":"capacity exhausted"}}`)
 	tests := []struct {
 		name      string
-		account   *Account
+		account   *gatewayprovider.ExecutionAccount
 		wantCalls int
 	}{
 		{
 			name: "池模式跳过默认账号限流",
-			account: &Account{
-				ID: 530, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
-				Credentials: map[string]any{"pool_mode": true},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 530, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
+				Credentials: map[string]any{"pool_mode": true}},
 			},
 		},
 		{
 			name: "自定义错误码命中优先于池模式",
-			account: &Account{
-				ID: 531, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 531, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"pool_mode":                  true,
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(http.StatusTooManyRequests)},
-				},
+				}},
 			},
 			wantCalls: 1,
 		},
 		{
 			name: "自定义错误码未命中跳过账号限流",
-			account: &Account{
-				ID: 532, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 532, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini,
 				Credentials: map[string]any{
 					"pool_mode":                  true,
 					"custom_error_codes_enabled": true,
 					"custom_error_codes":         []any{float64(http.StatusInternalServerError)},
-				},
+				}},
 			},
 		},
 		{
 			name:      "普通账号保留默认限流",
-			account:   &Account{ID: 533, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini},
+			account:   &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 533, Type: capability.AccountTypeAPIKey, Platform: capability.PlatformGemini}},
 			wantCalls: 1,
 		},
 	}
@@ -529,7 +514,7 @@ func TestHandleGeminiUpstreamError_PoolMode429SkipsAccountLimit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &rateLimit429AccountRepoStub{}
-			svc := &GeminiMessagesCompatService{accountRepo: repo}
+			svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{accountRepo: repo})
 
 			svc.handleGeminiUpstreamError(context.Background(), tt.account, http.StatusTooManyRequests, http.Header{}, body)
 
@@ -542,17 +527,16 @@ func TestHandleGeminiUpstreamError_PoolMode429SkipsAccountLimit(t *testing.T) {
 // 管理员显式策略并写入账号错误。
 func TestGeminiCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 	repo := &geminiErrorPolicyRepo{}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
-	svc := &GeminiMessagesCompatService{accountRepo: repo, rateLimitService: rateLimitService}
-	account := &Account{
-		ID:       521,
+	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{accountRepo: repo, rateLimitService: rateLimitService})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 521,
 		Type:     capability.AccountTypeAPIKey,
 		Platform: capability.PlatformGemini,
 		Credentials: map[string]any{
 			"pool_mode":                  true,
 			"custom_error_codes_enabled": true,
 			"custom_error_codes":         []any{float64(http.StatusUnprocessableEntity)},
-		},
+		}},
 	}
 
 	decision := svc.applyGeminiUpstreamErrorPolicy(
@@ -561,7 +545,7 @@ func TestGeminiCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 
 	require.Equal(t, accountcore.ErrorPolicyCustomMatched, decision.Policy)
 	require.True(t, decision.StopScheduling)
-	require.False(t, decision.RetryableOnSameAccount(account, http.StatusUnprocessableEntity))
+	require.False(t, decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), http.StatusUnprocessableEntity))
 	require.Equal(t, 1, repo.setErrorCalls)
 	require.Zero(t, repo.setRateLimitedCalls)
 }

@@ -18,6 +18,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -121,14 +123,14 @@ func (d *stagedPassthroughDialer) Dial(context.Context, string, http.Header, str
 }
 
 func newPassthroughLifecycleService(cfg *config.Config, upstream *stagedPassthroughConn) *OpenAIGatewayService {
-	return &OpenAIGatewayService{
+	return withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		httpUpstream: &httpUpstreamRecorder{},
 		cache:        &stubGatewayCache{},
 
 		toolCorrector:             openai.NewCodexToolCorrector(),
 		openaiWSPassthroughDialer: &stagedPassthroughDialer{conn: upstream},
-	}
+	})
 }
 
 func passthroughLifecycleConfig() *config.Config {
@@ -148,9 +150,8 @@ func passthroughLifecycleConfig() *config.Config {
 	return cfg
 }
 
-func passthroughLifecycleAccount() *Account {
-	return &Account{
-		ID:          901,
+func passthroughLifecycleAccount() *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 901,
 		Name:        "passthrough-lifecycle",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -160,7 +161,7 @@ func passthroughLifecycleAccount() *Account {
 		Credentials: map[string]any{"api_key": "sk-test"},
 		Extra: map[string]any{
 			"openai_apikey_responses_websockets_v2_mode": accountcore.OpenAIWSIngressModePassthrough,
-		},
+		}},
 	}
 }
 
@@ -168,7 +169,7 @@ func startPassthroughLifecycleServer(
 	t *testing.T,
 	controlCtx context.Context,
 	svc *OpenAIGatewayService,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 ) (*httptest.Server, <-chan error) {
 	return startPassthroughLifecycleServerWithHooks(t, controlCtx, svc, account, nil)
 }
@@ -177,7 +178,7 @@ func startPassthroughLifecycleServerWithHooks(
 	t *testing.T,
 	controlCtx context.Context,
 	svc *OpenAIGatewayService,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	hooksFactory func(*gin.Context) *gatewayws.OpenAIIngressHooks,
 ) (*httptest.Server, <-chan error) {
 	t.Helper()
@@ -262,7 +263,7 @@ func TestPassthroughLifecycle_CyberTerminalEventsMarkBeforeAfterTurn(t *testing.
 				upstream.Send(event)
 			}
 
-			markSeen := make(chan CyberPolicyMark, 1)
+			markSeen := make(chan moderationflow.Mark, 1)
 			afterTurnCalls := atomic.Int32{}
 			server, serverErr := startPassthroughLifecycleServerWithHooks(
 				t,
@@ -272,7 +273,7 @@ func TestPassthroughLifecycle_CyberTerminalEventsMarkBeforeAfterTurn(t *testing.
 				func(c *gin.Context) *gatewayws.OpenAIIngressHooks {
 					return &gatewayws.OpenAIIngressHooks{AfterTurn: func(_ gatewayws.OpenAITurnCapture) {
 						afterTurnCalls.Add(1)
-						if mark := GetOpsCyberPolicy(c); mark != nil {
+						if mark := gatewayhttp.GetOpsCyberPolicy(c); mark != nil {
 							select {
 							case markSeen <- *mark:
 							default:
@@ -320,10 +321,10 @@ func TestPassthroughLifecycle_NonCyberFailureKeepsAccountSideEffects(t *testing.
 	upstream.Send(`{"type":"response.failed","response":{"id":"resp_non_cyber","error":{"type":"authentication_error","code":"invalid_api_key","status_code":401,"message":"credential rejected"},"usage":{"input_tokens":3,"output_tokens":1}}}`)
 	repo := &openAIStream403AccountRepo{}
 	svc := newPassthroughLifecycleService(passthroughLifecycleConfig(), upstream)
-	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil, nil)
+	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil)
 	account := passthroughLifecycleAccount()
 
-	markSeen := make(chan *CyberPolicyMark, 1)
+	markSeen := make(chan *moderationflow.Mark, 1)
 	server, serverErr := startPassthroughLifecycleServerWithHooks(
 		t,
 		controlCtx,
@@ -331,7 +332,7 @@ func TestPassthroughLifecycle_NonCyberFailureKeepsAccountSideEffects(t *testing.
 		account,
 		func(c *gin.Context) *gatewayws.OpenAIIngressHooks {
 			return &gatewayws.OpenAIIngressHooks{AfterTurn: func(_ gatewayws.OpenAITurnCapture) {
-				markSeen <- GetOpsCyberPolicy(c)
+				markSeen <- gatewayhttp.GetOpsCyberPolicy(c)
 			}}
 		},
 	)
@@ -366,7 +367,7 @@ func TestPassthroughLifecycle_CyberSkipsFailureAccountSideEffects(t *testing.T) 
 	upstream.Send(`{"type":"response.failed","response":{"id":"resp_cyber_auth","error":{"type":"authentication_error","code":"cyber_policy","status_code":401,"message":"request blocked"}}}`)
 	repo := &openAIStream403AccountRepo{}
 	svc := newPassthroughLifecycleService(passthroughLifecycleConfig(), upstream)
-	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil, nil)
+	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil)
 	account := passthroughLifecycleAccount()
 
 	server, serverErr := startPassthroughLifecycleServer(t, controlCtx, svc, account)

@@ -20,14 +20,14 @@ import (
 // 的读循环必须按 gateway.stream_data_interval_timeout 结束，而不是永久阻塞。
 
 func newNativeAnthropicHangTestService(intervalSec int) *OpenAIGatewayService {
-	return &OpenAIGatewayService{
+	return withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{
 				StreamDataIntervalTimeout: intervalSec,
 				MaxLineSize:               defaultMaxLineSize,
 			},
 		},
-	}
+	})
 }
 
 func newHangingUpstreamResponse() (*http.Response, *io.PipeReader, *io.PipeWriter) {

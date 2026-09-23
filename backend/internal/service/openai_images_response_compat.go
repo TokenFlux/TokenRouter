@@ -11,6 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
@@ -25,10 +26,12 @@ func (s *OpenAIGatewayService) nativeImageResponseOptions(c *gin.Context) upstre
 
 		ReadLimit: func() int64 { return resolveUpstreamResponseReadLimit(s.cfg) },
 
-		ReadBody: func(r io.Reader) ([]byte, error) { return ReadUpstreamResponseBody(r, s.cfg, c, openAITooLargeError) },
+		ReadBody: func(r io.Reader) ([]byte, error) {
+			return gatewayhttp.ReadUpstreamResponseBody(r, resolveUpstreamResponseReadLimit(s.cfg), c, gatewayhttp.OpenAIResponseTooLarge)
+		},
 
 		ClassifyReadError: func(err error) error {
-			if shouldClassifyOpenAIUpstreamStreamReadError(err, c.Request.Context()) {
+			if upstreamopenai.ShouldClassifyUpstreamStreamReadError(err, httpclient.ErrResponseBodyTooLarge, c.Request.Context()) {
 				return upstreamopenai.NewUpstreamStreamReadError(err)
 			}
 			return err
@@ -48,7 +51,7 @@ func (s *OpenAIGatewayService) nativeImageResponseOptions(c *gin.Context) upstre
 
 		Summary: s.summarizeOpenAIImagesNoOutputBody,
 
-		AdjustedWrittenSize: func() int { return OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c) },
+		AdjustedWrittenSize: func() int { return gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c) },
 
 		WrittenSize: c.Writer.Size,
 

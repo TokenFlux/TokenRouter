@@ -110,7 +110,7 @@ func TestHandleResponsesBufferedStreamingResponse_RestoresNamespaceTool(t *testi
 	c, _ := gin.CreateTestContext(rec)
 	resp := &http.Response{Body: io.NopCloser(strings.NewReader(namespaceToolAnthropicStream()))}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	_, err := svc.handleResponsesBufferedStreamingResponse(resp, c, "claude-fable-5", "claude-fable-5", nil, time.Now(), namespaceToolMapping())
 	require.NoError(t, err)
 	require.Contains(t, rec.Body.String(), `"type":"function_call"`)
@@ -126,7 +126,7 @@ func TestHandleResponsesBufferedStreamingResponse_ToolArgumentsAreValidJSON(t *t
 	c, _ := gin.CreateTestContext(rec)
 	resp := &http.Response{Body: io.NopCloser(strings.NewReader(toolAnthropicSSEStream()))}
 
-	_, err := (&GatewayService{}).handleResponsesBufferedStreamingResponse(resp, c, "claude-fable-5", "claude-fable-5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
+	_, err := (withSchedulerParametersForTest(&GatewayService{})).handleResponsesBufferedStreamingResponse(resp, c, "claude-fable-5", "claude-fable-5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 
 	var body struct {
@@ -156,7 +156,7 @@ func TestHandleResponsesStreamingResponse_RestoresNamespaceTool(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	resp := &http.Response{Body: io.NopCloser(strings.NewReader(namespaceToolAnthropicStream()))}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	_, err := svc.handleResponsesStreamingResponse(resp, c, "claude-fable-5", "claude-fable-5", nil, time.Now(), namespaceToolMapping())
 	require.NoError(t, err)
 	require.Contains(t, rec.Body.String(), `response.output_item.added`)
@@ -208,7 +208,7 @@ func TestHandleResponsesBufferedStreamingResponse_PreservesMessageStartCacheUsag
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleResponsesBufferedStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -243,7 +243,7 @@ func TestHandleResponsesStreamingResponse_PreservesMessageStartCacheUsage(t *tes
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleResponsesStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -276,7 +276,7 @@ func TestHandleResponsesBufferedStreamingResponse_CompactSSEFormat(t *testing.T)
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleResponsesBufferedStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -310,7 +310,7 @@ func TestHandleResponsesStreamingResponse_CompactSSEFormat(t *testing.T) {
 		}, "\n"))),
 	}
 
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	result, err := svc.handleResponsesStreamingResponse(resp, c, "claude-sonnet-4.5", "claude-sonnet-4.5", nil, time.Now(), bridge.ResponsesClientToolMapping{})
 	require.NoError(t, err)
 	require.NotNil(t, result)

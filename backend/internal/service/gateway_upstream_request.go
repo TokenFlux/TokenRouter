@@ -20,8 +20,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *Account, body []byte, token, tokenType, modelID string, reqStream bool, mimicClaudeCode bool) (*http.Request, []byte, error) {
-	if account.Platform == capability.PlatformAnthropic && account.Type == capability.AccountTypeServiceAccount {
+func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, token, tokenType, modelID string, reqStream bool, mimicClaudeCode bool) (*http.Request, []byte, error) {
+	if account.Record.Platform == capability.PlatformAnthropic && account.Record.Type == capability.AccountTypeServiceAccount {
 		body = claude.StripDeferredToolCacheControl(body)
 		req, err := s.buildUpstreamRequestAnthropicVertex(ctx, c, account, body, token, modelID, reqStream)
 		return req, body, err
@@ -35,7 +35,7 @@ type betaPolicyResult struct {
 	filterSet map[string]struct{}      // tokens to filter (may be nil)
 }
 
-func (s *GatewayService) evaluateBetaPolicy(ctx context.Context, betaHeader string, account *Account, model string) betaPolicyResult {
+func (s *GatewayService) evaluateBetaPolicy(ctx context.Context, betaHeader string, account *gatewayprovider.ExecutionAccount, model string) betaPolicyResult {
 	if s.settingService == nil {
 		return betaPolicyResult{}
 	}
@@ -43,7 +43,7 @@ func (s *GatewayService) evaluateBetaPolicy(ctx context.Context, betaHeader stri
 	if err != nil || settings == nil {
 		return betaPolicyResult{}
 	}
-	r := claude.EvaluateBetaPolicy(gatewayprovider.AnthropicBetaPolicy(settings), betaHeader, account.IsOAuth(), account.IsBedrock(), model)
+	r := claude.EvaluateBetaPolicy(gatewayprovider.AnthropicBetaPolicy(settings), betaHeader, account.View().IsOAuth(), account.View().IsBedrock(), model)
 	return betaPolicyResult{blockErr: r.BlockErr, filterSet: r.FilterSet}
 }
 
@@ -54,7 +54,7 @@ const betaPolicyFilterSetKey = "betaPolicyFilterSet"
 // In the /v1/messages path, Forward() evaluates the policy first and caches the result;
 // buildUpstreamRequest reuses it (zero extra DB calls). In the count_tokens path, this
 // evaluates on demand (one DB call).
-func (s *GatewayService) getBetaPolicyFilterSet(ctx context.Context, c *gin.Context, account *Account, model string) map[string]struct{} {
+func (s *GatewayService) getBetaPolicyFilterSet(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, model string) map[string]struct{} {
 	if c != nil {
 		if v, ok := c.Get(betaPolicyFilterSetKey); ok {
 			if fs, ok := v.(map[string]struct{}); ok {
@@ -67,7 +67,7 @@ func (s *GatewayService) getBetaPolicyFilterSet(ctx context.Context, c *gin.Cont
 
 func (s *GatewayService) resolveBedrockBetaTokensForRequest(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	betaHeader string,
 	body []byte,
 	modelID string,
@@ -92,7 +92,7 @@ func (s *GatewayService) resolveBedrockBetaTokensForRequest(
 	return claude.FilterBetaTokens(betaTokens, policy.filterSet), nil
 }
 
-func (s *GatewayService) checkBetaPolicyBlockForTokens(ctx context.Context, tokens []string, account *Account, model string) *claude.BetaBlockedError {
+func (s *GatewayService) checkBetaPolicyBlockForTokens(ctx context.Context, tokens []string, account *gatewayprovider.ExecutionAccount, model string) *claude.BetaBlockedError {
 	if s.settingService == nil || len(tokens) == 0 {
 		return nil
 	}
@@ -100,15 +100,15 @@ func (s *GatewayService) checkBetaPolicyBlockForTokens(ctx context.Context, toke
 	if err != nil || settings == nil {
 		return nil
 	}
-	return claude.CheckBetaPolicyBlockForTokens(gatewayprovider.AnthropicBetaPolicy(settings), tokens, account.IsOAuth(), account.IsBedrock(), model)
+	return claude.CheckBetaPolicyBlockForTokens(gatewayprovider.AnthropicBetaPolicy(settings), tokens, account.View().IsOAuth(), account.View().IsBedrock(), model)
 }
 
 // buildCustomRelayURL 构建自定义中继转发 URL
 // 在 path 后附加 beta=true 和可选的 proxy 查询参数
-func (s *GatewayService) buildCustomRelayURL(baseURL, path string, account *Account) string {
+func (s *GatewayService) buildCustomRelayURL(baseURL, path string, account *gatewayprovider.ExecutionAccount) string {
 	u := strings.TrimRight(baseURL, "/") + path + "?beta=true"
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL := account.Proxy.URL()
+	if account.Record.ProxyID != nil && account.Record.Proxy != nil {
+		proxyURL := account.Record.Proxy.URL()
 		if proxyURL != "" {
 			u += "&proxy=" + url.QueryEscape(proxyURL)
 		}
@@ -136,7 +136,7 @@ func (s *GatewayService) validateUpstreamBaseURL(raw string) (string, error) {
 }
 
 // 旧入站适配只提供策略和账号投影，不再拥有 Vertex 构造算法。
-func (s *GatewayService) buildUpstreamRequestAnthropicVertex(ctx context.Context, c *gin.Context, account *Account, body []byte, token, modelID string, reqStream bool) (*http.Request, error) {
+func (s *GatewayService) buildUpstreamRequestAnthropicVertex(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte, token, modelID string, reqStream bool) (*http.Request, error) {
 	var headers http.Header
 	var beta string
 	if c != nil && c.Request != nil {
@@ -144,7 +144,11 @@ func (s *GatewayService) buildUpstreamRequestAnthropicVertex(ctx context.Context
 		beta = claude.GetHeaderRaw(headers, "anthropic-beta")
 	}
 	return vertex.BuildAnthropicRequest(ctx, body, token, modelID, reqStream, vertex.AnthropicRequestOptions{
-		ClientBeta: beta, ClientHeaders: headers, AllowedHeaders: allowedHeaders, Project: account.VertexProjectID, Location: account.VertexLocation,
+		ClientBeta: beta, ClientHeaders: headers, AllowedHeaders: allowedHeaders, Project: func() string {
+			return gatewayprovider.ExecutionProtocolRecord(account).VertexProjectID(vertex.ServiceAccountProjectID)
+		}, Location: func(model string) string {
+			return gatewayprovider.ExecutionProtocolRecord(account).VertexLocation(model)
+		},
 		Policy: func(ctx context.Context, header string) (map[string]struct{}, error) {
 			policy := s.evaluateBetaPolicy(ctx, header, account, modelID)
 			if policy.blockErr != nil {

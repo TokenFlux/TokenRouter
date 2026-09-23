@@ -6,10 +6,12 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	time "time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +20,7 @@ const teamLinkedDeactivatedBody = `{"detail":{"code":"deactivated_workspace","me
 
 type teamLinkedAccountRepoStub struct {
 	mockAccountRepoForGemini
-	teamAccounts []Account
+	teamAccounts []gatewayprovider.ExecutionAccount
 	listErr      error
 	listCalls    int
 	setErrorIDs  []int64
@@ -27,14 +29,14 @@ type teamLinkedAccountRepoStub struct {
 }
 
 // ListByPlatform 镜像真实仓库语义：仅返回该平台的 active 账户。
-func (r *teamLinkedAccountRepoStub) ListByPlatform(ctx context.Context, platform string) ([]Account, error) {
+func (r *teamLinkedAccountRepoStub) ListByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	r.listCalls++
 	if r.listErr != nil {
 		return nil, r.listErr
 	}
-	out := make([]Account, 0, len(r.teamAccounts))
+	out := make([]gatewayprovider.ExecutionAccount, 0, len(r.teamAccounts))
 	for _, acc := range r.teamAccounts {
-		if acc.Platform == platform && acc.Status == billing.StatusActive {
+		if acc.Record.Platform == platform && acc.Record.Status == billing.StatusActive {
 			out = append(out, acc)
 		}
 	}
@@ -53,31 +55,29 @@ func (r *teamLinkedAccountRepoStub) SetError(ctx context.Context, id int64, erro
 	return nil
 }
 
-func newTeamLinkedAccount(id int64, teamID string) Account {
-	return Account{
-		ID:          id,
+func newTeamLinkedAccount(id int64, teamID string) gatewayprovider.ExecutionAccount {
+	return gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: id,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
 		Status:      billing.StatusActive,
-		Credentials: map[string]any{"chatgpt_account_id": teamID},
+		Credentials: map[string]any{"chatgpt_account_id": teamID}},
 	}
 }
 
 // newTeamLinkedFixture: #1 触发者(team-A) #2 同队 #3 异队 #4 apikey #5 影子 #6 同队 #7 同队但已 error
-func newTeamLinkedFixture() []Account {
+func newTeamLinkedFixture() []gatewayprovider.ExecutionAccount {
 	parentID := int64(1)
-	shadow := Account{
-		ID:              5,
+	shadow := gatewayprovider.ExecutionAccount{Record: account.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Platform:        capability.PlatformOpenAI,
 		Type:            capability.AccountTypeOAuth,
 		Status:          billing.StatusActive,
-		ParentAccountID: &parentID,
+		ParentAccountID: &parentID},
 	}
 	apikey := newTeamLinkedAccount(4, "team-A")
-	apikey.Type = capability.AccountTypeAPIKey
+	apikey.Record.Type = capability.AccountTypeAPIKey
 	erroredSibling := newTeamLinkedAccount(7, "team-A")
-	erroredSibling.Status = account.StatusError
-	return []Account{
+	erroredSibling.Record.Status = account.StatusError
+	return []gatewayprovider.ExecutionAccount{
 		newTeamLinkedAccount(1, "team-A"),
 		newTeamLinkedAccount(2, "team-A"),
 		newTeamLinkedAccount(3, "team-B"),
@@ -89,7 +89,7 @@ func newTeamLinkedFixture() []Account {
 }
 
 func newTeamLinkedTestService(repo *teamLinkedAccountRepoStub) (*RateLimitService, *runtimeBlockRecorder) {
-	rl := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	rl := NewRateLimitService(repo, nil, &config.Config{}, nil)
 	blocker := &runtimeBlockRecorder{}
 	rl.SetAccountRuntimeBlocker(blocker)
 	return rl, blocker
@@ -100,7 +100,7 @@ func TestTeamLinkedError_FanoutMarksSameTeamAccounts(t *testing.T) {
 	rl, blocker := newTeamLinkedTestService(repo)
 	trigger := newTeamLinkedAccount(1, "team-A")
 
-	shouldDisable := rl.HandleUpstreamError(context.Background(), &trigger, http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody))
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
 	// fan-out 先标记同队兄弟（#2、#6），触发账户 #1 随后由常规 case 402 标记
@@ -111,9 +111,9 @@ func TestTeamLinkedError_FanoutMarksSameTeamAccounts(t *testing.T) {
 	require.NotContains(t, repo.setErrorMsgs[1], "team-linked")
 	// 熔断顺序：兄弟账户先于落库全部进程内熔断，触发账户走 auth_error
 	require.Equal(t, []string{account.OpenAITeamLinkedErrorBlockReason, account.OpenAITeamLinkedErrorBlockReason, "auth_error"}, blocker.reasons)
-	require.Equal(t, int64(2), blocker.accounts[0].ID)
-	require.Equal(t, int64(6), blocker.accounts[1].ID)
-	require.Equal(t, int64(1), blocker.accounts[2].ID)
+	require.Equal(t, int64(2), blocker.accounts[0].Record.ID)
+	require.Equal(t, int64(6), blocker.accounts[1].Record.ID)
+	require.Equal(t, int64(1), blocker.accounts[2].Record.ID)
 }
 
 func TestTeamLinkedError_GenericPaymentErrorDoesNotFanout(t *testing.T) {
@@ -121,7 +121,7 @@ func TestTeamLinkedError_GenericPaymentErrorDoesNotFanout(t *testing.T) {
 	rl, _ := newTeamLinkedTestService(repo)
 	trigger := newTeamLinkedAccount(1, "team-A")
 
-	rl.HandleUpstreamError(context.Background(), &trigger, http.StatusPaymentRequired, http.Header{}, []byte(`{"error":{"message":"insufficient balance"}}`))
+	gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(`{"error":{"message":"insufficient balance"}}`), nil))
 
 	require.Equal(t, []int64{1}, repo.setErrorIDs)
 	require.Contains(t, repo.setErrorMsgs[1], "Payment required (402)")
@@ -134,8 +134,8 @@ func TestTeamLinkedError_DedupWithinTTL(t *testing.T) {
 	first := newTeamLinkedAccount(1, "team-A")
 	second := newTeamLinkedAccount(2, "team-A")
 
-	rl.HandleUpstreamError(context.Background(), &first, http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody))
-	rl.HandleUpstreamError(context.Background(), &second, http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody))
+	gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &first, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
+	gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &second, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
 
 	// 第二次触发被去重：只有 #2 自身经 case 402 标记，未再次 fan-out
 	require.Equal(t, []int64{2, 6, 1, 2}, repo.setErrorIDs)
@@ -146,9 +146,9 @@ func TestTeamLinkedError_APIKeyTriggerDoesNotFanout(t *testing.T) {
 	repo := &teamLinkedAccountRepoStub{teamAccounts: newTeamLinkedFixture()}
 	rl, _ := newTeamLinkedTestService(repo)
 	trigger := newTeamLinkedAccount(4, "team-A")
-	trigger.Type = capability.AccountTypeAPIKey
+	trigger.Record.Type = capability.AccountTypeAPIKey
 
-	rl.HandleUpstreamError(context.Background(), &trigger, http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody))
+	gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
 
 	require.Equal(t, []int64{4}, repo.setErrorIDs)
 	require.Zero(t, repo.listCalls)

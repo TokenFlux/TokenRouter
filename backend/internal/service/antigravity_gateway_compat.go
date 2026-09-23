@@ -12,6 +12,7 @@ import (
 
 	protocolforward "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
@@ -37,10 +38,10 @@ const (
 )
 
 const (
-	// AntigravityCredentialRejectedClientMessage 是可安全返回给客户端的认证修复提示。
-	AntigravityCredentialRejectedClientMessage = "Antigravity rejected the OAuth credential after refresh; reauthorize the account and verify project_id"
-	// AntigravityCredentialRejectedReason 标识上游拒绝已刷新 OAuth 凭据。
-	AntigravityCredentialRejectedReason protocolforward.GatewayFailureReason = "antigravity_oauth_credential_rejected"
+// protocolforward.AntigravityCredentialRejectedClientMessage 是可安全返回给客户端的认证修复提示。
+
+// protocolforward.AntigravityCredentialRejectedReason 标识上游拒绝已刷新 OAuth 凭据。
+
 )
 
 type antigravityCompatRequest struct {
@@ -69,7 +70,7 @@ type antigravityCompatUpstreamCall struct {
 func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	_ *requeststate.ParsedRequest,
 ) (*protocolforward.MessagesResult, error) {
@@ -117,7 +118,7 @@ func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 func (s *AntigravityGatewayService) ForwardAsResponses(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	body []byte,
 	_ *requeststate.ParsedRequest,
 ) (*protocolforward.MessagesResult, error) {
@@ -161,8 +162,8 @@ func (s *AntigravityGatewayService) ForwardAsResponses(
 	})
 }
 
-func (s *AntigravityGatewayService) validateAntigravityCompatAccount(c *gin.Context, account *Account) error {
-	if account != nil && account.Platform == capability.PlatformAntigravity && account.Type == capability.AccountTypeOAuth {
+func (s *AntigravityGatewayService) validateAntigravityCompatAccount(c *gin.Context, account *gatewayprovider.ExecutionAccount) error {
+	if account != nil && account.Record.Platform == capability.PlatformAntigravity && account.Record.Type == capability.AccountTypeOAuth {
 		return nil
 	}
 	return s.writeAntigravityCompatError(
@@ -186,7 +187,7 @@ func prepareAntigravityCompatTools(c *gin.Context, body []byte) []byte {
 func (s *AntigravityGatewayService) forwardAntigravityCompat(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	request antigravityCompatRequest,
 ) (*protocolforward.MessagesResult, error) {
 	call, err := s.prepareAntigravityCompatCall(ctx, c, account, request)
@@ -218,7 +219,7 @@ func (s *AntigravityGatewayService) forwardAntigravityCompat(
 		mode = antigravity.ModeResponsesResponse
 		wireProtocol = protocol.ProtocolOpenAIResponses
 	}
-	target := &antigravity.Target{AccountID: account.ID, Model: call.billingModel, Mode: mode, StartedAt: request.startTime, IncludeUsage: request.includeUsage, ClientTools: request.clientToolMapping, Response: s.antigravityResponseAdapter(c).Options, Enter: s.nativeAttemptActivity,
+	target := &antigravity.Target{AccountID: account.Record.ID, Model: call.billingModel, Mode: mode, StartedAt: request.startTime, IncludeUsage: request.includeUsage, ClientTools: request.clientToolMapping, Response: s.antigravityResponseAdapter(c).Options, Enter: s.nativeAttemptActivity,
 		Exchange: func(context.Context) (*http.Response, error) {
 			result, err := retry.AntigravityRetryLoop(params)
 			if err != nil {
@@ -243,7 +244,7 @@ func (s *AntigravityGatewayService) forwardAntigravityCompat(
 func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	request antigravityCompatRequest,
 ) (*antigravityCompatUpstreamCall, error) {
 	var claudeRequest protocolanthropic.ClaudeRequest
@@ -254,7 +255,7 @@ func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 	thinkingEnabled := claudeRequest.Thinking != nil &&
 		(claudeRequest.Thinking.Type == "enabled" || claudeRequest.Thinking.Type == "adaptive")
 	modelCtx := requeststate.WithThinkingEnabled(ctx, thinkingEnabled)
-	mappedModel := resolveFinalAntigravityModelKey(modelCtx, account, request.originalModel)
+	mappedModel := gatewayprovider.ExecutionModelPolicy(account).FinalAntigravityModel(modelCtx, request.originalModel)
 	if mappedModel == "" {
 		gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
 		message := fmt.Sprintf("model %s not in whitelist", request.originalModel)
@@ -281,12 +282,12 @@ func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "Invalid request")
 	}
 
-	request.reasoningEffort = ApplyThinkingEnabledFallback(request.reasoningEffort, request.originalBody, mappedModel)
+	request.reasoningEffort = gatewayprovider.ApplyThinkingEnabledFallback(request.reasoningEffort, request.originalBody, mappedModel)
 	return &antigravityCompatUpstreamCall{
 		request:      request,
 		ctx:          modelCtx,
 		billingModel: mappedModel,
-		prefix:       logPrefix(getSessionID(c), account.Name),
+		prefix:       logPrefix(getSessionID(c), account.Record.Name),
 		proxyURL:     antigravityCompatProxyURL(account),
 		accessToken:  accessToken,
 		geminiBody:   geminiBody,
@@ -325,11 +326,11 @@ func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 	return antigravity.TransformClaudeToGeminiWithOptions(claudeRequest, projectID, mappedModel, options)
 }
 
-func antigravityCompatProxyURL(account *Account) string {
-	if account.ProxyID == nil || account.Proxy == nil {
+func antigravityCompatProxyURL(account *gatewayprovider.ExecutionAccount) string {
+	if account.Record.ProxyID == nil || account.Record.Proxy == nil {
 		return ""
 	}
-	return account.Proxy.URL()
+	return account.Record.Proxy.URL()
 }
 
 func (s *AntigravityGatewayService) handleAntigravityCompatTransportError(c *gin.Context, err error) error {
@@ -348,7 +349,7 @@ func (s *AntigravityGatewayService) handleAntigravityCompatTransportError(c *gin
 func (s *AntigravityGatewayService) handleAntigravityCompatHTTPError(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	call *antigravityCompatUpstreamCall,
 	resp *http.Response,
 ) error {
@@ -368,9 +369,9 @@ func (s *AntigravityGatewayService) handleAntigravityCompatHTTPError(
 	if s.shouldFailoverUpstreamError(resp.StatusCode) {
 		message := logredact.SanitizeUpstreamQueries(strings.TrimSpace(google.ExtractPlatformMessage(body)))
 		event := ops.OpsUpstreamErrorEvent{
-			Platform:           account.Platform,
-			AccountID:          account.ID,
-			AccountName:        account.Name,
+			Platform:           account.Record.Platform,
+			AccountID:          account.Record.ID,
+			AccountName:        account.Record.Name,
 			UpstreamStatusCode: resp.StatusCode,
 			UpstreamRequestID:  resp.Header.Get("x-request-id"),
 			Kind:               "failover",
@@ -380,7 +381,7 @@ func (s *AntigravityGatewayService) handleAntigravityCompatHTTPError(
 		if resp.StatusCode == http.StatusUnauthorized {
 			event.Stage = string(protocolforward.GatewayFailureStageAccountAuth)
 			event.Scope = string(protocolforward.GatewayFailureScopeAccount)
-			event.Reason = string(AntigravityCredentialRejectedReason)
+			event.Reason = string(protocolforward.AntigravityCredentialRejectedReason)
 			gatewayhttp.AppendOpsUpstreamError(c, event)
 			return antigravityCredentialRejectedError(resp, body)
 		}
@@ -401,8 +402,8 @@ func antigravityCredentialRejectedError(resp *http.Response, body []byte) *proto
 		ResponseHeaders: resp.Header.Clone(),
 		Stage:           protocolforward.GatewayFailureStageAccountAuth,
 		Scope:           protocolforward.GatewayFailureScopeAccount,
-		Reason:          AntigravityCredentialRejectedReason, NextAccountAction: protocolforward.NextAccountRetry, ClientStatusCode: http.StatusBadGateway,
-		ClientMessage: AntigravityCredentialRejectedClientMessage,
+		Reason:          protocolforward.AntigravityCredentialRejectedReason, NextAccountAction: protocolforward.NextAccountRetry, ClientStatusCode: http.StatusBadGateway,
+		ClientMessage: protocolforward.AntigravityCredentialRejectedClientMessage,
 	}
 }
 
@@ -426,7 +427,7 @@ func (s *AntigravityGatewayService) writeAntigravityCompatError(
 
 func (s *AntigravityGatewayService) writeMappedAntigravityCompatError(
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	upstreamStatus int,
 	upstreamRequestID string,
 	body []byte,
@@ -435,9 +436,9 @@ func (s *AntigravityGatewayService) writeMappedAntigravityCompatError(
 	message := logredact.SanitizeUpstreamQueries(strings.TrimSpace(google.ExtractPlatformMessage(body)))
 	gatewayhttp.SetOpsUpstreamError(c, upstreamStatus, message, s.getUpstreamErrorDetail(body))
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-		Platform:           account.Platform,
-		AccountID:          account.ID,
-		AccountName:        account.Name,
+		Platform:           account.Record.Platform,
+		AccountID:          account.Record.ID,
+		AccountName:        account.Record.Name,
 		UpstreamStatusCode: upstreamStatus,
 		UpstreamRequestID:  upstreamRequestID,
 		Kind:               "http_error",

@@ -10,6 +10,7 @@ import (
 
 // IdempotencyCleanupService 定期清理已过期的幂等记录，避免表无限增长。
 type IdempotencyCleanupService struct {
+	observer    Observer
 	lifecycleMu sync.Mutex
 	started     bool
 	stopped     bool
@@ -25,6 +26,7 @@ type IdempotencyCleanupService struct {
 
 // CleanupOptions 由 app 从启动配置投影。
 type CleanupOptions struct {
+	Observer Observer
 	Interval time.Duration
 	Batch    int
 }
@@ -38,7 +40,7 @@ func NewIdempotencyCleanupService(repo IdempotencyRepository, opts CleanupOption
 	if batch <= 0 {
 		batch = 500
 	}
-	return &IdempotencyCleanupService{repo: repo, interval: interval, batch: batch, stopCh: make(chan struct{})}
+	return &IdempotencyCleanupService{observer: opts.Observer, repo: repo, interval: interval, batch: batch, stopCh: make(chan struct{})}
 }
 
 func (s *IdempotencyCleanupService) Start() {
@@ -53,7 +55,7 @@ func (s *IdempotencyCleanupService) Start() {
 	s.started = true
 
 	s.startOnce.Do(func() {
-		observe("service.idempotency_cleanup", fmt.Sprintf("[IdempotencyCleanup] started interval=%s batch=%d", s.interval, s.batch))
+		notifyObserver(s.observer, "service.idempotency_cleanup", fmt.Sprintf("[IdempotencyCleanup] started interval=%s batch=%d", s.interval, s.batch))
 		s.wg.Add(1)
 		go func() { defer s.wg.Done(); s.runLoop() }()
 	})
@@ -68,7 +70,7 @@ func (s *IdempotencyCleanupService) Stop() {
 
 	s.stopOnce.Do(func() {
 		close(s.stopCh)
-		observe("service.idempotency_cleanup", "[IdempotencyCleanup] stopped")
+		notifyObserver(s.observer, "service.idempotency_cleanup", "[IdempotencyCleanup] stopped")
 	})
 	s.lifecycleMu.Unlock()
 	s.wg.Wait()
@@ -97,10 +99,10 @@ func (s *IdempotencyCleanupService) cleanupOnce() {
 
 	deleted, err := s.repo.DeleteExpired(ctx, time.Now(), s.batch)
 	if err != nil {
-		observe("service.idempotency_cleanup", fmt.Sprintf("[IdempotencyCleanup] cleanup failed err=%v", err))
+		notifyObserver(s.observer, "service.idempotency_cleanup", fmt.Sprintf("[IdempotencyCleanup] cleanup failed err=%v", err))
 		return
 	}
 	if deleted > 0 {
-		observe("service.idempotency_cleanup", fmt.Sprintf("[IdempotencyCleanup] cleaned expired records count=%d", deleted))
+		notifyObserver(s.observer, "service.idempotency_cleanup", fmt.Sprintf("[IdempotencyCleanup] cleaned expired records count=%d", deleted))
 	}
 }

@@ -13,10 +13,12 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -227,35 +229,35 @@ func (s *antigravitySettingRepoStub) Delete(ctx context.Context, key string) err
 func TestResolveAntigravityProjectID(t *testing.T) {
 	tests := []struct {
 		name    string
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 		want    string
 		wantErr bool
 	}{
 		{
 			name: "优先使用自动回填的 project_id",
-			account: &Account{Credentials: map[string]any{
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
 				"project_id": " onboard-project ",
 				antigravityProjectIDFallbackCredentialKey: " configured-project ",
-			}},
+			}}},
 			want: "onboard-project",
 		},
 		{
 			name: "使用 credentials 中的手工 fallback",
-			account: &Account{Credentials: map[string]any{
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
 				antigravityProjectIDFallbackCredentialKey: " configured-project ",
-			}},
+			}}},
 			want: "configured-project",
 		},
 		{
 			name: "兼容 extra 中的手工 fallback",
-			account: &Account{Extra: map[string]any{
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Extra: map[string]any{
 				antigravityProjectIDFallbackCredentialKey: " extra-project ",
-			}},
+			}}},
 			want: "extra-project",
 		},
 		{
 			name:    "缺少 project_id",
-			account: &Account{Credentials: map[string]any{}},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{}}},
 			wantErr: true,
 		},
 	}
@@ -303,8 +305,7 @@ func TestAntigravityGatewayService_ForwardGemini_UsesConfiguredProjectFallback(t
 		httpUpstream:   upstream,
 	}
 
-	account := &Account{
-		ID:          101,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101,
 		Name:        "acc-configured-project",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -316,7 +317,7 @@ func TestAntigravityGatewayService_ForwardGemini_UsesConfiguredProjectFallback(t
 			"model_mapping": map[string]any{
 				"gemini-2.5-flash": "gemini-2.5-flash",
 			},
-		},
+		}},
 	}
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, "gemini-2.5-flash", "streamGenerateContent", true, body, false)
@@ -355,8 +356,7 @@ func TestAntigravityGatewayService_ForwardGemini_ImageUsesDefaultMappingAndOAuth
 		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   upstream,
 	}
-	account := &Account{
-		ID:          104,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 104,
 		Name:        "antigravity-image",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -365,7 +365,7 @@ func TestAntigravityGatewayService_ForwardGemini_ImageUsesDefaultMappingAndOAuth
 		Credentials: map[string]any{
 			"access_token": "test-access-token",
 			"project_id":   "test-project",
-		},
+		}},
 	}
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, "gemini-3.1-flash-image", "generateContent", true, body, false)
@@ -406,9 +406,8 @@ func TestAntigravityGatewayService_ForwardGemini_PreservesServerSideToolInvocati
 		tokenProvider:  newAntigravityTokenSourceForTest(nil),
 		httpUpstream:   upstream,
 	}
-	account := &Account{
-		ID: 103, Name: "native-gemini", Platform: capability.PlatformAntigravity, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Concurrency: 1,
-		Credentials: map[string]any{"access_token": "token", "project_id": "project-103", "model_mapping": map[string]any{"gemini-2.5-flash": "gemini-2.5-flash"}},
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 103, Name: "native-gemini", Platform: capability.PlatformAntigravity, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Concurrency: 1,
+		Credentials: map[string]any{"access_token": "token", "project_id": "project-103", "model_mapping": map[string]any{"gemini-2.5-flash": "gemini-2.5-flash"}}},
 	}
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, "gemini-2.5-flash", "generateContent", false, body, false)
@@ -445,8 +444,7 @@ func TestAntigravityGatewayService_ForwardGemini_MissingProjectReturnsLocalError
 		httpUpstream:  upstream,
 	}
 
-	account := &Account{
-		ID:          102,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 102,
 		Name:        "acc-missing-project",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -457,7 +455,7 @@ func TestAntigravityGatewayService_ForwardGemini_MissingProjectReturnsLocalError
 			"model_mapping": map[string]any{
 				"gemini-2.5-flash": "gemini-2.5-flash",
 			},
-		},
+		}},
 	}
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, "gemini-2.5-flash", "streamGenerateContent", true, body, false)
@@ -500,8 +498,7 @@ func TestAntigravityGatewayService_Forward_PromptTooLong(t *testing.T) {
 		httpUpstream:   &httpUpstreamStub{resp: resp},
 	}
 
-	account := &Account{
-		ID:          1,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "acc-1",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -510,7 +507,7 @@ func TestAntigravityGatewayService_Forward_PromptTooLong(t *testing.T) {
 		Credentials: map[string]any{
 			"access_token": "token",
 			"project_id":   "proj",
-		},
+		}},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body, false)
@@ -559,8 +556,7 @@ func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *tes
 
 	// 设置模型限流：剩余时间 30 秒（> antigravityRateLimitThreshold 7s）
 	futureResetAt := time.Now().Add(30 * time.Second).Format(time.RFC3339)
-	account := &Account{
-		ID:          1,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "acc-rate-limited",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -570,13 +566,12 @@ func TestAntigravityGatewayService_Forward_ModelRateLimitTriggersFailover(t *tes
 			"access_token": "token",
 			"project_id":   "proj",
 		},
-		Extra: map[string]any{
-			modelRateLimitsKey: map[string]any{
-				"claude-opus-4-6-thinking": map[string]any{
-					"rate_limit_reset_at": futureResetAt,
-				},
+		Extra: map[string]any{"model_rate_limits": map[string]any{
+			"claude-opus-4-6-thinking": map[string]any{
+				"rate_limit_reset_at": futureResetAt,
 			},
 		},
+		}},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body, false)
@@ -616,8 +611,7 @@ func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(
 
 	// 设置模型限流：剩余时间 30 秒（> antigravityRateLimitThreshold 7s）
 	futureResetAt := time.Now().Add(30 * time.Second).Format(time.RFC3339)
-	account := &Account{
-		ID:          2,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:        "acc-gemini-rate-limited",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -627,13 +621,12 @@ func TestAntigravityGatewayService_ForwardGemini_ModelRateLimitTriggersFailover(
 			"access_token": "token",
 			"project_id":   "proj",
 		},
-		Extra: map[string]any{
-			modelRateLimitsKey: map[string]any{
-				"gemini-2.5-flash": map[string]any{
-					"rate_limit_reset_at": futureResetAt,
-				},
+		Extra: map[string]any{"model_rate_limits": map[string]any{
+			"gemini-2.5-flash": map[string]any{
+				"rate_limit_reset_at": futureResetAt,
 			},
 		},
+		}},
 	}
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, "gemini-2.5-flash", "generateContent", false, body, false)
@@ -671,8 +664,7 @@ func TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling(t *tes
 
 	// 设置模型限流：剩余时间 30 秒（> antigravityRateLimitThreshold 7s）
 	futureResetAt := time.Now().Add(30 * time.Second).Format(time.RFC3339)
-	account := &Account{
-		ID:          3,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 		Name:        "acc-sticky-rate-limited",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -682,13 +674,12 @@ func TestAntigravityGatewayService_Forward_StickySessionForceCacheBilling(t *tes
 			"access_token": "token",
 			"project_id":   "proj",
 		},
-		Extra: map[string]any{
-			modelRateLimitsKey: map[string]any{
-				"claude-opus-4-6-thinking": map[string]any{
-					"rate_limit_reset_at": futureResetAt,
-				},
+		Extra: map[string]any{"model_rate_limits": map[string]any{
+			"claude-opus-4-6-thinking": map[string]any{
+				"rate_limit_reset_at": futureResetAt,
 			},
 		},
+		}},
 	}
 
 	// 传入 isStickySession = true
@@ -727,8 +718,7 @@ func TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling(
 
 	// 设置模型限流：剩余时间 30 秒（> antigravityRateLimitThreshold 7s）
 	futureResetAt := time.Now().Add(30 * time.Second).Format(time.RFC3339)
-	account := &Account{
-		ID:          4,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:        "acc-gemini-sticky-rate-limited",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -738,13 +728,12 @@ func TestAntigravityGatewayService_ForwardGemini_StickySessionForceCacheBilling(
 			"access_token": "token",
 			"project_id":   "proj",
 		},
-		Extra: map[string]any{
-			modelRateLimitsKey: map[string]any{
-				"gemini-2.5-flash": map[string]any{
-					"rate_limit_reset_at": futureResetAt,
-				},
+		Extra: map[string]any{"model_rate_limits": map[string]any{
+			"gemini-2.5-flash": map[string]any{
+				"rate_limit_reset_at": futureResetAt,
 			},
 		},
+		}},
 	}
 
 	// 传入 isStickySession = true
@@ -797,8 +786,7 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 		cache:         cache,
 	}
 
-	account := &Account{
-		ID:          44,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 44,
 		Name:        "acc-gemini-runtime-rate-limited",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -812,7 +800,7 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 		},
 		Extra: map[string]any{
 			"mixed_scheduling": true,
-		},
+		}},
 	}
 
 	result, err := svc.ForwardGemini(
@@ -824,7 +812,7 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 		false,
 		body,
 		true,
-		WithForwardGeminiSession(77, "gemini:sticky-runtime"),
+		forwardcore.WithGeminiSession(77, "gemini:sticky-runtime"),
 	)
 
 	require.Nil(t, result)
@@ -833,7 +821,7 @@ func TestAntigravityGatewayService_ForwardGemini_ClearsStickySessionOnGeminiRate
 	require.Equal(t, http.StatusServiceUnavailable, failoverErr.StatusCode)
 	require.Len(t, repo.modelRateLimitCalls, 2)
 	require.Equal(t, "gemini-3-flash", repo.modelRateLimitCalls[0].modelKey)
-	require.Equal(t, antigravityGeminiModelRateLimitKey, repo.modelRateLimitCalls[1].modelKey)
+	require.Equal(t, "antigravity:gemini", repo.modelRateLimitCalls[1].modelKey)
 	require.Len(t, cache.deleteCalls, 1)
 	require.Equal(t, int64(77), cache.deleteCalls[0].groupID)
 	require.Equal(t, "gemini:sticky-runtime", cache.deleteCalls[0].sessionHash)
@@ -873,8 +861,7 @@ func TestAntigravityGatewayService_Forward_BillsWithMappedModel(t *testing.T) {
 	}
 
 	const mappedModel = "gemini-3-pro-high"
-	account := &Account{
-		ID:          5,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Name:        "acc-forward-billing",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -886,7 +873,7 @@ func TestAntigravityGatewayService_Forward_BillsWithMappedModel(t *testing.T) {
 			"model_mapping": map[string]any{
 				"claude-sonnet-4-5": mappedModel,
 			},
-		},
+		}},
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body, false)
@@ -927,8 +914,7 @@ func TestAntigravityGatewayService_ForwardGemini_BillsWithMappedModel(t *testing
 	}
 
 	const mappedModel = "gemini-3-pro-high"
-	account := &Account{
-		ID:          6,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6,
 		Name:        "acc-gemini-billing",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -940,7 +926,7 @@ func TestAntigravityGatewayService_ForwardGemini_BillsWithMappedModel(t *testing
 			"model_mapping": map[string]any{
 				"gemini-2.5-flash": mappedModel,
 			},
-		},
+		}},
 	}
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, "gemini-2.5-flash", "generateContent", true, body, false)
@@ -999,8 +985,7 @@ func TestAntigravityGatewayService_ForwardGemini_RetriesCorruptedThoughtSignatur
 
 	const originalModel = "gemini-3.1-pro-preview"
 	const mappedModel = "gemini-3.1-pro-high"
-	account := &Account{
-		ID:          7,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "acc-gemini-signature",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -1012,7 +997,7 @@ func TestAntigravityGatewayService_ForwardGemini_RetriesCorruptedThoughtSignatur
 			"model_mapping": map[string]any{
 				originalModel: mappedModel,
 			},
-		},
+		}},
 	}
 
 	result, err := svc.ForwardGemini(context.Background(), c, account, originalModel, "streamGenerateContent", true, body, false)
@@ -1058,8 +1043,7 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 
 	const originalModel = "gemini-3.1-pro-preview"
 	const mappedModel = "gemini-3.1-pro-high"
-	account := &Account{
-		ID:          8,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Name:        "acc-gemini-signature-failover",
 		Platform:    capability.PlatformAntigravity,
 		Type:        capability.AccountTypeOAuth,
@@ -1071,7 +1055,7 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 			"model_mapping": map[string]any{
 				originalModel: mappedModel,
 			},
-		},
+		}},
 	}
 
 	upstream := &queuedHTTPUpstreamStub{
@@ -1090,12 +1074,11 @@ func TestAntigravityGatewayService_ForwardGemini_SignatureRetryPropagatesFailove
 				return
 			}
 			futureResetAt := time.Now().Add(30 * time.Second).Format(time.RFC3339)
-			account.Extra = map[string]any{
-				modelRateLimitsKey: map[string]any{
-					mappedModel: map[string]any{
-						"rate_limit_reset_at": futureResetAt,
-					},
+			account.Record.Extra = map[string]any{"model_rate_limits": map[string]any{
+				mappedModel: map[string]any{
+					"rate_limit_reset_at": futureResetAt,
 				},
+			},
 			}
 		},
 	}

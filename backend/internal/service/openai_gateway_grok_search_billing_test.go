@@ -8,12 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/gin-gonic/gin"
@@ -28,7 +28,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 
 	account := healthyGrokOAuthGatewayTestAccount(9901, "access-token")
-	repo := &mockAccountRepoForPlatform{accountsByID: map[int64]*Account{account.ID: account}}
+	repo := &mockAccountRepoForPlatform{accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}}
 	upstreamBody := `{
 		"id":"resp_search_bill",
 		"object":"response",
@@ -46,11 +46,11 @@ func TestForwardGrokResponses_PropagatesSearchCountFromJSON(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(bytes.NewReader([]byte(upstreamBody))),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", false, time.Now())
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestForwardGrokResponses_PropagatesSearchCountFromSSE(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 
 	account := healthyGrokOAuthGatewayTestAccount(9902, "access-token")
-	repo := &mockAccountRepoForPlatform{accountsByID: map[int64]*Account{account.ID: account}}
+	repo := &mockAccountRepoForPlatform{accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account}}
 	// 装配后，同一 call_id 的 item.done 与 response.completed 只能统计一次。
 	sse := "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"web_search_call\",\"id\":\"ws1\",\"call_id\":\"c1\"}}\n\n" +
 		"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_s\",\"status\":\"completed\",\"output\":[{\"type\":\"web_search_call\",\"id\":\"ws1\",\"call_id\":\"c1\"}],\"usage\":{\"input_tokens\":3,\"output_tokens\":1}}}\n\n"
@@ -77,11 +77,11 @@ func TestForwardGrokResponses_PropagatesSearchCountFromSSE(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
 		Body:       io.NopCloser(bytes.NewReader([]byte(sse))),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		httpUpstream:      upstream,
 		grokTokenProvider: newGrokTokenSourceForTest(repo, nil),
 		accountRepo:       repo,
-	}
+	}))
 
 	result, err := svc.forwardGrokResponses(context.Background(), c, account, body, "grok", true, time.Now())
 	require.NoError(t, err)
@@ -100,39 +100,34 @@ func TestGetSchedulableAccount_AppliesGrokFreeSoftGate(t *testing.T) {
 	cfg.Gateway.Grok.FreeQuotaStatsCacheSeconds = 60
 
 	account := healthyGrokOAuthGatewayTestAccount(8801, "tok")
-	account.Credentials["subscription_tier"] = "free"
-	account.Status = billing.StatusActive
-	account.Schedulable = true
+	account.Record.Credentials["subscription_tier"] = "free"
+	account.Record.Status = billing.StatusActive
+	account.Record.Schedulable = true
 
 	repo := &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}
 	usageRepo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usage.AccountStats{
-		account.ID: {Tokens: 480_000}, // above 95% of 500k
+		account.Record.ID: {Tokens: 480_000}, // above 95% of 500k
 	}}
 	// 清理共享网关免费层门禁缓存，保证测试结果稳定。
-	gatewayGrokFreeQuotaGateCache.Range(func(key, _ any) bool {
-		gatewayGrokFreeQuotaGateCache.Delete(key)
-		return true
-	})
-	if root, ok := freeQuotaRefreshInFlight.Load(&gatewayGrokFreeQuotaGateCache); ok {
-		if m, ok := root.(*sync.Map); ok {
-			m.Delete(account.ID)
-		}
-	}
-	svc := &GatewayService{
-		cfg:          cfg,
-		accountRepo:  repo,
-		usageLogRepo: usageRepo,
-	}
+	svc := withSchedulerParametersForTest(&GatewayService{
+		cfg:         cfg,
+		accountRepo: repo,
+		usageLogRepo:
 
-	// 缓存未命中时失败开放并安排刷新。
-	got, err := svc.getSchedulableAccount(context.Background(), account.ID)
+		// 缓存未命中时失败开放并安排刷新。
+
+		usageRepo})
+
+	svc.BindFreeQuotaGate(newGrokFreeQuotaTestGate(cfg, usageRepo, svc.RunBackgroundTask))
+
+	got, err := svc.getSchedulableAccount(context.Background(), account.Record.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got, "first sticky hit fail-opens while free-gate stats refresh")
 
 	require.Eventually(t, func() bool {
-		got, err := svc.getSchedulableAccount(context.Background(), account.ID)
+		got, err := svc.getSchedulableAccount(context.Background(), account.Record.ID)
 		return err == nil && got == nil
 	}, 2*time.Second, 10*time.Millisecond, "over free soft-gate sticky hit must miss after cache warm")
 }
@@ -147,37 +142,29 @@ func TestOpenAIGetSchedulableAccount_AppliesGrokFreeSoftGate(t *testing.T) {
 	cfg.Gateway.Grok.FreeQuotaStatsCacheSeconds = 60
 
 	account := healthyGrokOAuthGatewayTestAccount(8802, "tok")
-	account.Credentials["subscription_tier"] = "free"
-	account.Status = billing.StatusActive
-	account.Schedulable = true
+	account.Record.Credentials["subscription_tier"] = "free"
+	account.Record.Status = billing.StatusActive
+	account.Record.Schedulable = true
 
 	repo := &mockAccountRepoForPlatform{
-		accountsByID: map[int64]*Account{account.ID: account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: account},
 	}
 	usageRepo := &grokFreeQuotaUsageRepoStub{stats: map[int64]*usage.AccountStats{
-		account.ID: {Tokens: 480_000},
+		account.Record.ID: {Tokens: 480_000},
 	}}
-	openaiGrokFreeQuotaGateCache.Range(func(key, _ any) bool {
-		openaiGrokFreeQuotaGateCache.Delete(key)
-		return true
-	})
-	if root, ok := freeQuotaRefreshInFlight.Load(&openaiGrokFreeQuotaGateCache); ok {
-		if m, ok := root.(*sync.Map); ok {
-			m.Delete(account.ID)
-		}
-	}
-	svc := &OpenAIGatewayService{
+	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          cfg,
 		accountRepo:  repo,
 		usageLogRepo: usageRepo,
-	}
+	}))
 
-	got, err := svc.getSchedulableAccount(context.Background(), account.ID)
+	bindGrokFreeQuotaTestService(svc)
+	got, err := svc.getSchedulableAccount(context.Background(), account.Record.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got, "first sticky hit fail-opens while free-gate stats refresh")
 
 	require.Eventually(t, func() bool {
-		got, err := svc.getSchedulableAccount(context.Background(), account.ID)
+		got, err := svc.getSchedulableAccount(context.Background(), account.Record.ID)
 		return err == nil && got == nil
 	}, 2*time.Second, 10*time.Millisecond, "OpenAI legacy sticky must apply free soft-gate after cache warm")
 }

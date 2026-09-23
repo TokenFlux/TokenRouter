@@ -25,11 +25,11 @@ type openAICompatSessionResponseBinding struct {
 	ExpiresAt            time.Time
 }
 
-func openAICompatContinuationEnabled(account *Account, model string) bool {
-	if account == nil || account.Type != capability.AccountTypeAPIKey {
+func openAICompatContinuationEnabled(account *gatewayprovider.ExecutionAccount, model string) bool {
+	if account == nil || account.Record.Type != capability.AccountTypeAPIKey {
 		return false
 	}
-	if !accountcore.ResolveResponsesContinuationSupported(account.Extra) {
+	if !accountcore.ResolveResponsesContinuationSupported(account.Record.Extra) {
 		return false
 	}
 	return gatewayprovider.ShouldAutoInjectPromptCacheKeyForCompat(model)
@@ -154,7 +154,7 @@ func isOpenAICompatPreviousResponseUnsupported(statusCode int, upstreamMsg strin
 		check(gjson.GetBytes(upstreamBody, "error.message").String())
 }
 
-func openAICompatSessionResponseKey(c *gin.Context, account *Account, promptCacheKey string) string {
+func openAICompatSessionResponseKey(c *gin.Context, account *gatewayprovider.ExecutionAccount, promptCacheKey string) string {
 	key := strings.TrimSpace(promptCacheKey)
 	if account == nil || key == "" {
 		return ""
@@ -164,13 +164,13 @@ func openAICompatSessionResponseKey(c *gin.Context, account *Account, promptCach
 		apiKeyID = gatewayhttp.APIKeyIDFromContext(c)
 	}
 	return strings.Join([]string{
-		strconv.FormatInt(account.ID, 10),
+		strconv.FormatInt(account.Record.ID, 10),
 		strconv.FormatInt(apiKeyID, 10),
 		key,
 	}, "\x00")
 }
 
-func (s *OpenAIGatewayService) getOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) string {
+func (s *OpenAIGatewayService) getOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, promptCacheKey string) string {
 	if s == nil {
 		return ""
 	}
@@ -201,7 +201,7 @@ func (s *OpenAIGatewayService) getOpenAICompatSessionResponseID(_ context.Contex
 	return strings.TrimSpace(binding.ResponseID)
 }
 
-func (s *OpenAIGatewayService) bindOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *Account, promptCacheKey, responseID string) {
+func (s *OpenAIGatewayService) bindOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, promptCacheKey, responseID string) {
 	if s == nil {
 		return
 	}
@@ -212,13 +212,13 @@ func (s *OpenAIGatewayService) bindOpenAICompatSessionResponseID(_ context.Conte
 	}
 	binding := openAICompatSessionResponseBinding{
 		ResponseID: id,
-		ExpiresAt:  time.Now().Add(s.openAIWSResponseStickyTTL()),
+		ExpiresAt:  time.Now().Add(s.OpenAIHTTPResponseStickyTTL()),
 	}
 	if raw, ok := s.openaiCompatSessionResponses.Load(key); ok {
 		if existing, ok := raw.(openAICompatSessionResponseBinding); ok {
 			if existing.ContinuationDisabled {
 				existing.ResponseID = ""
-				existing.ExpiresAt = time.Now().Add(s.openAIWSResponseStickyTTL())
+				existing.ExpiresAt = time.Now().Add(s.OpenAIHTTPResponseStickyTTL())
 				s.openaiCompatSessionResponses.Store(key, existing)
 				return
 			}
@@ -228,7 +228,7 @@ func (s *OpenAIGatewayService) bindOpenAICompatSessionResponseID(_ context.Conte
 	s.openaiCompatSessionResponses.Store(key, binding)
 }
 
-func (s *OpenAIGatewayService) deleteOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) {
+func (s *OpenAIGatewayService) deleteOpenAICompatSessionResponseID(_ context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, promptCacheKey string) {
 	if s == nil {
 		return
 	}
@@ -250,11 +250,11 @@ func (s *OpenAIGatewayService) deleteOpenAICompatSessionResponseID(_ context.Con
 		s.openaiCompatSessionResponses.Delete(key)
 		return
 	}
-	binding.ExpiresAt = time.Now().Add(s.openAIWSResponseStickyTTL())
+	binding.ExpiresAt = time.Now().Add(s.OpenAIHTTPResponseStickyTTL())
 	s.openaiCompatSessionResponses.Store(key, binding)
 }
 
-func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuation(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) {
+func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuation(_ context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, promptCacheKey string) {
 	if s == nil {
 		return
 	}
@@ -264,7 +264,7 @@ func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuation(_ context.
 	}
 	binding := openAICompatSessionResponseBinding{
 		ContinuationDisabled: true,
-		ExpiresAt:            time.Now().Add(s.openAIWSResponseStickyTTL()),
+		ExpiresAt:            time.Now().Add(s.OpenAIHTTPResponseStickyTTL()),
 	}
 	if raw, ok := s.openaiCompatSessionResponses.Load(key); ok {
 		if existing, ok := raw.(openAICompatSessionResponseBinding); ok {
@@ -274,7 +274,7 @@ func (s *OpenAIGatewayService) disableOpenAICompatSessionContinuation(_ context.
 	s.openaiCompatSessionResponses.Store(key, binding)
 }
 
-func (s *OpenAIGatewayService) isOpenAICompatSessionContinuationDisabled(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) bool {
+func (s *OpenAIGatewayService) isOpenAICompatSessionContinuationDisabled(_ context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, promptCacheKey string) bool {
 	if s == nil {
 		return false
 	}
@@ -298,7 +298,7 @@ func (s *OpenAIGatewayService) isOpenAICompatSessionContinuationDisabled(_ conte
 	return binding.ContinuationDisabled
 }
 
-func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *Account, promptCacheKey string) string {
+func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, promptCacheKey string) string {
 	if s == nil {
 		return ""
 	}
@@ -321,7 +321,7 @@ func (s *OpenAIGatewayService) getOpenAICompatSessionTurnState(_ context.Context
 	return strings.TrimSpace(binding.TurnState)
 }
 
-func (s *OpenAIGatewayService) bindOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *Account, promptCacheKey, turnState string) {
+func (s *OpenAIGatewayService) bindOpenAICompatSessionTurnState(_ context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, promptCacheKey, turnState string) {
 	if s == nil {
 		return
 	}
@@ -332,7 +332,7 @@ func (s *OpenAIGatewayService) bindOpenAICompatSessionTurnState(_ context.Contex
 	}
 	binding := openAICompatSessionResponseBinding{
 		TurnState: state,
-		ExpiresAt: time.Now().Add(s.openAIWSResponseStickyTTL()),
+		ExpiresAt: time.Now().Add(s.OpenAIHTTPResponseStickyTTL()),
 	}
 	if raw, ok := s.openaiCompatSessionResponses.Load(key); ok {
 		if existing, ok := raw.(openAICompatSessionResponseBinding); ok {

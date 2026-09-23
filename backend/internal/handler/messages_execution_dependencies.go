@@ -9,13 +9,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,45 +24,45 @@ type messageExecutionDependencies struct {
 	forwardResponses                      func(
 		ctx context.Context,
 		c *gin.Context,
-		account *service.Account,
+		account *gatewaycapture.ExecutionAccount,
 		body []byte,
 		parsed *requeststate.ParsedRequest,
 	) (*forwardcore.MessagesResult, error)
 	forwardChat func(
 		ctx context.Context,
 		c *gin.Context,
-		account *service.Account,
+		account *gatewaycapture.ExecutionAccount,
 		body []byte,
 		parsed *requeststate.ParsedRequest,
 	) (*forwardcore.MessagesResult, error)
 	forwardAntigravityResponses func(
 		ctx context.Context,
 		c *gin.Context,
-		account *service.Account,
+		account *gatewaycapture.ExecutionAccount,
 		body []byte,
 		_ *requeststate.ParsedRequest,
 	) (*forwardcore.MessagesResult, error)
 	forwardAntigravityChat func(
 		ctx context.Context,
 		c *gin.Context,
-		account *service.Account,
+		account *gatewaycapture.ExecutionAccount,
 		body []byte,
 		_ *requeststate.ParsedRequest,
 	) (*forwardcore.MessagesResult, error)
 	forwardGeminiResponses func(
 		ctx context.Context,
 		c *gin.Context,
-		account *service.Account,
+		account *gatewaycapture.ExecutionAccount,
 		body []byte,
 		_ *requeststate.ParsedRequest,
 	) (*forwardcore.MessagesResult, error)
 	forwardGeminiChat func(
 		ctx context.Context,
 		c *gin.Context,
-		account *service.Account,
+		account *gatewaycapture.ExecutionAccount,
 		body []byte,
 	) (*forwardcore.MessagesResult, error)
-	forwardGeminiNative              func(ctx context.Context, c *gin.Context, account *service.Account, originalModel string, action string, stream bool, body []byte) (*forwardcore.MessagesResult, error)
+	forwardGeminiNative              func(ctx context.Context, c *gin.Context, account *gatewaycapture.ExecutionAccount, originalModel string, action string, stream bool, body []byte) (*forwardcore.MessagesResult, error)
 	saveGeminiSession                func(_ context.Context, groupID int64, prefixHash, digestChain, uuid string, accountID int64, oldDigestChain string) error
 	replaceModel                     func(body []byte, newModel string) []byte
 	responsesErrorResponse           func(c *gin.Context, status int, code, message string)
@@ -72,30 +72,30 @@ type messageExecutionDependencies struct {
 	handleGeminiFailoverExhausted    func(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError)
 
 	prepareGatewayAttemptRequest      func(context.Context, *requeststate.ParsedRequest, []byte, *apikey.APIKey, string) (*requeststate.ParsedRequest, routing.ChannelMappingResult, error)
-	selectAccount                     func(context.Context, *int64, string, string, map[int64]struct{}, string, int64) (*service.AccountSelectionResult, error)
-	trackSession                      func(*scheduler.SessionAttempts, *service.Account, string)
+	selectAccount                     func(context.Context, *int64, string, string, map[int64]struct{}, string, int64) (*gatewaycapture.SelectionResult, error)
+	trackSession                      func(*scheduler.SessionAttempts, *gatewaycapture.ExecutionAccount, string)
 	newSessionAttempts                func() *scheduler.SessionAttempts
 	singleAccountGroup                func(context.Context, *int64) bool
-	reportSchedule                    func(*service.AccountSelectionResult, int64, bool, *forwardcore.MessagesResult)
+	reportSchedule                    func(*gatewaycapture.SelectionResult, int64, bool, *forwardcore.MessagesResult)
 	incrementRPM                      func(context.Context, int64) error
 	bindSticky                        func(context.Context, *int64, string, int64) error
 	resolveGroup                      func(context.Context, int64) (*routing.Group, error)
-	accountSwitched                   func(*service.AccountSelectionResult)
+	accountSwitched                   func(*gatewaycapture.SelectionResult)
 	tempUnschedule                    func(context.Context, int64, *forwardcore.UpstreamFailoverError)
-	bedrockCompat                     func(*gin.Context, []byte, string, *service.Account, *int64) []byte
-	forwardMessages                   func(context.Context, *gin.Context, *service.Account, *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error)
-	forwardAntigravity                func(context.Context, *gin.Context, *service.Account, []byte, bool) (*forwardcore.MessagesResult, error)
-	forwardGemini                     func(context.Context, *gin.Context, *service.Account, []byte) (*forwardcore.MessagesResult, error)
-	forwardAntigravityGemini          func(context.Context, *gin.Context, *service.Account, string, string, bool, []byte, bool, ...service.ForwardGeminiOption) (*forwardcore.MessagesResult, error)
-	writeMappedClaudeError            func(*gin.Context, *service.Account, int, string, []byte) error
+	bedrockCompat                     func(*gin.Context, []byte, string, *gatewaycapture.ExecutionAccount, *int64) []byte
+	forwardMessages                   func(context.Context, *gin.Context, *gatewaycapture.ExecutionAccount, *requeststate.ParsedRequest) (*forwardcore.MessagesResult, error)
+	forwardAntigravity                func(context.Context, *gin.Context, *gatewaycapture.ExecutionAccount, []byte, bool) (*forwardcore.MessagesResult, error)
+	forwardGemini                     func(context.Context, *gin.Context, *gatewaycapture.ExecutionAccount, []byte) (*forwardcore.MessagesResult, error)
+	forwardAntigravityGemini          func(context.Context, *gin.Context, *gatewaycapture.ExecutionAccount, string, string, bool, []byte, bool, ...forwardcore.GeminiSessionOption) (*forwardcore.MessagesResult, error)
+	writeMappedClaudeError            func(*gin.Context, *gatewaycapture.ExecutionAccount, int, string, []byte) error
 	billingCheck                      func(context.Context, *apikey.APIKey, *billing.UserSubscription, string, bool) error
 	diagnoser                         routing.ModelAvailabilityDiagnoser
-	apiKeyService                     service.APIKeyQuotaUpdater
+	apiKeyService                     gatewaycapture.QuotaUpdater
 	recorder                          *completion.Recorder
 	concurrencyHelper                 *gatewayhttp.ConcurrencyHelper
-	userMsgQueueHelper                *UserMsgQueueHelper
+	userMsgQueueHelper                *gatewayhttp.UserMsgQueueHelper
 	messageWaitTimeout                time.Duration
-	getUserMsgQueueMode               func(*service.Account, *requeststate.ParsedRequest) string
+	getUserMsgQueueMode               func(*gatewaycapture.ExecutionAccount, *requeststate.ParsedRequest) string
 	errorResponse                     func(*gin.Context, int, string, string)
 	handleStreamingAwareError         func(*gin.Context, int, string, string, bool)
 	handleStreamingAwareErrorWithCode func(*gin.Context, int, string, string, string, bool)
@@ -112,10 +112,10 @@ func newMessageExecutionDependencies(h *GatewayHandler) *messageExecutionDepende
 		diagnoser:                    h.gatewayService,
 		concurrencyHelper:            h.concurrencyHelper, userMsgQueueHelper: h.userMsgQueueHelper,
 		getUserMsgQueueMode: h.getUserMsgQueueMode,
-		errorResponse:       h.errorResponse, handleStreamingAwareError: h.handleStreamingAwareError,
-		handleStreamingAwareErrorWithCode: h.handleStreamingAwareErrorWithCode, handleConcurrencyError: h.handleConcurrencyError,
-		handleFailoverExhausted: h.handleFailoverExhausted, handleFailoverExhaustedSimple: h.handleFailoverExhaustedSimple,
-		ensureForwardErrorResponse: h.ensureForwardErrorResponse, submitUsageRecordTask: h.submitUsageRecordTask,
+		errorResponse:       (gatewayhttp.MessagesErrorOutput{}).Error, handleStreamingAwareError: (gatewayhttp.MessagesErrorOutput{}).StreamError,
+		handleStreamingAwareErrorWithCode: (gatewayhttp.MessagesErrorOutput{}).StreamErrorWithCode, handleConcurrencyError: (gatewayhttp.MessagesErrorOutput{}).ConcurrencyError,
+		handleFailoverExhausted: (gatewayhttp.MessagesErrorOutput{Rules: h.errorPassthroughService}).Exhausted, handleFailoverExhaustedSimple: (gatewayhttp.MessagesErrorOutput{}).ExhaustedStatus,
+		ensureForwardErrorResponse: (gatewayhttp.MessagesErrorOutput{}).EnsureResponse, submitUsageRecordTask: h.submitUsageRecordTask,
 	}
 	if h.cfg != nil {
 		d.messageWaitTimeout = h.cfg.Gateway.UserMessageQueue.WaitTimeout()
@@ -170,11 +170,11 @@ func newMessageExecutionDependencies(h *GatewayHandler) *messageExecutionDepende
 	}
 	d.geminiAvailable = h.geminiCompatService != nil
 	d.antigravityAvailable = h.antigravityGatewayService != nil
-	d.responsesErrorResponse = h.responsesErrorResponse
-	d.chatCompletionsErrorResponse = h.chatCompletionsErrorResponse
-	d.handleResponsesFailoverExhausted = h.handleResponsesFailoverExhausted
-	d.handleCCFailoverExhausted = h.handleCCFailoverExhausted
-	d.handleGeminiFailoverExhausted = h.handleGeminiFailoverExhausted
+	d.responsesErrorResponse = (gatewayhttp.MessagesErrorOutput{}).ResponsesError
+	d.chatCompletionsErrorResponse = (gatewayhttp.MessagesErrorOutput{}).ChatError
+	d.handleResponsesFailoverExhausted = (gatewayhttp.MessagesErrorOutput{}).ResponsesExhausted
+	d.handleCCFailoverExhausted = (gatewayhttp.MessagesErrorOutput{}).ChatExhausted
+	d.handleGeminiFailoverExhausted = (gatewayhttp.MessagesErrorOutput{Rules: h.errorPassthroughService}).GeminiExhausted
 	return d
 }
 

@@ -77,9 +77,7 @@ func (v catalogueRules) UpstreamModels(ctx context.Context, model string) []stri
 
 // CatalogueAccount 只公开原目录投影，凭据仅留在内部模型规则端口。
 func CatalogueAccount(value *account.Record, route requeststate.AttemptRoute) routing.CatalogueAccount {
-	snapshot := value.RoutingSnapshot()
-	target := account.ProtocolTarget{Record: value, Protocol: route.Protocol()}
-	snapshot.EnabledProtocols = slices.Clone(value.UpstreamProtocolsForLegacy(target.GetAPIProtocol()))
+	snapshot := (ModelPolicy{Record: value, Route: route}).CandidateSnapshot()
 	groups := make([]int64, len(value.AccountGroups))
 	for i, g := range value.AccountGroups {
 		groups[i] = g.GroupID

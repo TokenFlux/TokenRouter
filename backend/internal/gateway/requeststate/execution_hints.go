@@ -10,6 +10,8 @@ type Hint[T bool | int | int64] struct {
 
 // ExecutionHints 是本次请求的执行参数快照；派生 attempt 不修改父请求。
 type ExecutionHints struct {
+	// HealthModel 保存本次尝试已规范化的健康观察型号，不再次映射。
+	HealthModel                 string
 	ClaudeCode                  bool
 	ClaudeCodeVersion           string
 	OpenAIImageGenerationIntent bool

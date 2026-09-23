@@ -57,7 +57,7 @@ func TestResolveOpenAIWSFallbackErrorResponse(t *testing.T) {
 }
 
 func TestOpenAIWSFallbackCooling(t *testing.T) {
-	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 	svc.cfg.Gateway.OpenAIWS.FallbackCooldownSeconds = 1
 
 	require.False(t, svc.isOpenAIWSFallbackCooling(1))
@@ -73,7 +73,7 @@ func TestOpenAIWSFallbackCooling(t *testing.T) {
 }
 
 func TestOpenAIWSRetryBackoff(t *testing.T) {
-	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 	svc.cfg.Gateway.OpenAIWS.RetryBackoffInitialMS = 100
 	svc.cfg.Gateway.OpenAIWS.RetryBackoffMaxMS = 400
 	svc.cfg.Gateway.OpenAIWS.RetryJitterRatio = 0
@@ -85,7 +85,7 @@ func TestOpenAIWSRetryBackoff(t *testing.T) {
 }
 
 func TestOpenAIWSRetryTotalBudget(t *testing.T) {
-	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 	svc.cfg.Gateway.OpenAIWS.RetryTotalBudgetMS = 1200
 	require.Equal(t, 1200*time.Millisecond, svc.openAIWSRetryTotalBudget())
 
@@ -100,7 +100,7 @@ func TestClassifyOpenAIWSReadFallbackReason(t *testing.T) {
 }
 
 func TestOpenAIWSStoreDisabledConnMode(t *testing.T) {
-	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 	svc.cfg.Gateway.OpenAIWS.StoreDisabledForceNewConn = true
 	require.Equal(t, openAIWSStoreDisabledConnModeStrict, svc.openAIWSStoreDisabledConnMode())
 
@@ -122,7 +122,7 @@ func TestShouldForceNewConnOnStoreDisabled(t *testing.T) {
 }
 
 func TestOpenAIWSRetryMetricsSnapshot(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	svc.recordOpenAIWSRetryAttempt(150 * time.Millisecond)
 	svc.recordOpenAIWSRetryAttempt(0)
 	svc.recordOpenAIWSRetryExhausted()
@@ -136,7 +136,7 @@ func TestOpenAIWSRetryMetricsSnapshot(t *testing.T) {
 }
 
 func TestShouldLogOpenAIWSPayloadSchema(t *testing.T) {
-	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 
 	svc.cfg.Gateway.OpenAIWS.PayloadLogSampleRate = 0
 	require.True(t, svc.shouldLogOpenAIWSPayloadSchema(1), "首次尝试应始终记录 payload_schema")

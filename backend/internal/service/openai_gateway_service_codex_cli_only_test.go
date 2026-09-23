@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
 	accountpolicy "github.com/TokenFlux/TokenRouter/internal/account"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -34,7 +36,7 @@ func TestOpenAIGatewayService_GetCodexClientRestrictionDetector(t *testing.T) {
 		expected := &stubCodexRestrictionDetector{
 			result: accountpolicy.CodexClientRestrictionDetectionResult{Enabled: true, Matched: true, Reason: "stub"},
 		}
-		svc := &OpenAIGatewayService{codexDetector: expected}
+		svc := withSchedulerParametersForTest(&OpenAIGatewayService{codexDetector: expected})
 
 		got := svc.getCodexClientRestrictionDetector()
 		require.Same(t, expected, got)
@@ -47,7 +49,7 @@ func TestOpenAIGatewayService_GetCodexClientRestrictionDetector(t *testing.T) {
 	})
 
 	t.Run("service 未注入 detector 时返回默认 detector", func(t *testing.T) {
-		svc := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: true}}}
+		svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: true}}})
 		got := svc.getCodexClientRestrictionDetector()
 		require.NotNil(t, got)
 
@@ -55,9 +57,9 @@ func TestOpenAIGatewayService_GetCodexClientRestrictionDetector(t *testing.T) {
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 		c.Request.Header.Set("User-Agent", "curl/8.0")
-		account := &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Extra: map[string]any{"codex_cli_only": true}}
+		account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Extra: map[string]any{"codex_cli_only": true}}}
 
-		result := got.DetectClient(func() (string, string) { return c.GetHeader("User-Agent"), c.GetHeader("originator") }, AccountRecordView(account), nil, false)
+		result := got.DetectClient(func() (string, string) { return c.GetHeader("User-Agent"), c.GetHeader("originator") }, gatewayprovider.ExecutionRecord(account), nil, false)
 		require.True(t, result.Enabled)
 		require.True(t, result.Matched)
 		require.Equal(t, accountpolicy.CodexClientRestrictionReasonForceCodexCLI, result.Reason)
@@ -111,7 +113,7 @@ func TestLogCodexCLIOnlyDetection_OnlyLogsRejected(t *testing.T) {
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
-	account := &Account{ID: 1001}
+	account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001}}
 	logCodexCLIOnlyDetection(context.Background(), nil, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
 		Enabled: true,
 		Matched: true,
@@ -142,7 +144,7 @@ func TestLogCodexCLIOnlyDetection_RejectedIncludesRequestDetails(t *testing.T) {
 	c.Request.Header.Set("OpenAI-Beta", "assistants=v2")
 
 	body := []byte(`{"model":"gpt-5.2","stream":false,"prompt_cache_key":"pc-123","access_token":"secret-token","input":[{"type":"text","text":"hello"}]}`)
-	account := &Account{ID: 1001}
+	account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001}}
 	logCodexCLIOnlyDetection(context.Background(), c, account, 2002, accountpolicy.CodexClientRestrictionDetectionResult{
 		Enabled: true,
 		Matched: false,
@@ -173,7 +175,7 @@ func TestLogOpenAIInstructionsRequiredDebug_LogsRequestDetails(t *testing.T) {
 	c.Request.Header.Set("OpenAI-Beta", "assistants=v2")
 
 	body := []byte(`{"model":"gpt-5.1-codex","stream":false,"prompt_cache_key":"pc-abc","access_token":"secret-token","input":[{"type":"text","text":"hello"}]}`)
-	account := &Account{ID: 1001, Name: "codex max套餐"}
+	account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001, Name: "codex max套餐"}}
 
 	logOpenAIInstructionsRequiredDebug(
 		context.Background(),
@@ -209,7 +211,7 @@ func TestLogOpenAIInstructionsRequiredDebug_NonTargetErrorSkipped(t *testing.T) 
 	logOpenAIInstructionsRequiredDebug(
 		context.Background(),
 		c,
-		&Account{ID: 1001},
+		&gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001}},
 		http.StatusForbidden,
 		"forbidden",
 		body,
@@ -316,7 +318,7 @@ func TestOpenAITransientAndCapacityClassificationIgnoresEchoedJSON(t *testing.T)
 }
 
 func TestShouldFailoverOpenAIUpstreamResponseContextWindow502(t *testing.T) {
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	body := []byte(`{"error":{"message":"Your input exceeds the context window of this model. Please adjust your input and try again.","type":"upstream_error","code":null}}`)
 
 	require.False(t, svc.shouldFailoverOpenAIUpstreamResponse(http.StatusBadGateway, "", body))
@@ -350,14 +352,13 @@ func TestOpenAIGatewayService_Forward_LogsInstructionsRequiredDetails(t *testing
 			Body: io.NopCloser(strings.NewReader(`{"error":{"message":"Missing required parameter: 'instructions'","type":"invalid_request_error","param":"instructions","code":"missing_required_parameter"}}`)),
 		},
 	}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{ForceCodexCLI: false},
 		},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             1001,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001,
 		Name:           "codex max套餐",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeAPIKey,
@@ -365,7 +366,7 @@ func TestOpenAIGatewayService_Forward_LogsInstructionsRequiredDetails(t *testing
 		Credentials:    map[string]any{"api_key": "sk-test"},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 	body := []byte(`{"model":"gpt-5.1-codex","stream":false,"input":[{"type":"text","text":"hello"}],"prompt_cache_key":"pc-forward","access_token":"secret-token"}`)
 
@@ -403,14 +404,13 @@ func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t
 			Body: io.NopCloser(strings.NewReader(`{"error":{"message":"An error occurred while processing your request. You can retry your request, or contact us through our help center at help.openai.com if the error persists. Please include the request ID req_123 in your message.","type":"invalid_request_error"}}`)),
 		},
 	}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{
 			Gateway: config.GatewayConfig{ForceCodexCLI: false},
 		},
 		httpUpstream: upstream,
-	}
-	account := &Account{
-		ID:             1001,
+	})
+	account := &gatewayprovider.ExecutionAccount{Record: accountpolicy.Record{LoadLocation: time.LoadLocation, ID: 1001,
 		Name:           "codex max套餐",
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeAPIKey,
@@ -418,7 +418,7 @@ func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t
 		Credentials:    map[string]any{"api_key": "sk-test"},
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 	body := []byte(`{"model":"gpt-5.1-codex","stream":false,"input":[{"type":"text","text":"hello"}]}`)
 

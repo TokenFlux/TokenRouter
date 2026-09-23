@@ -129,7 +129,7 @@ func (p *VertexBatchImageProvider) Submit(ctx context.Context, job *core.BatchIm
 
 	projectID := strings.TrimSpace(p.opts.ProjectID)
 	if projectID == "" {
-		projectID = vertexProjectID(account)
+		projectID = account.VertexProjectID(vertex.ServiceAccountProjectID)
 	}
 	if projectID == "" {
 		return nil, VertexProviderError("VERTEX_PROJECT_ID_MISSING", "Vertex project id is not configured", nil)

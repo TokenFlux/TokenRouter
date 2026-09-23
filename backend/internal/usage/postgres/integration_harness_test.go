@@ -147,7 +147,7 @@ func dockerIsAvailable(ctx context.Context) bool {
 // PostgreSQL 17 起 jsonpath .datetime() 才接受 ISO-8601 的 "Z" 标识，
 // 固定使用 18 的测试无法发现 14–16 上的故障。
 //
-//	TOKENROUTER_TEST_POSTGRES_IMAGE=postgres:15-alpine go test -tags integration ./internal/repository/
+//	TOKENROUTER_TEST_POSTGRES_IMAGE=postgres:15-alpine go test -tags integration ./internal/usage/postgres/
 func selectDockerImage(ctx context.Context, preferred string) string {
 	if override := strings.TrimSpace(os.Getenv("TOKENROUTER_TEST_POSTGRES_IMAGE")); override != "" &&
 		strings.HasPrefix(preferred, "postgres:") {

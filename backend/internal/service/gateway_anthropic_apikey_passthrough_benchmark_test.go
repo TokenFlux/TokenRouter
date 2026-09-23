@@ -8,7 +8,7 @@ import (
 )
 
 func BenchmarkGatewayService_ParseSSEUsage_MessageStart(b *testing.B) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	data := `{"type":"message_start","message":{"usage":{"input_tokens":123,"cache_creation_input_tokens":45,"cache_read_input_tokens":6,"cached_tokens":6,"cache_creation":{"ephemeral_5m_input_tokens":20,"ephemeral_1h_input_tokens":25}}}}`
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -29,7 +29,7 @@ func BenchmarkGatewayService_ParseSSEUsagePassthrough_MessageStart(b *testing.B)
 }
 
 func BenchmarkGatewayService_ParseSSEUsage_MessageDelta(b *testing.B) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	data := `{"type":"message_delta","usage":{"output_tokens":456,"cache_creation_input_tokens":30,"cache_read_input_tokens":7,"cached_tokens":7,"cache_creation":{"ephemeral_5m_input_tokens":10,"ephemeral_1h_input_tokens":20}}}`
 	b.ReportAllocs()
 	b.ResetTimer()

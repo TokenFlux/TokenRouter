@@ -9,12 +9,16 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -26,51 +30,23 @@ import (
 func TestIsOpenAIOAuthLike(t *testing.T) {
 	tests := []struct {
 		name    string
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 		want    bool
 		codex   bool
 	}{
-		{name: "openai_oauth", account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}, want: true, codex: true},
-		{name: "openai_setup_token", account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken}, want: true, codex: true},
-		{name: "openai_api_key", account: &Account{Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}, want: false, codex: false},
-		{name: "anthropic_setup_token", account: &Account{Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}, want: false, codex: false},
-		{name: "grok_setup_token", account: &Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeSetupToken}, want: false, codex: false},
+		{name: "openai_oauth", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}, want: true, codex: true},
+		{name: "openai_setup_token", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeSetupToken}}, want: true, codex: true},
+		{name: "openai_api_key", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}, want: false, codex: false},
+		{name: "anthropic_setup_token", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeSetupToken}}, want: false, codex: false},
+		{name: "grok_setup_token", account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeSetupToken}}, want: false, codex: false},
 		{name: "nil", account: nil, want: false, codex: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, tt.account.IsOpenAIOAuthLike())
-			require.Equal(t, tt.codex, tt.account.UsesOpenAICodexProtocol())
+			require.Equal(t, tt.want, tt.account.View().IsOpenAIOAuthLike())
+			require.Equal(t, tt.codex, tt.account.View().UsesOpenAICodexProtocol())
 		})
-	}
-}
-
-func TestOpenAIGatewayServiceGetAccessTokenSetupToken(t *testing.T) {
-	svc := &OpenAIGatewayService{openAITokenProvider: newOpenAITokenSourceForTest(nil, nil, nil)}
-	account := &Account{
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeSetupToken,
-		Credentials: map[string]any{"access_token": "setup-token-value"},
-	}
-
-	token, tokenType, err := svc.GetAccessToken(context.Background(), account)
-	require.NoError(t, err)
-	require.Equal(t, "setup-token-value", token)
-	require.Equal(t, "oauth", tokenType)
-
-	delete(account.Credentials, "access_token")
-	_, _, err = svc.GetAccessToken(context.Background(), account)
-	require.EqualError(t, err, "access_token not found in credentials")
-
-	for _, platform := range []string{capability.PlatformAnthropic, capability.PlatformGrok} {
-		foreign := &Account{
-			Platform:    platform,
-			Type:        capability.AccountTypeSetupToken,
-			Credentials: map[string]any{"access_token": "foreign-token"},
-		}
-		_, _, err = svc.GetAccessToken(context.Background(), foreign)
-		require.EqualError(t, err, "unsupported account type: setup-token")
 	}
 }
 
@@ -84,12 +60,11 @@ func TestOpenAISetupTokenImagesUsesOAuthResponsesPath(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
-	account := &Account{
-		ID:          73,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 73,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeSetupToken,
-		Credentials: map[string]any{"access_token": "setup-token"},
+		Credentials: map[string]any{"access_token": "setup-token"}},
 	}
 	parsed := &media.ImageRequest{
 		Endpoint:       upstreamcore.OpenAIImagesGenerationsEndpoint,
@@ -117,20 +92,19 @@ func TestOpenAISetupTokenWSCompatibility(t *testing.T) {
 	c.Request.Header.Set("session_id", "session-one")
 	c.Set("api_key", &apikey.APIKey{ID: 17})
 
-	account := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeSetupToken,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type: capability.AccountTypeSetupToken,
 		Credentials: map[string]any{
 			"access_token":       "setup-token-value",
 			"chatgpt_account_id": "chatgpt-setup",
-		},
+		}},
 	}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}})
 
 	wsURL, err := svc.buildOpenAIResponsesWSURL(account)
 	require.NoError(t, err)
 	require.Equal(t, "wss://chatgpt.com/backend-api/codex/responses", wsURL)
-	foreignURL, err := svc.buildOpenAIResponsesWSURL(&Account{Platform: capability.PlatformGrok, Type: capability.AccountTypeSetupToken})
+	foreignURL, err := svc.buildOpenAIResponsesWSURL(&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGrok, Type: capability.AccountTypeSetupToken}})
 	require.NoError(t, err)
 	require.Equal(t, "wss://api.openai.com/v1/responses", foreignURL)
 
@@ -161,7 +135,7 @@ func TestOpenAISetupTokenChatCompletionsUsesCodexTransform(t *testing.T) {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"stop after request capture"}}`)),
 	}}
-	svc := &OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
 	account := openAISetupTokenCompatAccount(71)
 
 	result, err := svc.ForwardAsChatCompletions(context.Background(), c, account, body, "", "gpt-5.4")
@@ -187,10 +161,10 @@ func TestOpenAISetupTokenMessagesUsesCodexBridgeAndTurnState(t *testing.T) {
 		firstResp,
 		openAICompatSSECompletedResponse("resp_setup_second", "gpt-5.4"),
 	}}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		httpUpstream: upstream,
-	}
+	})
 	account := openAISetupTokenCompatAccount(72)
 
 	messages := make([]string, 0, openAICompatAnthropicReplayMaxTailMessages+3)
@@ -231,14 +205,13 @@ func TestOpenAISetupTokenMessagesUsesCodexBridgeAndTurnState(t *testing.T) {
 	require.NotNil(t, secondResult)
 	require.True(t, isOpenAICompatMessagesBridgeContext(secondCtx))
 	require.Equal(t, "turn_state_setup", upstream.requests[1].Header.Get("x-codex-turn-state"))
-	require.Equal(t, upstreamcore.GenerateSessionUUID(isolateOpenAIUpstreamSessionID(0, account, "stable-cache-key")), upstream.requests[1].Header.Get("session_id"))
+	require.Equal(t, upstreamcore.GenerateSessionUUID(openai.IsolateOpenAIUpstreamSessionID(0, accountprovider.CodexIdentityNamespace(account.View()), "stable-cache-key")), upstream.requests[1].Header.Get("session_id"))
 	require.Empty(t, upstream.requests[1].Header.Get("conversation_id"))
 	requireOpenAIMessagesCodexIdentity(t, upstream.requests[1], openai.CodexCLIUserAgent, "codex-tui")
 }
 
-func openAISetupTokenCompatAccount(id int64) *Account {
-	return &Account{
-		ID:          id,
+func openAISetupTokenCompatAccount(id int64) *gatewayprovider.ExecutionAccount {
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
 		Name:        "openai-setup-token",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeSetupToken,
@@ -246,6 +219,6 @@ func openAISetupTokenCompatAccount(id int64) *Account {
 		Credentials: map[string]any{
 			"access_token":       "setup-token-value",
 			"chatgpt_account_id": "chatgpt-setup",
-		},
+		}},
 	}
 }

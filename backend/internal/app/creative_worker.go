@@ -10,13 +10,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/settings/composite"
 )
 
 // provideCreativeWorkerRuntime 将原生任务结果和用户准入端口固定到同一 worker，构造不启动。
-func provideCreativeWorkerRuntime(public *creative.Public, executor *service.CreativeExecutor, users *identitypostgres.UserStore, concurrency *scheduler.ConcurrencyService, store *settings.Store, read *composite.ReadOptions, cfg *config.Config) *creative.CreativeWorkerRuntime {
+func provideCreativeWorkerRuntime(public *creative.Public, executor *creative.Executor, users *identitypostgres.UserStore, concurrency *scheduler.ConcurrencyService, store *settings.Store, read *composite.ReadOptions, cfg *config.Config) *creative.CreativeWorkerRuntime {
 	ports := creative.WorkerPorts{
 		Observe:     creativeObserve,
 		UserMissing: func(err error) bool { return errors.Is(err, identity.ErrUserNotFound) },
@@ -49,7 +48,7 @@ func provideCreativeWorkerRuntime(public *creative.Public, executor *service.Cre
 		RecoverLimit:        cfg.Creative.RecoverLimit,
 		MaxAttempts:         cfg.Creative.MaxExecuteAttempts,
 	})
-	worker := creative.NewCreativeRunWorker(public.Queue, public.Repo, public.TransientStore, executor.ExecutionCore(), public.Results, opts, ports)
+	worker := creative.NewCreativeRunWorker(public.Queue, public.Repo, public.TransientStore, executor, public.Results, opts, ports)
 	return creative.NewCreativeWorkerRuntime(worker, creative.RuntimeOptions{
 		Enabled:   cfg.Creative.QueueEnabled,
 		Outbox:    public.Results.RunCreativeOutboxReconciler,

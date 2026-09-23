@@ -8,9 +8,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -19,94 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
-
-func TestOpenAIRequestView_ExtractsRawScalars(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":" gpt-5 ","stream":true,"prompt_cache_key":" ses-1 ","previous_response_id":" resp-1 ","service_tier":" fast ","reasoning":{"effort":" medium "}}`))
-
-	require.Equal(t, "gpt-5", view.Model)
-	require.True(t, view.Stream)
-	require.Equal(t, "ses-1", view.PromptCacheKey)
-	require.Equal(t, "resp-1", view.PreviousResponseID)
-	require.Equal(t, "fast", view.ServiceTier)
-	require.True(t, view.HasServiceTier)
-	require.Equal(t, "medium", view.ReasoningEffort)
-}
-
-func TestOpenAIRequestView_ExtractsFieldsAfterLargeInput(t *testing.T) {
-	body := []byte(`{"model":"gpt-5","input":[{"content":"` + strings.Repeat("payload", 1024) + `"}],"stream":true,"prompt_cache_key":"session-1","previous_response_id":"resp-1","service_tier":"flex","reasoning":{"effort":"high"}}`)
-
-	view := newOpenAIRequestView(body)
-
-	require.Equal(t, "gpt-5", view.Model)
-	require.True(t, view.Stream)
-	require.Equal(t, "session-1", view.PromptCacheKey)
-	require.Equal(t, "resp-1", view.PreviousResponseID)
-	require.Equal(t, "flex", view.ServiceTier)
-	require.Equal(t, "high", view.ReasoningEffort)
-}
-
-func TestOpenAIRequestView_KeepsFirstDuplicateField(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":"gpt-5","model":"gpt-5.1","reasoning":{"effort":"low"},"reasoning":{"effort":"high"}}`))
-
-	require.Equal(t, "gpt-5", view.Model)
-	require.Equal(t, "low", view.ReasoningEffort)
-}
-
-func TestOpenAIRequestView_KeepsLenientPrefixExtraction(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":"gpt-5","stream":true,"input":[`))
-
-	require.Equal(t, "gpt-5", view.Model)
-	require.True(t, view.Stream)
-}
-
-func TestOpenAIRequestView_DecodeKeepsFullMapBehavior(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":"gpt-5","stream":true,"input":[{"type":"message","content":"hi"}]}`))
-
-	reqBody, err := view.Decode(nil)
-	require.NoError(t, err)
-	require.Equal(t, "gpt-5", reqBody["model"])
-	require.IsType(t, []any{}, reqBody["input"])
-}
-
-func TestOpenAIRequestView_ApplyPatches(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":"gpt-5","previous_response_id":"resp_1","reasoning":{"effort":"minimal"},"input":[{"type":"message","content":"hi"}]}`))
-	view.MarkPatchSet("model", "gpt-5.1")
-	view.MarkPatchDelete("previous_response_id")
-	view.MarkPatchSet("reasoning.effort", "none")
-
-	patched, err := view.ApplyPatches()
-	require.NoError(t, err)
-	require.JSONEq(t, `{"model":"gpt-5.1","reasoning":{"effort":"none"},"input":[{"type":"message","content":"hi"}]}`, string(patched))
-}
-
-func TestOpenAIRequestView_RejectsEscapedPatchPath(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"metadata":{"user.id":"old"}}`))
-	view.MarkPatchSet(`metadata.user\.id`, "new")
-
-	require.False(t, view.HasPatches())
-	_, err := view.ApplyPatches()
-	require.Error(t, err)
-}
-
-func TestOpenAIRequestView_ApplyPatchesDisabled(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":"gpt-5"}`))
-	view.MarkPatchSet("model", "gpt-5.1")
-	view.DisablePatches()
-
-	_, err := view.ApplyPatches()
-	require.Error(t, err)
-}
-
-func TestOpenAIRequestView_HasPatches(t *testing.T) {
-	view := newOpenAIRequestView([]byte(`{"model":"gpt-5"}`))
-	require.False(t, view.HasPatches())
-
-	view.MarkPatchSet("model", "gpt-5.1")
-	require.True(t, view.HasPatches())
-
-	view.DisablePatches()
-	require.False(t, view.HasPatches())
-}
 
 func TestOpenAIGatewayService_Forward_APIKeyMissingInstructionsKeepsLargeInputRaw(t *testing.T) {
 
@@ -121,9 +38,8 @@ func TestOpenAIGatewayService_Forward_APIKeyMissingInstructionsKeepsLargeInputRa
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          1,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -132,7 +48,7 @@ func TestOpenAIGatewayService_Forward_APIKeyMissingInstructionsKeepsLargeInputRa
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -163,9 +79,8 @@ func TestOpenAIGatewayService_Forward_AstraReasoningEffortUsesGroupMapping(t *te
 			}
 			cfg := &config.Config{}
 			cfg.Security.URLAllowlist.Enabled = false
-			svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-			account := &Account{
-				ID:          3,
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 				Name:        "openai-apikey",
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
@@ -177,7 +92,7 @@ func TestOpenAIGatewayService_Forward_AstraReasoningEffortUsesGroupMapping(t *te
 						"client-model": "gpt-6-astra",
 					},
 				},
-				Extra: map[string]any{"use_responses_api": true},
+				Extra: map[string]any{"use_responses_api": true}},
 			}
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
@@ -185,7 +100,7 @@ func TestOpenAIGatewayService_Forward_AstraReasoningEffortUsesGroupMapping(t *te
 			gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 
 			body := []byte(`{"model":"client-model","stream":false,"reasoning":{"effort":"` + effort + `"},"input":"hi"}`)
-			mappedBody, changed, err := ApplyOpenAIReasoningEffortPolicy(body, "", []routing.ReasoningEffortMapping{{
+			mappedBody, changed, err := requeststate.ApplyOpenAIReasoningEffortPolicy(body, "", []routing.ReasoningEffortMapping{{
 				From:      effort,
 				To:        "low",
 				MatchType: "exact",
@@ -223,9 +138,8 @@ func TestOpenAIGatewayService_Forward_PassthroughPreservesAstraInputWithoutGroup
 			}
 			cfg := &config.Config{}
 			cfg.Security.URLAllowlist.Enabled = false
-			svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-			account := &Account{
-				ID:          4,
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 				Name:        "openai-passthrough",
 				Platform:    capability.PlatformOpenAI,
 				Type:        capability.AccountTypeAPIKey,
@@ -234,7 +148,7 @@ func TestOpenAIGatewayService_Forward_PassthroughPreservesAstraInputWithoutGroup
 					"api_key":  "sk-test",
 					"base_url": "https://api.openai.com",
 				},
-				Extra: map[string]any{"openai_passthrough": true},
+				Extra: map[string]any{"openai_passthrough": true}},
 			}
 			rec := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(rec)
@@ -262,9 +176,8 @@ func TestOpenAIGatewayService_Forward_DecodedMutationKeepsLaterFieldDeletes(t *t
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          2,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -273,7 +186,7 @@ func TestOpenAIGatewayService_Forward_DecodedMutationKeepsLaterFieldDeletes(t *t
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -304,9 +217,8 @@ func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOpt
 		}
 		cfg := &config.Config{}
 		cfg.Security.URLAllowlist.Enabled = false
-		svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-		account := &Account{
-			ID:          4,
+		svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 			Name:        "openai-apikey",
 			Platform:    capability.PlatformOpenAI,
 			Type:        capability.AccountTypeAPIKey,
@@ -315,7 +227,7 @@ func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOpt
 				"api_key":  "sk-test",
 				"base_url": "https://example.com",
 			},
-			Extra: map[string]any{},
+			Extra: map[string]any{}},
 		}
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
@@ -353,9 +265,8 @@ func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          3,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -365,7 +276,7 @@ func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T
 			"base_url":      "https://example.com",
 			"model_mapping": map[string]any{"draw-alias": "gpt-image-2"},
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -384,8 +295,8 @@ func TestOpenAIGatewayService_Forward_MappedImageModelUsesImageGate(t *testing.T
 	require.False(t, cached)
 
 	textAccount := *account
-	textAccount.ID = 4
-	textAccount.Credentials = map[string]any{
+	textAccount.Record.ID = 4
+	textAccount.Record.Credentials = map[string]any{
 		"api_key":  "sk-test",
 		"base_url": "https://example.com",
 	}
@@ -412,9 +323,8 @@ func TestOpenAIGatewayService_Forward_TextResponsesSetsBillingModelToMappedModel
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          4,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -424,7 +334,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesSetsBillingModelToMappedModel
 			"base_url":      "https://example.com",
 			"model_mapping": map[string]any{"gpt-5.4": "gpt-5.5"},
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -453,9 +363,8 @@ func TestOpenAIGatewayService_Forward_TextResponsesWithoutMappingKeepsRequestedB
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          4,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -464,7 +373,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesWithoutMappingKeepsRequestedB
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -483,8 +392,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	account := &Account{
-		ID:          5,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -494,7 +402,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 			"base_url":      "https://example.com",
 			"model_mapping": map[string]any{"gpt-5.4": "gpt-5.5"},
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 
 	responsesUpstream := &httpUpstreamRecorder{
@@ -506,7 +414,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 			)),
 		},
 	}
-	responsesSvc := &OpenAIGatewayService{cfg: cfg, httpUpstream: responsesUpstream}
+	responsesSvc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: responsesUpstream})
 	responsesRecorder := httptest.NewRecorder()
 	responsesCtx, _ := gin.CreateTestContext(responsesRecorder)
 	responsesCtx.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
@@ -524,7 +432,7 @@ func TestOpenAIGatewayService_Forward_TextResponsesBillingModelMatchesChatComple
 			)),
 		},
 	}
-	chatSvc := &OpenAIGatewayService{cfg: cfg, httpUpstream: chatUpstream}
+	chatSvc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: chatUpstream})
 	chatRecorder := httptest.NewRecorder()
 	chatCtx, _ := gin.CreateTestContext(chatRecorder)
 	chatCtx.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil)
@@ -548,9 +456,8 @@ func TestOpenAIGatewayService_Forward_TextDataImageDoesNotForceMapMarshal(t *tes
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          4,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -559,7 +466,7 @@ func TestOpenAIGatewayService_Forward_TextDataImageDoesNotForceMapMarshal(t *tes
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -586,9 +493,8 @@ func TestOpenAIGatewayService_Forward_ImageToolBillingDoesNotForceFullDecode(t *
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          9,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -597,7 +503,7 @@ func TestOpenAIGatewayService_Forward_ImageToolBillingDoesNotForceFullDecode(t *
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -625,9 +531,8 @@ func TestOpenAIGatewayService_Forward_ImageToolWithImageOnlyModelIsNormalized(t 
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          11,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -636,7 +541,7 @@ func TestOpenAIGatewayService_Forward_ImageToolWithImageOnlyModelIsNormalized(t 
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -668,9 +573,8 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDoesNotDecodeBeforeError(
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          10,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 10,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -679,7 +583,7 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDoesNotDecodeBeforeError(
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -715,9 +619,8 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDropsCompaction(t *testin
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          10,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 10,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -726,7 +629,7 @@ func TestOpenAIGatewayService_Forward_HTTPRetryRecoveryDropsCompaction(t *testin
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -754,9 +657,8 @@ func TestOpenAIGatewayService_Forward_CodexSparkRejectsEscapedInputImage(t *test
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          5,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -765,7 +667,7 @@ func TestOpenAIGatewayService_Forward_CodexSparkRejectsEscapedInputImage(t *test
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -795,9 +697,8 @@ func TestOpenAIGatewayService_Forward_CodexBridgeInjectionSetsImageBilling(t *te
 	cfg.Security.URLAllowlist.Enabled = false
 	cfg.Gateway.ForceCodexCLI = true
 	cfg.Gateway.CodexImageGenerationBridgeEnabled = true
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          7,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -806,7 +707,7 @@ func TestOpenAIGatewayService_Forward_CodexBridgeInjectionSetsImageBilling(t *te
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -827,8 +728,7 @@ func TestOpenAIGatewayService_Forward_HTTPPreservesPreviousResponseIDForAPIKey(t
 
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	account := &Account{
-		ID:          8,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -837,7 +737,7 @@ func TestOpenAIGatewayService_Forward_HTTPPreservesPreviousResponseIDForAPIKey(t
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 
 	for _, body := range [][]byte{
@@ -851,7 +751,7 @@ func TestOpenAIGatewayService_Forward_HTTPPreservesPreviousResponseIDForAPIKey(t
 				Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`)),
 			},
 		}
-		svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
+		svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
@@ -875,9 +775,8 @@ func TestOpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey(t 
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          11,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -886,7 +785,7 @@ func TestOpenAIGatewayService_Forward_StripsImageGenerationToolForSparkAPIKey(t 
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -933,9 +832,8 @@ func TestOpenAIGatewayService_Forward_ImageOnlyModelKeepsSupportedVerbosity(t *t
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.Enabled = false
-	svc := &OpenAIGatewayService{cfg: cfg, httpUpstream: upstream}
-	account := &Account{
-		ID:          6,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: cfg, httpUpstream: upstream})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6,
 		Name:        "openai-apikey",
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeAPIKey,
@@ -944,7 +842,7 @@ func TestOpenAIGatewayService_Forward_ImageOnlyModelKeepsSupportedVerbosity(t *t
 			"api_key":  "sk-test",
 			"base_url": "https://example.com",
 		},
-		Extra: map[string]any{"use_responses_api": true},
+		Extra: map[string]any{"use_responses_api": true}},
 	}
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -959,192 +857,12 @@ func TestOpenAIGatewayService_Forward_ImageOnlyModelKeepsSupportedVerbosity(t *t
 	require.Equal(t, openai.ImagesResponsesMainModel, gjson.GetBytes(upstream.lastBody, "model").String())
 }
 
-func TestExtractOpenAIRequestMetaFromBody(t *testing.T) {
-	tests := []struct {
-		name          string
-		body          []byte
-		wantModel     string
-		wantStream    bool
-		wantPromptKey string
-	}{
-		{
-			name:          "完整字段",
-			body:          []byte(`{"model":"gpt-5","stream":true,"prompt_cache_key":" ses-1 "}`),
-			wantModel:     "gpt-5",
-			wantStream:    true,
-			wantPromptKey: "ses-1",
-		},
-		{
-			name:          "缺失可选字段",
-			body:          []byte(`{"model":"gpt-4"}`),
-			wantModel:     "gpt-4",
-			wantStream:    false,
-			wantPromptKey: "",
-		},
-		{
-			name:          "空请求体",
-			body:          nil,
-			wantModel:     "",
-			wantStream:    false,
-			wantPromptKey: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			model, stream, promptKey := extractOpenAIRequestMetaFromBody(tt.body)
-			require.Equal(t, tt.wantModel, model)
-			require.Equal(t, tt.wantStream, stream)
-			require.Equal(t, tt.wantPromptKey, promptKey)
-		})
-	}
-}
-
-func TestExtractOpenAIReasoningEffortFromBody(t *testing.T) {
-	tests := []struct {
-		name      string
-		body      []byte
-		model     string
-		wantNil   bool
-		wantValue string
-	}{
-		{
-			name:      "优先读取 reasoning.effort",
-			body:      []byte(`{"reasoning":{"effort":"medium"}}`),
-			model:     "gpt-5-high",
-			wantNil:   false,
-			wantValue: "medium",
-		},
-		{
-			name:      "兼容 reasoning_effort",
-			body:      []byte(`{"reasoning_effort":"x-high"}`),
-			model:     "",
-			wantNil:   false,
-			wantValue: "xhigh",
-		},
-		{
-			name:      "保留 max 档位",
-			body:      []byte(`{"reasoning":{"effort":"max"}}`),
-			model:     "gpt-5.6-sol",
-			wantNil:   false,
-			wantValue: "max",
-		},
-		{
-			name:      "DeepSeek V4 保留 max 档位",
-			body:      []byte(`{"reasoning":{"effort":"max"}}`),
-			model:     "deepseek-v4-pro",
-			wantNil:   false,
-			wantValue: "max",
-		},
-		{
-			name:    "不提取 ultra 档位",
-			body:    []byte(`{"reasoning":{"effort":"ultra"}}`),
-			model:   "gpt-5.6-terra",
-			wantNil: true,
-		},
-		{
-			name:      "旧模型显式 max 仍按请求值记录",
-			body:      []byte(`{"reasoning":{"effort":"max"}}`),
-			model:     "gpt-5.5",
-			wantNil:   false,
-			wantValue: "max",
-		},
-		{
-			name:    "Luna 拒绝 ultra 档位",
-			body:    []byte(`{"reasoning":{"effort":"ultra"}}`),
-			model:   "gpt-5.6-luna",
-			wantNil: true,
-		},
-		{
-			name:    "minimal 归一化为空",
-			body:    []byte(`{"reasoning":{"effort":"minimal"}}`),
-			model:   "gpt-5-high",
-			wantNil: true,
-		},
-		{
-			name:      "缺失字段时从模型后缀推导",
-			body:      []byte(`{"input":"hi"}`),
-			model:     "gpt-5-high",
-			wantNil:   false,
-			wantValue: "high",
-		},
-		{
-			name:    "不从 GPT-5.6 后缀推导 ultra",
-			body:    []byte(`{"input":"hi"}`),
-			model:   "gpt-5.6-sol-ultra",
-			wantNil: true,
-		},
-		{
-			name:    "旧模型后缀拒绝 ultra",
-			body:    []byte(`{"input":"hi"}`),
-			model:   "gpt-5.4-ultra",
-			wantNil: true,
-		},
-		{
-			name:    "Luna 后缀拒绝 ultra",
-			body:    []byte(`{"input":"hi"}`),
-			model:   "gpt-5.6-luna-ultra",
-			wantNil: true,
-		},
-		{
-			name:    "未知后缀不返回",
-			body:    []byte(`{"input":"hi"}`),
-			model:   "gpt-5-unknown",
-			wantNil: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := extractOpenAIReasoningEffortFromBody(tt.body, tt.model)
-			if tt.wantNil {
-				require.Nil(t, got)
-				return
-			}
-			require.NotNil(t, got)
-			require.Equal(t, tt.wantValue, *got)
-		})
-	}
-}
-
-func TestValidateOpenAIReasoningEffort(t *testing.T) {
-	tests := []struct {
-		name    string
-		body    []byte
-		model   string
-		wantErr bool
-	}{
-		{name: "max 档位通过", body: []byte(`{"reasoning":{"effort":"max"}}`), model: "gpt-5.6-sol"},
-		{name: "拒绝 Responses ultra", body: []byte(`{"reasoning":{"effort":"ultra"}}`), model: "gpt-5.6-sol", wantErr: true},
-		{name: "拒绝 Chat Completions ultra", body: []byte(`{"reasoning_effort":"ULTRA"}`), model: "gpt-5.6-terra", wantErr: true},
-		{name: "拒绝 Anthropic ultra", body: []byte(`{"output_config":{"effort":" ultra "}}`), model: "gpt-5.6-luna", wantErr: true},
-		{name: "拒绝请求模型 ultra 后缀", body: []byte(`{"input":"hi"}`), model: "openai/gpt-5.6-sol-ultra", wantErr: true},
-		{name: "拒绝请求体模型 ultra 后缀", body: []byte(`{"model":"gpt-5.6-terra_ultra"}`), wantErr: true},
-		{name: "拒绝 WS 会话模型 ultra 后缀", body: []byte(`{"type":"session.update","session":{"model":"gpt-5.6-luna-ultra"}}`), wantErr: true},
-		{name: "拒绝 WS 会话 ultra 档位", body: []byte(`{"type":"session.update","session":{"reasoning":{"effort":"ultra"}}}`), wantErr: true},
-		{name: "拒绝 Realtime 响应 ultra 档位", body: []byte(`{"type":"response.create","response":{"reasoning":{"effort":"ultra"}}}`), wantErr: true},
-		{name: "不误伤非 OpenAI 模型", body: []byte(`{"model":"spark-ultra"}`)},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateOpenAIReasoningEffort(tt.body, tt.model)
-			if tt.wantErr {
-				require.ErrorContains(t, err, "not supported")
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
-
 func TestOpenAIGatewayEntrypointsRejectUltraBeforeUpstream(t *testing.T) {
 
-	svc := &OpenAIGatewayService{}
-	account := &Account{
-		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeAPIKey,
-		Extra:    map[string]any{"openai_text_route_mode": "force_chat_completions"},
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
+		Type:  capability.AccountTypeAPIKey,
+		Extra: map[string]any{"openai_text_route_mode": "force_chat_completions"}},
 	}
 
 	t.Run("Responses", func(t *testing.T) {
@@ -1184,18 +902,13 @@ func TestOpenAIGatewayEntrypointsRejectUltraBeforeUpstream(t *testing.T) {
 	})
 }
 
-func TestGetOpenAIRequestBodyMap_ParseError(t *testing.T) {
-	_, err := getOpenAIRequestBodyMap(nil, []byte(`{invalid-json`))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "parse request")
-}
-
 func TestGetOpenAIRequestBodyMap_DoesNotWriteContextCache(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 
-	got, err := getOpenAIRequestBodyMap(c, []byte(`{"model":"gpt-5","stream":true}`))
+	adapter := openAIForwardTransformAdapter{openAIForwardPreludeAdapter: openAIForwardPreludeAdapter{c: c}}
+	got, err := adapter.Decode([]byte(`{"model":"gpt-5","stream":true}`))
 	require.NoError(t, err)
 	require.Equal(t, "gpt-5", got["model"])
 	require.Empty(t, c.Keys)

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -48,14 +49,14 @@ func (s *OpenAIGatewayService) getOpenAIProxyStreamCircuit() *egress.ProxyStream
 	return s.openaiProxyStreamCircuit
 }
 
-func openAIProxyStreamCircuitProxyID(account *Account) (int64, bool) {
-	if account == nil || account.Platform != capability.PlatformOpenAI || account.ProxyID == nil || *account.ProxyID <= 0 {
+func openAIProxyStreamCircuitProxyID(account *gatewayprovider.ExecutionAccount) (int64, bool) {
+	if account == nil || account.Record.Platform != capability.PlatformOpenAI || account.Record.ProxyID == nil || *account.Record.ProxyID <= 0 {
 		return 0, false
 	}
-	return *account.ProxyID, true
+	return *account.Record.ProxyID, true
 }
 
-func (s *OpenAIGatewayService) recordOpenAIProxyStreamDisconnect(account *Account, streamErr error, upstreamRequestID string) {
+func (s *OpenAIGatewayService) recordOpenAIProxyStreamDisconnect(account *gatewayprovider.ExecutionAccount, streamErr error, upstreamRequestID string) {
 	proxyID, ok := openAIProxyStreamCircuitProxyID(account)
 	if !ok || streamErr == nil || errors.Is(streamErr, context.Canceled) || errors.Is(streamErr, context.DeadlineExceeded) {
 		return
@@ -68,14 +69,14 @@ func (s *OpenAIGatewayService) recordOpenAIProxyStreamDisconnect(account *Accoun
 	logging.L().With(zap.String("component", "service.openai_gateway")).Warn(
 		"openai.proxy_quarantined_stream_disconnect",
 		zap.Int64("proxy_id", proxyID),
-		zap.Int64("account_id", account.ID),
+		zap.Int64("account_id", account.Record.ID),
 		zap.Time("until", until),
 		zap.String("upstream_request_id", upstreamRequestID),
 		zap.String("error", logredact.SanitizeUpstreamQueries(streamErr.Error())),
 	)
 }
 
-func (s *OpenAIGatewayService) clearOpenAIProxyStreamDisconnect(account *Account) {
+func (s *OpenAIGatewayService) clearOpenAIProxyStreamDisconnect(account *gatewayprovider.ExecutionAccount) {
 	proxyID, ok := openAIProxyStreamCircuitProxyID(account)
 	if !ok {
 		return
@@ -100,7 +101,7 @@ func openAIProxyStreamQuarantineBypassed(ctx context.Context) bool {
 	return bypassed
 }
 
-func (s *OpenAIGatewayService) isOpenAIProxyStreamQuarantined(ctx context.Context, account *Account) bool {
+func (s *OpenAIGatewayService) isOpenAIProxyStreamQuarantined(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
 	proxyID, ok := openAIProxyStreamCircuitProxyID(account)
 	if !ok {
 		return false

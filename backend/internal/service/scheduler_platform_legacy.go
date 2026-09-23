@@ -8,6 +8,7 @@ import (
 
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -36,8 +37,8 @@ func platformSelectionInput(v OpenAIAccountScheduleRequest) scheduler.PlatformSe
 		RequiredImageCapability:         v.RequiredImageCapability,
 		RequireCompact:                  v.RequireCompact,
 		ExcludedIDs:                     maps.Clone(v.ExcludedIDs),
-		AdvancedSchedulerFeedbackConfig: policy.FeedbackConfig{ErrorRateAlpha: v.AdvancedSchedulerFeedbackConfig.errorRateAlpha, TtftAlpha: v.AdvancedSchedulerFeedbackConfig.ttftAlpha},
-		StickyEscapeConfig:              policy.StickyEscapeConfig{Enabled: v.StickyEscapeConfig.enabled, TtftMs: v.StickyEscapeConfig.ttftMs, ErrorRate: v.StickyEscapeConfig.errorRate},
+		AdvancedSchedulerFeedbackConfig: policy.FeedbackConfig{ErrorRateAlpha: v.AdvancedSchedulerFeedbackConfig.ErrorRateAlpha, TtftAlpha: v.AdvancedSchedulerFeedbackConfig.TtftAlpha},
+		StickyEscapeConfig:              policy.StickyEscapeConfig{Enabled: v.StickyEscapeConfig.Enabled, TtftMs: v.StickyEscapeConfig.TtftMs, ErrorRate: v.StickyEscapeConfig.ErrorRate},
 	}
 }
 func legacyPlatformInput(v scheduler.PlatformSelectionInput) OpenAIAccountScheduleRequest {
@@ -61,14 +62,14 @@ func legacyPlatformInput(v scheduler.PlatformSelectionInput) OpenAIAccountSchedu
 		RequiredImageCapability:         v.RequiredImageCapability,
 		RequireCompact:                  v.RequireCompact,
 		ExcludedIDs:                     v.ExcludedIDs,
-		AdvancedSchedulerFeedbackConfig: advancedSchedulerFeedbackConfig{errorRateAlpha: v.AdvancedSchedulerFeedbackConfig.ErrorRateAlpha, ttftAlpha: v.AdvancedSchedulerFeedbackConfig.TtftAlpha},
-		StickyEscapeConfig:              advancedStickyEscapeConfig{enabled: v.StickyEscapeConfig.Enabled, ttftMs: v.StickyEscapeConfig.TtftMs, errorRate: v.StickyEscapeConfig.ErrorRate},
+		AdvancedSchedulerFeedbackConfig: policy.FeedbackConfig{ErrorRateAlpha: v.AdvancedSchedulerFeedbackConfig.ErrorRateAlpha, TtftAlpha: v.AdvancedSchedulerFeedbackConfig.TtftAlpha},
+		StickyEscapeConfig:              policy.StickyEscapeConfig{Enabled: v.StickyEscapeConfig.Enabled, TtftMs: v.StickyEscapeConfig.TtftMs, ErrorRate: v.StickyEscapeConfig.ErrorRate},
 	}
 }
 
 // platformSelector 的关联表只存在于本次调用；缓存、Grok 资格观测和 EWMA 均复用原唯一实例。
 func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformSelector, *genericSelectionScope) {
-	scope := &genericSelectionScope{accounts: map[uint64]*Account{}, groups: map[uint64]*routing.Group{}}
+	scope := &genericSelectionScope{accounts: map[uint64]*gatewayprovider.ExecutionAccount{}, groups: map[uint64]*routing.Group{}}
 	available := s != nil && s.service != nil
 	diagnostics := scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
@@ -98,8 +99,8 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 			return s.service.shadowProtocolsAllowed(ctx, scope.oldAccount(a))
 		},
 		ParentHealthy: func(a *scheduler.FlowAccount, lookup func(int64) *scheduler.FlowAccount) bool {
-			return account.ParentHealthyForShadow(AccountRecordView(scope.oldAccount(a)), func(id int64) *account.Record {
-				return AccountRecordView(scope.oldAccount(lookup(id)))
+			return account.ParentHealthyForShadow(gatewayprovider.ExecutionRecord(scope.oldAccount(a)), func(id int64) *account.Record {
+				return gatewayprovider.ExecutionRecord(scope.oldAccount(lookup(id)))
 			})
 		},
 		ParentLookup: func(ctx context.Context) func(int64) *scheduler.FlowAccount {
@@ -126,7 +127,7 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 		},
 		Available: available, CacheAvailable: available && s.service.cache != nil, SnapshotAvailable: available && s.service.schedulerSnapshot != nil, RecheckAvailable: available && s.service.schedulerSnapshot != nil && s.service.accountRepo != nil,
 		Effective: func(ctx context.Context, id *int64) policy.EffectiveSettings {
-			return schedulerEffectiveProjection(s.service.advancedSchedulerEffectiveSettingsForRequest(ctx, id))
+			return s.service.advancedSchedulerEffectiveSettingsForRequest(ctx, id)
 		},
 		GroupRequiresPrivacy: s.service.openAIGroupRequiresPrivacySet,
 		PreviousResponse: func(ctx context.Context, id *int64, previous, model string, excluded map[int64]struct{}, capability account.OpenAIEndpointCapability, compact bool) (*scheduler.FlowSelection, error) {
@@ -155,8 +156,8 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 		ClearSticky: func(a *scheduler.FlowAccount, model string) bool {
 			return shouldClearStickySession(scope.oldAccount(a), model)
 		},
-		IsCompatible:  func(a *scheduler.FlowAccount) bool { return scope.oldAccount(a).IsOpenAICompatible() },
-		IsSchedulable: func(a *scheduler.FlowAccount) bool { return scope.oldAccount(a).IsSchedulable() },
+		IsCompatible:  func(a *scheduler.FlowAccount) bool { return scope.oldAccount(a).View().IsOpenAICompatible() },
+		IsSchedulable: func(a *scheduler.FlowAccount) bool { return scope.oldAccount(a).View().IsSchedulable() },
 		Recheck: func(ctx context.Context, a *scheduler.FlowAccount, id *int64, platform, model string, compact bool, capability account.OpenAIEndpointCapability) *scheduler.FlowAccount {
 			return scope.account(s.service.recheckSelectedOpenAIAccountFromDB(ctx, scope.oldAccount(a), id, platform, model, compact, capability))
 		},
@@ -167,7 +168,7 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 			return scope.values(s.filterGrokFreeQuotaAccounts(ctx, scope.oldValues(values)))
 		},
 		CanonicalModel: func(a *scheduler.FlowAccount, model string) string {
-			return canonicalOpenAIAccountSchedulingModel(scope.oldAccount(a), model)
+			return gatewayprovider.ExecutionModelPolicy(scope.oldAccount(a)).CanonicalSchedulingModel(model)
 		},
 		TeamLimited: func(a *scheduler.FlowAccount, model string, now time.Time) bool {
 			return isGrokTeamModelRateLimited(scope.oldAccount(a), model, now)
@@ -187,12 +188,12 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 			return scope.values(filterGrokModelQuotaBlockedAccounts(scope.oldValues(values), model, now))
 		},
 		CompactAllowed: func(a *scheduler.FlowAccount) bool { return allowsOpenAICompatibleCompact(scope.oldAccount(a)) },
-		IsSubscription: func(a *scheduler.FlowAccount) bool { return scope.oldAccount(a).IsOpenAIChatGPTSubscription() },
+		IsSubscription: func(a *scheduler.FlowAccount) bool { return scope.oldAccount(a).View().IsOpenAIChatGPTSubscription() },
 		QuotaHeadroom: func(a *scheduler.ScoreAccount, now time.Time) float64 {
 			return openAIQuotaHeadroomFactor(scope.accounts[a.ProjectionID], now)
 		},
 		Unavailable: func(ctx context.Context, requested, model string, compact bool, details string, collections ...[]scheduler.FlowAccount) error {
-			converted := make([][]Account, len(collections))
+			converted := make([][]gatewayprovider.ExecutionAccount, len(collections))
 			for i, v := range collections {
 				converted[i] = scope.oldValues(v)
 			}
@@ -209,25 +210,5 @@ func (s *defaultOpenAIAccountScheduler) platformSelector() (*scheduler.PlatformS
 	if available {
 		concurrency = s.service.concurrencyService
 	}
-	return scheduler.NewPlatformSelector(ports, concurrency, schedulerStats(s.stats), &s.metrics.PlatformMetrics, diagnostics, time.Now), scope
-}
-func (scope *genericSelectionScope) platformScores(values []openAIAccountCandidateScore) []scheduler.PlatformCandidateScore {
-	if values == nil {
-		return nil
-	}
-	out := make([]scheduler.PlatformCandidateScore, len(values))
-	for i, v := range values {
-		out[i] = scheduler.PlatformCandidateScore{Account: scope.account(v.account), LoadInfo: v.loadInfo, LoadKnown: v.loadKnown, Score: v.score, BaseScore: v.baseScore, StickyBonus: v.stickyBonus, PreviousBonus: v.previousBonus, SessionStickyBonus: v.sessionStickyBonus, Priority: v.priority, ErrorRate: v.errorRate, TTFT: v.ttft, HasTTFT: v.hasTTFT, HasFeedback: v.hasFeedback, Feedback: v.feedback, Factors: v.factors}
-	}
-	return out
-}
-func (scope *genericSelectionScope) legacyPlatformScores(values []scheduler.PlatformCandidateScore) []openAIAccountCandidateScore {
-	if values == nil {
-		return nil
-	}
-	out := make([]openAIAccountCandidateScore, len(values))
-	for i, v := range values {
-		out[i] = openAIAccountCandidateScore{account: scope.oldAccount(v.Account), loadInfo: v.LoadInfo, loadKnown: v.LoadKnown, score: v.Score, baseScore: v.BaseScore, stickyBonus: v.StickyBonus, previousBonus: v.PreviousBonus, sessionStickyBonus: v.SessionStickyBonus, priority: v.Priority, errorRate: v.ErrorRate, ttft: v.TTFT, hasTTFT: v.HasTTFT, hasFeedback: v.HasFeedback, feedback: v.Feedback, factors: v.Factors}
-	}
-	return out
+	return scheduler.NewPlatformSelector(ports, concurrency, s.stats, &s.metrics.PlatformMetrics, diagnostics, time.Now), scope
 }

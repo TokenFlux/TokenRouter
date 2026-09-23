@@ -230,7 +230,7 @@ func TestGrokDecoderCompatibility422FailsOverWithoutCooldown(t *testing.T) {
 	require.True(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"message":"could not decode ModelInput at input.3"}`)))
 	require.True(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":{"type":"invalid_request_error"},"message":"could not deserialize ModelInput at input[3]"}`)))
 	require.True(t, grok.IsGrokDecoderCompatibilityError(http.StatusUnprocessableEntity, []byte(`{"error":"Failed to deserialize the JSON body into the target type: messages[1]: data did not match any variant of untagged enum Content at line 1 column 6577"}`)))
-	require.True(t, (&OpenAIGatewayService{}).shouldFailoverGrokUpstreamError(http.StatusUnprocessableEntity, body))
+	require.True(t, (withSchedulerParametersForTest(&OpenAIGatewayService{})).shouldFailoverGrokUpstreamError(http.StatusUnprocessableEntity, body))
 	decision := grok.ClassifyGrokUpstreamFailure(http.StatusUnprocessableEntity, body, "grok-4.5")
 	require.False(t, decision.ShouldCooldown)
 	require.Equal(t, grok.GrokFailureNone, decision.Class)

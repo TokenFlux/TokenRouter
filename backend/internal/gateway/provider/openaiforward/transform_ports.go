@@ -44,8 +44,6 @@ type TransformPorts interface {
 	FastBlocked(err error)
 	SanitizeOpenAIResponsesOrphanToolOutputs(body map[string]any, input []any, hasPrevious bool) bool
 	FirstNonEmptyString(values ...any) string
-	OpenAIResponsesInputMayNeedTruncation(body []byte) bool
-	TruncateOpenAIResponsesInputText(body map[string]any) bool
 	Marshal(body map[string]any) ([]byte, error)
 	NormalizeTrigger(body []byte) ([]byte, bool, error)
 }

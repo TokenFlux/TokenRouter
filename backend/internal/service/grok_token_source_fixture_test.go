@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 )
 
 // 旧网关测试暂用仓储端口投影，令牌规则仍只执行原生账号实现。
-func newGrokTokenSourceForTest(repo AccountRepository, cache account.AccessTokenCache) *account.GrokTokenSource {
+func newGrokTokenSourceForTest(repo gatewayprovider.ExecutionAccountStore, cache account.AccessTokenCache) *account.GrokTokenSource {
 	return &account.GrokTokenSource{Repository: tokenSourceFixtureRepository(repo), Cache: cache, Policy: account.GrokProviderRefreshPolicy()}
 }
 
@@ -23,6 +24,6 @@ func bindGrokRefreshForTest(source *account.GrokTokenSource, refresh *account.OA
 }
 
 // newGrokCredentialRefreshForTest 只配置原生协调器，不保留旧结果或执行器包装。
-func newGrokCredentialRefreshForTest(repo AccountRepository, cache account.AccessTokenCache) *account.OAuthRefreshAPI {
+func newGrokCredentialRefreshForTest(repo gatewayprovider.ExecutionAccountStore, cache account.AccessTokenCache) *account.OAuthRefreshAPI {
 	return account.NewOAuthRefreshAPI(tokenSourceFixtureRepository(repo), cache, account.RefreshOptions{Now: time.Now, Warn: slog.Warn, Info: slog.Info, Error: slog.Error, Platform: account.AccountRefreshPlatformPolicy()})
 }

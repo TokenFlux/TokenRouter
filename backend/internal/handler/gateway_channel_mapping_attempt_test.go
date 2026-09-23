@@ -21,7 +21,7 @@ import (
 func TestPrepareGatewayAttemptRequestUsesCurrentAPIKeyGroupMapping(t *testing.T) {
 	sourceGroupID := int64(6101)
 	fallbackGroupID := int64(6102)
-	channelService := routing.NewChannelService(&gatewayModelsChannelRepoStub{
+	channelService := routing.NewChannelService(&gatewayExecutionChannelRows{
 		channels: []routing.Channel{
 			{
 				ID:       701,
@@ -46,7 +46,7 @@ func TestPrepareGatewayAttemptRequestUsesCurrentAPIKeyGroupMapping(t *testing.T)
 		},
 	}, nil, routing.ChannelOptions{Warn: slog.Warn, Now: time.Now, LoadLocation: pricingprovider.LoadPricingLocation},
 	)
-	handler := newGatewayModelsHandlerWithChannelForTest(&gatewayModelsAccountRepoStub{}, channelService)
+	handler := newGatewayExecutionHandlerWithChannelForTest(&gatewayExecutionAccountRows{}, channelService)
 	body := []byte(`{"model":"client-alias","messages":[{"role":"user","content":"hello"}]}`)
 	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestPrepareGatewayAttemptRequestUsesCurrentAPIKeyGroupMapping(t *testing.T)
 // TestPrepareGatewayAttemptRequestUsesGeminiGroupMapping 验证 Gemini 分组的 Messages 请求体也写入渠道模型 C。
 func TestPrepareGatewayAttemptRequestUsesGeminiGroupMapping(t *testing.T) {
 	groupID := int64(6103)
-	channelService := routing.NewChannelService(&gatewayModelsChannelRepoStub{
+	channelService := routing.NewChannelService(&gatewayExecutionChannelRows{
 		channels: []routing.Channel{{
 			ID:       703,
 			Status:   billing.StatusActive,
@@ -94,7 +94,7 @@ func TestPrepareGatewayAttemptRequestUsesGeminiGroupMapping(t *testing.T) {
 	}, nil, routing.ChannelOptions{Warn: slog.Warn, Now: time.
 		Now, LoadLocation: pricingprovider.LoadPricingLocation},
 	)
-	handler := newGatewayModelsHandlerWithChannelForTest(&gatewayModelsAccountRepoStub{}, channelService)
+	handler := newGatewayExecutionHandlerWithChannelForTest(&gatewayExecutionAccountRows{}, channelService)
 	body := []byte(`{"model":"client-alias","messages":[{"role":"user","content":"hello"}]}`)
 	parsed, err := requeststate.ParseGatewayRequest(requeststate.NewRequestBodyRef(body), capability.PlatformAnthropic)
 	require.NoError(t, err)

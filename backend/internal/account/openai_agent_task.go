@@ -19,13 +19,6 @@ type OpenAITaskOptions struct {
 // OpenAITaskCoordinator 延续原进程内按账号共享锁，不增加跨进程协调协议。
 type OpenAITaskCoordinator struct{ locks sync.Map }
 
-var sharedOpenAITaskCoordinator OpenAITaskCoordinator
-
-// SharedOpenAITaskCoordinator 让装配和兼容消费者引用同一协调实例。
-func SharedOpenAITaskCoordinator() *OpenAITaskCoordinator {
-	return &sharedOpenAITaskCoordinator
-}
-
 // openAITaskCopyCredentials 保留原任务更新的浅复制边界。
 func openAITaskCopyCredentials(values map[string]any) map[string]any {
 	if values == nil {

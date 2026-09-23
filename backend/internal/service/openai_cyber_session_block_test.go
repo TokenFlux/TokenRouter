@@ -248,7 +248,7 @@ func TestFindCyberSessionBlocked_EmptyAndNilService(t *testing.T) {
 	require.Empty(t, nilSvc.FindCyberSessionBlockedForRequest(context.Background(), 1, nil, nil, "", ""))
 	require.NotPanics(t, func() { nilSvc.MarkCyberSessionBlocked(context.Background(), "", []string{"k"}) })
 
-	svc := &OpenAIGatewayService{}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	require.Empty(t, svc.FindCyberSessionBlockedForRequest(context.Background(), 1, nil, nil, "", ""))
 }
 
@@ -266,10 +266,10 @@ func TestCyberSessionBlock_RoundTrip(t *testing.T) {
 	}, nil)
 
 	combo := &comboCacheAndStore{}
-	svc := &OpenAIGatewayService{
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cache:          combo,
 		settingService: settingSvc,
-	}
+	})
 
 	ctx := context.Background()
 	const testKey = "deadbeef1234"
@@ -289,7 +289,7 @@ func TestFindCyberSessionBlockedForRequestUsesScopeForTranscript(t *testing.T) {
 		moderation.SettingKeyCyberSessionBlockTTLSeconds: "60",
 	}}, nil)
 	combo := &comboCacheAndStore{}
-	svc := &OpenAIGatewayService{cache: combo, settingService: settingSvc}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cache: combo, settingService: settingSvc})
 	ctx := context.Background()
 
 	hitBody := []byte(`{"messages":[{"role":"user","content":"setup"},{"role":"assistant","content":"ready"},{"role":"user","content":"trigger"}]}`)
@@ -312,7 +312,7 @@ func TestFindCyberSessionBlockedForRequestFailsClosedOnScopedTranscriptOverflow(
 		moderation.SettingKeyCyberSessionBlockTTLSeconds: "60",
 	}}, nil)
 	combo := &comboCacheAndStore{}
-	svc := &OpenAIGatewayService{cache: combo, settingService: settingSvc}
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cache: combo, settingService: settingSvc})
 	ctx := context.Background()
 	const apiKeyID = int64(9)
 	const clientIP = "203.0.113.20"

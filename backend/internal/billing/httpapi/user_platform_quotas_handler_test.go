@@ -11,9 +11,10 @@ import (
 	"testing"
 	"time"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -34,7 +35,7 @@ func TestGetMyPlatformQuotas_EmptyReturns200WithEmptyArray(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/user/platform-quotas", nil)
-	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 42})
 	h.GetMyPlatformQuotas(c)
 	if w.Code != 200 {
 		t.Fatalf("expected 200, got %d. body: %s", w.Code, w.Body.String())
@@ -69,7 +70,7 @@ func TestGetMyPlatformQuotas_D14_LazyZeroForExpiredWindow(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/user/platform-quotas", nil)
-	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 42})
 	h.GetMyPlatformQuotas(c)
 
 	if w.Code != 200 {
@@ -92,7 +93,7 @@ func TestGetMyPlatformQuotas_NilRepo_Returns200Empty(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodGet, "/user/platform-quotas", nil)
-	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 99})
+	c.Set(string(authctx.ContextKeyUser), authctx.AuthSubject{UserID: 99})
 	h.GetMyPlatformQuotas(c)
 	if w.Code != 200 {
 		t.Fatalf("expected 200, got %d", w.Code)

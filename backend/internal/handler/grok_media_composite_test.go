@@ -1,16 +1,14 @@
 package handler
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"context"
 	"errors"
 	"testing"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -57,9 +55,13 @@ func (s *compositeGrokVideoCacheStub) GetSessionOwnerGroupID(context.Context, in
 func TestResolveCompositeGrokVideoAPIKeyUsesPersistedOwnerAfterMappingRemoval(t *testing.T) {
 	cache := &compositeGrokVideoCacheStub{groupID: 20, accountID: 88, ownerID: 20}
 	gateway := service.NewOpenAIGatewayService(
-		nil, nil, nil, nil, nil, nil, cache, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, cache, nil, nil, nil, nil,
+		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
+			nil), nil, nil, nil, nil, nil, responseHeaderFilterForTest(nil), nil,
 	)
+	gateway.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil, nil,
+		nil, nil, nil, nil, true))
+
 	handler := &OpenAIGatewayHandler{gatewayService: gateway}
 	apiKey := &apikey.APIKey{ID: 33, UserID: 44, IsComposite: true}
 
@@ -80,9 +82,13 @@ func TestResolveCompositeGrokVideoAPIKeyRestoresBoundGroup(t *testing.T) {
 	grokGroup := &routing.Group{ID: 20, Platform: capability.PlatformGrok, Status: billing.StatusActive}
 	cache := &compositeGrokVideoCacheStub{groupID: grokGroup.ID, accountID: 88}
 	gateway := service.NewOpenAIGatewayService(
-		nil, nil, nil, nil, nil, nil, cache, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, cache, nil, nil, nil, nil,
+		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
+			nil), nil, nil, nil, nil, nil, responseHeaderFilterForTest(nil), nil,
 	)
+	gateway.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil, nil,
+		nil, nil, nil, nil, true))
+
 	handler := &OpenAIGatewayHandler{gatewayService: gateway}
 	apiKey := &apikey.APIKey{
 		ID: 33, UserID: 44, IsComposite: true,

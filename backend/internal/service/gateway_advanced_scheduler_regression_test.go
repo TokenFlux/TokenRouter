@@ -5,8 +5,11 @@ package service
 import (
 	"context"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
@@ -44,10 +47,10 @@ func advancedSchedulerRegressionGroup(id int64, platform string, overrides routi
 	}
 }
 
-func advancedSchedulerRegressionAccountRepo(accounts []Account) *mockAccountRepoForPlatform {
-	repo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: make(map[int64]*Account, len(accounts))}
+func advancedSchedulerRegressionAccountRepo(accounts []gatewayprovider.ExecutionAccount) *mockAccountRepoForPlatform {
+	repo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: make(map[int64]*gatewayprovider.ExecutionAccount, len(accounts))}
 	for index := range repo.accounts {
-		repo.accountsByID[repo.accounts[index].ID] = &repo.accounts[index]
+		repo.accountsByID[repo.accounts[index].Record.ID] = &repo.accounts[index]
 	}
 	return repo
 }
@@ -56,9 +59,9 @@ func TestGatewayAdvancedSchedulerKeepsFullLoadCandidatesForWaitAndNoSlotSelectio
 	overrides := advancedSchedulerRegressionOverrides()
 	overrides.WeightPriority = advancedSchedulerRegressionFloat(1)
 	group := advancedSchedulerRegressionGroup(1301, capability.PlatformAnthropic, overrides)
-	accounts := []Account{
-		{ID: 13011, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 1},
-		{ID: 13012, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 2},
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 13011, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 1}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 13012, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 2}},
 	}
 	repo := advancedSchedulerRegressionAccountRepo(accounts)
 	concurrencyCache := &mockConcurrencyCache{
@@ -70,13 +73,13 @@ func TestGatewayAdvancedSchedulerKeepsFullLoadCandidatesForWaitAndNoSlotSelectio
 	}
 	cfg := testConfig()
 	cfg.Gateway.Scheduling.LoadBatchEnabled = true
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo, groupRepo: &mockGroupRepoForGateway{groups: map[int64]*routing.Group{group.ID: group}},
 		cache: &mockGatewayCacheForPlatform{}, cfg: cfg, concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 			Event: logging.Event,
 		},
 		),
-	}
+	})
 	ctx := requeststate.WithGroup(context.Background(), group)
 
 	selection, err := svc.SelectAccountWithLoadAwareness(ctx, &group.ID, "", "claude-sonnet-4", nil, "", 0)
@@ -84,7 +87,7 @@ func TestGatewayAdvancedSchedulerKeepsFullLoadCandidatesForWaitAndNoSlotSelectio
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.WaitPlan)
-	require.Equal(t, int64(13011), selection.Account.ID)
+	require.Equal(t, int64(13011), selection.Account.Record.ID)
 	require.True(t, selection.AdvancedScheduler)
 	acquireCalls := concurrencyCache.acquireAccountCalls
 
@@ -92,7 +95,7 @@ func TestGatewayAdvancedSchedulerKeepsFullLoadCandidatesForWaitAndNoSlotSelectio
 
 	require.NoError(t, err)
 	require.NotNil(t, account)
-	require.Equal(t, int64(13011), account.ID)
+	require.Equal(t, int64(13011), account.Record.ID)
 	require.Equal(t, acquireCalls, concurrencyCache.acquireAccountCalls, "无槽选择不得申请真实并发槽")
 }
 
@@ -100,9 +103,9 @@ func TestGatewayAdvancedSchedulerForcePlatformUsesGroupOverrides(t *testing.T) {
 	overrides := advancedSchedulerRegressionOverrides()
 	overrides.WeightLoad = advancedSchedulerRegressionFloat(1)
 	group := advancedSchedulerRegressionGroup(1401, capability.PlatformAnthropic, overrides)
-	accounts := []Account{
-		{ID: 14011, Platform: capability.PlatformAntigravity, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 1, Extra: map[string]any{"mixed_scheduling": true}},
-		{ID: 14012, Platform: capability.PlatformAntigravity, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 100, Extra: map[string]any{"mixed_scheduling": true}},
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 14011, Platform: capability.PlatformAntigravity, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 1, Extra: map[string]any{"mixed_scheduling": true}}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 14012, Platform: capability.PlatformAntigravity, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 100, Extra: map[string]any{"mixed_scheduling": true}}},
 	}
 	repo := advancedSchedulerRegressionAccountRepo(accounts)
 	concurrencyCache := &mockConcurrencyCache{
@@ -114,13 +117,13 @@ func TestGatewayAdvancedSchedulerForcePlatformUsesGroupOverrides(t *testing.T) {
 	}
 	cfg := testConfig()
 	cfg.Gateway.Scheduling.LoadBatchEnabled = true
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo, groupRepo: &mockGroupRepoForGateway{groups: map[int64]*routing.Group{group.ID: group}},
 		cache: &mockGatewayCacheForPlatform{}, cfg: cfg, concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 			Event: logging.Event,
 		},
 		),
-	}
+	})
 	ctx := requeststate.WithGroup(context.Background(), group)
 	ctx = apikey.WithForcePlatform(ctx, capability.PlatformAntigravity)
 
@@ -128,23 +131,22 @@ func TestGatewayAdvancedSchedulerForcePlatformUsesGroupOverrides(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, selection)
-	require.Equal(t, int64(14012), selection.Account.ID)
+	require.Equal(t, int64(14012), selection.Account.Record.ID)
 	require.True(t, selection.AdvancedScheduler)
-	svc.ReportAdvancedAccountScheduleResult(selection, selection.Account.ID, false, nil)
-	require.EqualValues(t, 1, svc.advancedSchedulerStats().feedbackSnapshot(14012).ErrorSamples)
-	require.Zero(t, svc.advancedSchedulerStats().feedbackSnapshot(14011).ErrorSamples)
+	svc.ReportAdvancedAccountScheduleResult(selection, selection.Account.Record.ID, false, nil)
+	require.EqualValues(t, 1, svc.advancedSchedulerStats().FeedbackSnapshot(14012).ErrorSamples)
+	require.Zero(t, svc.advancedSchedulerStats().FeedbackSnapshot(14011).ErrorSamples)
 }
 
 func TestGatewayAdvancedSchedulerWeightedStickyKeepsStickyOnlyAccount(t *testing.T) {
 	overrides := advancedSchedulerRegressionOverrides()
 	overrides.WeightSessionSticky = advancedSchedulerRegressionFloat(1)
 	group := advancedSchedulerRegressionGroup(1501, capability.PlatformAnthropic, overrides)
-	accounts := []Account{
-		{
-			ID: 15011, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive,
-			Schedulable: true, Concurrency: 2, Extra: map[string]any{"window_cost_limit": 10.0, "window_cost_sticky_reserve": 5.0},
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 15011, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive,
+			Schedulable: true, Concurrency: 2, Extra: map[string]any{"window_cost_limit": 10.0, "window_cost_sticky_reserve": 5.0}},
 		},
-		{ID: 15012, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 2},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 15012, Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true, Concurrency: 2}},
 	}
 	repo := advancedSchedulerRegressionAccountRepo(accounts)
 	cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{"sticky": 15011}}
@@ -152,21 +154,22 @@ func TestGatewayAdvancedSchedulerWeightedStickyKeepsStickyOnlyAccount(t *testing
 	concurrencyCache := &mockConcurrencyCache{acquireResults: map[int64]bool{15011: true, 15012: true}}
 	cfg := testConfig()
 	cfg.Gateway.Scheduling.LoadBatchEnabled = true
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo, groupRepo: &mockGroupRepoForGateway{groups: map[int64]*routing.Group{group.ID: group}},
 		cache: cache, cfg: cfg, concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 			Event: logging.Event,
 		},
 		),
-		windowCostCache: windowCache, usageLogRepo: &usageLogWindowBatchRepoStub{},
-	}
+		windowCostCache: windowCache,
+		usageLogRepo:    &usageLogWindowBatchRepoStub{},
+	})
 	ctx := requeststate.WithGroup(context.Background(), group)
 
 	selection, err := svc.SelectAccountWithLoadAwareness(ctx, &group.ID, "sticky", "claude-sonnet-4", nil, "", 0)
 
 	require.NoError(t, err)
 	require.NotNil(t, selection)
-	require.Equal(t, int64(15011), selection.Account.ID)
+	require.Equal(t, int64(15011), selection.Account.Record.ID)
 	require.True(t, selection.AdvancedScheduler)
 }
 
@@ -175,9 +178,9 @@ func TestGatewayAdvancedSchedulerEscapesNonOpenAIHardSticky(t *testing.T) {
 	overrides.StickyWeightedEnabled = advancedSchedulerRegressionBool(false)
 	overrides.WeightErrorRate = advancedSchedulerRegressionFloat(1)
 	group := advancedSchedulerRegressionGroup(1601, capability.PlatformGemini, overrides)
-	accounts := []Account{
-		{ID: 16011, Platform: capability.PlatformGemini, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 1},
-		{ID: 16012, Platform: capability.PlatformGemini, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 2},
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 16011, Platform: capability.PlatformGemini, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 1}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 16012, Platform: capability.PlatformGemini, Status: billing.StatusActive, Schedulable: true, Concurrency: 2, Priority: 2}},
 	}
 	repo := advancedSchedulerRegressionAccountRepo(accounts)
 	cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{"sticky": 16011}}
@@ -187,16 +190,16 @@ func TestGatewayAdvancedSchedulerEscapesNonOpenAIHardSticky(t *testing.T) {
 	cfg.Gateway.AdvancedScheduler.StickyEscapeEnabled = true
 	cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 15000
 	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.55
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo, groupRepo: &mockGroupRepoForGateway{groups: map[int64]*routing.Group{group.ID: group}},
 		cache: cache, cfg: cfg, concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 			Event: logging.Event,
 		},
 		),
-		advancedAccountStats: newAdvancedAccountRuntimeStats(),
-	}
+		advancedAccountStats: scheduler.NewRuntimeStats(time.Now),
+	})
 	for range 4 {
-		svc.advancedSchedulerStats().report(16011, false, nil)
+		svc.advancedSchedulerStats().Report(16011, false, nil)
 	}
 	ctx := requeststate.WithGroup(context.Background(), group)
 
@@ -204,7 +207,7 @@ func TestGatewayAdvancedSchedulerEscapesNonOpenAIHardSticky(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, selection)
-	require.Equal(t, int64(16012), selection.Account.ID)
+	require.Equal(t, int64(16012), selection.Account.Record.ID)
 	require.Equal(t, int64(16011), cache.sessionBindings["sticky"], "逃逸时保留原粘性绑定")
 	require.True(t, selection.AdvancedScheduler)
 }

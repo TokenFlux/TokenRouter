@@ -5,9 +5,12 @@ package service
 import (
 	"context"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -17,61 +20,61 @@ import (
 // ============================================================================
 
 func TestIsAccountInGroup(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	groupID100 := int64(100)
 	groupID200 := int64(200)
 
 	tests := []struct {
 		name     string
-		account  *Account
+		account  *gatewayprovider.ExecutionAccount
 		groupID  *int64
 		expected bool
 	}{
 		// groupID == nil（无分组 API Key）
 		{
 			"nil_groupID_ungrouped_account_nil_groups",
-			&Account{ID: 1, AccountGroups: nil},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, AccountGroups: nil}},
 			nil, true,
 		},
 		{
 			"nil_groupID_ungrouped_account_empty_slice",
-			&Account{ID: 2, AccountGroups: []AccountGroup{}},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, AccountGroups: []accountcore.GroupMembership{}}},
 			nil, true,
 		},
 		{
 			"nil_groupID_grouped_account_single",
-			&Account{ID: 3, AccountGroups: []AccountGroup{{GroupID: 100}}},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, AccountGroups: []accountcore.GroupMembership{{GroupID: 100}}}},
 			nil, false,
 		},
 		{
 			"nil_groupID_grouped_account_multiple",
-			&Account{ID: 4, AccountGroups: []AccountGroup{{GroupID: 100}, {GroupID: 200}}},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4, AccountGroups: []accountcore.GroupMembership{{GroupID: 100}, {GroupID: 200}}}},
 			nil, false,
 		},
 		// groupID != nil（有分组 API Key）
 		{
 			"with_groupID_account_in_group",
-			&Account{ID: 5, AccountGroups: []AccountGroup{{GroupID: 100}}},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5, AccountGroups: []accountcore.GroupMembership{{GroupID: 100}}}},
 			&groupID100, true,
 		},
 		{
 			"with_groupID_account_not_in_group",
-			&Account{ID: 6, AccountGroups: []AccountGroup{{GroupID: 200}}},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6, AccountGroups: []accountcore.GroupMembership{{GroupID: 200}}}},
 			&groupID100, false,
 		},
 		{
 			"with_groupID_ungrouped_account",
-			&Account{ID: 7, AccountGroups: nil},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7, AccountGroups: nil}},
 			&groupID100, false,
 		},
 		{
 			"with_groupID_multi_group_account_match_one",
-			&Account{ID: 8, AccountGroups: []AccountGroup{{GroupID: 100}, {GroupID: 200}}},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8, AccountGroups: []accountcore.GroupMembership{{GroupID: 100}, {GroupID: 200}}}},
 			&groupID200, true,
 		},
 		{
 			"with_groupID_multi_group_account_no_match",
-			&Account{ID: 9, AccountGroups: []AccountGroup{{GroupID: 300}, {GroupID: 400}}},
+			&gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9, AccountGroups: []accountcore.GroupMembership{{GroupID: 300}, {GroupID: 400}}}},
 			&groupID100, false,
 		},
 		// 防御性边界
@@ -103,14 +106,16 @@ func TestIsAccountInGroup(t *testing.T) {
 // allAccounts 存储所有账号，分组查询方法按 AccountGroups 字段进行真实过滤。
 type groupAwareMockAccountRepo struct {
 	*mockAccountRepoForPlatform
-	allAccounts []Account
+	allAccounts []gatewayprovider.
+
+		// ListSchedulableUngroupedByPlatform 仅返回未分组账号（AccountGroups 为空）
+		ExecutionAccount
 }
 
-// ListSchedulableUngroupedByPlatform 仅返回未分组账号（AccountGroups 为空）
-func (m *groupAwareMockAccountRepo) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]Account, error) {
-	var result []Account
+func (m *groupAwareMockAccountRepo) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
+	var result []gatewayprovider.ExecutionAccount
 	for _, acc := range m.allAccounts {
-		if acc.Platform == platform && acc.IsSchedulable() && len(acc.AccountGroups) == 0 {
+		if acc.Record.Platform == platform && acc.View().IsSchedulable() && len(acc.Record.AccountGroups) == 0 {
 			result = append(result, acc)
 		}
 	}
@@ -118,14 +123,14 @@ func (m *groupAwareMockAccountRepo) ListSchedulableUngroupedByPlatform(ctx conte
 }
 
 // ListSchedulableUngroupedByPlatforms 仅返回未分组账号（多平台版本）
-func (m *groupAwareMockAccountRepo) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]Account, error) {
+func (m *groupAwareMockAccountRepo) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	platformSet := make(map[string]bool, len(platforms))
 	for _, p := range platforms {
 		platformSet[p] = true
 	}
-	var result []Account
+	var result []gatewayprovider.ExecutionAccount
 	for _, acc := range m.allAccounts {
-		if platformSet[acc.Platform] && acc.IsSchedulable() && len(acc.AccountGroups) == 0 {
+		if platformSet[acc.Record.Platform] && acc.View().IsSchedulable() && len(acc.Record.AccountGroups) == 0 {
 			result = append(result, acc)
 		}
 	}
@@ -133,10 +138,10 @@ func (m *groupAwareMockAccountRepo) ListSchedulableUngroupedByPlatforms(ctx cont
 }
 
 // ListSchedulableByGroupIDAndPlatform 返回属于指定分组的账号
-func (m *groupAwareMockAccountRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]Account, error) {
-	var result []Account
+func (m *groupAwareMockAccountRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]gatewayprovider.ExecutionAccount, error) {
+	var result []gatewayprovider.ExecutionAccount
 	for _, acc := range m.allAccounts {
-		if acc.Platform == platform && acc.IsSchedulable() && accountBelongsToGroup(acc, groupID) {
+		if acc.Record.Platform == platform && acc.View().IsSchedulable() && accountBelongsToGroup(acc, groupID) {
 			result = append(result, acc)
 		}
 	}
@@ -144,14 +149,14 @@ func (m *groupAwareMockAccountRepo) ListSchedulableByGroupIDAndPlatform(ctx cont
 }
 
 // ListSchedulableByGroupIDAndPlatforms 返回属于指定分组的账号（多平台版本）
-func (m *groupAwareMockAccountRepo) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]Account, error) {
+func (m *groupAwareMockAccountRepo) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	platformSet := make(map[string]bool, len(platforms))
 	for _, p := range platforms {
 		platformSet[p] = true
 	}
-	var result []Account
+	var result []gatewayprovider.ExecutionAccount
 	for _, acc := range m.allAccounts {
-		if platformSet[acc.Platform] && acc.IsSchedulable() && accountBelongsToGroup(acc, groupID) {
+		if platformSet[acc.Record.Platform] && acc.View().IsSchedulable() && accountBelongsToGroup(acc, groupID) {
 			result = append(result, acc)
 		}
 	}
@@ -159,8 +164,8 @@ func (m *groupAwareMockAccountRepo) ListSchedulableByGroupIDAndPlatforms(ctx con
 }
 
 // accountBelongsToGroup 检查账号是否属于指定分组
-func accountBelongsToGroup(acc Account, groupID int64) bool {
-	for _, ag := range acc.AccountGroups {
+func accountBelongsToGroup(acc gatewayprovider.ExecutionAccount, groupID int64) bool {
+	for _, ag := range acc.Record.AccountGroups {
 		if ag.GroupID == groupID {
 			return true
 		}
@@ -169,13 +174,13 @@ func accountBelongsToGroup(acc Account, groupID int64) bool {
 }
 
 // Verify interface implementation
-var _ AccountRepository = (*groupAwareMockAccountRepo)(nil)
+var _ gatewayprovider.ExecutionAccountStore = (*groupAwareMockAccountRepo)(nil)
 
 // newGroupAwareMockRepo 创建分组感知的 mock repo
-func newGroupAwareMockRepo(accounts []Account) *groupAwareMockAccountRepo {
-	byID := make(map[int64]*Account, len(accounts))
+func newGroupAwareMockRepo(accounts []gatewayprovider.ExecutionAccount) *groupAwareMockAccountRepo {
+	byID := make(map[int64]*gatewayprovider.ExecutionAccount, len(accounts))
 	for i := range accounts {
-		byID[accounts[i].ID] = &accounts[i]
+		byID[accounts[i].Record.ID] = &accounts[i]
 	}
 	return &groupAwareMockAccountRepo{
 		mockAccountRepoForPlatform: &mockAccountRepoForPlatform{
@@ -190,20 +195,20 @@ func TestGroupIsolation_UngroupedKey_ShouldNotScheduleGroupedAccounts(t *testing
 	// 场景：无分组 API Key（groupID=nil），池中只有已分组账号 → 应返回错误
 	ctx := context.Background()
 
-	accounts := []Account{
-		{ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{{GroupID: 100}}},
-		{ID: 2, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{{GroupID: 200}}},
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{{GroupID: 100}}}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{{GroupID: 200}}}},
 	}
 	repo := newGroupAwareMockRepo(accounts)
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "", nil, capability.PlatformOpenAI)
 	require.Error(t, err, "无分组 Key 不应调度到已分组账号")
@@ -215,20 +220,20 @@ func TestGroupIsolation_GroupedKey_ShouldNotScheduleUngroupedAccounts(t *testing
 	ctx := context.Background()
 	groupID := int64(100)
 
-	accounts := []Account{
-		{ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: nil},
-		{ID: 2, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{}},
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: nil}},
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{}}},
 	}
 	repo := newGroupAwareMockRepo(accounts)
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, &groupID, "", "", nil, capability.PlatformOpenAI)
 	require.Error(t, err, "有分组 Key 不应调度到未分组账号")
@@ -239,27 +244,27 @@ func TestGroupIsolation_UngroupedKey_ShouldOnlyScheduleUngroupedAccounts(t *test
 	// 场景：无分组 API Key（groupID=nil），池中有未分组和已分组账号 → 应只选中未分组的
 	ctx := context.Background()
 
-	accounts := []Account{
-		{ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{{GroupID: 100}}}, // 已分组，不应被选中
-		{ID: 2, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: nil}, // 未分组，应被选中
-		{ID: 3, Platform: capability.PlatformOpenAI, Priority: 3, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{{GroupID: 200}}}, // 已分组，不应被选中
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{{GroupID: 100}}}}, // 已分组，不应被选中
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: nil}}, // 未分组，应被选中
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformOpenAI, Priority: 3, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{{GroupID: 200}}}}, // 已分组，不应被选中
 	}
 	repo := newGroupAwareMockRepo(accounts)
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "", nil, capability.PlatformOpenAI)
 	require.NoError(t, err, "应成功调度未分组账号")
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID, "应选中未分组的账号 ID=2")
+	require.Equal(t, int64(2), acc.Record.ID, "应选中未分组的账号 ID=2")
 }
 
 func TestGroupIsolation_GroupedKey_ShouldOnlyScheduleMatchingGroupAccounts(t *testing.T) {
@@ -267,27 +272,27 @@ func TestGroupIsolation_GroupedKey_ShouldOnlyScheduleMatchingGroupAccounts(t *te
 	ctx := context.Background()
 	groupID := int64(100)
 
-	accounts := []Account{
-		{ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: nil}, // 未分组，不应被选中
-		{ID: 2, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{{GroupID: 200}}}, // 属于分组 200，不应被选中
-		{ID: 3, Platform: capability.PlatformOpenAI, Priority: 3, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{{GroupID: 100}}}, // 属于分组 100，应被选中
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: nil}}, // 未分组，不应被选中
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{{GroupID: 200}}}}, // 属于分组 200，不应被选中
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformOpenAI, Priority: 3, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{{GroupID: 100}}}}, // 属于分组 100，应被选中
 	}
 	repo := newGroupAwareMockRepo(accounts)
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, &groupID, "", "", nil, capability.PlatformOpenAI)
 	require.NoError(t, err, "应成功调度分组内账号")
 	require.NotNil(t, acc)
-	require.Equal(t, int64(3), acc.ID, "应选中分组 100 内的账号 ID=3")
+	require.Equal(t, int64(3), acc.Record.ID, "应选中分组 100 内的账号 ID=3")
 }
 
 // ============================================================================
@@ -300,17 +305,17 @@ func TestGroupIsolation_SimpleMode_SkipsGroupIsolation(t *testing.T) {
 	ctx := context.Background()
 
 	// 混合未分组和已分组账号，SimpleMode 下应全部可调度
-	accounts := []Account{
-		{ID: 1, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{{GroupID: 100}}}, // 已分组
-		{ID: 2, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: nil}, // 未分组
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Priority: 2, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{{GroupID: 100}}}}, // 已分组
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: nil}}, // 未分组
 	}
 
 	// 使用基础 mock（ListSchedulableByPlatform 返回所有匹配平台的账号，不做分组过滤）
-	byID := make(map[int64]*Account, len(accounts))
+	byID := make(map[int64]*gatewayprovider.ExecutionAccount, len(accounts))
 	for i := range accounts {
-		byID[accounts[i].ID] = &accounts[i]
+		byID[accounts[i].Record.ID] = &accounts[i]
 	}
 	repo := &mockAccountRepoForPlatform{
 		accounts:     accounts,
@@ -318,18 +323,18 @@ func TestGroupIsolation_SimpleMode_SkipsGroupIsolation(t *testing.T) {
 	}
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         &config.Config{RunMode: config.RunModeSimple},
-	}
+	})
 
 	// groupID=nil 时，SimpleMode 应使用 ListSchedulableByPlatform（不过滤分组）
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "", nil, capability.PlatformOpenAI)
 	require.NoError(t, err, "SimpleMode 应跳过分组隔离直接返回账号")
 	require.NotNil(t, acc)
 	// 应选择优先级最高的账号（Priority=1, ID=2），即使它未分组
-	require.Equal(t, int64(2), acc.ID, "SimpleMode 应按优先级选择，不考虑分组")
+	require.Equal(t, int64(2), acc.Record.ID, "SimpleMode 应按优先级选择，不考虑分组")
 }
 
 func TestGroupIsolation_SimpleMode_GroupedAccountAlsoSchedulable(t *testing.T) {
@@ -337,14 +342,14 @@ func TestGroupIsolation_SimpleMode_GroupedAccountAlsoSchedulable(t *testing.T) {
 	ctx := context.Background()
 
 	// 只有已分组账号，在 standard 模式下 groupID=nil 会报错，但 simple 模式应正常
-	accounts := []Account{
-		{ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
-			AccountGroups: []AccountGroup{{GroupID: 100}}},
+	accounts := []gatewayprovider.ExecutionAccount{
+		{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformOpenAI, Priority: 1, Status: billing.StatusActive, Schedulable: true,
+			AccountGroups: []accountcore.GroupMembership{{GroupID: 100}}}},
 	}
 
-	byID := make(map[int64]*Account, len(accounts))
+	byID := make(map[int64]*gatewayprovider.ExecutionAccount, len(accounts))
 	for i := range accounts {
-		byID[accounts[i].ID] = &accounts[i]
+		byID[accounts[i].Record.ID] = &accounts[i]
 	}
 	repo := &mockAccountRepoForPlatform{
 		accounts:     accounts,
@@ -352,14 +357,14 @@ func TestGroupIsolation_SimpleMode_GroupedAccountAlsoSchedulable(t *testing.T) {
 	}
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         &config.Config{RunMode: config.RunModeSimple},
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "", nil, capability.PlatformOpenAI)
 	require.NoError(t, err, "SimpleMode 下已分组账号也应可调度")
 	require.NotNil(t, acc)
-	require.Equal(t, int64(1), acc.ID, "SimpleMode 应能调度已分组账号")
+	require.Equal(t, int64(1), acc.Record.ID, "SimpleMode 应能调度已分组账号")
 }

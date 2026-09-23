@@ -3,6 +3,9 @@ package handler
 
 import (
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	routingerrors "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"context"
@@ -26,8 +29,6 @@ import (
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -37,7 +38,7 @@ type generationRequestAdapter struct {
 	h                                       *OpenAIGatewayHandler
 	c                                       *gin.Context
 	apiKey                                  *apikey.APIKey
-	subject                                 middleware2.AuthSubject
+	subject                                 authctx.AuthSubject
 	subscription                            *billing.UserSubscription
 	reqLog                                  *zap.Logger
 	streamStarted                           *bool
@@ -48,7 +49,7 @@ type generationRequestAdapter struct {
 	endpoint                                upstreamgrok.GrokMediaEndpoint
 	requestID, contentType, videoCreated    string
 	boundAccountID                          int64
-	selection                               *service.AccountSelectionResult
+	selection                               *gatewaycapture.SelectionResult
 	decision                                scheduler.PlatformDecision
 	oauth429                                failover.OAuth429State
 	writerBefore                            int
@@ -64,7 +65,7 @@ func (p *generationRequestAdapter) SelectGeneration(ctx context.Context, exclude
 	if p.selection == nil || p.selection.Account == nil {
 		return gatewaymedia.GenerationSelection{}, false, err
 	}
-	return gatewaymedia.GenerationSelection{Account: service.AccountSnapshotView(p.selection.Account), RetryLimit: p.selection.Account.GetPoolModeRetryCount()}, true, err
+	return gatewaymedia.GenerationSelection{Account: gatewaycapture.ExecutionSnapshot(p.selection.Account), RetryLimit: p.selection.Account.View().GetPoolModeRetryCount()}, true, err
 }
 func (p *generationRequestAdapter) ActivateGeneration(_ gatewaymedia.GenerationSelection) {
 	account := p.selection.Account
@@ -73,9 +74,9 @@ func (p *generationRequestAdapter) ActivateGeneration(_ gatewaymedia.GenerationS
 	}
 	p.sessionHash = ensureOpenAIPoolModeSessionHash(p.sessionHash, account)
 	if !p.grok {
-		p.reqLog.Debug("openai.images.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
+		p.reqLog.Debug("openai.images.account_selected", zap.Int64("account_id", account.Record.ID), zap.String("account_name", account.Record.Name))
 	}
-	gatewayhttp.SetOpsSelectedAccount(p.c, account.ID, account.Platform)
+	gatewayhttp.SetOpsSelectedAccount(p.c, account.Record.ID, account.Record.Platform)
 }
 
 func (p *generationRequestAdapter) GenerationEligible(ctx context.Context, _ gatewaymedia.GenerationSelection) (bool, string, error) {
@@ -89,7 +90,7 @@ func (p *generationRequestAdapter) AcquireGeneration(_ context.Context, _ gatewa
 	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, stream, p.streamStarted, p.reqLog)
 }
 func (p *generationRequestAdapter) StartGenerationKeepalive() func() {
-	return service.StartOpenAIImagesJSONKeepalive(p.c, p.h.openAIImagesJSONKeepaliveInterval())
+	return gatewayhttp.StartOpenAIImagesJSONKeepalive(p.c, p.h.openAIImagesJSONKeepaliveInterval())
 }
 func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gatewaymedia.GenerationSelection, body []byte) gatewaymedia.GenerationOutcome {
 	account := p.selection.Account
@@ -99,7 +100,7 @@ func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gate
 	if p.grok {
 		result, err = p.h.gatewayService.ForwardGrokMedia(ctx, p.c, account, p.endpoint, p.requestID, body, p.contentType)
 	} else {
-		p.writerBefore = service.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(p.c)
+		p.writerBefore = gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(p.c)
 		match := p.h.gatewayService.MatchOpenAITLSFingerprintRouterForRequest(p.c, account)
 		err = p.h.gatewayService.EnforceOpenAIClientPolicyForRequest(ctx, p.c, account, body, match)
 		if err == nil {
@@ -108,7 +109,7 @@ func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gate
 	}
 	after := p.c.Writer.Size()
 	if !p.grok {
-		after = service.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(p.c)
+		after = gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(p.c)
 	}
 	outcome := gatewaymedia.GenerationOutcome{Result: generationResultView(result), Err: err, OutputChanged: after != p.writerBefore}
 	var failure *forwardcore.UpstreamFailoverError
@@ -211,7 +212,7 @@ func (p *generationRequestAdapter) ObserveGeneration(e gatewaymedia.GenerationEv
 func (p *generationRequestAdapter) EndGeneration(f gatewaymedia.GenerationFailure) {
 	id := int64(0)
 	if p.selection != nil && p.selection.Account != nil {
-		id = p.selection.Account.ID
+		id = p.selection.Account.Record.ID
 	}
 	gatewayhttp.WriteGenerationFailure(f, gatewayhttp.MediaFailureContext{Grok: p.grok, Generation: p.endpoint.IsGenerationRequest(), StreamStarted: *p.streamStarted, BoundAccountID: p.boundAccountID, AccountID: id, WriterBefore: p.writerBefore, Context: p.c, Log: p.reqLog}, p)
 }
@@ -228,8 +229,8 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 	result := legacyGenerationResult(value)
 	if result != nil {
 		// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
-		if account.Type == capability.AccountTypeOAuth && !account.IsShadow() {
-			h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.ID, result.ResponseHeaders)
+		if account.Record.Type == capability.AccountTypeOAuth && !account.View().IsShadow() {
+			h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.Record.ID, result.ResponseHeaders)
 		}
 		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), true, result.FirstTokenMs)
 	} else {
@@ -243,19 +244,19 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 		requestPayloadHash = billing.HashUsageRequestPayload([]byte(parsed.StickySessionSeed()))
 	}
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(c)
-	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Platform)
-	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-	clientSessionID := service.ExtractClientSessionID(c)
+	upstreamEndpoint := gatewayhttp.GetUpstreamEndpoint(c, account.Record.Platform)
+	quotaPlatform := admission.QuotaPlatform(c.Request.Context(), apiKey)
+	clientSessionID := gatewayhttp.ExtractClientSessionID(c)
 
 	upstreamModel := ""
 	if result != nil {
 		upstreamModel = result.UpstreamModel
 	}
-	completionInput := service.CompletionOpenAIInput(c.Request.Context(), &service.OpenAIRecordUsageInput{
+	completionInput := gatewaycapture.CaptureOpenAI(c.Request.Context(), &gatewaycapture.OpenAICapture{
 		Result:             result,
 		APIKey:             apiKey,
 		User:               apiKey.User,
-		Account:            account,
+		Account:            gatewaycapture.ExecutionCompletionRecord(account),
 		Subscription:       subscription,
 		InboundEndpoint:    inboundEndpoint,
 		UpstreamEndpoint:   upstreamEndpoint,
@@ -275,7 +276,7 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 		zap.Int64("api_key_id", apiKey.ID),
 		zap.Any("group_id", apiKey.GroupID),
 		zap.String("model", requestModel),
-		zap.Int64("account_id", account.ID),
+		zap.Int64("account_id", account.Record.ID),
 	)
 	h.submitMandatoryUsageRecordTask(c, func(ctx context.Context) {
 		if err := completionRecorder.Record(ctx, completionInput, true); err != nil {
@@ -299,7 +300,7 @@ func (p *generationRequestAdapter) completeGrok(requestCtx context.Context, valu
 			// 用创建受理到首次发现完成的墙钟时间记录端到端耗时。
 			CreatedAt: videoCreateStartedAt,
 		}
-		h.gatewayService.MediaVideoTasks().TrackCreated(requestCtx, apiKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.ID, pending, grokVideoObserver{log: reqLog})
+		h.gatewayService.MediaVideoTasks().TrackCreated(requestCtx, apiKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.Record.ID, pending, grokVideoObserver{log: reqLog})
 	}
 	if endpoint == upstreamgrok.GrokMediaEndpointVideoStatus || endpoint == upstreamgrok.GrokMediaEndpointVideoContent {
 		taskID := strings.TrimSpace(requestID)

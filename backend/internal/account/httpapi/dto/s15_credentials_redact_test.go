@@ -3,11 +3,12 @@ package dto_test
 import (
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRedactCredentials_NilInput(t *testing.T) {
-	out, status := RedactCredentials(nil)
+	out, status := dto.RedactCredentials(nil)
 	require.Nil(t, out)
 	require.Nil(t, status)
 }
@@ -29,7 +30,7 @@ func TestRedactCredentials_StripsSensitiveKeysAndReportsStatus(t *testing.T) {
 		"expires_at":    int64(123456),
 	}
 
-	out, status := RedactCredentials(in)
+	out, status := dto.RedactCredentials(in)
 
 	require.NotContains(t, out, "refresh_token")
 	require.NotContains(t, out, "access_token")
@@ -66,7 +67,7 @@ func TestRedactCredentials_EmptyValuesNotMarkedPresent(t *testing.T) {
 		"api_key":       false,
 		"id_token":      "actual-id",
 	}
-	out, status := RedactCredentials(in)
+	out, status := dto.RedactCredentials(in)
 	require.Empty(t, out, "敏感键即使为空也不应出现在 redacted output")
 	require.False(t, status["has_refresh_token"])
 	require.False(t, status["has_access_token"])
@@ -79,7 +80,7 @@ func TestRedactCredentials_DoesNotMutateInput(t *testing.T) {
 		"refresh_token": "secret",
 		"base_url":      "x",
 	}
-	_, _ = RedactCredentials(in)
+	_, _ = dto.RedactCredentials(in)
 	require.Equal(t, "secret", in["refresh_token"], "原始 map 不应被修改")
 	require.Equal(t, "x", in["base_url"])
 }
@@ -97,7 +98,7 @@ func TestRedactCredentials_AllKnownSensitiveKeys(t *testing.T) {
 	for _, k := range keys {
 		in[k] = "filled"
 	}
-	out, status := RedactCredentials(in)
+	out, status := dto.RedactCredentials(in)
 	require.Empty(t, out)
 	for _, k := range keys {
 		require.True(t, status["has_"+k], "key %s 应在 status 中标记为已配置", k)

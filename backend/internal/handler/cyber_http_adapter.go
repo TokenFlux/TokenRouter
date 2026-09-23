@@ -12,10 +12,10 @@ import (
 )
 
 type cyberHTTPBackend struct{ h *OpenAIGatewayHandler }
-type cyberBackgroundTasks struct{}
+type cyberBackgroundTasks struct{ service *service.OpenAIGatewayService }
 
-func (cyberBackgroundTasks) Go(name string, fn func()) bool {
-	return service.RunBackgroundTask(name, fn)
+func (t cyberBackgroundTasks) Go(name string, fn func()) bool {
+	return t.service.RunBackgroundTask(name, fn)
 }
 
 type cyberOpsWriter struct {
@@ -32,6 +32,7 @@ func (h *OpenAIGatewayHandler) NewCyberHTTPHandler() *gatewayhttp.CyberHandler {
 	}
 	runtime := moderationflow.Runtime{Tasks: cyberBackgroundTasks{}}
 	if h != nil && h.gatewayService != nil {
+		runtime.Tasks = cyberBackgroundTasks{h.gatewayService}
 		runtime.Recorder = h.completionRuntime()
 		runtime.Blocks = h.gatewayService
 	}
@@ -42,7 +43,7 @@ func (h *OpenAIGatewayHandler) NewCyberHTTPHandler() *gatewayhttp.CyberHandler {
 	if h != nil {
 		moderator = nativeModerationPort(h.contentModerationService)
 	}
-	return gatewayhttp.NewCyberHandler(cyberHTTPBackend{h}, moderator, moderationHTTPEndpoints{}, runtime)
+	return gatewayhttp.NewCyberHandler(cyberHTTPBackend{h}, moderator, gatewayhttp.GatewayModerationEndpoints{}, runtime)
 }
 func (p cyberHTTPBackend) Available() bool { return p.h != nil && p.h.gatewayService != nil }
 func (p cyberHTTPBackend) Enabled(ctx context.Context) bool {
@@ -53,7 +54,7 @@ func (p cyberHTTPBackend) Find(ctx context.Context, id int64, c *gin.Context, bo
 	return findBlockedCyberSessionKey(ctx, p.h.gatewayService, id, c, body)
 }
 func (p cyberHTTPBackend) Mark(c *gin.Context) *moderationflow.Mark {
-	m := service.GetOpsCyberPolicy(c)
+	m := gatewayhttp.GetOpsCyberPolicy(c)
 	if m == nil {
 		return nil
 	}

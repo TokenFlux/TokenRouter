@@ -24,3 +24,12 @@ func provideClaudeTokens(store *postgres.AccountStore, cache account.AccessToken
 		},
 	}}
 }
+
+// provideMessageCredentials 固定复用原 Claude/Vertex 源，其他平台保持存量凭据读取。
+func provideMessageCredentials(claude *account.ClaudeTokenSource) *account.MessageCredentialSource {
+	result := &account.MessageCredentialSource{}
+	if claude != nil {
+		result.Claude = claude.GetAccessToken
+	}
+	return result
+}

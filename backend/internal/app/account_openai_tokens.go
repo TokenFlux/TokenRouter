@@ -25,3 +25,18 @@ func provideOpenAITokens(store *postgres.AccountStore, cache account.AccessToken
 		},
 	}
 }
+
+// provideOpenAIExecutionCredentials 复用原持久读取和两种 token 源，不提前解析影子或读取凭据。
+func provideOpenAIExecutionCredentials(store *postgres.AccountStore, openai *account.OpenAITokenSource, grok *account.GrokTokenSource) *account.OpenAIExecutionCredentials {
+	out := &account.OpenAIExecutionCredentials{}
+	if store != nil {
+		out.Parent = store.GetByID
+	}
+	if openai != nil {
+		out.OpenAI = openai.GetAccessToken
+	}
+	if grok != nil {
+		out.Grok = grok.GetAccessToken
+	}
+	return out
+}

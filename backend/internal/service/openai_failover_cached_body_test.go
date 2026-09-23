@@ -9,9 +9,12 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -90,7 +93,7 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 					Body:       io.NopCloser(strings.NewReader(`{"id":"resp_123","status":"completed","model":"ok","output":[],"usage":{"input_tokens":1,"output_tokens":1}}`)),
 				},
 			}}
-			svc := &OpenAIGatewayService{httpUpstream: upstream}
+			svc := withSchedulerParametersForTest(&OpenAIGatewayService{httpUpstream: upstream})
 
 			firstAccount := openAIFailoverCachedBodyTestAccount(1, "account-a", tt.firstMapping)
 			secondAccount := openAIFailoverCachedBodyTestAccount(2, "account-b", tt.secondMapping)
@@ -113,11 +116,10 @@ func TestOpenAIGatewayService_Forward_FailoverReparsesCachedBodyForNextAccount(t
 }
 
 func TestOpenAIGatewayService_HandleFailoverSideEffects_DoesNotRereadResponseBody(t *testing.T) {
-	svc := &OpenAIGatewayService{}
-	account := &Account{
-		ID:       88,
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 88,
 		Platform: capability.PlatformOpenAI,
-		Type:     capability.AccountTypeOAuth,
+		Type:     capability.AccountTypeOAuth},
 	}
 	resp := &http.Response{
 		StatusCode: http.StatusTooManyRequests,
@@ -133,13 +135,12 @@ func TestOpenAIGatewayService_HandleFailoverSideEffects_DoesNotRereadResponseBod
 	require.True(t, svc.shouldRetryOpenAIOAuth429OnSameAccount(account, http.StatusTooManyRequests, false))
 }
 
-func openAIFailoverCachedBodyTestAccount(id int64, name string, mapping map[string]any) *Account {
+func openAIFailoverCachedBodyTestAccount(id int64, name string, mapping map[string]any) *gatewayprovider.ExecutionAccount {
 	credentials := map[string]any{"access_token": "oauth-token", "chatgpt_account_id": "chatgpt-account"}
 	if mapping != nil {
 		credentials["model_mapping"] = mapping
 	}
-	return &Account{
-		ID:             id,
+	return &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: id,
 		Name:           name,
 		Platform:       capability.PlatformOpenAI,
 		Type:           capability.AccountTypeOAuth,
@@ -147,6 +148,6 @@ func openAIFailoverCachedBodyTestAccount(id int64, name string, mapping map[stri
 		Credentials:    credentials,
 		Status:         billing.StatusActive,
 		Schedulable:    true,
-		RateMultiplier: f64p(1),
+		RateMultiplier: f64p(1)},
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
@@ -63,7 +64,7 @@ const cyberSessionTranscriptLookupOverflowBlockKey = "transcript_lookup_limit_ex
 // CyberSessionExplicitBlockKey returns an inexpensive exact key when the
 // client supplies a stable session signal.
 func CyberSessionExplicitBlockKey(apiKeyID int64, c *gin.Context, body []byte) string {
-	return hashCyberSessionBlockKey(apiKeyID, explicitOpenAISessionID(c, body))
+	return hashCyberSessionBlockKey(apiKeyID, gatewayhttp.ExplicitOpenAISessionID(c, body))
 }
 
 // CyberSessionTranscriptBlockKeys returns the exact full-request key followed

@@ -11,14 +11,17 @@ import (
 	"testing"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 )
 
 type transportTempUnschedRepoStub struct {
-	AccountRepository
+	gatewayprovider.ExecutionAccountStore
+
 	calls      int
 	lastID     int64
 	lastUntil  time.Time
@@ -47,9 +50,9 @@ func newTransportErrorTestGin(t *testing.T) *gin.Context {
 // nothing is written to the response (the handler owns it).
 func TestHandleUpstreamTransportError_TransientFailsOverWithoutEviction(t *testing.T) {
 	repo := &transportTempUnschedRepoStub{}
-	s := &GatewayService{accountRepo: repo}
+	s := withSchedulerParametersForTest(&GatewayService{accountRepo: repo})
 	c := newTransportErrorTestGin(t)
-	account := &Account{ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}}
 
 	err := s.handleUpstreamTransportError(context.Background(), c, account,
 		errors.New(`Post "http://upstream/v1/messages?beta=true": EOF`), ops.OpsUpstreamErrorEvent{})
@@ -80,9 +83,9 @@ func TestHandleUpstreamTransportError_TransientFailsOverWithoutEviction(t *testi
 // temporarily unschedule the account for the transport cooldown.
 func TestHandleUpstreamTransportError_PersistentEvictsAccount(t *testing.T) {
 	repo := &transportTempUnschedRepoStub{}
-	s := &GatewayService{accountRepo: repo}
+	s := withSchedulerParametersForTest(&GatewayService{accountRepo: repo})
 	c := newTransportErrorTestGin(t)
-	account := &Account{ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}}
 
 	before := time.Now()
 	err := s.handleUpstreamTransportError(context.Background(), c, account,
@@ -95,8 +98,8 @@ func TestHandleUpstreamTransportError_PersistentEvictsAccount(t *testing.T) {
 	if repo.calls != 1 {
 		t.Fatalf("SetTempUnschedulable called %d times for a persistent error, want 1", repo.calls)
 	}
-	if repo.lastID != account.ID {
-		t.Fatalf("unscheduled account = %d, want %d", repo.lastID, account.ID)
+	if repo.lastID != account.Record.ID {
+		t.Fatalf("unscheduled account = %d, want %d", repo.lastID, account.Record.ID)
 	}
 	wantUntil := before.Add(gatewayTransportErrorTempUnschedDuration)
 	if repo.lastUntil.Before(wantUntil.Add(-time.Minute)) || repo.lastUntil.After(wantUntil.Add(time.Minute)) {
@@ -112,9 +115,9 @@ func TestHandleUpstreamTransportError_PersistentEvictsAccount(t *testing.T) {
 // chance to exhibit a fault.
 func TestHandleUpstreamTransportError_ClientCanceledNoFailover(t *testing.T) {
 	repo := &transportTempUnschedRepoStub{}
-	s := &GatewayService{accountRepo: repo}
+	s := withSchedulerParametersForTest(&GatewayService{accountRepo: repo})
 	c := newTransportErrorTestGin(t)
-	account := &Account{ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}}
 
 	inErr := context.Canceled
 	err := s.handleUpstreamTransportError(context.Background(), c, account, inErr, ops.OpsUpstreamErrorEvent{})
@@ -136,9 +139,9 @@ func TestHandleUpstreamTransportError_ClientCanceledNoFailover(t *testing.T) {
 // transient fault: fail over, no eviction.
 func TestHandleUpstreamTransportError_UpstreamDeadlineStillFailsOver(t *testing.T) {
 	repo := &transportTempUnschedRepoStub{}
-	s := &GatewayService{accountRepo: repo}
+	s := withSchedulerParametersForTest(&GatewayService{accountRepo: repo})
 	c := newTransportErrorTestGin(t)
-	account := &Account{ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 149, Name: "acc", Platform: capability.PlatformAnthropic}}
 
 	err := s.handleUpstreamTransportError(context.Background(), c, account,
 		context.DeadlineExceeded, ops.OpsUpstreamErrorEvent{})

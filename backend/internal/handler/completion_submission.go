@@ -11,9 +11,6 @@ import (
 func (h *GatewayHandler) submitUsageRecordTask(c *gin.Context, task completion.UsageRecordTask) {
 	gatewayhttp.NewCompletionSubmission(h.usageRecordWorkerPool, false).Submit(c, task)
 }
-func (h *GatewayHandler) submitMandatoryUsageRecordTask(c *gin.Context, task completion.UsageRecordTask) {
-	gatewayhttp.NewCompletionSubmission(h.usageRecordWorkerPool, false).SubmitMandatory(c, task)
-}
 
 func (h *OpenAIGatewayHandler) submitMandatoryUsageRecordTask(c *gin.Context, task completion.UsageRecordTask) {
 	gatewayhttp.NewCompletionSubmission(h.usageRecordWorkerPool, true).SubmitMandatory(c, task)
@@ -24,7 +21,4 @@ func (h *OpenAIGatewayHandler) submitOpenAIUsageRecordTask(c *gin.Context, resul
 		images = result.ImageCount
 	}
 	gatewayhttp.NewCompletionSubmission(h.usageRecordWorkerPool, true).SubmitImages(c, images, task)
-}
-func (h *QoderGatewayHandler) submitUsageRecordTask(c *gin.Context, task completion.UsageRecordTask) {
-	gatewayhttp.NewQoderCompletionSubmission(h.usageRecordWorkerPool).Submit(c, task)
 }

@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -20,9 +22,9 @@ func TestStepUpUsesVerifiedPrincipal(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/admin", nil)
-	SetPrincipal(c, identity.Principal{UserID: 1, Role: "admin", CredentialKind: "admin_api_key"}, 1, "admin@example.invalid")
+	authctx.SetPrincipal(c, identity.Principal{UserID: 1, Role: "admin", CredentialKind: "admin_api_key"}, 1, "admin@example.invalid")
 	c.Set("auth_method", "jwt")
-	c.Set(ContextKeySessionID, "forged-display-session")
+	c.Set(authctx.ContextKeySessionID, "forged-display-session")
 	require.False(t, EnforceStepUp(c, nil, nil, principalStepUpEnabled{}))
 	require.Equal(t, http.StatusForbidden, recorder.Code)
 	require.Contains(t, recorder.Body.String(), "STEP_UP_ADMIN_API_KEY_FORBIDDEN")
@@ -33,7 +35,7 @@ func TestStepUpUsesVerifiedPrincipal(t *testing.T) {
 func TestStepUpUsesCanonicalJWTSession(t *testing.T) {
 	c, _ := gin.CreateTestContext(nil)
 	c.Request = httptest.NewRequest(http.MethodPost, "/admin", nil)
-	SetPrincipal(c, identity.Principal{UserID: 1, Role: "admin", CredentialKind: "jwt", SessionID: "verified"}, 1, "")
-	c.Set(ContextKeySessionID, "display-only")
+	authctx.SetPrincipal(c, identity.Principal{UserID: 1, Role: "admin", CredentialKind: "jwt", SessionID: "verified"}, 1, "")
+	c.Set(authctx.ContextKeySessionID, "display-only")
 	require.Equal(t, "verified", StepUpSessionKey(c, 1))
 }

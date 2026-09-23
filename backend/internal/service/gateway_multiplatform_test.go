@@ -11,6 +11,7 @@ import (
 	routingtestkit "github.com/TokenFlux/TokenRouter/internal/routing/testkit"
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 
@@ -31,13 +32,13 @@ func testConfig() *config.Config {
 
 // mockAccountRepoForPlatform 单平台测试用的 mock
 type mockAccountRepoForPlatform struct {
-	accounts         []Account
-	accountsByID     map[int64]*Account
-	listPlatformFunc func(ctx context.Context, platform string) ([]Account, error)
+	accounts         []gatewayprovider.ExecutionAccount
+	accountsByID     map[int64]*gatewayprovider.ExecutionAccount
+	listPlatformFunc func(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error)
 	getByIDCalls     int
 }
 
-func (m *mockAccountRepoForPlatform) GetByID(ctx context.Context, id int64) (*Account, error) {
+func (m *mockAccountRepoForPlatform) GetByID(ctx context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
 	m.getByIDCalls++
 	if acc, ok := m.accountsByID[id]; ok {
 		return acc, nil
@@ -45,8 +46,8 @@ func (m *mockAccountRepoForPlatform) GetByID(ctx context.Context, id int64) (*Ac
 	return nil, errors.New("account not found")
 }
 
-func (m *mockAccountRepoForPlatform) GetByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
-	var result []*Account
+func (m *mockAccountRepoForPlatform) GetByIDs(ctx context.Context, ids []int64) ([]*gatewayprovider.ExecutionAccount, error) {
+	var result []*gatewayprovider.ExecutionAccount
 	for _, id := range ids {
 		if acc, ok := m.accountsByID[id]; ok {
 			result = append(result, acc)
@@ -63,58 +64,58 @@ func (m *mockAccountRepoForPlatform) ExistsByID(ctx context.Context, id int64) (
 	return ok, nil
 }
 
-func (m *mockAccountRepoForPlatform) ListSchedulableByPlatform(ctx context.Context, platform string) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListSchedulableByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	if m.listPlatformFunc != nil {
 		return m.listPlatformFunc(ctx, platform)
 	}
-	var result []Account
+	var result []gatewayprovider.ExecutionAccount
 	for _, acc := range m.accounts {
-		if acc.Platform == platform && acc.IsSchedulable() {
+		if acc.Record.Platform == platform && acc.View().IsSchedulable() {
 			result = append(result, acc)
 		}
 	}
 	return result, nil
 }
 
-func (m *mockAccountRepoForPlatform) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return m.ListSchedulableByPlatform(ctx, platform)
 }
 
 // Stub methods to implement AccountRepository interface
-func (m *mockAccountRepoForPlatform) Create(ctx context.Context, account *Account) error {
+func (m *mockAccountRepoForPlatform) Create(ctx context.Context, account *gatewayprovider.ExecutionAccount) error {
 	return nil
 }
-func (m *mockAccountRepoForPlatform) GetByCRSAccountID(ctx context.Context, crsAccountID string) (*Account, error) {
+func (m *mockAccountRepoForPlatform) GetByCRSAccountID(ctx context.Context, crsAccountID string) (*gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
 
-func (m *mockAccountRepoForPlatform) FindByExtraField(ctx context.Context, key string, value any) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) FindByExtraField(ctx context.Context, key string, value any) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
 
 func (m *mockAccountRepoForPlatform) ListCRSAccountIDs(ctx context.Context) (map[string]int64, error) {
 	return nil, nil
 }
-func (m *mockAccountRepoForPlatform) Update(ctx context.Context, account *Account) error {
+func (m *mockAccountRepoForPlatform) Update(ctx context.Context, account *gatewayprovider.ExecutionAccount) error {
 	return nil
 }
 func (m *mockAccountRepoForPlatform) Delete(ctx context.Context, id int64) error { return nil }
-func (m *mockAccountRepoForPlatform) List(ctx context.Context, params pagination.PaginationParams) ([]Account, *pagination.PaginationResult, error) {
+func (m *mockAccountRepoForPlatform) List(ctx context.Context, params pagination.PaginationParams) ([]gatewayprovider.ExecutionAccount, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (m *mockAccountRepoForPlatform) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
+func (m *mockAccountRepoForPlatform) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]gatewayprovider.ExecutionAccount, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
-func (m *mockAccountRepoForPlatform) ListAllWithFilters(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListAllWithFilters(ctx context.Context, platform, accountType, status, search string, groupID int64, privacyMode string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
-func (m *mockAccountRepoForPlatform) ListByGroup(ctx context.Context, groupID int64) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListByGroup(ctx context.Context, groupID int64) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
-func (m *mockAccountRepoForPlatform) ListActive(ctx context.Context) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListActive(ctx context.Context) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
-func (m *mockAccountRepoForPlatform) ListByPlatform(ctx context.Context, platform string) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
 func (m *mockAccountRepoForPlatform) UpdateLastUsed(ctx context.Context, id int64) error {
@@ -138,47 +139,47 @@ func (m *mockAccountRepoForPlatform) AutoPauseExpiredAccounts(ctx context.Contex
 func (m *mockAccountRepoForPlatform) BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error {
 	return nil
 }
-func (m *mockAccountRepoForPlatform) ListSchedulable(ctx context.Context) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListSchedulable(ctx context.Context) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
-func (m *mockAccountRepoForPlatform) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
-func (m *mockAccountRepoForPlatform) ListSchedulableByPlatforms(ctx context.Context, platforms []string) ([]Account, error) {
-	var result []Account
+func (m *mockAccountRepoForPlatform) ListSchedulableByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
+	var result []gatewayprovider.ExecutionAccount
 	platformSet := make(map[string]bool)
 	for _, p := range platforms {
 		platformSet[p] = true
 	}
 	for _, acc := range m.accounts {
-		if platformSet[acc.Platform] && acc.IsSchedulable() {
+		if platformSet[acc.Record.Platform] && acc.View().IsSchedulable() {
 			result = append(result, acc)
 		}
 	}
 	return result, nil
 }
-func (m *mockAccountRepoForPlatform) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListSchedulableByGroupIDAndPlatforms(ctx context.Context, groupID int64, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	return m.ListSchedulableByPlatforms(ctx, platforms)
 }
-func (m *mockAccountRepoForPlatform) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 	return m.ListSchedulableByPlatform(ctx, platform)
 }
-func (m *mockAccountRepoForPlatform) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListSchedulableUngroupedByPlatforms(ctx context.Context, platforms []string) ([]gatewayprovider.ExecutionAccount, error) {
 	return m.ListSchedulableByPlatforms(ctx, platforms)
 }
-func (m *mockAccountRepoForPlatform) ListModelAvailabilityCandidates(_ context.Context, groupID *int64, platforms []string, includeGrouped bool) ([]Account, error) {
+func (m *mockAccountRepoForPlatform) ListModelAvailabilityCandidates(_ context.Context, groupID *int64, platforms []string, includeGrouped bool) ([]gatewayprovider.ExecutionAccount, error) {
 	platformSet := make(map[string]struct{}, len(platforms))
 	for _, platform := range platforms {
 		platformSet[platform] = struct{}{}
 	}
-	result := make([]Account, 0, len(m.accounts))
+	result := make([]gatewayprovider.ExecutionAccount, 0, len(m.accounts))
 	for _, acc := range m.accounts {
-		if _, ok := platformSet[acc.Platform]; !ok || acc.Status != billing.StatusActive || !acc.Schedulable {
+		if _, ok := platformSet[acc.Record.Platform]; !ok || acc.Record.Status != billing.StatusActive || !acc.Record.Schedulable {
 			continue
 		}
 		if groupID != nil {
 			inGroup := false
-			for _, accountGroup := range acc.AccountGroups {
+			for _, accountGroup := range acc.Record.AccountGroups {
 				if accountGroup.GroupID == *groupID {
 					inGroup = true
 					break
@@ -187,7 +188,7 @@ func (m *mockAccountRepoForPlatform) ListModelAvailabilityCandidates(_ context.C
 			if !inGroup {
 				continue
 			}
-		} else if !includeGrouped && (len(acc.AccountGroups) > 0 || len(acc.GroupIDs) > 0) {
+		} else if !includeGrouped && (len(acc.Record.AccountGroups) > 0 || len(acc.Record.GroupIDs) > 0) {
 			continue
 		}
 		result = append(result, acc)
@@ -243,12 +244,12 @@ func (m *mockAccountRepoForPlatform) RevertProxyFallback(ctx context.Context, ac
 	return nil
 }
 
-func (m *mockAccountRepoForPlatform) ListShadowsByParent(ctx context.Context, parentID int64) ([]*Account, error) {
+func (m *mockAccountRepoForPlatform) ListShadowsByParent(ctx context.Context, parentID int64) ([]*gatewayprovider.ExecutionAccount, error) {
 	return nil, nil
 }
 
 // Verify interface implementation
-var _ AccountRepository = (*mockAccountRepoForPlatform)(nil)
+var _ gatewayprovider.ExecutionAccountStore = (*mockAccountRepoForPlatform)(nil)
 
 // mockGatewayCacheForPlatform 单平台测试用的 cache mock
 type mockGatewayCacheForPlatform struct {
@@ -377,30 +378,30 @@ func TestGatewayService_SelectAccountForModelWithPlatform_Anthropic(t *testing.T
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
-			{ID: 3, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}, // 应被隔离
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}}, // 应被隔离
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(1), acc.ID, "应选择优先级最高的 anthropic 账户")
-	require.Equal(t, capability.PlatformAnthropic, acc.Platform, "应只返回 anthropic 平台账户")
+	require.Equal(t, int64(1), acc.Record.ID, "应选择优先级最高的 anthropic 账户")
+	require.Equal(t, capability.PlatformAnthropic, acc.Record.Platform, "应只返回 anthropic 平台账户")
 }
 
 // TestGatewayService_SelectAccountForModelWithPlatform_Antigravity 测试 antigravity 单平台选择
@@ -408,29 +409,29 @@ func TestGatewayService_SelectAccountForModelWithPlatform_Antigravity(t *testing
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}, // 应被隔离
-			{ID: 2, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}}, // 应被隔离
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-sonnet-4-5", nil, capability.PlatformAntigravity)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID)
-	require.Equal(t, capability.PlatformAntigravity, acc.Platform, "应只返回 antigravity 平台账户")
+	require.Equal(t, int64(2), acc.Record.ID)
+	require.Equal(t, capability.PlatformAntigravity, acc.Record.Platform, "应只返回 antigravity 平台账户")
 }
 
 // TestGatewayService_SelectAccountForModelWithPlatform_PriorityAndLastUsed 测试优先级和最后使用时间
@@ -439,56 +440,56 @@ func TestGatewayService_SelectAccountForModelWithPlatform_PriorityAndLastUsed(t 
 	now := time.Now()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: ptr(now.Add(-1 * time.Hour))},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: ptr(now.Add(-2 * time.Hour))},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: ptr(now.Add(-1 * time.Hour))}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: ptr(now.Add(-2 * time.Hour))}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID, "同优先级应选择最久未用的账户")
+	require.Equal(t, int64(2), acc.Record.ID, "同优先级应选择最久未用的账户")
 }
 
 func TestGatewayService_SelectAccountForModelWithPlatform_GeminiOAuthPreference(t *testing.T) {
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeAPIKey},
-			{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeOAuth},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeAPIKey}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeOAuth}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "gemini-2.5-pro", nil, capability.PlatformGemini)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID, "同优先级且未使用时应优先选择OAuth账户")
+	require.Equal(t, int64(2), acc.Record.ID, "同优先级且未使用时应优先选择OAuth账户")
 }
 
 // TestGatewayService_SelectAccountForModelWithPlatform_NoAvailableAccounts 测试无可用账户
@@ -496,17 +497,17 @@ func TestGatewayService_SelectAccountForModelWithPlatform_NoAvailableAccounts(t 
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts:     []Account{},
-		accountsByID: map[int64]*Account{},
+		accounts:     []gatewayprovider.ExecutionAccount{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 	require.Error(t, err)
@@ -519,23 +520,23 @@ func TestGatewayService_SelectAccountForModelWithPlatform_AllExcluded(t *testing
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	excludedIDs := map[int64]struct{}{1: {}, 2: {}}
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", excludedIDs, capability.PlatformAnthropic)
@@ -550,46 +551,46 @@ func TestGatewayService_SelectAccountForModelWithPlatform_Schedulability(t *test
 
 	tests := []struct {
 		name       string
-		accounts   []Account
+		accounts   []gatewayprovider.ExecutionAccount
 		expectedID int64
 	}{
 		{
 			name: "过载账户被跳过",
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, OverloadUntil: ptr(now.Add(1 * time.Hour))},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, OverloadUntil: ptr(now.Add(1 * time.Hour))}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
 			expectedID: 2,
 		},
 		{
 			name: "限流账户被跳过",
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, RateLimitResetAt: ptr(now.Add(1 * time.Hour))},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, RateLimitResetAt: ptr(now.Add(1 * time.Hour))}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
 			expectedID: 2,
 		},
 		{
 			name: "非active账户被跳过",
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: "error", Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: "error", Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
 			expectedID: 2,
 		},
 		{
 			name: "schedulable=false被跳过",
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
 			expectedID: 2,
 		},
 		{
 			name: "过期的过载账户可调度",
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, OverloadUntil: ptr(now.Add(-1 * time.Hour))},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, OverloadUntil: ptr(now.Add(-1 * time.Hour))}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
 			expectedID: 1,
 		},
@@ -599,24 +600,24 @@ func TestGatewayService_SelectAccountForModelWithPlatform_Schedulability(t *test
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &mockAccountRepoForPlatform{
 				accounts:     tt.accounts,
-				accountsByID: map[int64]*Account{},
+				accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 			}
 			for i := range repo.accounts {
-				repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+				repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 			}
 
 			cache := &mockGatewayCacheForPlatform{}
 
-			svc := &GatewayService{
+			svc := withSchedulerParametersForTest(&GatewayService{
 				accountRepo: repo,
 				cache:       cache,
 				cfg:         testConfig(),
-			}
+			})
 
 			acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 			require.NoError(t, err)
 			require.NotNil(t, acc)
-			require.Equal(t, tt.expectedID, acc.ID)
+			require.Equal(t, tt.expectedID, acc.Record.ID)
 		})
 	}
 }
@@ -627,117 +628,117 @@ func TestGatewayService_SelectAccountForModelWithPlatform_StickySession(t *testi
 
 	t.Run("粘性会话命中-同平台", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
 			sessionBindings: map[string]int64{"session-123": 1},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "session-123", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(1), acc.ID, "应返回粘性会话绑定的账户")
+		require.Equal(t, int64(1), acc.Record.ID, "应返回粘性会话绑定的账户")
 	})
 
 	t.Run("粘性会话不匹配平台-降级选择", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true}, // 粘性会话绑定但平台不匹配
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true}}, // 粘性会话绑定但平台不匹配
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
 			sessionBindings: map[string]int64{"session-123": 1}, // 绑定 antigravity 账户
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		// 请求 anthropic 平台，但粘性会话绑定的是 antigravity 账户
 		acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "session-123", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID, "粘性会话账户平台不匹配，应降级选择同平台账户")
-		require.Equal(t, capability.PlatformAnthropic, acc.Platform)
+		require.Equal(t, int64(2), acc.Record.ID, "粘性会话账户平台不匹配，应降级选择同平台账户")
+		require.Equal(t, capability.PlatformAnthropic, acc.Record.Platform)
 	})
 
 	t.Run("粘性会话账户被排除-降级选择", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
 			sessionBindings: map[string]int64{"session-123": 1},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		excludedIDs := map[int64]struct{}{1: {}}
 		acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "session-123", "claude-3-5-sonnet-20241022", excludedIDs, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID, "粘性会话账户被排除，应选择其他账户")
+		require.Equal(t, int64(2), acc.Record.ID, "粘性会话账户被排除，应选择其他账户")
 	})
 
 	t.Run("粘性会话账户不可调度-降级选择", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: "error", Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: "error", Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
 			sessionBindings: map[string]int64{"session-123": 1},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "session-123", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID, "粘性会话账户不可调度，应选择其他账户")
+		require.Equal(t, int64(2), acc.Record.ID, "粘性会话账户不可调度，应选择其他账户")
 	})
 }
 
@@ -746,29 +747,29 @@ func TestGatewayService_SelectAccountForModelWithExclusions_ForcePlatform(t *tes
 	ctx = apikey.WithForcePlatform(ctx, capability.PlatformAntigravity)
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-			{ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.SelectAccountForModelWithExclusions(ctx, nil, "", "claude-sonnet-4-5", nil)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID)
-	require.Equal(t, capability.PlatformAntigravity, acc.Platform)
+	require.Equal(t, int64(2), acc.Record.ID)
+	require.Equal(t, capability.PlatformAntigravity, acc.Record.Platform)
 }
 
 func TestGatewayService_SelectAccountForModelWithPlatform_RoutedStickySessionClears(t *testing.T) {
@@ -777,14 +778,14 @@ func TestGatewayService_SelectAccountForModelWithPlatform_RoutedStickySessionCle
 	requestedModel := "claude-3-5-sonnet-20241022"
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusDisabled, Schedulable: true},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusDisabled, Schedulable: true}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{
@@ -807,17 +808,17 @@ func TestGatewayService_SelectAccountForModelWithPlatform_RoutedStickySessionCle
 		},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
 		groupRepo:   groupRepo,
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, &groupID, "session-123", requestedModel, nil, capability.PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID)
+	require.Equal(t, int64(2), acc.Record.ID)
 	require.Equal(t, 1, cache.deletedSessions["session-123"])
 	require.Equal(t, int64(2), cache.sessionBindings["session-123"])
 }
@@ -828,14 +829,14 @@ func TestGatewayService_SelectAccountForModelWithPlatform_RoutedStickySessionHit
 	requestedModel := "claude-3-5-sonnet-20241022"
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{
@@ -858,17 +859,17 @@ func TestGatewayService_SelectAccountForModelWithPlatform_RoutedStickySessionHit
 		},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
 		groupRepo:   groupRepo,
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, &groupID, "session-456", requestedModel, nil, capability.PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(1), acc.ID)
+	require.Equal(t, int64(1), acc.Record.ID)
 }
 
 func TestGatewayService_SelectAccountForModelWithPlatform_RoutedFallbackToNormal(t *testing.T) {
@@ -877,14 +878,14 @@ func TestGatewayService_SelectAccountForModelWithPlatform_RoutedFallbackToNormal
 	requestedModel := "claude-3-5-sonnet-20241022"
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
@@ -905,46 +906,45 @@ func TestGatewayService_SelectAccountForModelWithPlatform_RoutedFallbackToNormal
 		},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
 		groupRepo:   groupRepo,
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, &groupID, "", requestedModel, nil, capability.PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(1), acc.ID)
+	require.Equal(t, int64(1), acc.Record.ID)
 }
 
 func TestGatewayService_SelectAccountForModelWithPlatform_NoModelSupport(t *testing.T) {
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformAnthropic,
 				Priority:    1,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 	require.Error(t, err)
@@ -963,40 +963,37 @@ func TestGatewayService_SelectAccountForModelWithPlatform_ModelRateLimitedNotGro
 	resetAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformAnthropic,
 				Priority:    1,
 				Status:      billing.StatusActive,
 				Schedulable: true,
 				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-sonnet-20241022": "claude-3-5-sonnet-20241022"}},
-				Extra: map[string]any{
-					modelRateLimitsKey: map[string]any{
-						"claude-3-5-sonnet-20241022": map[string]any{"rate_limit_reset_at": resetAt},
-					},
+				Extra: map[string]any{"model_rate_limits": map[string]any{
+					"claude-3-5-sonnet-20241022": map[string]any{"rate_limit_reset_at": resetAt},
 				},
+				}},
 			},
-			{
-				ID:          2,
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 				Platform:    capability.PlatformAnthropic,
 				Priority:    2,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       &mockGatewayCacheForPlatform{},
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 	require.Error(t, err)
@@ -1010,72 +1007,70 @@ func TestGatewayService_SelectAccountForModelWithPlatform_GeminiPreferOAuth(t *t
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeAPIKey},
-			{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeOAuth},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeAPIKey}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeOAuth}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "gemini-2.5-pro", nil, capability.PlatformGemini)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID)
+	require.Equal(t, int64(2), acc.Record.ID)
 }
 
 func TestGatewayService_SelectAccountForModelWithPlatform_GeminiAPIKeyModelMappingFilter(t *testing.T) {
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformGemini,
 				Type:        capability.AccountTypeAPIKey,
 				Priority:    1,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"}}},
 			},
-			{
-				ID:          2,
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 				Platform:    capability.PlatformGemini,
 				Type:        capability.AccountTypeAPIKey,
 				Priority:    2,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-flash": "gemini-2.5-flash"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"gemini-2.5-flash": "gemini-2.5-flash"}}},
 			},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "gemini-2.5-flash", nil, capability.PlatformGemini)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID, "应过滤不支持请求模型的 APIKey 账号")
+	require.Equal(t, int64(2), acc.Record.ID, "应过滤不支持请求模型的 APIKey 账号")
 
 	acc, err = svc.selectAccountForModelWithPlatform(ctx, nil, "", "gemini-3-pro-preview", nil, capability.PlatformGemini)
 	require.Error(t, err)
@@ -1094,67 +1089,66 @@ func TestGatewayService_SelectAccountForModelWithPlatform_StickyInGroup(t *testi
 	groupID := int64(50)
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, AccountGroups: []AccountGroup{{GroupID: groupID}}},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, AccountGroups: []accountcore.GroupMembership{{GroupID: groupID}}}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, AccountGroups: []accountcore.GroupMembership{{GroupID: groupID}}}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{
 		sessionBindings: map[string]int64{"session-group": 1},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, &groupID, "session-group", "", nil, capability.PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(1), acc.ID)
+	require.Equal(t, int64(1), acc.Record.ID)
 }
 
 func TestGatewayService_SelectAccountForModelWithPlatform_StickyModelMismatchFallback(t *testing.T) {
 	ctx := context.Background()
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{
-				ID:          1,
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 				Platform:    capability.PlatformAnthropic,
 				Priority:    1,
 				Status:      billing.StatusActive,
 				Schedulable: true,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
 			},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{
 		sessionBindings: map[string]int64{"session-miss": 1},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "session-miss", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID)
+	require.Equal(t, int64(2), acc.Record.ID)
 }
 
 func TestGatewayService_SelectAccountForModelWithPlatform_PreferNeverUsed(t *testing.T) {
@@ -1162,44 +1156,44 @@ func TestGatewayService_SelectAccountForModelWithPlatform_PreferNeverUsed(t *tes
 	lastUsed := time.Now().Add(-1 * time.Hour)
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: &lastUsed},
-			{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: &lastUsed}},
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 	require.NoError(t, err)
 	require.NotNil(t, acc)
-	require.Equal(t, int64(2), acc.ID)
+	require.Equal(t, int64(2), acc.Record.ID)
 }
 
 func TestGatewayService_SelectAccountForModelWithPlatform_NoAccounts(t *testing.T) {
 	ctx := context.Background()
 	repo := &mockAccountRepoForPlatform{
-		accounts:     []Account{},
-		accountsByID: map[int64]*Account{},
+		accounts:     []gatewayprovider.ExecutionAccount{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 
 	cache := &mockGatewayCacheForPlatform{}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		cache:       cache,
 		cfg:         testConfig(),
-	}
+	})
 
 	acc, err := svc.selectAccountForModelWithPlatform(ctx, nil, "", "", nil, capability.PlatformAnthropic)
 	require.Error(t, err)
@@ -1208,88 +1202,84 @@ func TestGatewayService_SelectAccountForModelWithPlatform_NoAccounts(t *testing.
 }
 
 func TestGatewayService_isModelSupportedByAccount(t *testing.T) {
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 
 	tests := []struct {
 		name     string
-		account  *Account
+		account  *gatewayprovider.ExecutionAccount
 		model    string
 		expected bool
 	}{
 		{
 			name:     "Antigravity平台-支持默认映射中的claude模型",
-			account:  &Account{Platform: capability.PlatformAntigravity},
+			account:  &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}},
 			model:    "claude-sonnet-4-5",
 			expected: true,
 		},
 		{
 			name:     "Antigravity平台-不支持非默认映射中的claude模型",
-			account:  &Account{Platform: capability.PlatformAntigravity},
+			account:  &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}},
 			model:    "claude-3-5-sonnet-20241022",
 			expected: false,
 		},
 		{
 			name:     "Antigravity平台-支持gemini模型",
-			account:  &Account{Platform: capability.PlatformAntigravity},
+			account:  &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}},
 			model:    "gemini-2.5-flash",
 			expected: true,
 		},
 		{
 			name:     "Antigravity平台-不支持gpt模型",
-			account:  &Account{Platform: capability.PlatformAntigravity},
+			account:  &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}},
 			model:    "gpt-4",
 			expected: false,
 		},
 		{
 			name:     "Anthropic平台-无映射配置-支持所有模型",
-			account:  &Account{Platform: capability.PlatformAnthropic},
+			account:  &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic}},
 			model:    "claude-3-5-sonnet-20241022",
 			expected: true,
 		},
 		{
 			name: "Anthropic平台-有映射配置-未命中映射时按透传支持模型",
-			account: &Account{
-				Platform:    capability.PlatformAnthropic,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-opus-4": "x"}},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+				Credentials: map[string]any{"model_mapping": map[string]any{"claude-opus-4": "x"}}},
 			},
 			model:    "claude-3-5-sonnet-20241022",
 			expected: true,
 		},
 		{
 			name: "Anthropic平台-有映射配置-支持配置的模型",
-			account: &Account{
-				Platform:    capability.PlatformAnthropic,
-				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-sonnet-20241022": "x"}},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic,
+				Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-sonnet-20241022": "x"}}},
 			},
 			model:    "claude-3-5-sonnet-20241022",
 			expected: true,
 		},
 		{
 			name:     "Gemini平台-无映射配置-支持所有模型",
-			account:  &Account{Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey},
+			account:  &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGemini, Type: capability.AccountTypeAPIKey}},
 			model:    "gemini-2.5-flash",
 			expected: true,
 		},
 		{
 			name: "Gemini平台-有映射配置-未命中映射时按透传支持模型",
-			account: &Account{
-				Platform: capability.PlatformGemini,
-				Type:     capability.AccountTypeAPIKey,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGemini,
+				Type: capability.AccountTypeAPIKey,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"gemini-2.5-pro": "upstream-model"},
-				},
+				}},
 			},
 			model:    "gemini-2.5-flash",
 			expected: true,
 		},
 		{
 			name: "Gemini平台-有映射配置-支持配置的模型",
-			account: &Account{
-				Platform: capability.PlatformGemini,
-				Type:     capability.AccountTypeAPIKey,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformGemini,
+				Type: capability.AccountTypeAPIKey,
 				Credentials: map[string]any{
 					"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"},
-				},
+				}},
 			},
 			model:    "gemini-2.5-pro",
 			expected: true,
@@ -1310,168 +1300,158 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 
 	t.Run("混合调度-Gemini优先选择OAuth账户", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeAPIKey},
-				{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeOAuth},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeAPIKey}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Type: capability.AccountTypeOAuth}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "gemini-2.5-pro", nil, capability.PlatformGemini)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID, "同优先级且未使用时应优先选择OAuth账户")
+		require.Equal(t, int64(2), acc.Record.ID, "同优先级且未使用时应优先选择OAuth账户")
 	})
 
 	t.Run("混合调度-包含启用mixed_scheduling的antigravity账户", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "claude-sonnet-4-5", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID, "应选择优先级最高的账户（包含启用混合调度的antigravity）")
+		require.Equal(t, int64(2), acc.Record.ID, "应选择优先级最高的账户（包含启用混合调度的antigravity）")
 	})
 
 	t.Run("混合调度-Gemini家族限流后跳过Antigravity账户", func(t *testing.T) {
 		resetAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{
-					ID:          1,
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 					Platform:    capability.PlatformAntigravity,
 					Priority:    1,
 					Status:      billing.StatusActive,
 					Schedulable: true,
 					Extra: map[string]any{
-						"mixed_scheduling": true,
-						modelRateLimitsKey: map[string]any{
-							antigravityGeminiModelRateLimitKey: map[string]any{
-								"rate_limit_reset_at": resetAt,
-							},
+						"mixed_scheduling": true, "model_rate_limits": map[string]any{"antigravity:gemini": map[string]any{
+							"rate_limit_reset_at": resetAt,
 						},
-					},
+						},
+					}},
 				},
-				{
-					ID:          2,
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 					Platform:    capability.PlatformAntigravity,
 					Priority:    1,
 					Status:      billing.StatusActive,
 					Schedulable: true,
 					Extra: map[string]any{
-						"mixed_scheduling": true,
-						modelRateLimitsKey: map[string]any{
-							antigravityGeminiModelRateLimitKey: map[string]any{
-								"rate_limit_reset_at": resetAt,
-							},
+						"mixed_scheduling": true, "model_rate_limits": map[string]any{"antigravity:gemini": map[string]any{
+							"rate_limit_reset_at": resetAt,
 						},
-					},
+						},
+					}},
 				},
-				{
-					ID:          3,
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 					Platform:    capability.PlatformAntigravity,
 					Priority:    2,
 					Status:      billing.StatusActive,
 					Schedulable: true,
-					Extra:       map[string]any{"mixed_scheduling": true},
+					Extra:       map[string]any{"mixed_scheduling": true}},
 				},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       &mockGatewayCacheForPlatform{},
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "gemini-3-pro-preview", nil, capability.PlatformGemini)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(3), acc.ID)
+		require.Equal(t, int64(3), acc.Record.ID)
 	})
 
 	t.Run("混合调度-Gemini家族限流不影响Claude调度", func(t *testing.T) {
 		resetAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{
-					ID:          1,
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 					Platform:    capability.PlatformAntigravity,
 					Priority:    1,
 					Status:      billing.StatusActive,
 					Schedulable: true,
 					Extra: map[string]any{
-						"mixed_scheduling": true,
-						modelRateLimitsKey: map[string]any{
-							antigravityGeminiModelRateLimitKey: map[string]any{
-								"rate_limit_reset_at": resetAt,
-							},
+						"mixed_scheduling": true, "model_rate_limits": map[string]any{"antigravity:gemini": map[string]any{
+							"rate_limit_reset_at": resetAt,
 						},
-					},
+						},
+					}},
 				},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       &mockGatewayCacheForPlatform{},
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "claude-sonnet-4-5", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(1), acc.ID)
+		require.Equal(t, int64(1), acc.Record.ID)
 	})
 
 	t.Run("混合调度-路由优先选择路由账号", func(t *testing.T) {
 		groupID := int64(30)
 		requestedModel := "claude-sonnet-4-5"
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -1492,31 +1472,31 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
 			groupRepo:   groupRepo,
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, &groupID, "", requestedModel, nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID)
+		require.Equal(t, int64(2), acc.Record.ID)
 	})
 
 	t.Run("混合调度-路由粘性命中", func(t *testing.T) {
 		groupID := int64(31)
 		requestedModel := "claude-sonnet-4-5"
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}, AccountGroups: []accountcore.GroupMembership{{GroupID: groupID}}}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -1539,31 +1519,31 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
 			groupRepo:   groupRepo,
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, &groupID, "session-777", requestedModel, nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID)
+		require.Equal(t, int64(2), acc.Record.ID)
 	})
 
 	t.Run("混合调度-路由账号缺失回退", func(t *testing.T) {
 		groupID := int64(32)
 		requestedModel := "claude-3-5-sonnet-20241022"
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -1584,31 +1564,31 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
 			groupRepo:   groupRepo,
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, &groupID, "", requestedModel, nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(1), acc.ID)
+		require.Equal(t, int64(1), acc.Record.ID)
 	})
 
 	t.Run("混合调度-路由账号未启用mixed_scheduling回退", func(t *testing.T) {
 		groupID := int64(33)
 		requestedModel := "claude-3-5-sonnet-20241022"
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true}, // 未启用 mixed_scheduling
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true}}, // 未启用 mixed_scheduling
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -1629,17 +1609,17 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
 			groupRepo:   groupRepo,
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, &groupID, "", requestedModel, nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(1), acc.ID)
+		require.Equal(t, int64(1), acc.Record.ID)
 	})
 
 	t.Run("混合调度-路由过滤覆盖", func(t *testing.T) {
@@ -1647,12 +1627,11 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 		requestedModel := "claude-3-5-sonnet-20241022"
 		resetAt := time.Now().Add(10 * time.Minute)
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false},
-				{ID: 3, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-				{
-					ID:          4,
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4,
 					Platform:    capability.PlatformAnthropic,
 					Priority:    1,
 					Status:      billing.StatusActive,
@@ -1663,23 +1642,22 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 								"rate_limit_reset_at": resetAt.Format(time.RFC3339),
 							},
 						},
-					},
+					}},
 				},
-				{
-					ID:          5,
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 					Platform:    capability.PlatformAnthropic,
 					Priority:    1,
 					Status:      billing.StatusActive,
 					Schedulable: true,
-					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
 				},
-				{ID: 6, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
-				{ID: 7, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -1700,31 +1678,31 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
 			groupRepo:   groupRepo,
-		}
+		})
 
 		excluded := map[int64]struct{}{1: {}}
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, &groupID, "", requestedModel, excluded, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(7), acc.ID)
+		require.Equal(t, int64(7), acc.Record.ID)
 	})
 
 	t.Run("混合调度-粘性命中分组账号", func(t *testing.T) {
 		groupID := int64(34)
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, AccountGroups: []AccountGroup{{GroupID: groupID}}},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, AccountGroups: []accountcore.GroupMembership{{GroupID: groupID}}}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, AccountGroups: []accountcore.GroupMembership{{GroupID: groupID}}}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -1742,128 +1720,128 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
 			groupRepo:   groupRepo,
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, &groupID, "session-group", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(1), acc.ID)
+		require.Equal(t, int64(1), acc.Record.ID)
 	})
 
 	t.Run("混合调度-过滤未启用mixed_scheduling的antigravity账户", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}, // 未启用 mixed_scheduling
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}}, // 未启用 mixed_scheduling
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(1), acc.ID, "未启用mixed_scheduling的antigravity账户应被过滤")
-		require.Equal(t, capability.PlatformAnthropic, acc.Platform)
+		require.Equal(t, int64(1), acc.Record.ID, "未启用mixed_scheduling的antigravity账户应被过滤")
+		require.Equal(t, capability.PlatformAnthropic, acc.Record.Platform)
 	})
 
 	t.Run("混合调度-粘性会话命中启用mixed_scheduling的antigravity账户", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
 			sessionBindings: map[string]int64{"session-123": 2},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "session-123", "claude-sonnet-4-5", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID, "应返回粘性会话绑定的启用mixed_scheduling的antigravity账户")
+		require.Equal(t, int64(2), acc.Record.ID, "应返回粘性会话绑定的启用mixed_scheduling的antigravity账户")
 	})
 
 	t.Run("混合调度-粘性会话命中未启用mixed_scheduling的antigravity账户-降级选择", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
-				{ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true}, // 未启用 mixed_scheduling
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAntigravity, Priority: 2, Status: billing.StatusActive, Schedulable: true}}, // 未启用 mixed_scheduling
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
 			sessionBindings: map[string]int64{"session-123": 2},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "session-123", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(1), acc.ID, "粘性会话绑定的账户未启用mixed_scheduling，应降级选择anthropic账户")
+		require.Equal(t, int64(1), acc.Record.ID, "粘性会话绑定的账户未启用mixed_scheduling，应降级选择anthropic账户")
 	})
 
 	t.Run("混合调度-粘性会话不可调度-清理并回退", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusDisabled, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusDisabled, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
 			sessionBindings: map[string]int64{"session-123": 1},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "session-123", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID)
+		require.Equal(t, int64(2), acc.Record.ID)
 		require.Equal(t, 1, cache.deletedSessions["session-123"])
 		require.Equal(t, int64(2), cache.sessionBindings["session-123"])
 	})
@@ -1872,14 +1850,14 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 		groupID := int64(12)
 		requestedModel := "claude-3-5-sonnet-20241022"
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusDisabled, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusDisabled, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -1902,65 +1880,65 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
 			groupRepo:   groupRepo,
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, &groupID, "session-123", requestedModel, nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID)
+		require.Equal(t, int64(2), acc.Record.ID)
 		require.Equal(t, 1, cache.deletedSessions["session-123"])
 		require.Equal(t, int64(2), cache.sessionBindings["session-123"])
 	})
 
 	t.Run("混合调度-仅有启用mixed_scheduling的antigravity账户", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true, Extra: map[string]any{"mixed_scheduling": true}}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "claude-sonnet-4-5", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(1), acc.ID)
-		require.Equal(t, capability.PlatformAntigravity, acc.Platform)
+		require.Equal(t, int64(1), acc.Record.ID)
+		require.Equal(t, capability.PlatformAntigravity, acc.Record.Platform)
 	})
 
 	t.Run("混合调度-无可用账户", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}, // 未启用 mixed_scheduling
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true}}, // 未启用 mixed_scheduling
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.Error(t, err)
@@ -1970,29 +1948,28 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 
 	t.Run("混合调度-不支持模型返回错误", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{
-					ID:          1,
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 					Platform:    capability.PlatformAnthropic,
 					Priority:    1,
 					Status:      billing.StatusActive,
 					Schedulable: true,
-					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
 				},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.Error(t, err)
@@ -2009,28 +1986,28 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 	t.Run("混合调度-优先未使用账号", func(t *testing.T) {
 		lastUsed := time.Now().Add(-2 * time.Hour)
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: &lastUsed},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, LastUsedAt: &lastUsed}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         testConfig(),
-		}
+		})
 
 		acc, err := svc.selectAccountWithMixedScheduling(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, capability.PlatformAnthropic)
 		require.NoError(t, err)
 		require.NotNil(t, acc)
-		require.Equal(t, int64(2), acc.ID)
+		require.Equal(t, int64(2), acc.Record.ID)
 	})
 }
 
@@ -2038,44 +2015,44 @@ func TestGatewayService_selectAccountWithMixedScheduling(t *testing.T) {
 func TestAccount_IsMixedSchedulingEnabled(t *testing.T) {
 	tests := []struct {
 		name     string
-		account  Account
+		account  gatewayprovider.ExecutionAccount
 		expected bool
 	}{
 		{
 			name:     "非antigravity平台-返回false",
-			account:  Account{Platform: capability.PlatformAnthropic},
+			account:  gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAnthropic}},
 			expected: false,
 		},
 		{
 			name:     "antigravity平台-无extra-返回false",
-			account:  Account{Platform: capability.PlatformAntigravity},
+			account:  gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity}},
 			expected: false,
 		},
 		{
 			name:     "antigravity平台-extra无mixed_scheduling-返回false",
-			account:  Account{Platform: capability.PlatformAntigravity, Extra: map[string]any{}},
+			account:  gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity, Extra: map[string]any{}}},
 			expected: false,
 		},
 		{
 			name:     "antigravity平台-mixed_scheduling=false-返回false",
-			account:  Account{Platform: capability.PlatformAntigravity, Extra: map[string]any{"mixed_scheduling": false}},
+			account:  gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity, Extra: map[string]any{"mixed_scheduling": false}}},
 			expected: false,
 		},
 		{
 			name:     "antigravity平台-mixed_scheduling=true-返回true",
-			account:  Account{Platform: capability.PlatformAntigravity, Extra: map[string]any{"mixed_scheduling": true}},
+			account:  gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity, Extra: map[string]any{"mixed_scheduling": true}}},
 			expected: true,
 		},
 		{
 			name:     "antigravity平台-mixed_scheduling非bool类型-返回false",
-			account:  Account{Platform: capability.PlatformAntigravity, Extra: map[string]any{"mixed_scheduling": "true"}},
+			account:  gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformAntigravity, Extra: map[string]any{"mixed_scheduling": "true"}}},
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.account.IsMixedSchedulingEnabled()
+			got := tt.account.View().IsMixedSchedulingEnabled()
 			require.Equal(t, tt.expected, got)
 		})
 	}
@@ -2236,37 +2213,35 @@ func TestSelectAccountWithLoadAwareness_FiltersUpstreamRestrictedAccounts(t *tes
 						Models:   []string{"allowed-upstream"},
 					}},
 				}
-				accounts := []Account{
-					{
-						ID:          1,
+				accounts := []gatewayprovider.ExecutionAccount{
+					{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 						Platform:    capability.PlatformAnthropic,
 						Priority:    1,
 						Status:      billing.StatusActive,
 						Schedulable: true,
 						Concurrency: 5,
-						AccountGroups: []AccountGroup{{
+						AccountGroups: []accountcore.GroupMembership{{
 							AccountID: 1,
 							GroupID:   groupID,
 						}},
-						Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "blocked-upstream"}},
+						Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "blocked-upstream"}}},
 					},
-					{
-						ID:          2,
+					{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 						Platform:    capability.PlatformAnthropic,
 						Priority:    2,
 						Status:      billing.StatusActive,
 						Schedulable: true,
 						Concurrency: 5,
-						AccountGroups: []AccountGroup{{
+						AccountGroups: []accountcore.GroupMembership{{
 							AccountID: 2,
 							GroupID:   groupID,
 						}},
-						Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "allowed-upstream"}},
+						Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "allowed-upstream"}}},
 					},
 				}
-				accountRepo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: map[int64]*Account{}}
+				accountRepo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{}}
 				for i := range accountRepo.accounts {
-					accountRepo.accountsByID[accountRepo.accounts[i].ID] = &accountRepo.accounts[i]
+					accountRepo.accountsByID[accountRepo.accounts[i].Record.ID] = &accountRepo.accounts[i]
 				}
 				group := &routing.Group{
 					ID:                  groupID,
@@ -2281,7 +2256,7 @@ func TestSelectAccountWithLoadAwareness_FiltersUpstreamRestrictedAccounts(t *tes
 
 				cfg := testConfig()
 				cfg.Gateway.Scheduling.LoadBatchEnabled = loadBatchEnabled
-				svc := &GatewayService{
+				svc := withSchedulerParametersForTest(&GatewayService{
 					accountRepo:    accountRepo,
 					groupRepo:      &mockGroupRepoForGateway{groups: map[int64]*routing.Group{groupID: group}},
 					channelService: routingtestkit.Channel(groupID, capability.PlatformAnthropic, channel),
@@ -2291,12 +2266,12 @@ func TestSelectAccountWithLoadAwareness_FiltersUpstreamRestrictedAccounts(t *tes
 						Event: logging.Event,
 					},
 					),
-				}
+				})
 
 				result, err := svc.SelectAccountWithLoadAwareness(context.Background(), &groupID, "sticky", "client-alias", nil, "", 0)
 				require.NoError(t, err)
 				require.NotNil(t, result)
-				require.Equal(t, int64(2), result.Account.ID)
+				require.Equal(t, int64(2), result.Account.Record.ID)
 			})
 		}
 	}
@@ -2315,24 +2290,23 @@ func TestSelectAccountWithLoadAwareness_AppliesChannelMappingOnce(t *testing.T) 
 			},
 		},
 	}
-	account := Account{
-		ID:          1,
+	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 		Platform:    capability.PlatformGemini,
 		Status:      billing.StatusActive,
 		Schedulable: true,
 		Concurrency: 5,
-		AccountGroups: []AccountGroup{{
+		AccountGroups: []accountcore.GroupMembership{{
 			AccountID: 1,
 			GroupID:   groupID,
 		}},
 		Credentials: map[string]any{
 			"model_mapping":   map[string]any{"channel-model": "upstream-model"},
 			"model_whitelist": []any{"upstream-model"},
-		},
+		}},
 	}
 	accountRepo := &mockAccountRepoForPlatform{
-		accounts:     []Account{account},
-		accountsByID: map[int64]*Account{account.ID: &account},
+		accounts:     []gatewayprovider.ExecutionAccount{account},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{account.Record.ID: &account},
 	}
 	group := &routing.Group{
 		ID:       groupID,
@@ -2340,18 +2314,18 @@ func TestSelectAccountWithLoadAwareness_AppliesChannelMappingOnce(t *testing.T) 
 		Status:   billing.StatusActive,
 		Hydrated: true,
 	}
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo:    accountRepo,
 		groupRepo:      &mockGroupRepoForGateway{groups: map[int64]*routing.Group{groupID: group}},
 		channelService: routingtestkit.Channel(groupID, capability.PlatformGemini, channel),
 		cfg:            testConfig(),
-	}
+	})
 
 	result, err := svc.SelectAccountWithLoadAwareness(context.Background(), &groupID, "", "client-alias", nil, "", 0)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Equal(t, account.ID, result.Account.ID)
+	require.Equal(t, account.Record.ID, result.Account.Record.ID)
 }
 
 func TestLegacySchedulers_FilterUpstreamRestrictedAccountsInEveryShortcut(t *testing.T) {
@@ -2385,37 +2359,35 @@ func TestLegacySchedulers_FilterUpstreamRestrictedAccountsInEveryShortcut(t *tes
 					Models:   []string{"allowed-upstream"},
 				}},
 			}
-			accounts := []Account{
-				{
-					ID:          1,
+			accounts := []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1,
 					Platform:    capability.PlatformAnthropic,
 					Priority:    1,
 					Status:      billing.StatusActive,
 					Schedulable: true,
 					Concurrency: 5,
-					AccountGroups: []AccountGroup{{
+					AccountGroups: []accountcore.GroupMembership{{
 						AccountID: 1,
 						GroupID:   groupID,
 					}},
-					Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "blocked-upstream"}},
+					Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "blocked-upstream"}}},
 				},
-				{
-					ID:          2,
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2,
 					Platform:    capability.PlatformAnthropic,
 					Priority:    2,
 					Status:      billing.StatusActive,
 					Schedulable: true,
 					Concurrency: 5,
-					AccountGroups: []AccountGroup{{
+					AccountGroups: []accountcore.GroupMembership{{
 						AccountID: 2,
 						GroupID:   groupID,
 					}},
-					Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "allowed-upstream"}},
+					Credentials: map[string]any{"model_mapping": map[string]any{"channel-model": "allowed-upstream"}}},
 				},
 			}
-			accountRepo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: map[int64]*Account{}}
+			accountRepo := &mockAccountRepoForPlatform{accounts: accounts, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{}}
 			for i := range accountRepo.accounts {
-				accountRepo.accountsByID[accountRepo.accounts[i].ID] = &accountRepo.accounts[i]
+				accountRepo.accountsByID[accountRepo.accounts[i].Record.ID] = &accountRepo.accounts[i]
 			}
 			group := &routing.Group{
 				ID:                  groupID,
@@ -2428,17 +2400,17 @@ func TestLegacySchedulers_FilterUpstreamRestrictedAccountsInEveryShortcut(t *tes
 				group.ModelRouting = map[string][]int64{"channel-model": {1, 2}}
 			}
 			cache := &mockGatewayCacheForPlatform{sessionBindings: map[string]int64{"sticky": 1}}
-			svc := &GatewayService{
+			svc := withSchedulerParametersForTest(&GatewayService{
 				accountRepo:    accountRepo,
 				groupRepo:      &mockGroupRepoForGateway{groups: map[int64]*routing.Group{groupID: group}},
 				channelService: routingtestkit.Channel(groupID, capability.PlatformAnthropic, channel),
 				cache:          cache,
 				cfg:            testConfig(),
-			}
+			})
 			ctx := svc.withGroupContext(context.Background(), group)
 
 			var (
-				selected *Account
+				selected *gatewayprovider.ExecutionAccount
 				err      error
 			)
 			if tt.mixed {
@@ -2449,7 +2421,7 @@ func TestLegacySchedulers_FilterUpstreamRestrictedAccountsInEveryShortcut(t *tes
 
 			require.NoError(t, err)
 			require.NotNil(t, selected)
-			require.Equal(t, int64(2), selected.ID)
+			require.Equal(t, int64(2), selected.Record.ID)
 		})
 	}
 }
@@ -2460,14 +2432,14 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 	t.Run("禁用负载批量查询-降级到传统选择", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -2475,18 +2447,18 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = false
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        repo,
 			cache:              cache,
 			cfg:                cfg,
 			concurrencyService: nil, // No concurrency service
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(1), result.Account.ID, "应选择优先级最高的账号")
+		require.Equal(t, int64(1), result.Account.Record.ID, "应选择优先级最高的账号")
 	})
 
 	t.Run("模型路由-无ConcurrencyService也生效", func(t *testing.T) {
@@ -2494,14 +2466,14 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		sessionHash := "sticky"
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, AccountGroups: []AccountGroup{{GroupID: groupID}}},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, AccountGroups: []AccountGroup{{GroupID: groupID}}},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, AccountGroups: []accountcore.GroupMembership{{GroupID: groupID}}}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, AccountGroups: []accountcore.GroupMembership{{GroupID: groupID}}}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -2527,32 +2499,32 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = true
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        repo,
 			groupRepo:          groupRepo,
 			cache:              cache,
 			cfg:                cfg,
 			concurrencyService: nil, // legacy path
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "claude-b", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID, "切换到 claude-b 时应按模型路由切换账号")
+		require.Equal(t, int64(2), result.Account.Record.ID, "切换到 claude-b 时应按模型路由切换账号")
 		require.Equal(t, int64(2), cache.sessionBindings[sessionHash], "粘性绑定应更新为路由选择的账号")
 	})
 
 	t.Run("无ConcurrencyService-降级到传统选择", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -2560,30 +2532,30 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = true
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        repo,
 			cache:              cache,
 			cfg:                cfg,
 			concurrencyService: nil,
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID, "应选择优先级最高的账号")
+		require.Equal(t, int64(2), result.Account.Record.ID, "应选择优先级最高的账号")
 	})
 
 	t.Run("排除账号-不选择被排除的账号", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -2591,30 +2563,30 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = false
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        repo,
 			cache:              cache,
 			cfg:                cfg,
 			concurrencyService: nil,
-		}
+		})
 
 		excludedIDs := map[int64]struct{}{1: {}}
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", "claude-3-5-sonnet-20241022", excludedIDs, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID, "不应选择被排除的账号")
+		require.Equal(t, int64(2), result.Account.Record.ID, "不应选择被排除的账号")
 	})
 
 	t.Run("粘性命中-不调用GetByID", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -2626,7 +2598,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         cfg,
@@ -2634,26 +2606,26 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sticky", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(1), result.Account.ID)
+		require.Equal(t, int64(1), result.Account.Record.ID)
 		require.Equal(t, 0, repo.getByIDCalls, "粘性命中不应调用GetByID")
 		require.Equal(t, 0, concurrencyCache.loadBatchCalls, "粘性命中应在负载批量查询前返回")
 	})
 
 	t.Run("粘性账号不在候选集-回退负载感知选择", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -2665,7 +2637,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         cfg,
@@ -2673,13 +2645,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sticky", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID, "粘性账号不在候选集时应回退到可用账号")
+		require.Equal(t, int64(2), result.Account.Record.ID, "粘性账号不在候选集时应回退到可用账号")
 		require.Equal(t, 0, repo.getByIDCalls, "粘性账号缺失不应回退到GetByID")
 		require.Equal(t, 1, concurrencyCache.loadBatchCalls, "应继续进行负载批量查询")
 	})
@@ -2687,16 +2659,16 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 	t.Run("粘性账号禁用-清理会话并回退选择", func(t *testing.T) {
 		testCtx := apikey.WithForcePlatform(ctx, capability.PlatformAnthropic)
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
-		repo.listPlatformFunc = func(ctx context.Context, platform string) ([]Account, error) {
+		repo.listPlatformFunc = func(ctx context.Context, platform string) ([]gatewayprovider.ExecutionAccount, error) {
 			return repo.accounts, nil
 		}
 
@@ -2709,7 +2681,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         cfg,
@@ -2717,13 +2689,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(testCtx, nil, "sticky", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID, "粘性账号禁用时应回退到可用账号")
+		require.Equal(t, int64(2), result.Account.Record.ID, "粘性账号禁用时应回退到可用账号")
 		updatedID, ok := cache.sessionBindings["sticky"]
 		require.True(t, ok, "粘性会话应更新绑定")
 		require.Equal(t, int64(2), updatedID, "粘性会话应绑定到新账号")
@@ -2731,8 +2703,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 	t.Run("无可用账号-返回错误", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts:     []Account{},
-			accountsByID: map[int64]*Account{},
+			accounts:     []gatewayprovider.ExecutionAccount{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -2740,12 +2712,12 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = false
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        repo,
 			cache:              cache,
 			cfg:                cfg,
 			concurrencyService: nil,
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.Error(t, err)
@@ -2758,32 +2730,32 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		resetAt := now.Add(10 * time.Minute)
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, RateLimitResetAt: &resetAt},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, RateLimitResetAt: &resetAt}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = false
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        repo,
 			cache:              cache,
 			cfg:                cfg,
 			concurrencyService: nil,
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID, "应跳过限流账号，选择可用账号")
+		require.Equal(t, int64(2), result.Account.Record.ID, "应跳过限流账号，选择可用账号")
 	})
 
 	t.Run("过滤不可调度账号-过载账号被跳过", func(t *testing.T) {
@@ -2791,43 +2763,43 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		overloadUntil := now.Add(10 * time.Minute)
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, OverloadUntil: &overloadUntil},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, OverloadUntil: &overloadUntil}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = false
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        repo,
 			cache:              cache,
 			cfg:                cfg,
 			concurrencyService: nil,
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID, "应跳过过载账号，选择可用账号")
+		require.Equal(t, int64(2), result.Account.Record.ID, "应跳过过载账号，选择可用账号")
 	})
 
 	t.Run("粘性账号槽位满-返回粘性等待计划", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -2843,7 +2815,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			waitCounts:     map[int64]int{1: 0},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         cfg,
@@ -2851,26 +2823,26 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "sticky", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.WaitPlan)
-		require.Equal(t, int64(1), result.Account.ID)
+		require.Equal(t, int64(1), result.Account.Record.ID)
 		require.Equal(t, 0, concurrencyCache.loadBatchCalls)
 	})
 
 	t.Run("负载批量查询失败-降级旧顺序选择", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -2882,7 +2854,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			loadBatchErr: errors.New("load batch failed"),
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         cfg,
@@ -2890,13 +2862,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "legacy", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID)
+		require.Equal(t, int64(2), result.Account.Record.ID)
 		require.Equal(t, int64(2), cache.sessionBindings["legacy"])
 	})
 
@@ -2905,14 +2877,14 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		sessionHash := "route-sticky"
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -2943,7 +2915,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			waitCounts:     map[int64]int{1: 0},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			groupRepo:   groupRepo,
 			cache:       cache,
@@ -2952,13 +2924,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.WaitPlan)
-		require.Equal(t, int64(1), result.Account.ID)
+		require.Equal(t, int64(1), result.Account.Record.ID)
 	})
 
 	t.Run("模型路由-粘性账号命中", func(t *testing.T) {
@@ -2966,14 +2938,14 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		sessionHash := "route-hit"
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -3000,7 +2972,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			groupRepo:   groupRepo,
 			cache:       cache,
@@ -3009,13 +2981,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(1), result.Account.ID)
+		require.Equal(t, int64(1), result.Account.Record.ID)
 		require.Equal(t, 0, concurrencyCache.loadBatchCalls)
 	})
 
@@ -3024,13 +2996,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		sessionHash := "route-missing"
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{
@@ -3057,7 +3029,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			groupRepo:   groupRepo,
 			cache:       cache,
@@ -3066,13 +3038,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, sessionHash, "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID)
+		require.Equal(t, int64(2), result.Account.Record.ID)
 		require.Equal(t, 1, cache.deletedSessions[sessionHash])
 		require.Equal(t, int64(2), cache.sessionBindings[sessionHash])
 	})
@@ -3081,14 +3053,14 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		groupID := int64(21)
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -3118,7 +3090,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			groupRepo:   groupRepo,
 			cache:       cache,
@@ -3127,13 +3099,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "route", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID)
+		require.Equal(t, int64(2), result.Account.Record.ID)
 		require.Equal(t, int64(2), cache.sessionBindings["route"])
 	})
 
@@ -3141,14 +3113,14 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		groupID := int64(23)
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -3179,7 +3151,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			groupRepo:   groupRepo,
 			cache:       cache,
@@ -3188,28 +3160,28 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "route-full", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.WaitPlan)
-		require.Equal(t, int64(1), result.Account.ID)
+		require.Equal(t, int64(1), result.Account.Record.ID)
 	})
 
 	t.Run("模型路由-路由账号全满-回退普通选择", func(t *testing.T) {
 		groupID := int64(22)
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 3, Platform: capability.PlatformAnthropic, Priority: 0, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformAnthropic, Priority: 0, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -3240,7 +3212,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			groupRepo:   groupRepo,
 			cache:       cache,
@@ -3249,26 +3221,26 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "fallback", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(3), result.Account.ID)
+		require.Equal(t, int64(3), result.Account.Record.ID)
 		require.Equal(t, int64(3), cache.sessionBindings["fallback"])
 	})
 
 	t.Run("负载批量失败且无法获取-兜底等待", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -3281,7 +3253,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			acquireResults: map[int64]bool{1: false, 2: false},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         cfg,
@@ -3289,27 +3261,27 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.WaitPlan)
-		require.Equal(t, int64(1), result.Account.ID)
+		require.Equal(t, int64(1), result.Account.Record.ID)
 	})
 
 	t.Run("Gemini负载排序-优先OAuth", func(t *testing.T) {
 		groupID := int64(24)
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, Type: capability.AccountTypeAPIKey},
-				{ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, Type: capability.AccountTypeOAuth},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, Type: capability.AccountTypeAPIKey}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5, Type: capability.AccountTypeOAuth}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -3335,7 +3307,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			groupRepo:   groupRepo,
 			cache:       cache,
@@ -3344,25 +3316,24 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "gemini", "gemini-2.5-pro", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID)
+		require.Equal(t, int64(2), result.Account.Record.ID)
 	})
 
 	t.Run("模型路由-过滤路径覆盖", func(t *testing.T) {
 		groupID := int64(70)
 		now := time.Now().Add(10 * time.Minute)
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 3, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false, Concurrency: 5},
-				{ID: 4, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{
-					ID:          5,
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: false, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4, Platform: capability.PlatformAntigravity, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5,
 					Platform:    capability.PlatformAnthropic,
 					Priority:    1,
 					Status:      billing.StatusActive,
@@ -3374,23 +3345,22 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 								"rate_limit_reset_at": now.Format(time.RFC3339),
 							},
 						},
-					},
+					}},
 				},
-				{
-					ID:          6,
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 6,
 					Platform:    capability.PlatformAnthropic,
 					Priority:    1,
 					Status:      billing.StatusActive,
 					Schedulable: true,
 					Concurrency: 5,
-					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}},
+					Credentials: map[string]any{"model_mapping": map[string]any{"claude-3-5-haiku-20241022": "claude-3-5-haiku-20241022"}}},
 				},
-				{ID: 7, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -3415,7 +3385,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			groupRepo:   groupRepo,
 			cache:       cache,
@@ -3424,14 +3394,14 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		excluded := map[int64]struct{}{1: {}}
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "", "claude-3-5-sonnet-20241022", excluded, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(7), result.Account.ID)
+		require.Equal(t, int64(7), result.Account.Record.ID)
 	})
 
 	t.Run("ClaudeCode限制-回退分组", func(t *testing.T) {
@@ -3439,13 +3409,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		fallbackID := int64(61)
 
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformGemini, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		groupRepo := &mockGroupRepoForGateway{
@@ -3473,19 +3443,19 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = false
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        repo,
 			groupRepo:          groupRepo,
 			cache:              &mockGatewayCacheForPlatform{},
 			cfg:                cfg,
 			concurrencyService: nil,
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "", "gemini-2.5-pro", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(1), result.Account.ID)
+		require.Equal(t, int64(1), result.Account.Record.ID)
 	})
 
 	t.Run("ClaudeCode限制-无降级返回错误", func(t *testing.T) {
@@ -3506,30 +3476,30 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 		cfg := testConfig()
 		cfg.Gateway.Scheduling.LoadBatchEnabled = false
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo:        &mockAccountRepoForPlatform{},
 			groupRepo:          groupRepo,
 			cache:              &mockGatewayCacheForPlatform{},
 			cfg:                cfg,
 			concurrencyService: nil,
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, &groupID, "", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.Error(t, err)
 		require.Nil(t, result)
-		require.ErrorIs(t, err, ErrClaudeCodeOnly)
+		require.ErrorIs(t, err, routing.ErrClaudeCodeOnly)
 	})
 
 	t.Run("负载可用但无法获取槽位-兜底等待", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 2, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -3545,7 +3515,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			},
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         cfg,
@@ -3553,25 +3523,25 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "wait", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.WaitPlan)
-		require.Equal(t, int64(1), result.Account.ID)
+		require.Equal(t, int64(1), result.Account.Record.ID)
 	})
 
 	t.Run("负载信息缺失-使用默认负载", func(t *testing.T) {
 		repo := &mockAccountRepoForPlatform{
-			accounts: []Account{
-				{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
-				{ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5},
+			accounts: []gatewayprovider.ExecutionAccount{
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
+				{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true, Concurrency: 5}},
 			},
-			accountsByID: map[int64]*Account{},
+			accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 		}
 		for i := range repo.accounts {
-			repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+			repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 		}
 
 		cache := &mockGatewayCacheForPlatform{}
@@ -3586,7 +3556,7 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 			skipDefaultLoad: true,
 		}
 
-		svc := &GatewayService{
+		svc := withSchedulerParametersForTest(&GatewayService{
 			accountRepo: repo,
 			cache:       cache,
 			cfg:         cfg,
@@ -3594,13 +3564,13 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 				Event: logging.Event,
 			},
 			),
-		}
+		})
 
 		result, err := svc.SelectAccountWithLoadAwareness(ctx, nil, "missing-load", "claude-3-5-sonnet-20241022", nil, "", int64(0))
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		require.NotNil(t, result.Account)
-		require.Equal(t, int64(2), result.Account.ID)
+		require.Equal(t, int64(2), result.Account.Record.ID)
 	})
 }
 
@@ -3616,24 +3586,24 @@ func TestGatewayService_GroupResolution_ReusesContextGroup(t *testing.T) {
 	ctx = requeststate.WithGroup(ctx, group)
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	groupRepo := &mockGroupRepoForGateway{
 		groups: map[int64]*routing.Group{groupID: group},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		groupRepo:   groupRepo,
 		cfg:         testConfig(),
-	}
+	})
 
 	account, err := svc.SelectAccountForModelWithExclusions(ctx, &groupID, "", "claude-3-5-sonnet-20241022", nil)
 	require.NoError(t, err)
@@ -3653,13 +3623,13 @@ func TestGatewayService_GroupResolution_IgnoresInvalidContextGroup(t *testing.T)
 	ctx = requeststate.WithGroup(ctx, ctxGroup)
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	group := &routing.Group{
@@ -3672,11 +3642,11 @@ func TestGatewayService_GroupResolution_IgnoresInvalidContextGroup(t *testing.T)
 		groups: map[int64]*routing.Group{groupID: group},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		groupRepo:   groupRepo,
 		cfg:         testConfig(),
-	}
+	})
 
 	account, err := svc.SelectAccountForModelWithExclusions(ctx, &groupID, "", "claude-3-5-sonnet-20241022", nil)
 	require.NoError(t, err)
@@ -3700,7 +3670,7 @@ func TestGatewayService_GroupContext_OverwritesInvalidContextGroup(t *testing.T)
 	}
 
 	ctx := requeststate.WithGroup(context.Background(), invalidGroup)
-	svc := &GatewayService{}
+	svc := withSchedulerParametersForTest(&GatewayService{})
 	ctx = svc.withGroupContext(ctx, hydratedGroup)
 
 	got, ok := requeststate.GroupFromContext(ctx)
@@ -3730,66 +3700,28 @@ func TestGatewayService_GroupResolution_FallbackUsesLiteOnce(t *testing.T) {
 	ctx = requeststate.WithGroup(ctx, group)
 
 	repo := &mockAccountRepoForPlatform{
-		accounts: []Account{
-			{ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true},
+		accounts: []gatewayprovider.ExecutionAccount{
+			{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1, Platform: capability.PlatformAnthropic, Priority: 1, Status: billing.StatusActive, Schedulable: true}},
 		},
-		accountsByID: map[int64]*Account{},
+		accountsByID: map[int64]*gatewayprovider.ExecutionAccount{},
 	}
 	for i := range repo.accounts {
-		repo.accountsByID[repo.accounts[i].ID] = &repo.accounts[i]
+		repo.accountsByID[repo.accounts[i].Record.ID] = &repo.accounts[i]
 	}
 
 	groupRepo := &mockGroupRepoForGateway{
 		groups: map[int64]*routing.Group{fallbackID: fallbackGroup},
 	}
 
-	svc := &GatewayService{
+	svc := withSchedulerParametersForTest(&GatewayService{
 		accountRepo: repo,
 		groupRepo:   groupRepo,
 		cfg:         testConfig(),
-	}
+	})
 
 	account, err := svc.SelectAccountForModelWithExclusions(ctx, &groupID, "", "claude-3-5-sonnet-20241022", nil)
 	require.NoError(t, err)
 	require.NotNil(t, account)
 	require.Equal(t, 1, groupRepo.getByIDCalls) // +1 for require_privacy_set check
 	require.Equal(t, 1, groupRepo.getByIDLiteCalls)
-}
-
-func TestGatewayService_ResolveGatewayGroup_DetectsFallbackCycle(t *testing.T) {
-	ctx := context.Background()
-	groupID := int64(10)
-	fallbackID := int64(11)
-
-	group := &routing.Group{
-		ID:              groupID,
-		Platform:        capability.PlatformAnthropic,
-		Status:          billing.StatusActive,
-		ClaudeCodeOnly:  true,
-		FallbackGroupID: &fallbackID,
-	}
-	fallbackGroup := &routing.Group{
-		ID:              fallbackID,
-		Platform:        capability.PlatformAnthropic,
-		Status:          billing.StatusActive,
-		ClaudeCodeOnly:  true,
-		FallbackGroupID: &groupID,
-	}
-
-	groupRepo := &mockGroupRepoForGateway{
-		groups: map[int64]*routing.Group{
-			groupID:    group,
-			fallbackID: fallbackGroup,
-		},
-	}
-
-	svc := &GatewayService{
-		groupRepo: groupRepo,
-	}
-
-	gotGroup, gotID, err := svc.resolveGatewayGroup(ctx, &groupID)
-	require.Error(t, err)
-	require.Nil(t, gotGroup)
-	require.Nil(t, gotID)
-	require.Contains(t, err.Error(), "fallback group cycle")
 }

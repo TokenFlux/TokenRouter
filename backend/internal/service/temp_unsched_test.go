@@ -8,6 +8,7 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/stretchr/testify/require"
 )
 
@@ -82,43 +83,39 @@ func TestAccountIsSchedulable_TempUnschedulable(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 		want    bool
 	}{
 		{
 			name: "temp_unschedulable_active",
-			account: &Account{
-				Status:                 billing.StatusActive,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Status: billing.StatusActive,
 				Schedulable:            true,
-				TempUnschedulableUntil: &future,
+				TempUnschedulableUntil: &future},
 			},
 			want: false,
 		},
 		{
 			name: "temp_unschedulable_expired",
-			account: &Account{
-				Status:                 billing.StatusActive,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Status: billing.StatusActive,
 				Schedulable:            true,
-				TempUnschedulableUntil: &past,
+				TempUnschedulableUntil: &past},
 			},
 			want: true,
 		},
 		{
 			name: "no_temp_unschedulable",
-			account: &Account{
-				Status:                 billing.StatusActive,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Status: billing.StatusActive,
 				Schedulable:            true,
-				TempUnschedulableUntil: nil,
+				TempUnschedulableUntil: nil},
 			},
 			want: true,
 		},
 		{
 			name: "temp_unschedulable_with_rate_limit",
-			account: &Account{
-				Status:                 billing.StatusActive,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Status: billing.StatusActive,
 				Schedulable:            true,
 				TempUnschedulableUntil: &future,
-				RateLimitResetAt:       &past, // 过期的限流不影响
+				RateLimitResetAt:       &past}, // 过期的限流不影响
 			},
 			want: false, // 临时限流生效
 		},
@@ -126,7 +123,7 @@ func TestAccountIsSchedulable_TempUnschedulable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.account.IsSchedulable()
+			got := tt.account.View().IsSchedulable()
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -136,44 +133,40 @@ func TestAccountIsSchedulable_TempUnschedulable(t *testing.T) {
 func TestAccount_IsTempUnschedulableEnabled(t *testing.T) {
 	tests := []struct {
 		name    string
-		account *Account
+		account *gatewayprovider.ExecutionAccount
 		want    bool
 	}{
 		{
 			name: "enabled",
-			account: &Account{
-				Credentials: map[string]any{
-					"temp_unschedulable_enabled": true,
-				},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
+				"temp_unschedulable_enabled": true,
+			}},
 			},
 			want: true,
 		},
 		{
 			name: "disabled",
-			account: &Account{
-				Credentials: map[string]any{
-					"temp_unschedulable_enabled": false,
-				},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
+				"temp_unschedulable_enabled": false,
+			}},
 			},
 			want: false,
 		},
 		{
-			name: "not_set",
-			account: &Account{
-				Credentials: map[string]any{},
-			},
-			want: false,
+			name:    "not_set",
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{}}},
+			want:    false,
 		},
 		{
 			name:    "nil_credentials",
-			account: &Account{},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation}},
 			want:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.account.IsTempUnschedulableEnabled()
+			got := tt.account.View().IsTempUnschedulableEnabled()
 			require.Equal(t, tt.want, got)
 		})
 	}
@@ -183,55 +176,51 @@ func TestAccount_IsTempUnschedulableEnabled(t *testing.T) {
 func TestAccount_GetTempUnschedulableRules(t *testing.T) {
 	tests := []struct {
 		name      string
-		account   *Account
+		account   *gatewayprovider.ExecutionAccount
 		wantCount int
 	}{
 		{
 			name: "has_rules",
-			account: &Account{
-				Credentials: map[string]any{
-					"temp_unschedulable_rules": []any{
-						map[string]any{
-							"error_code":       float64(503),
-							"keywords":         []any{"overloaded"},
-							"duration_minutes": float64(5),
-						},
-						map[string]any{
-							"error_code":       float64(500),
-							"keywords":         []any{"internal"},
-							"duration_minutes": float64(10),
-						},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
+				"temp_unschedulable_rules": []any{
+					map[string]any{
+						"error_code":       float64(503),
+						"keywords":         []any{"overloaded"},
+						"duration_minutes": float64(5),
+					},
+					map[string]any{
+						"error_code":       float64(500),
+						"keywords":         []any{"internal"},
+						"duration_minutes": float64(10),
 					},
 				},
+			}},
 			},
 			wantCount: 2,
 		},
 		{
 			name: "empty_rules",
-			account: &Account{
-				Credentials: map[string]any{
-					"temp_unschedulable_rules": []any{},
-				},
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
+				"temp_unschedulable_rules": []any{},
+			}},
 			},
 			wantCount: 0,
 		},
 		{
-			name: "no_rules",
-			account: &Account{
-				Credentials: map[string]any{},
-			},
+			name:      "no_rules",
+			account:   &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{}}},
 			wantCount: 0,
 		},
 		{
 			name:      "nil_credentials",
-			account:   &Account{},
+			account:   &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation}},
 			wantCount: 0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rules := tt.account.GetTempUnschedulableRules()
+			rules := tt.account.View().GetTempUnschedulableRules()
 			require.Len(t, rules, tt.wantCount)
 		})
 	}
@@ -239,19 +228,18 @@ func TestAccount_GetTempUnschedulableRules(t *testing.T) {
 
 // TestTempUnschedulableRule_Parse 测试规则解析
 func TestTempUnschedulableRule_Parse(t *testing.T) {
-	account := &Account{
-		Credentials: map[string]any{
-			"temp_unschedulable_rules": []any{
-				map[string]any{
-					"error_code":       float64(503),
-					"keywords":         []any{"overloaded", "capacity"},
-					"duration_minutes": float64(5),
-				},
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Credentials: map[string]any{
+		"temp_unschedulable_rules": []any{
+			map[string]any{
+				"error_code":       float64(503),
+				"keywords":         []any{"overloaded", "capacity"},
+				"duration_minutes": float64(5),
 			},
 		},
+	}},
 	}
 
-	rules := account.GetTempUnschedulableRules()
+	rules := account.View().GetTempUnschedulableRules()
 	require.Len(t, rules, 1)
 
 	rule := rules[0]
@@ -339,33 +327,30 @@ func TestAccount_TempUnschedulableUntil(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		account     *Account
+		account     *gatewayprovider.ExecutionAccount
 		schedulable bool
 	}{
 		{
 			name: "active_temp_unsched_not_schedulable",
-			account: &Account{
-				Status:                 billing.StatusActive,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Status: billing.StatusActive,
 				Schedulable:            true,
-				TempUnschedulableUntil: &future,
+				TempUnschedulableUntil: &future},
 			},
 			schedulable: false,
 		},
 		{
 			name: "expired_temp_unsched_is_schedulable",
-			account: &Account{
-				Status:                 billing.StatusActive,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Status: billing.StatusActive,
 				Schedulable:            true,
-				TempUnschedulableUntil: &past,
+				TempUnschedulableUntil: &past},
 			},
 			schedulable: true,
 		},
 		{
 			name: "nil_temp_unsched_is_schedulable",
-			account: &Account{
-				Status:                 billing.StatusActive,
+			account: &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Status: billing.StatusActive,
 				Schedulable:            true,
-				TempUnschedulableUntil: nil,
+				TempUnschedulableUntil: nil},
 			},
 			schedulable: true,
 		},
@@ -373,7 +358,7 @@ func TestAccount_TempUnschedulableUntil(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.account.IsSchedulable()
+			got := tt.account.View().IsSchedulable()
 			require.Equal(t, tt.schedulable, got)
 		})
 	}

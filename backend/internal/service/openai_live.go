@@ -9,6 +9,7 @@ import (
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -116,29 +117,29 @@ func (s *OpenAIGatewayService) shouldFailoverLiveCreateError(err error) bool {
 	)
 }
 
-func (s *OpenAIGatewayService) createUpstreamLiveCall(ctx context.Context, account *Account, request *session.LiveCallRequest, attestation string, tlsRouterMatch egress.TLSFingerprintRouterMatchResult) (*LiveCallCreated, error) {
+func (s *OpenAIGatewayService) createUpstreamLiveCall(ctx context.Context, account *gatewayprovider.ExecutionAccount, request *session.LiveCallRequest, attestation string, tlsRouterMatch egress.TLSFingerprintRouterMatchResult) (*LiveCallCreated, error) {
 	result, err := openai.CreateLiveCall(ctx, request, openai.LiveCreateOptions{
 		URL:         chatGPTLiveCallsURL,
 		Attestation: attestation,
 		Token: func(ctx context.Context) (string, error) {
-			token, _, err := s.GetAccessToken(ctx, account)
+			token, _, err := s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
 			return token, err
 		},
 		Authentication: func(ctx context.Context, token string) (http.Header, error) {
-			return s.buildOpenAIAuthenticationHeaders(ctx, account, token)
+			return s.agentIdentity.Headers(ctx, account, token)
 		},
 		AccountHeaders: func(ctx context.Context, headers http.Header) error {
-			return resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, headers, account)
+			return gatewayprovider.CredentialChatGPTHeaders(ctx, s.accountRepo, headers, account)
 		},
 		Routing: func(ctx context.Context, headers http.Header) {
 			s.applyLiveUpstreamRouting(ctx, account, headers, tlsRouterMatch)
 		},
 		Do: func(request *http.Request) (*http.Response, error) {
-			return s.httpUpstream.DoWithTLS(request, resolveAccountProxyURL(account), account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch))
+			return s.httpUpstream.DoWithTLS(request, resolveAccountProxyURL(account), account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch))
 		},
-		StageFailure: func(stage string, err error) { logLiveCreateStageFailure(ctx, account.ID, stage, err) },
+		StageFailure: func(stage string, err error) { logLiveCreateStageFailure(ctx, account.Record.ID, stage, err) },
 		HTTPFailure: func(status int, headers http.Header, body []byte) error {
-			logLiveUpstreamFailure(ctx, account.ID, status, headers, body)
+			logLiveUpstreamFailure(ctx, account.Record.ID, status, headers, body)
 			return &forwardcore.UpstreamFailoverError{StatusCode: status, ResponseBody: body, ResponseHeaders: headers.Clone()}
 		},
 	})
@@ -198,7 +199,7 @@ func logLiveUpstreamFailure(
 // applyLiveUpstreamRouting 同步应用 fork 的 UA 路由和 TLS 身份配对规则。
 func (s *OpenAIGatewayService) applyLiveUpstreamRouting(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	headers http.Header,
 	routerMatch egress.TLSFingerprintRouterMatchResult,
 ) {
@@ -213,19 +214,19 @@ func (s *OpenAIGatewayService) applyLiveUpstreamRouting(
 
 func (s *OpenAIGatewayService) liveSidebandHeaders(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	record *session.LiveCallRecord,
 	tlsRouterMatch egress.TLSFingerprintRouterMatchResult,
 ) (http.Header, error) {
-	token, _, err := s.GetAccessToken(ctx, account)
+	token, _, err := s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
 	if err != nil {
 		return nil, err
 	}
-	headers, err := s.buildOpenAIAuthenticationHeaders(ctx, account, token)
+	headers, err := s.agentIdentity.Headers(ctx, account, token)
 	if err != nil {
 		return nil, err
 	}
-	if err := resolveAndSetOpenAIChatGPTAccountHeaders(ctx, s.accountRepo, headers, account); err != nil {
+	if err := gatewayprovider.CredentialChatGPTHeaders(ctx, s.accountRepo, headers, account); err != nil {
 		return nil, err
 	}
 	attestation, err := s.decryptLiveAttestation(record)
@@ -238,7 +239,7 @@ func (s *OpenAIGatewayService) liveSidebandHeaders(
 }
 
 // liveSidebandAccount 加载并校验创建 Live 会话时绑定的账号。
-func (s *OpenAIGatewayService) liveSidebandAccount(ctx context.Context, record *session.LiveCallRecord) (*Account, error) {
+func (s *OpenAIGatewayService) liveSidebandAccount(ctx context.Context, record *session.LiveCallRecord) (*gatewayprovider.ExecutionAccount, error) {
 	if record == nil {
 		return nil, session.ErrLiveCallNotFound
 	}
@@ -246,14 +247,14 @@ func (s *OpenAIGatewayService) liveSidebandAccount(ctx context.Context, record *
 	if err != nil {
 		return nil, err
 	}
-	if account == nil || !account.SupportsOpenAIEndpointCapability(accountcore.OpenAIEndpointCapabilityLive) {
+	if account == nil || !accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(account), accountcore.OpenAIEndpointCapabilityLive) {
 		return nil, session.ErrLiveUnavailable
 	}
 	return account, nil
 }
 
 // dialLiveSidebandForAccount 复用已经校验的会话账号建立控制连接。
-func (s *OpenAIGatewayService) dialLiveSidebandForAccount(ctx context.Context, record *session.LiveCallRecord, account *Account) (openai.LiveFrameConn, error) {
+func (s *OpenAIGatewayService) dialLiveSidebandForAccount(ctx context.Context, record *session.LiveCallRecord, account *gatewayprovider.ExecutionAccount) (openai.LiveFrameConn, error) {
 	tlsRouterMatch := s.matchLiveTLSFingerprintRouter(account, record.UserAgent)
 	headers, err := s.liveSidebandHeaders(ctx, account, record, tlsRouterMatch)
 	if err != nil {
@@ -264,17 +265,17 @@ func (s *OpenAIGatewayService) dialLiveSidebandForAccount(ctx context.Context, r
 }
 
 // matchLiveTLSFingerprintRouter 使用创建 Live 会话时记录的入站 UA 选择 fork 的 TLS 路由模板。
-func (s *OpenAIGatewayService) matchLiveTLSFingerprintRouter(account *Account, userAgent string) egress.TLSFingerprintRouterMatchResult {
-	if s == nil || s.tlsFPRouterService == nil || account == nil || account.GetTLSFingerprintRouterID() <= 0 {
+func (s *OpenAIGatewayService) matchLiveTLSFingerprintRouter(account *gatewayprovider.ExecutionAccount, userAgent string) egress.TLSFingerprintRouterMatchResult {
+	if s == nil || s.tlsFPRouterService == nil || account == nil || account.View().GetTLSFingerprintRouterID() <= 0 {
 		return egress.TLSFingerprintRouterMatchResult{}
 	}
-	return s.tlsFPRouterService.MatchUserAgent(account.GetTLSFingerprintRouterID(), userAgent)
+	return s.tlsFPRouterService.MatchUserAgent(account.View().GetTLSFingerprintRouterID(), userAgent)
 }
 
 // liveClientPolicyResult 复用 fork 的 OAuth 客户端限制检测，不在 service 层写 HTTP 响应。
 func (s *OpenAIGatewayService) liveClientPolicyResult(
 	ctx context.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	identity session.LiveCallIdentity,
 	tlsRouterMatch egress.TLSFingerprintRouterMatchResult,
 ) accountcore.CodexClientRestrictionDetectionResult {
@@ -293,7 +294,7 @@ func (s *OpenAIGatewayService) GetLiveCallForIdentity(ctx context.Context, callI
 }
 
 // rewriteLiveSidebandClientPayload 委托唯一 Live 会话模型改写规则。
-func (s *OpenAIGatewayService) rewriteLiveSidebandClientPayload(ctx context.Context, record *session.LiveCallRecord, account *Account, payload []byte) ([]byte, string, []string, error) {
+func (s *OpenAIGatewayService) rewriteLiveSidebandClientPayload(ctx context.Context, record *session.LiveCallRecord, account *gatewayprovider.ExecutionAccount, payload []byte) ([]byte, string, []string, error) {
 	if account == nil {
 		return payload, "", nil, nil
 	}

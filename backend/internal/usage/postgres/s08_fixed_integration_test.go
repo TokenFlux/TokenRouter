@@ -4,21 +4,21 @@
 package postgres
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/audit"
+
 	auditpg "github.com/TokenFlux/TokenRouter/internal/audit/postgres"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 	"github.com/stretchr/testify/require"
 )
@@ -158,7 +158,7 @@ func TestS08CanceledPartialCleanupRepairsCommittedData(t *testing.T) {
 	client := testEntClient(t)
 	u := mustCreateUser(t, client, &identity.User{Email: "s08-cancel@test.local", Balance: 7})
 	key := mustCreateApiKey(t, client, &apikey.APIKey{UserID: u.ID, Key: "sk-s08-cancel", Name: "k"})
-	account := mustCreateAccount(t, client, &service.Account{Name: "s08-cancel"})
+	account := mustCreateAccount(t, client, &accountcore.Record{Name: "s08-cancel"})
 	repo := NewUsageLogRepositoryWithSQL(client, integrationDB, timezone.NewCalendar(time.Local))
 	defer repo.StopUsageBatchers()
 	now := time.Now().UTC().Add(-72 * time.Hour)

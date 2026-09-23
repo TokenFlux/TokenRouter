@@ -9,12 +9,11 @@ import (
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	egresspostgres "github.com/TokenFlux/TokenRouter/internal/egress/postgres"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	"github.com/TokenFlux/TokenRouter/internal/repository"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 // provideAccountStore 固定唯一账号存储，跨模块只注入值映射和原事件写入。
@@ -30,6 +29,6 @@ func provideAccountStore(client *dbent.Client, db *sql.DB, cache scheduler.Snaps
 	store.SetEvents(newAccountEvents(store, cache))
 	return store
 }
-func provideLegacyAccountStore(store *accountpostgres.AccountStore, usage *billingpostgres.AccountUsageStore, client *dbent.Client, db *sql.DB, cache service.SchedulerCache) service.AccountRepository {
-	return repository.WrapAccountStore(store, usage, client, db, cache)
+func provideExecutionAccountStore(store *accountpostgres.AccountStore, usage *billingpostgres.AccountUsageStore) gatewayprovider.ExecutionAccountStore {
+	return &executionAccountStore{data: store, usage: usage}
 }

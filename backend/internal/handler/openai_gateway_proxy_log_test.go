@@ -4,9 +4,11 @@ package handler
 
 import (
 	"testing"
+	time "time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -15,8 +17,7 @@ import (
 // TestAppendOpenAIAccountProxyLogFields 验证代理定位字段完整且不会泄露凭据。
 func TestAppendOpenAIAccountProxyLogFields(t *testing.T) {
 	proxyID := int64(17)
-	account := &service.Account{
-		ProxyID: &proxyID,
+	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ProxyID: &proxyID,
 		Proxy: &egress.Proxy{
 			ID:       proxyID,
 			Name:     "openai-egress",
@@ -24,7 +25,7 @@ func TestAppendOpenAIAccountProxyLogFields(t *testing.T) {
 			Port:     8443,
 			Username: "proxy-user-secret",
 			Password: "proxy-password-secret",
-		},
+		}},
 	}
 	core, logs := observer.New(zap.WarnLevel)
 	log := zap.New(core)
@@ -49,7 +50,7 @@ func TestAppendOpenAIAccountProxyLogFields_FallsBackToProxyID(t *testing.T) {
 	core, logs := observer.New(zap.WarnLevel)
 	log := zap.New(core)
 
-	log.Warn("openai.websocket_proxy_failed", appendOpenAIAccountProxyLogFields(nil, &service.Account{ProxyID: &proxyID})...)
+	log.Warn("openai.websocket_proxy_failed", appendOpenAIAccountProxyLogFields(nil, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ProxyID: &proxyID}})...)
 
 	entries := logs.All()
 	require.Len(t, entries, 1)

@@ -1,0 +1,42 @@
+//go:build integration
+
+package apikey_test
+
+import (
+	"github.com/TokenFlux/TokenRouter/internal/apikey"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+)
+
+func (s *APIKeyRepoSuite) TestListByUserID_SortByNameAsc() {
+	user := s.mustCreateUser("sort-name@example.com")
+	s.mustCreateApiKey(user.ID, "sk-z", "z-key", nil)
+	s.mustCreateApiKey(user.ID, "sk-a", "a-key", nil)
+
+	keys, _, err := s.repo.ListByUserID(s.ctx, user.ID, pagination.PaginationParams{
+		Page:      1,
+		PageSize:  10,
+		SortBy:    "name",
+		SortOrder: "asc",
+	}, apikey.APIKeyListFilters{})
+	s.Require().NoError(err)
+	s.Require().Len(keys, 2)
+	s.Require().Equal("a-key", keys[0].Name)
+	s.Require().Equal("z-key", keys[1].Name)
+}
+
+func (s *APIKeyRepoSuite) TestListByUserID_SortByID() {
+	user := s.mustCreateUser("sort-id@example.com")
+	first := s.mustCreateApiKey(user.ID, "sk-id-a", "a-key", nil)
+	second := s.mustCreateApiKey(user.ID, "sk-id-b", "b-key", nil)
+
+	keys, _, err := s.repo.ListByUserID(s.ctx, user.ID, pagination.PaginationParams{
+		Page:      1,
+		PageSize:  10,
+		SortBy:    "id",
+		SortOrder: "desc",
+	}, apikey.APIKeyListFilters{})
+	s.Require().NoError(err)
+	s.Require().Len(keys, 2)
+	s.Require().Equal(second.ID, keys[0].ID)
+	s.Require().Equal(first.ID, keys[1].ID)
+}

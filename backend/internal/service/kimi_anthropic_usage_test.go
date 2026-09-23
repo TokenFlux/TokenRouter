@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
+
 	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -241,7 +243,7 @@ func TestCNProviderAnthropicUsageBillsUncachedInput(t *testing.T) {
 			// 固定平时时刻，本用例只验证未缓存输入计费，不依赖执行时是否处于高峰。
 			cost, err := billing.CalculateCostUnified(billingcore.CostInput{
 				Ctx: context.Background(), Model: tt.model, RateMultiplier: 1,
-				Resolver:  NewModelPricingResolver(nil, billing),
+				Resolver:  billingtestkit.PriceResolver(nil, billing),
 				PricingAt: time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC),
 				Tokens: billingpricing.UsageTokens{
 					InputTokens: uncachedInput, OutputTokens: openAIUsage.OutputTokens,

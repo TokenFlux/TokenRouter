@@ -1,6 +1,9 @@
 package service
 
 import (
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
 	"bufio"
 	"bytes"
 	"context"
@@ -63,35 +66,35 @@ func (s *OpenAIGatewayService) readOpenAIUpstreamError(resp *http.Response) ([]b
 func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	resp *http.Response,
 	respBody []byte,
 	upstreamMsg string,
 	upstreamModel string,
 ) *forwardcore.UpstreamFailoverError {
 	shouldFailover := s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody)
-	if account != nil && account.Platform == capability.PlatformGrok {
+	if account != nil && account.Record.Platform == capability.PlatformGrok {
 		shouldFailover = s.shouldFailoverGrokUpstreamError(resp.StatusCode, respBody)
 	}
 	// 请求级拒绝不能触发账号策略或池模式重试。
 	if detectHit, _, _ := openai.DetectOpenAICyberPolicy(respBody); detectHit || gatewayprovider.IsOpenAICyberWarningPayload(respBody, upstreamMsg) ||
 		openai.IsOpenAIClientInvalidRequestError(resp.StatusCode, upstreamMsg, respBody) ||
 		openai.IsOpenAIContextWindowError(upstreamMsg, respBody) ||
-		(account != nil && account.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(resp.StatusCode, respBody)) {
+		(account != nil && account.Record.Platform == capability.PlatformGrok && grok.IsGrokContentPolicyRejection(resp.StatusCode, respBody)) {
 		return nil
 	}
 	// 没有 gin 上下文时无法安全评估请求级临时规则；保持上游语义，
 	// 仅让默认已判定为可故障转移的错误继续进入账号策略管线。
-	if c == nil && !shouldFailover && (account == nil || account.Platform != capability.PlatformGrok) {
+	if c == nil && !shouldFailover && (account == nil || account.Record.Platform != capability.PlatformGrok) {
 		return nil
 	}
-	var decision UpstreamErrorDecision
-	if account != nil && account.Platform == capability.PlatformGrok {
+	var decision accountcore.UpstreamErrorDecision
+	if account != nil && account.Record.Platform == capability.PlatformGrok {
 		decision = s.applyGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 	} else {
 		decision = s.applyOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody, upstreamModel)
 	}
-	if decision.ShouldReturnGenericError() || !decision.ShouldFailover(account, resp.StatusCode, shouldFailover) {
+	if decision.ShouldReturnGenericError() || !decision.ShouldFailover(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode, shouldFailover) {
 		return nil
 	}
 	upstreamDetail := ""
@@ -103,9 +106,9 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 		upstreamDetail = logredact.TruncateUTF8(string(respBody), maxBytes)
 	}
 	gatewayhttp.AppendOpsUpstreamError(c, ops.OpsUpstreamErrorEvent{
-		Platform:           account.Platform,
-		AccountID:          account.ID,
-		AccountName:        account.Name,
+		Platform:           account.Record.Platform,
+		AccountID:          account.Record.ID,
+		AccountName:        account.Record.Name,
 		UpstreamStatusCode: resp.StatusCode,
 		UpstreamRequestID:  resp.Header.Get("x-request-id"),
 		Kind:               "failover",
@@ -117,13 +120,13 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 		resp.Header,
 		respBody,
 		upstreamMsg,
-		decision.RetryableOnSameAccount(account, resp.StatusCode),
+		decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode),
 	)
 }
 
 // openAIChatCompletionsTargetURL 解析账号的（非 Grok）Chat Completions 上游端点。
-func (s *OpenAIGatewayService) openAIChatCompletionsTargetURL(account *Account) (string, error) {
-	baseURL := account.GetOpenAIBaseURL()
+func (s *OpenAIGatewayService) openAIChatCompletionsTargetURL(account *gatewayprovider.ExecutionAccount) (string, error) {
+	baseURL := gatewayprovider.ExecutionProtocolTarget(account).GetOpenAIBaseURL()
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
@@ -136,18 +139,18 @@ func (s *OpenAIGatewayService) openAIChatCompletionsTargetURL(account *Account) 
 
 // resolveCCFallbackTarget 解析两条 CC 回退路径共用的账号凭证与上游端点
 // Grok 沿用自己的 OAuth/API Key 认证和 CLI 端点。
-func (s *OpenAIGatewayService) resolveCCFallbackTarget(ctx context.Context, account *Account) (apiKey string, targetURL string, err error) {
-	if account.IsGrok() {
-		apiKey, _, err = s.GetAccessToken(ctx, account)
+func (s *OpenAIGatewayService) resolveCCFallbackTarget(ctx context.Context, account *gatewayprovider.ExecutionAccount) (apiKey string, targetURL string, err error) {
+	if account.View().IsGrok() {
+		apiKey, _, err = s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
 		if err != nil {
 			return "", "", err
 		}
 		targetURL, err = s.rawChatCompletionsURL(account)
 		return apiKey, targetURL, err
 	}
-	apiKey = strings.TrimSpace(account.GetOpenAIProtocolAPIKey())
+	apiKey = strings.TrimSpace(account.View().GetOpenAIProtocolAPIKey())
 	if apiKey == "" {
-		return "", "", fmt.Errorf("account %d missing api_key", account.ID)
+		return "", "", fmt.Errorf("account %d missing api_key", account.Record.ID)
 	}
 	targetURL, err = s.openAIChatCompletionsTargetURL(account)
 	if err != nil {
@@ -159,7 +162,7 @@ func (s *OpenAIGatewayService) resolveCCFallbackTarget(ctx context.Context, acco
 func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 	ctx context.Context,
 	c *gin.Context,
-	account *Account,
+	account *gatewayprovider.ExecutionAccount,
 	targetURL string,
 	body []byte,
 	stream bool,
@@ -177,29 +180,29 @@ func (s *OpenAIGatewayService) sendCCUpstreamRequest(
 			if len(tlsRouterMatch) == 0 {
 				tlsRouterMatch = []egress.TLSFingerprintRouterMatchResult{s.matchTLSFingerprintRouter(c, account)}
 			}
-			if account.Platform == capability.PlatformGrok && userAgent != "" {
+			if account.Record.Platform == capability.PlatformGrok && userAgent != "" {
 				upstreamReq.Header.Set("user-agent", userAgent)
-			} else if account.Platform != capability.PlatformGrok {
+			} else if account.Record.Platform != capability.PlatformGrok {
 				s.applyOpenAIUpstreamUserAgent(c.Request.Context(), c, account, upstreamReq, false, tlsRouterMatch[0])
 			}
 
-			if account.Platform == capability.PlatformGrok {
-				if account.IsGrokOAuth() {
+			if account.Record.Platform == capability.PlatformGrok {
+				if account.View().IsGrokOAuth() {
 					grok.ApplyCLIHeaders(upstreamReq.Header)
 				}
 				grok.ApplyGrokCacheHeaders(upstreamReq.Header, grokCacheIdentity)
 			}
 		},
 		FinalizeHeaders: func(headers http.Header) {
-			account.ApplyHeaderOverrides(headers)
+			accountprovider.ApplyAccountHeaderOverrides(gatewayprovider.ExecutionProtocolRecord(account), headers)
 			applyOpenCodeSessionHeader(c, account, targetURL, headers)
 		},
 		Do: func(req *http.Request) (*http.Response, error) {
 			proxyURL := ""
-			if account.Proxy != nil {
-				proxyURL = account.Proxy.URL()
+			if account.Record.Proxy != nil {
+				proxyURL = account.Record.Proxy.URL()
 			}
-			return s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
+			return s.httpUpstream.DoWithTLS(req, proxyURL, account.Record.ID, account.Record.Concurrency, s.resolveOpenAITLSProfile(account, tlsRouterMatch...))
 		},
 		TransportError: func(err error) error { return s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false) },
 	})

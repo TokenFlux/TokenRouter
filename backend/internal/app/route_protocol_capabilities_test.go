@@ -1,20 +1,17 @@
 package app
 
 import (
-	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-)
-
-import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +36,7 @@ func TestProtocolAllPublicRoutesDeniedBeforeUpstream(t *testing.T) {
 				// Gemini 鉴权使用单独中间件；此处在鉴权后注入分组，独立验证动作分派。
 				router = gin.New()
 				router.Use(func(c *gin.Context) {
-					c.Set(string(middleware.ContextKeyAPIKey), &apikey.APIKey{Group: &routing.Group{Platform: "gemini", AllowedProtocols: []protocol.ProtocolID{}}})
+					c.Set(string(keyhttp.ContextKeyAPIKey), &apikey.APIKey{Group: &routing.Group{Platform: "gemini", AllowedProtocols: []protocol.ProtocolID{}}})
 				})
 				router.POST("/v1beta/models/*modelAction", requireGeminiGenerateContentProtocol, func(c *gin.Context) { t.Fatal("disabled protocol reached handler") })
 			}
