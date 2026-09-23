@@ -1680,3 +1680,10 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - HTTP 的 OpenAIErrorOutput 唯一拥有普通 JSON、SSE 终止、Anthropic 兼容错误及已写响应兜底。文本 Handler 继续传入原 backend 观测端口；旧文本/WS/媒体调用直接使用同一默认输出器，不再为写错误重建 Handler。保留 compact/image 心跳停止后的 Writer 判断、仅保活与真实输出区别、错误转义、Cyber 原消息和 SLA 观测差异。
 - 六个旧 Handler 错误方法及旧“已告知”/日志分类入口删除，函数值消费者同批改绑；11 组原输出断言迁到实际 HTTP 所有者，标签与断言保持。未为测试扩大旧入口，也没有复制第二份算法。
 - 编译、573 条定向 unit race、263 条相关普通合同及构建通过；普通/unit/integration 三套完整 lint 为零。测试迁移中的空旧构造和重复 import 已清理，初次诊断保留；测试与消费者映射见 `native-openai-error-output-*`。错误策略文档已同步，SQL/Ent 与冻结资料未变。本批按授权提交进度，S16 仍实施中。
+
+
+### OpenAI HTTP 准入与唯一资源（2026-09-23）
+
+- 用户槽与图片槽 HTTP 适配归 OpenAIHTTPResources，依赖缺失检查归 OpenAIDependencies，工具输出输入验证直接调用原生 HTTP 函数。五个旧 Handler 准入/验证方法删除，生产、函数值消费者及测试同批改绑。保持依赖缺失项目顺序、未提交时的 503、工具错误优先级、等待前 context 的取消释放、图片拒绝/等待/旁路和原响应。
+- app 构造唯一并发 helper 与本地图片 limiter，Wire 显式交给尚未清零的 OpenAI Handler；构造器收到资源时不再创建备用实例。原生与兼容入口的容量合同验证同一槽位状态、阻塞与重复释放；剩余旧入口仅投影现有指针和配置，不复制 limiter 状态。
+- 原图片槽 HTTP 合同迁到实际所有者，新增资源共享合同通过。普通合同 48 条、定向 unit race 137 条通过，构建与三套完整 lint 为零；Wire 再生成摘要一致。源码/测试/门禁及文档已同步，SQL/Ent 未变，证据为 `native-openai-controls-*`。按授权保存进度，S16 的直接 OpenAI HTTP/Cyber 绑定及其他残留继续收尾。

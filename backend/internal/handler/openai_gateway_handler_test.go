@@ -415,14 +415,14 @@ func TestOpenAIRecoverResponsesPanic_AppendsResponseFailedAfterWritten(t *testin
 func TestOpenAIMissingResponsesDependencies(t *testing.T) {
 	t.Run("nil_handler", func(t *testing.T) {
 		var h *OpenAIGatewayHandler
-		require.Equal(t, []string{"handler"}, h.missingResponsesDependencies())
+		require.Equal(t, []string{"handler"}, h.httpDependencies().Missing())
 	})
 
 	t.Run("all_dependencies_missing", func(t *testing.T) {
 		h := &OpenAIGatewayHandler{}
 		require.Equal(t,
 			[]string{"gatewayService", "billingCacheService", "apiKeyService", "concurrencyHelper"},
-			h.missingResponsesDependencies(),
+			h.httpDependencies().Missing(),
 		)
 	})
 
@@ -433,7 +433,7 @@ func TestOpenAIMissingResponsesDependencies(t *testing.T) {
 			apiKeyService:       &apikey.APIKeyService{},
 			concurrencyHelper:   gatewayhttp.NewConcurrencyHelper(&scheduler.ConcurrencyService{}, gatewayhttp.SSEPingFormatNone, 0),
 		}
-		require.Empty(t, h.missingResponsesDependencies())
+		require.Empty(t, h.httpDependencies().Missing())
 	})
 }
 
@@ -445,7 +445,7 @@ func TestOpenAIEnsureResponsesDependencies(t *testing.T) {
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
 
 		h := &OpenAIGatewayHandler{}
-		ok := h.ensureResponsesDependencies(c, nil)
+		ok := h.httpDependencies().Ensure(c, nil)
 
 		require.False(t, ok)
 		require.Equal(t, http.StatusServiceUnavailable, w.Code)
@@ -466,7 +466,7 @@ func TestOpenAIEnsureResponsesDependencies(t *testing.T) {
 		c.String(http.StatusTeapot, "already written")
 
 		h := &OpenAIGatewayHandler{}
-		ok := h.ensureResponsesDependencies(c, nil)
+		ok := h.httpDependencies().Ensure(c, nil)
 
 		require.False(t, ok)
 		require.Equal(t, http.StatusTeapot, w.Code)
@@ -485,7 +485,7 @@ func TestOpenAIEnsureResponsesDependencies(t *testing.T) {
 			apiKeyService:       &apikey.APIKeyService{},
 			concurrencyHelper:   gatewayhttp.NewConcurrencyHelper(&scheduler.ConcurrencyService{}, gatewayhttp.SSEPingFormatNone, 0),
 		}
-		ok := h.ensureResponsesDependencies(c, nil)
+		ok := h.httpDependencies().Ensure(c, nil)
 
 		require.True(t, ok)
 		require.False(t, c.Writer.Written())

@@ -14,6 +14,109 @@ linters:
   settings:
     depguard:
       rules:
+        # S16：OpenAI HTTP 资源与输入准入归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-controls-internal-app-gateway-openai-http-resources-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/gateway_openai_http_resources.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - strings$
+          - time$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：OpenAI HTTP 资源与输入准入归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-controls-internal-gateway-httpapi-openai-resources-original-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openai_resources_original_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - github.com/tidwall/gjson$
+          - net/http$
+          - net/http/httptest$
+          - testing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：OpenAI HTTP 资源与输入准入归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-controls-internal-gateway-httpapi-openai-tool-output-validation-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openai_tool_output_validation.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
+          - github.com/gin-gonic/gin$
+          - github.com/tidwall/gjson$
+          - go.uber.org/zap$
+          - net/http$
+          - strings$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：OpenAI HTTP 资源与输入准入归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-controls-internal-gateway-httpapi-openai-dependencies-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openai_dependencies.go"
+          allow:
+          - github.com/gin-gonic/gin$
+          - go.uber.org/zap$
+          - net/http$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：OpenAI HTTP 资源与输入准入归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-controls-internal-gateway-httpapi-openai-resources-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openai_resources.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/gin-gonic/gin$
+          - go.uber.org/zap$
+          - net/http$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         # S16：OpenAI 共用错误输出与原断言归属；保留角色限制，逐文件许可实际 import。
         s16-openai-output-internal-gateway-httpapi-openai-error-output-original-test-go:
           list-mode: strict
@@ -21576,6 +21679,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
           - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
           - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
           - github.com/TokenFlux/TokenRouter/internal/moderation$
           - github.com/TokenFlux/TokenRouter/internal/ops$
@@ -22873,7 +22977,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/moderation$
           - github.com/TokenFlux/TokenRouter/internal/ops$
           - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
@@ -22882,7 +22985,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
           - github.com/gin-gonic/gin$
           - github.com/google/uuid$
-          - github.com/tidwall/gjson$
           - go.uber.org/zap$
           - net/http$
           - runtime/debug$
@@ -56907,6 +57009,9 @@ linters:
         gateway-httpapi:
           list-mode: strict
           files:
+          - "!**/internal/gateway/httpapi/openai_tool_output_validation.go"
+          - "!**/internal/gateway/httpapi/openai_dependencies.go"
+          - "!**/internal/gateway/httpapi/openai_resources.go"
           - "!**/internal/gateway/httpapi/openai_error_fallback.go"
           - "!**/internal/gateway/httpapi/openai_error_output.go"
           - "!**/internal/gateway/httpapi/guardian_affinity.go"
@@ -57080,6 +57185,7 @@ linters:
         gateway-httpapi-tests:
           list-mode: strict
           files:
+          - "!**/internal/gateway/httpapi/openai_resources_original_test.go"
           - "!**/internal/gateway/httpapi/openai_error_output_original_test.go"
           - "!**/internal/gateway/httpapi/guardian_affinity_original_test.go"
           - "!**/internal/gateway/httpapi/textattempt/antigravity_route_original_test.go"
@@ -77509,6 +77615,7 @@ linters:
         app:
           list-mode: strict
           files:
+          - "!**/internal/app/gateway_openai_http_resources.go"
           - "!**/internal/app/gateway_message_attempts.go"
           - "!**/internal/app/gateway_messages_http.go"
           - "!**/internal/app/assembly_usage_wire.go"

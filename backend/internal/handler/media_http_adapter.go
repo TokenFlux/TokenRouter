@@ -60,7 +60,7 @@ func (p mediaHTTPAdapter) Logger(c *gin.Context, name string, fields ...zap.Fiel
 	return gatewayhttp.RequestLogger(c, name, fields...)
 }
 func (p mediaHTTPAdapter) Dependencies(c *gin.Context, log *zap.Logger) bool {
-	return p.h.ensureResponsesDependencies(c, log)
+	return p.h.httpDependencies().Ensure(c, log)
 }
 func (p mediaHTTPAdapter) Error(c *gin.Context, status int, code, message string) {
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, status, code, message)
@@ -109,10 +109,10 @@ func (p mediaHTTPAdapter) CyberSnapshot(c *gin.Context, body []byte) {
 	gatewayhttp.SetOpenAICyberWarningRequestSnapshot(c, moderation.ContentModerationProtocolOpenAIImages, body)
 }
 func (p mediaHTTPAdapter) AcquireImage(c *gin.Context, stream bool) (func(), bool) {
-	return p.h.acquireImageGenerationSlot(c, stream)
+	return p.h.httpResources().AcquireImage(c, stream)
 }
 func (p mediaHTTPAdapter) AcquireUser(c *gin.Context, s gatewayhttp.MediaSubject, stream bool, started *bool, log *zap.Logger) (func(), bool) {
-	return p.h.acquireResponsesUserSlot(c, s.UserID, s.Concurrency, stream, started, log)
+	return p.h.httpResources().AcquireUser(c, s.UserID, s.Concurrency, stream, started, log)
 }
 func (p mediaHTTPAdapter) BindErrors(c *gin.Context) {
 	if p.h.errorPassthroughService != nil {

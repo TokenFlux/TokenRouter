@@ -86,7 +86,7 @@ func (p openAIWSHTTPBackend) Error(c *gin.Context, status int, kind, message str
 	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, status, kind, message)
 }
 func (p openAIWSHTTPBackend) Dependencies(c *gin.Context, log *zap.Logger) bool {
-	return p.h.ensureResponsesDependencies(c, log)
+	return p.h.httpDependencies().Ensure(c, log)
 }
 func (p openAIWSHTTPBackend) SummarizeRead(err error) (string, string) {
 	var closed *gatewayws.ClientCloseError

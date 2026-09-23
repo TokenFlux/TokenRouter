@@ -55,7 +55,7 @@ func (p openAITextHTTPBackend) Access(c *gin.Context) (*apikey.APIKey, bool) {
 	return apikey.CopyAPIKey(key), ok
 }
 func (p openAITextHTTPBackend) Dependencies(c *gin.Context, log *zap.Logger) bool {
-	return p.h.ensureResponsesDependencies(c, log)
+	return p.h.httpDependencies().Ensure(c, log)
 }
 func (p openAITextHTTPBackend) ReadFailure(log *zap.Logger, r *http.Request, err error) {
 	gatewayhttp.LogRequestBodyReadFailure(log, r, err)
@@ -137,13 +137,13 @@ func (p openAITextHTTPBackend) ImagePermissionMessage() string {
 	return media.ImageGenerationPermissionMessage
 }
 func (p openAITextHTTPBackend) ImageSlot(c *gin.Context, started bool) (func(), bool) {
-	return p.h.acquireImageGenerationSlot(c, started)
+	return p.h.httpResources().AcquireImage(c, started)
 }
 func (p openAITextHTTPBackend) SeedImageIntent(c *gin.Context, mapped, image bool) {
 	seedOpenAIForwardImageIntentHint(c, mapped, image)
 }
 func (p openAITextHTTPBackend) ValidateTools(c *gin.Context, body []byte, log *zap.Logger) bool {
-	return p.h.validateFunctionCallOutputRequest(c, body, log)
+	return gatewayhttp.ValidateOpenAIFunctionCallOutput(c, body, log)
 }
 func (p openAITextHTTPBackend) BindErrors(c *gin.Context) {
 	if p.h.errorPassthroughService != nil {
@@ -157,7 +157,7 @@ func (p openAITextHTTPBackend) AuthLatency(c *gin.Context, ms int64) {
 	gatewayhttp.SetOpsLatencyMs(c, gatewayhttp.OpsAuthLatencyMsKey, ms)
 }
 func (p openAITextHTTPBackend) UserSlot(c *gin.Context, user int64, limit int, stream bool, started *bool, log *zap.Logger) (func(), bool) {
-	return p.h.acquireResponsesUserSlot(c, user, limit, stream, started, log)
+	return p.h.httpResources().AcquireUser(c, user, limit, stream, started, log)
 }
 func (p openAITextHTTPBackend) Eligibility(ctx context.Context, key *apikey.APIKey, sub *billing.UserSubscription) error {
 	old := apikey.CopyAPIKey(key)

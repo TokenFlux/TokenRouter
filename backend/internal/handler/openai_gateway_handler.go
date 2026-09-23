@@ -8,8 +8,6 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	moderationcore "github.com/TokenFlux/TokenRouter/internal/moderation"
 
-	openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-
 	"context"
 	"net/http"
 	"runtime/debug"
@@ -44,7 +42,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -179,6 +176,7 @@ func NewOpenAIGatewayHandler(
 	opsService *ops.OpsService,
 	cfg *config.Config,
 	prompts *promptpolicy.Service,
+	resources ...*gatewayhttp.OpenAIHTTPResources,
 ) *OpenAIGatewayHandler {
 	pingInterval := time.Duration(0)
 	maxAccountSwitches := 3
@@ -187,6 +185,13 @@ func NewOpenAIGatewayHandler(
 		if cfg.Gateway.MaxAccountSwitches > 0 {
 			maxAccountSwitches = cfg.Gateway.MaxAccountSwitches
 		}
+	}
+	var shared *gatewayhttp.OpenAIHTTPResources
+	if len(resources) > 0 {
+		shared = resources[0]
+	}
+	if shared == nil {
+		shared = &gatewayhttp.OpenAIHTTPResources{Concurrency: gatewayhttp.NewConcurrencyHelper(concurrencyService, gatewayhttp.SSEPingFormatComment, pingInterval), Images: &scheduler.ImageConcurrencyLimiter{}, ImageOptions: openAIImageAdmissionOptions(cfg)}
 	}
 	return &OpenAIGatewayHandler{
 		gatewayService:           gatewayService,
@@ -197,8 +202,8 @@ func NewOpenAIGatewayHandler(
 		errorPassthroughService:  errorPassthroughService,
 		contentModerationService: contentModerationService,
 		opsService:               opsService,
-		concurrencyHelper:        gatewayhttp.NewConcurrencyHelper(concurrencyService, gatewayhttp.SSEPingFormatComment, pingInterval),
-		imageLimiter:             &scheduler.ImageConcurrencyLimiter{},
+		concurrencyHelper:        shared.Concurrency,
+		imageLimiter:             shared.Images,
 		maxAccountSwitches:       maxAccountSwitches,
 		cfg:                      cfg,
 	}
@@ -260,39 +265,6 @@ func (h *OpenAIGatewayHandler) ensureAnthropicErrorResponse(c *gin.Context, stre
 	return true
 }
 
-func (h *OpenAIGatewayHandler) validateFunctionCallOutputRequest(c *gin.Context, body []byte, reqLog *zap.Logger) bool {
-	if !gjson.GetBytes(body, `input.#(type=="function_call_output")`).Exists() {
-		return true
-	}
-
-	validation := openai.ValidateFunctionCallOutputContextBytes(body)
-	if !validation.HasFunctionCallOutput {
-		return true
-	}
-
-	previousResponseID := gjson.GetBytes(body, "previous_response_id").String()
-	if strings.TrimSpace(previousResponseID) != "" || validation.HasToolCallContext {
-		return true
-	}
-
-	if validation.HasFunctionCallOutputMissingCallID {
-		reqLog.Warn("openai.request_validation_failed",
-			zap.String("reason", "function_call_output_missing_call_id"),
-		)
-		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, http.StatusBadRequest, "invalid_request_error", "function_call_output requires call_id on HTTP requests; continuation via previous_response_id is only supported on Responses WebSocket v2")
-		return false
-	}
-	if validation.HasItemReferenceForAllCallIDs {
-		return true
-	}
-
-	reqLog.Warn("openai.request_validation_failed",
-		zap.String("reason", "function_call_output_missing_item_reference"),
-	)
-	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, http.StatusBadRequest, "invalid_request_error", "function_call_output requires item_reference ids matching each call_id on HTTP requests; continuation via previous_response_id is only supported on Responses WebSocket v2")
-	return false
-}
-
 // openAISlotAcquireResult 区分槽位准入成功、已写错误和利润终检否决。
 type openAISlotAcquireResult int
 
@@ -310,24 +282,6 @@ func normalizeCodexDelegationBootstrap(body []byte) ([]byte, bool) {
 // 兼容调用只委托客户端报文的唯一纯实现。
 func normalizeCodexAutomationBootstrap(body []byte) ([]byte, bool) {
 	return requeststate.NormalizeCodexAutomationBootstrap(body)
-}
-
-func (h *OpenAIGatewayHandler) acquireResponsesUserSlot(
-	c *gin.Context,
-	userID int64,
-	userConcurrency int,
-	reqStream bool,
-	streamStarted *bool,
-	reqLog *zap.Logger,
-) (func(), bool) {
-	ctx := c.Request.Context()
-	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, userID, userConcurrency, reqStream, streamStarted)
-	if err != nil {
-		reqLog.Warn("openai.user_slot_acquire_failed", zap.Error(err))
-		h.handleConcurrencyError(c, err, "user", *streamStarted)
-		return nil, false
-	}
-	return scheduler.WrapRelease(ctx, scheduler.ReleaseOnCancel, userReleaseFunc), true
 }
 
 func (h *OpenAIGatewayHandler) acquireResponsesAccountSlot(
@@ -398,48 +352,6 @@ func (h *OpenAIGatewayHandler) recoverResponsesPanic(c *gin.Context, streamStart
 	)
 }
 
-func (h *OpenAIGatewayHandler) ensureResponsesDependencies(c *gin.Context, reqLog *zap.Logger) bool {
-	missing := h.missingResponsesDependencies()
-	if len(missing) == 0 {
-		return true
-	}
-
-	if reqLog == nil {
-		reqLog = gatewayhttp.RequestLogger(c, "handler.openai_gateway.responses")
-	}
-	reqLog.Error("openai.handler_dependencies_missing", zap.Strings("missing_dependencies", missing))
-
-	if c != nil && c.Writer != nil && !c.Writer.Written() {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": gin.H{
-				"type":    "api_error",
-				"message": "Service temporarily unavailable",
-			},
-		})
-	}
-	return false
-}
-
-func (h *OpenAIGatewayHandler) missingResponsesDependencies() []string {
-	missing := make([]string, 0, 5)
-	if h == nil {
-		return append(missing, "handler")
-	}
-	if h.gatewayService == nil {
-		missing = append(missing, "gatewayService")
-	}
-	if h.billingCacheService == nil {
-		missing = append(missing, "billingCacheService")
-	}
-	if h.apiKeyService == nil {
-		missing = append(missing, "apiKeyService")
-	}
-	if h.concurrencyHelper == nil || h.concurrencyHelper.Service() == nil {
-		missing = append(missing, "concurrencyHelper")
-	}
-	return missing
-}
-
 func getContextInt64(c *gin.Context, key string) (int64, bool) {
 	if c == nil || key == "" {
 		return 0, false
@@ -460,33 +372,6 @@ func getContextInt64(c *gin.Context, key string) (int64, bool) {
 	default:
 		return 0, false
 	}
-}
-
-// handleConcurrencyError 统一处理并发槽位获取失败。
-func (h *OpenAIGatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool) {
-	status, errType, code, message := gatewayhttp.ConcurrencyErrorResponse(err, slotType)
-	gatewayhttp.DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, status, errType, code, message, streamStarted, false)
-}
-
-func (h *OpenAIGatewayHandler) acquireImageGenerationSlot(c *gin.Context, streamStarted bool) (func(), bool) {
-	if h == nil || h.cfg == nil || h.imageLimiter == nil {
-		return nil, true
-	}
-	imageConcurrency := h.cfg.Gateway.ImageConcurrency
-	wait := strings.TrimSpace(imageConcurrency.OverflowMode) == config.ImageConcurrencyOverflowModeWait
-	release, acquired := h.imageLimiter.Acquire(
-		c.Request.Context(),
-		imageConcurrency.Enabled,
-		imageConcurrency.MaxConcurrentRequests,
-		wait,
-		time.Duration(imageConcurrency.WaitTimeoutSeconds)*time.Second,
-		imageConcurrency.MaxWaitingRequests,
-	)
-	if acquired {
-		return release, true
-	}
-	gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, http.StatusTooManyRequests, "rate_limit_error", "Image generation concurrency limit exceeded, please retry later", streamStarted)
-	return nil, false
 }
 
 func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError, streamStarted bool) {

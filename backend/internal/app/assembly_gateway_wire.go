@@ -49,6 +49,7 @@ var gatewayAssemblyProviders = wire.NewSet(
 	provideExecutionAccountStore,
 	provideFundingAdmission,
 	gatewayExecutionProviders,
+	provideOpenAIHTTPResources,
 	handler.ProvideOpenAIGatewayHandler,
 	provideGatewayRouteMiddleware,
 	provideGatewayAdminRules,

@@ -27,38 +27,6 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestOpenAIGatewayHandlerAcquireImageGenerationSlot_Returns429WhenFull(t *testing.T) {
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	h := &OpenAIGatewayHandler{
-		cfg: &config.Config{
-			Gateway: config.GatewayConfig{
-				ImageConcurrency: config.ImageConcurrencyConfig{
-					Enabled:               true,
-					MaxConcurrentRequests: 1,
-					OverflowMode:          config.ImageConcurrencyOverflowModeReject,
-				},
-			},
-		},
-		imageLimiter: &scheduler.ImageConcurrencyLimiter{},
-	}
-	release, acquired := h.acquireImageGenerationSlot(c, false)
-	require.True(t, acquired)
-	require.NotNil(t, release)
-	defer release()
-
-	blockedRelease, blocked := h.acquireImageGenerationSlot(c, false)
-
-	require.False(t, blocked)
-	require.Nil(t, blockedRelease)
-	require.Equal(t, http.StatusTooManyRequests, rec.Code)
-	require.Equal(t, "rate_limit_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
-	require.Contains(t, rec.Body.String(), "Image generation concurrency limit exceeded")
-}
-
 func TestOpenAIGatewayHandlerResponses_ImageIntentRejectedByImageConcurrency(t *testing.T) {
 
 	body := `{"model":"gpt-5.4","input":"draw","tools":[{"type":"image_generation"}]}`
@@ -92,7 +60,7 @@ func TestOpenAIGatewayHandlerResponses_ImageIntentRejectedByImageConcurrency(t *
 		}}},
 		imageLimiter: &scheduler.ImageConcurrencyLimiter{},
 	}
-	release, acquired := h.acquireImageGenerationSlot(c, false)
+	release, acquired := h.httpResources().AcquireImage(c, false)
 	require.True(t, acquired)
 	require.NotNil(t, release)
 	defer release()
@@ -138,7 +106,7 @@ func TestOpenAIGatewayHandlerResponses_TextOnlyNotRejectedByImageConcurrency(t *
 		}}},
 		imageLimiter: &scheduler.ImageConcurrencyLimiter{},
 	}
-	release, acquired := h.acquireImageGenerationSlot(c, false)
+	release, acquired := h.httpResources().AcquireImage(c, false)
 	require.True(t, acquired)
 	require.NotNil(t, release)
 	defer release()

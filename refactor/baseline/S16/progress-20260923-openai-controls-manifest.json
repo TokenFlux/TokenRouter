@@ -1,0 +1,120 @@
+{
+  "format_version": 1,
+  "scope": "S16 阶段检查点增量，非最终验收",
+  "base_archive": "s16-evidence.tar.gz",
+  "base_archive_sha256": "9d3fa06d7fdef83f358c34c0816b55e4be7e531c3b3134a01fc1ff32bd6808ae",
+  "source_file_count": 20,
+  "source_total_bytes": 462964,
+  "archives": [
+    {
+      "path": "progress-20260923-openai-controls-01.tar.gz",
+      "size": 41088,
+      "sha256": "960affcda3dc2dc8bf8927aabbed94e2075952fe27988f37085fced3d025cabf",
+      "verified_members": 20,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-compile-mapped.log",
+          "size": 431,
+          "sha256": "3f5757a78becd9c063df3efe3bf7b0f4ccf1f7431add0edf52037c18b2d33825"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-compile.log",
+          "size": 427,
+          "sha256": "6868b94504b8155097c08bb2ac6c3d4c908141a6660f7c7bfa78a9a5e569d3dd"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-consumers.json",
+          "size": 534,
+          "sha256": "646c0fd648401ef28e35d46f886840c9d37bbe47f2197655d3718f1a6769fdf1"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-final-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-final-checks.json",
+          "size": 3364,
+          "sha256": "8385698417b0116562d1cf585047c1b58bdefcbda2a7767edcbd934172a493e8"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-final-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-final-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-final-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-final-normal.jsonl",
+          "size": 58970,
+          "sha256": "5df88a1022eddaf5a922452f330147e5d4302a78dc9900b0c339061845c57444"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-final-race.jsonl",
+          "size": 180264,
+          "sha256": "c0fd19ede5093fd6c0e51da39e278f82faee1053663dfb3e64867c1d02e62f0d"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-final-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-gate-consumers.json",
+          "size": 799,
+          "sha256": "8485dad67bb33b6b5044534c140756a3d9ab3b338f0df55dfd30904ec08ddc1c"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-lint.log",
+          "size": 297,
+          "sha256": "476242bc2b2982e5064b00d8c0b119412d4aa958e23b8f8bf61f4fff0831707f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-original.go.txt",
+          "size": 27995,
+          "sha256": "f5b94819a715b02a4f888353baf6e34a826315be83637095d08de111748246a6"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-race.jsonl",
+          "size": 180156,
+          "sha256": "73e214a62358a1e4e4f61f02885fb9c1b8e312ebd66cfdb267fd64880e3b47df"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-wire-repeat.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-wire-stability.json",
+          "size": 198,
+          "sha256": "d38174983092d13b24b7773b48033b9b270d674f3d1aa07e0e5e19e46f6537ed"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-controls-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-openai-controls-verification.json",
+          "size": 3975,
+          "sha256": "e93877d443d5768de8e9885f873ee6b275b36f8a141b27b38a6bc26af011a475"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-openai-output-manifest.json",
+          "size": 5113,
+          "sha256": "97b24e748413e4a2812054cac5a30f5c2337a592f26cfe0c019faffa6a87206a"
+        }
+      ]
+    }
+  ],
+  "parent_manifest": "progress-20260923-openai-output-manifest.json",
+  "parent_manifest_sha256": "97b24e748413e4a2812054cac5a30f5c2337a592f26cfe0c019faffa6a87206a"
+}

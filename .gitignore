@@ -170,3 +170,6 @@ refactor/baseline/S16/*
 
 # S16 OpenAI 共用输出检查点索引。
 !refactor/baseline/S16/progress-20260923-openai-output-manifest.json
+
+# S16 OpenAI HTTP 资源检查点索引。
+!refactor/baseline/S16/progress-20260923-openai-controls-manifest.json
