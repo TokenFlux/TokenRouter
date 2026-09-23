@@ -33,7 +33,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -138,7 +137,7 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 	accountRepo := openAIImagesFailoverAccountRepo{accounts: accounts}
 	upstream := &openAIImagesFailoverHTTPUpstream{}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	gatewayService := service.NewOpenAIGatewayService(
+	gatewayService, gatewayServiceChoices := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
 
@@ -158,7 +157,7 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 		nil,
 
 		nil,
-		nil, responseHeaderFilterForTest(cfg), nil,
+		nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
 	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil,
 
@@ -185,7 +184,7 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 		nil,
 		cfg, nil, newExecutionAvailabilityForTest(accountRepo,
 
-			nil, cfg),
+			nil, cfg), gatewayServiceChoices,
 	)
 	handler.Input.MaxSwitches = 10
 

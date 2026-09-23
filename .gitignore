@@ -192,3 +192,7 @@ refactor/baseline/S16/*
 
 # S16 旧 HTTP 包与测试兼容清零检查点。
 !refactor/baseline/S16/progress-20260924-handler-retirement-manifest.json
+
+# S16 选择完整能力批次：增量证据与统一验证入口。
+!refactor/baseline/S16/progress-20260924-selection-manifest.json
+!refactor/baseline/S16/service-selection-owner-verification.json

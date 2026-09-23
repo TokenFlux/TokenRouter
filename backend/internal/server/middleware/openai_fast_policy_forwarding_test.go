@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -74,11 +77,19 @@ func TestAPIKeyAuthForwardsUserScopedOpenAIFastPolicyToUpstream(t *testing.T) {
 	settingService := gatewaytestkit.RuntimeReaders(&openAIFastPolicyForwardingSettingRepo{
 		value: string(settingsJSON),
 	})
+
+	// 转发与原生选择使用同一响应归属、阻断和传输状态；本场景配置保持 simple 与 WS 关闭。
+	responses := session.NewOpenAIWSStateStore(nil, gatewayprovider.LogOpenAIWSModeInfo)
+	transient := accountcore.NewModelTransientState(0)
+	circuit := egress.NewProxyStreamCircuit(egress.DefaultProxyStreamCircuitSettings())
+	blocks := accountcore.NewRuntimeBlockState(time.Now)
+	choices := selection.NewCompatible(selection.CompatibleDependencies{Responses: responses, ModelTransient: transient, ProxyCircuit: circuit, RuntimeBlocks: blocks}, selection.Options{Simple: true, WS: &egress.OpenAIWSOptions{}})
 	gatewayService := service.NewOpenAIGatewayService(
 		nil, nil, nil, cfg,
-		nil, nil, nil, &openAIFastPolicyForwardingHTTPUpstream{client: upstreamServer.Client()},
-		nil, nil, nil, nil, nil, nil, settingService, nil, responseHeaderFilterForTest(cfg), nil,
+		nil, nil, &openAIFastPolicyForwardingHTTPUpstream{client: upstreamServer.Client()},
+		nil, nil, nil, nil, nil, nil, settingService, nil, responseHeaderFilterForTest(cfg), responses, transient, circuit, choices,
 	)
+	gatewayService.BindRuntimeBlockState(blocks)
 
 	groupID := int64(101)
 	group := &routing.Group{

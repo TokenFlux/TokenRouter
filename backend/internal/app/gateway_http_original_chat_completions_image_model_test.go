@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
@@ -142,30 +144,30 @@ func newOpenAIImageChatRejectionHandlerWithCache(t *testing.T, cache *httptestki
 	return newOpenAIImageChatRejectionHandlerWithService(t, cache, &service.OpenAIGatewayService{}, newExecutionAvailabilityForTest(
 
 		// newOpenAIImageChatRejectionHandlerWithChannel 构造带渠道映射的 OpenAI Chat 测试处理器。
-		nil, nil, nil))
+		nil, nil, nil), newEmptyCompatibleSelectionFixture())
 }
 
 func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService *routing.ChannelService) *gatewayHTTPEndpointsFixture {
 	t.Helper()
-	gatewayService := service.NewOpenAIGatewayService(
+	gatewayService, gatewayServiceChoices := newOpenAIExecutionAndSelectionFixture(
 		nil, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
-			nil), nil, nil, channelService, nil, nil, responseHeaderFilterForTest(nil), nil,
+			nil), nil, nil, channelService, nil, nil, responseHeaderFilterForTest(nil), nil, nil, nil,
 	)
 	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil, nil,
 		nil, nil, channelService, nil, true))
 
 	return newOpenAIImageChatRejectionHandlerWithService(t, &httptestkit.ConcurrencyHooks{}, gatewayService, newExecutionAvailabilityForTest(nil,
 
-		channelService, nil),
+		channelService, nil), gatewayServiceChoices,
 	)
 }
 
 // newOpenAIImageChatRejectionHandlerWithService 复用最小依赖构造 Chat 端点测试处理器。
-func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *httptestkit.ConcurrencyHooks, gatewayService *service.OpenAIGatewayService, availability *gatewayModelAvailability) *gatewayHTTPEndpointsFixture {
+func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *httptestkit.ConcurrencyHooks, gatewayService *service.OpenAIGatewayService, availability *gatewayModelAvailability, choices *selection.Compatible) *gatewayHTTPEndpointsFixture {
 	t.Helper()
 	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source: gatewayService, Availability: availability,
+		Source: gatewayService, Availability: availability, Choices: choices,
 		Funding: &admission.FundingAdmission{},
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/transport"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
@@ -32,7 +34,7 @@ func ProvideGatewaySearchTools(gateway *service.GatewayService, settings *search
 
 // standaloneSearchExecution 只把原有单次选号与执行结果投影给原生搜索入口。
 type standaloneSearchExecution struct {
-	selector *service.OpenAIGatewayService
+	selector *selection.Compatible
 	executor *gatewayprovider.GrokSearchExecutor
 }
 
@@ -62,7 +64,7 @@ func (t standaloneSearchTarget) Execute(ctx context.Context, body []byte) ([]byt
 }
 
 // ProvideGatewaySearchHTTP 直接构造原生入口，沿用唯一选号、资金、审核和完成运行时。
-func ProvideGatewaySearchHTTP(executor *gatewayprovider.GrokSearchExecutor, selector *service.OpenAIGatewayService, funding *admission.FundingAdmission, concurrency *scheduler.ConcurrencyService, keys *apikey.APIKeyService, moderator *moderation.ContentModerationService, workers *completion.UsageRecordWorkerPool, cfg *config.Config, _ *searchtools.Emulator, activity *gatewayRequestActivity, recorders GatewayCompletionRecorders) *gatewayhttp.SearchHandler {
+func ProvideGatewaySearchHTTP(executor *gatewayprovider.GrokSearchExecutor, selector *selection.Compatible, funding *admission.FundingAdmission, concurrency *scheduler.ConcurrencyService, keys *apikey.APIKeyService, moderator *moderation.ContentModerationService, workers *completion.UsageRecordWorkerPool, cfg *config.Config, _ *searchtools.Emulator, activity *gatewayRequestActivity, recorders GatewayCompletionRecorders) *gatewayhttp.SearchHandler {
 	interval := time.Duration(0)
 	if cfg != nil {
 		interval = time.Duration(cfg.Concurrency.PingInterval) * time.Second

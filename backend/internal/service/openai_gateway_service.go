@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	selectionadapter "github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -257,12 +259,11 @@ var defaultOpenAICodexSnapshotPersistThrottle = newAccountWriteThrottle(openAICo
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	selection   *selectionadapter.Compatible
 	cyberBlocks *session.CyberBlocks
 	// prompts 直接引用 app 的唯一提示词运行时，WS 不再通过设置聚合取回它。
-	prompts          *promptpolicy.Service
-	runtimeBlocks    atomic.Pointer[accountcore.RuntimeBlockState]
-	freeQuotaGate    *accountcore.FreeQuotaGate
-	newFreeQuotaGate func() *accountcore.FreeQuotaGate
+	prompts       *promptpolicy.Service
+	runtimeBlocks atomic.Pointer[accountcore.RuntimeBlockState]
 
 	nativeAttemptActivity func() (func(), error)
 	liveObserverMu        sync.Mutex
@@ -275,8 +276,6 @@ type OpenAIGatewayService struct {
 	cache              session.GatewayCache
 	cfg                *config.Config
 	codexDetector      accountcore.ClientRestrictionDetector
-	schedulerSnapshot  *scheduler.SnapshotService
-	schedulingGroups   func(context.Context, int64) (*routing.Group, error)
 	concurrencyService *scheduler.ConcurrencyService
 
 	// 用量计费时钟，测试可注入固定时间以覆盖峰值倍率。
@@ -301,27 +300,24 @@ type OpenAIGatewayService struct {
 	liveAttestation       liveattestation.Provider
 	liveAttestationCipher identity.SecretEncryptor
 
-	openaiWSPoolOnce               sync.Once
-	openaiWSPoolMu                 sync.Mutex
-	openaiWSPoolClosed             bool
-	openaiWSStateStoreOnce         sync.Once
-	openaiSchedulerOnce            sync.Once
-	openaiProxyStreamCircuitOnce   sync.Once
-	openaiWSPassthroughDialerOnce  sync.Once
-	openaiModelTransientOnce       sync.Once
-	agentIdentity                  *gatewayprovider.ExecutionAgentIdentity
-	openaiWSPool                   *openai.WSConnPool
-	openaiWSStateStore             session.OpenAIWSStateStore
-	openaiScheduler                OpenAIAccountScheduler
-	openaiWSPassthroughDialer      openai.WSClientDialer
-	openaiWSSessionPreemptions     openAIWSSessionPreemptRegistry
-	openaiAccountStats             *scheduler.RuntimeStats
-	schedulerParameters            *scheduler.Parameters
-	schedulerStickyStats           atomic.Pointer[scheduler.StickyStats]
-	backgroundTasks                func(string, func()) bool
-	openaiModelTransient           *accountcore.ModelTransientState
-	openaiProxyStreamCircuit       *egress.ProxyStreamCircuit
-	openaiProxyStreamFailOpenLogAt atomic.Int64
+	openaiWSPoolOnce       sync.Once
+	openaiWSPoolMu         sync.Mutex
+	openaiWSPoolClosed     bool
+	openaiWSStateStoreOnce sync.Once
+
+	openaiProxyStreamCircuitOnce  sync.Once
+	openaiWSPassthroughDialerOnce sync.Once
+	openaiModelTransientOnce      sync.Once
+	agentIdentity                 *gatewayprovider.ExecutionAgentIdentity
+	openaiWSPool                  *openai.WSConnPool
+	openaiWSStateStore            session.OpenAIWSStateStore
+
+	openaiWSPassthroughDialer  openai.WSClientDialer
+	openaiWSSessionPreemptions openAIWSSessionPreemptRegistry
+	schedulerStickyStats       atomic.Pointer[scheduler.StickyStats]
+	backgroundTasks            func(string, func()) bool
+	openaiModelTransient       *accountcore.ModelTransientState
+	openaiProxyStreamCircuit   *egress.ProxyStreamCircuit
 
 	openaiWSFallbackUntil             sync.Map // key: int64(accountID), value: time.Time
 	grokCredentialMutationLocks       sync.Map // key: int64(accountID), value: *sync.Mutex
@@ -344,7 +340,7 @@ func NewOpenAIGatewayService(
 
 	cache session.GatewayCache,
 	cfg *config.Config,
-	schedulerSnapshot *scheduler.SnapshotService,
+
 	concurrencyService *scheduler.ConcurrencyService,
 
 	healthObserver *accountprovider.UpstreamHealth,
@@ -357,14 +353,18 @@ func NewOpenAIGatewayService(
 	channelService *routing.ChannelService,
 
 	settingService *gatewayprovider.RuntimeReaders,
-	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore,
+	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selectionadapter.Compatible,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *OpenAIGatewayService {
 	var tlsFPRouterService *egress.TLSFingerprintRouterService
 	if len(tlsFPRouterServices) > 0 {
 		tlsFPRouterService = tlsFPRouterServices[0]
 	}
+	if modelTransient == nil {
+		modelTransient = accountcore.NewModelTransientState(0)
+	}
 	svc := &OpenAIGatewayService{
+		selection:          choices,
 		openaiWSStateStore: stateStore,
 		prompts:            prompts,
 		accountRepo:        accountRepo,
@@ -373,7 +373,6 @@ func NewOpenAIGatewayService(
 		cache: cache,
 		cfg:   cfg,
 
-		schedulerSnapshot:  schedulerSnapshot,
 		concurrencyService: concurrencyService,
 
 		healthObserver: healthObserver,
@@ -391,11 +390,12 @@ func NewOpenAIGatewayService(
 
 		settingService: settingService,
 
-		liveAttestation:       liveattestation.NewProvider(),
-		liveAttestationCipher: newLiveAttestationCipher(cfg),
-		responseHeaderFilter:  headerFilter,
-		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
-		openaiModelTransient:  accountcore.NewModelTransientState(0),
+		liveAttestation:          liveattestation.NewProvider(),
+		liveAttestationCipher:    newLiveAttestationCipher(cfg),
+		responseHeaderFilter:     headerFilter,
+		codexSnapshotThrottle:    newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
+		openaiModelTransient:     modelTransient,
+		openaiProxyStreamCircuit: proxyCircuit,
 	}
 
 	svc.logOpenAIWSModeBootstrap()
@@ -452,18 +452,6 @@ func (s *OpenAIGatewayService) isCodexImageGenerationBridgeEnabled(ctx context.C
 	return s != nil && s.cfg != nil && s.cfg.Gateway.CodexImageGenerationBridgeEnabled
 }
 
-func (s *OpenAIGatewayService) checkChannelPricingRestriction(ctx context.Context, groupID *int64, requestedModel string) bool {
-	if groupID == nil || s.channelService == nil || requestedModel == "" {
-		return false
-	}
-	mapping := s.channelService.ResolveChannelMapping(ctx, *groupID, requestedModel)
-	billingModel := routing.BillingModelForRestriction(mapping.BillingModelSource, requestedModel, mapping.MappedModel)
-	if billingModel == "" {
-		return false
-	}
-	return s.channelService.IsModelRestricted(ctx, *groupID, billingModel)
-}
-
 // resolveChannelRoutingModel 返回 OpenAI 账号调度层使用的渠道映射后模型。
 func (s *OpenAIGatewayService) resolveChannelRoutingModel(ctx context.Context, groupID *int64, requestedModel string) string {
 	if s == nil {
@@ -489,7 +477,7 @@ func (s *OpenAIGatewayService) ResolveOpenAIWSRoutingModelForAccount(
 	if requestedModel == "" {
 		return "", errors.New("websocket request model is empty")
 	}
-	if s.checkChannelPricingRestriction(ctx, groupID, requestedModel) {
+	if s.selection.CheckChannelPricingRestriction(ctx, groupID, requestedModel) {
 		return "", fmt.Errorf("model %s is restricted by channel pricing", requestedModel)
 	}
 
@@ -497,64 +485,25 @@ func (s *OpenAIGatewayService) ResolveOpenAIWSRoutingModelForAccount(
 	if routingModel == "" {
 		routingModel = requestedModel
 	}
-	if account == nil || !isOpenAICompatibleAccountEligibleForRequest(
-		ctx,
-		account,
-		account.Record.Platform,
-		routingModel,
-		false,
-		requiredCapability,
-	) {
+	if account == nil || !gatewayprovider.
+		CompatibleAccountEligible(
+			ctx,
+			account,
+			account.Record.Platform,
+			routingModel,
+			false,
+			requiredCapability,
+		) {
 		return "", fmt.Errorf("model %s is not supported by the selected websocket account", requestedModel)
 	}
 	if s.isOpenAIAccountRequestRuntimeBlocked(account, routingModel) {
 		return "", fmt.Errorf("model %s is temporarily unavailable on the selected websocket account", requestedModel)
 	}
-	if groupID != nil && s.needsUpstreamChannelRestrictionCheck(ctx, groupID) &&
-		s.isUpstreamRoutingModelRestrictedByChannel(ctx, *groupID, account, routingModel, false) {
+	if groupID != nil && s.selection.NeedsUpstreamChannelRestriction(ctx, groupID) &&
+		s.selection.UpstreamRoutingModelRestricted(ctx, *groupID, account, routingModel, false) {
 		return "", fmt.Errorf("model %s is restricted after account mapping", requestedModel)
 	}
 	return routingModel, nil
-}
-
-func (s *OpenAIGatewayService) isUpstreamModelRestrictedByChannel(ctx context.Context, groupID int64, account *gatewayprovider.ExecutionAccount, requestedModel string, requireCompact bool) bool {
-	if s.channelService == nil {
-		return false
-	}
-	routingModel := s.resolveChannelRoutingModel(ctx, &groupID, requestedModel)
-	return s.isUpstreamRoutingModelRestrictedByChannel(ctx, groupID, account, routingModel, requireCompact)
-}
-
-// isUpstreamRoutingModelRestrictedByChannel 使用已经完成渠道及分组映射的账号层模型检查最终上游模型。
-func (s *OpenAIGatewayService) isUpstreamRoutingModelRestrictedByChannel(ctx context.Context, groupID int64, account *gatewayprovider.ExecutionAccount, routingModel string, requireCompact bool) bool {
-	if s.channelService == nil {
-		return false
-	}
-	upstreamModel := gatewayprovider.ExecutionModelPolicy(account).OpenAIUpstream(
-
-		routingModel,
-		requireCompact,
-		requeststate.OpenAIHTTPPassthroughRoutingFromContext(ctx),
-	)
-	if upstreamModel == "" {
-		return false
-	}
-	return s.channelService.IsModelRestricted(ctx, groupID, upstreamModel)
-}
-
-func (s *OpenAIGatewayService) needsUpstreamChannelRestrictionCheck(ctx context.Context, groupID *int64) bool {
-	if groupID == nil || s.channelService == nil {
-		return false
-	}
-	ch, err := s.channelService.GetChannelForGroup(ctx, *groupID)
-	if err != nil {
-		slog.Warn("failed to check openai channel upstream restriction", "group_id", *groupID, "error", err)
-		return false
-	}
-	if ch == nil || !ch.RestrictModels {
-		return false
-	}
-	return ch.BillingModelSource == routing.BillingModelSourceUpstream
 }
 
 // ReplaceModelInBody 替换请求体中的 JSON model 字段（通用 gjson/sjson 实现）。

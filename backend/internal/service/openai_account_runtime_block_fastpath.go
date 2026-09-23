@@ -444,14 +444,6 @@ func (s *OpenAIGatewayService) recordOpenAICompatibleModelTransientFailure(accou
 	)
 }
 
-func (s *OpenAIGatewayService) clearOpenAIAccountModelTransientState(accountID int64, model string) {
-	state := s.getOpenAIAccountModelTransientState()
-	if state == nil {
-		return
-	}
-	state.RecordSuccess(accountID, model)
-}
-
 func (s *OpenAIGatewayService) isOpenAIAccountModelRuntimeBlocked(account *gatewayprovider.ExecutionAccount, requestedModel string) bool {
 	if s == nil || account == nil {
 		return false

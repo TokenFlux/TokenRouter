@@ -27,7 +27,7 @@ func (p *liveCreatePorts) PrepareAttestation(ctx context.Context) (string, strin
 	return p.service.prepareLiveAttestation(ctx)
 }
 func (p *liveCreatePorts) Select(ctx context.Context, groupID *int64, model string, excluded map[int64]struct{}) (*gatewaylive.Candidate, error) {
-	selection, _, err := p.service.SelectAccountWithSchedulerForCapability(ctx, groupID, "", uuid.NewString(), model, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityLive, false, false)
+	selection, _, err := p.service.selection.SelectAccountWithSchedulerForCapability(ctx, groupID, "", uuid.NewString(), model, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityLive, false, false)
 	if err != nil || selection == nil {
 		return nil, err
 	}

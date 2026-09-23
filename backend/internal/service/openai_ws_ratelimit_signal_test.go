@@ -16,7 +16,6 @@ import (
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	upstreamcore "github.com/TokenFlux/TokenRouter/internal/upstream"
@@ -40,11 +39,6 @@ type openAICodexSnapshotAsyncRepo struct {
 	stubOpenAIAccountRepo
 	updateExtraCh chan map[string]any
 	rateLimitCh   chan time.Time
-}
-
-type openAICodexExtraListRepo struct {
-	stubOpenAIAccountRepo
-	rateLimitCh chan time.Time
 }
 
 type openAIWS403CounterCacheStub struct {
@@ -104,23 +98,6 @@ func (r *openAICodexSnapshotAsyncRepo) UpdateExtra(_ context.Context, _ int64, u
 		r.updateExtraCh <- copied
 	}
 	return nil
-}
-
-func (r *openAICodexExtraListRepo) SetRateLimited(_ context.Context, _ int64, resetAt time.Time) error {
-	if r.rateLimitCh != nil {
-		r.rateLimitCh <- resetAt
-	}
-	return nil
-}
-
-func (r *openAICodexExtraListRepo) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]gatewayprovider.ExecutionAccount, *pagination.PaginationResult, error) {
-	_ = platform
-	_ = accountType
-	_ = status
-	_ = search
-	_ = groupID
-	_ = privacyMode
-	return r.accounts, &pagination.PaginationResult{Total: int64(len(r.accounts)), Page: params.Page, PageSize: params.PageSize}, nil
 }
 
 type openAIWSStatusErrorDialer struct {
@@ -872,33 +849,6 @@ func TestOpenAIGatewayService_UpdateCodexUsageSnapshot_ThrottlesExtraWrites(t *t
 
 func ptrFloat64WS(v float64) *float64 { return &v }
 func ptrIntWS(v int) *int             { return &v }
-
-func TestOpenAIGatewayService_GetSchedulableAccount_ExhaustedCodexExtraDoesNotSetRateLimit(t *testing.T) {
-	resetAt := time.Now().Add(6 * 24 * time.Hour)
-	account := gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 701,
-		Platform:    capability.PlatformOpenAI,
-		Type:        capability.AccountTypeOAuth,
-		Status:      billing.StatusActive,
-		Schedulable: true,
-		Concurrency: 1,
-		Extra: map[string]any{
-			"codex_7d_used_percent": 100.0,
-			"codex_7d_reset_at":     resetAt.UTC().Format(time.RFC3339),
-		}},
-	}
-	repo := &openAICodexExtraListRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}, rateLimitCh: make(chan time.Time, 1)}
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: repo}))
-
-	fresh, err := svc.getSchedulableAccount(context.Background(), account.Record.ID)
-	require.NoError(t, err)
-	require.NotNil(t, fresh)
-	require.Nil(t, fresh.Record.RateLimitResetAt)
-	select {
-	case persisted := <-repo.rateLimitCh:
-		t.Fatalf("不应将已耗尽的 codex extra 提升为运行时限流状态: %v", persisted)
-	case <-time.After(2 * time.Second):
-	}
-}
 
 func TestOpenAIWSErrorHTTPStatusFromRaw_UsageLimitReachedIs429(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, upstreamopenai.WSErrorHTTPStatusFromRaw("", "usage_limit_reached"))

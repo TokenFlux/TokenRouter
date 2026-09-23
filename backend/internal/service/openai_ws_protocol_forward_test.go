@@ -593,7 +593,7 @@ func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 
 		nil,
 		cfg,
-		nil,
+
 		nil,
 
 		nil,
@@ -607,12 +607,12 @@ func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 		nil,
 		// 余额通知服务
 		nil, // 设置服务
-		nil, compileResponseHeaderFilter(cfg), nil,
+		nil, compileResponseHeaderFilter(cfg), nil, nil, nil, nil,
 
 		// 用户平台配额仓库
 	))
 
-	decision := svc.resolveOpenAIWSTransport(nil)
+	decision := svc.selection.ResolveTransport(nil)
 	require.Equal(t, egress.OpenAIUpstreamTransportHTTPSSE, decision.Transport)
 	require.Equal(t, "account_missing", decision.Reason)
 }

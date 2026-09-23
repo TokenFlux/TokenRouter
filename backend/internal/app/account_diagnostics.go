@@ -8,22 +8,19 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	schedulerhttp "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-// provideAccountDiagnostics 保留原诊断装配与唯一调度反馈，执行算法留 S07。
+// provideAccountDiagnostics 直接组合只读诊断与真实选择共享的资格、参数和反馈。
 func provideAccountDiagnostics(admin *account.Admin, groups *routing.GroupAdmin, concurrency *scheduler.ConcurrencyService,
 
-	gateway *service.GatewayService, openai *service.OpenAIGatewayService, shared *schedulerSharedState) *service.AdvancedSchedulerScoreDiagnosticService {
-	core := service.NewAdvancedSchedulerScoreDiagnosticService(accountDiagnosticSource{accounts: admin, groups: groups}, concurrency)
-	core.BindSchedulerRuntime(shared.Feedback, shared.Parameters)
-	core.SetSchedulingServices(gateway, openai)
-	return core
+	gateway *selection.Generic, openai *selection.Compatible, shared *schedulerSharedState) *selection.Diagnostics {
+	return selection.NewDiagnostics(accountDiagnosticSource{accounts: admin, groups: groups}, selection.Shared{Concurrency: concurrency, Parameters: shared.Parameters, Feedback: shared.Feedback}, gateway, openai)
 }
 
 // provideSchedulerDiagnosticsHTTP 直接将只读诊断用例装配到 scheduler HTTP。
-func provideSchedulerDiagnosticsHTTP(core *service.AdvancedSchedulerScoreDiagnosticService) *schedulerhttp.DiagnosticsHandler {
+func provideSchedulerDiagnosticsHTTP(core *selection.Diagnostics) *schedulerhttp.DiagnosticsHandler {
 	return schedulerhttp.NewDiagnosticsHandler(core)
 }
 

@@ -40,7 +40,6 @@ import (
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	testassert "github.com/TokenFlux/TokenRouter/internal/testutil/assertion"
 
 	xai "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
@@ -474,7 +473,7 @@ func TestResponsesCredentialFailoverLoop(t *testing.T) {
 		require.Empty(t, repo.errorIDs())
 		require.Empty(t, upstream.accountHits())
 		require.Equal(t, 1, repo.selectorCalls())
-		require.Zero(t, h.Input.Source.SnapshotOpenAIAccountSchedulerMetrics().RuntimeStatsAccountCount,
+		require.Zero(t, h.Input.Choices.SnapshotOpenAIAccountSchedulerMetrics().RuntimeStatsAccountCount,
 			"provider-scoped auth failure must not penalize the selected account")
 	})
 
@@ -525,7 +524,7 @@ func TestResponsesCredentialFailoverLoop(t *testing.T) {
 		require.Equal(t, []int64{801}, upstream.accountHits())
 		require.Empty(t, repo.errorIDs())
 		require.Equal(t, 1, repo.selectorCalls())
-		require.Zero(t, h.Input.Source.SnapshotOpenAIAccountSchedulerMetrics().RuntimeStatsAccountCount)
+		require.Zero(t, h.Input.Choices.SnapshotOpenAIAccountSchedulerMetrics().RuntimeStatsAccountCount)
 	})
 
 	t.Run("pre-cancelled request never invokes an account selector", func(t *testing.T) {
@@ -963,10 +962,10 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*gatewayHTTPEn
 	billingCache.Start()
 	completionInput2 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput3 := &accountcore.DeferredService{}
-	gateway := service.NewOpenAIGatewayService(
+	gateway, gatewayChoices := newOpenAIExecutionAndSelectionFixture(
 		repo, nil, nil, cfg, nil, nil, nil, upstream,
 		nil, completionInput3, newOpenAIExecutionCredentialsForTest(repo,
-			provider), provider, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil,
+			provider), provider, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
 	gateway.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput2, billingCache, completionInput3, nil, nil, true))
 
@@ -979,7 +978,7 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*gatewayHTTPEn
 	},
 	), newFundingAdmissionFixture(billingCache, cfg), &apikey.APIKeyService{}, nil, nil, nil, nil, cfg, nil, newExecutionAvailabilityForTest(repo,
 
-		nil, cfg),
+		nil, cfg), gatewayChoices,
 	)
 	apiKey := &apikey.APIKey{
 		ID: 902, GroupID: &groupID,

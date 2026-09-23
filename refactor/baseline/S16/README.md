@@ -79,3 +79,9 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 ## 2026-09-24 旧 handler 清零检查点
 
 `progress-20260924-handler-retirement-manifest.json` 接续 media-entry 检查点。143 项原测试/benchmark 声明和标签均有替代位置，未运行 benchmark。定向普通 2,021、unit race 1,569 条通过；完整普通/unit/integration 12,006 / 20,040 / 13,009，既有跳过 4/8/4，三套 lint 为零。门禁 36/36、Wire 稳定、八类文件选择已记录。完整索引为 `progress-20260924-handler-retirement-verification.json`。旧 handler 删除，S16 仍未完成。
+
+## 2026-09-24 选择、评分与粘性能力退出
+
+[本批验证索引](service-selection-owner-verification.json)与[增量清单](progress-20260924-selection-manifest.json)接续 model-read 检查点。新增分卷仅包含本批新增或变化证据，已逐成员读取并验证 SHA-256；按父链顺序恢复后，验证命令、305 个测试的来源/目标/断言对应、原失败日志和修正结果均可核对。
+
+受影响范围普通/unit/integration 分别为 5,923 / 8,799 / 6,054 条通过事件，各保留 2 项既有跳过；三套 lint 均为零。定向 owner、混合执行、app 与真实 Redis race 分别通过 1,302 / 5 / 237 / 64 条事件，middleware Fast 合同补验通过。99 项门禁与 8 套构建选择核对通过，Wire 再生稳定。各集合存在重叠，不相加；本批不替代 S16 最终全仓验收。

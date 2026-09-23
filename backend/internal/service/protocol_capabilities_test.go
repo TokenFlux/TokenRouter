@@ -92,7 +92,8 @@ func TestProtocolAuxiliaryModelURLAndIndependentTransports(t *testing.T) {
 	for _, protocol := range []protocolcore.ProtocolID{protocolcore.ProtocolResponsesWebSocket, protocolcore.ProtocolResponsesCompact} {
 		a := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Credentials: map[string]any{accountcore.UpstreamProtocolsKey: []protocolcore.ProtocolID{protocol}}}}
 		ctx := requeststate.WithClientProtocol(context.Background(), protocol)
-		require.True(t, supportsOpenAIRequestCapability(ctx, a, accountcore.OpenAIEndpointCapabilityResponses))
+		require.True(t, gatewayprovider.
+			SupportsRequestCapability(ctx, a, accountcore.OpenAIEndpointCapabilityResponses))
 		require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(a), accountcore.OpenAIEndpointCapabilityTextGeneration))
 	}
 	group := &routing.Group{Platform: capability.PlatformOpenAI, AllowedProtocols: []protocolcore.ProtocolID{protocolcore.ProtocolImagesEdits}, ResponsesImagePolicy: "block"}

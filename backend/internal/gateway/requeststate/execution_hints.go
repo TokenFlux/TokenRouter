@@ -11,7 +11,13 @@ type Hint[T bool | int | int64] struct {
 // ExecutionHints 是本次请求的执行参数快照；派生 attempt 不修改父请求。
 type ExecutionHints struct {
 	// HealthModel 保存本次尝试已规范化的健康观察型号，不再次映射。
-	HealthModel                 string
+	HealthModel string
+	// 选择快照只携带本次阈值、分组要求和单次降级标记，不写入共享账号缓存。
+	QuotaAutoPauseThreshold5h   float64
+	QuotaAutoPauseThreshold7d   float64
+	GroupPrivacyRequirement     Hint[bool]
+	GroupPrivacyGroupID         int64
+	ProxyQuarantineBypass       bool
 	ClaudeCode                  bool
 	ClaudeCodeVersion           string
 	OpenAIImageGenerationIntent bool

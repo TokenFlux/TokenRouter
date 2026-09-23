@@ -7,6 +7,7 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
@@ -70,14 +71,8 @@ func newGatewayExecutionHandlerForTest(repo gatewayprovider.ExecutionAccountStor
 }
 
 func newGatewayExecutionHandlerWithChannelForTest(repo gatewayprovider.ExecutionAccountStore, channelService *routing.ChannelService) *messageEndpointsFixture {
-	return newMessageEndpointsFixture(service.NewGatewayService(
-		repo,
-		nil, nil, nil, nil, nil, nil, nil,
-		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, channelService, nil, responseHeaderFilterForTest(nil),
-	), nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(repo,
-
-		channelService, nil),
-	)
+	source, choices := newGenericExecutionAndSelectionFixture(repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, channelService, nil, responseHeaderFilterForTest(nil))
+	return newMessageEndpointsFixture(source, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(repo, channelService, nil), choices)
 }
 
 func newGatewayExecutionChannelServiceForTest(groupID int64, platform string, channel routing.Channel) *routing.ChannelService {
@@ -102,7 +97,7 @@ type messageEndpointsFixture struct {
 }
 
 // newMessageEndpointsFixture 将被验证的真实单次能力接入原生运行时；观测使用无状态替身。
-func newMessageEndpointsFixture(source *service.GatewayService, funding *admission.FundingAdmission, concurrency *gatewayhttp.ConcurrencyHelper, options gatewayhttp.MessagesHTTPOptions, availability *gatewayModelAvailability) *messageEndpointsFixture {
+func newMessageEndpointsFixture(source *service.GatewayService, funding *admission.FundingAdmission, concurrency *gatewayhttp.ConcurrencyHelper, options gatewayhttp.MessagesHTTPOptions, availability *gatewayModelAvailability, choices *selection.Generic) *messageEndpointsFixture {
 	plan := func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 		var group *routing.Group
 		var id *int64
@@ -121,15 +116,15 @@ func newMessageEndpointsFixture(source *service.GatewayService, funding *admissi
 	if source != nil {
 		b.Recorder = source.CompletionRecorder()
 		b.Selection = textattempt.SelectionPorts{
-			SelectAccount:      source.SelectAccountWithLoadAwareness,
-			TrackSession:       source.TrackSessionAttempt,
-			NewSessionAttempts: source.NewSessionAttempts,
-			SingleAccountGroup: source.IsSingleAntigravityAccountGroup,
-			ReportSchedule:     source.ReportAdvancedAccountScheduleResult,
-			IncrementRPM:       source.IncrementAccountRPM,
-			BindSticky:         source.BindStickySession,
-			ResolveGroup:       source.ResolveGroupByID,
-			AccountSwitched:    source.RecordAdvancedAccountSwitch,
+			SelectAccount:      choices.SelectAccountWithLoadAwareness,
+			TrackSession:       choices.TrackSessionAttempt,
+			NewSessionAttempts: choices.NewSessionAttempts,
+			SingleAccountGroup: choices.IsSingleAntigravityAccountGroup,
+			ReportSchedule:     choices.ReportAdvancedAccountScheduleResult,
+			IncrementRPM:       choices.IncrementAccountRPM,
+			BindSticky:         choices.BindStickySession,
+			ResolveGroup:       choices.ResolveGroupByID,
+			AccountSwitched:    choices.RecordAdvancedAccountSwitch,
 			TempUnschedule:     source.TempUnscheduleRetryableError,
 		}
 		b.Forward = textattempt.ForwardPorts{
@@ -153,7 +148,7 @@ func newMessageEndpointsFixture(source *service.GatewayService, funding *admissi
 	}
 	if source != nil {
 		bindings.IsolateSession = source.EnsureSessionIsolation
-		bindings.CachedSession = source.GetCachedSessionAccountID
+		bindings.CachedSession = choices.GetCachedSessionAccountID
 	}
 	runtime := textattempt.New(b)
 	var prompts *promptpolicy.Service

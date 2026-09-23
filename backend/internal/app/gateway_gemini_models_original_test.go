@@ -37,7 +37,7 @@ func TestGeminiV1BetaListModels_CustomGroupListUsesNativeResponse(t *testing.T) 
 		},
 	})
 
-	provideModelsHTTP(nil, nil, nil).GeminiV1BetaListModels(c)
+	provideModelsHTTP(nil, nil, nil, nil).GeminiV1BetaListModels(c)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	var got gemini.ModelsListResponse
@@ -70,7 +70,7 @@ func TestGeminiV1BetaListModels_CustomGroupListPreservesAPIKeyAliases(t *testing
 		},
 	})
 
-	provideModelsHTTP(nil, nil, nil).GeminiV1BetaListModels(c)
+	provideModelsHTTP(nil, nil, nil, nil).GeminiV1BetaListModels(c)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	var got gemini.ModelsListResponse
@@ -100,7 +100,7 @@ func TestGeminiV1BetaListModels_ForcedAntigravityIgnoresCustomGroupList(t *testi
 	})
 	c.Set(string(keyhttp.ContextKeyForcePlatform), capability.PlatformAntigravity)
 
-	provideModelsHTTP(nil, nil, nil).GeminiV1BetaListModels(c)
+	provideModelsHTTP(nil, nil, nil, nil).GeminiV1BetaListModels(c)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	var got protocolgemini.GeminiModelsListResponse

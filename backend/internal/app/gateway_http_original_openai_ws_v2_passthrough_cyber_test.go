@@ -29,7 +29,6 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/testutil"
 
 	coderws "github.com/coder/websocket"
@@ -101,8 +100,8 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	billingCacheSvc.Start()
 	completionInput16 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput17 := &accountcore.DeferredService{}
-	gatewaySvc := service.NewOpenAIGatewayService(
-		accountRepo, usageRepo, gatewayCache, cfg, nil, nil, nil, nil, nil, completionInput17, newOpenAIExecutionCredentialsForTest(accountRepo, nil), nil, nil, nil, settingSvc, nil, responseHeaderFilterForTest(cfg), nil,
+	gatewaySvc, gatewaySvcChoices := newOpenAIExecutionAndSelectionFixture(
+		accountRepo, usageRepo, gatewayCache, cfg, nil, nil, nil, nil, nil, completionInput17, newOpenAIExecutionCredentialsForTest(accountRepo, nil), nil, nil, nil, settingSvc, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
 	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, usageRepo, completionInput16, billingCacheSvc, completionInput17, nil, nil, true))
 
@@ -115,7 +114,7 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 		Funding:     newFundingAdmissionFixture(billingCacheSvc, cfg),
 		Keys:        &apikey.APIKeyService{},
 		Moderator:   moderationSvc,
-		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event}), gatewayhttp.SSEPingFormatNone, time.Second), Availability: newExecutionAvailabilityForTest(accountRepo, nil, cfg),
+		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf, Event: logging.Event}), gatewayhttp.SSEPingFormatNone, time.Second), Availability: newExecutionAvailabilityForTest(accountRepo, nil, cfg), Choices: gatewaySvcChoices,
 	})
 
 	apiKey := &apikey.APIKey{

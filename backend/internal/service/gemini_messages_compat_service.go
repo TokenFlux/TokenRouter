@@ -2,15 +2,11 @@ package service
 
 import (
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 
@@ -36,8 +32,6 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/media"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
@@ -49,8 +43,6 @@ import (
 	geminicli "github.com/TokenFlux/TokenRouter/internal/upstream/gemini/codeassist"
 	"github.com/gin-gonic/gin"
 )
-
-const geminiStickySessionTTL = time.Hour
 
 const (
 	geminiMaxRetries     = 5
@@ -69,18 +61,14 @@ type GeminiMessagesCompatService struct {
 	quotaPrecheck         *accountcore.GeminiPrecheck
 	nativeAttemptActivity func() (func(), error)
 	accountRepo           gatewayprovider.ExecutionAccountStore
-	groupRepo             routing.GroupRepository
-	cache                 session.GatewayCache
-	schedulerSnapshot     *scheduler.SnapshotService
-	tokenProvider         *accountcore.GeminiTokenSource
-	healthObserver        *accountprovider.UpstreamHealth
+
+	tokenProvider  *accountcore.GeminiTokenSource
+	healthObserver *accountprovider.UpstreamHealth
 
 	httpUpstream              httpclient.UpstreamTransport
 	antigravityGatewayService *AntigravityGatewayService
 	cfg                       *config.Config
 	responseHeaderFilter      *egress.CompiledHeaderFilter
-	schedulerParameters       *scheduler.Parameters
-	advancedAccountStats      *scheduler.RuntimeStats
 }
 
 func (s *GeminiMessagesCompatService) readUpstreamErrorBody(resp *http.Response) []byte {
@@ -97,9 +85,7 @@ func (s *GeminiMessagesCompatService) readUpstreamErrorBody(resp *http.Response)
 
 func NewGeminiMessagesCompatService(
 	accountRepo gatewayprovider.ExecutionAccountStore,
-	groupRepo routing.GroupRepository,
-	cache session.GatewayCache,
-	schedulerSnapshot *scheduler.SnapshotService,
+
 	tokenProvider *accountcore.GeminiTokenSource,
 	healthObserver *accountprovider.UpstreamHealth,
 	httpUpstream httpclient.UpstreamTransport,
@@ -107,10 +93,8 @@ func NewGeminiMessagesCompatService(
 	cfg *config.Config, headerFilter *egress.CompiledHeaderFilter,
 ) *GeminiMessagesCompatService {
 	return &GeminiMessagesCompatService{
-		accountRepo:               accountRepo,
-		groupRepo:                 groupRepo,
-		cache:                     cache,
-		schedulerSnapshot:         schedulerSnapshot,
+		accountRepo: accountRepo,
+
 		tokenProvider:             tokenProvider,
 		healthObserver:            healthObserver,
 		httpUpstream:              httpUpstream,
@@ -125,498 +109,8 @@ func (s *GeminiMessagesCompatService) GetTokenProvider() *accountcore.GeminiToke
 	return s.tokenProvider
 }
 
-func (s *GeminiMessagesCompatService) SelectAccountForModel(ctx context.Context, groupID *int64, sessionHash string, requestedModel string) (*gatewayprovider.ExecutionAccount, error) {
-	return s.SelectAccountForModelWithExclusions(ctx, groupID, sessionHash, requestedModel, nil)
-}
-
-func (s *GeminiMessagesCompatService) SelectAccountForModelWithExclusions(ctx context.Context, groupID *int64, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}) (*gatewayprovider.ExecutionAccount, error) {
-	// 1. 确定目标平台和调度模式
-	platform, useMixedScheduling, hasForcePlatform, group, err := s.resolvePlatformAndSchedulingMode(ctx, groupID)
-	if err != nil {
-		return nil, err
-	}
-	if group != nil {
-		// 后续高级评分必须读取本次解析出的最终分组覆盖，而非再次走可能不同的缓存来源。
-		ctx = requeststate.WithGroup(ctx, group)
-	}
-
-	cacheKey := "gemini:" + sessionHash
-	usesAdvancedScheduler := group != nil && group.UsesAdvancedScheduler()
-	advancedSettings := s.advancedSchedulerEffectiveSettingsForRequest(ctx, groupID)
-
-	// 2. 尝试粘性会话命中
-	// 高级粘性加权会在全部硬过滤后的候选评分中处理缓存绑定，因此不允许旧硬粘性提前返回。
-	if !usesAdvancedScheduler || !advancedSettings.StickyWeightedEnabled {
-		if account := s.tryStickySessionHit(ctx, groupID, sessionHash, cacheKey, requestedModel, excludedIDs, platform, useMixedScheduling); account != nil {
-			return account, nil
-		}
-	}
-
-	// 3. 查询可调度账户（强制平台模式：优先按分组查找，找不到再查全部）
-	accounts, err := s.listSchedulableAccountsOnce(ctx, groupID, platform, hasForcePlatform)
-	if err != nil {
-		return nil, fmt.Errorf("query accounts failed: %w", err)
-	}
-	// 强制平台模式下，分组中找不到账户时回退查询全部
-	if len(accounts) == 0 && groupID != nil && hasForcePlatform {
-		accounts, err = s.listSchedulableAccountsOnce(ctx, nil, platform, hasForcePlatform)
-		if err != nil {
-			return nil, fmt.Errorf("query accounts failed: %w", err)
-		}
-	}
-
-	// 4. 先执行既有硬过滤，再由分组选择基础或高级排序。
-	eligible := s.eligibleGeminiAccounts(ctx, accounts, requestedModel, excludedIDs, platform, useMixedScheduling)
-	var selected *gatewayprovider.ExecutionAccount
-	if usesAdvancedScheduler {
-		selected = s.selectAdvancedGeminiAccount(ctx, groupID, sessionHash, cacheKey, eligible, advancedSettings)
-	} else {
-		selected = s.selectBestGeminiAccountFromEligible(eligible)
-	}
-
-	if selected == nil {
-		if err := s.groupModelUnsupportedErrorIfApplicable(ctx, accounts, requestedModel, platform, excludedIDs, useMixedScheduling); err != nil {
-			return nil, err
-		}
-		if requestedModel != "" {
-			return nil, fmt.Errorf("no available Gemini accounts supporting model: %s", requestedModel)
-		}
-		return nil, errors.New("no available Gemini accounts")
-	}
-
-	// 5. 设置粘性会话绑定
-	if sessionHash != "" {
-		_ = s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), cacheKey, selected.Record.ID, geminiStickySessionTTL)
-	}
-
-	return s.hydrateSelectedAccount(ctx, selected)
-}
-
-// resolvePlatformAndSchedulingMode 解析目标平台和调度模式。
-// 返回：平台名称、是否使用混合调度、是否强制平台、已解析分组、错误。
-func (s *GeminiMessagesCompatService) resolvePlatformAndSchedulingMode(ctx context.Context, groupID *int64) (platform string, useMixedScheduling bool, hasForcePlatform bool, group *routing.Group, err error) {
-	// 优先检查 context 中的强制平台（/antigravity 路由）
-	forcePlatform, hasForcePlatform := apikey.ForcePlatformFromContext(ctx)
-	if hasForcePlatform && forcePlatform != "" {
-		if groupID == nil {
-			return forcePlatform, false, true, nil, nil
-		}
-		if ctxGroup, ok := requeststate.GroupFromContext(ctx); ok && routing.IsGroupContextValid(ctxGroup) && ctxGroup.ID == *groupID {
-			return forcePlatform, false, true, ctxGroup, nil
-		}
-		group, err = s.groupRepo.GetByIDLite(ctx, *groupID)
-		if err != nil {
-			return "", false, false, nil, fmt.Errorf("get group failed: %w", err)
-		}
-		return forcePlatform, false, true, group, nil
-	}
-
-	if groupID != nil {
-		// 根据分组 platform 决定查询哪种账号
-		if ctxGroup, ok := requeststate.GroupFromContext(ctx); ok && routing.IsGroupContextValid(ctxGroup) && ctxGroup.ID == *groupID {
-			group = ctxGroup
-		} else {
-			group, err = s.groupRepo.GetByIDLite(ctx, *groupID)
-			if err != nil {
-				return "", false, false, nil, fmt.Errorf("get group failed: %w", err)
-			}
-		}
-		// gemini 分组支持混合调度（包含启用了 mixed_scheduling 的 antigravity 账户）
-		return group.Platform, group.Platform == capability.PlatformGemini, false, group, nil
-	}
-
-	// 无分组时只使用原生 gemini 平台
-	return capability.PlatformGemini, true, false, nil, nil
-}
-
-// tryStickySessionHit 尝试从粘性会话获取账号。
-// 如果命中且账号可用则返回账号；如果账号不可用则清理会话并返回 nil。
-//
-// tryStickySessionHit attempts to get account from sticky session.
-// Returns account if hit and usable; clears session and returns nil if account unavailable.
-func (s *GeminiMessagesCompatService) tryStickySessionHit(
-	ctx context.Context,
-	groupID *int64,
-	sessionHash, cacheKey, requestedModel string,
-	excludedIDs map[int64]struct{},
-	platform string,
-	useMixedScheduling bool,
-) *gatewayprovider.ExecutionAccount {
-	if sessionHash == "" {
-		return nil
-	}
-
-	accountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
-	if err != nil || accountID <= 0 {
-		return nil
-	}
-
-	if _, excluded := excludedIDs[accountID]; excluded {
-		return nil
-	}
-
-	account, err := s.getSchedulableAccount(ctx, accountID)
-	if err != nil {
-		return nil
-	}
-
-	// 检查账号是否需要清理粘性会话
-	// Check if sticky session should be cleared
-	if shouldClearStickySession(account, requestedModel) {
-		_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
-		return nil
-	}
-
-	// 验证账号是否可用于当前请求
-	// Verify account is usable for current request
-	if !s.isAccountUsableForRequest(ctx, account, requestedModel, platform, useMixedScheduling) {
-		return nil
-	}
-
-	// 刷新会话 TTL 并返回账号
-	// Refresh session TTL and return account
-	_ = s.cache.RefreshSessionTTL(ctx, derefGroupID(groupID), cacheKey, geminiStickySessionTTL)
-	return account
-}
-
-// isAccountUsableForRequest 检查账号是否可用于当前请求。
-// 验证：模型调度、模型支持、平台匹配、速率限制预检。
-//
-// isAccountUsableForRequest checks if account is usable for current request.
-// Validates: model scheduling, model support, platform matching, rate limit precheck.
-func (s *GeminiMessagesCompatService) isAccountUsableForRequest(
-	ctx context.Context,
-	account *gatewayprovider.ExecutionAccount,
-	requestedModel, platform string,
-	useMixedScheduling bool,
-) bool {
-	return s.isAccountUsableForRequestWithPrecheck(ctx, account, requestedModel, platform, useMixedScheduling, nil)
-}
-
-func (s *GeminiMessagesCompatService) isAccountUsableForRequestWithPrecheck(
-	ctx context.Context,
-	account *gatewayprovider.ExecutionAccount,
-	requestedModel, platform string,
-	useMixedScheduling bool,
-	precheckResult map[int64]bool,
-) bool {
-	// 检查模型调度能力
-	// Check model scheduling capability
-	if !gatewayprovider.ExecutionModelPolicy(account).Schedulable(ctx, requestedModel) {
-		return false
-	}
-
-	// 检查模型支持
-	// Check model support
-	if requestedModel != "" && !s.isModelSupportedByAccount(account, requestedModel) {
-		return false
-	}
-
-	// 检查平台匹配
-	// Check platform matching
-	if !s.isAccountValidForPlatform(account, platform, useMixedScheduling) {
-		return false
-	}
-
-	// 速率限制预检
-	// Rate limit precheck
-	if !s.passesRateLimitPreCheckWithCache(ctx, account, requestedModel, precheckResult) {
-		return false
-	}
-
-	return true
-}
-
-// isAccountValidForPlatform 检查账号是否匹配目标平台。
-// 原生平台直接匹配；混合调度模式下 antigravity 需要启用 mixed_scheduling。
-//
-// isAccountValidForPlatform checks if account matches target platform.
-// Native platform matches directly; mixed scheduling mode requires antigravity to enable mixed_scheduling.
-func (s *GeminiMessagesCompatService) isAccountValidForPlatform(account *gatewayprovider.ExecutionAccount, platform string, useMixedScheduling bool) bool {
-	if account.Record.Platform == platform {
-		return true
-	}
-	if useMixedScheduling && account.Record.Platform == capability.PlatformAntigravity && account.View().IsMixedSchedulingEnabled() {
-		return true
-	}
-	return false
-}
-
-func (s *GeminiMessagesCompatService) passesRateLimitPreCheckWithCache(ctx context.Context, account *gatewayprovider.ExecutionAccount, requestedModel string, precheckResult map[int64]bool) bool {
-	if s.quotaPrecheck == nil || requestedModel == "" {
-		return true
-	}
-
-	if precheckResult != nil {
-		if ok, exists := precheckResult[account.Record.ID]; exists {
-			return ok
-		}
-	}
-
-	ok, err := s.quotaPrecheck.PreCheckUsage(ctx, gatewayprovider.ExecutionRecord(account), requestedModel)
-	if err != nil {
-		logging.LegacyPrintf("service.gemini_messages_compat", "[Gemini PreCheck] Account %d precheck error: %v", account.Record.ID, err)
-	}
-	return ok
-}
-
-// eligibleGeminiAccounts 在高级和基础调度器前复用 Gemini 现有的全部硬过滤规则。
-func (s *GeminiMessagesCompatService) eligibleGeminiAccounts(
-	ctx context.Context,
-	accounts []gatewayprovider.ExecutionAccount,
-	requestedModel string,
-	excludedIDs map[int64]struct{},
-	platform string,
-	useMixedScheduling bool,
-) []*gatewayprovider.ExecutionAccount {
-	precheckResult := s.buildPreCheckUsageResultMap(ctx, accounts, requestedModel)
-	eligible := make([]*gatewayprovider.ExecutionAccount, 0, len(accounts))
-
-	for i := range accounts {
-		acc := &accounts[i]
-
-		// 跳过被排除的账号
-		if _, excluded := excludedIDs[acc.Record.ID]; excluded {
-			continue
-		}
-
-		// 检查账号是否可用于当前请求
-		if !s.isAccountUsableForRequestWithPrecheck(ctx, acc, requestedModel, platform, useMixedScheduling, precheckResult) {
-			continue
-		}
-		eligible = append(eligible, acc)
-	}
-
-	return eligible
-}
-
-func (s *GeminiMessagesCompatService) selectBestGeminiAccountFromEligible(eligible []*gatewayprovider.ExecutionAccount) *gatewayprovider.ExecutionAccount {
-	var selected *gatewayprovider.ExecutionAccount
-	for _, account := range eligible {
-		if account == nil {
-			continue
-		}
-		if selected == nil || s.isBetterGeminiAccount(account, selected) {
-			selected = account
-		}
-	}
-	return selected
-}
-
-// groupUsesAdvancedScheduler 只让最终分组显式选择高级模式；无分组路径保持基础调度。
-func (s *GeminiMessagesCompatService) groupUsesAdvancedScheduler(ctx context.Context, groupID *int64, hasForcePlatform bool) bool {
-	if s == nil || groupID == nil || *groupID <= 0 {
-		return false
-	}
-	if group, ok := requeststate.GroupFromContext(ctx); ok && routing.IsGroupContextValid(group) && group.ID == *groupID {
-		return group.UsesAdvancedScheduler()
-	}
-	if s.schedulerSnapshot != nil {
-		if group, err := s.readSchedulingGroup(ctx, *groupID); err == nil && group != nil {
-			return group.UsesAdvancedScheduler()
-		}
-	}
-	if s.groupRepo == nil {
-		return false
-	}
-	group, err := s.groupRepo.GetByIDLite(ctx, *groupID)
-	return err == nil && group != nil && group.UsesAdvancedScheduler()
-}
-
-func (s *GeminiMessagesCompatService) advancedSchedulerStats() *scheduler.RuntimeStats {
-	if s == nil {
-		return nil
-	}
-	if s.advancedAccountStats == nil {
-		s.advancedAccountStats = scheduler.NewRuntimeStats(time.Now)
-	}
-	return s.advancedAccountStats
-}
-
-// advancedSchedulerEffectiveSettingsForRequest 返回最终分组的高级调度有效配置。
-func (s *GeminiMessagesCompatService) advancedSchedulerEffectiveSettingsForRequest(ctx context.Context, id *int64) policy.EffectiveSettings {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	group := schedulerRequestGroup(ctx, id, s.schedulerSnapshot != nil, s.readSchedulingGroup)
-	return s.schedulerParameters.Effective(ctx, schedulerGroupOverrides(group))
-}
-
-// selectAdvancedGeminiAccount 在 Gemini 已完成硬过滤后复用通用高级评分与 Top-K 选择。
-func (s *GeminiMessagesCompatService) selectAdvancedGeminiAccount(
-	ctx context.Context,
-	groupID *int64,
-	sessionHash string,
-	cacheKey string,
-	eligible []*gatewayprovider.ExecutionAccount,
-	settings policy.EffectiveSettings,
-) *gatewayprovider.ExecutionAccount {
-	if len(eligible) == 0 {
-		return nil
-	}
-	var stickyAccountID int64
-	if sessionHash != "" && s.cache != nil {
-		stickyAccountID, _ = s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
-	}
-	input := scheduler.ScoreInput{
-		GroupID:         groupID,
-		SessionHash:     cacheKey,
-		StickyAccountID: stickyAccountID,
-		StickyWeighted:  settings.StickyWeightedEnabled,
-		TopK:            settings.TopK,
-	}
-	values := make([]*scheduler.ScoreAccount, len(eligible))
-	source := make(map[*scheduler.ScoreAccount]*gatewayprovider.ExecutionAccount, len(eligible))
-	for i, value := range eligible {
-		if value == nil {
-			continue
-		}
-		values[i] = &scheduler.ScoreAccount{ID: value.Record.ID, Platform: value.Record.Platform, Priority: value.Record.Priority, SessionWindowEnd: value.Record.SessionWindowEnd}
-		source[values[i]] = value
-	}
-	candidates, _ := scheduler.ScoreCandidates(values, nil, s.advancedSchedulerStats(), settings.Weights, input, time.Now())
-	selectionOrder := scheduler.BuildSelectionOrder(candidates, input)
-	if len(selectionOrder) == 0 {
-		return nil
-	}
-	return source[selectionOrder[0].Account]
-}
-
-// groupModelUnsupportedErrorIfApplicable 在确认是分组模型限制时返回 typed error。
-func (s *GeminiMessagesCompatService) groupModelUnsupportedErrorIfApplicable(ctx context.Context, accounts []gatewayprovider.ExecutionAccount, requestedModel string, platform string, excludedIDs map[int64]struct{}, useMixedScheduling bool) error {
-	requestedModel = strings.TrimSpace(requestedModel)
-	if requestedModel == "" || len(accounts) == 0 {
-		return nil
-	}
-	precheckResult := s.buildPreCheckUsageResultMap(ctx, accounts, requestedModel)
-	hasRelevantAccount := false
-	for i := range accounts {
-		acc := &accounts[i]
-		if excludedIDs != nil {
-			if _, excluded := excludedIDs[acc.Record.ID]; excluded {
-				continue
-			}
-		}
-		if !acc.View().IsSchedulable() || !s.isAccountValidForPlatform(acc, platform, useMixedScheduling) || !s.passesRateLimitPreCheckWithCache(ctx, acc, requestedModel, precheckResult) {
-			continue
-		}
-		hasRelevantAccount = true
-		if s.isModelSupportedByAccount(acc, requestedModel) {
-			return nil
-		}
-	}
-	if !hasRelevantAccount {
-		return nil
-	}
-	return routing.NewGroupModelRejection(platform, requestedModel, modelRejectionSources(accounts))
-}
-
-func (s *GeminiMessagesCompatService) buildPreCheckUsageResultMap(ctx context.Context, accounts []gatewayprovider.ExecutionAccount, requestedModel string) map[int64]bool {
-	if s.quotaPrecheck == nil || requestedModel == "" || len(accounts) == 0 {
-		return nil
-	}
-
-	candidates := make([]*gatewayprovider.ExecutionAccount, 0, len(accounts))
-	for i := range accounts {
-		candidates = append(candidates, &accounts[i])
-	}
-
-	result, err := s.quotaPrecheck.PreCheckUsageBatch(ctx, gatewayprovider.ExecutionRecordPointers(candidates), requestedModel)
-	if err != nil {
-		logging.LegacyPrintf("service.gemini_messages_compat", "[Gemini PreCheckBatch] failed: %v", err)
-	}
-	return result
-}
-
-// isBetterGeminiAccount 判断 candidate 是否比 current 更优。
-// 规则：优先级更高（数值更小）优先；同优先级时，未使用过的优先（OAuth > 非 OAuth），其次是最久未使用的。
-//
-// isBetterGeminiAccount checks if candidate is better than current.
-// Rules: higher priority (lower value) wins; same priority: never used (OAuth > non-OAuth) > least recently used.
-func (s *GeminiMessagesCompatService) isBetterGeminiAccount(candidate, current *gatewayprovider.ExecutionAccount) bool {
-	// 优先级更高（数值更小）
-	if candidate.Record.Priority < current.Record.Priority {
-		return true
-	}
-	if candidate.Record.Priority > current.Record.Priority {
-		return false
-	}
-
-	// 同优先级，比较最后使用时间
-	switch {
-	case candidate.Record.LastUsedAt == nil && current.Record.LastUsedAt != nil:
-		// candidate 从未使用，优先
-		return true
-	case candidate.Record.LastUsedAt != nil && current.Record.LastUsedAt == nil:
-		// current 从未使用，保持
-		return false
-	case candidate.Record.LastUsedAt == nil && current.Record.LastUsedAt == nil:
-		// 都未使用，优先选择 OAuth 账号（更兼容 Code Assist 流程）
-		return candidate.Record.Type == capability.AccountTypeOAuth && current.Record.Type != capability.AccountTypeOAuth
-	default:
-		// 都使用过，选择最久未使用的
-		return candidate.Record.LastUsedAt.Before(*current.Record.LastUsedAt)
-	}
-}
-
-// isModelSupportedByAccount 根据账户平台检查模型支持
-func (s *GeminiMessagesCompatService) isModelSupportedByAccount(account *gatewayprovider.ExecutionAccount, requestedModel string) bool {
-	if account.Record.Platform == capability.PlatformAntigravity {
-		if strings.TrimSpace(requestedModel) == "" {
-			return true
-		}
-		return mapAntigravityModel(account, requestedModel) != ""
-	}
-	return gatewayprovider.ExecutionProtocolRecord(account).IsModelSupported(requestedModel, accountprovider.
-
-		// GetAntigravityGatewayService 返回 AntigravityGatewayService
-		ModelDefaults(), accountprovider.ModelRules(gatewayprovider.ExecutionProtocolRecord(account)))
-}
-
 func (s *GeminiMessagesCompatService) GetAntigravityGatewayService() *AntigravityGatewayService {
 	return s.antigravityGatewayService
-}
-
-func (s *GeminiMessagesCompatService) getSchedulableAccount(ctx context.Context, accountID int64) (*gatewayprovider.ExecutionAccount, error) {
-	if s.schedulerSnapshot != nil {
-		return readSnapshotAccount(ctx, s.schedulerSnapshot, accountID)
-	}
-	return s.accountRepo.GetByID(ctx, accountID)
-}
-
-func (s *GeminiMessagesCompatService) hydrateSelectedAccount(ctx context.Context, account *gatewayprovider.ExecutionAccount) (*gatewayprovider.ExecutionAccount, error) {
-	if account == nil || s.schedulerSnapshot == nil {
-		return account, nil
-	}
-	hydrated, err := readSnapshotAccount(ctx, s.schedulerSnapshot, account.Record.ID)
-	if err != nil {
-		return nil, err
-	}
-	if hydrated == nil {
-		return nil, fmt.Errorf("selected gemini account %d not found during hydration", account.Record.ID)
-	}
-	return hydrated, nil
-}
-
-func (s *GeminiMessagesCompatService) listSchedulableAccountsOnce(ctx context.Context, groupID *int64, platform string, hasForcePlatform bool) ([]gatewayprovider.ExecutionAccount, error) {
-	if s.schedulerSnapshot != nil {
-		accounts, _, err := readSnapshotAccounts(ctx, s.schedulerSnapshot, groupID, platform, hasForcePlatform)
-		return accounts, err
-	}
-
-	useMixedScheduling := platform == capability.PlatformGemini && !hasForcePlatform
-	queryPlatforms := []string{platform}
-	if useMixedScheduling {
-		queryPlatforms = []string{platform, capability.PlatformAntigravity}
-	}
-
-	if groupID != nil {
-		return s.accountRepo.ListSchedulableByGroupIDAndPlatforms(ctx, *groupID, queryPlatforms)
-	}
-	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
-		return s.accountRepo.ListSchedulableByPlatforms(ctx, queryPlatforms)
-	}
-	return s.accountRepo.ListSchedulableUngroupedByPlatforms(ctx, queryPlatforms)
 }
 
 func (s *GeminiMessagesCompatService) validateUpstreamBaseURL(raw string) (string, error) {
@@ -636,151 +130,6 @@ func (s *GeminiMessagesCompatService) validateUpstreamBaseURL(raw string) (strin
 		return "", fmt.Errorf("invalid base_url: %w", err)
 	}
 	return normalized, nil
-}
-
-// HasAntigravityAccounts 检查是否有可用的 antigravity 账户
-func (s *GeminiMessagesCompatService) HasAntigravityAccounts(ctx context.Context, groupID *int64) (bool, error) {
-	accounts, err := s.listSchedulableAccountsOnce(ctx, groupID, capability.PlatformAntigravity, false)
-	if err != nil {
-		return false, err
-	}
-	return len(accounts) > 0, nil
-}
-
-// SelectAccountForAIStudioEndpoints selects an account that is likely to succeed against
-// generativelanguage.googleapis.com (e.g. GET /v1beta/models).
-//
-// Preference order:
-// 1) API key accounts (AI Studio)
-// 2) OAuth accounts without project_id (AI Studio OAuth)
-// 3) OAuth accounts explicitly marked as ai_studio
-// 4) Any remaining Gemini accounts (fallback)
-func (s *GeminiMessagesCompatService) SelectAccountForAIStudioEndpoints(ctx context.Context, groupID *int64) (*gatewayprovider.ExecutionAccount, error) {
-	if group, ok := s.resolveAdvancedSchedulerGroup(ctx, groupID); ok {
-		ctx = requeststate.WithGroup(ctx, group)
-	}
-	accounts, err := s.listSchedulableAccountsOnce(ctx, groupID, capability.PlatformGemini, true)
-	if err != nil {
-		return nil, fmt.Errorf("query accounts failed: %w", err)
-	}
-	if len(accounts) == 0 {
-		return nil, errors.New("no available Gemini accounts")
-	}
-
-	rank := func(a *gatewayprovider.ExecutionAccount) int {
-		if a == nil {
-			return 999
-		}
-		switch a.Record.Type {
-		case capability.AccountTypeAPIKey:
-			if strings.TrimSpace(a.View().GetCredential("api_key")) != "" {
-				return 0
-			}
-			return 9
-		case capability.AccountTypeOAuth:
-			if strings.TrimSpace(a.View().GetCredential("project_id")) == "" {
-				return 1
-			}
-			if strings.TrimSpace(a.View().GetCredential("oauth_type")) == "ai_studio" {
-				return 2
-			}
-			// Code Assist OAuth tokens often lack AI Studio scopes for models listing.
-			return 3
-		case capability.AccountTypeServiceAccount:
-			// Vertex service accounts use aiplatform.googleapis.com, not the AI Studio
-			// endpoint (generativelanguage.googleapis.com), so they cannot serve these requests.
-			return 999
-		default:
-			return 10
-		}
-	}
-
-	var selected *gatewayprovider.ExecutionAccount
-	for i := range accounts {
-		acc := &accounts[i]
-		if selected == nil {
-			selected = acc
-			continue
-		}
-
-		r1, r2 := rank(acc), rank(selected)
-		if r1 < r2 {
-			selected = acc
-			continue
-		}
-		if r1 > r2 {
-			continue
-		}
-
-		if acc.Record.Priority < selected.Record.Priority {
-			selected = acc
-		} else if acc.Record.Priority == selected.Record.Priority {
-			switch {
-			case acc.Record.LastUsedAt == nil && selected.Record.LastUsedAt != nil:
-				selected = acc
-			case acc.Record.LastUsedAt != nil && selected.Record.LastUsedAt == nil:
-				// keep selected
-			case acc.Record.LastUsedAt == nil && selected.Record.LastUsedAt == nil:
-				if acc.Record.Type == capability.AccountTypeOAuth && selected.Record.Type != capability.AccountTypeOAuth {
-					selected = acc
-				}
-			default:
-				if acc.Record.LastUsedAt.Before(*selected.Record.LastUsedAt) {
-					selected = acc
-				}
-			}
-		}
-	}
-
-	if selected == nil {
-		return nil, errors.New("no available Gemini accounts")
-	}
-
-	// AI Studio 端点的账号类型分级是能力约束，不能被高级调度分数跨级覆盖；
-	// 仅在同一能力等级中使用通用高级评分。
-	if s.groupUsesAdvancedScheduler(ctx, groupID, false) {
-		bestRank := rank(selected)
-		if bestRank < 999 {
-			eligible := make([]*gatewayprovider.ExecutionAccount, 0, len(accounts))
-			for i := range accounts {
-				account := &accounts[i]
-				if rank(account) == bestRank {
-					eligible = append(eligible, account)
-				}
-			}
-			if advanced := s.selectAdvancedGeminiAccount(
-				ctx,
-				groupID,
-				"",
-				"",
-				eligible,
-				s.advancedSchedulerEffectiveSettingsForRequest(ctx, groupID),
-			); advanced != nil {
-				selected = advanced
-			}
-		}
-	}
-	return s.hydrateSelectedAccount(ctx, selected)
-}
-
-// resolveAdvancedSchedulerGroup 为不经过普通模型选择的 Gemini 入口补齐最终分组。
-func (s *GeminiMessagesCompatService) resolveAdvancedSchedulerGroup(ctx context.Context, groupID *int64) (*routing.Group, bool) {
-	if s == nil || groupID == nil || *groupID <= 0 {
-		return nil, false
-	}
-	if group, ok := requeststate.GroupFromContext(ctx); ok && routing.IsGroupContextValid(group) && group.ID == *groupID {
-		return group, true
-	}
-	if s.schedulerSnapshot != nil {
-		if group, err := s.readSchedulingGroup(ctx, *groupID); err == nil && group != nil {
-			return group, true
-		}
-	}
-	if s.groupRepo == nil {
-		return nil, false
-	}
-	group, err := s.groupRepo.GetByIDLite(ctx, *groupID)
-	return group, err == nil && group != nil
 }
 
 func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Context, account *gatewayprovider.ExecutionAccount, body []byte) (*forwardcore.MessagesResult, error) {

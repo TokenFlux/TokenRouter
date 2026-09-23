@@ -35,7 +35,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -158,7 +157,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 	}
 	accountRepo := openAIResponsesFailoverAccountRepo{accounts: accounts}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
-	gatewayService := service.NewOpenAIGatewayService(
+	gatewayService, gatewayServiceChoices := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
 
@@ -178,7 +177,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 		nil,
 
 		nil,
-		nil, responseHeaderFilterForTest(cfg), nil,
+		nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
 	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil,
 
@@ -205,7 +204,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 		nil,
 		cfg, nil, newExecutionAvailabilityForTest(accountRepo,
 
-			nil, cfg),
+			nil, cfg), gatewayServiceChoices,
 	)
 	handler.Input.MaxSwitches = 10
 	return handler

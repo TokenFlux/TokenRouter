@@ -127,7 +127,7 @@ func newGatewayModelsHandlerWithChannelForTest(repo modelHTTPAccountRows, channe
 		channelPort = channels
 	}
 	catalogue := &routing.RequestableCatalogue{Models: &routing.ModelList{Read: read}, Read: read, Resolver: routing.RequestableResolver{Channels: channelPort, Defaults: gatewayprovider.CatalogueDefaults(), Warn: slog.Warn}, Warn: slog.Warn}
-	return provideModelsHTTP(catalogue, nil, nil)
+	return provideModelsHTTP(catalogue, nil, nil, nil)
 }
 
 // newGatewayModelsChannelServiceForTest 构造模型接口测试使用的渠道服务。
@@ -193,7 +193,7 @@ func TestAntigravityModelsIncludesRequestableExactAPIKeyAlias(t *testing.T) {
 		"missing":            "not-requestable",
 	}})
 
-	provideModelsHTTP(nil, nil, nil).AntigravityModels(c)
+	provideModelsHTTP(nil, nil, nil, nil).AntigravityModels(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	var got gatewayModelsResponseForTest

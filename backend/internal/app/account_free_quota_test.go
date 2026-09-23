@@ -13,19 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type freeQuotaBindingFixture struct {
-	gate    *account.FreeQuotaGate
-	factory func() *account.FreeQuotaGate
-}
-
-func (f *freeQuotaBindingFixture) BindFreeQuotaGate(gate *account.FreeQuotaGate) {
-	f.gate = gate
-}
-
-func (f *freeQuotaBindingFixture) BindFreeQuotaGates(gate *account.FreeQuotaGate, factory func() *account.FreeQuotaGate) {
-	f.gate, f.factory = gate, factory
-}
-
 type freeQuotaReaderFixture struct {
 	usage.UsageLogRepository
 	calls atomic.Int64
@@ -46,8 +33,7 @@ func TestFreeQuotaBindingPreservesCacheScopesAndTaskOwner(t *testing.T) {
 	cfg.Gateway.Grok.FreeQuotaStatsCacheSeconds = 60
 	tasks := lifecycle.NewTasks()
 	reader := &freeQuotaReaderFixture{}
-	general, openai := &freeQuotaBindingFixture{}, &freeQuotaBindingFixture{}
-	bindAccountFreeQuota(cfg, reader, tasks, general, openai)
+	bound := provideSelectionFreeQuota(cfg, reader, tasks)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	t.Cleanup(func() {
@@ -56,7 +42,7 @@ func TestFreeQuotaBindingPreservesCacheScopesAndTaskOwner(t *testing.T) {
 		require.NoError(t, tasks.Stop(cleanup))
 	})
 	candidates := []account.FreeQuotaCandidate{{ID: 7, Eligible: true}}
-	gates := []*account.FreeQuotaGate{general.gate, openai.gate, openai.factory(), openai.factory()}
+	gates := []*account.FreeQuotaGate{bound.Generic, bound.Compatible, bound.Advanced(), bound.Advanced()}
 	for _, gate := range gates {
 		require.Empty(t, gate.Blocked(candidates), "首次缺失保持放行")
 		require.NoError(t, tasks.Wait(ctx))
@@ -65,6 +51,6 @@ func TestFreeQuotaBindingPreservesCacheScopesAndTaskOwner(t *testing.T) {
 	require.Equal(t, int64(4), reader.calls.Load())
 	// 已发布的缓存通过原任务拥有者关闭后仍可读取，缺失账号不再启动查询。
 	require.NoError(t, tasks.Stop(ctx))
-	require.Empty(t, general.gate.Blocked([]account.FreeQuotaCandidate{{ID: 8, Eligible: true}}))
+	require.Empty(t, bound.Generic.Blocked([]account.FreeQuotaCandidate{{ID: 8, Eligible: true}}))
 	require.Equal(t, int64(4), reader.calls.Load())
 }

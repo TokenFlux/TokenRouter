@@ -1766,3 +1766,16 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 合并普通 lint 捕获上一批健康测试辅助文件未加 unit 标签的两个 unused，已按实际消费者补标签。修正后该包普通 420 条、unit 572 条通过，测试名称集合与全量记录完全一致，integration 编译通过；三套全仓 lint 最终为 0/0/0。没有业务代码修正、忽略项扩大或断言削弱。
 - 合并依赖夹具 15 类 × 三种标签，共 45/45 符合预期，临时目录已删除。八种构建选择完成核对；无标签测试目录的预期排除单独保留，选择不计行为通过。Wire 再生成稳定，SQL/Ent、前阶段冻结资料、原计划正文及 51 个受保护文件无改动，已有/新增差异检查通过。
 - 统一索引为 `baseline/S16/service-selection-read-verification.json`，账本只增量更新。本次只归档新产生的证据，不重复打包上一健康批次。高级评分诊断、候选补全、窗口/RPM、previous-response 和槽位仍是剩余选号依赖，平台单次执行及 WS/Live 也尚未全部退出。按授权提交本完整能力进度，不将 S16 标记完成；继续沿总计划与阶段计划执行，最终全项验收保留。
+
+### 选择、评分、粘性与固定装配完整能力批次（2026-09-24）
+
+- 按已冻结的能力清单完成 Generic、Compatible、Gemini、诊断及无槽探测的实现、生产消费者、测试替身、装配和门禁改绑。`scheduler` 保持唯一选择/评分规则，`gateway/provider/selection` 只提供受控目标和资格投影；OpenAI/Grok 普通选择与 WS 固定账号复核共用 provider 的资格实现。
+- Messages、文本、媒体、WS/Live、计数、Qoder 和创作消费者直接使用原生选择实例。旧选择方法、picker 类型、窗口适配和调度事后绑定已删除；选择专用字段与无用构造参数同批退出。快照解码保留在 Redis Adapter，分组隐私、配额阈值和单次代理绕过进入请求值快照。
+- 305 个迁移测试均有原路径、目标路径、标签、函数摘要及断言调用对应；无缺失，原断言调用数量一致。循环、模型、槽位释放、查询与缓存边界继续通过原生实现验证。迁移期间出现的夹具响应状态缺失、静态 Options 场景与构造签名遗漏均已修正，失败日志保留；未扩展历史问题修复范围。
+- 本批受影响范围普通 / unit / integration（`-p=4`）取得 **5,923 / 8,799 / 6,054** 条通过事件，各保留原来的两个跳过：外部 OpenAI token 对照及 WS passthrough 的 `other_event_type` 子场景。三套 lint **0 / 0 / 0**。定向 owner / 混合执行 / app / 真实 Redis race 分别通过 **1,302 / 5 / 237 / 64** 条事件；Fast 策略 middleware 直接消费者另行完成编译、race 和三标签 lint。事件含父子测试且集合重叠，不求和。
+- **99 项**门禁合同通过，覆盖普通/unit/integration；普通、unit、integration、wireinject、embed、e2e、Darwin、Linux 的文件选择核对通过。Wire 再生成无差异，SQL、Ent、旧冻结资料及 51 个受保护文件未变。已同步调度缓存、网关生命周期和系统架构文档。
+- 相对 `1f734d4d4`，旧 service 生产文件 **201 → 186（减少 15）**，测试文件 **321 → 290（减少 31）**。减少量只统计旧目录；不把新文件数量作为架构完成证明。
+- 统一台账 `service-capability-exit-ledger.json` 已标记本能力验证完成；剩余共享编码、请求散列/观测和 originator 投影有准确消费者与退出批次。它们由尚未退出的平台执行、WS/Live 使用，不拥有第二份选择算法。下一批仍按 Messages、Google、Grok、OpenAI、WS/Live 与共享边界顺序完整退出，不重新扫描或扩展历史问题。
+- [本批验证索引](baseline/S16/service-selection-owner-verification.json)；[增量证据清单](baseline/S16/progress-20260924-selection-manifest.json)。本批归档接续 model-read 父链，只保存新增或变化资料，逐成员校验通过。
+
+S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶段最终全仓测试、三套 lint、构建及进程验收。按用户后续授权，每个完整验证能力批次提交一次；不提交 AGENTS.md、SYNC.md 或其他任务内容。

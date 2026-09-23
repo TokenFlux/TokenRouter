@@ -8,6 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
@@ -15,7 +16,7 @@ import (
 )
 
 // provideModelsHTTP 直接构造四个只读目录入口，不经过旧聚合 handler。
-func provideModelsHTTP(catalogue *routing.RequestableCatalogue, reader *service.GeminiMessagesCompatService, activity *gatewayRequestActivity) *gatewayhttp.ModelsHandler {
+func provideModelsHTTP(catalogue *routing.RequestableCatalogue, reader *service.GeminiMessagesCompatService, activity *gatewayRequestActivity, choices *selection.Gemini) *gatewayhttp.ModelsHandler {
 	ports := gatewayhttp.ModelsPorts{
 		ReadAccess: keyhttp.GetAPIKeyFromContext, ReadPlatform: keyhttp.GetForcePlatformFromContext,
 		ReadBilling: func(c *gin.Context) (*billing.APIKeyBillingContext, bool) {
@@ -23,13 +24,13 @@ func provideModelsHTTP(catalogue *routing.RequestableCatalogue, reader *service.
 		},
 		SafeSegment: gemini.IsSafeGeminiModelPathSegment,
 		SelectModel: func(ctx context.Context, id *int64) (gatewayhttp.GeminiModelReader, error) {
-			value, err := reader.SelectAccountForAIStudioEndpoints(ctx, id)
+			value, err := choices.SelectAccountForAIStudioEndpoints(ctx, id)
 			if err != nil {
 				return nil, err
 			}
 			return geminiModelReadTarget{reader, value}, nil
 		},
-		CheckAntigravity: reader.HasAntigravityAccounts,
+		CheckAntigravity: choices.HasAntigravityAccounts,
 	}
 	if catalogue != nil {
 		ports.Catalogue = catalogue

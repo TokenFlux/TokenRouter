@@ -31,7 +31,7 @@
 
 `groups.scheduler_type` 是分组级调度策略，取值只能是 `basic` 或 `advanced`，新建和历史未配置分组均为 `basic`。它不是平台能力开关：任何平台的分组都能选择高级调度器；未绑定分组的请求保持基础调度。Claude Code-only、不可用组等回退链完成后，必须以实际落到的最终分组重新读取该字段，不能沿用原分组的模式。强制平台只改变候选平台和混合模式，不清除最终分组，也不能绕过该分组的高级模式与参数覆盖。
 
-高级分组的有效参数按字段合并：高级调度覆盖值、深复制、校验和配置合并由 `internal/scheduler/policy` 的纯叶子实现。选号和诊断直接使用其 RuntimeSettings、EffectiveSettings、FeedbackConfig 与 StickyEscapeConfig，运行反馈直接使用唯一 `scheduler.RuntimeStats`；评分与 Top-K 抽样也由 scheduler 拥有。平台直接使用原生无凭据分数类型，执行目标只在当次适配作用域保留对应关系，不再往返转换旧分数实体。`scheduler.SettingsRuntime` 负责动态设置读取、短 TTL 缓存与 singleflight，设置保存后发布到同一实例。`scheduler.Parameters` 固定参数来源并合并进程投影、运行设置和最终分组覆盖；app 将同一参数实例直接绑定各平台选择与诊断，不再临时构造 OpenAI 服务或借健康适配取得设置仓储。`GenericSelector` 与 `PlatformSelector` 拥有基础/高级选择、粘性、订阅池及 fresh/DB 复核的执行顺序；旧 service 仍保留账号和平台资格投影。app 显式绑定唯一反馈、设置和粘性统计实例，生产选择与诊断共用；运行设置及粘性观测已改为实例依赖，不再通过进程全局指针替换。
+高级分组的有效参数按字段合并：高级调度覆盖值、深复制、校验和配置合并由 `internal/scheduler/policy` 的纯叶子实现。选号和诊断直接使用其 RuntimeSettings、EffectiveSettings、FeedbackConfig 与 StickyEscapeConfig，运行反馈直接使用唯一 `scheduler.RuntimeStats`；评分与 Top-K 抽样也由 scheduler 拥有。平台直接使用原生无凭据分数类型，执行目标只在当次适配作用域保留对应关系，不再往返转换旧分数实体。`scheduler.SettingsRuntime` 负责动态设置读取、短 TTL 缓存与 singleflight，设置保存后发布到同一实例。`scheduler.Parameters` 固定参数来源并合并进程投影、运行设置和最终分组覆盖；app 将同一参数实例直接绑定各平台选择与诊断，不再临时构造 OpenAI 服务或借健康适配取得设置仓储。`GenericSelector`、`PlatformSelector` 与 `GeminiSelector` 拥有基础/高级选择、粘性、订阅池及 fresh/DB 复核的执行顺序；`gateway/provider/selection` 的 Generic、Compatible、Gemini 和 Diagnostics 只将受控账号读取、平台资格与共享资源投影给核心，不再依赖旧 service。app 显式绑定唯一反馈、设置和粘性统计实例，生产选择与诊断共用；运行设置及粘性观测已改为实例依赖，不再通过进程全局指针替换。
 
 `gateway.advanced_scheduler` 提供进程默认值，`advanced_scheduler_*` 运行时设置可覆盖该默认值，最终由 Group 的 `advanced_scheduler_overrides` 覆盖。覆盖 JSON 缺失字段继续继承；显式 `false` 和 `0` 都是有效的分组值，空对象代表全部继承。两个 EWMA alpha 分别控制错误率和 TTFT 的最新样本权重，范围为 `0 < alpha <= 1`；sticky escape 的开关、TTFT 阈值和错误率阈值也按同一优先级合并。运行时反馈仍按账号共享，但请求完成时使用该请求最终分组解析出的 alpha 回写，选择和反馈不会因保存后的配置变化而错配。七项基础权重最终全为零也是有效策略，此时粘性加成仍可参与，完全并列的候选只按账号全局优先级、账号 ID 稳定决胜，再进入 Top-K 抽样；负载和等待已经属于评分信号，不能作为第二套同分比较规则。合并后的基础权重和完整权重总和必须有限，管理写入拒绝会使任一总和溢出的覆盖；请求期遇到历史异常对象时仅把权重回退到已验证的全局值，避免生成 `NaN`/`Inf`。基础分组和无分组路径忽略这份对象，避免配置残留改变基础调度语义。
 
@@ -49,9 +49,13 @@ Codex 自动审查的父线程亲缘只接受 `codex-auto-review` 模型，以�
 
 账号与模型的短暂失败状态由 `account.ModelTransientState` 持有，网关调用点沿用同一实例；模型先完成平台规范化，再记录和查询。首次失败只计数，第二次冷却 10 秒，连续三次及以上冷却 45 秒，成功清零；30 分钟状态保留窗口与容量上限保持，进程重启不恢复这些内存状态。
 
+选择适配通过只读账号端口和 `scheduler/rediscache.SnapshotReader` 获取候选或完整目标；完整记录解码留在 Redis Adapter，评分与排序只接收无凭据投影。每次选择保留自己的关联表，同 ID 的快照、fresh 与数据库重检记录不会相互覆盖。app 直接注入进程 Options、反馈、参数缓存、会话与配额拥有者；旧执行服务不再持有选择专用状态或接受闲置的快照构造参数。普通 Grok 免费层与高级 picker 的缓存作用域仍分别保留。
+
+OpenAI/Grok 的请求资格与固定账号 WS 复核共用 `gateway/provider.CompatibleEligibilityReason` 及协议能力判断。配额阈值、分组隐私要求和单次代理隔离绕过标记保存在 `requeststate.ExecutionHints` 的值快照中；派生 attempt 不修改父请求，不能把一次 fail-open 标记带回后续请求。
+
 ## 评分诊断
 
-管理员可通过 `scheduler/httpapi` 的账号高级调度评分诊断查看当前候选池的实时解释。`scheduler.DiagnosticService` 拥有候选、参数和解释计算，旧资格端口只在单次调用中关联执行投影，不把凭据带入核心。基准诊断不指定模型、会话粘性或上一响应粘性；模拟诊断只接受模型和两个账号 ID，不能接收 session hash、previous response 内容、凭据或代理认证信息。诊断使用无分页分组全集统计排除原因，并复用生产服务可安全执行的模型运行时封禁、额度、窗口费用、RPM、代理流隔离、OpenAI/Grok 配额自动暂停、影子母账号健康和渠道限制；它不会获取并发槽、注册会话、写入粘性或修改运行时统计。endpoint、transport、Compact、媒体等缺少请求输入的门禁以 `not_evaluated` 策略信号返回，真实请求仍会在完整上下文中追加检查。
+管理员可通过 `scheduler/httpapi` 的账号高级调度评分诊断查看当前候选池的实时解释。`scheduler.DiagnosticService` 拥有候选、参数和解释计算，原生 selection 适配只在单次调用中关联执行投影，不把凭据带入核心。基准诊断不指定模型、会话粘性或上一响应粘性；模拟诊断只接受模型和两个账号 ID，不能接收 session hash、previous response 内容、凭据或代理认证信息。诊断使用无分页分组全集统计排除原因，并复用生产服务可安全执行的模型运行时封禁、额度、窗口费用、RPM、代理流隔离、OpenAI/Grok 配额自动暂停、影子母账号健康和渠道限制；它不会获取并发槽、注册会话、写入粘性或修改运行时统计。endpoint、transport、Compact、媒体等缺少请求输入的门禁以 `not_evaluated` 策略信号返回，真实请求仍会在完整上下文中追加检查。
 
 Spark 影子的母账号资格由 `account.ParentHealthyForShadow` 统一判断，调度、诊断和 WS 复核投影到同一规则：母账号须存在、仍为 OpenAI OAuth，且凭据未因状态、到期或临时停调失效；母账号自身的全局限流、过载和手动调度开关不连带禁用影子。`account/provider.DefaultSparkShadowModels` 在调用时从 OpenAI 的唯一 Codex 别名表构造独立的恒等映射，app 直接将它注入账号管理，不保存第二份模型表。
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
@@ -51,33 +50,6 @@ func responsesPolicyGroup(ctx context.Context, group *routing.Group) *routing.Gr
 		return nil
 	}
 	return group
-}
-
-func (s *OpenAIGatewayService) shadowProtocolsAllowed(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
-	if account == nil || !account.View().IsShadow() {
-		return true
-	}
-	if source, _ := requeststate.ClientProtocolFromContext(ctx); source == "" {
-		return true
-	}
-	parent := s.parentAccountLookup(ctx)(*account.Record.ParentAccountID)
-	return parent != nil && gatewayprovider.ExecutionModelPolicy(parent).AllowsProtocol(ctx)
-}
-
-func supportsOpenAIRequestCapability(ctx context.Context, account *gatewayprovider.ExecutionAccount, capability accountcore.OpenAIEndpointCapability) bool {
-	if account == nil {
-		return false
-	}
-	source, _ := requeststate.ClientProtocolFromContext(ctx)
-	if source == protocolcore.ProtocolResponsesWebSocket || source == protocolcore.ProtocolResponsesCompact {
-		if capability == accountcore.OpenAIEndpointCapabilityTextGeneration || capability == accountcore.OpenAIEndpointCapabilityResponses {
-			return gatewayprovider.ExecutionModelPolicy(account).AllowsProtocol(ctx)
-		}
-		if capability == accountcore.OpenAIEndpointCapabilityRemoteCompactionV2 {
-			return gatewayprovider.ExecutionModelPolicy(account).AllowsProtocol(ctx) && account.View().AllowsOpenAINativeCompactionV2()
-		}
-	}
-	return accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(account), capability)
 }
 
 func creativeOperationsForGroup(group *routing.Group) []string {

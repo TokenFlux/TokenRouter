@@ -160,7 +160,7 @@ Live 与 sideband 的 HTTP 入口也由 app 直接构造，原生 LivePorts 共�
 
 `basic` 保留历史选择路径。`advanced` 在上述硬约束完成后调用通用评分核心，按 Top-K 加权顺序尝试候选并在每次尝试前复核并发槽。有效 Top-K、权重和粘性开关按最终高级分组逐字段合并：分组 `advanced_scheduler_overrides` 优先于网关运行时设置，缺失字段继续使用全局值；空对象等于全部继承。OpenAI/Grok 在这一核心上附加 previous response、订阅、transport、Compact 与额度能力；其它平台只提供各自已存在的候选与硬过滤。运行时只对本次实际走高级模式的选择回写错误率、TTFT 和切换统计，基础请求不会污染高级评分。`count_tokens`、可用性探测等仅选账号入口同样按最终分组决定模式，但使用无槽选择，不占用账号并发槽或会话数量。
 
-账号选择由 `scheduler` 的通用/平台选择器执行，旧网关只提供平台资格与执行账号投影。`SelectionInput` 使用最终 RoutePlan 和独立账号候选；每个 attempt、fresh 和 DB 复核重新解析候选，不把模型/协议结果写回共享缓存。
+账号选择由 `scheduler` 的通用、兼容平台和 Gemini 选择器执行，`gateway/provider/selection` 提供平台资格与受控执行目标投影；Messages、文本、媒体、WS/Live、计数及任务消费者由 app 绑定原生选择实例，旧平台执行器只继续承担尚未退出的转发行为。`SelectionInput` 使用最终 RoutePlan 和独立账号候选；每个 attempt、fresh 和 DB 复核重新解析候选，不把模型/协议结果写回共享缓存。
 
 `AcquireUser` 返回请求 Lease 与带计数所有权的 WaitResult；`Lease.Select` 返回当前 AttemptLease。选择结果也可能携带 WaitPlan，由 scheduler 执行等待循环、HTTP 同步观察并输出原心跳。只释放确认取得的等待计数；完整账号补全失败等后续准备错误立即归还已登记槽位。请求和尝试的组合释放幂等，成功/部分结果的会话保留由 Finish 决定。用户等待完成后仍在原位置复查权益。
 

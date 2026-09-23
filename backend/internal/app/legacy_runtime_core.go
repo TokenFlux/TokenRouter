@@ -33,7 +33,7 @@ func provideCoreRuntime(
 	authCacheInvalidationWorker *apikey.AuthCacheInvalidationWorker,
 	schedulerSnapshot *scheduler.SnapshotService,
 	models *routing.ModelList,
-	groups routing.GroupRepository,
+
 	shared *schedulerSharedState,
 	usageCleanup *usage.UsageCleanupService,
 	idempotencyCleanup *idempotency.IdempotencyCleanupService,
@@ -52,15 +52,15 @@ func provideCoreRuntime(
 	httpUpstream httpclient.UpstreamTransport, requestActivity *gatewayRequestActivity, rates *gatewayBillingRates,
 ) *coreRuntimeReady {
 	// 原生平台仅登记同步尝试，不改变客户端取消或供应商重试预算。
-	bindSchedulerExecutionState(shared, gateway, openAIGateway, geminiGateway)
+
 	nativeAttempts := requestActivity
 	openAIGateway.BindRuntimeBlockState(accountRuntime)
 	bindGatewayBackground(tasks, gateway, openAIGateway)
-	bindAccountFreeQuota(cfg, usageRepo, tasks, gateway, openAIGateway)
+
 	geminiGateway.BindQuotaPrecheck(geminiPrecheck)
 	if openAIGateway != nil {
 		openAIGateway.BindSchedulerStickyStats(shared.Sticky)
-		openAIGateway.BindSchedulingGroups(groups.GetByID)
+
 		openAIGateway.BindOpenAIAuthorization(openAIAuthorization)
 		openAIGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}

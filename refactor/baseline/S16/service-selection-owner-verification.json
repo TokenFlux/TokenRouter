@@ -1,0 +1,38 @@
+{
+  "scope": "S16 选择完整能力批次，非阶段最终验收",
+  "baseline_head": "1f734d4d47beb68e97a6bf54cb680a62bb8a1143",
+  "service_before": {
+    "production_files": 201,
+    "test_files": 321
+  },
+  "service_after": {
+    "production_files": 186,
+    "test_files": 290
+  },
+  "reductions": {
+    "production": 15,
+    "tests": 31
+  },
+  "test_mapping": {
+    "file": "service-selection-test-mapping.json",
+    "moved": 305,
+    "missing": 0,
+    "assertion_call_count_changes": 0
+  },
+  "verification": "service-selection-final-validation.json",
+  "middleware_supplement": "service-selection-middleware-validation.json",
+  "gate_contracts": {
+    "primary_passed": 93,
+    "supplement_passed": 6,
+    "primary": "service-selection-owner-boundary-gates.json",
+    "supplement": "service-selection-middleware-boundary-gates.json"
+  },
+  "build_selection": "service-selection-owner-build-selection.json",
+  "wire": "service-selection-wire-stability.json",
+  "shared_boundaries": "service-selection-remaining-boundaries.json",
+  "protected_files": 51,
+  "protected_changed": [],
+  "sql_ent_previous_stage_changed": [],
+  "plan_original_sha256": "1a03e5525668efaf2b47669135a8f37f3c050b0004729944a959d64314ad0ed9",
+  "full_repository_final_acceptance": "待后续能力及 S16 最终完整执行；本批仅运行受影响包和直接消费者，不替代全仓验收。"
+}

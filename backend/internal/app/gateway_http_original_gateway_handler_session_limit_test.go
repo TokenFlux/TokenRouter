@@ -32,7 +32,6 @@ import (
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/testutil"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -107,7 +106,7 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 	billingCache.Start()
 	t.Cleanup(billingCache.Stop)
 	completionInput1 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
-	gateway := service.NewGatewayService(
+	gateway, gatewayChoices := newGenericExecutionAndSelectionFixture(
 		nil, &fakeGroupRepo{group: group}, nil, nil, cfg, snapshots, nil, nil, nil, upstream, nil, nil, sessions, sessions,
 		nil, nil, nil, nil, nil, nil, responseHeaderFilterForTest(cfg),
 	)
@@ -118,7 +117,7 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 		Event: logging.Event,
 	},
 	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(cfg).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil,
-		nil, cfg),
+		nil, cfg), gatewayChoices,
 	)
 	key := &apikey.APIKey{
 		ID: 21, UserID: 22, GroupID: &groupID, Status: billing.StatusActive, Group: group,

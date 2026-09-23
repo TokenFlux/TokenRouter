@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -30,6 +32,7 @@ import (
 
 // qoderRuntime 的字段在应用装配时固定，不持有 Gin 或逐请求状态。
 type qoderRuntime struct {
+	Choices     *selection.Generic
 	Gateway     *service.GatewayService
 	Qoder       *gatewayprovider.QoderRuntime
 	Refresh     *accountprovider.QoderRequestRefresh
@@ -83,9 +86,9 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 			if err == nil || result.Served && result.HasUsage {
 				legacy = forwardcore.MessagesFromAttempt(result)
 			}
-			b.Gateway.ReportAdvancedAccountScheduleResult(selection, account.Record.ID, err == nil, legacy)
+			b.Choices.ReportAdvancedAccountScheduleResult(selection, account.Record.ID, err == nil, legacy)
 		}
-		selected.Switched = func() { b.Gateway.RecordAdvancedAccountSwitch(selection) }
+		selected.Switched = func() { b.Choices.RecordAdvancedAccountSwitch(selection) }
 		selected.Refresh = func(ctx context.Context) (*gateway.Selection, error) {
 			updated, err := b.Refresh.RefreshAccountSession(ctx, gatewayprovider.ExecutionRecord(account))
 			if err != nil || updated == nil {
@@ -96,7 +99,7 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 		selected.Bind = func(ctx context.Context, _ upstream.AttemptResult) {
 			bindCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 			defer cancel()
-			_ = b.Gateway.BindStickySession(bindCtx, key.GroupID, request.SessionHash, account.Record.ID)
+			_ = b.Choices.BindStickySession(bindCtx, key.GroupID, request.SessionHash, account.Record.ID)
 		}
 
 		selected.Complete = func(callCtx context.Context, result upstream.AttemptResult) {
@@ -123,7 +126,7 @@ func (b *qoderRuntime) Select(ctx context.Context, request gateway.Request, excl
 		}
 		return selected
 	}
-	selection, err := b.Gateway.SelectAccountWithLoadAwareness(ctx, key.GroupID, request.SessionHash, request.Model, excluded, "", request.UserID)
+	selection, err := b.Choices.SelectAccountWithLoadAwareness(ctx, key.GroupID, request.SessionHash, request.Model, excluded, "", request.UserID)
 	if err != nil {
 		return nil, err
 	}

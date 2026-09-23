@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
@@ -24,6 +26,7 @@ import (
 
 // qoderCompatibleExecution 只连接现有选择、刷新和完成投影，不持有循环或缓存。
 type qoderCompatibleExecution struct {
+	choices *selection.Generic
 	*service.GatewayService
 	runtime *gatewayprovider.QoderRuntime
 	refresh *accountprovider.QoderRequestRefresh
@@ -31,7 +34,7 @@ type qoderCompatibleExecution struct {
 }
 
 func (p *qoderCompatibleExecution) Select(ctx context.Context, id *int64, hash, model string, excluded map[int64]struct{}, userID int64) (gatewayhttp.QoderCompatibleSelection, error) {
-	value, err := p.SelectAccountWithLoadAwareness(ctx, id, hash, model, excluded, "", userID)
+	value, err := p.choices.SelectAccountWithLoadAwareness(ctx, id, hash, model, excluded, "", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,9 +56,9 @@ func (s *qoderCompatibleSelection) Acquired() bool                       { retur
 func (s *qoderCompatibleSelection) ReleaseFunc() func()                  { return s.value.ReleaseFunc }
 func (s *qoderCompatibleSelection) WaitPlan() *scheduler.AccountWaitPlan { return s.value.WaitPlan }
 func (s *qoderCompatibleSelection) Report(id int64, ok bool, result *forward.MessagesResult) {
-	s.owner.ReportAdvancedAccountScheduleResult(s.value, id, ok, result)
+	s.owner.choices.ReportAdvancedAccountScheduleResult(s.value, id, ok, result)
 }
-func (s *qoderCompatibleSelection) Switched() { s.owner.RecordAdvancedAccountSwitch(s.value) }
+func (s *qoderCompatibleSelection) Switched() { s.owner.choices.RecordAdvancedAccountSwitch(s.value) }
 
 // qoderCompatibleTarget 把旧执行账号限制在单次调用目标内；HTTP 只取得原生快照。
 type qoderCompatibleTarget struct {
@@ -86,7 +89,7 @@ func (t *qoderCompatibleTarget) Completion(ctx context.Context, capture gatewayh
 }
 
 // provideQoderCompatibleHTTP 直接构造原生固定端口，共享原池、计费、刷新及活动屏障。
-func provideQoderCompatibleHTTP(source *service.GatewayService, runtime *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, rules *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, activity *gatewayRequestActivity, qoderActivity *qoderRequestActivity) *gatewayhttp.QoderCompatibleHandler {
+func provideQoderCompatibleHTTP(source *service.GatewayService, runtime *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, rules *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, activity *gatewayRequestActivity, qoderActivity *qoderRequestActivity, choices *selection.Generic) *gatewayhttp.QoderCompatibleHandler {
 	slots := gatewayhttp.NewConcurrencyHelper(concurrency, gatewayhttp.SSEPingFormatComment, 0)
 	var matcher gatewayhttp.ErrorRuleMatcher
 	if rules != nil {
@@ -99,7 +102,7 @@ func provideQoderCompatibleHTTP(source *service.GatewayService, runtime *gateway
 		Errors: gatewayhttp.QoderErrorPresenter{Rules: matcher, Describe: gatewayprovider.DescribeQoderError, ReadAccess: keyhttp.GetAPIKeyFromContext, Catalogue: gatewayprovider.ModelDisplayCatalogue{}},
 	}
 	if source != nil {
-		options.Execution = &qoderCompatibleExecution{GatewayService: source, runtime: runtime, refresh: refresh, keys: keys}
+		options.Execution = &qoderCompatibleExecution{GatewayService: source, choices: choices, runtime: runtime, refresh: refresh, keys: keys}
 	}
 	if funding != nil {
 		options.Funding = funding
@@ -112,4 +115,9 @@ func provideQoderCompatibleHTTP(source *service.GatewayService, runtime *gateway
 		result.BindRequestActivity(activity.Enter)
 	}
 	return result
+}
+
+// BindStickySession 仅将原 HTTP 成功后的绑定意图交给同一选择器。
+func (p *qoderCompatibleExecution) BindStickySession(ctx context.Context, group *int64, hash string, id int64) error {
+	return p.choices.BindStickySession(ctx, group, hash, id)
 }

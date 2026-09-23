@@ -38,6 +38,10 @@ type ForwardPorts struct {
 
 // SelectionPorts 使用同一调度与健康实例。
 type SelectionPorts struct {
+	SelectImages    func(context.Context, *int64, string, string, map[int64]struct{}, accountcore.OpenAIImagesCapability) (*gatewaycapture.SelectionResult, scheduler.PlatformDecision, error)
+	RecordSwitch    func()
+	ReportSelection func(*gatewaycapture.SelectionResult, int64, string, bool, *int)
+
 	ObserveOpenAIAccountHealthFailure       func(ctx context.Context, account *gatewaycapture.ExecutionAccount, observedErr error) bool
 	RecordOpenAIAccountSwitchForSelection   func(selection *gatewaycapture.SelectionResult)
 	ReportOpenAIAccountScheduleResult       func(accountOrID *gatewaycapture.ExecutionAccount, model string, success bool, firstTokenMs *int, observedErr ...error) bool

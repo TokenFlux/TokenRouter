@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -19,7 +21,10 @@ import (
 )
 
 // openAITokenExecution 只将旧选择原语接到原生计数端口，不参与循环或资金规则。
-type openAITokenExecution struct{ *service.OpenAIGatewayService }
+type openAITokenExecution struct {
+	*service.OpenAIGatewayService
+	choices *selection.Compatible
+}
 
 func (p openAITokenExecution) PlanTokenRoute(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 	return p.PlanRoute(ctx, service.APIKeyRouteGroup(key), key.GroupID, model)
@@ -30,7 +35,7 @@ func (p openAITokenExecution) TokenSessionHash(c *gin.Context, body []byte) stri
 }
 
 func (p openAITokenExecution) SelectCount(ctx context.Context, group *int64, hash, model, platform string) (gatewayhttp.OpenAICountTarget, error) {
-	value, err := p.SelectAccountForTokenCount(ctx, group, hash, model, account.OpenAIEndpointCapabilityTextGeneration, platform)
+	value, err := p.choices.SelectAccountForTokenCount(ctx, group, hash, model, account.OpenAIEndpointCapabilityTextGeneration, platform)
 	if value == nil {
 		return nil, err
 	}
@@ -38,7 +43,7 @@ func (p openAITokenExecution) SelectCount(ctx context.Context, group *int64, has
 }
 
 func (p openAITokenExecution) SelectInputTokens(ctx context.Context, group *int64, hash, model, routingModel string, excluded map[int64]struct{}, platform string) (gatewayhttp.InputTokensSelection, error) {
-	selected, _, err := p.SelectAccountWithSchedulerForCapabilityAndRoutingModel(ctx, group, "", hash, model, routingModel, excluded, egress.OpenAIUpstreamTransportAny, account.OpenAIEndpointCapabilityTextGeneration, false, false, platform)
+	selected, _, err := p.choices.SelectAccountWithSchedulerForCapabilityAndRoutingModel(ctx, group, "", hash, model, routingModel, excluded, egress.OpenAIUpstreamTransportAny, account.OpenAIEndpointCapabilityTextGeneration, false, false, platform)
 	if err != nil || selected == nil || selected.Account == nil {
 		return gatewayhttp.InputTokensSelection{}, err
 	}
@@ -70,7 +75,7 @@ func (t openAITokenTarget) ForwardInputTokens(ctx context.Context, c *gin.Contex
 }
 
 // provideOpenAITokensHTTP 不构造旧 Handler，也不取得用户槽、worker 或第二份缓存。
-func provideOpenAITokensHTTP(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, concurrency *scheduler.ConcurrencyService, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability) *gatewayhttp.OpenAITokensHandler {
+func provideOpenAITokensHTTP(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, concurrency *scheduler.ConcurrencyService, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible) *gatewayhttp.OpenAITokensHandler {
 	options := gatewayhttp.OpenAITokenOptions{MaxSwitches: 3}
 	if cfg != nil {
 		options.MaxBodyBytes = cfg.Gateway.MaxBodySize
@@ -78,7 +83,7 @@ func provideOpenAITokensHTTP(source *service.OpenAIGatewayService, funding *admi
 			options.MaxSwitches = cfg.Gateway.MaxAccountSwitches
 		}
 	}
-	ports := gatewayhttp.OpenAITokenPorts{Execution: openAITokenExecution{source}, Funding: funding}
+	ports := gatewayhttp.OpenAITokenPorts{Execution: openAITokenExecution{source, choices}, Funding: funding}
 	if availability != nil {
 		ports.Diagnoser = availability.Compatible
 		ports.ResolvedDiagnoser = availability.Resolved

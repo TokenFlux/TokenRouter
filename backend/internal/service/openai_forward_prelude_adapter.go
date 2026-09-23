@@ -110,7 +110,7 @@ func (p openAIForwardPreludeAdapter) LitePayload(body []byte) ([]byte, bool, str
 	return updated, changed, param, err
 }
 func (p openAIForwardPreludeAdapter) Transport() forward.TransportDecision {
-	v := p.s.resolveOpenAIWSTransport(p.account)
+	v := p.s.selection.ResolveTransport(p.account)
 	v = gatewayhttp.ResolveOpenAIWSDecisionByClientTransport(v, gatewayhttp.GetOpenAIClientTransport(p.c))
 	return forward.TransportDecision{Transport: string(v.Transport), Reason: v.Reason}
 }

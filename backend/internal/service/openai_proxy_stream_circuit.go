@@ -13,11 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	// fail-open 告警限频，避免代理故障期间刷屏。
-	openAIProxyStreamFailOpenLogInterval = 5 * time.Second
-)
-
 func resolveOpenAIProxyStreamCircuitSettings(s *OpenAIGatewayService) egress.ProxyStreamCircuitSettings {
 	settings := egress.DefaultProxyStreamCircuitSettings()
 	if s == nil || s.cfg == nil {
@@ -84,46 +79,4 @@ func (s *OpenAIGatewayService) clearOpenAIProxyStreamDisconnect(account *gateway
 	if circuit := s.getOpenAIProxyStreamCircuit(); circuit != nil {
 		circuit.RecordSuccess(proxyID)
 	}
-}
-
-// openAIProxyStreamQuarantineBypassKey 只标记首次调度无容量后的第二次 fail-open 尝试。
-type openAIProxyStreamQuarantineBypassKey struct{}
-
-func withOpenAIProxyStreamQuarantineBypass(ctx context.Context) context.Context {
-	return context.WithValue(ctx, openAIProxyStreamQuarantineBypassKey{}, true)
-}
-
-func openAIProxyStreamQuarantineBypassed(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-	bypassed, _ := ctx.Value(openAIProxyStreamQuarantineBypassKey{}).(bool)
-	return bypassed
-}
-
-func (s *OpenAIGatewayService) isOpenAIProxyStreamQuarantined(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
-	proxyID, ok := openAIProxyStreamCircuitProxyID(account)
-	if !ok {
-		return false
-	}
-	if openAIProxyStreamQuarantineBypassed(ctx) {
-		return false
-	}
-	circuit := s.getOpenAIProxyStreamCircuit()
-	return circuit != nil && circuit.IsBlocked(proxyID, time.Now())
-}
-
-// logOpenAIProxyStreamQuarantineFailOpen 对重新放行隔离代理的告警做进程内限频。
-func (s *OpenAIGatewayService) logOpenAIProxyStreamQuarantineFailOpen(requestedModel string, blockedProxies int) {
-	now := time.Now().UnixNano()
-	last := s.openaiProxyStreamFailOpenLogAt.Load()
-	if now-last < int64(openAIProxyStreamFailOpenLogInterval) ||
-		!s.openaiProxyStreamFailOpenLogAt.CompareAndSwap(last, now) {
-		return
-	}
-	logging.L().With(zap.String("component", "service.openai_gateway")).Warn(
-		"openai.proxy_stream_quarantine_fail_open",
-		zap.Int("blocked_proxies", blockedProxies),
-		zap.String("model", requestedModel),
-	)
 }

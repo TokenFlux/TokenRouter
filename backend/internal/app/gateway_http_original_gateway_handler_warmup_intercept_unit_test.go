@@ -180,7 +180,7 @@ func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatew
 	schedulerCache := &fakeSchedulerCache{accounts: accounts}
 	schedulerSnapshot := scheduler.NewSnapshotService(schedulerCache, nil, nil, nil, nil, scheduler.SnapshotBindings{})
 
-	gwSvc := service.NewGatewayService(
+	gwSvc, gwSvcChoices := newGenericExecutionAndSelectionFixture(
 		nil,                               // accountRepo (not used: scheduler snapshot hit)
 		&fakeGroupRepo{group: group}, nil, // usageLogRepo
 		// usageBillingRepo
@@ -235,7 +235,7 @@ func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatew
 
 	h := newMessageEndpointsFixture(gwSvc, newFundingAdmissionFixture(billingCacheSvc, cfg), concurrencyHelper, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 1}, newExecutionAvailabilityForTest(nil,
 
-		nil, nil),
+		nil, nil), gwSvcChoices,
 	)
 
 	cleanup := func() {

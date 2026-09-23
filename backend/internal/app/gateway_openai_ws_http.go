@@ -74,7 +74,7 @@ func responsesWSBindings(source *service.OpenAIGatewayService, funding *admissio
 			return source.PlanRoute(ctx, key.Group, key.GroupID, model)
 		}
 		b.Isolate = source.EnsureSessionIsolation
-		b.ReportSelection = source.ReportOpenAIAccountScheduleResultForSelection
+		b.ReportSelection = common.Selection.ReportSelection
 		b.Stop429 = source.ShouldStopOpenAIOAuth429Failover
 		b.Credential = source.GetRequestCredential
 		b.ResolveRouting = source.ResolveOpenAIWSRoutingModelForAccount

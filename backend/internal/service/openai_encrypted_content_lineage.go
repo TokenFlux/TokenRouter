@@ -34,7 +34,7 @@ func (s *OpenAIGatewayService) markOpenAIWSInvalidEncryptedContentLineage(groupI
 	if stateStore == nil {
 		return
 	}
-	stateStore.MarkSessionInvalidEncryptedContent(groupID, sessionHash, digests, s.openAIWSSessionStickyTTL())
+	stateStore.MarkSessionInvalidEncryptedContent(groupID, sessionHash, digests, s.selection.SessionStickyTTL())
 }
 
 // sessionInvalidEncryptedContentDigests 返回会话已知失效密文摘要；全局无记录

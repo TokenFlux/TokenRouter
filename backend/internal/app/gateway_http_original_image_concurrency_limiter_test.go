@@ -59,7 +59,7 @@ func TestOpenAIGatewayHandlerResponses_ImageIntentRejectedByImageConcurrency(t *
 			MaxConcurrentRequests: 1,
 			OverflowMode:          config.ImageConcurrencyOverflowModeReject,
 		}}},
-		Images: &scheduler.ImageConcurrencyLimiter{}, Availability: newExecutionAvailabilityForTest(nil, nil, nil),
+		Images: &scheduler.ImageConcurrencyLimiter{}, Availability: newExecutionAvailabilityForTest(nil, nil, nil), Choices: newEmptyCompatibleSelectionFixture(),
 	})
 	release, acquired := h.httpResources().AcquireImage(c, false)
 	require.True(t, acquired)
@@ -105,7 +105,7 @@ func TestOpenAIGatewayHandlerResponses_TextOnlyNotRejectedByImageConcurrency(t *
 			MaxConcurrentRequests: 1,
 			OverflowMode:          config.ImageConcurrencyOverflowModeReject,
 		}}},
-		Images: &scheduler.ImageConcurrencyLimiter{}, Availability: newExecutionAvailabilityForTest(nil, nil, nil),
+		Images: &scheduler.ImageConcurrencyLimiter{}, Availability: newExecutionAvailabilityForTest(nil, nil, nil), Choices: newEmptyCompatibleSelectionFixture(),
 	})
 	release, acquired := h.httpResources().AcquireImage(c, false)
 	require.True(t, acquired)

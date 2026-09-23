@@ -8,6 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -31,17 +32,14 @@ func TestAccountRuntimeBlockBindingSharesRecoveryFence(t *testing.T) {
 // 实际装配必须把新反馈及兼容参数入口绑定到同一实例。
 func TestSchedulerSharedStateBindsLegacyConsumers(t *testing.T) {
 	state := provideSchedulerSharedState(nil, nil)
-	messages := &service.GatewayService{}
 	gateway := &service.OpenAIGatewayService{}
-	gemini := &service.GeminiMessagesCompatService{}
-	bindSchedulerExecutionState(state, messages, gateway, gemini)
 	gateway.BindSchedulerStickyStats(state.Sticky)
 	require.Equal(t, int64(0), gateway.SnapshotOpenAICompatibilityFallbackMetrics().SessionHashLegacyReadFallbackTotal)
 	other := provideSchedulerSharedState(nil, nil)
 	require.NotSame(t, state.Settings, other.Settings)
 	require.NotSame(t, state.Sticky, other.Sticky)
 	// 从已绑定的真实执行入口上报，第二份装配不能改变原反馈作用域。
-	messages.ReportAdvancedAccountScheduleResult(&gatewayprovider.SelectionResult{AdvancedScheduler: true}, 51, false, nil)
+	selection.NewGeneric(selection.GenericDependencies{Shared: provideSelectionShared(nil, nil, nil, nil, state)}, selection.DefaultOptions()).ReportAdvancedAccountScheduleResult(&gatewayprovider.SelectionResult{AdvancedScheduler: true}, 51, false, nil)
 	observed, _, _ := state.Feedback.Snapshot(51)
 	require.Greater(t, observed, 0.0)
 	untouched, _, _ := other.Feedback.Snapshot(51)

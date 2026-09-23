@@ -14,11 +14,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-	usage "github.com/TokenFlux/TokenRouter/internal/usage"
-
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-
-	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
 
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 
@@ -29,23 +24,17 @@ import (
 	time "time"
 )
 
-func provideGatewayForRouting(nativeUsageStore *usagepostgres.Store,
+func provideGatewayForRouting(
 	accountRepo gatewayprovider.ExecutionAccountStore,
-	groupRepo routing.GroupRepository,
-	usageLogRepo usage.UsageLogRepository,
 
 	cache session.GatewayCache,
 	cfg *config.Config,
-	schedulerSnapshot *scheduler.SnapshotService,
-	concurrencyService *scheduler.ConcurrencyService,
 
 	healthObserver *accountprovider.UpstreamHealth,
 	identityService *anthropic.RequestFingerprint,
 	httpUpstream httpclient.UpstreamTransport, deferredService *account.DeferredService,
 	messageCredentials *account.MessageCredentialSource,
-	sessionLimitCache scheduler.SessionLimitCache,
-	windowCostCache billing.WindowCostCache,
-	rpmCache scheduler.RPMCache,
+
 	digestStore *session.DigestSessionStore,
 	settingService *gatewayprovider.RuntimeReaders,
 	tlsFPProfileService *provider.TLSProfiles,
@@ -54,8 +43,7 @@ func provideGatewayForRouting(nativeUsageStore *usagepostgres.Store,
 
 	headerFilter *egress.CompiledHeaderFilter, recorders GatewayCompletionRecorders,
 ) *service.GatewayService {
-	gateway := service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, cache, cfg, schedulerSnapshot, concurrencyService, healthObserver, identityService, httpUpstream, deferredService, messageCredentials, sessionLimitCache, windowCostCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, headerFilter)
-	gateway.BindUsageWindowSource(usageWindowStats{nativeUsageStore})
+	gateway := service.NewGatewayService(accountRepo, cache, cfg, healthObserver, identityService, httpUpstream, deferredService, messageCredentials, digestStore, settingService, tlsFPProfileService, channelService, resolver, headerFilter)
 	gateway.BindCompletionRecorder(recorders.Forward)
 	return gateway
 }

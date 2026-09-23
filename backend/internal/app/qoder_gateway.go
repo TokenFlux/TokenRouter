@@ -8,6 +8,7 @@ import (
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
@@ -35,8 +36,8 @@ import (
 )
 
 // provideQoderChat 在组合根一次绑定依赖；HTTP 入口不再组装业务回调。
-func provideQoderChat(g *service.GatewayService, q *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, c *scheduler.ConcurrencyService, b *admission.FundingAdmission, k *apikey.APIKeyService, r *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, activity *qoderRequestActivity, requests *gatewayRequestActivity) *gatewayhttp.QoderChatHandler {
-	runtime := &qoderRuntime{Gateway: g, Qoder: q, Refresh: refresh, Billing: b, Keys: k, Completions: pool, Recorder: recorders.Forward}
+func provideQoderChat(g *service.GatewayService, q *gatewayprovider.QoderRuntime, refresh *accountprovider.QoderRequestRefresh, c *scheduler.ConcurrencyService, b *admission.FundingAdmission, k *apikey.APIKeyService, r *errorpolicy.ErrorPassthroughService, pool *completion.UsageRecordWorkerPool, recorders GatewayCompletionRecorders, activity *qoderRequestActivity, requests *gatewayRequestActivity, choices *selection.Generic) *gatewayhttp.QoderChatHandler {
+	runtime := &qoderRuntime{Gateway: g, Choices: choices, Qoder: q, Refresh: refresh, Billing: b, Keys: k, Completions: pool, Recorder: recorders.Forward}
 	useCase := gateway.NewQoderExecutor(3, 30*time.Second, c, runtime)
 	useCase.Enter = activity.Enter
 	var matcher gatewayhttp.ErrorRuleMatcher

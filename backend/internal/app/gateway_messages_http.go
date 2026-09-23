@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 
@@ -35,7 +36,7 @@ func provideMessageHTTPBindings(
 	settings *gateway.RuntimeSettings,
 	prompts *promptpolicy.Service,
 	concurrency *scheduler.ConcurrencyService,
-	cfg *config.Config,
+	cfg *config.Config, choices *selection.Generic,
 ) *messageHTTPBindings {
 	options := gatewayhttp.MessagesHTTPOptions{MaxSwitches: 10, MaxGeminiSwitches: 3}
 	ping := time.Duration(0)
@@ -62,7 +63,7 @@ func provideMessageHTTPBindings(
 			return source.PlanRoute(ctx, service.APIKeyRouteGroup(key), id, model)
 		},
 		ClientVersions: settings.GetClaudeCodeVersionBounds, Funding: funding, Moderation: moderationPort, Errors: rules,
-		IsolateSession: source.EnsureSessionIsolation, CachedSession: source.GetCachedSessionAccountID,
+		IsolateSession: source.EnsureSessionIsolation, CachedSession: choices.GetCachedSessionAccountID,
 		ObserveCompatibility: func(log *zap.Logger) {
 			gatewayhttp.LogCompatibilityFallback(log, func() gatewayhttp.CompatibilityLogSnapshot {
 				value := openai.SnapshotOpenAICompatibilityFallbackMetrics()
@@ -140,7 +141,7 @@ func provideGeminiNativeHTTP(
 	shared *messageHTTPBindings,
 	source *service.GatewayService,
 	runtime *textattempt.Runtime,
-	activity *gatewayRequestActivity,
+	activity *gatewayRequestActivity, choices *selection.Generic,
 ) *gatewayhttp.GeminiNativeHandler {
 	result := gatewayhttp.NewBoundGeminiNativeHandler(
 		gatewayhttp.GeminiNativeOptions{
@@ -150,7 +151,7 @@ func provideGeminiNativeHTTP(
 		gatewayhttp.GeminiHTTPBindings{
 			SafeModelSegment: gemini.IsSafeGeminiModelPathSegment,
 			FindSession:      source.FindGeminiSession,
-			BindSticky:       source.BindStickySession,
+			BindSticky:       choices.BindStickySession,
 		},
 		shared.prompt,
 		shared.concurrency,

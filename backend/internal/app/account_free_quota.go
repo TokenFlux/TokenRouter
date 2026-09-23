@@ -11,12 +11,15 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/usage"
 )
 
-// bindAccountFreeQuota 只投影配置与统计端口，缓存和裁决由账号模块唯一实现。
-func bindAccountFreeQuota(cfg *config.Config, reader usage.UsageLogRepository, tasks *lifecycle.Tasks, gateway interface {
-	BindFreeQuotaGate(*account.FreeQuotaGate)
-}, openai interface {
-	BindFreeQuotaGates(*account.FreeQuotaGate, func() *account.FreeQuotaGate)
-}) {
+// selectionFreeQuotaGates 保留两条普通选择链与高级选择器各自的缓存作用域。
+type selectionFreeQuotaGates struct {
+	Generic    *account.FreeQuotaGate
+	Compatible *account.FreeQuotaGate
+	Advanced   func() *account.FreeQuotaGate
+}
+
+// provideSelectionFreeQuota 只投影原配置和用量来源，所有缓存及后台任务仍归原生拥有者。
+func provideSelectionFreeQuota(cfg *config.Config, reader usage.UsageLogRepository, tasks *lifecycle.Tasks) *selectionFreeQuotaGates {
 	metrics := &account.FreeQuotaMetrics{}
 	options := func() account.FreeQuotaOptions {
 		if cfg == nil {
@@ -42,6 +45,5 @@ func bindAccountFreeQuota(cfg *config.Config, reader usage.UsageLogRepository, t
 		}, metrics)
 	}
 	// 两条普通选择链不合并缓存；高级调度器仍逐实例取得独立缓存。
-	gateway.BindFreeQuotaGate(factory())
-	openai.BindFreeQuotaGates(factory(), factory)
+	return &selectionFreeQuotaGates{Generic: factory(), Compatible: factory(), Advanced: factory}
 }

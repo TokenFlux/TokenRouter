@@ -12,6 +12,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/wsentry"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
@@ -24,6 +25,7 @@ import (
 // gatewayHTTPFixtureInput 只描述测试提供的原生依赖和显式预算，不持有业务规则。
 type gatewayHTTPFixtureInput struct {
 	Availability *gatewayModelAvailability
+	Choices      *selection.Compatible
 	Source       *service.OpenAIGatewayService
 	Funding      *admission.FundingAdmission
 	Keys         *apikey.APIKeyService
@@ -95,7 +97,7 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 			runtime.Ops = fixtureCyberOps{input.Ops, input.Queue}
 		}
 		cyber := gatewayhttp.NewBoundCyberHandler(blocks, moderator, runtime)
-		bindings := provideOpenAIAttemptBindings(input.Source, input.Keys, resources(), cyber, input.Rules, input.Moderator, GatewayCompletionRecorders{OpenAI: recorder}, input.Worker, input.Availability)
+		bindings := provideOpenAIAttemptBindings(input.Source, input.Keys, resources(), cyber, input.Rules, input.Moderator, GatewayCompletionRecorders{OpenAI: recorder}, input.Worker, input.Availability, input.Choices)
 		return bindings, cyber, blocks
 	}
 	text := func() *gatewayhttp.OpenAITextHandler {
@@ -140,7 +142,7 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 }
 
 // newGatewayHTTPEndpointsFromDeps 保留原测试参数输入，共享资源由真实 app provider 构造。
-func newGatewayHTTPEndpointsFromDeps(source *service.OpenAIGatewayService, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, worker *completion.UsageRecordWorkerPool, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService, opsService *ops.OpsService, cfg *config.Config, prompts *promptpolicy.Service, availability *gatewayModelAvailability, provided ...*gatewayhttp.OpenAIHTTPResources) *gatewayHTTPEndpointsFixture {
+func newGatewayHTTPEndpointsFromDeps(source *service.OpenAIGatewayService, concurrency *scheduler.ConcurrencyService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, worker *completion.UsageRecordWorkerPool, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService, opsService *ops.OpsService, cfg *config.Config, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible, provided ...*gatewayhttp.OpenAIHTTPResources) *gatewayHTTPEndpointsFixture {
 	var resources *gatewayhttp.OpenAIHTTPResources
 	if len(provided) > 0 {
 		resources = provided[0]
@@ -148,7 +150,7 @@ func newGatewayHTTPEndpointsFromDeps(source *service.OpenAIGatewayService, concu
 	if resources == nil {
 		resources = provideOpenAIHTTPResources(concurrency, cfg)
 	}
-	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{Source: source, Availability: availability, Funding: funding, Keys: keys, Worker: worker, Rules: rules, Moderator: moderator, Ops: opsService, Config: cfg, Prompts: prompts, Concurrency: resources.Concurrency, Images: resources.Images, MaxSwitches: openAITextOptions(cfg).MaxSwitches})
+	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{Source: source, Availability: availability, Choices: choices, Funding: funding, Keys: keys, Worker: worker, Rules: rules, Moderator: moderator, Ops: opsService, Config: cfg, Prompts: prompts, Concurrency: resources.Concurrency, Images: resources.Images, MaxSwitches: openAITextOptions(cfg).MaxSwitches})
 }
 
 // 类型断言约束原测试后台端口，不增加第二套生命周期或队列。

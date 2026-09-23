@@ -10,6 +10,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
@@ -26,7 +27,7 @@ func provideMessageAttemptRuntime(
 	rules *errorpolicy.ErrorPassthroughService,
 	worker *completion.UsageRecordWorkerPool,
 	queue *scheduler.UserMessageQueueService,
-	cfg *config.Config, availability *gatewayModelAvailability,
+	cfg *config.Config, availability *gatewayModelAvailability, choices *selection.Generic,
 ) *textattempt.Runtime {
 	var queueHelper *gatewayhttp.UserMsgQueueHelper
 	if queue != nil && cfg != nil {
@@ -56,16 +57,18 @@ func provideMessageAttemptRuntime(
 		b.Quota = keys
 	}
 	b.Recorder = recorders.Forward
+	if choices != nil {
+		b.Selection.SelectAccount = choices.SelectAccountWithLoadAwareness
+		b.Selection.TrackSession = choices.TrackSessionAttempt
+		b.Selection.NewSessionAttempts = choices.NewSessionAttempts
+		b.Selection.SingleAccountGroup = choices.IsSingleAntigravityAccountGroup
+		b.Selection.ReportSchedule = choices.ReportAdvancedAccountScheduleResult
+		b.Selection.IncrementRPM = choices.IncrementAccountRPM
+		b.Selection.BindSticky = choices.BindStickySession
+		b.Selection.ResolveGroup = choices.ResolveGroupByID
+		b.Selection.AccountSwitched = choices.RecordAdvancedAccountSwitch
+	}
 	if s := source; s != nil {
-		b.Selection.SelectAccount = s.SelectAccountWithLoadAwareness
-		b.Selection.TrackSession = s.TrackSessionAttempt
-		b.Selection.NewSessionAttempts = s.NewSessionAttempts
-		b.Selection.SingleAccountGroup = s.IsSingleAntigravityAccountGroup
-		b.Selection.ReportSchedule = s.ReportAdvancedAccountScheduleResult
-		b.Selection.IncrementRPM = s.IncrementAccountRPM
-		b.Selection.BindSticky = s.BindStickySession
-		b.Selection.ResolveGroup = s.ResolveGroupByID
-		b.Selection.AccountSwitched = s.RecordAdvancedAccountSwitch
 		b.Selection.TempUnschedule = s.TempUnscheduleRetryableError
 		b.Forward.BedrockCompat = s.ApplyBedrockCCCompat
 		b.Forward.ForwardMessages = s.Forward

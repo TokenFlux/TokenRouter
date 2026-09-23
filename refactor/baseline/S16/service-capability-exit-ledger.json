@@ -424,14 +424,7 @@
         "summarizeSelectionFailureStats",
         "withOpenAIQuotaAutoPauseSettings"
       ],
-      "depends_on": [
-        "google-execution",
-        "health",
-        "messages-execution",
-        "openai-execution",
-        "shared-boundaries",
-        "ws-live"
-      ],
+      "depends_on": [],
       "native_owners": [
         "account",
         "account/provider",
@@ -439,16 +432,18 @@
         "billing",
         "egress",
         "gateway/provider",
+        "gateway/provider/selection",
         "gateway/requeststate",
         "infra/telemetry/logging",
         "routing",
         "routing/accessview",
         "scheduler",
+        "scheduler/rediscache",
         "scheduler/rediscache/codec",
         "upstream/openai",
         "usage"
       ],
-      "status": "in_progress",
+      "status": "verified",
       "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。",
       "completed_capabilities": [
         {
@@ -468,6 +463,103 @@
           ],
           "remaining_blocker": "只读高级评分诊断、候选筛选/补全、窗口/RPM、previous-response 和账号槽仍待同一选号能力批次退出。",
           "verification": "service-selection-read-verification.json"
+        },
+        {
+          "name": "候选选择、粘性、评分诊断、无槽探测与共享资格",
+          "status": "verified",
+          "owners": [
+            "scheduler.GenericSelector",
+            "scheduler.PlatformSelector",
+            "scheduler.GeminiSelector",
+            "gateway/provider/selection",
+            "gateway/provider.CompatibleEligibilityReason",
+            "gateway/requeststate.ExecutionHints",
+            "scheduler/rediscache.SnapshotReader",
+            "app.gateway_selection"
+          ],
+          "verification": "service-selection-owner-verification.json"
+        }
+      ],
+      "verified_against_head": "1f734d4d47beb68e97a6bf54cb680a62bb8a1143",
+      "verification": "service-selection-owner-verification.json",
+      "remaining_blocker": "候选选择、评分、粘性、无槽探测和诊断已退出旧 service；剩余转发、WS/Live 与共享编码/观测边界按后续能力退出。",
+      "shared_boundaries": [
+        {
+          "file": "backend/internal/service/openai_sticky_compat.go",
+          "symbol": "DeriveSessionHashFromSeed",
+          "owner": "scheduler",
+          "exit_batch": "openai-execution / ws-live",
+          "reason": "剩余请求会话解析与兼容指标观察仍调用原生散列/统计；不持有第二份选择算法或缓存。"
+        },
+        {
+          "file": "backend/internal/service/scheduler_snapshot_legacy.go",
+          "symbol": "LegacySnapshotValue",
+          "owner": "scheduler/rediscache/codec + gateway/provider 投影",
+          "exit_batch": "google-execution / shared-boundaries",
+          "reason": "旧执行健康发布及未迁快照夹具仍使用薄投影；没有快照、重建或 outbox 实现。"
+        },
+        {
+          "file": "backend/internal/service/scheduler_snapshot_legacy.go",
+          "symbol": "LegacySnapshotValues",
+          "owner": "scheduler/rediscache/codec + gateway/provider 投影",
+          "exit_batch": "google-execution / shared-boundaries",
+          "reason": "旧执行健康发布及未迁快照夹具仍使用薄投影；没有快照、重建或 outbox 实现。"
+        },
+        {
+          "file": "backend/internal/service/scheduler_snapshot_legacy.go",
+          "symbol": "LegacySnapshotWrap",
+          "owner": "scheduler/rediscache/codec + gateway/provider 投影",
+          "exit_batch": "google-execution / shared-boundaries",
+          "reason": "旧执行健康发布及未迁快照夹具仍使用薄投影；没有快照、重建或 outbox 实现。"
+        },
+        {
+          "file": "backend/internal/service/scheduler_snapshot_legacy.go",
+          "symbol": "LegacySnapshotWrapPointers",
+          "owner": "scheduler/rediscache/codec + gateway/provider 投影",
+          "exit_batch": "google-execution / shared-boundaries",
+          "reason": "旧执行健康发布及未迁快照夹具仍使用薄投影；没有快照、重建或 outbox 实现。"
+        },
+        {
+          "file": "backend/internal/service/scheduler_snapshot_legacy.go",
+          "symbol": "LegacySnapshotWrapValues",
+          "owner": "scheduler/rediscache/codec + gateway/provider 投影",
+          "exit_batch": "google-execution / shared-boundaries",
+          "reason": "旧执行健康发布及未迁快照夹具仍使用薄投影；没有快照、重建或 outbox 实现。"
+        },
+        {
+          "file": "backend/internal/service/openai_sticky_compat.go",
+          "symbol": "OpenAIGatewayService.BindSchedulerStickyStats",
+          "owner": "scheduler",
+          "exit_batch": "openai-execution / ws-live",
+          "reason": "剩余请求会话解析与兼容指标观察仍调用原生散列/统计；不持有第二份选择算法或缓存。"
+        },
+        {
+          "file": "backend/internal/service/openai_sticky_compat.go",
+          "symbol": "OpenAIGatewayService.stickyStats",
+          "owner": "scheduler",
+          "exit_batch": "openai-execution / ws-live",
+          "reason": "剩余请求会话解析与兼容指标观察仍调用原生散列/统计；不持有第二份选择算法或缓存。"
+        },
+        {
+          "file": "backend/internal/service/grok_team_rate_limit.go",
+          "symbol": "markGrokTeamModelRateLimit",
+          "owner": "account",
+          "exit_batch": "grok-execution",
+          "reason": "旧供应商错误执行只委托账号模块写入团队模型冷却。"
+        },
+        {
+          "file": "backend/internal/service/openai_gateway_scheduling.go",
+          "symbol": "resolveOpenAIUpstreamOriginator",
+          "owner": "upstream/openai",
+          "exit_batch": "openai-execution",
+          "reason": "请求 Header 与 TLS Router 的平台投影，不参与候选选择。"
+        },
+        {
+          "file": "backend/internal/service/openai_gateway_scheduling.go",
+          "symbol": "resolveOpenAIUpstreamOriginatorForClient",
+          "owner": "upstream/openai",
+          "exit_batch": "openai-execution",
+          "reason": "请求 Header 与 TLS Router 的平台投影，不参与候选选择。"
         }
       ]
     },
@@ -2503,7 +2595,15 @@
     "shared-boundaries": "无独立规则的配置/结果/模型投影随最后使用批次删除；禁止以新增万能适配对象收纳。"
   },
   "current_service": {
-    "production": 201,
-    "tests": 321
+    "verified_against_head": "1f734d4d47beb68e97a6bf54cb680a62bb8a1143",
+    "production_files": 186,
+    "test_files": 290,
+    "last_completed_batch": "selection",
+    "previous": {
+      "production_files": 201,
+      "test_files": 321
+    },
+    "production_reduced": 15,
+    "tests_reduced": 31
   }
 }

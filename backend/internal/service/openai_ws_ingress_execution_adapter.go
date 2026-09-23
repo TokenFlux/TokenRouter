@@ -86,7 +86,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 	if routeErr != nil {
 		return routeErr
 	}
-	wsDecision := s.resolveOpenAIWSTransport(account)
+	wsDecision := s.selection.ResolveTransport(account)
 	forceHTTPBridge := account.Record.Platform == capability.PlatformGrok || account.Route.Protocol() == protocol.ProtocolOpenAIResponses
 	modeRouterV2Enabled := s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.ModeRouterV2Enabled
 	ingressMode := accountcore.OpenAIWSIngressModeCtxPool
@@ -353,7 +353,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 		if handshakeTurnState := strings.TrimSpace(lease.HandshakeHeader(openAIWSTurnStateHeader)); handshakeTurnState != "" {
 			state.TurnState = handshakeTurnState
 			if stateStore != nil && state.SessionHash != "" {
-				stateStore.BindSessionTurnState(groupID, state.SessionHash, handshakeTurnState, s.openAIWSSessionStickyTTL())
+				stateStore.BindSessionTurnState(groupID, state.SessionHash, handshakeTurnState, s.selection.SessionStickyTTL())
 			}
 			updatedHeaders := upstream.CloneHeader(baseAcquireReq.Headers)
 			if updatedHeaders == nil {
@@ -440,7 +440,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 	runtime := gatewayws.IngressSession{State: state, Store: stateStore, Codec: wsReplayCodec{}, Port: port, Hooks: wsIngressHooks(hooks), Options: gatewayws.IngressOptions{
 		AccountID: account.Record.ID, AccountType: account.Record.Type, Platform: account.Record.Platform, GroupID: groupID,
 		Debug: debugEnabled, BridgeThreshold: s.openAIWSHTTPBridgeThresholdBytes(), PreviousRecovery: s.openAIWSIngressPreviousResponseRecoveryEnabled(), StoreDisabledMode: s.openAIWSStoreDisabledConnMode(),
-		PreflightPingIdle: openAIWSIngressPreflightPingIdle, HealthCheckTimeout: openai.WSConnHealthCheckTimeout, ResponseStickyTTL: s.OpenAIHTTPResponseStickyTTL(), SessionStickyTTL: s.openAIWSSessionStickyTTL(),
+		PreflightPingIdle: openAIWSIngressPreflightPingIdle, HealthCheckTimeout: openai.WSConnHealthCheckTimeout, ResponseStickyTTL: s.OpenAIHTTPResponseStickyTTL(), SessionStickyTTL: s.selection.SessionStickyTTL(),
 	}}
 	return runtime.Run(ctx, firstClientMessage)
 }

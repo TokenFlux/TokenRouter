@@ -24,29 +24,12 @@ func schedulerParameterDefaultsForTest(cfg *config.Config) scheduler.ParameterDe
 	return defaults
 }
 
-// withSchedulerParametersForTest 显式把原夹具的配置和设置替身交给原生参数实现。
+// withSchedulerParametersForTest 只为仍有真实执行行为的 OpenAI 夹具装配原生选择端口。
 func withSchedulerParametersForTest[T interface {
-	*GatewayService | *OpenAIGatewayService | *GeminiMessagesCompatService | *AdvancedSchedulerScoreDiagnosticService
+	*GatewayService | *OpenAIGatewayService | *GeminiMessagesCompatService
 }](value T, configs ...*config.Config) T {
-	var cfg *config.Config
-
-	var target **scheduler.Parameters
-	switch s := any(value).(type) {
-	case *GatewayService:
-		cfg, target = s.cfg, &s.schedulerParameters
-	case *OpenAIGatewayService:
-		cfg, target = s.cfg, &s.schedulerParameters
-	case *GeminiMessagesCompatService:
-		cfg, target = s.cfg, &s.schedulerParameters
-	case *AdvancedSchedulerScoreDiagnosticService:
-		target = &s.schedulerParameters
+	if source, ok := any(value).(*OpenAIGatewayService); ok {
+		bindCompatibleSelectionFixture(source)
 	}
-	if *target != nil {
-		return value
-	}
-	if len(configs) > 0 {
-		cfg = configs[0]
-	}
-	*target = scheduler.NewParameters(scheduler.NewSettingsRuntime(scheduler.Diagnostics{}), nil, schedulerParameterDefaultsForTest(cfg))
 	return value
 }

@@ -86,7 +86,7 @@ func mediaBindings(
 			return source.PlanRoute(ctx, key.Group, key.GroupID, model)
 		}
 		b.VideoTasks = source.MediaVideoTasks
-		b.Platform.SelectImages = source.SelectAccountWithSchedulerForImages
+		b.Platform.SelectImages = common.Selection.SelectImages
 		b.Platform.Images = source.ForwardImages
 		b.Platform.GrokMedia = source.ForwardGrokMedia
 		b.Platform.Embeddings = source.ForwardEmbeddings
@@ -99,7 +99,7 @@ func mediaBindings(
 		b.Platform.RelayRealtime = source.RelayGrokRealtimeFrames
 		b.Platform.Credential = source.GetRequestCredential
 		b.Platform.Stop429 = source.ShouldStopOpenAIOAuth429Failover
-		b.Platform.ReportSwitch = source.RecordOpenAIAccountSwitch
+		b.Platform.ReportSwitch = common.Selection.RecordSwitch
 	}
 	return b
 }

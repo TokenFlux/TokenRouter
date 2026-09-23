@@ -4,7 +4,6 @@ import (
 	"log"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	usage "github.com/TokenFlux/TokenRouter/internal/usage"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
@@ -28,7 +27,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/searchtools"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
@@ -38,7 +36,6 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	s09openai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	claude "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
@@ -73,12 +70,6 @@ const (
 const (
 	cacheTTLTarget5m = "5m"
 )
-
-// accountWithLoad 账号与负载信息的组合，用于负载感知调度
-type accountWithLoad struct {
-	account  *gatewayprovider.ExecutionAccount
-	loadInfo *scheduler.AccountLoadInfo
-}
 
 var (
 	windowCostPrefetchCacheHitTotal  = &billing.SharedWindowCostMetrics().Hit
@@ -159,13 +150,6 @@ func openAIStreamEventIsTerminalWithType(data, eventType string) bool {
 		return true
 	}
 	return s09openai.OpenAIStreamEventTypeIsTerminal(eventType)
-}
-
-func (s *GatewayService) debugModelRoutingEnabled() bool {
-	if s == nil {
-		return false
-	}
-	return s.debugModelRouting.Load()
 }
 
 func (s *GatewayService) debugClaudeMimicEnabled() bool {
@@ -349,37 +333,6 @@ func derefGroupID(groupID *int64) int64 {
 	return *groupID
 }
 
-func prefetchedStickyAccountIDFromContext(ctx context.Context, groupID *int64) int64 {
-	prefetchedGroupID, ok := requeststate.PrefetchedStickyGroupIDFromContext(ctx)
-	if !ok || prefetchedGroupID != derefGroupID(groupID) {
-		return 0
-	}
-	if accountID, ok := requeststate.PrefetchedStickyAccountIDFromContext(ctx); ok && accountID > 0 {
-		return accountID
-	}
-	return 0
-}
-
-// shouldClearStickySession 检查账号是否处于不可调度状态，需要清理粘性会话绑定。
-// 委托 IsSchedulable() 判断账号级可调度性（状态、配额、过载、限流等），
-// 额外检查模型级限流。
-//
-// shouldClearStickySession checks if an account is in an unschedulable state
-// and the sticky session binding should be cleared.
-// Delegates to IsSchedulable() for account-level checks, plus model-level rate limiting.
-func shouldClearStickySession(account *gatewayprovider.ExecutionAccount, requestedModel string) bool {
-	if account == nil {
-		return false
-	}
-	if !account.View().IsSchedulable() {
-		return true
-	}
-	if remaining := gatewayprovider.ExecutionModelPolicy(account).LimitRemaining(context.Background(), requestedModel); remaining > 0 {
-		return true
-	}
-	return false
-}
-
 // TempUnscheduleRetryableError 对非池账号的旧版特殊重试错误触发临时封禁。
 // 由 handler 层在同账号重试全部用尽、切换账号时调用；池模式只切号不写状态。
 func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accountID int64, failoverErr *forwardcore.UpstreamFailoverError) {
@@ -411,17 +364,14 @@ func (s *GatewayService) TempUnscheduleRetryableError(ctx context.Context, accou
 
 // GatewayService handles API gateway operations
 type GatewayService struct {
-	freeQuotaGate         *accountcore.FreeQuotaGate
 	searchToolsRuntime    *searchtools.Emulator
 	nativeAttemptActivity func() (func(), error)
-	usageWindowSource     billing.WindowCostSource
-	accountRepo           gatewayprovider.ExecutionAccountStore
-	groupRepo             routing.GroupRepository
 
-	cache             session.GatewayCache
-	digestStore       *session.DigestSessionStore
-	cfg               *config.Config
-	schedulerSnapshot *scheduler.SnapshotService
+	accountRepo gatewayprovider.ExecutionAccountStore
+
+	cache       session.GatewayCache
+	digestStore *session.DigestSessionStore
+	cfg         *config.Config
 
 	// 用量计费时钟，测试可注入固定时间以覆盖峰值倍率。
 	healthObserver *accountprovider.UpstreamHealth
@@ -429,48 +379,40 @@ type GatewayService struct {
 	identityService *claude.RequestFingerprint
 	httpUpstream    httpclient.UpstreamTransport
 
-	concurrencyService *scheduler.ConcurrencyService
 	messageCredentials *accountcore.MessageCredentialSource
-	sessionLimitCache  scheduler.SessionLimitCache // 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
-	windowCostCache    billing.WindowCostCache     // 资金窗口缓存独立于会话登记。
-	rpmCache           scheduler.RPMCache          // RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
+	// 会话数量限制缓存（仅 Anthropic OAuth/SetupToken）
+	// 资金窗口缓存独立于会话登记。
+	// RPM 计数缓存（仅 Anthropic OAuth/SetupToken）
 
 	completionRecorder *completion.Recorder
 
 	settingService       *gatewayprovider.RuntimeReaders
 	responseHeaderFilter *egress.CompiledHeaderFilter
-	debugModelRouting    atomic.Bool
+
 	debugClaudeMimic     atomic.Bool
 	channelService       *routing.ChannelService
 	resolver             *billing.PriceResolver
 	debugGatewayBodyFile atomic.Pointer[os.File] // non-nil when SUB2API_DEBUG_GATEWAY_BODY is set
 	tlsFPProfileService  *provider.TLSProfiles
 
-	schedulerParameters  *scheduler.Parameters
-	advancedAccountStats *scheduler.RuntimeStats
-	backgroundTasks      func(string, func()) bool
-	usageLogRepo         usage.UsageLogRepository
-	deferredService      *accountcore.DeferredService
+	backgroundTasks func(string, func()) bool
+
+	deferredService *accountcore.DeferredService
 }
 
 // NewGatewayService creates a new GatewayService
 func NewGatewayService(
 	accountRepo gatewayprovider.ExecutionAccountStore,
-	groupRepo routing.GroupRepository, usageLogRepo usage.UsageLogRepository,
 
 	cache session.GatewayCache,
 	cfg *config.Config,
-	schedulerSnapshot *scheduler.SnapshotService,
-	concurrencyService *scheduler.ConcurrencyService,
 
 	healthObserver *accountprovider.UpstreamHealth,
 	identityService *claude.RequestFingerprint,
 	httpUpstream httpclient.UpstreamTransport, deferredService *accountcore.DeferredService,
 
 	messageCredentials *accountcore.MessageCredentialSource,
-	sessionLimitCache scheduler.SessionLimitCache,
-	windowCostCache billing.WindowCostCache,
-	rpmCache scheduler.RPMCache,
+
 	digestStore *session.DigestSessionStore,
 	settingService *gatewayprovider.RuntimeReaders,
 	tlsFPProfileService *provider.TLSProfiles,
@@ -482,59 +424,32 @@ func NewGatewayService(
 
 	svc := &GatewayService{
 		accountRepo: accountRepo,
-		groupRepo:   groupRepo,
 
-		cache:              cache,
-		digestStore:        digestStore,
-		cfg:                cfg,
-		schedulerSnapshot:  schedulerSnapshot,
-		concurrencyService: concurrencyService,
+		cache:       cache,
+		digestStore: digestStore,
+		cfg:         cfg,
 
 		healthObserver: healthObserver,
 
 		identityService: identityService,
 		httpUpstream:    httpUpstream,
 
-		messageCredentials:   messageCredentials,
-		sessionLimitCache:    sessionLimitCache,
-		windowCostCache:      windowCostCache,
-		rpmCache:             rpmCache,
+		messageCredentials: messageCredentials,
+
 		settingService:       settingService,
 		responseHeaderFilter: headerFilter,
 		tlsFPProfileService:  tlsFPProfileService,
 		channelService:       channelService,
 		resolver:             resolver,
-		usageLogRepo:         usageLogRepo,
-		deferredService:      deferredService,
+
+		deferredService: deferredService,
 	}
 
-	svc.debugModelRouting.Store(parseDebugEnvBool(os.Getenv("SUB2API_DEBUG_MODEL_ROUTING")))
 	svc.debugClaudeMimic.Store(parseDebugEnvBool(os.Getenv("SUB2API_DEBUG_CLAUDE_MIMIC")))
 	if path := strings.TrimSpace(os.Getenv(debugGatewayBodyEnv)); path != "" {
 		svc.initDebugGatewayBodyFile(path)
 	}
 	return svc
-}
-
-// BindStickySession sets session -> account binding with standard TTL.
-func (s *GatewayService) BindStickySession(ctx context.Context, groupID *int64, sessionHash string, accountID int64) error {
-	if sessionHash == "" || accountID <= 0 || s.cache == nil {
-		return nil
-	}
-	return s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), sessionHash, accountID, stickySessionTTL)
-}
-
-// GetCachedSessionAccountID retrieves the account ID bound to a sticky session.
-// Returns 0 if no binding exists or on error.
-func (s *GatewayService) GetCachedSessionAccountID(ctx context.Context, groupID *int64, sessionHash string) (int64, error) {
-	if sessionHash == "" || s.cache == nil {
-		return 0, nil
-	}
-	accountID, err := s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
-	if err != nil {
-		return 0, err
-	}
-	return accountID, nil
 }
 
 // FindGeminiSession 查找 Gemini 会话（基于内容摘要链的 Fallback 匹配）

@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
@@ -32,7 +34,7 @@ func provideOpenAIGatewayExecution(
 
 	cache session.GatewayCache,
 	cfg *config.Config,
-	schedulerSnapshot *scheduler.SnapshotService,
+
 	concurrencyService *scheduler.ConcurrencyService,
 
 	healthObserver *accountprovider.UpstreamHealth,
@@ -53,7 +55,7 @@ func provideOpenAIGatewayExecution(
 	recorders GatewayCompletionRecorders,
 	executionCredentials *accountcore.OpenAIExecutionCredentials,
 	taskCoordinator *accountcore.OpenAITaskCoordinator,
-	cyberBlocks *session.CyberBlocks,
+	cyberBlocks *session.CyberBlocks, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit, choices *selection.Compatible,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *service.OpenAIGatewayService {
 	source := service.NewOpenAIGatewayService(
@@ -62,7 +64,7 @@ func provideOpenAIGatewayExecution(
 
 		cache,
 		cfg,
-		schedulerSnapshot,
+
 		concurrencyService,
 
 		healthObserver,
@@ -79,9 +81,7 @@ func provideOpenAIGatewayExecution(
 
 		prompts,
 		headerFilter,
-		stateStore,
-
-		tlsFPRouterServices...,
+		stateStore, modelTransient, proxyCircuit, choices, tlsFPRouterServices...,
 	)
 	// 构造完成后绑定原运行阻断回调，仍在任何后台或请求启动前完成。
 	if openAITokenProvider != nil {

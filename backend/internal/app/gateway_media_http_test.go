@@ -19,7 +19,7 @@ import (
 // 媒体与辅助入口直接复用原生运行时，依赖拒绝和关闭都不能提前读取正文。
 func TestMediaAssemblyKeepsReadAndStopBoundaries(t *testing.T) {
 	activity := &gatewayRequestActivity{Operations: lifecycle.NewOperations("media-entry-contract")}
-	common := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil)
+	common := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
 	runtime := provideMediaRuntime(nil, nil, nil, common, nil, nil, nil)
 	media := provideMediaHTTP(runtime, activity)
 	auxiliary := provideAuxiliaryHTTP(runtime, activity)

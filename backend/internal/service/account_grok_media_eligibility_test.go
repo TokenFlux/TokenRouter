@@ -28,8 +28,9 @@ func TestGrokMediaCapabilityFiltersOnlyGeneration(t *testing.T) {
 
 	require.True(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(account), accountcore.OpenAIEndpointCapabilityTextGeneration))
 	require.False(t, accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(account), accountcore.OpenAIEndpointCapabilityGrokMediaGeneration))
-	require.False(t, isOpenAICompatibleAccountEligibleForRequest(
-		context.Background(), account, capability.PlatformGrok, "grok-imagine-video", false,
-		accountcore.OpenAIEndpointCapabilityGrokMediaGeneration,
-	))
+	require.False(t, gatewayprovider.
+		CompatibleAccountEligible(
+			context.Background(), account, capability.PlatformGrok, "grok-imagine-video", false,
+			accountcore.OpenAIEndpointCapabilityGrokMediaGeneration,
+		))
 }

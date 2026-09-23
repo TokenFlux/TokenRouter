@@ -123,7 +123,7 @@ func runOpenAIResponsesImagePermissionGateTest(t *testing.T, platform string, bo
 				Event: logging.Event},
 		), gatewayhttp.SSEPingFormatNone, 0),
 		Config: &config.Config{},
-		Images: &scheduler.ImageConcurrencyLimiter{}, Availability: newExecutionAvailabilityForTest(nil, nil, nil),
+		Images: &scheduler.ImageConcurrencyLimiter{}, Availability: newExecutionAvailabilityForTest(nil, nil, nil), Choices: newEmptyCompatibleSelectionFixture(),
 	})
 
 	h.Responses(c)

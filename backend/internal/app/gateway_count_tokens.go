@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
@@ -23,14 +25,17 @@ import (
 )
 
 // countExecution 仅连接尚未清零的选择与计数执行原语，不拥有循环、缓存或规则。
-type countExecution struct{ *service.GatewayService }
+type countExecution struct {
+	*service.GatewayService
+	choices *selection.Generic
+}
 
 func (p countExecution) SelectCountTarget(ctx context.Context, id *int64, hash, model string, excluded map[int64]struct{}) (gatewayhttp.CountTarget, error) {
-	value, err := p.SelectAccountForModelWithExclusions(ctx, id, hash, model, excluded)
+	value, err := p.choices.SelectAccountForModelWithExclusions(ctx, id, hash, model, excluded)
 	if err != nil {
 		return nil, err
 	}
-	return countTarget{gateway: p.GatewayService, account: value}, nil
+	return countTarget{gateway: p.GatewayService, account: value, choices: p.choices}, nil
 }
 func (p countExecution) PlanCountRoute(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 	var id *int64
@@ -42,6 +47,7 @@ func (p countExecution) PlanCountRoute(ctx context.Context, key *apikey.APIKey, 
 
 // countTarget 将已经取得的账号保持在受控调用内，不把凭据暴露给 HTTP。
 type countTarget struct {
+	choices *selection.Generic
 	gateway *service.GatewayService
 	account *gatewayprovider.ExecutionAccount
 }
@@ -54,11 +60,11 @@ func (t countTarget) ForwardCountTokens(ctx context.Context, c *gin.Context, par
 	return t.gateway.ForwardCountTokens(ctx, c, t.account, parsed)
 }
 func (t countTarget) ReleaseSession(ctx context.Context, hash string) {
-	t.gateway.ReleaseAccountSession(ctx, t.account, hash)
+	t.choices.ReleaseAccountSession(ctx, t.account, hash)
 }
 
 // provideCountTokensHTTP 直接装配原生 HTTP，固定依赖不经旧 Handler 工厂。
-func provideCountTokensHTTP(source *service.GatewayService, openAI *service.OpenAIGatewayService, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability) *gatewayhttp.CountTokensHandler {
+func provideCountTokensHTTP(source *service.GatewayService, openAI *service.OpenAIGatewayService, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Generic) *gatewayhttp.CountTokensHandler {
 	limit := int64(0)
 	switches := 10
 	if cfg != nil {
@@ -72,7 +78,7 @@ func provideCountTokensHTTP(source *service.GatewayService, openAI *service.Open
 		matcher = rules
 	}
 	ports := gatewayhttp.CountHTTPPorts{
-		Executor: countExecution{source}, Funding: funding, ReadAccess: keyhttp.GetAPIKeyFromContext,
+		Executor: countExecution{source, choices}, Funding: funding, ReadAccess: keyhttp.GetAPIKeyFromContext,
 		ObserveCompatibility: func(log *zap.Logger) {
 			gatewayhttp.LogCompatibilityFallback(log, func() gatewayhttp.CompatibilityLogSnapshot {
 				value := openAI.SnapshotOpenAICompatibilityFallbackMetrics()

@@ -1,0 +1,102 @@
+package app
+
+import (
+	"time"
+
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+	"github.com/TokenFlux/TokenRouter/internal/service"
+
+	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
+
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/config"
+
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+)
+
+// newOpenAIExecutionAndSelectionFixture 组合真实执行组件与原生选择器，显式共享所有可变状态。
+func newOpenAIExecutionAndSelectionFixture(
+	accountRepo gatewayprovider.ExecutionAccountStore,
+	usageLogRepo usage.UsageLogRepository,
+
+	cache session.GatewayCache,
+	cfg *config.Config,
+	schedulerSnapshot *scheduler.SnapshotService,
+	concurrencyService *scheduler.ConcurrencyService,
+
+	healthObserver *accountprovider.UpstreamHealth,
+	httpUpstream httpclient.UpstreamTransport,
+	tlsFPProfileService *provider.TLSProfiles,
+	deferredService *accountcore.DeferredService,
+	executionCredentials *accountcore.OpenAIExecutionCredentials,
+	grokTokenProvider *accountcore.GrokTokenSource,
+	resolver *billing.PriceResolver,
+	channelService *routing.ChannelService,
+
+	settingService *gatewayprovider.RuntimeReaders,
+	prompts *promptpolicy.Service, headerFilter *egress.CompiledHeaderFilter, stateStore session.OpenAIWSStateStore, modelTransient *accountcore.ModelTransientState, proxyCircuit *egress.ProxyStreamCircuit,
+	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
+) (*service.OpenAIGatewayService, *selection.Compatible) {
+	if modelTransient ==
+		nil {
+		modelTransient = provideSelectionModelTransient()
+	}
+	if proxyCircuit ==
+		nil {
+		proxyCircuit =
+			provideSelectionProxyCircuit(cfg)
+	}
+	if stateStore == nil {
+		stateStore = session.NewOpenAIWSStateStore(cache, gatewayprovider.LogOpenAIWSModeInfo)
+	}
+	blocks := accountcore.NewRuntimeBlockState(time.Now)
+	feedback := scheduler.NewRuntimeStats(time.Now)
+	sticky := &scheduler.StickyStats{}
+	var quota *accountcore.QuotaSettingsCache
+	if settingService != nil {
+		quota = settingService.Quota
+	}
+	choices := selection.NewCompatible(selection.CompatibleDependencies{
+		Reads: selection.Reads{Accounts: accountRepo, Snapshot: provideSelectionSnapshots(schedulerSnapshot)},
+		Shared: selection.Shared{
+			Cache: cache,
+
+			Concurrency: concurrencyService,
+			Health:      healthObserver,
+			Channels:    channelService,
+
+			Feedback: feedback,
+		},
+		Responses:      stateStore,
+		QuotaSettings:  quota,
+		RuntimeBlocks:  blocks,
+		ModelTransient: modelTransient,
+
+		ProxyCircuit: proxyCircuit,
+		StickyStats:  sticky,
+	}, selectionOptions(cfg))
+	source := service.NewOpenAIGatewayService(accountRepo, usageLogRepo, cache, cfg, concurrencyService,
+		healthObserver, httpUpstream, tlsFPProfileService, deferredService,
+
+		executionCredentials, grokTokenProvider, resolver, channelService,
+
+		settingService, prompts, headerFilter, stateStore, modelTransient, proxyCircuit, choices, tlsFPRouterServices...)
+	source.BindRuntimeBlockState(blocks)
+	source.BindSchedulerStickyStats(sticky)
+	return source, choices
+}
+
+// newEmptyCompatibleSelectionFixture 对应原零值执行入口，仍不配置任何账号来源。
+func newEmptyCompatibleSelectionFixture() *selection.Compatible {
+	return selection.NewCompatible(selection.CompatibleDependencies{}, selection.DefaultOptions())
+}

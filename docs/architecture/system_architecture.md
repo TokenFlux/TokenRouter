@@ -44,7 +44,7 @@
 | 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
 | 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
 | 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress`、`scheduler`、`usage`、`audit`、`ops`、`notification`、`moderation`、`search`、`creative`、`batchimage` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略、调度/并发/会话选择、用量/观测、通知、审核、搜索及创作/批量任务 |
-| 剩余执行适配 | `internal/service` | 平台单次执行与调度等剩余适配通过 app 固定端口接入；旧聚合 ProviderSet 与 repository 包已删除 |
+| 剩余执行适配 | `internal/service` | 平台单次执行、WS/Live 与少量请求策略适配通过 app 固定端口接入；旧聚合 ProviderSet 与 repository 包已删除 |
 | 平台执行 | `internal/upstream` 与各平台子包 | 供应商交换、原生报文、媒体、单次执行和连接资源；业务凭据写入由 account 提供 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
 | HTTP 适配与服务器 | `site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`creative/httpapi`、`batchimage/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
@@ -53,7 +53,7 @@ settings 的通用实现位于 `settings` 与 `settings/postgres`，app 直接�
 
 执行账号不再使用旧 Account/AccountGroup 实体。`gateway/provider.ExecutionAccount` 只组合原生 `account.Record` 与独立 `AttemptRoute`；它不参与数据库或缓存编码，账号规则仍由 Record 唯一实现。管理 DTO、无凭据候选快照和执行目标保持分开。app 中的执行存储适配只调用同一 account/billing PostgreSQL 实例并投影结果，CAS、事务、字段保护、outbox 和消费累计没有移入 app。
 
-账号健康观测、恢复、Team 联动和运行时阻断由 app 独立构造并直接发布；旧 RateLimitService 已删除。平台执行与调度诊断不再经健康服务取得参数，生产共享反馈和参数缓存仍由 schedulerSharedState 拥有。
+账号健康观测、恢复、Team 联动和运行时阻断由 app 独立构造并直接发布；旧 RateLimitService 已删除。平台执行与调度诊断不再经健康服务取得参数，生产共享反馈和参数缓存仍由 schedulerSharedState 拥有。 账号选择、无槽探测、会话粘性和评分诊断直接绑定 `gateway/provider/selection`，由原生 scheduler 核心执行；旧网关选择方法与事后调度绑定已删除。选择与固定账号 WS 复核共享同一资格实现、运行阻断和模型短暂失败状态。
 
 `protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain、PricingService、BillingService 和 ModelPricingResolver 转接已删除，消费者直接使用原生目录、计算器与解析器。billing 的 Calculator、PriceResolver 和资金分配规则接收显式投影；普通结算与任务资金由 Funds 进入 billing/postgres 的闭合事务，Redis 缓存位于 billing/rediscache。供应商交换、报文与流解析由 upstream 各平台实现；网关完成处理由 gateway/completion 消费已冻结输入，其记录器、隔离倍率缓存和提交后端口直接在 app 装配。支付订单编排由 payment 拥有，纯定价和协议不读取配置或 I/O。
 

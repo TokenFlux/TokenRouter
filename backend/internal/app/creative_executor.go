@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/creative"
@@ -16,7 +18,7 @@ import (
 )
 
 // provideCreativeExecutor 直接绑定任务核心和受控执行目标，不建立旧任务运行时或复制状态。
-func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.ExecutionGroups, openAI *service.OpenAIGatewayService, generic *service.GatewayService, tokens *account.GeminiTokenSource, activity *gatewayRequestActivity) *creative.Executor {
+func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.ExecutionGroups, openAI *service.OpenAIGatewayService, generic *selection.Generic, tokens *account.GeminiTokenSource, activity *gatewayRequestActivity, choices *selection.Compatible) *creative.Executor {
 	timeout := 5 * time.Minute
 	if cfg != nil && cfg.Creative.ExecuteTimeoutSeconds > 0 {
 		timeout = time.Duration(cfg.Creative.ExecuteTimeoutSeconds) * time.Second
@@ -60,7 +62,7 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 			switch value.Record.Platform {
 			case capability.PlatformOpenAI, capability.PlatformGrok:
 				if openAI != nil {
-					openAI.ReportOpenAIAccountScheduleResultForSelection(result, value.Record.ID, model, success, nil)
+					choices.ReportOpenAIAccountScheduleResultForSelection(result, value.Record.ID, model, success, nil)
 				}
 			case capability.PlatformGemini:
 				if generic != nil {
@@ -73,12 +75,12 @@ func provideCreativeExecutor(cfg *config.Config, groups creativeprovider.Executi
 	if openAI != nil {
 		out.OpenAI = func(ctx context.Context, run creative.CreativeRun) (*creative.Selection, error) {
 			id := run.GroupID
-			value, _, err := openAI.SelectAccountWithSchedulerForImages(ctx, &id, "", run.Model, nil, service.OpenAIImagesCapabilityNative)
+			value, _, err := choices.SelectAccountWithSchedulerForImages(ctx, &id, "", run.Model, nil, account.OpenAIImagesCapabilityNative)
 			return project(value, err)
 		}
 		out.Grok = func(ctx context.Context, run creative.CreativeRun) (*creative.Selection, error) {
 			id := run.GroupID
-			value, _, err := openAI.SelectAccountWithSchedulerForCapability(ctx, &id, "", "", run.Model, nil, egress.OpenAIUpstreamTransportHTTPSSE, account.OpenAIEndpointCapabilityGrokMediaGeneration, false, false, capability.PlatformGrok)
+			value, _, err := choices.SelectAccountWithSchedulerForCapability(ctx, &id, "", "", run.Model, nil, egress.OpenAIUpstreamTransportHTTPSSE, account.OpenAIEndpointCapabilityGrokMediaGeneration, false, false, capability.PlatformGrok)
 			return project(value, err)
 		}
 	}

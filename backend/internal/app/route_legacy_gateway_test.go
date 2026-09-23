@@ -64,21 +64,21 @@ func RegisterGatewayRoutes(
 	var runtime *textattempt.Runtime
 	var activity *gatewayRequestActivity
 	if h.TextEnabled {
-		shared = provideMessageHTTPBindings(&service.GatewayService{}, &service.OpenAIGatewayService{}, nil, nil, nil, nil, nil, nil, cfg)
+		shared = provideMessageHTTPBindings(&service.GatewayService{}, &service.OpenAIGatewayService{}, nil, nil, nil, nil, nil, nil, cfg, nil)
 		runtime = textattempt.New(textattempt.Bindings{})
 		activity = &gatewayRequestActivity{Operations: lifecycle.NewOperations("route-fixture")}
 	}
 	openAITokensHTTP := h.OpenAITokensHTTP
 	if openAITokensHTTP == nil {
-		openAITokensHTTP = provideOpenAITokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil, nil)
+		openAITokensHTTP = provideOpenAITokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil)
 	}
 	countTokensHTTP := h.CountTokensHTTP
 	if countTokensHTTP == nil && h.TextEnabled {
-		countTokensHTTP = provideCountTokensHTTP(nil, nil, nil, nil, cfg, nil, nil, nil)
+		countTokensHTTP = provideCountTokensHTTP(nil, nil, nil, nil, cfg, nil, nil, nil, nil)
 	}
 	qoderCompatibleHTTP := h.QoderCompatibleHTTP
 	if qoderCompatibleHTTP == nil {
-		qoderCompatibleHTTP = provideQoderCompatibleHTTP(nil, nil, nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil)
+		qoderCompatibleHTTP = provideQoderCompatibleHTTP(nil, nil, nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
 	}
 	compatibleTextHTTP := h.CompatibleTextHTTP
 	if compatibleTextHTTP == nil && h.TextEnabled {
@@ -86,9 +86,9 @@ func RegisterGatewayRoutes(
 	}
 	geminiNativeHTTP := h.GeminiNativeHTTP
 	if geminiNativeHTTP == nil && h.TextEnabled {
-		geminiNativeHTTP = provideGeminiNativeHTTP(shared, &service.GatewayService{}, runtime, activity)
+		geminiNativeHTTP = provideGeminiNativeHTTP(shared, &service.GatewayService{}, runtime, activity, nil)
 	}
-	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil)
+	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
 	openAIRuntime := provideOpenAITextAttemptRuntime(commonOpenAI)
 	mediaRuntime := provideMediaRuntime(nil, nil, nil, commonOpenAI, nil, nil, nil)
 	openAITextHTTP := h.OpenAITextHTTP
@@ -101,7 +101,7 @@ func RegisterGatewayRoutes(
 	}
 	modelsHTTP := h.ModelsHTTP
 	if modelsHTTP == nil && h.TextEnabled {
-		modelsHTTP = provideModelsHTTP(nil, nil, nil)
+		modelsHTTP = provideModelsHTTP(nil, nil, nil, nil)
 	}
 	messagesHTTP := h.MessagesHTTP
 	if messagesHTTP == nil && h.TextEnabled {

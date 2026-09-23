@@ -10,7 +10,7 @@ import (
 )
 
 // schedulerProviders 构造唯一生产实例；Start/Stop 由既有生命周期绑定执行。
-var schedulerProviders = wire.NewSet(provideSchedulerSharedState, provideUpstreamHealth, provideSchedulerDiagnosticsHTTP, provideSchedulerCache,
+var schedulerProviders = wire.NewSet(provideSelectionSnapshots, provideSelectionReads, provideSelectionShared, provideSelectionFreeQuota, provideSelectionModelTransient, provideSelectionProxyCircuit, provideGenericSelection, provideCompatibleSelection, provideGeminiSelection, provideSchedulerSharedState, provideUpstreamHealth, provideSchedulerDiagnosticsHTTP, provideSchedulerCache,
 	wire.Bind(new(scheduler.SnapshotCache), new(*schedulerredis.SnapshotCache)),
 	provideSchedulerSnapshot,
 	provideConcurrencyCache, provideConcurrency, provideSessionCache, provideMessageQueue,
