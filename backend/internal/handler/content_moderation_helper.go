@@ -16,13 +16,6 @@ import (
 	"go.uber.org/zap"
 )
 
-func (h *OpenAIGatewayHandler) checkContentModeration(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, subject authctx.AuthSubject, protocol string, model string, body []byte) *moderation.ContentModerationDecision {
-	if h == nil || h.contentModerationService == nil {
-		return nil
-	}
-	return runContentModeration(c, reqLog, h.contentModerationService, apiKey, subject, protocol, model, body)
-}
-
 // recordOpenAIForwardResultCyberWarning 记录成功转发结果中携带的上游 cyber 风控警告。
 func (h *OpenAIGatewayHandler) recordOpenAIForwardResultCyberWarning(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, fallbackModel string, result *forwardcore.OpenAIResult) {
 	if result == nil || result.UpstreamWarning == nil {
@@ -38,10 +31,6 @@ func (h *OpenAIGatewayHandler) recordOpenAIForwardResultCyberWarning(c *gin.Cont
 
 func buildOpenAICyberWarningInput(c *gin.Context, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, model string, statusCode int, responseBody []byte, warningText string, promptExcerpt string) moderation.ContentModerationCyberWarningInput {
 	return gatewayhttp.BuildOpenAICyberWarningInput(gatewayhttp.GatewayModerationEndpoints{}, c, apikey.CopyAPIKey(apiKey), moderationAccountView(account), model, statusCode, responseBody, warningText, promptExcerpt)
-}
-
-func runContentModeration(c *gin.Context, reqLog *zap.Logger, svc *moderation.ContentModerationService, apiKey *apikey.APIKey, subject authctx.AuthSubject, protocol string, model string, body []byte) *moderation.ContentModerationDecision {
-	return gatewayhttp.RunContentModeration(gatewayhttp.GatewayModerationEndpoints{}, c, reqLog, nativeModerationPort(svc), apikey.CopyAPIKey(apiKey), subject, protocol, model, body)
 }
 
 func buildContentModerationInput(c *gin.Context, apiKey *apikey.APIKey, subject authctx.AuthSubject, protocol string, model string, body []byte) moderation.ContentModerationCheckInput {

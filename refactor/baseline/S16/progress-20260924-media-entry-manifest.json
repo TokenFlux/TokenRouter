@@ -1,0 +1,425 @@
+{
+  "format_version": 1,
+  "scope": "S16 阶段检查点增量，非最终验收",
+  "base_archive": "s16-evidence.tar.gz",
+  "base_archive_sha256": "9d3fa06d7fdef83f358c34c0816b55e4be7e531c3b3134a01fc1ff32bd6808ae",
+  "source_file_count": 81,
+  "source_total_bytes": 85017930,
+  "archives": [
+    {
+      "path": "progress-20260924-media-entry-01.tar.gz",
+      "size": 4688493,
+      "sha256": "bfb28438576c5ae07ee06d4ff20ba42e167c1a7193582262a7ecee614ca9ca49",
+      "verified_members": 81,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-checks.json",
+          "size": 2609,
+          "sha256": "dea6364beace1e14a0908df1eeeb00c3d76919faf8fa02989e400e23be7a2135"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-followup-checks.json",
+          "size": 5762,
+          "sha256": "dc3432aa7e1fb66add2c8fa09af92b40e6a3f0a877954751de88c1163d581fd9"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-followup-integration.jsonl",
+          "size": 18893131,
+          "sha256": "ae420d743e4add3d2b743d5ac69c045a162a8f6ef5e57d22069141cc15f1837e"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-followup-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-followup-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-followup-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-followup-normal.jsonl",
+          "size": 17738659,
+          "sha256": "23608079becb9fcb1da1c40dc1e842a24bd24def90da97ee28609ad8c92ee0a8"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-followup-unit.jsonl",
+          "size": 27476220,
+          "sha256": "6c2122ca17577a3f7702d1af92386889682892da15b8ec6d71c4404795109abb"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-followup-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-media-integration-race.jsonl",
+          "size": 5016,
+          "sha256": "31f3a7f6ae6b9c1bb41eed3c369bda4257fb278d61ddb2edd709980d5a2bff02"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-normal.jsonl",
+          "size": 17740928,
+          "sha256": "d9d6ca4515ba2b7804579197565d65ab30b9825bef186af73204c7127dbcfc0e"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-media-entry-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-codec-consumers.json",
+          "size": 711,
+          "sha256": "7d8127c495c57acc7f89f88ad12543d32b0bfababa09a6c75394ed8cf114b1e0"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-no-handler-integration.log",
+          "size": 347,
+          "sha256": "a3e7da410538c1eedca7bf09becf17a03bf6029dc334e94d26b1341a55cacb3e"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-no-handler-normal.log",
+          "size": 347,
+          "sha256": "a3e7da410538c1eedca7bf09becf17a03bf6029dc334e94d26b1341a55cacb3e"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-no-handler-unit.log",
+          "size": 347,
+          "sha256": "a3e7da410538c1eedca7bf09becf17a03bf6029dc334e94d26b1341a55cacb3e"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-no-service-child-integration.log",
+          "size": 359,
+          "sha256": "cd1373f4eb75aa7204326e8cc5910c26d5fe9d0b977390cee605b8428da88446"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-no-service-child-normal.log",
+          "size": 359,
+          "sha256": "cd1373f4eb75aa7204326e8cc5910c26d5fe9d0b977390cee605b8428da88446"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-no-service-child-unit.log",
+          "size": 359,
+          "sha256": "cd1373f4eb75aa7204326e8cc5910c26d5fe9d0b977390cee605b8428da88446"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-primitive-exchange-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-primitive-exchange-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-app-primitive-exchange-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-codec-io-integration.log",
+          "size": 322,
+          "sha256": "06455da388b77bf7bc7fa078715258c1ef7193c00a8736d071d45ecbfe32ab0c"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-codec-io-normal.log",
+          "size": 322,
+          "sha256": "06455da388b77bf7bc7fa078715258c1ef7193c00a8736d071d45ecbfe32ab0c"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-codec-io-unit.log",
+          "size": 322,
+          "sha256": "06455da388b77bf7bc7fa078715258c1ef7193c00a8736d071d45ecbfe32ab0c"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-eligibility-child-integration.log",
+          "size": 350,
+          "sha256": "6fb0be63d850911ecf69add81e2f43d08e09824214fd1dd58420ba0359e90276"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-eligibility-child-normal.log",
+          "size": 350,
+          "sha256": "6fb0be63d850911ecf69add81e2f43d08e09824214fd1dd58420ba0359e90276"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-eligibility-child-unit.log",
+          "size": 350,
+          "sha256": "6fb0be63d850911ecf69add81e2f43d08e09824214fd1dd58420ba0359e90276"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-eligibility-port-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-eligibility-port-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-eligibility-port-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-legal-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-legal-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-legal-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-moved-exception-integration.log",
+          "size": 274,
+          "sha256": "4bf43747f4fb7c37e746d71af272fffc46a84df0acecc1692e4f15d8be9154cc"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-moved-exception-normal.log",
+          "size": 274,
+          "sha256": "4bf43747f4fb7c37e746d71af272fffc46a84df0acecc1692e4f15d8be9154cc"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-moved-exception-unit.log",
+          "size": 274,
+          "sha256": "4bf43747f4fb7c37e746d71af272fffc46a84df0acecc1692e4f15d8be9154cc"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-new-file-integration.log",
+          "size": 261,
+          "sha256": "965e6aa4336b8a37c8945766355033f61c86effd0b4676d85db8f1b00c571f1f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-new-file-normal.log",
+          "size": 261,
+          "sha256": "965e6aa4336b8a37c8945766355033f61c86effd0b4676d85db8f1b00c571f1f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-new-file-unit.log",
+          "size": 261,
+          "sha256": "965e6aa4336b8a37c8945766355033f61c86effd0b4676d85db8f1b00c571f1f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-config-integration.log",
+          "size": 306,
+          "sha256": "a1c319bf6fc35d56c879602e8cd969d92364de4be36100c7989e8f51fafad808"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-config-normal.log",
+          "size": 306,
+          "sha256": "a1c319bf6fc35d56c879602e8cd969d92364de4be36100c7989e8f51fafad808"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-config-unit.log",
+          "size": 306,
+          "sha256": "a1c319bf6fc35d56c879602e8cd969d92364de4be36100c7989e8f51fafad808"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-service-integration.log",
+          "size": 308,
+          "sha256": "c87b202acb9f56903beece3a16605fa08fcbaec0c81c736716916ceab178063f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-service-normal.log",
+          "size": 308,
+          "sha256": "c87b202acb9f56903beece3a16605fa08fcbaec0c81c736716916ceab178063f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-service-unit.log",
+          "size": 308,
+          "sha256": "c87b202acb9f56903beece3a16605fa08fcbaec0c81c736716916ceab178063f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-store-integration.log",
+          "size": 346,
+          "sha256": "aa719743d93e0ae587818676d53decfde154951b13f14883fd8638fcf5b189b8"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-store-normal.log",
+          "size": 346,
+          "sha256": "aa719743d93e0ae587818676d53decfde154951b13f14883fd8638fcf5b189b8"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-media-no-store-unit.log",
+          "size": 346,
+          "sha256": "aa719743d93e0ae587818676d53decfde154951b13f14883fd8638fcf5b189b8"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-old-compat-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-old-compat-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-old-compat-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-old-compat-new-import-integration.log",
+          "size": 288,
+          "sha256": "dd4e4f9f6693485cefb6d799772786f133b386eae36e75e4ab6ea6c4335d1a23"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-old-compat-new-import-normal.log",
+          "size": 288,
+          "sha256": "dd4e4f9f6693485cefb6d799772786f133b386eae36e75e4ab6ea6c4335d1a23"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gate-old-compat-new-import-unit.log",
+          "size": 288,
+          "sha256": "dd4e4f9f6693485cefb6d799772786f133b386eae36e75e4ab6ea6c4335d1a23"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-boundary-gates.json",
+          "size": 27410,
+          "sha256": "92c928fc1b2b65285bc935ecc06891c90c8408dbbfc986a8b20b045277a73270"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-compile-2.log",
+          "size": 903,
+          "sha256": "8e0dd8f1ee5868109b1682717f105bbcf5dbd3fa0fd37a87c4e1e2ea6a55bfa1"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-compile-3.log",
+          "size": 903,
+          "sha256": "ab1e4059ca7f232198f13f273e1b700f842cfac45fce9869c90a64930d0a8f5b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-compile.log",
+          "size": 2078,
+          "sha256": "523be3720867ff8be250cb0ef3560344849c4a571a40763db803a349d037358e"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-final-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-final-checks.json",
+          "size": 3047,
+          "sha256": "535e6af9c57e8801310ef5c6926f12e167ccdf88cff40293fc2370f70dc5d9d9"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-final-lint-normal.log",
+          "size": 270,
+          "sha256": "1378842f1b5da0440e422c9ee62b10a169a60a7e87dad52bd81555f16bb4c32e"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-final-normal.jsonl",
+          "size": 1020679,
+          "sha256": "90ecb0022fec5410dccb437190c69d021bdf65b296e990d3f5c5a801c1481f47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-final-race.jsonl",
+          "size": 1792458,
+          "sha256": "f61fbfe27176967e9f1e2252692b1b86b399cd02c81c0fbf9b07d0fd303f10eb"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-final-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-gate-consumers.json",
+          "size": 2925,
+          "sha256": "556b30e644f3265f050d3836caaf040a7ad8250904822a5c354092571d6a8969"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-handler-dependencies.json",
+          "size": 806,
+          "sha256": "12761b6dfc800162ddc98a2a6a4b67434b18bcfd99c9b5c4eca9b4014ba9d452"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-handler-deps-integration.log",
+          "size": 47473,
+          "sha256": "792c7fa961bd8170666c0bcc1f216272b97b49097b59a7074f4b0be7621ff51b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-handler-deps-normal.log",
+          "size": 47473,
+          "sha256": "792c7fa961bd8170666c0bcc1f216272b97b49097b59a7074f4b0be7621ff51b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-handler-deps-unit.log",
+          "size": 47473,
+          "sha256": "792c7fa961bd8170666c0bcc1f216272b97b49097b59a7074f4b0be7621ff51b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-lint-checks.json",
+          "size": 421,
+          "sha256": "a658e34d101c5b5c946df54360cdee3bbc55023ea7f30224d4dea9e641b43850"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-lint-lint-normal.log",
+          "size": 1325,
+          "sha256": "b58b859bb1aff30de326982fcf885d43743caa021c9bf95ac29fb7efa3a8eebe"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-mapping.json",
+          "size": 332,
+          "sha256": "7cd953db7769ee943e1fa48958392ebd0b18dd20e3797735f15fa066d35fe884"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-original.json",
+          "size": 80662,
+          "sha256": "fac93feace7725ac39bc454b6accc93599113f5385d04aeb8437782f649ec42d"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-quota-contract.jsonl",
+          "size": 5930,
+          "sha256": "960ac10feed2739e9878aec79b0611e71bd2bf725b3cfcd08e2023d2568d3c1a"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-stability.json",
+          "size": 459,
+          "sha256": "559ff1d2c9baca13da3b038c770dea3efc4eaa2a13f1b4643d2aadb2203d9db6"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-test-mapping.json",
+          "size": 1808,
+          "sha256": "c6c251485f75629ef146396b88d29be3faa844400aefd9fd692e7ebe2c4ef959"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-wire-repeat.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-media-entry-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-ws-entry-manifest.json",
+          "size": 14083,
+          "sha256": "742085959e6a26a21f407040f3868fd8754ed3794fd8471f4272937908fa4a3a"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260924-media-entry-verification.json",
+          "size": 45658,
+          "sha256": "4b90ab0905cca1d46220dd289124e452f25d2a0867e87d9953e78753ec31cc8b"
+        }
+      ]
+    }
+  ],
+  "parent_manifest": "progress-20260923-ws-entry-manifest.json",
+  "parent_manifest_sha256": "742085959e6a26a21f407040f3868fd8754ed3794fd8471f4272937908fa4a3a"
+}

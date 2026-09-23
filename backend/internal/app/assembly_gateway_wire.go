@@ -11,8 +11,6 @@ import (
 
 	gatewayredis "github.com/TokenFlux/TokenRouter/internal/gateway/rediscache"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-
 	"github.com/google/wire"
 )
 
@@ -22,6 +20,7 @@ var gatewayAssemblyProviders = wire.NewSet(
 	provideQoderRuntime,
 	provideBackendMode,
 	provideMediaHTTP,
+	provideMediaRuntime,
 	provideAuxiliaryHTTP,
 	provideLiveHTTP,
 	gatewaySearchProviders,
@@ -41,7 +40,6 @@ var gatewayAssemblyProviders = wire.NewSet(
 	provideCountTokensHTTP,
 	provideGatewayPromptPolicy,
 	ProvideGatewayCompletionRecorders,
-	provideGatewayCompletionBindings,
 	gatewayredis.NewGatewayCache,
 	gatewayErrorRulesProviders,
 	provideUsageRecordWorkerPool,
@@ -54,7 +52,6 @@ var gatewayAssemblyProviders = wire.NewSet(
 	provideOpenAIHTTPResources,
 	provideCyberBlocks,
 	provideCyberHTTP,
-	handler.ProvideOpenAIGatewayHandler,
 	provideGatewayRouteMiddleware,
 	provideGatewayAdminRules,
 	provideGatewaySettings,

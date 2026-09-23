@@ -1,38 +1,31 @@
-package handler
+package mediaentry
 
 import (
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
-	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-
 	"context"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
-
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
-
-	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
-
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-
+	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
-
-func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) { h.AuxiliaryHTTPHandler().GrokRealtime(c) }
 
 func grokRealtimeBillingResult(model string, elapsed time.Duration, audioObserved bool) *forwardcore.OpenAIResult {
 	usage := gatewaymedia.RealtimeAudioUsage(elapsed, audioObserved)
@@ -42,12 +35,8 @@ func grokRealtimeBillingResult(model string, elapsed time.Duration, audioObserve
 	return &forwardcore.OpenAIResult{RequestID: gatewaycapture.StableRealtimeBillingRequestID(""), Model: model, Duration: elapsed, AudioUsage: usage}
 }
 
-func (h *OpenAIGatewayHandler) GrokVoice(c *gin.Context, endpoint string) {
-	h.AuxiliaryHTTPHandler().GrokVoice(c, endpoint)
-}
-
 // recordGrokVoiceUsage 在存在 AudioUsage 时按分组音频价格结算 TTS、STT 或 Realtime。
-func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
+func (h *Runtime) recordGrokVoiceUsage(
 	c *gin.Context,
 	apiKey *apikey.APIKey,
 	account *gatewaycapture.ExecutionAccount,
@@ -95,12 +84,12 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 		UserAgent:          userAgent,
 		IPAddress:          clientIP,
 		RequestPayloadHash: requestPayloadHash,
-		APIKeyService:      h.apiKeyService,
+		APIKeyService:      h.bindings.Quota,
 		QuotaPlatform:      quotaPlatform,
 		ClientSessionID:    sessionID,
 		ChannelUsageFields: channelFields,
 	})
-	completionRecorder := h.completionRuntime()
+	completionRecorder := h.bindings.Common.Recorder
 	completionLog := logging.L().With(
 		zap.String("component", "handler.openai_gateway.grok_voice"),
 		zap.Int64("user_id", apiKey.User.ID),
@@ -109,7 +98,7 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 		zap.String("endpoint", endpoint),
 		zap.Int64("account_id", account.Record.ID),
 	)
-	h.submitMandatoryUsageRecordTask(c, func(ctx context.Context) {
+	h.bindings.Common.Support.Submission.SubmitMandatory(c, func(ctx context.Context) {
 		if err := completionRecorder.Record(ctx, completionInput, true); err != nil {
 			completionLog.Error("grok_voice.record_usage_failed", zap.Error(err))
 		}
@@ -118,7 +107,7 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 
 // grokRealtimeAdapter 只转换已选账号与技术连接，不保留第二套候选循环。
 type grokRealtimeAdapter struct {
-	h         *OpenAIGatewayHandler
+	h         *Runtime
 	c         *gin.Context
 	apiKey    *apikey.APIKey
 	reqLog    *zap.Logger
@@ -126,7 +115,7 @@ type grokRealtimeAdapter struct {
 }
 
 func (p *grokRealtimeAdapter) SelectRealtime(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
-	selected, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", "", excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityTextGeneration, false, false, capability.PlatformGrok)
+	selected, _, err := p.h.bindings.Common.Selection.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", "", excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityTextGeneration, false, false, capability.PlatformGrok)
 	p.selection = selected
 	if selected == nil || selected.Account == nil {
 		return accountcore.AccountSnapshot{}, false, err
@@ -135,14 +124,14 @@ func (p *grokRealtimeAdapter) SelectRealtime(ctx context.Context, excluded map[i
 }
 func (p *grokRealtimeAdapter) AcquireRealtime(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
 	var started bool
-	return p.h.openAIAttemptSupport().AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, &started, p.reqLog)
+	return p.h.bindings.Common.Support.AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, &started, p.reqLog)
 }
 func (p *grokRealtimeAdapter) RealtimeCredential(ctx context.Context, _ accountcore.AccountSnapshot) (string, error) {
-	token, _, err := p.h.gatewayService.GetRequestCredential(ctx, p.c, p.selection.Account)
+	token, _, err := p.h.bindings.Platform.Credential(ctx, p.c, p.selection.Account)
 	return token, err
 }
 func (p *grokRealtimeAdapter) OpenRealtime(ctx context.Context, _ accountcore.AccountSnapshot, token, model string) (upstream.FrameConn, error) {
-	conn, err := p.h.gatewayService.OpenGrokRealtime(ctx, p.selection.Account, token, model)
+	conn, err := p.h.bindings.Platform.OpenRealtime(ctx, p.selection.Account, token, model)
 	if err != nil {
 		return nil, err
 	}
@@ -155,12 +144,12 @@ func (p *grokRealtimeAdapter) RealtimeOpenFailed(ctx context.Context, selected a
 	if errors.As(err, &dialErr) && dialErr.StatusCode > 0 {
 		status = dialErr.StatusCode
 	}
-	p.h.gatewayService.HandleGrokRealtimeUpstreamError(ctx, p.selection.Account, status, []byte(err.Error()))
+	p.h.bindings.Platform.RealtimeError(ctx, p.selection.Account, status, []byte(err.Error()))
 }
 
 // grokVoiceAdapter 只桥接单次选择、HTTP 原生执行及完成投影。
 type grokVoiceAdapter struct {
-	h            *OpenAIGatewayHandler
+	h            *Runtime
 	c            *gin.Context
 	apiKey       *apikey.APIKey
 	subscription *billing.UserSubscription
@@ -169,7 +158,7 @@ type grokVoiceAdapter struct {
 }
 
 func (p *grokVoiceAdapter) SelectVoice(ctx context.Context, excluded map[int64]struct{}) (accountcore.AccountSnapshot, bool, error) {
-	selected, _, err := p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", "grok-4.5", excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityTextGeneration, false, false, capability.PlatformGrok)
+	selected, _, err := p.h.bindings.Common.Selection.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", "", "grok-4.5", excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityTextGeneration, false, false, capability.PlatformGrok)
 	p.selection = selected
 	if selected == nil || selected.Account == nil {
 		return accountcore.AccountSnapshot{}, false, err
@@ -178,10 +167,10 @@ func (p *grokVoiceAdapter) SelectVoice(ctx context.Context, excluded map[int64]s
 }
 func (p *grokVoiceAdapter) AcquireVoice(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
 	var started bool
-	return p.h.openAIAttemptSupport().AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, &started, p.reqLog)
+	return p.h.bindings.Common.Support.AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, &started, p.reqLog)
 }
 func (p *grokVoiceAdapter) ForwardVoice(ctx context.Context, _ accountcore.AccountSnapshot, request gatewaymedia.VoiceRequest) gatewaymedia.VoiceOutcome {
-	result, err := p.h.gatewayService.ForwardGrokVoice(ctx, p.c, p.selection.Account, request.Endpoint, request.Body, request.ContentType)
+	result, err := p.h.bindings.Platform.Voice(ctx, p.c, p.selection.Account, request.Endpoint, request.Body, request.ContentType)
 	outcome := gatewaymedia.VoiceOutcome{Err: err}
 	if result != nil {
 		outcome.Result = &gatewaymedia.VoiceResult{RequestID: result.RequestID, Headers: http.Header(result.UpstreamHeaders).Clone(), Model: result.Model, UpstreamModel: result.UpstreamModel, Duration: result.Duration, AudioUsage: cloneGrokAudioUsage(result.AudioUsage)}
@@ -210,7 +199,7 @@ func cloneGrokAudioUsage(value *protocol.AudioUsage) *protocol.AudioUsage {
 }
 
 func (p *grokRealtimeAdapter) Relay(ctx context.Context, client, server upstream.FrameConn) (bool, error) {
-	return p.h.gatewayService.RelayGrokRealtimeFrames(ctx, client, server)
+	return p.h.bindings.Platform.RelayRealtime(ctx, client, server)
 }
 func (p *grokRealtimeAdapter) CompleteRealtime(_ context.Context, _ accountcore.AccountSnapshot, model string, elapsed time.Duration) {
 	subscription, _ := gatewayhttp.SubscriptionFromContext(p.c)

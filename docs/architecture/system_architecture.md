@@ -44,10 +44,11 @@
 | 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
 | 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
 | 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress`、`scheduler`、`usage`、`audit`、`ops`、`notification`、`moderation`、`search`、`creative`、`batchimage` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略、调度/并发/会话选择、用量/观测、通知、审核、搜索及创作/批量任务 |
-| 剩余执行适配 | `internal/service`、`handler` | 文本、媒体与调度等剩余适配由 app 分组构造；旧聚合 ProviderSet 与 repository 包已删除 |
+| 剩余执行适配 | `internal/service` | 平台单次执行、调度与健康等剩余适配通过 app 固定端口接入；旧聚合 ProviderSet 与 repository 包已删除 |
+| 旧测试兼容 | `internal/handler` | 尚有测试消费者的旧 HTTP 构造与合同夹具；server 生产依赖图已不再引用 |
 | 平台执行 | `internal/upstream` 与各平台子包 | 供应商交换、原生报文、媒体、单次执行和连接资源；业务凭据写入由 account 提供 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
-| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`creative/httpapi`、`batchimage/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
+| HTTP 适配与服务器 | `site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`scheduler/httpapi`、`notification/httpapi`、`moderation/httpapi`、`search/httpapi`、`gateway/httpapi`、`creative/httpapi`、`batchimage/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
 
 settings 的通用实现位于 `settings` 与 `settings/postgres`，app 直接构造唯一 Store，并将同一对象绑定到存取接口；旧 `SettingService` 聚合、构造和转接已经删除，生产与测试直接使用所属模块能力。idempotency 的核心、观察出口与 SQL Adapter 已独立，app 从 Ent 驱动取得同一 SQL 连接池，直接投影协调器和清理任务的配置；所有需要幂等的用户与管理员 HTTP 处理器由 app 显式绑定同一协调器，默认期限随该实例读取；协调器与清理任务各自接收日志观察出口，旧 service 委托、进程默认协调器和全局观察绑定已删除。时间轮也由 app 直接构造，仍由统一生命周期启动。资金、任务、探测和上游客户端的原生存储与构造器由 app 分组绑定，不再经过 repository 聚合入口。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；Ent schema 与生成代码直接使用所属模块类型，旧 domain/model 包已删除。
 
@@ -59,7 +60,7 @@ settings 的通用实现位于 `settings` 与 `settings/postgres`，app 直接�
 
 身份的注册、绑定、会话和强认证进入 identity，团队事务进入 team，Key 的访问快照、L1/L2 与认证 outbox 进入 apikey。旧 `service.AuthService` 及其注册、绑定和 OAuth 转接已删除；认证测试直接组合 identity 原生用例与存储端口，JWT 中间件测试直接使用 SessionService。仍保留的 HTTP 测试门面显式接收事务连接，不再通过旧认证服务取回核心或连接。app 构造唯一生产实例与事务参与工厂，旧 repository 包已删除，存储直接绑定所属模块；跨模块写入沿用现有 Ent context 与调用方连接。分组/渠道由 routing、账号管理与维护由 account、代理与 TLS 策略由 egress 提供；通知直接绑定 notification；推广支付仍经窄端口连接旧图，账号授权与刷新通过 provider 端口调用 upstream 的供应商交换。 Agent Identity 协调器也由 app 构造一次；各入口保留自身未持久账号互斥，已持久账号仍共用原进程内按账号锁。模型匹配由纯 `routing/modelmap` 共享，网关仍拥有请求改写顺序。
 
-app 直接构造身份、账号、路由、推广、用量、审计、面板与后台模式的设置读取器，共享同一 settings.Store；网关的执行端口只引用这些已构造实例，不再借助旧设置聚合取得缓存；认证与配置合同测试也使用同一组原生接口。站点名称、菜单和前端地址由 site.DisplaySettings 按原时点读取，公开投影、搜索运行时和提示规则不依赖旧设置聚合的构造。登录、TOTP、Passkey 与邮件挑战直接绑定原生能力；普通和管理员 Key、管理员用户、用户属性的 HTTP 构造由 app 完成。旧 AdminService 聚合及其构造器已删除；身份、Key、分组、账号、代理和兑换管理分别直接使用 identity、apikey、routing、account、egress、billing 的用例，跨模块授权和资金写入仍通过原连接参与接口协作。订阅与兑换的旧 service 构造转接也已删除，调用方直接绑定 billing 原生用例和 PostgreSQL 事务参与端口。邮件呈现与验证码生命周期分别属于 notification 和 identity，生产图不再构造旧 EmailService。Messages/OpenAI 的旧聚合适配与执行接口仍在清理，Qoder 旧 HTTP 聚合已删除，独立搜索、Live 和计数入口由 app 直接构造原生 HTTP 适配器；其余文本与媒体聚合仍在清理，不能将 handler ProviderSet 的删除视为网关迁移完成。
+app 直接构造身份、账号、路由、推广、用量、审计、面板与后台模式的设置读取器，共享同一 settings.Store；网关的执行端口只引用这些已构造实例，不再借助旧设置聚合取得缓存；认证与配置合同测试也使用同一组原生接口。站点名称、菜单和前端地址由 site.DisplaySettings 按原时点读取，公开投影、搜索运行时和提示规则不依赖旧设置聚合的构造。登录、TOTP、Passkey 与邮件挑战直接绑定原生能力；普通和管理员 Key、管理员用户、用户属性的 HTTP 构造由 app 完成。旧 AdminService 聚合及其构造器已删除；身份、Key、分组、账号、代理和兑换管理分别直接使用 identity、apikey、routing、account、egress、billing 的用例，跨模块授权和资金写入仍通过原连接参与接口协作。订阅与兑换的旧 service 构造转接也已删除，调用方直接绑定 billing 原生用例和 PostgreSQL 事务参与端口。邮件呈现与验证码生命周期分别属于 notification 和 identity，生产图不再构造旧 EmailService。Messages、OpenAI 文本、WS、媒体和辅助入口，以及 Qoder、搜索、Live 与计数均由 app 直接构造原生 HTTP 适配。OpenAI 的文本/WS/媒体共享同一尝试端口、资源与完成器；Wire 不再构造旧 Handler，也不需要其事后完成绑定屏障。剩余平台单步与策略适配仍在 service，旧测试兼容也尚未清零，不能据此宣布 S16 完成。
 
 `usage` 拥有用量事实、统计口径、查询缓存、Dashboard、聚合与清理；`audit` 拥有通用操作审计；`ops` 拥有观测查询、队列、采样、告警、报告和发布查询。各模块的 HTTP、PostgreSQL、Redis 与技术 provider 通过独立端口接入。app 绑定唯一生产实例并投影身份、账号、并发和认证健康数据；旧 `UsageLog` 的关联形状只通过展示投影兼容，不进入新事实模型。用户最后活动排序、Key 最近使用 IP 和团队用量由 `usage/postgres/query` 参与调用方原有连接与查询，排序继续发生在分页前。
 

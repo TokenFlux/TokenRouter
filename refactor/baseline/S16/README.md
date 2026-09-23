@@ -71,3 +71,7 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 ## 2026-09-23 WS 入站检查点
 
 `progress-20260923-ws-entry-manifest.json` 接续 openai-attempt 检查点。定向普通 644、unit race 818 条通过，各保留一项既有 WS 跳过；租约单测 race 10 条、真实 Redis integration race 10 条通过。三套完整 lint 为零，门禁 36/36、Wire 稳定；初次 unused 诊断独立保留。完整索引为 `progress-20260923-ws-entry-verification.json`。S16 未完成。
+
+## 2026-09-24 媒体/辅助入口检查点
+
+`progress-20260924-media-entry-manifest.json` 接续 20260923-ws-entry 检查点。生产 Wire/server 三套依赖图已无旧 handler。全仓普通/unit/integration 最终 12,006 / 20,040 / 13,009 条通过，既有跳过 4/8/4；三套 lint 为零。定向 race 1,238 条、真实 Redis/PG race 4 条通过；门禁 42/42、Wire 稳定。初次配置缩进、unused 及静态合同旧路径失败独立保存；完整索引为 `progress-20260924-media-entry-verification.json`。S16 未完成。

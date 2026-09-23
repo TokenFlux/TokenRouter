@@ -1,14 +1,7 @@
 // 媒体请求专属 Adapter 转换 HTTP、选择投影和完成快照；重试次序由 media 唯一实现。
-package handler
+package mediaentry
 
 import (
-	egress "github.com/TokenFlux/TokenRouter/internal/egress"
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
-	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
-	routingerrors "github.com/TokenFlux/TokenRouter/internal/routing"
-
 	"context"
 	"errors"
 	"net/http"
@@ -16,27 +9,29 @@ import (
 
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/failover"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
+	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
+	routingerrors "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-
-	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
 	upstreamgrok "github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-
-	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
-
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
 type generationRequestAdapter struct {
 	grok                                    bool
-	h                                       *OpenAIGatewayHandler
+	h                                       *Runtime
 	c                                       *gin.Context
 	apiKey                                  *apikey.APIKey
 	subject                                 authctx.AuthSubject
@@ -59,9 +54,9 @@ type generationRequestAdapter struct {
 func (p *generationRequestAdapter) SelectGeneration(ctx context.Context, excluded map[int64]struct{}) (gatewaymedia.GenerationSelection, bool, error) {
 	var err error
 	if p.grok {
-		p.selection, p.decision, err = p.h.gatewayService.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", p.sessionHash, p.routingModel, excluded, egress.OpenAIUpstreamTransportHTTPSSE, grokMediaRequiredCapability(p.endpoint), false, false, capability.PlatformGrok)
+		p.selection, p.decision, err = p.h.bindings.Common.Selection.SelectAccountWithSchedulerForCapability(ctx, p.apiKey.GroupID, "", p.sessionHash, p.routingModel, excluded, egress.OpenAIUpstreamTransportHTTPSSE, grokMediaRequiredCapability(p.endpoint), false, false, capability.PlatformGrok)
 	} else {
-		p.selection, p.decision, err = p.h.gatewayService.SelectAccountWithSchedulerForImages(ctx, p.apiKey.GroupID, p.sessionHash, p.requestModel, excluded, p.parsed.RequiredCapability)
+		p.selection, p.decision, err = p.h.bindings.Platform.SelectImages(ctx, p.apiKey.GroupID, p.sessionHash, p.requestModel, excluded, p.parsed.RequiredCapability)
 	}
 	if p.selection == nil || p.selection.Account == nil {
 		return gatewaymedia.GenerationSelection{}, false, err
@@ -88,10 +83,10 @@ func (p *generationRequestAdapter) AcquireGeneration(_ context.Context, _ gatewa
 	if p.parsed != nil {
 		stream = p.parsed.Stream
 	}
-	return p.h.openAIAttemptSupport().AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, stream, p.streamStarted, p.reqLog)
+	return p.h.bindings.Common.Support.AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, stream, p.streamStarted, p.reqLog)
 }
 func (p *generationRequestAdapter) StartGenerationKeepalive() func() {
-	return gatewayhttp.StartOpenAIImagesJSONKeepalive(p.c, p.h.openAIImagesJSONKeepaliveInterval())
+	return gatewayhttp.StartOpenAIImagesJSONKeepalive(p.c, p.h.bindings.Options.ImageKeepalive)
 }
 func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gatewaymedia.GenerationSelection, body []byte) gatewaymedia.GenerationOutcome {
 	account := p.selection.Account
@@ -99,13 +94,13 @@ func (p *generationRequestAdapter) ForwardGeneration(ctx context.Context, _ gate
 	var err error
 	p.writerBefore = p.c.Writer.Size()
 	if p.grok {
-		result, err = p.h.gatewayService.ForwardGrokMedia(ctx, p.c, account, p.endpoint, p.requestID, body, p.contentType)
+		result, err = p.h.bindings.Platform.GrokMedia(ctx, p.c, account, p.endpoint, p.requestID, body, p.contentType)
 	} else {
 		p.writerBefore = gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(p.c)
-		match := p.h.gatewayService.MatchOpenAITLSFingerprintRouterForRequest(p.c, account)
-		err = p.h.gatewayService.EnforceOpenAIClientPolicyForRequest(ctx, p.c, account, body, match)
+		match := p.h.bindings.Common.Forward.MatchOpenAITLSFingerprintRouterForRequest(p.c, account)
+		err = p.h.bindings.Common.Forward.EnforceOpenAIClientPolicyForRequest(ctx, p.c, account, body, match)
 		if err == nil {
-			result, err = p.h.gatewayService.ForwardImages(ctx, p.c, account, body, p.parsed, p.routingModel, match)
+			result, err = p.h.bindings.Platform.Images(ctx, p.c, account, body, p.parsed, p.routingModel, match)
 		}
 	}
 	after := p.c.Writer.Size()
@@ -132,20 +127,20 @@ func (p *generationRequestAdapter) ReportGeneration(_ context.Context, _ gateway
 	account := p.selection.Account
 	result := legacyGenerationResult(value)
 	if p.grok {
-		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, grokMediaScheduleModel(account, p.routingModel, result), success, nil)
+		p.h.bindings.Common.Selection.ReportOpenAIAccountScheduleResult(account, grokMediaScheduleModel(account, p.routingModel, result), success, nil)
 		return
 	}
 	if success {
-		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestModel, false, result), true, nil)
+		p.h.bindings.Common.Selection.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestModel, false, result), true, nil)
 		return
 	}
-	p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestModel, false, result), false, nil, err)
+	p.h.bindings.Common.Selection.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestModel, false, result), false, nil, err)
 }
 func (p *generationRequestAdapter) SwitchGeneration(gatewaymedia.GenerationSelection) {
-	p.h.gatewayService.RecordOpenAIAccountSwitchForSelection(p.selection)
+	p.h.bindings.Common.Selection.RecordOpenAIAccountSwitchForSelection(p.selection)
 }
 func (p *generationRequestAdapter) StopGeneration429(_ gatewaymedia.GenerationSelection, status, count int) bool {
-	return p.h.gatewayService.ShouldStopOpenAIOAuth429Failover(p.selection.Account, status, count, &p.oauth429)
+	return p.h.bindings.Platform.Stop429(p.selection.Account, status, count, &p.oauth429)
 }
 func (p *generationRequestAdapter) GenerationClientGone() bool {
 	return gatewayhttp.FailoverClientGone(p.c)
@@ -231,11 +226,11 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 	if result != nil {
 		// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
 		if account.Record.Type == capability.AccountTypeOAuth && !account.View().IsShadow() {
-			h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.Record.ID, result.ResponseHeaders)
+			h.bindings.Common.Selection.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.Record.ID, result.ResponseHeaders)
 		}
-		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(c, account, requestModel, false, result), true, result.FirstTokenMs)
+		h.bindings.Common.Selection.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(c, account, requestModel, false, result), true, result.FirstTokenMs)
 	} else {
-		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(c, account, requestModel, false, result), true, nil)
+		h.bindings.Common.Selection.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(c, account, requestModel, false, result), true, nil)
 	}
 
 	userAgent := c.GetHeader("User-Agent")
@@ -265,12 +260,12 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 		IPAddress:          clientIP,
 		RequestPayloadHash: requestPayloadHash,
 		RequestBody:        body,
-		APIKeyService:      h.apiKeyService,
+		APIKeyService:      h.bindings.Quota,
 		QuotaPlatform:      quotaPlatform,
 		ClientSessionID:    clientSessionID,
 		ChannelUsageFields: channelMapping.ToUsageFields(requestModel, upstreamModel),
 	})
-	completionRecorder := h.completionRuntime()
+	completionRecorder := h.bindings.Common.Recorder
 	completionLog := logging.L().With(
 		zap.String("component", "handler.openai_gateway.images"),
 		zap.Int64("user_id", subject.UserID),
@@ -279,7 +274,7 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 		zap.String("model", requestModel),
 		zap.Int64("account_id", account.Record.ID),
 	)
-	h.submitMandatoryUsageRecordTask(c, func(ctx context.Context) {
+	h.bindings.Common.Support.Submission.SubmitMandatory(c, func(ctx context.Context) {
 		if err := completionRecorder.Record(ctx, completionInput, true); err != nil {
 			completionLog.Error("openai.images.record_usage_failed", zap.Error(err))
 		}
@@ -301,7 +296,7 @@ func (p *generationRequestAdapter) completeGrok(requestCtx context.Context, valu
 			// 用创建受理到首次发现完成的墙钟时间记录端到端耗时。
 			CreatedAt: videoCreateStartedAt,
 		}
-		h.gatewayService.MediaVideoTasks().TrackCreated(requestCtx, apiKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.Record.ID, pending, grokVideoObserver{log: reqLog})
+		h.bindings.VideoTasks().TrackCreated(requestCtx, apiKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.Record.ID, pending, grokVideoObserver{log: reqLog})
 	}
 	if endpoint == upstreamgrok.GrokMediaEndpointVideoStatus || endpoint == upstreamgrok.GrokMediaEndpointVideoContent {
 		taskID := strings.TrimSpace(requestID)
@@ -336,7 +331,7 @@ func (p *generationRequestAdapter) MediaClassify() gatewayhttp.MediaNoAccount {
 		platform = capability.PlatformGrok
 		routing = p.routingModel
 	}
-	result := openaiattempt.ClassifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.requestModel, routing, platform)
+	result := openaiattempt.ClassifyNoAccountErrorFromGin(p.c, p.h.bindings.Common.Diagnoser, p.apiKey, p.requestModel, routing, platform)
 	return gatewayhttp.MediaNoAccount{ModelNotFound: result.ModelNotFound, Status: result.Status, Type: result.ErrType, Message: result.Message}
 }
 func (p *generationRequestAdapter) MediaNoAvailable(err error) bool {
@@ -359,21 +354,21 @@ func (p *generationRequestAdapter) MediaError(status int, typ, message string, s
 func (p *generationRequestAdapter) MediaFailover(err error, stream bool) {
 	var value *forwardcore.UpstreamFailoverError
 	if errors.As(err, &value) {
-		p.h.openAIAttemptSupport().HandleFailoverExhausted(p.c, value, stream)
+		p.h.bindings.Common.Support.HandleFailoverExhausted(p.c, value, stream)
 	}
 }
 func (p *generationRequestAdapter) MediaSimpleExhausted() {
-	p.h.openAIAttemptSupport().HandleFailoverExhaustedSimple(p.c, 502, *p.streamStarted)
+	p.h.bindings.Common.Support.HandleFailoverExhaustedSimple(p.c, 502, *p.streamStarted)
 }
 func (p *generationRequestAdapter) mediaStatus() int {
 	status, _ := openaiattempt.GetContextInt64(p.c, gatewayhttp.OpsUpstreamStatusCodeKey)
 	return int(status)
 }
 func (p *generationRequestAdapter) MediaForwardCyber(err error) bool {
-	return p.h.openAIAttemptSupport().RecordOpenAIForwardErrorCyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), err)
+	return p.h.bindings.Common.Support.RecordOpenAIForwardErrorCyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), err)
 }
 func (p *generationRequestAdapter) MediaCyber(err error) {
-	p.h.openAIAttemptSupport().RecordOpenAICyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), nil, err.Error())
+	p.h.bindings.Common.Support.RecordOpenAICyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), nil, err.Error())
 }
 func (p *generationRequestAdapter) MediaReportUnexpected(result *gatewaymedia.GenerationResult, err error) {
 	p.ReportGeneration(p.c.Request.Context(), gatewaymedia.GenerationSelection{}, result, false, err)

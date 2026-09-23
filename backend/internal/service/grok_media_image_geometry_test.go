@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	provider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/grok"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -12,7 +13,7 @@ import (
 func TestApplyGrokImagineImageGeometryMapsOpenAISize(t *testing.T) {
 	t.Parallel()
 
-	out, err := grokMediaCodec().ApplyGrokImagineImageGeometry([]byte(`{"model":"grok-imagine-image-2.0","prompt":"hi","size":"1152x1536"}`))
+	out, err := provider.GrokMediaCodec().ApplyGrokImagineImageGeometry([]byte(`{"model":"grok-imagine-image-2.0","prompt":"hi","size":"1152x1536"}`))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(out, "size").Exists())
 	require.Equal(t, "2k", gjson.GetBytes(out, "resolution").String())
@@ -22,7 +23,7 @@ func TestApplyGrokImagineImageGeometryMapsOpenAISize(t *testing.T) {
 func TestApplyGrokImagineImageGeometryKeepsClientGeometry(t *testing.T) {
 	t.Parallel()
 
-	out, err := grokMediaCodec().ApplyGrokImagineImageGeometry([]byte(`{"size":"1024x1024","resolution":"2K","aspect_ratio":"16:9"}`))
+	out, err := provider.GrokMediaCodec().ApplyGrokImagineImageGeometry([]byte(`{"size":"1024x1024","resolution":"2K","aspect_ratio":"16:9"}`))
 	require.NoError(t, err)
 	require.False(t, gjson.GetBytes(out, "size").Exists())
 	require.Equal(t, "2k", gjson.GetBytes(out, "resolution").String())
@@ -47,7 +48,7 @@ func TestSanitizeGrokMediaForwardBodyConvertsImageSize(t *testing.T) {
 func TestParseGrokMediaRequestKeepsImageResolutionOutOfVideoNormalize(t *testing.T) {
 	t.Parallel()
 
-	info := ParseGrokMediaRequest("application/json", []byte(`{"model":"grok-imagine-image-2.0","resolution":"2K","aspect_ratio":"16:9"}`))
+	info := provider.GrokMediaCodec().ParseGrokMediaRequest("application/json", []byte(`{"model":"grok-imagine-image-2.0","resolution":"2K","aspect_ratio":"16:9"}`))
 	require.Equal(t, "2k", info.ImageResolution)
 	require.Equal(t, "16:9", info.AspectRatio)
 	require.Equal(t, pricing.VideoBillingResolution480P, info.Resolution)
@@ -55,8 +56,8 @@ func TestParseGrokMediaRequestKeepsImageResolutionOutOfVideoNormalize(t *testing
 
 func TestGrokImagineAspectRatioFromSize(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, "1:1", grokMediaCodec().GrokImagineAspectRatioFromSize("1024x1024"))
-	require.Equal(t, "3:4", grokMediaCodec().GrokImagineAspectRatioFromSize("1152x1536"))
-	require.Equal(t, "4:3", grokMediaCodec().GrokImagineAspectRatioFromSize("1536x1152"))
-	require.Equal(t, "16:9", grokMediaCodec().GrokImagineAspectRatioFromSize("1792x1024"))
+	require.Equal(t, "1:1", provider.GrokMediaCodec().GrokImagineAspectRatioFromSize("1024x1024"))
+	require.Equal(t, "3:4", provider.GrokMediaCodec().GrokImagineAspectRatioFromSize("1152x1536"))
+	require.Equal(t, "4:3", provider.GrokMediaCodec().GrokImagineAspectRatioFromSize("1536x1152"))
+	require.Equal(t, "16:9", provider.GrokMediaCodec().GrokImagineAspectRatioFromSize("1792x1024"))
 }

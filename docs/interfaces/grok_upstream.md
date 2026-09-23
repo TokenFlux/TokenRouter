@@ -58,6 +58,8 @@ OAuth 访问令牌 JWT 的数字或字符串 `tier` 是账号档位的首选信�
 
 ## 媒体请求格式
 
+媒体与 Voice HTTP 由 app 直接绑定 `gateway/httpapi/mediaentry`；生成循环和视频归属/认领仍由 gateway/media 唯一持有，计量输入在提交完成任务前固化。gateway/provider 只组合现有 Grok Codec 与纯价格规范化端口，媒体资格复用账号规则并在原位置执行缺少观测时的探测；不再经过旧 Handler 装配。
+
 JSON 图片编辑和视频生成请求可在 `image`、`images`、`reference_images` 与 `mask` 对象中提供参考图片。与 xAI 直接兼容的请求应使用 `url` 字段；历史 `image_url` 字段仍可使用，TokenRouter 会在转发前把它规范化为 `url`。如果两者同时存在，则保留非空的 `url`；空白 `url` 会回退使用 `image_url`。multipart 图片编辑中的上传文件也会转换为 `url` 形式的 data URL。
 
 创作台的 Grok 图片 `edit` 使用 xAI 官方 JSON `POST /v1/images/edits`，而不是 OpenAI 风格 multipart：单图请求使用 `image: {"type":"image_url","url":"data:image/png;base64,..."}`，多图请求使用 `images` 数组，最多 3 张源图；请求保留 `model`、`prompt`、`resolution`、`aspect_ratio`，并设置 `response_format: "b64_json"`，响应从 `data[].b64_json` 解析为创作台输出。`generate` 仍使用 `/v1/images/generations`。

@@ -32,7 +32,6 @@ import (
 	postgres10 "github.com/TokenFlux/TokenRouter/internal/gateway/postgres"
 	rediscache5 "github.com/TokenFlux/TokenRouter/internal/gateway/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 	"github.com/TokenFlux/TokenRouter/internal/identity"
 	httpapi4 "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	postgres2 "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
@@ -127,7 +126,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	publicHandler := provideSitePublicHTTP(publicService, info)
 	mailer := provideMailer(store)
 	notificationEmailService := provideNotification(store, mailer)
-	httpapiHandler := provideNotificationHTTP(mailer, notificationEmailService, displaySettings)
+	handler := provideNotificationHTTP(mailer, notificationEmailService, displaySettings)
 	passkeyRepository := postgres2.NewPasskeyRepository(db)
 	passkeySessionStore := rediscache4.NewPasskeySessionStore(redisClient)
 	passkeyService, err := providePasskey(cfg, passkeyRepository, passkeySessionStore, userStore)
@@ -275,7 +274,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	paymentConfigService := providePaymentConfigCore(instanceStore, store, encryptionKey, plans)
 	paymentRuntime := providePaymentRuntime(client, paymentRegistry, defaultLoadBalancer, redeemService, subscriptionService, affiliateService, notificationEmailService, instanceStore, groupStore, userStore, paymentConfigService, encryptionKey, oAuthSettings, tasks, calendar)
 	appIdentityHTTP := provideIdentityHTTP(appIdentityAuthGraph, userService, cfg, appIdentityAuthSettings, backendMode, publicService, runtime, promoService, redeemService, totpService, userAttributeService, tasks, paymentRuntime)
-	appAuthRouteMount := provideAuthRouteMount(marketplaceHandler, publicHandler, httpapiHandler, passkeyHandler, appIdentityHTTP)
+	appAuthRouteMount := provideAuthRouteMount(marketplaceHandler, publicHandler, handler, passkeyHandler, appIdentityHTTP)
 	platformQuotas := providePlatformQuotas(userPlatformQuotaRepository, cache, userStore, quotaCoordinator)
 	quotaHandler := provideQuotaHTTP(platformQuotas, calendar)
 	userHandler := providePromotionUserHTTP(affiliateService)
@@ -392,7 +391,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	if err != nil {
 		return nil, err
 	}
-	handler2 := provideCompositeSettingsHTTP(runtime, settingsRegistry, opsService, paymentConfigService, turnstileService, aliyunCaptchaService, userAttributeService, totpService, userService, public)
+	httpapiHandler := provideCompositeSettingsHTTP(runtime, settingsRegistry, opsService, paymentConfigService, turnstileService, aliyunCaptchaService, userAttributeService, totpService, userService, public)
 	dashboardAggregationService := provideUsageAggregation(dashboardAggregationRepository, wheel, leaderLock, db, usageOptions, preAggregationSettingsService)
 	opsAggregationService := provideOpsAggregation(opsRepository, store, db, redisClient, opsOptions, preAggregationSettingsService)
 	preAggregationHandler := providePreAggregationHTTP(preAggregationSettingsService, dashboardAggregationService, opsAggregationService)
@@ -426,8 +425,8 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	adminHandler := httpapi3.NewAdminHandler(teamService)
 	adminUserHandler := provideIdentityAdminHTTP(userAdmin, apikeyAdmin, concurrencyService, totpService, userService, runtimeSettings)
 	opsHandler := httpapi10.NewOpsHandler(opsService)
-	handler3 := provideSearchHTTP(configService)
-	appAdminRouteMount := provideAdminRouteMount(tlsFingerprintProfileHandler, diagnosticsHandler, tlsFingerprintRouterHandler, codexImportHandler, oAuthUsageHandler, managementHandler, contentModerationHandler, antigravityOAuthHandler, errorPassthroughHandler, codexInviteResetHandler, dataManagementHandler, archiveHandler, userAttributeHandler, upstreamUsageHandler, scheduledTestHandler, ollamaUsageHandler, adminSubscriptionHandler, adminAnnouncementHandler, testHandler, openAIOAuthHandler, geminiOAuthHandler, crsHandler, qoderOAuthHandler, dashboardHandler, affiliateHandler, grokOAuthHandler, auditLogHandler, channelHandler, quotaHandler, handler2, preAggregationHandler, settingsHandler, runtimeSettingsHandler, adminKeySettingsHandler, httpapiRuntimeSettingsHandler, panelSettingsHandler, systemHandler, adminRedeemHandler, httpapiHandler, backupHandler, adminAPIKeyHandler, proxyHandler, groupHandler, claudeOAuthHandler, adminUsageHandler, promoHandler, adminHandler, adminUserHandler, opsHandler, handler3)
+	handler2 := provideSearchHTTP(configService)
+	appAdminRouteMount := provideAdminRouteMount(tlsFingerprintProfileHandler, diagnosticsHandler, tlsFingerprintRouterHandler, codexImportHandler, oAuthUsageHandler, managementHandler, contentModerationHandler, antigravityOAuthHandler, errorPassthroughHandler, codexInviteResetHandler, dataManagementHandler, archiveHandler, userAttributeHandler, upstreamUsageHandler, scheduledTestHandler, ollamaUsageHandler, adminSubscriptionHandler, adminAnnouncementHandler, testHandler, openAIOAuthHandler, geminiOAuthHandler, crsHandler, qoderOAuthHandler, dashboardHandler, affiliateHandler, grokOAuthHandler, auditLogHandler, channelHandler, quotaHandler, httpapiHandler, preAggregationHandler, settingsHandler, runtimeSettingsHandler, adminKeySettingsHandler, httpapiRuntimeSettingsHandler, panelSettingsHandler, systemHandler, adminRedeemHandler, handler, backupHandler, adminAPIKeyHandler, proxyHandler, groupHandler, claudeOAuthHandler, adminUsageHandler, promoHandler, adminHandler, adminUserHandler, opsHandler, handler2)
 	fundingAdmission := provideFundingAdmission(eligibility, userRPMCache, groupRateStore, cfg)
 	countTokensHandler := provideCountTokensHTTP(gatewayService, openAIGatewayService, fundingAdmission, errorPassthroughService, cfg, appGatewayRequestActivity, promptpolicyService)
 	providerQoderRuntime := provideQoderRuntime(qoderTokenProvider, transportClient, tlsProfiles, accountStore)
@@ -452,9 +451,9 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	responsesWSHandler := provideResponsesWSHTTP(openAIGatewayService, fundingAdmission, apiKeyService, bindings, promptpolicyService, cyberBlocks, cfg, appGatewayRequestActivity)
 	modelsHandler := provideModelsHTTP(requestableCatalogue, geminiMessagesCompatService, appGatewayRequestActivity)
 	messagesHandler := provideMessagesHTTP(appMessageHTTPBindings, textattemptRuntime, appGatewayRequestActivity)
-	openAIGatewayHandler := handler.ProvideOpenAIGatewayHandler(openAIGatewayService, concurrencyService, fundingAdmission, apiKeyService, usageRecordWorkerPool, errorPassthroughService, contentModerationService, opsService, grokQuotaService, cfg, errorLogQueue, promptpolicyService, openAIHTTPResources)
-	mediaHandler := provideMediaHTTP(openAIGatewayHandler, cyberHandler, appGatewayRequestActivity, gatewayCompletionRecorders)
-	auxiliaryHandler := provideAuxiliaryHTTP(openAIGatewayHandler, cyberHandler, appGatewayRequestActivity, gatewayCompletionRecorders)
+	mediaentryRuntime := provideMediaRuntime(openAIGatewayService, apiKeyService, fundingAdmission, bindings, openAIHTTPResources, grokQuotaService, cfg)
+	mediaHandler := provideMediaHTTP(mediaentryRuntime, appGatewayRequestActivity)
+	auxiliaryHandler := provideAuxiliaryHTTP(mediaentryRuntime, appGatewayRequestActivity)
 	liveHandler := provideLiveHTTP(openAIGatewayService, fundingAdmission, concurrencyService, contentModerationService, appGatewayRequestActivity)
 	grokSearchExecutor := provideGrokSearchExecutor(transportClient, runtimeReaders)
 	emulator := ProvideGatewaySearchTools(gatewayService, configService, channelService)
@@ -516,9 +515,8 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	geminiPrecheck := provideGeminiPrecheck(geminiQuotaService, usageLogRepository)
 	orderExpiry := providePaymentExpiry(paymentRuntime, leaderLock, db)
 	appCoreRuntimeReady := provideCoreRuntime(runtimeBlockState, geminiPrecheck, cfg, authCacheInvalidationWorker, snapshotService, modelList, groupRepository, appSchedulerSharedState, usageCleanupService, idempotencyCleanupService, openAIGatewayService, openAIAuthorization, orderExpiry, tlsFingerprintCollectorService, manager, wheel, gatewayService, geminiMessagesCompatService, antigravityGatewayService, digestSessionStore, usageLogRepository, tasks, transportClient, appGatewayRequestActivity, appGatewayBillingRates)
-	appGatewayCompletionReady := provideGatewayCompletionBindings(gatewayCompletionRecorders, openAIGatewayHandler, cyberHandler)
 	appIdempotencyHTTPReady := provideIdempotencyHTTP(idempotencyCoordinator, managementHandler, archiveHandler, codexImportHandler, apiKeyHandler, adminRedeemHandler, adminSubscriptionHandler, proxyHandler, adminUserHandler, groupHandler, systemHandler, adminUsageHandler)
-	appRuntimeReady := provideRuntime(appBootRuntimeReady, appAuthRuntimeReady, appMaintenanceRuntimeReady, appOpsRuntimeReady, appQueuesRuntimeReady, appJobsRuntimeReady, appCoreRuntimeReady, appGatewayCompletionReady, appIdempotencyHTTPReady, promptpolicyService)
+	appRuntimeReady := provideRuntime(appBootRuntimeReady, appAuthRuntimeReady, appMaintenanceRuntimeReady, appOpsRuntimeReady, appQueuesRuntimeReady, appJobsRuntimeReady, appCoreRuntimeReady, appIdempotencyHTTPReady, promptpolicyService)
 	application := provideApplication(httpServer, manager, appRuntimeReady, opsService, errorLogQueue)
 	return application, nil
 }

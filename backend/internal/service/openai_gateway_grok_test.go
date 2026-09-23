@@ -1118,7 +1118,7 @@ func TestParseGrokMediaRequestBuildsMultipartModerationBody(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, writer.Close())
 
-	info := ParseGrokMediaRequest(writer.FormDataContentType(), buf.Bytes())
+	info := gatewayprovider.GrokMediaCodec().ParseGrokMediaRequest(writer.FormDataContentType(), buf.Bytes())
 	require.Equal(t, "grok-imagine-edit", info.Model)
 	require.Equal(t, "edit this private image", info.Prompt)
 
@@ -1129,7 +1129,7 @@ func TestParseGrokMediaRequestBuildsMultipartModerationBody(t *testing.T) {
 }
 
 func TestParseGrokMediaVideoRequestResolution(t *testing.T) {
-	info := ParseGrokMediaRequest("application/json", []byte(`{"model":"grok-imagine-video","prompt":"waves","resolution":"720p"}`))
+	info := gatewayprovider.GrokMediaCodec().ParseGrokMediaRequest("application/json", []byte(`{"model":"grok-imagine-video","prompt":"waves","resolution":"720p"}`))
 
 	require.Equal(t, "grok-imagine-video", info.Model)
 	require.Equal(t, "720p", info.Resolution)
@@ -1142,7 +1142,7 @@ func TestParseGrokMediaRequestAcceptsOfficialImageURLFields(t *testing.T) {
 		"reference_images":[{"url":"https://example.com/reference.png"}]
 	}`)
 
-	info := ParseGrokMediaRequest("application/json", body)
+	info := gatewayprovider.GrokMediaCodec().ParseGrokMediaRequest("application/json", body)
 
 	require.Equal(t, []string{
 		"https://example.com/source.png",
@@ -1263,7 +1263,7 @@ func TestNormalizeGrokMediaModelForEndpoint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, NormalizeGrokMediaModelForEndpoint(tt.endpoint, tt.model, tt.hasInputImage))
+			require.Equal(t, tt.want, gatewayprovider.GrokMediaCodec().NormalizeGrokMediaModelForEndpoint(tt.endpoint, tt.model, tt.hasInputImage))
 		})
 	}
 }

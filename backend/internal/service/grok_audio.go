@@ -26,9 +26,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// DefaultGrokRealtimeDialTimeout 限制下游升级前的上游 WebSocket 握手时间；连接建立后不再中断会话。
-const DefaultGrokRealtimeDialTimeout = 12 * time.Second
-
 // ForwardGrokVoice 转发官方 xAI Voice HTTP API，包括 TTS、STT 和自定义 Voice 子资源。
 // TTS 返回音频字节、STT 返回 JSON，且 xAI 可能附加格式专用响应头，因此响应保持透传。
 func (s *OpenAIGatewayService) ForwardGrokVoice(ctx context.Context, c *gin.Context, account *gatewaycapture.ExecutionAccount, endpoint string, body []byte, contentType string) (*forwardcore.OpenAIResult, error) {

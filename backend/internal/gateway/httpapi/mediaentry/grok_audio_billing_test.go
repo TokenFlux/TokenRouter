@@ -1,11 +1,12 @@
 //go:build unit
 
-package handler
+package mediaentry
 
 import (
 	"testing"
 	"time"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	coderws "github.com/coder/websocket"
 )
 
@@ -16,11 +17,11 @@ func TestIsExpectedGrokRealtimeClose(t *testing.T) {
 		coderws.StatusNoStatusRcvd,
 		coderws.StatusAbnormalClosure,
 	} {
-		if !isExpectedGrokRealtimeClose(coderws.CloseError{Code: status}) {
+		if !gatewayhttp.IsExpectedGrokRealtimeClose(coderws.CloseError{Code: status}) {
 			t.Fatalf("status %v should be treated as an expected session close", status)
 		}
 	}
-	if isExpectedGrokRealtimeClose(coderws.CloseError{Code: coderws.StatusPolicyViolation}) {
+	if gatewayhttp.IsExpectedGrokRealtimeClose(coderws.CloseError{Code: coderws.StatusPolicyViolation}) {
 		t.Fatal("policy violations must not be treated as billable normal closes")
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	mediaprovider "github.com/TokenFlux/TokenRouter/internal/gateway/media/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace"
@@ -19,7 +18,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 	gatewaymedia "github.com/TokenFlux/TokenRouter/internal/gateway/media"
@@ -34,11 +32,7 @@ import (
 )
 
 func ExtractGrokMediaModel(contentType string, body []byte) string {
-	return grokMediaCodec().ExtractGrokMediaModel(contentType, body)
-}
-
-func ParseGrokMediaRequest(contentType string, body []byte) grok.GrokMediaRequestInfo {
-	return grokMediaCodec().ParseGrokMediaRequest(contentType, body)
+	return gatewayprovider.GrokMediaCodec().ExtractGrokMediaModel(contentType, body)
 }
 
 func (s *OpenAIGatewayService) BindGrokMediaVideoRequestAccount(
@@ -152,7 +146,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	if err != nil {
 		return nil, err
 	}
-	requestInfo := ParseGrokMediaRequest(contentType, body)
+	requestInfo := gatewayprovider.GrokMediaCodec().ParseGrokMediaRequest(contentType, body)
 	billingModel := requestInfo.Model
 	upstreamModel := billingModel
 	if endpoint.RequiresRequestBody() {
@@ -161,7 +155,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 		}
 		upstreamModel = gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(billingModel)
 		if upstreamModel != requestInfo.Model {
-			body, contentType, err = RewriteGrokMediaRequestModel(body, contentType, upstreamModel)
+			body, contentType, err = gatewayprovider.GrokMediaCodec().RewriteGrokMediaRequestModel(body, contentType, upstreamModel)
 			if err != nil {
 				return nil, fmt.Errorf("rewrite grok media account mapped model: %w", err)
 			}
@@ -301,10 +295,6 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	}, nil
 }
 
-func RewriteGrokMediaRequestModel(body []byte, contentType, model string) ([]byte, string, error) {
-	return grokMediaCodec().RewriteGrokMediaRequestModel(body, contentType, model)
-}
-
 func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	ctx context.Context,
 	c *gin.Context,
@@ -401,22 +391,20 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 	return result, nil
 }
 
-func isGrokCLIProxyTarget(rawURL string) bool { return grokMediaCodec().IsGrokCLIProxyTarget(rawURL) }
+func isGrokCLIProxyTarget(rawURL string) bool {
+	return gatewayprovider.GrokMediaCodec().IsGrokCLIProxyTarget(rawURL)
+}
 
 func prepareGrokMediaForwardBody(endpoint grok.GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
-	return grokMediaCodec().PrepareGrokMediaForwardBody(endpoint, body, contentType)
+	return gatewayprovider.GrokMediaCodec().PrepareGrokMediaForwardBody(endpoint, body, contentType)
 }
 
 func normalizeGrokMediaForwardBody(endpoint grok.GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
-	return grokMediaCodec().NormalizeGrokMediaForwardBody(endpoint, body, contentType)
+	return gatewayprovider.GrokMediaCodec().NormalizeGrokMediaForwardBody(endpoint, body, contentType)
 }
 
 func sanitizeGrokMediaForwardBody(endpoint grok.GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
-	return grokMediaCodec().SanitizeGrokMediaForwardBody(endpoint, body, contentType)
-}
-
-func NormalizeGrokMediaModelForEndpoint(endpoint grok.GrokMediaEndpoint, model string, hasInputImage bool) string {
-	return grokMediaCodec().NormalizeGrokMediaModelForEndpoint(endpoint, model, hasInputImage)
+	return gatewayprovider.GrokMediaCodec().SanitizeGrokMediaForwardBody(endpoint, body, contentType)
 }
 
 type grokMediaUsageMetadata struct {
@@ -462,7 +450,7 @@ func grokMediaUsageFromResponse(endpoint grok.GrokMediaEndpoint, requestInfo gro
 }
 
 func extractGrokMediaVideoRequestID(body []byte) string {
-	return grokMediaCodec().ExtractGrokMediaVideoRequestID(body)
+	return gatewayprovider.GrokMediaCodec().ExtractGrokMediaVideoRequestID(body)
 }
 
 func (s *OpenAIGatewayService) handleGrokMediaErrorResponse(
@@ -527,21 +515,7 @@ func writeGrokMediaContentResponse(c *gin.Context, resp *http.Response) error {
 }
 
 func rewriteGrokMediaVideoContentURLs(body []byte, requestID, proxyURL string) []byte {
-	return gatewaymedia.RewriteVideoContentURLs(body, requestID, proxyURL, grokMediaCodec().IsGrokMediaVideoContentURL)
-}
-
-// 输入归一化继续复用 billing/pricing 的原纯规则；不提前读取价格或额外查询。
-func grokMediaCodec() grok.MediaCodec {
-	return grok.MediaCodec{Options: grok.MediaNormalization{
-		MaxUploadPartSize:                             upstream.OpenAIImageMaxUploadPartSize,
-		ImageTier1K:                                   pricing.ImageBillingSize1K,
-		MarshalJSON:                                   wirejson.Marshal,
-		NormalizeImageBillingTierOrDefault:            pricing.NormalizeImageBillingTierOrDefault,
-		NormalizeVideoBillingResolutionOrDefault:      pricing.NormalizeVideoBillingResolutionOrDefault,
-		NormalizeVideoBillingDurationSecondsOrDefault: pricing.NormalizeVideoBillingDurationSecondsOrDefault,
-		ClassifyImageBillingTier:                      pricing.ClassifyImageBillingTier,
-		ParseImageDimensions:                          pricing.ParseImageBillingDimensions,
-	}}
+	return gatewaymedia.RewriteVideoContentURLs(body, requestID, proxyURL, gatewayprovider.GrokMediaCodec().IsGrokMediaVideoContentURL)
 }
 
 // MediaVideoTasks 投影兼容入口的唯一存储与配置，不创建另一份缓存。
