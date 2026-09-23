@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	provider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
@@ -117,7 +119,7 @@ func (p *openAIPassthroughExecutionAdapter) ExplicitImageIntent(model string, bo
 	return provider.ImageIntent().IsExplicitImageGenerationIntent(media.OpenAIResponsesEndpoint, model, body)
 }
 func (p *openAIPassthroughExecutionAdapter) ImageAllowed() bool {
-	return GroupAllowsResponsesImages(apiKeyGroup(getAPIKeyFromContext(p.c)))
+	return routing.GroupAllowsResponsesImages(apiKeyGroup(getAPIKeyFromContext(p.c)))
 }
 func (p *openAIPassthroughExecutionAdapter) FeatureDenied() {
 	gatewayhttp.MarkOpsClientBusinessLimited(p.c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)

@@ -536,7 +536,7 @@ func (s *OpenAIGatewayService) isUpstreamRoutingModelRestrictedByChannel(ctx con
 
 		routingModel,
 		requireCompact,
-		openAIHTTPPassthroughRoutingFromContext(ctx),
+		requeststate.OpenAIHTTPPassthroughRoutingFromContext(ctx),
 	)
 	if upstreamModel == "" {
 		return false

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
@@ -36,9 +38,9 @@ func (p openAIForwardTransformAdapter) GroupImagePolicy(inherited string) string
 func (p openAIForwardTransformAdapter) ImageAllowed() bool {
 	key := getAPIKeyFromContext(p.c)
 	if key == nil {
-		return GroupAllowsResponsesImages(nil)
+		return routing.GroupAllowsResponsesImages(nil)
 	}
-	return GroupAllowsResponsesImages(key.Group)
+	return routing.GroupAllowsResponsesImages(key.Group)
 }
 func (p openAIForwardTransformAdapter) LiteHeader() bool {
 	return p.openAIForwardPreludeAdapter.LiteHeader()

@@ -7,6 +7,9 @@ import (
 	"testing"
 	time "time"
 
+	clientmeta "github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
@@ -24,59 +27,14 @@ func guardianAffinityTestContext(t *testing.T, model, subagent, parentHeader, me
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	c.Request.Header.Set(openAISubagentHeader, subagent)
+	c.Request.Header.Set(clientmeta.OpenAISubagentHeader, subagent)
 	if parentHeader != "" {
-		c.Request.Header.Set(codexParentThreadIDHeader, parentHeader)
+		c.Request.Header.Set(clientmeta.CodexParentThreadIDHeader, parentHeader)
 	}
 	if metadata != "" {
-		c.Request.Header.Set(codexTurnMetadataHeader, metadata)
+		c.Request.Header.Set(clientmeta.CodexTurnMetadataHeader, metadata)
 	}
-	return WithOpenAIGuardianParentAffinity(context.Background(), c, nil, model)
-}
-
-func TestWithOpenAIGuardianParentAffinityRequiresUnambiguousReviewLineage(t *testing.T) {
-	parentID := "11111111-1111-4111-8111-111111111111"
-	wantHash := DeriveSessionHashFromSeed(parentID)
-
-	for _, subagent := range []string{"guardian", "review", "GUARDIAN"} {
-		t.Run(subagent, func(t *testing.T) {
-			ctx := guardianAffinityTestContext(t, codexAutoReviewModel, subagent, parentID, `{"parent_thread_id":"`+parentID+`"}`)
-			affinity, ok := openAIGuardianParentAffinityFromContext(ctx)
-			require.True(t, ok)
-			require.Equal(t, wantHash, affinity.currentSessionHash)
-		})
-	}
-
-	t.Run("metadata only", func(t *testing.T) {
-		ctx := guardianAffinityTestContext(t, codexAutoReviewModel, "guardian", "", `{"parent_thread_id":"`+parentID+`"}`)
-		_, ok := openAIGuardianParentAffinityFromContext(ctx)
-		require.True(t, ok)
-	})
-
-	t.Run("websocket envelope metadata", func(t *testing.T) {
-
-		rec := httptest.NewRecorder()
-		c, _ := gin.CreateTestContext(rec)
-		c.Request = httptest.NewRequest(http.MethodGet, "/openai/v1/responses", nil)
-		body := []byte(`{"type":"response.create","response":{"model":"codex-auto-review","client_metadata":{"x-codex-turn-metadata":"{\"parent_thread_id\":\"` + parentID + `\",\"subagent_kind\":\"guardian\"}"}}}`)
-		ctx := WithOpenAIGuardianParentAffinity(context.Background(), c, body, codexAutoReviewModel)
-		affinity, ok := openAIGuardianParentAffinityFromContext(ctx)
-		require.True(t, ok)
-		require.Equal(t, wantHash, affinity.currentSessionHash)
-	})
-
-	for name, ctx := range map[string]context.Context{
-		"ordinary model":       guardianAffinityTestContext(t, "gpt-5.6-sol", "guardian", parentID, ""),
-		"ordinary subagent":    guardianAffinityTestContext(t, codexAutoReviewModel, "collab_spawn", parentID, ""),
-		"missing parent":       guardianAffinityTestContext(t, codexAutoReviewModel, "guardian", "", ""),
-		"conflicting lineage":  guardianAffinityTestContext(t, codexAutoReviewModel, "guardian", parentID, `{"parent_thread_id":"different-parent"}`),
-		"conflicting subagent": guardianAffinityTestContext(t, codexAutoReviewModel, "guardian", parentID, `{"parent_thread_id":"`+parentID+`","subagent_kind":"collab_spawn"}`),
-	} {
-		t.Run(name, func(t *testing.T) {
-			_, ok := openAIGuardianParentAffinityFromContext(ctx)
-			require.False(t, ok)
-		})
-	}
+	return gatewayhttp.WithOpenAIGuardianParentAffinity(context.Background(), c, nil, model)
 }
 
 func TestOpenAIAccountSchedulerGuardianAffinitySelectsParent(t *testing.T) {
@@ -96,10 +54,10 @@ func TestOpenAIAccountSchedulerGuardianAffinitySelectsParent(t *testing.T) {
 			Event: logging.Event},
 		),
 	}))
-	ctx := guardianAffinityTestContext(t, codexAutoReviewModel, "guardian", parentID, "")
+	ctx := guardianAffinityTestContext(t, clientmeta.CodexAutoReviewModel, "guardian", parentID, "")
 	ctx = withAdvancedSchedulerTestGroup(ctx, groupID)
 
-	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "child-session", codexAutoReviewModel, nil, egress.OpenAIUpstreamTransportAny, false)
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "child-session", clientmeta.CodexAutoReviewModel, nil, egress.OpenAIUpstreamTransportAny, false)
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.Equal(t, int64(39001), selection.Account.Record.ID)

@@ -122,13 +122,13 @@ func (p openAITextHTTPBackend) ExplicitImageIntent(path, model string, body []by
 	return gatewayprovider.ImageIntent().IsExplicitImageGenerationIntent(path, model, body)
 }
 func (p openAITextHTTPBackend) PassthroughContext(ctx context.Context) context.Context {
-	return service.WithOpenAIHTTPPassthroughRouting(ctx)
+	return requeststate.WithOpenAIHTTPPassthroughRouting(ctx)
 }
 func (p openAITextHTTPBackend) ImageContext(ctx context.Context) context.Context {
 	return requeststate.WithOpenAIImageGenerationIntent(ctx)
 }
 func (p openAITextHTTPBackend) AllowsImages(key *apikey.APIKey) bool {
-	return service.GroupAllowsResponsesImages(apikey.CopyAPIKey(key).Group)
+	return routing.GroupAllowsResponsesImages(apikey.CopyAPIKey(key).Group)
 }
 func (p openAITextHTTPBackend) FeatureDenied(c *gin.Context) {
 	gatewayhttp.MarkOpsClientBusinessLimited(c, gatewayhttp.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -187,7 +187,7 @@ func (p openAITextHTTPBackend) Isolate(ctx context.Context, key *apikey.APIKey, 
 	return p.h.ensureOpenAISessionIsolation(ctx, apikey.CopyAPIKey(key), user, source, hash)
 }
 func (p openAITextHTTPBackend) GuardianContext(ctx context.Context, c *gin.Context, body []byte, model string) context.Context {
-	return service.WithOpenAIGuardianParentAffinity(ctx, c, body, model)
+	return gatewayhttp.WithOpenAIGuardianParentAffinity(ctx, c, body, model)
 }
 
 func (p openAITextHTTPBackend) AllowsMessages(key *apikey.APIKey) bool {

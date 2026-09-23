@@ -1666,3 +1666,10 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 删除 GatewayHandler 类型及 11 个旧构造/转接文件，并从共用文件删除其完成和会话方法。生产、测试与生成代码的 `GatewayHandler` / `NewGatewayHandler` 精确类型引用清零；剩余 OpenAIGatewayHandler 不在此项中混算。Gemini 文档锚点移动到真实原生入口。
 - 首轮新夹具误把原 typed-nil 提示词端口替换为 nil interface，渠道图片拒绝合同因此 panic；恢复原 typed-nil 后，原业务断言保持，297 条定向 unit race 与 1,480 条相关普通测试通过。初次失败与修正结果分别保留，没有修复清单外历史问题。
 - Wire、构建及普通/unit/integration 三套完整 lint 均退出零；Wire 生成无差异，SQL/Ent 未改。旧精确文件许可随入口删除，新增及已有文件差异检查通过。本批提交检查点，不标记 S16 完成；索引 `progress-20260923-generic-retirement-verification.json`。
+
+
+### OpenAI 入站亲缘与执行提示收敛（2026-09-23）
+
+- Codex 审查模型、Header/metadata 声明冲突与父线程解析归 clientmeta；HTTP 保留原模型短路并复用 scheduler 散列，requeststate 保存请求内的当前/旧散列及父绑定保护。普通模型、缺失或冲突线索继续忽略；原当前分组粘性读取时点与兼容键不变。旧选择器仅剩原缓存读取适配，没有新增账号查询或缓存实例。
+- HTTP 透传标记的写入/读取成对迁入 requeststate，分组 Responses 图片许可直接使用 routing 的唯一规则。原 HTTP 线索合同迁到实际所有者，真实选择与父绑定保护合同继续验证生产选择器。
+- 编译、516 条定向 unit race 通过，1 项原 WS 分支跳过单列；普通合同 37 条通过，构建和三套完整 lint 退出零。原计划、SQL/Ent 及其他任务文件未变；精确门禁及文档同批更新，详见 `native-openai-hints-*`。本批作为进度提交，OpenAI HTTP 资源/输出与剩余旧执行适配继续收尾。

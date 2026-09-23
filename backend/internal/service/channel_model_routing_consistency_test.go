@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
@@ -210,7 +212,7 @@ func TestOpenAIUpstreamRestrictionUsesActuallyForwardedOAuthModel(t *testing.T) 
 
 			ctx := context.Background()
 			if tt.httpPassthrough {
-				ctx = WithOpenAIHTTPPassthroughRouting(ctx)
+				ctx = requeststate.WithOpenAIHTTPPassthroughRouting(ctx)
 			}
 			restricted := svc.isUpstreamModelRestrictedByChannel(ctx, tt.groupID, tt.account, "client-alias", false)
 			require.Equal(t, tt.restricted, restricted)
@@ -232,7 +234,7 @@ func TestOpenAIHTTPPassthroughIgnoresStoredAccountModelRules(t *testing.T) {
 		}},
 	}
 	plainCtx := context.Background()
-	passthroughCtx := WithOpenAIHTTPPassthroughRouting(plainCtx)
+	passthroughCtx := requeststate.WithOpenAIHTTPPassthroughRouting(plainCtx)
 
 	require.True(t, openAIAccountSupportsRoutingModel(plainCtx, &account, "client-model"))
 	require.True(t, openAIAccountSupportsRoutingModel(passthroughCtx, &account, "client-model"))

@@ -70,7 +70,7 @@ func TestProtocolImagePolicyAndBatchBinding(t *testing.T) {
 	require.NoError(t, routing.NormalizeGroupProtocolPolicy(group, nil))
 	*group = *routing.CloneGroup(group)
 	require.False(t, gatewaymedia.GroupImagePermission(group != nil, group.AllowImageGeneration))
-	require.True(t, GroupAllowsResponsesImages(group))
+	require.True(t, routing.GroupAllowsResponsesImages(group))
 	require.Equal(t, accountcore.CodexImagePolicyAllow, groupResponsesExplicitToolPolicy(group, accountcore.CodexImagePolicyStrip))
 	group.ResponsesImagePolicy = "block"
 	require.Equal(t, accountcore.CodexImagePolicyStrip, groupResponsesExplicitToolPolicy(group, accountcore.CodexImagePolicyAllow))

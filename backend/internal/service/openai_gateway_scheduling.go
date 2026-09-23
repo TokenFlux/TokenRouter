@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
+
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
@@ -40,7 +42,7 @@ func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *i
 	if sessionHash == "" || accountID <= 0 {
 		return nil
 	}
-	if preserveOpenAIGuardianParentBinding(ctx, sessionHash) {
+	if requeststate.PreserveGuardianParentBinding(ctx, sessionHash) {
 		return nil
 	}
 	ttl := openaiStickySessionTTL
@@ -185,7 +187,7 @@ func openAIAccountSupportsRoutingModel(ctx context.Context, account *gatewayprov
 	if routingModel == "" {
 		return true
 	}
-	if openAIHTTPPassthroughRoutingFromContext(ctx) && account != nil && account.View().IsOpenAIPassthroughEnabled() {
+	if requeststate.OpenAIHTTPPassthroughRoutingFromContext(ctx) && account != nil && account.View().IsOpenAIPassthroughEnabled() {
 		return true
 	}
 	return account != nil && gatewayprovider.ExecutionProtocolRecord(account).IsModelSupported(routingModel, accountprovider.
@@ -332,24 +334,6 @@ func (s *OpenAIGatewayService) withOpenAIQuotaAutoPauseContext(ctx context.Conte
 
 // prioritizeEnabledOpenAICompactAccounts 先尝试已启用的账号。
 // 快照显示关闭的账号仍保留在末尾，最终以数据库复核结果决定资格。
-
-type openAIHTTPPassthroughRoutingContextKey struct{}
-
-// WithOpenAIHTTPPassthroughRouting 标记当前请求会按账号配置进入 HTTP Responses 自动透传分支。
-func WithOpenAIHTTPPassthroughRouting(ctx context.Context) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	return context.WithValue(ctx, openAIHTTPPassthroughRoutingContextKey{}, true)
-}
-
-func openAIHTTPPassthroughRoutingFromContext(ctx context.Context) bool {
-	if ctx == nil {
-		return false
-	}
-	enabled, _ := ctx.Value(openAIHTTPPassthroughRoutingContextKey{}).(bool)
-	return enabled
-}
 
 func (s *OpenAIGatewayService) selectAccountForModelWithExclusions(ctx context.Context, groupID *int64, platform string, sessionHash string, requestedModel string, excludedIDs map[int64]struct{}, requireCompact bool, stickyAccountID int64, requiredCapability accountcore.OpenAIEndpointCapability) (*gatewayprovider.ExecutionAccount, error) {
 	routingModel := s.resolveChannelRoutingModel(ctx, groupID, requestedModel)

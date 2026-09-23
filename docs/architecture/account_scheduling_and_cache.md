@@ -44,6 +44,9 @@
 
 OpenAI/Grok 是通用核心的能力适配者：在高级分组中，OpenAI 额外处理 previous response、订阅优先、Responses transport、旧版 Compact 和额度余量，Grok 继续执行自身配额及媒体能力约束。Anthropic/Gemini 的 mixed bucket 仍只纳入显式开启 mixed scheduling 的 Antigravity 账号。关闭粘性加权时，各平台保留硬会话粘性；OpenAI previous response 不可跨账号移动时无论开关状态都保持硬绑定，可移动时才作为加权信号。共享错误率或 TTFT 超过通用逃逸阈值时只对当前请求逃逸，并保留原绑定。开启粘性加权时，上一响应和会话账号只获得评分加成，并与其它 Top-K 候选一起按权重抽样，不能被强制置首，也不能在 Top-K 尝试失败后获得额外硬兜底；window-cost/RPM 的 sticky-only 区间仍允许当前绑定账号进入评分。非 OpenAI 平台没有 previous-response 绑定语义，诊断输入中的该信号标记为 `ignored`。管理列表直接通过 `account/provider.SchedulerScoreOptions` 投影无凭据评分输入，app 注入生产选择共享的 `schedulerSharedState` 与原生设置 Store，不再往返转换旧账号实体。Codex 额度余量的八小时有效期与次窗口折扣由 account 唯一计算。管理端“高级调度评分”只对高级分组显示，并复用同一评分函数和候选池；其展示不把账号变成可用候选，也不取代请求级硬过滤。
 
+Codex 自动审查的父线程亲缘只接受 `codex-auto-review` 模型，以及 Header/metadata 中无冲突的 `guardian`/`review` 声明和父线程 ID。`gateway/clientmeta` 解释这些字符串，HTTP 适配提取 Header 并复用 scheduler 的会话散列算法，`requeststate` 只保存本次请求的当前/旧散列。查询仍限定于当前分组的粘性命名空间，子请求不能覆盖父绑定；普通模型、缺失或冲突线索不建立亲缘，也不提供身份授权。
+
+
 账号与模型的短暂失败状态由 `account.ModelTransientState` 持有，网关调用点沿用同一实例；模型先完成平台规范化，再记录和查询。首次失败只计数，第二次冷却 10 秒，连续三次及以上冷却 45 秒，成功清零；30 分钟状态保留窗口与容量上限保持，进程重启不恢复这些内存状态。
 
 ## 评分诊断

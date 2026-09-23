@@ -14,6 +14,95 @@ linters:
   settings:
     depguard:
       rules:
+        # S16：OpenAI 入站线索与请求提示归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-hints-internal-gateway-httpapi-guardian-affinity-original-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/guardian_affinity_original_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - testing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：OpenAI 入站线索与请求提示归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-hints-internal-gateway-httpapi-guardian-affinity-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/guardian_affinity.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/gin-gonic/gin$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：OpenAI 入站线索与请求提示归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-hints-internal-gateway-requeststate-openai-passthrough-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/requeststate/openai_passthrough.go"
+          allow:
+          - context$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：OpenAI 入站线索与请求提示归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-hints-internal-gateway-requeststate-guardian-affinity-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/requeststate/guardian_affinity.go"
+          allow:
+          - context$
+          - strings$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：OpenAI 入站线索与请求提示归属；保留角色限制，逐文件许可实际 import。
+        s16-openai-hints-internal-gateway-clientmeta-codex-review-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/clientmeta/codex_review.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
+          - github.com/tidwall/gjson$
+          - strings$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
         s16-message-runtime-internal-app-gateway-message-attempts-go:
           list-mode: strict
@@ -17018,6 +17107,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/egress$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
           - github.com/TokenFlux/TokenRouter/internal/ops$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
@@ -17937,6 +18027,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy$
           - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - github.com/TokenFlux/TokenRouter/internal/protocol/wirejson$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
           - net/http$
           deny:
@@ -18583,6 +18674,8 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
@@ -19088,6 +19181,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/routing/testkit$
@@ -25373,6 +25467,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider/openaiforward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/tierpolicy$
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/upstream$
           - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
           - go.uber.org/zap$
@@ -25919,6 +26014,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/ws$
           - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - github.com/TokenFlux/TokenRouter/internal/protocol/wirejson$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
           - github.com/coder/websocket$
           - github.com/tidwall/sjson$
@@ -56435,6 +56531,8 @@ linters:
         core-gateway:
           list-mode: strict
           files:
+          - "!**/internal/gateway/requeststate/openai_passthrough.go"
+          - "!**/internal/gateway/requeststate/guardian_affinity.go"
           - "!**/internal/gateway/requeststate/agent_task_recovery.go"
           - "!**/internal/gateway/forward/agent_identity.go"
           - "!**/internal/gateway/testkit/recording_stores.go"
@@ -56796,6 +56894,7 @@ linters:
         gateway-httpapi:
           list-mode: strict
           files:
+          - "!**/internal/gateway/httpapi/guardian_affinity.go"
           - "!**/internal/gateway/httpapi/textattempt/messages_attempts.go"
           - "!**/internal/gateway/httpapi/textattempt/native_gemini_attempts.go"
           - "!**/internal/gateway/httpapi/textattempt/generic_chat_attempts.go"
@@ -56966,6 +57065,7 @@ linters:
         gateway-httpapi-tests:
           list-mode: strict
           files:
+          - "!**/internal/gateway/httpapi/guardian_affinity_original_test.go"
           - "!**/internal/gateway/httpapi/textattempt/antigravity_route_original_test.go"
           - "!**/internal/gateway/httpapi/textattempt/messages_fixed_execution_test.go"
           - "!**/internal/gateway/httpapi/messages_error_output_original_test.go"
@@ -70877,6 +70977,7 @@ linters:
         leaf-gateway-clientmeta:
           list-mode: strict
           files:
+          - "!**/internal/gateway/clientmeta/codex_review.go"
           - '!**/internal/gateway/clientmeta/claude_validator.go'
           - '!**/internal/gateway/clientmeta/claude_version.go'
           - '**/internal/gateway/clientmeta/**/*.go'

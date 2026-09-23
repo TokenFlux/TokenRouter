@@ -43,3 +43,7 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 ## 2026-09-23 旧通用 Handler 退役检查点
 
 `progress-20260923-generic-retirement-manifest.json` 接续 textattempt 检查点，新增分卷经逐成员哈希核验。该批删除无生产消费者的旧通用 Handler，相关普通测试 1,480 条、定向 unit race 297 条通过；Wire、构建和三套完整 lint 均退出零。原夹具 typed-nil 迁移回归及修正日志均保留，验证索引为归档中的 `progress-20260923-generic-retirement-verification.json`。最终 S16 全量验收仍待完成；此前 integration 环境失败与补验边界不变。
+
+## 2026-09-23 OpenAI 入站提示检查点
+
+`progress-20260923-openai-hints-manifest.json` 接续 generic-retirement 检查点。定向 unit race 516 条通过、1 项既有跳过；普通合同 37 条通过，构建及三套完整 lint 为零。阶段仍实施中；命令与范围见归档中的 `progress-20260923-openai-hints-verification.json`。

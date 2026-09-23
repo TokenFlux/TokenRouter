@@ -537,7 +537,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 	ctx = s.withOpenAIGroupPrivacyRequirement(ctx, groupID)
 	platform = routing.NormalizeOpenAICompatiblePlatform(platform)
 	decision := schedulercore.PlatformDecision{}
-	preserveGuardianParentBinding := preserveOpenAIGuardianParentBinding(ctx, sessionHash)
+	preserveGuardianParentBinding := requeststate.PreserveGuardianParentBinding(ctx, sessionHash)
 	guardianParentAccountID := int64(0)
 	if strings.TrimSpace(previousResponseID) == "" {
 		guardianParentAccountID = s.resolveOpenAIGuardianParentAccountID(ctx, groupID)

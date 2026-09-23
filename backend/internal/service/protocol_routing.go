@@ -31,11 +31,6 @@ func accountForProtocolAttempt(ctx context.Context, value *gatewayprovider.Execu
 	return &copied, nil
 }
 
-func GroupAllowsResponsesImages(group *routing.Group) bool {
-	// 新配置由独立四态管理；旧内存对象保留历史权限语义以兼容内部调用。
-	return group == nil || group.ResponsesImagePolicy != "" || group.AllowImageGeneration
-}
-
 func groupResponsesExplicitToolPolicy(group *routing.Group, inherited string) string {
 	if group == nil {
 		return inherited

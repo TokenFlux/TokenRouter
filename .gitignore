@@ -164,3 +164,6 @@ refactor/baseline/S16/*
 
 # S16 旧通用 Handler 退役检查点索引。
 !refactor/baseline/S16/progress-20260923-generic-retirement-manifest.json
+
+# S16 OpenAI 入站提示检查点索引。
+!refactor/baseline/S16/progress-20260923-openai-hints-manifest.json

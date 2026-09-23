@@ -76,7 +76,7 @@ func (p openAIWSHTTPBackend) Access(c *gin.Context) (*gatewayws.EntryKey, bool) 
 			MaxReasoningEffort:          key.Group.MaxReasoningEffort,
 			MaxReasoningEffortOverLimit: key.Group.MaxReasoningEffortOverLimit,
 			ReasoningEffortMappings:     append([]routing.ReasoningEffortMapping(nil), key.Group.ReasoningEffortMappings...),
-			ImagesAllowed:               service.GroupAllowsResponsesImages(key.Group),
+			ImagesAllowed:               routing.GroupAllowsResponsesImages(key.Group),
 		}
 	}
 	return out, true
@@ -174,7 +174,7 @@ func (p *openAIWSEntryAdapter) ImageContext(ctx context.Context) context.Context
 	return requeststate.WithOpenAIImageGenerationIntent(ctx)
 }
 func (p *openAIWSEntryAdapter) ImagesAllowed() bool {
-	return service.GroupAllowsResponsesImages(p.key.Group)
+	return routing.GroupAllowsResponsesImages(p.key.Group)
 }
 func (p *openAIWSEntryAdapter) ImageDeniedMessage() string {
 	return gatewaymedia.ImageGenerationPermissionMessage
@@ -216,7 +216,7 @@ func (p *openAIWSEntryAdapter) IsolationReason(err error) string {
 	return gatewayhttp.ResponsesWSIsolationCloseReason(err)
 }
 func (p *openAIWSEntryAdapter) Guardian(ctx context.Context, body []byte, model string) context.Context {
-	return service.WithOpenAIGuardianParentAffinity(ctx, p.c, body, model)
+	return gatewayhttp.WithOpenAIGuardianParentAffinity(ctx, p.c, body, model)
 }
 func (p *openAIWSEntryAdapter) Select(ctx context.Context, previous, hash, model string, excluded map[int64]struct{}, responses, move bool, platform string) (*gatewayws.EntrySelection, gatewayws.EntryDecision, error) {
 	capability := account.OpenAIEndpointCapabilityTextGeneration

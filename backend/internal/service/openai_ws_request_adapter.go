@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	accountconfig "github.com/TokenFlux/TokenRouter/internal/account"
 
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
@@ -69,7 +71,7 @@ func (p *wsRequestAdapter) TurnMetadata() string {
 }
 func (p *wsRequestAdapter) ImagePolicy(ctx context.Context, body []byte) gatewayws.ImagePolicy {
 	apiKey := getAPIKeyFromContext(p.request)
-	allowed := GroupAllowsResponsesImages(apiKeyGroup(apiKey))
+	allowed := routing.GroupAllowsResponsesImages(apiKeyGroup(apiKey))
 	explicit := accountconfig.CodexImagePolicyAllow
 	if p.isCodex {
 		explicit = gatewayprovider.ExecutionProtocolRecord(p.account).CodexImageGenerationExplicitToolPolicy()

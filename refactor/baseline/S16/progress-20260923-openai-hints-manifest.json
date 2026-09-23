@@ -1,0 +1,90 @@
+{
+  "format_version": 1,
+  "scope": "S16 阶段检查点增量，非最终验收",
+  "base_archive": "s16-evidence.tar.gz",
+  "base_archive_sha256": "9d3fa06d7fdef83f358c34c0816b55e4be7e531c3b3134a01fc1ff32bd6808ae",
+  "source_file_count": 14,
+  "source_total_bytes": 931598,
+  "archives": [
+    {
+      "path": "progress-20260923-openai-hints-01.tar.gz",
+      "size": 54119,
+      "sha256": "1d0d93d110e43bb1674882143283fdd33ee468c87703c96db0b954865c3b0505",
+      "verified_members": 14,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-compile-recheck.log",
+          "size": 594,
+          "sha256": "2bbac1ec1b653f79a9ea96dabe1377e5a7b4a309b1e17d293b48e46daa0fb0ab"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-compile.log",
+          "size": 588,
+          "sha256": "3fc392002103e01dba85eee1d49b748676538d110b5bf47bc129c555e8e21c53"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-consumers.json",
+          "size": 1175,
+          "sha256": "829f5fc9071ab7cf65b10648ad036800997ef69bf303e4628dc2eedb0472a772"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-final-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-final-checks.json",
+          "size": 2271,
+          "sha256": "820d1a28a3ae606847406b8b8e95d927accadb9c2c99169e72593bca9497ba09"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-final-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-final-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-final-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-final-normal.jsonl",
+          "size": 42833,
+          "sha256": "cc98910b89b384161fe9569e2a027f755eb226107ca541114a4682e9c32c7967"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-lint.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-original.json",
+          "size": 4520,
+          "sha256": "121e6e7bdc51a6e0919cb3caaa1e79d749dfa7024fa145f562b3a8d9608f1e9a"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-hints-race.jsonl",
+          "size": 872014,
+          "sha256": "de2b33c1f94101302eedfef4eae43b34d3507df1fe1b2588d7ebe1cddb83846a"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-generic-retirement-manifest.json",
+          "size": 4926,
+          "sha256": "3466f56611101b6e5502f735beca3c3c0a1d82ffa3423a8204e7bbfc77c4205f"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-openai-hints-verification.json",
+          "size": 2637,
+          "sha256": "f03470b4824cfa61064e74c21e34ce989cba0161e9ba4d33d0a6b721065536f4"
+        }
+      ]
+    }
+  ],
+  "parent_manifest": "progress-20260923-generic-retirement-manifest.json",
+  "parent_manifest_sha256": "3466f56611101b6e5502f735beca3c3c0a1d82ffa3423a8204e7bbfc77c4205f"
+}
