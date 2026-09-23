@@ -32,6 +32,7 @@ var gatewayAssemblyProviders = wire.NewSet(
 	provideModelsHTTP,
 	provideResponsesWSHTTP,
 	provideOpenAITextHTTP,
+	provideOpenAITextAttemptRuntime,
 	provideOpenAITokensHTTP,
 	provideGeminiNativeHTTP,
 	provideCompatibleTextHTTP,

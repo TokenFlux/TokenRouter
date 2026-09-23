@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
+	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
+
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -11,13 +14,12 @@ import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-// provideOpenAITextHTTP 直接构造原生 HTTP；剩余单次执行器通过单独端口过渡。
+// provideOpenAITextHTTP 直接组合原生 HTTP 与固定单次运行时，不经过旧 Handler。
 func provideOpenAITextHTTP(
 	source *service.OpenAIGatewayService,
 	funding *admission.FundingAdmission,
@@ -28,12 +30,9 @@ func provideOpenAITextHTTP(
 	moderator *moderation.ContentModerationService,
 	prompts *promptpolicy.Service,
 	cfg *config.Config,
-	legacy *handler.OpenAIGatewayHandler,
+	runtime *openaiattempt.Runtime,
 	activity *gatewayRequestActivity,
-	records GatewayCompletionRecorders,
 ) *gatewayhttp.OpenAITextHandler {
-	legacy.BindCompletionRecorder(records.OpenAI)
-	legacy.BindCyberHTTPHandler(cyber)
 	options := gatewayhttp.OpenAITextOptions{MaxSwitches: 3}
 	if cfg != nil {
 		options.ForceCodexCLI = cfg.Gateway.ForceCodexCLI
@@ -69,7 +68,7 @@ func provideOpenAITextHTTP(
 		Cyber:          cyber,
 		IsolateSession: source.EnsureSessionIsolation,
 	}
-	result := gatewayhttp.NewBoundOpenAITextHandler(options, bindings, prompts, legacy.NewOpenAITextExecutor())
+	result := gatewayhttp.NewBoundOpenAITextHandler(options, bindings, prompts, textflow.NewResponsesExecutor(runtime, textflow.ResponseOptions{MaxSwitches: options.MaxSwitches}, textflow.ResponseOptions{MaxSwitches: options.MaxSwitches, FirstOutputBudget: true}))
 	result.BindRequestActivity(activity.Enter)
 	return result
 }

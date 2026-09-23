@@ -1,5 +1,5 @@
 // OpenAI 固定执行适配只创建状态，不按请求装配选择、刷新、计费或完成回调。
-package handler
+package openaiattempt
 
 import (
 	"context"
@@ -9,19 +9,18 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
-
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-
+	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
-type fixedOpenAITextRuntime struct{ dependencies *openAIExecutionDependencies }
+type Runtime struct{ dependencies *openAIExecutionDependencies }
 
-func (r *fixedOpenAITextRuntime) Open(ctx context.Context, in execution.Request, sink upstream.OutputSink) (textflow.ResponsePorts, error) {
+func (r *Runtime) Open(ctx context.Context, in execution.Request, sink upstream.OutputSink) (textflow.ResponsePorts, error) {
 	output, ok := sink.(*gatewayhttp.MessagesOutput)
 	if !ok || output.HTTP == nil {
 		return nil, errors.New("openai text execution requires its HTTP output adapter")
@@ -35,7 +34,7 @@ func (r *fixedOpenAITextRuntime) Open(ctx context.Context, in execution.Request,
 		return &openAIChatAttemptBridge{responsesAttemptBridge: base, promptCacheKey: in.Text.PromptCacheKey}, nil
 	case execution.TextOpenAIMessages:
 		// 该请求私有缓存只在首次调用时改写，原前置创建阶段没有 I/O 或诊断。
-		mapped := newOpenAIModelMappedBodyCache(in.Body, r.dependencies.replaceModelInBody)
+		mapped := requeststate.NewModelMappedBodyCache(in.Body, r.dependencies.replaceModelInBody)
 		return &openAIMessageAttemptBridge{
 			responsesAttemptBridge: base,
 			accountLayerModel:      in.Text.AccountLayerModel,

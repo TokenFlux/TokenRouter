@@ -3,6 +3,7 @@ package handler
 import (
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
@@ -108,7 +109,7 @@ func (p *alphaRequestAdapter) SelectAlpha(ctx context.Context, excluded map[int6
 	return gatewaymedia.AlphaSelection{Account: gatewaycapture.ExecutionSnapshot(selected.Account), RetryLimit: selected.Account.View().GetPoolModeRetryCount()}, true, err
 }
 func (p *alphaRequestAdapter) AcquireAlpha(_ context.Context, _ gatewaymedia.AlphaSelection) (func(), bool) {
-	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, false, p.streamStarted, p.reqLog)
+	return p.h.openAIAttemptSupport().AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, false, p.streamStarted, p.reqLog)
 }
 func (p *alphaRequestAdapter) ForwardAlpha(ctx context.Context, _ gatewaymedia.AlphaSelection, body []byte) gatewaymedia.AlphaOutcome {
 	size := p.c.Writer.Size()
@@ -129,10 +130,10 @@ func (p *alphaRequestAdapter) ForwardAlpha(ctx context.Context, _ gatewaymedia.A
 func (p *alphaRequestAdapter) ReportAlpha(_ context.Context, _ gatewaymedia.AlphaSelection, result *gatewaymedia.AlphaResult, success bool, err error) {
 	account := p.selection.Account
 	if success {
-		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(p.c, account, p.requestedModel, false, legacyAlphaResult(result)), true, nil)
+		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestedModel, false, legacyAlphaResult(result)), true, nil)
 		return
 	}
-	p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(p.c, account, p.requestedModel, false, legacyAlphaResult(result)), false, nil, err)
+	p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestedModel, false, legacyAlphaResult(result)), false, nil, err)
 }
 func (p *alphaRequestAdapter) CompleteAlpha(_ context.Context, _ gatewaymedia.AlphaSelection, result *gatewaymedia.AlphaResult) {
 	p.h.recordAlphaSearchUsage(p.c, p.apiKey, p.selection.Account, p.subscription, p.channelMapping, p.requestedModel, p.originalBody, legacyAlphaResult(result), p.userID)
@@ -169,10 +170,10 @@ func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 	switch f.Stage {
 	case "selection":
 		if f.Excluded == 0 {
-			if f.Err != nil && p.h.handleOpenAISelectionBusinessError(p.c, f.Err, *p.streamStarted) {
+			if f.Err != nil && p.h.openAIAttemptSupport().HandleOpenAISelectionBusinessError(p.c, f.Err, *p.streamStarted) {
 				return
 			}
-			cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.requestedModel, p.requestedModel, capability.PlatformOpenAI)
+			cls := openaiattempt.ClassifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.requestedModel, p.requestedModel, capability.PlatformOpenAI)
 			if !cls.ModelNotFound {
 				gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
 			}
@@ -181,7 +182,7 @@ func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 		}
 		var last *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &last) {
-			p.h.handleFailoverExhausted(p.c, last, false)
+			p.h.openAIAttemptSupport().HandleFailoverExhausted(p.c, last, false)
 		} else {
 			gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		}
@@ -193,7 +194,7 @@ func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 	case "exhausted":
 		var last *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &last) {
-			p.h.handleFailoverExhausted(p.c, last, f.Outcome.OutputChanged)
+			p.h.openAIAttemptSupport().HandleFailoverExhausted(p.c, last, f.Outcome.OutputChanged)
 		}
 	}
 }

@@ -14,6 +14,474 @@ linters:
   settings:
     depguard:
       rules:
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-requeststate-openai-model-body-original-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/requeststate/openai_model_body_original_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
+          - github.com/stretchr/testify/require$
+          - github.com/tidwall/gjson$
+          - testing$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：模型展示值与稳定合并为纯叶子，不反向依赖网关根包、HTTP 或平台实现。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-forward-scheduling-result-original-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/forward/scheduling_result_original_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/stretchr/testify/require$
+          - testing$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：模型展示值与稳定合并为纯叶子，不反向依赖网关根包、HTTP 或平台实现。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-no-account-error-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/no_account_error_test.go"
+          allow:
+          - context$
+          - fmt$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - testing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-app-gateway-openai-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/gateway_openai_attempts.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/moderation$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openai-endpoint-normalization-original-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openai_endpoint_normalization_original_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - testing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-responses-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/responses_attempts.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/failover$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/gin-gonic/gin$
+          - go.uber.org/zap$
+          - net/http$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-openai-chat-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/openai_chat_attempts.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - go.uber.org/zap$
+          - net/http$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-openai-gateway-first-output-timeout-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/openai_gateway_first_output_timeout_test.go"
+          allow:
+          - context$
+          - fmt$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/failover$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - net/http/httptest$
+          - testing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-endpoint-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/endpoint.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/gin-gonic/gin$
+          - strings$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-bindings-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/bindings.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/gin-gonic/gin$
+          - go.uber.org/zap$
+          - net/http$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-openai-gateway-reasoning-failover-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/openai_gateway_reasoning_failover.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
+          - go.uber.org/zap$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-moderation-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/moderation.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/moderation$
+          - github.com/gin-gonic/gin$
+          - go.uber.org/zap$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-gin-mode-main-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/gin_mode_main_test.go"
+          allow:
+          - github.com/gin-gonic/gin$
+          - os$
+          - testing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-openai-gateway-reasoning-failover-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/openai_gateway_reasoning_failover_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/stretchr/testify/require$
+          - github.com/tidwall/gjson$
+          - testing$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-openai-messages-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/openai_messages_attempts.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - go.uber.org/zap$
+          - net/http$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-openai-gateway-proxy-log-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/openai_gateway_proxy_log_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/stretchr/testify/require$
+          - go.uber.org/zap$
+          - go.uber.org/zap/zaptest/observer$
+          - testing$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-selection-errors-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/selection_errors.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/gin-gonic/gin$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-support-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/support.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/session$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
+          - github.com/gin-gonic/gin$
+          - github.com/google/uuid$
+          - go.uber.org/zap$
+          - net/http$
+          - strings$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：原生 OpenAI 文本 HTTP 固定端口；执行器临时装配于 S16 清零，保留同等角色限制。
+        s16-openai-attempt-internal-gateway-httpapi-openaiattempt-openai-fixed-execution-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/openaiattempt/openai_fixed_execution.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/execution$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - net/http$
+          - slices$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         # S16：验证真实 OpenAI 文本组合根，旧执行构造仅作为未迁端口，S16 收尾删除。
         s16-openai-text-app-contract:
           list-mode: strict
@@ -24,7 +492,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/apikey$
           - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
-          - github.com/TokenFlux/TokenRouter/internal/handler$
           - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
@@ -36,7 +503,7 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-          - pkg: github.com/TokenFlux/TokenRouter/internal/handler/
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/domain
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -54,9 +521,10 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
           - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
           - github.com/TokenFlux/TokenRouter/internal/gateway/session$
-          - github.com/TokenFlux/TokenRouter/internal/handler$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
           - github.com/TokenFlux/TokenRouter/internal/moderation$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/service$
@@ -66,7 +534,7 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-          - pkg: github.com/TokenFlux/TokenRouter/internal/handler/
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/domain
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -16494,31 +16962,6 @@ linters:
           - pkg: github.com/redis/go-redis/v9
             desc: handler must not import redis
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-openai-fixed-execution-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/openai_fixed_execution.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/execution$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/upstream$
-          - net/http$
-          - slices$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-handler-grok-media-test-go:
           list-mode: strict
           files:
@@ -21502,47 +21945,14 @@ linters:
           - pkg: github.com/redis/go-redis/v9
             desc: service must not import redis
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-openai-gateway-first-output-timeout-test-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/openai_gateway_first_output_timeout_test.go"
-          allow:
-          - context$
-          - fmt$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/failover$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/gin-gonic/gin$
-          - github.com/stretchr/testify/require$
-          - net/http/httptest$
-          - testing$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-handler-openai-execution-dependencies-go:
           list-mode: strict
           files:
           - "**/internal/handler/openai_execution_dependencies.go"
           allow:
-          - context$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/egress$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/gin-gonic/gin$
-          - go.uber.org/zap$
-          - net/http$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -22673,6 +23083,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/gin-gonic/gin$
@@ -22782,31 +23193,7 @@ linters:
           files:
           - "**/internal/handler/openai_chat_completions.go"
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/gin-gonic/gin$
-          - strings$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-openai-gateway-endpoint-normalization-test-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/openai_gateway_endpoint_normalization_test.go"
-          allow:
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/gin-gonic/gin$
-          - github.com/stretchr/testify/require$
-          - net/http$
-          - net/http/httptest$
-          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -23163,6 +23550,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/failover$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/media$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
@@ -23191,35 +23579,8 @@ linters:
           - "**/internal/handler/no_account_error.go"
           allow:
           - context$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/gin-gonic/gin$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-no-account-error-test-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/no_account_error_test.go"
-          allow:
-          - context$
-          - fmt$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/gin-gonic/gin$
-          - github.com/stretchr/testify/require$
-          - net/http$
-          - net/http/httptest$
-          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -23243,6 +23604,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/failover$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/media$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
@@ -23252,35 +23614,6 @@ linters:
           - github.com/gin-gonic/gin$
           - go.uber.org/zap$
           - net/http$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-openai-chat-attempts-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/openai_chat_attempts.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/egress$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - go.uber.org/zap$
-          - net/http$
-          - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -23303,6 +23636,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/media$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
@@ -23357,12 +23691,10 @@ linters:
           - context$
           - github.com/TokenFlux/TokenRouter/internal/apikey$
           - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
           - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
           - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
@@ -23374,17 +23706,11 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/ops$
           - github.com/TokenFlux/TokenRouter/internal/protocol$
           - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
           - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
           - github.com/gin-gonic/gin$
-          - github.com/google/uuid$
           - go.uber.org/zap$
-          - net/http$
           - runtime/debug$
-          - strings$
           - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
@@ -23443,7 +23769,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/moderation$
           - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
           - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
@@ -23538,36 +23863,6 @@ linters:
           - pkg: github.com/redis/go-redis/v9
             desc: handler must not import redis
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-openai-messages-attempts-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/openai_messages_attempts.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/egress$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - go.uber.org/zap$
-          - net/http$
-          - time$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-handler-openai-responses-failover-cancel-test-go:
           list-mode: strict
           files:
@@ -23646,6 +23941,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/failover$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/media$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
@@ -23684,41 +23980,6 @@ linters:
           - net/http$
           - net/http/httptest$
           - testing$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-responses-attempts-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/responses_attempts.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/egress$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/failover$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - github.com/gin-gonic/gin$
-          - go.uber.org/zap$
-          - net/http$
-          - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -57182,6 +57443,8 @@ linters:
         core-gateway-tests:
           list-mode: strict
           files:
+          - "!**/internal/gateway/requeststate/openai_model_body_original_test.go"
+          - "!**/internal/gateway/forward/scheduling_result_original_test.go"
           - "!**/internal/gateway/requeststate/parse_benchmark_original_test.go"
           - "!**/internal/gateway/completion/recording_pricing_stub_helpers_test.go"
           - "!**/internal/gateway/completion/recording_pricing_provider_fixture_test.go"
@@ -57372,6 +57635,16 @@ linters:
         gateway-httpapi:
           list-mode: strict
           files:
+          - "!**/internal/gateway/httpapi/openaiattempt/responses_attempts.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/openai_chat_attempts.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/endpoint.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/bindings.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/openai_gateway_reasoning_failover.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/moderation.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/openai_messages_attempts.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/selection_errors.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/support.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/openai_fixed_execution.go"
           - "!**/internal/gateway/httpapi/openai_image_intent_hint.go"
           - "!**/internal/gateway/httpapi/channel_image_intent.go"
           - "!**/internal/gateway/httpapi/openai_text_bindings.go"
@@ -57553,6 +57826,12 @@ linters:
         gateway-httpapi-tests:
           list-mode: strict
           files:
+          - "!**/internal/gateway/httpapi/openaiattempt/no_account_error_test.go"
+          - "!**/internal/gateway/httpapi/openai_endpoint_normalization_original_test.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/openai_gateway_first_output_timeout_test.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/gin_mode_main_test.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/openai_gateway_reasoning_failover_test.go"
+          - "!**/internal/gateway/httpapi/openaiattempt/openai_gateway_proxy_log_test.go"
           - "!**/internal/gateway/httpapi/openai_image_intent_hint_original_test.go"
           - "!**/internal/gateway/httpapi/openai_text_bindings_original_test.go"
           - "!**/internal/gateway/httpapi/cyber_session_original_test.go"
@@ -77986,6 +78265,7 @@ linters:
         app:
           list-mode: strict
           files:
+          - "!**/internal/app/gateway_openai_attempts.go"
           - "!**/internal/app/gateway_openai_text_http.go"
           - "!**/internal/app/gateway_cyber_http.go"
           - "!**/internal/app/gateway_cyber_session.go"

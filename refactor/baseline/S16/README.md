@@ -63,3 +63,7 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 ## 2026-09-23 OpenAI 文本 HTTP 检查点
 
 `progress-20260923-openai-text-manifest.json` 接续 cyber 检查点。普通定向 674 条、unit race 1,132 条通过，各保留一项既有 WS 跳过；组合根/路由追加 race 42 条通过，三套完整 lint 为零。门禁 27/27，Wire 再生成稳定；失败及补验独立保留。完整结果见归档内 `progress-20260923-openai-text-verification.json`。S16 未完成。
+
+## 2026-09-23 OpenAI 单次尝试运行时检查点
+
+`progress-20260923-openai-attempt-manifest.json` 接续 openai-text 检查点。共享选择/反馈、槽位、失败输出与完成快照保持唯一；生产文本运行时不再经过旧 Handler。全部命令、真实测试事件、既有跳过和初次 unused 诊断保存在归档内 `progress-20260923-openai-attempt-verification.json`。依赖夹具 33/33 通过，Wire 稳定；S16 未完成。

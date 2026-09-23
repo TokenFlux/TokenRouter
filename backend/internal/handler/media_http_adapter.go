@@ -219,7 +219,7 @@ func (p mediaHTTPAdapter) EndVoice(c *gin.Context, f *media.VoiceFailure) {
 	}
 	var last *forwardcore.UpstreamFailoverError
 	if errors.As(f.Last, &last) {
-		p.h.handleFailoverExhausted(c, last, false)
+		p.h.openAIAttemptSupport().HandleFailoverExhausted(c, last, false)
 	} else if f.NoAccounts {
 		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, 503, "api_error", "No available Grok accounts")
 	}

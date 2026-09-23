@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 
@@ -347,11 +349,11 @@ func (t *openAIWSEntryTarget) ResolveRouting(ctx context.Context, model string, 
 }
 func (t *openAIWSEntryTarget) Warning(_ context.Context, model string, status int, body []byte, message string, snapshot gatewayws.EntryCyberSnapshot) {
 	p := t.root
-	p.h.recordOpenAICyberWarningWithSnapshot(p.c, p.log, p.key, t.account, model, status, body, message, snapshot.Excerpt, snapshot.Input)
+	p.h.openAIAttemptSupport().RecordOpenAICyberWarningWithSnapshot(p.c, p.log, p.key, t.account, model, status, body, message, snapshot.Excerpt, snapshot.Input)
 }
 func (t *openAIWSEntryTarget) RecordMarked(_ context.Context, model string, failed bool, body []byte, mapping routing.ChannelUsageFields, hash string) bool {
 	p := t.root
-	return p.h.recordCyberPolicyIfMarked(p.c, p.key, t.account, p.subscription, model, failed, body, mapping, hash)
+	return p.h.openAIAttemptSupport().RecordCyberPolicyIfMarked(p.c, p.key, t.account, p.subscription, model, failed, body, mapping, hash)
 }
 func (t *openAIWSEntryTarget) UpdateUsage(ctx context.Context, headers map[string][]string) {
 	t.root.h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(ctx, t.account.Record.ID, headers)
@@ -362,7 +364,7 @@ func (t *openAIWSEntryTarget) PrepareCompletion(ctx context.Context, result *gat
 	// 这里只转换已有资金/用量字段；复制发生在提交前，回调不捕获 Gin。
 	return gatewayprovider.CaptureOpenAI(gatewayhttp.PropagateAPIKeyModelRedirectTrace(gatewayhttp.CompletionContext(p.c), ctx), &gatewayprovider.OpenAICapture{
 		Result: legacy, APIKey: p.key, User: p.key.User, Account: gatewayprovider.ExecutionCompletionRecord(t.account), Subscription: p.subscription,
-		InboundEndpoint: gatewayhttp.GetInboundEndpoint(p.c), UpstreamEndpoint: resolveOpenAIUpstreamEndpoint(p.c, t.account, legacy), UserAgent: p.call.UserAgent, IPAddress: p.call.ClientIP,
+		InboundEndpoint: gatewayhttp.GetInboundEndpoint(p.c), UpstreamEndpoint: openaiattempt.ResolveOpenAIUpstreamEndpoint(p.c, t.account, legacy), UserAgent: p.call.UserAgent, IPAddress: p.call.ClientIP,
 		RequestPayloadHash: billing.HashUsageRequestPayload(body), RequestBody: append([]byte(nil), body...), PricingAt: capture.StartedAt, APIKeyService: p.h.apiKeyService,
 		QuotaPlatform: admission.QuotaPlatform(p.c.Request.Context(), p.key), ClientSessionID: gatewayhttp.ExtractClientSessionID(p.c), ChannelUsageFields: mapping.ToUsageFields(model, result.UpstreamModel), CyberBlocked: cyber,
 	})
@@ -399,7 +401,7 @@ func (t *openAIWSEntryTarget) Run(ctx context.Context, client gatewayws.ClientSo
 func (t *openAIWSEntryTarget) LogFailure(err error) {
 	status, reason := gatewayhttp.SummarizeWSCloseErrorForLog(err)
 	fields := []zap.Field{zap.Int64("account_id", t.account.Record.ID), zap.Error(err), zap.String("close_status", status), zap.String("close_reason", reason)}
-	fields = appendOpenAIAccountProxyLogFields(fields, t.account)
+	fields = openaiattempt.AppendOpenAIAccountProxyLogFields(fields, t.account)
 	t.root.log.Warn("openai.websocket_proxy_failed", fields...)
 }
 

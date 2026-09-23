@@ -9,7 +9,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 	"github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -18,7 +17,7 @@ import (
 // 实际组合根构造三种文本入口；缺失依赖和关闭拒绝均不能提前读取报文。
 func TestOpenAITextAssemblyReadAndStopBoundaries(t *testing.T) {
 	activity := &gatewayRequestActivity{Operations: lifecycle.NewOperations("openai-text-contract")}
-	h := provideOpenAITextHTTP(nil, nil, nil, nil, nil, nil, nil, nil, nil, &handler.OpenAIGatewayHandler{}, activity, GatewayCompletionRecorders{})
+	h := provideOpenAITextHTTP(nil, nil, nil, nil, nil, nil, nil, nil, nil, provideOpenAITextAttemptRuntime(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil), activity)
 	for _, stopped := range []bool{false, true} {
 		if stopped {
 			require.NoError(t, activity.StopContext(context.Background()))

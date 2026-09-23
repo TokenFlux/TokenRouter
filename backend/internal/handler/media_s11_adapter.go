@@ -4,6 +4,7 @@ package handler
 import (
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	routingerrors "github.com/TokenFlux/TokenRouter/internal/routing"
@@ -72,7 +73,7 @@ func (p *generationRequestAdapter) ActivateGeneration(_ gatewaymedia.GenerationS
 	if !p.grok {
 		p.logSchedule()
 	}
-	p.sessionHash = ensureOpenAIPoolModeSessionHash(p.sessionHash, account)
+	p.sessionHash = openaiattempt.EnsureOpenAIPoolModeSessionHash(p.sessionHash, account)
 	if !p.grok {
 		p.reqLog.Debug("openai.images.account_selected", zap.Int64("account_id", account.Record.ID), zap.String("account_name", account.Record.Name))
 	}
@@ -87,7 +88,7 @@ func (p *generationRequestAdapter) AcquireGeneration(_ context.Context, _ gatewa
 	if p.parsed != nil {
 		stream = p.parsed.Stream
 	}
-	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, stream, p.streamStarted, p.reqLog)
+	return p.h.openAIAttemptSupport().AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, p.sessionHash, p.selection, stream, p.streamStarted, p.reqLog)
 }
 func (p *generationRequestAdapter) StartGenerationKeepalive() func() {
 	return gatewayhttp.StartOpenAIImagesJSONKeepalive(p.c, p.h.openAIImagesJSONKeepaliveInterval())
@@ -135,10 +136,10 @@ func (p *generationRequestAdapter) ReportGeneration(_ context.Context, _ gateway
 		return
 	}
 	if success {
-		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(p.c, account, p.requestModel, false, result), true, nil)
+		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestModel, false, result), true, nil)
 		return
 	}
-	p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(p.c, account, p.requestModel, false, result), false, nil, err)
+	p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.requestModel, false, result), false, nil, err)
 }
 func (p *generationRequestAdapter) SwitchGeneration(gatewaymedia.GenerationSelection) {
 	p.h.gatewayService.RecordOpenAIAccountSwitchForSelection(p.selection)
@@ -183,7 +184,7 @@ func (p *generationRequestAdapter) ObserveGeneration(e gatewaymedia.GenerationEv
 		gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsRoutingLatencyMsKey, e.Elapsed.Milliseconds())
 	case "response":
 		elapsed := e.Elapsed.Milliseconds()
-		upstream, _ := getContextInt64(p.c, gatewayhttp.OpsUpstreamLatencyMsKey)
+		upstream, _ := openaiattempt.GetContextInt64(p.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 		if upstream > 0 && elapsed > upstream {
 			elapsed -= upstream
 		}
@@ -232,9 +233,9 @@ func (p *generationRequestAdapter) completeImages(value *gatewaymedia.Generation
 		if account.Record.Type == capability.AccountTypeOAuth && !account.View().IsShadow() {
 			h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.Record.ID, result.ResponseHeaders)
 		}
-		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), true, result.FirstTokenMs)
+		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(c, account, requestModel, false, result), true, result.FirstTokenMs)
 	} else {
-		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, requestModel, false, result), true, nil)
+		h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(c, account, requestModel, false, result), true, nil)
 	}
 
 	userAgent := c.GetHeader("User-Agent")
@@ -335,7 +336,7 @@ func (p *generationRequestAdapter) MediaClassify() gatewayhttp.MediaNoAccount {
 		platform = capability.PlatformGrok
 		routing = p.routingModel
 	}
-	result := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.requestModel, routing, platform)
+	result := openaiattempt.ClassifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.requestModel, routing, platform)
 	return gatewayhttp.MediaNoAccount{ModelNotFound: result.ModelNotFound, Status: result.Status, Type: result.ErrType, Message: result.Message}
 }
 func (p *generationRequestAdapter) MediaNoAvailable(err error) bool {
@@ -358,21 +359,21 @@ func (p *generationRequestAdapter) MediaError(status int, typ, message string, s
 func (p *generationRequestAdapter) MediaFailover(err error, stream bool) {
 	var value *forwardcore.UpstreamFailoverError
 	if errors.As(err, &value) {
-		p.h.handleFailoverExhausted(p.c, value, stream)
+		p.h.openAIAttemptSupport().HandleFailoverExhausted(p.c, value, stream)
 	}
 }
 func (p *generationRequestAdapter) MediaSimpleExhausted() {
-	p.h.handleFailoverExhaustedSimple(p.c, 502, *p.streamStarted)
+	p.h.openAIAttemptSupport().HandleFailoverExhaustedSimple(p.c, 502, *p.streamStarted)
 }
 func (p *generationRequestAdapter) mediaStatus() int {
-	status, _ := getContextInt64(p.c, gatewayhttp.OpsUpstreamStatusCodeKey)
+	status, _ := openaiattempt.GetContextInt64(p.c, gatewayhttp.OpsUpstreamStatusCodeKey)
 	return int(status)
 }
 func (p *generationRequestAdapter) MediaForwardCyber(err error) bool {
-	return p.h.recordOpenAIForwardErrorCyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), err)
+	return p.h.openAIAttemptSupport().RecordOpenAIForwardErrorCyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), err)
 }
 func (p *generationRequestAdapter) MediaCyber(err error) {
-	p.h.recordOpenAICyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), nil, err.Error())
+	p.h.openAIAttemptSupport().RecordOpenAICyberWarning(p.c, p.reqLog, p.apiKey, p.selection.Account, p.requestModel, p.mediaStatus(), nil, err.Error())
 }
 func (p *generationRequestAdapter) MediaReportUnexpected(result *gatewaymedia.GenerationResult, err error) {
 	p.ReportGeneration(p.c.Request.Context(), gatewaymedia.GenerationSelection{}, result, false, err)

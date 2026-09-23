@@ -1,4 +1,4 @@
-package handler
+package openaiattempt
 
 import (
 	"context"
@@ -23,10 +23,10 @@ func TestOpenAIForwardMayFailoverOnlyAfterNonSemanticWrite(t *testing.T) {
 	require.NoError(t, err)
 	c.Writer.Flush()
 
-	require.True(t, openAIForwardMayFailover(c, before, &forwardcore.UpstreamFailoverError{
+	require.True(t, OpenAIForwardMayFailover(c, before, &forwardcore.UpstreamFailoverError{
 		SafeToFailoverAfterWrite: true,
 	}))
-	require.False(t, openAIForwardMayFailover(c, before, &forwardcore.UpstreamFailoverError{}))
+	require.False(t, OpenAIForwardMayFailover(c, before, &forwardcore.UpstreamFailoverError{}))
 }
 
 func TestOpenAIFirstOutputFailoverStopsAfterOneAccountSwitch(t *testing.T) {
@@ -40,14 +40,14 @@ func TestOpenAIFirstOutputFailoverStopsAfterOneAccountSwitch(t *testing.T) {
 }
 
 func TestOpenAIRequestAllowsFailoverReplayStopsCanceledClient(t *testing.T) {
-	require.False(t, openAIRequestAllowsFailoverReplay(nil))
+	require.False(t, OpenAIRequestAllowsFailoverReplay(nil))
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	requestCtx, cancel := context.WithCancel(context.Background())
 	c.Request = httptest.NewRequest("POST", "/v1/responses", nil).WithContext(requestCtx)
 
-	require.True(t, openAIRequestAllowsFailoverReplay(c))
+	require.True(t, OpenAIRequestAllowsFailoverReplay(c))
 	cancel()
-	require.False(t, openAIRequestAllowsFailoverReplay(c))
+	require.False(t, OpenAIRequestAllowsFailoverReplay(c))
 }

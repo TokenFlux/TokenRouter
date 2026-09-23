@@ -6,6 +6,8 @@ import (
 	"testing"
 	time "time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -101,7 +103,7 @@ func TestResolveOpenAIUpstreamEndpointPrefersForwardResult(t *testing.T) {
 			c.Request = httptest.NewRequest(http.MethodPost, inboundEndpoint, nil)
 			c.Set("_gateway_inbound_endpoint", inboundEndpoint)
 			gatewayhttp.SetActualOpenAIUpstreamEndpoint(c, tt.runtimeEndpoint)
-			require.Equal(t, tt.want, resolveOpenAIUpstreamEndpoint(c, tt.account, tt.result))
+			require.Equal(t, tt.want, openaiattempt.ResolveOpenAIUpstreamEndpoint(c, tt.account, tt.result))
 		})
 	}
 }

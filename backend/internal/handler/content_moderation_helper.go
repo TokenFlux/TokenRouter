@@ -23,21 +23,6 @@ func (h *OpenAIGatewayHandler) checkContentModeration(c *gin.Context, reqLog *za
 	return runContentModeration(c, reqLog, h.contentModerationService, apiKey, subject, protocol, model, body)
 }
 
-func (h *OpenAIGatewayHandler) recordOpenAICyberWarning(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, model string, statusCode int, responseBody []byte, warningText string) {
-	h.recordOpenAICyberWarningWithPromptExcerpt(c, reqLog, apiKey, account, model, statusCode, responseBody, warningText, gatewayhttp.CurrentOpenAICyberWarningPromptExcerpt(c))
-}
-
-func (h *OpenAIGatewayHandler) recordOpenAICyberWarningWithPromptExcerpt(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, model string, statusCode int, responseBody []byte, warningText string, promptExcerpt string) bool {
-	return h.recordOpenAICyberWarningWithSnapshot(c, reqLog, apiKey, account, model, statusCode, responseBody, warningText, promptExcerpt, gatewayhttp.CurrentOpenAICyberWarningSnapshot(c))
-}
-
-func (h *OpenAIGatewayHandler) recordOpenAICyberWarningWithSnapshot(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, model string, statusCode int, responseBody []byte, warningText string, promptExcerpt string, snapshot moderation.ContentModerationInput) bool {
-	if h == nil {
-		return false
-	}
-	return gatewayhttp.RecordOpenAICyberWarningWithSnapshot(gatewayhttp.GatewayModerationEndpoints{}, nativeModerationPort(h.contentModerationService), c, reqLog, apikey.CopyAPIKey(apiKey), moderationAccountView(account), model, statusCode, responseBody, warningText, promptExcerpt, snapshot)
-}
-
 // recordOpenAIForwardResultCyberWarning 记录成功转发结果中携带的上游 cyber 风控警告。
 func (h *OpenAIGatewayHandler) recordOpenAIForwardResultCyberWarning(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, fallbackModel string, result *forwardcore.OpenAIResult) {
 	if result == nil || result.UpstreamWarning == nil {
@@ -48,20 +33,7 @@ func (h *OpenAIGatewayHandler) recordOpenAIForwardResultCyberWarning(c *gin.Cont
 		model = strings.TrimSpace(fallbackModel)
 	}
 	warning := result.UpstreamWarning
-	h.recordOpenAICyberWarning(c, reqLog, apiKey, account, model, warning.StatusCode, warning.ResponseBody, warning.Message)
-}
-
-// recordOpenAIForwardErrorCyberWarning 记录错误链中携带的上游 cyber 风控警告。
-func (h *OpenAIGatewayHandler) recordOpenAIForwardErrorCyberWarning(c *gin.Context, reqLog *zap.Logger, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, model string, statusCode int, err error) bool {
-	warning, ok := forwardcore.WarningFromError(err)
-	if !ok || warning == nil {
-		return false
-	}
-	if warning.StatusCode > 0 {
-		statusCode = warning.StatusCode
-	}
-	h.recordOpenAICyberWarning(c, reqLog, apiKey, account, model, statusCode, warning.ResponseBody, warning.Message)
-	return true
+	h.openAIAttemptSupport().RecordOpenAICyberWarning(c, reqLog, apiKey, account, model, warning.StatusCode, warning.ResponseBody, warning.Message)
 }
 
 func buildOpenAICyberWarningInput(c *gin.Context, apiKey *apikey.APIKey, account *gatewayprovider.ExecutionAccount, model string, statusCode int, responseBody []byte, warningText string, promptExcerpt string) moderation.ContentModerationCyberWarningInput {

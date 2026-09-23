@@ -3,6 +3,7 @@ package handler
 import (
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
@@ -51,7 +52,7 @@ func (p *embeddingRequestAdapter) SelectEmbedding(ctx context.Context, excluded 
 	return gatewaycapture.ExecutionSnapshot(selection.Account), true, err
 }
 func (p *embeddingRequestAdapter) AcquireEmbedding(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
-	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, p.streamStarted, p.reqLog)
+	return p.h.openAIAttemptSupport().AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, p.streamStarted, p.reqLog)
 }
 func (p *embeddingRequestAdapter) ForwardEmbedding(ctx context.Context, _ accountcore.AccountSnapshot, body []byte) gatewaymedia.EmbeddingOutcome {
 	forwardBody := body
@@ -71,10 +72,10 @@ func (p *embeddingRequestAdapter) ForwardEmbedding(ctx context.Context, _ accoun
 func (p *embeddingRequestAdapter) ReportEmbedding(_ context.Context, _ accountcore.AccountSnapshot, result *gatewaymedia.EmbeddingResult, success bool, err error) {
 	account := p.selection.Account
 	if success {
-		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(p.c, account, p.reqModel, false, legacyEmbeddingResult(result)), true, nil)
+		p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.reqModel, false, legacyEmbeddingResult(result)), true, nil)
 		return
 	}
-	p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(p.c, account, p.reqModel, false, legacyEmbeddingResult(result)), false, nil, err)
+	p.h.gatewayService.ReportOpenAIAccountScheduleResult(account, openaiattempt.OpenAIAccountScheduleModel(p.c, account, p.reqModel, false, legacyEmbeddingResult(result)), false, nil, err)
 }
 func (p *embeddingRequestAdapter) SwitchEmbedding(_ accountcore.AccountSnapshot) {
 	p.h.gatewayService.RecordOpenAIAccountSwitchForSelection(p.selection)
@@ -88,7 +89,7 @@ func (p *embeddingRequestAdapter) ObserveEmbedding(event gatewaymedia.EmbeddingE
 		gatewayhttp.SetOpsLatencyMs(p.c, gatewayhttp.OpsRoutingLatencyMsKey, event.Elapsed.Milliseconds())
 	case "response":
 		elapsed := event.Elapsed.Milliseconds()
-		upstream, _ := getContextInt64(p.c, gatewayhttp.OpsUpstreamLatencyMsKey)
+		upstream, _ := openaiattempt.GetContextInt64(p.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 		if upstream > 0 && elapsed > upstream {
 			elapsed -= upstream
 		}
@@ -112,10 +113,10 @@ func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure
 	switch f.Stage {
 	case "selection":
 		if f.Excluded == 0 {
-			if p.h.handleOpenAISelectionBusinessError(p.c, f.Err, *p.streamStarted) {
+			if p.h.openAIAttemptSupport().HandleOpenAISelectionBusinessError(p.c, f.Err, *p.streamStarted) {
 				return
 			}
-			cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, capability.PlatformOpenAI)
+			cls := openaiattempt.ClassifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, capability.PlatformOpenAI)
 			if !cls.ModelNotFound {
 				gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
 			}
@@ -124,12 +125,12 @@ func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure
 		}
 		var failure *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &failure) {
-			p.h.handleFailoverExhausted(p.c, failure, false)
+			p.h.openAIAttemptSupport().HandleFailoverExhausted(p.c, failure, false)
 		} else {
 			gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, http.StatusBadGateway, "api_error", "Upstream request failed")
 		}
 	case "empty_selection":
-		cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, capability.PlatformOpenAI)
+		cls := openaiattempt.ClassifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, capability.PlatformOpenAI)
 		if !cls.ModelNotFound {
 			gatewayhttp.MarkOpsRoutingCapacityLimited(p.c)
 		}
@@ -137,7 +138,7 @@ func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure
 	case "exhausted":
 		var failure *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &failure) {
-			p.h.handleFailoverExhausted(p.c, failure, f.Outcome.OutputChanged)
+			p.h.openAIAttemptSupport().HandleFailoverExhausted(p.c, failure, f.Outcome.OutputChanged)
 		}
 	case "forward":
 		if !f.Outcome.OutputChanged {

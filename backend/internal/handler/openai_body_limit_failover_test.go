@@ -19,7 +19,7 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedJSON413(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 
-	(&OpenAIGatewayHandler{}).handleFailoverExhausted(c, bodyLimitFailoverTestError(), false)
+	(&OpenAIGatewayHandler{}).openAIAttemptSupport().HandleFailoverExhausted(c, bodyLimitFailoverTestError(), false)
 
 	require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
 	var envelope map[string]any
@@ -37,7 +37,7 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedResponsesSSE(t *testing
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(nil))
 
-	(&OpenAIGatewayHandler{}).handleFailoverExhausted(c, bodyLimitFailoverTestError(), true)
+	(&OpenAIGatewayHandler{}).openAIAttemptSupport().HandleFailoverExhausted(c, bodyLimitFailoverTestError(), true)
 
 	body := rec.Body.String()
 	require.True(t, strings.HasPrefix(body, "event: response.failed\n"))
@@ -53,7 +53,7 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedAnthropicError(t *testi
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(nil))
 
-		(&OpenAIGatewayHandler{}).handleAnthropicFailoverExhausted(c, bodyLimitFailoverTestError(), false)
+		(&OpenAIGatewayHandler{}).openAIAttemptSupport().HandleAnthropicFailoverExhausted(c, bodyLimitFailoverTestError(), false)
 
 		require.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
 		var envelope map[string]any
@@ -70,7 +70,7 @@ func TestOpenAIBodyLimitFailoverExhausted_ReturnsRedactedAnthropicError(t *testi
 		c, _ := gin.CreateTestContext(rec)
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(nil))
 
-		(&OpenAIGatewayHandler{}).handleAnthropicFailoverExhausted(c, bodyLimitFailoverTestError(), true)
+		(&OpenAIGatewayHandler{}).openAIAttemptSupport().HandleAnthropicFailoverExhausted(c, bodyLimitFailoverTestError(), true)
 
 		body := rec.Body.String()
 		require.True(t, strings.HasPrefix(body, "event: error\n"))

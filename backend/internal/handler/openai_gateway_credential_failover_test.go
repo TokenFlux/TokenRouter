@@ -78,7 +78,7 @@ func TestOpenAIAccessStateCredentialFailureUsesTypedSafeResponse(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 
-	(&OpenAIGatewayHandler{}).handleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
+	(&OpenAIGatewayHandler{}).openAIAttemptSupport().HandleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
 		StatusCode:        http.StatusForbidden,
 		Stage:             forwardcore.GatewayFailureStageAccountAuth,
 		Scope:             forwardcore.GatewayFailureScopeAccount,
@@ -110,7 +110,7 @@ func TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError(t *testin
 	t.Run("native_openai", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
-		(&OpenAIGatewayHandler{}).handleFailoverExhausted(c, failoverErr, false)
+		(&OpenAIGatewayHandler{}).openAIAttemptSupport().HandleFailoverExhausted(c, failoverErr, false)
 		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 		require.Equal(t, "server_error", gjson.Get(recorder.Body.String(), "error.type").String())
 		require.Equal(t, message, gjson.Get(recorder.Body.String(), "error.message").String())
@@ -129,7 +129,7 @@ func TestOpenAICapacityFailoverExhaustionPreservesMessageAsServerError(t *testin
 	t.Run("anthropic_compat", func(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(recorder)
-		(&OpenAIGatewayHandler{}).handleAnthropicFailoverExhausted(c, failoverErr, false)
+		(&OpenAIGatewayHandler{}).openAIAttemptSupport().HandleAnthropicFailoverExhausted(c, failoverErr, false)
 		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 		require.Equal(t, "api_error", gjson.Get(recorder.Body.String(), "error.type").String())
 		require.Equal(t, message, gjson.Get(recorder.Body.String(), "error.message").String())
@@ -200,7 +200,7 @@ func TestCredentialFailoverExhaustionReturnsFixedSafe503(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	h := &OpenAIGatewayHandler{}
 
-	h.handleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
+	h.openAIAttemptSupport().HandleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
 		Stage:             forwardcore.GatewayFailureStageAccountAuth,
 		Scope:             forwardcore.GatewayFailureScopeAccount,
 		Reason:            forwardcore.GrokCredentialReasonRevoked,
@@ -222,7 +222,7 @@ func TestInferenceFailoverExhaustionRestoresRetryAfter(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	h := &OpenAIGatewayHandler{}
 
-	h.handleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
+	h.openAIAttemptSupport().HandleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
 		StatusCode:      http.StatusTooManyRequests,
 		ResponseHeaders: http.Header{"Retry-After": []string{"17"}},
 	}, false)
@@ -237,7 +237,7 @@ func TestFailoverExhaustionRejectsSecretBearingRetryAfter(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	h := &OpenAIGatewayHandler{}
 
-	h.handleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
+	h.openAIAttemptSupport().HandleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
 		StatusCode:      http.StatusTooManyRequests,
 		ResponseHeaders: http.Header{"Retry-After": []string{"refresh_token=must-not-leak"}},
 	}, false)
@@ -253,7 +253,7 @@ func TestFailoverExhaustionRejectsFarFutureRetryAfterDate(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	h := &OpenAIGatewayHandler{}
 
-	h.handleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
+	h.openAIAttemptSupport().HandleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
 		StatusCode: http.StatusTooManyRequests,
 		ResponseHeaders: http.Header{
 			"Retry-After": []string{time.Now().Add(30 * 24 * time.Hour).UTC().Format(http.TimeFormat)},
@@ -271,7 +271,7 @@ func TestFailoverExhaustionAllowsBoundedRetryAfterDate(t *testing.T) {
 	h := &OpenAIGatewayHandler{}
 	retryAfter := time.Now().Add(time.Hour).UTC().Format(http.TimeFormat)
 
-	h.handleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
+	h.openAIAttemptSupport().HandleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
 		StatusCode:      http.StatusTooManyRequests,
 		ResponseHeaders: http.Header{"Retry-After": []string{retryAfter}},
 	}, false)

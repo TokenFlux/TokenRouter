@@ -1,4 +1,4 @@
-package handler
+package openaiattempt
 
 import (
 	"context"
@@ -6,20 +6,17 @@ import (
 	"net/http"
 	"time"
 
-	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
-	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
-
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
-
-	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
-
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"go.uber.org/zap"
 )
 
@@ -49,7 +46,7 @@ func (b *openAIChatAttemptBridge) Select(excluded map[int64]struct{}) (textflow.
 		return textflow.ResponseSelection{}, err
 	}
 	if b.selection == nil || b.selection.Account == nil {
-		cls := classifyOpenAICompatibleNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel)
+		cls := ClassifyOpenAICompatibleNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel)
 		if !cls.ModelNotFound {
 			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
 		}
@@ -57,7 +54,7 @@ func (b *openAIChatAttemptBridge) Select(excluded map[int64]struct{}) (textflow.
 		return textflow.ResponseSelection{}, nil
 	}
 	b.account = b.selection.Account
-	b.sessionHash = ensureOpenAIPoolModeSessionHash(b.sessionHash, b.account)
+	b.sessionHash = EnsureOpenAIPoolModeSessionHash(b.sessionHash, b.account)
 	b.reqLog.Debug("openai_chat_completions.account_selected", zap.Int64("account_id", b.account.Record.ID), zap.String("account_name", b.account.Record.Name))
 	_ = scheduleDecision
 	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
@@ -84,7 +81,7 @@ func (b *openAIChatAttemptBridge) SelectionFailure(err error, excludedCount int,
 		if b.binding().handleOpenAISelectionBusinessError(b.c, err, (*b.streamStarted)) {
 			return
 		}
-		cls := classifyOpenAICompatibleNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel)
+		cls := ClassifyOpenAICompatibleNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel)
 		cls = classifySelectionFailureError(err, cls)
 		if !cls.ModelNotFound {
 			gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
@@ -131,7 +128,7 @@ func (b *openAIChatAttemptBridge) Forward() textflow.ResponseOutcome {
 	b.cyberPolicyHandled = b.binding().recordCyberPolicyIfMarked(b.c, b.apiKey, b.account, b.subscription, b.reqModel, err != nil, cyberBlockBodyChat, gatewayhttp.ClientRequestedUsageFields(b.c, b.channelMapping, b.reqModel, ""), billing.HashUsageRequestPayload(b.body))
 
 	forwardDurationMs := time.Since(forwardStart).Milliseconds()
-	upstreamLatencyMs, _ := getContextInt64(b.c, gatewayhttp.OpsUpstreamLatencyMsKey)
+	upstreamLatencyMs, _ := GetContextInt64(b.c, gatewayhttp.OpsUpstreamLatencyMsKey)
 	responseLatencyMs := forwardDurationMs
 	if upstreamLatencyMs > 0 && forwardDurationMs > upstreamLatencyMs {
 		responseLatencyMs = forwardDurationMs - upstreamLatencyMs
@@ -161,7 +158,7 @@ func (b *openAIChatAttemptBridge) Complete() {
 	userAgent := b.c.GetHeader("User-Agent")
 	clientIP := clientip.GetClientIP(b.c)
 	inboundEndpoint := gatewayhttp.GetInboundEndpoint(b.c)
-	upstreamEndpoint := resolveOpenAIUpstreamEndpoint(b.c, b.account, res)
+	upstreamEndpoint := ResolveOpenAIUpstreamEndpoint(b.c, b.account, res)
 	quotaPlatform := admission.QuotaPlatform(b.c.Request.Context(), b.apiKey)
 	clientSessionID := gatewayhttp.ExtractClientSessionID(b.c)
 	// 入队前固化资金与报文投影，worker 不再读取请求中的实体。
@@ -229,7 +226,7 @@ func (b *openAIChatAttemptBridge) RetryReady(failure *textflow.AttemptFailure) b
 		return false
 	}
 	if failoverErr.ShouldReportAccountScheduleFailure() {
-		b.binding().reportOpenAIAccountScheduleResult(b.account, openAIAccountScheduleModel(b.c, b.account, b.reqModel, false, nil), false, nil, err)
+		b.binding().reportOpenAIAccountScheduleResult(b.account, OpenAIAccountScheduleModel(b.c, b.account, b.reqModel, false, nil), false, nil, err)
 	}
 	return true
 }
@@ -262,14 +259,14 @@ func (b *openAIChatAttemptBridge) Switching(failure *textflow.AttemptFailure, sw
 // OtherFailure 保留 OpenAI Chat 适配差异，循环复用 gateway/text。
 func (b *openAIChatAttemptBridge) OtherFailure(err error) {
 	statusCode := 0
-	if v, ok := getContextInt64(b.c, gatewayhttp.OpsUpstreamStatusCodeKey); ok {
+	if v, ok := GetContextInt64(b.c, gatewayhttp.OpsUpstreamStatusCodeKey); ok {
 		statusCode = int(v)
 	}
 	recordedWarning := b.binding().recordOpenAIForwardErrorCyberWarning(b.c, b.reqLog, b.apiKey, b.account, b.reqModel, statusCode, err)
 	if !recordedWarning {
 		b.binding().recordOpenAICyberWarning(b.c, b.reqLog, b.apiKey, b.account, b.reqModel, statusCode, nil, err.Error())
 	}
-	b.binding().reportOpenAIAccountScheduleResult(b.account, openAIAccountScheduleModel(b.c, b.account, b.reqModel, false, nil), false, nil, err)
+	b.binding().reportOpenAIAccountScheduleResult(b.account, OpenAIAccountScheduleModel(b.c, b.account, b.reqModel, false, nil), false, nil, err)
 	upstreamErrorAlreadyCommunicated := gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
 	b.wroteFallback = false
 	if !upstreamErrorAlreadyCommunicated && (!recordedWarning || b.c.Writer.Size() == b.writerSizeBeforeForward) {
@@ -289,9 +286,9 @@ func (b *openAIChatAttemptBridge) OtherFailure(err error) {
 // Success 保留 OpenAI Chat 适配差异，循环复用 gateway/text。
 func (b *openAIChatAttemptBridge) Success() {
 	if b.result != nil {
-		b.binding().reportOpenAIAccountScheduleResult(b.account, openAIAccountScheduleModel(b.c, b.account, b.reqModel, false, b.result), true, b.result.FirstTokenMs)
+		b.binding().reportOpenAIAccountScheduleResult(b.account, OpenAIAccountScheduleModel(b.c, b.account, b.reqModel, false, b.result), true, b.result.FirstTokenMs)
 	} else {
-		b.binding().reportOpenAIAccountScheduleResult(b.account, openAIAccountScheduleModel(b.c, b.account, b.reqModel, false, b.result), true, nil)
+		b.binding().reportOpenAIAccountScheduleResult(b.account, OpenAIAccountScheduleModel(b.c, b.account, b.reqModel, false, b.result), true, nil)
 	}
 
 }

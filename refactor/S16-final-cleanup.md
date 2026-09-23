@@ -1703,3 +1703,14 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 图片意图的 true/false/未知、WS 旁路和每 attempt 提示进入 HTTP 所有者；渠道映射、报文替换与判断使用唯一组合函数。保留 Compact 重新判断及调用次数，实际 Forward 测试仍验证生产消费者。原入口合同及图片提示测试同批迁移，原无标签选择保持，删除三处无消费者包装。
 - 编译、Wire 和构建通过；普通定向 674 条、unit race 1,132 条通过，各有一项既有 WS 跳过；真实组合根及路由读取/关闭边界追加 race 42 条通过。三套完整 lint 最终为零。初次测试私有 backend 搬迁遗漏、重复测试助手、旧包装 unused 和精确测试许可诊断分别保留，没有削弱原断言。
 - Wire 再生成摘要相同；其构造顺序变化仅将已有 Cyber/资源取得提前到文本 HTTP 装配，没有提前 Start。原计划、SQL/Ent、前阶段资料及 51 个受保护文件未变，文档同步实际新旧共存结构。本批验证索引为 `progress-20260923-openai-text-verification.json`；S16 仍实施中、16/17。
+
+
+### OpenAI 文本单次运行时与共享尝试适配（2026-09-23）
+
+- `gateway/httpapi/openaiattempt.Runtime` 接管 Responses、Chat、Messages 四组固定执行与请求状态；app 直接绑定平台单步能力、同一选择反馈、完成器、原生槽位与 Cyber。新运行时没有旧 Handler/service/config 字段或 import，文本生产链不再经过旧 Handler；账号切换与预算仍由 gateway/text 唯一管理。
+- 跨模式 reasoning、账号模型/端点观测、代理安全字段、等待槽位、失败输出及 Cyber 完成快照保持一份实现。剩余 WS/媒体直接调用原生 Support；删除 13 个旧方法及无消费者的槽位枚举/包装，不保留第二份规则。原分组解析诊断、定价时刻、取消、终态与部分结果资格保持。
+- 原 cross-mode、代理日志、前导/取消与诊断合同和替身跟随实际所有者；模型报文缓存与调度结果测试分别归 requeststate/forward。无标签与 unit 标签逐项一致，断言映射见 `native-openai-attempt-test-mapping.json`。编译、Wire、构建通过，定向普通 2,131 条、unit race 2,823 条通过，各有两项原供应商/WS 跳过；原生拥有者追加 race 28 条通过。
+- 11 类依赖夹具在普通/unit/integration 下 33/33 符合预期，已删除；临时旧构造只许可其实际原生 import，迁出文件及同目录新文件不继承许可。Wire 再生成稳定，SQL/Ent、原计划正文、前阶段资料及其他任务文件核对未变。初次 unused 诊断保留，对应旧方法已在消费者清零后删除。
+- 正在执行这两批的合并完整验证；全项完成后在此追加真实结果，再提交进度。S16 仍为实施中、16/17，WS/媒体和旧平台执行适配及最终验收尚未清零。
+
+- 合并全仓检查最终普通/unit/integration 分别为 11,994 / 20,028 / 12,997 条通过，既有跳过 4/8/4，三套完整 lint 均为零。删除旧委托后再次构建并补跑定向 race 903 条通过，跳过 0 项；完整命令与实际事件见 `progress-20260923-openai-attempt-verification.json`。本批按授权提交进度，不更新为 S16 完成。

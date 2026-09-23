@@ -40,6 +40,8 @@ OpenAI 兼容请求的显式粘性会话头按 `session-id`、`session_id`、`co
 <a id="openai_protocol_dispatch"></a>
 ## 协议与传输
 
+Responses、Chat、Messages 的入站 HTTP 与单次尝试运行时由 app 直接装配；`gateway/httpapi/openaiattempt` 复用同一选择、反馈、完成及槽位能力。重试循环仍由 `gateway/text` 唯一拥有，跨模式切换从原始报文派生 reasoning 清理结果，不污染后续请求。WS、媒体尚存的旧适配共享原生失败输出与完成快照投影。
+
 `protocol/openai` 拥有 Responses/Chat 报文、自定义编解码、服务层级值与宽容 JSON 字节修复；`protocol/bridge` 拥有跨协议转换和每条流的状态。旧 apicompat 委托它们并提供时刻/随机源。BOM、控制字节、原文与大小限制保持原行为；纯 `BodyLimitError` 在旧 httputil 的 HTTP 边界转回 `http.MaxBytesError`，请求读取和解压仍由 `server/httpx` 执行，原先未使用宽容修复的入口不会自动启用。Compact 请求白名单、reasoning replay 与 store=false 修复由原生请求 codec 执行，触发条件仍由原入站决定。Responses Header 与 CC 请求发送也通过原生实现，账号身份、代理/TLS 和请求状态以窄端口投影，保持原覆写顺序。UA/originator 字符串识别在 `gateway/clientmeta`，规范 Codex 出站身份与动态 UA resolver 已由原生包唯一持有，请求字段改写时机仍由旧入站适配决定。
 
 Responses 标准/透传读取、Responses 转 Chat/Messages、Raw Chat 直通及 Chat 转 Responses/Messages 的响应执行已归 upstream/openai；协议算法继续由 protocol/bridge 唯一拥有。缓冲终态、空响应检测与流状态按每次尝试创建，终态 usage 的覆盖顺序和断开返回差异分别保留。旧入站传入账号策略和观察端口；HTTP 只在原输出时点取得 Header，等待心跳不因创建适配器而提前结束。

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/openaiattempt"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 )
 
@@ -10,5 +11,5 @@ func (h *OpenAIGatewayHandler) NewOpenAITextExecutor() *textflow.ResponsesExecut
 	if h != nil {
 		maxSwitches = h.maxAccountSwitches
 	}
-	return textflow.NewResponsesExecutor(&fixedOpenAITextRuntime{dependencies: newOpenAIExecutionDependencies(h)}, textflow.ResponseOptions{MaxSwitches: maxSwitches}, textflow.ResponseOptions{MaxSwitches: maxSwitches, FirstOutputBudget: true})
+	return textflow.NewResponsesExecutor(openaiattempt.New(openAIAttemptBindings(h)), textflow.ResponseOptions{MaxSwitches: maxSwitches}, textflow.ResponseOptions{MaxSwitches: maxSwitches, FirstOutputBudget: true})
 }

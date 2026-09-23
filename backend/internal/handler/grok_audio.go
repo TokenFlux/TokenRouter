@@ -135,7 +135,7 @@ func (p *grokRealtimeAdapter) SelectRealtime(ctx context.Context, excluded map[i
 }
 func (p *grokRealtimeAdapter) AcquireRealtime(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
 	var started bool
-	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, &started, p.reqLog)
+	return p.h.openAIAttemptSupport().AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, &started, p.reqLog)
 }
 func (p *grokRealtimeAdapter) RealtimeCredential(ctx context.Context, _ accountcore.AccountSnapshot) (string, error) {
 	token, _, err := p.h.gatewayService.GetRequestCredential(ctx, p.c, p.selection.Account)
@@ -178,7 +178,7 @@ func (p *grokVoiceAdapter) SelectVoice(ctx context.Context, excluded map[int64]s
 }
 func (p *grokVoiceAdapter) AcquireVoice(_ context.Context, _ accountcore.AccountSnapshot) (func(), bool) {
 	var started bool
-	return p.h.acquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, &started, p.reqLog)
+	return p.h.openAIAttemptSupport().AcquireResponsesAccountSlot(p.c, p.apiKey.GroupID, "", p.selection, false, &started, p.reqLog)
 }
 func (p *grokVoiceAdapter) ForwardVoice(ctx context.Context, _ accountcore.AccountSnapshot, request gatewaymedia.VoiceRequest) gatewaymedia.VoiceOutcome {
 	result, err := p.h.gatewayService.ForwardGrokVoice(ctx, p.c, p.selection.Account, request.Endpoint, request.Body, request.ContentType)

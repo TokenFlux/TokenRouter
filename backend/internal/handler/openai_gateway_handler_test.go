@@ -14,8 +14,6 @@ import (
 
 	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
-	openaiprotocol "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
-
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
@@ -95,19 +93,6 @@ func TestHandleGroupSelectionBusinessError(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, status)
 	require.Equal(t, "permission_error", errType)
 	require.Equal(t, routing.ErrClaudeCodeOnly.Error(), message)
-}
-
-func TestOpenAIForwardSucceededForScheduling(t *testing.T) {
-	require.True(t, openAIForwardSucceededForScheduling(nil))
-	require.True(t, openAIForwardSucceededForScheduling(&forwardcore.OpenAIResult{}))
-	require.True(t, openAIForwardSucceededForScheduling(&forwardcore.OpenAIResult{
-		OpenAIWSMode:          true,
-		UpstreamTerminalEvent: "response.completed",
-	}))
-	require.False(t, openAIForwardSucceededForScheduling(&forwardcore.OpenAIResult{
-		OpenAIWSMode:          true,
-		UpstreamTerminalEvent: "response.failed",
-	}))
 }
 
 func TestOpenAIResponsesRequiredCapability(t *testing.T) {
@@ -304,7 +289,7 @@ func TestOpenAIHandleFailoverExhausted_CyberWarningPassesThroughMessage(t *testi
 
 	message := "This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request."
 	h := &OpenAIGatewayHandler{}
-	h.handleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
+	h.openAIAttemptSupport().HandleFailoverExhausted(c, &forwardcore.UpstreamFailoverError{
 		StatusCode:   http.StatusForbidden,
 		ResponseBody: []byte(`{"error":{"message":"` + message + `"}}`),
 	}, false)
@@ -551,41 +536,6 @@ func TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups(t *testing.T) {
 		require.Equal(t, "api_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
 		require.NotContains(t, rec.Body.String(), "This group does not allow Anthropic Messages requests")
 	})
-}
-
-func TestOpenAIModelMappedBody(t *testing.T) {
-	body := []byte(`{"model":"alias","input":"hello"}`)
-	calls := 0
-
-	forwardBody := openAIModelMappedBody(body, true, "gpt-5.4", func(body []byte, newModel string) []byte {
-		calls++
-		return openaiprotocol.ReplaceModelInBody(body, newModel)
-	})
-
-	require.Equal(t, 1, calls)
-	require.Equal(t, "gpt-5.4", gjson.GetBytes(forwardBody, "model").String())
-	require.Equal(t, "alias", gjson.GetBytes(body, "model").String())
-}
-
-func TestOpenAIModelMappedBodyCache(t *testing.T) {
-	body := []byte(`{"model":"alias","input":"hello"}`)
-	calls := 0
-	mappedBody := newOpenAIModelMappedBodyCache(body, func(body []byte, newModel string) []byte {
-		calls++
-		return openaiprotocol.ReplaceModelInBody(body, newModel)
-	})
-
-	first := mappedBody(true, "gpt-5.4")
-	second := mappedBody(true, "gpt-5.4")
-	third := mappedBody(true, "gpt-5.3-codex")
-	unmapped := mappedBody(false, "ignored")
-
-	require.Equal(t, 2, calls)
-	require.Equal(t, "gpt-5.4", gjson.GetBytes(first, "model").String())
-	require.Equal(t, "gpt-5.4", gjson.GetBytes(second, "model").String())
-	require.Equal(t, "gpt-5.3-codex", gjson.GetBytes(third, "model").String())
-	require.Equal(t, body, unmapped)
-	require.Same(t, &first[0], &second[0])
 }
 
 func TestOpenAIResponses_MissingDependencies_ReturnsServiceUnavailable(t *testing.T) {
@@ -1310,7 +1260,7 @@ func TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody(t *testing.T) {
 		Name: "openai-1"},
 	}
 
-	h.recordOpenAICyberWarning(
+	h.openAIAttemptSupport().RecordOpenAICyberWarning(
 		c,
 		nil,
 		apiKey,
@@ -1356,7 +1306,7 @@ func TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt(t *testing.T) {
 	apiKey := &apikey.APIKey{ID: 101, Name: "test-key", UserID: 1001, User: &identity.User{ID: 1001, Email: "user@example.com"}}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2001, Name: "openai-1"}}
 
-	h.recordOpenAICyberWarningWithPromptExcerpt(
+	h.openAIAttemptSupport().RecordOpenAICyberWarningWithPromptExcerpt(
 		c,
 		nil,
 		apiKey,
@@ -1405,7 +1355,7 @@ func TestOpenAIRecordCyberWarning_RequestSnapshotUsesCurrentToolOutput(t *testin
 	apiKey := &apikey.APIKey{ID: 101, Name: "test-key", UserID: 1001, User: &identity.User{ID: 1001, Email: "user@example.com"}}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2001, Name: "openai-1"}}
 
-	h.recordOpenAICyberWarning(
+	h.openAIAttemptSupport().RecordOpenAICyberWarning(
 		c,
 		nil,
 		apiKey,
@@ -1537,7 +1487,7 @@ func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *test
 		err: errors.New("no terminal response payload"),
 	})
 
-	recorded := h.recordOpenAIForwardErrorCyberWarning(c, nil, apiKey, account, "gpt-5.1", 502, err)
+	recorded := h.openAIAttemptSupport().RecordOpenAIForwardErrorCyberWarning(c, nil, apiKey, account, "gpt-5.1", 502, err)
 
 	require.True(t, recorded)
 	require.Len(t, repo.cyberWarnings, 1)
@@ -1587,7 +1537,7 @@ func TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope(t *testing.T
 	}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2001, Name: "openai-1"}}
 
-	handled := h.recordCyberPolicyIfMarked(c, apiKey, account, nil, "gpt-5.1", true, "cyber-session-key", routing.ChannelUsageFields{}, "payload-hash")
+	handled := h.openAIAttemptSupport().RecordCyberPolicyIfMarked(c, apiKey, account, nil, "gpt-5.1", true, "cyber-session-key", routing.ChannelUsageFields{}, "payload-hash")
 
 	require.False(t, handled)
 	require.Empty(t, repo.cyberWarnings)

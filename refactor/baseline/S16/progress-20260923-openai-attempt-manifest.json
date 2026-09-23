@@ -1,0 +1,370 @@
+{
+  "format_version": 1,
+  "scope": "S16 阶段检查点增量，非最终验收",
+  "base_archive": "s16-evidence.tar.gz",
+  "base_archive_sha256": "9d3fa06d7fdef83f358c34c0816b55e4be7e531c3b3134a01fc1ff32bd6808ae",
+  "source_file_count": 70,
+  "source_total_bytes": 78364055,
+  "archives": [
+    {
+      "path": "progress-20260923-openai-attempt-01.tar.gz",
+      "size": 4311998,
+      "sha256": "8920c51ac14c6f970066f0074ea7cae4b11c204d84fad0518091e62303a7cba4",
+      "verified_members": 70,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/interim-native-openai-attempt-checks.json",
+          "size": 5718,
+          "sha256": "101affff1390ceb99b9dc0505f62eb45a37dae6f543407aec79bf7ade4c61c80"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-openai-attempt-integration.jsonl",
+          "size": 18878974,
+          "sha256": "1daa685e342e8b332c6c5e28f1535419a2d707f86724081ad89839b6feaa4216"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-openai-attempt-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-openai-attempt-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-openai-attempt-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-openai-attempt-normal.jsonl",
+          "size": 17722555,
+          "sha256": "130189ac5be9b0bba363547073978152389fdb8e483e352f1e692bebec8099fa"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-openai-attempt-unit.jsonl",
+          "size": 27461573,
+          "sha256": "78de3bd9aaad94277309729cc275fc00e875840ef0525b5d3f388681cf97d11a"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-openai-attempt-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-exact-platform-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-exact-platform-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-exact-platform-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-no-legacy-handler-integration.log",
+          "size": 360,
+          "sha256": "c39dd911c04c86d33215e525a761167dbdbf2b1ed324ef0406b6f95c766ff355"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-no-legacy-handler-normal.log",
+          "size": 360,
+          "sha256": "c39dd911c04c86d33215e525a761167dbdbf2b1ed324ef0406b6f95c766ff355"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-no-legacy-handler-unit.log",
+          "size": 360,
+          "sha256": "c39dd911c04c86d33215e525a761167dbdbf2b1ed324ef0406b6f95c766ff355"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-service-child-integration.log",
+          "size": 372,
+          "sha256": "583a299ae99b67fd8fd5a4e0a00f8972e06454c002b23307090cc2a3e44b9856"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-service-child-normal.log",
+          "size": 372,
+          "sha256": "583a299ae99b67fd8fd5a4e0a00f8972e06454c002b23307090cc2a3e44b9856"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-app-service-child-unit.log",
+          "size": 372,
+          "sha256": "583a299ae99b67fd8fd5a4e0a00f8972e06454c002b23307090cc2a3e44b9856"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-config-integration.log",
+          "size": 315,
+          "sha256": "686ec6ea05251ddc87ff363367427a02d767f6a0698e47c9675184d34465b7fc"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-config-normal.log",
+          "size": 315,
+          "sha256": "686ec6ea05251ddc87ff363367427a02d767f6a0698e47c9675184d34465b7fc"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-config-unit.log",
+          "size": 315,
+          "sha256": "686ec6ea05251ddc87ff363367427a02d767f6a0698e47c9675184d34465b7fc"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-legal-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-legal-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-legal-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-moved-exception-integration.log",
+          "size": 284,
+          "sha256": "596aaab931ee00cfa2139060b37243573a5fa221ce8856867ef66ae298a7e64b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-moved-exception-normal.log",
+          "size": 284,
+          "sha256": "596aaab931ee00cfa2139060b37243573a5fa221ce8856867ef66ae298a7e64b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-moved-exception-unit.log",
+          "size": 284,
+          "sha256": "596aaab931ee00cfa2139060b37243573a5fa221ce8856867ef66ae298a7e64b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-new-file-integration.log",
+          "size": 266,
+          "sha256": "34d2ae5a04523874235b662b34d5f0beb578c86c074abeb347806519eb1976c5"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-new-file-normal.log",
+          "size": 266,
+          "sha256": "34d2ae5a04523874235b662b34d5f0beb578c86c074abeb347806519eb1976c5"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-new-file-unit.log",
+          "size": 266,
+          "sha256": "34d2ae5a04523874235b662b34d5f0beb578c86c074abeb347806519eb1976c5"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-old-integration.log",
+          "size": 317,
+          "sha256": "ebc261eb7d47ba69da184d5cd73a6e463638c26d0398471d1bf8d5583234301b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-old-normal.log",
+          "size": 317,
+          "sha256": "ebc261eb7d47ba69da184d5cd73a6e463638c26d0398471d1bf8d5583234301b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-old-unit.log",
+          "size": 317,
+          "sha256": "ebc261eb7d47ba69da184d5cd73a6e463638c26d0398471d1bf8d5583234301b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-store-integration.log",
+          "size": 333,
+          "sha256": "02052fc59f396d9a004ea1637bae4a2568a02a561a42aa816c53fd31d52a69c6"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-store-normal.log",
+          "size": 333,
+          "sha256": "02052fc59f396d9a004ea1637bae4a2568a02a561a42aa816c53fd31d52a69c6"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-attempt-store-unit.log",
+          "size": 333,
+          "sha256": "02052fc59f396d9a004ea1637bae4a2568a02a561a42aa816c53fd31d52a69c6"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-old-constructor-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-old-constructor-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-old-constructor-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-old-new-import-integration.log",
+          "size": 298,
+          "sha256": "8047233ba62718ce0f077aa37f813d9a7fe6acac7c61e496d14cf509903cbce2"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-old-new-import-normal.log",
+          "size": 298,
+          "sha256": "8047233ba62718ce0f077aa37f813d9a7fe6acac7c61e496d14cf509903cbce2"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gate-old-new-import-unit.log",
+          "size": 298,
+          "sha256": "8047233ba62718ce0f077aa37f813d9a7fe6acac7c61e496d14cf509903cbce2"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-boundary-gates.json",
+          "size": 21743,
+          "sha256": "4f783ad6e52fdb6b5164f0fdb687b92030caab4a287157607b9d0cb41d55c93b"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-compile-2.log",
+          "size": 537,
+          "sha256": "93b9b73879523c04bdf35d5387177aeede52f3bf09bfb99b675e4ee26f8604a5"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-compile-3.log",
+          "size": 533,
+          "sha256": "163ce090911f428679b23b0178de39715f52cb2dff42e9b27cc884cf173b9827"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-compile-4.log",
+          "size": 531,
+          "sha256": "ac1408ef1e99d30e9ef9b2278b8e3d55715e6661d6746caa5bb831c3db0cf399"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-compile-5.log",
+          "size": 716,
+          "sha256": "0d8ca4c3aa5d5d112892a551ef6ab223d79710e2d8981197d114815b80ea56ce"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-compile.log",
+          "size": 258,
+          "sha256": "802f4ef7196781829a100c2e6e407453e672187e050fe07d5c058b06e05242da"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-final-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-final-checks.json",
+          "size": 3360,
+          "sha256": "2729b7d9e4c988d2c58999e125e6fe93ffe3d2d28834eb1336f2c92e8f2ae947"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-final-lint-normal.log",
+          "size": 5363,
+          "sha256": "06325eeb3ce35d7697936eb2da2d3956e56cbd797ecfdeaf2e5bc60be2a080f7"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-final-normal.jsonl",
+          "size": 4803212,
+          "sha256": "27c52722df641b229bafcc73c9d30df87310bfd9a7d0c045c35265400e75f8eb"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-final-race.jsonl",
+          "size": 5892415,
+          "sha256": "23540b05ef86acf8c7d5ff56ea67eac2c42d5b947c2c7d1a2ea7b89b39c4d814"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-final-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-followup-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-followup-checks.json",
+          "size": 1070,
+          "sha256": "12148b6d4e0ab856b84db21f57417e72d2d29461a59f706745859b3a9b08365c"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-followup-race.jsonl",
+          "size": 1956712,
+          "sha256": "6bf977cb0b8c39d18c3d2a0421203232d032ef3bf49b2f66c1fc86adac41ae11"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-gate-consumers.json",
+          "size": 3257,
+          "sha256": "70cf06f1523e9aaf66e60a09594dc8977185e0e311187b21571f6dc8a8a568ef"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-helper-consumers.json",
+          "size": 398,
+          "sha256": "a4fe0ac5cb559e9bcc29d73e9fcc737cc5b21177402b2bd658d2ca0253ca2209"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-method-consumers.json",
+          "size": 1048,
+          "sha256": "24b3d30e1b4463fc9ba4451130f3ccfc18a7694fc44a6541788429a22fd928c2"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-original.json",
+          "size": 102288,
+          "sha256": "92d82de5ce6dbe5673703ac7046d3f53daae1a6c8e0c650416b51d308ff7f6e7"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-owner-race.jsonl",
+          "size": 31804,
+          "sha256": "23b92473b9027b66551d44132615cb4edac54199b85f8e91b075c1b39bdecb89"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-protected.json",
+          "size": 1330,
+          "sha256": "6c4a280111ab2a020996387dfdb18e28da4aa9d0b4a6efe67c498286b6cbf6ea"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-remaining-inventory.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-test-mapping.json",
+          "size": 3145,
+          "sha256": "5c3aca5b753b3c4c0ad93a241b5219f0ab7a6d1e577a856e26be16dd4bad1960"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-wire-repeat.json",
+          "size": 260,
+          "sha256": "5da6e21c6f3f31173d5cead3502eaf7076ad839d715896bb6bc4c41c85210694"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-wire-repeat.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-attempt-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-openai-attempt-verification.json",
+          "size": 39595,
+          "sha256": "c5a8ab33ac76da8427c504c4c2c367347175b096d1911d74f8be8a9fcb4219ed"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-openai-text-manifest.json",
+          "size": 16758,
+          "sha256": "93454fc103a93773bec6ae2b9171a88588eceddc50fa7c31184e66ecd98e8963"
+        },
+        {
+          "path": "refactor/baseline/S16/remaining-execution-function-dependencies.json",
+          "size": 1400599,
+          "sha256": "a1ef2ce175844176a010d7d5760ed64493d4e2a6e67ab4109ea7344f5b5dca37"
+        }
+      ]
+    }
+  ],
+  "parent_manifest": "progress-20260923-openai-text-manifest.json",
+  "parent_manifest_sha256": "93454fc103a93773bec6ae2b9171a88588eceddc50fa7c31184e66ecd98e8963"
+}

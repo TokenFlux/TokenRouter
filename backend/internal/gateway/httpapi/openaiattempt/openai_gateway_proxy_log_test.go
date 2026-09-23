@@ -1,6 +1,6 @@
 //go:build unit
 
-package handler
+package openaiattempt
 
 import (
 	"testing"
@@ -30,7 +30,7 @@ func TestAppendOpenAIAccountProxyLogFields(t *testing.T) {
 	core, logs := observer.New(zap.WarnLevel)
 	log := zap.New(core)
 
-	log.Warn("openai.websocket_proxy_failed", appendOpenAIAccountProxyLogFields(nil, account)...)
+	log.Warn("openai.websocket_proxy_failed", AppendOpenAIAccountProxyLogFields(nil, account)...)
 
 	entries := logs.All()
 	require.Len(t, entries, 1)
@@ -50,7 +50,7 @@ func TestAppendOpenAIAccountProxyLogFields_FallsBackToProxyID(t *testing.T) {
 	core, logs := observer.New(zap.WarnLevel)
 	log := zap.New(core)
 
-	log.Warn("openai.websocket_proxy_failed", appendOpenAIAccountProxyLogFields(nil, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ProxyID: &proxyID}})...)
+	log.Warn("openai.websocket_proxy_failed", AppendOpenAIAccountProxyLogFields(nil, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ProxyID: &proxyID}})...)
 
 	entries := logs.All()
 	require.Len(t, entries, 1)

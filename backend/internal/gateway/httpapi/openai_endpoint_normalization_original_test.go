@@ -1,11 +1,10 @@
-package handler
+package httpapi
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ func TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint(t *testing.T) {
 		{
 			name: "responses root maps to responses upstream",
 			path: "/v1/responses",
-			want: gatewayhttp.EndpointResponses,
+			want: EndpointResponses,
 		},
 		{
 			name: "responses compact keeps compact suffix",
@@ -39,7 +38,7 @@ func TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint(t *testing.T) {
 		{
 			name: "non responses path uses platform fallback",
 			path: "/v1/messages",
-			want: gatewayhttp.EndpointResponses,
+			want: EndpointResponses,
 		},
 	}
 
@@ -49,7 +48,7 @@ func TestOpenAIUpstreamEndpoint_ViaGetUpstreamEndpoint(t *testing.T) {
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, tt.path, nil)
 
-			got := gatewayhttp.GetUpstreamEndpoint(c, capability.PlatformOpenAI)
+			got := GetUpstreamEndpoint(c, capability.PlatformOpenAI)
 			require.Equal(t, tt.want, got)
 		})
 	}
