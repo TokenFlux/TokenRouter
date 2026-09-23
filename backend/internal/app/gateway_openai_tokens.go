@@ -70,7 +70,7 @@ func (t openAITokenTarget) ForwardInputTokens(ctx context.Context, c *gin.Contex
 }
 
 // provideOpenAITokensHTTP 不构造旧 Handler，也不取得用户槽、worker 或第二份缓存。
-func provideOpenAITokensHTTP(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, concurrency *scheduler.ConcurrencyService, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service) *gatewayhttp.OpenAITokensHandler {
+func provideOpenAITokensHTTP(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, concurrency *scheduler.ConcurrencyService, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability) *gatewayhttp.OpenAITokensHandler {
 	options := gatewayhttp.OpenAITokenOptions{MaxSwitches: 3}
 	if cfg != nil {
 		options.MaxBodyBytes = cfg.Gateway.MaxBodySize
@@ -79,6 +79,10 @@ func provideOpenAITokensHTTP(source *service.OpenAIGatewayService, funding *admi
 		}
 	}
 	ports := gatewayhttp.OpenAITokenPorts{Execution: openAITokenExecution{source}, Funding: funding}
+	if availability != nil {
+		ports.Diagnoser = availability.Compatible
+		ports.ResolvedDiagnoser = availability.Resolved
+	}
 	if rules != nil {
 		ports.Rules = rules
 	}

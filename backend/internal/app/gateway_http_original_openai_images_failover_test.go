@@ -183,7 +183,9 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 		nil,
 		nil,
 		nil,
-		cfg, nil,
+		cfg, nil, newExecutionAvailabilityForTest(accountRepo,
+
+			nil, cfg),
 	)
 	handler.Input.MaxSwitches = 10
 

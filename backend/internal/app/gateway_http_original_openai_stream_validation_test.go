@@ -35,7 +35,7 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 			path: "/v1/responses",
 			body: `{"model":"gpt-5","stream":"true","input":"hello"}`,
 			run: func(c *gin.Context) {
-				(newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0})).Responses(c)
+				(newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil)).Responses(c)
 			},
 		},
 		{
@@ -43,7 +43,7 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 			path: "/v1/responses",
 			body: `{"model":"gpt-5","stream":1,"input":"hello"}`,
 			run: func(c *gin.Context) {
-				(newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0})).Responses(c)
+				(newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil)).Responses(c)
 			},
 		},
 		{
@@ -51,7 +51,7 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 			path: "/v1/chat/completions",
 			body: `{"model":"gpt-5","stream":"true","messages":[{"role":"user","content":"hello"}]}`,
 			run: func(c *gin.Context) {
-				(newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0})).ChatCompletions(c)
+				(newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil)).ChatCompletions(c)
 			},
 		},
 		{
@@ -59,7 +59,7 @@ func TestOpenAICompatibleHandlersRejectInvalidStreamFieldType(t *testing.T) {
 			path: "/v1/chat/completions",
 			body: `{"model":"gpt-5","stream":1,"messages":[{"role":"user","content":"hello"}]}`,
 			run: func(c *gin.Context) {
-				(newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0})).ChatCompletions(c)
+				(newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil)).ChatCompletions(c)
 			},
 		},
 		{
@@ -122,7 +122,7 @@ func TestGatewayOpenAICompatibleHandlersAllowBooleanStreamToContinue(t *testing.
 			path: "/v1/responses",
 			body: `{"model":"gpt-5","stream":false,"input":"hello"}`,
 			run: func(c *gin.Context) {
-				(newMessageEndpointsFixture(&service.GatewayService{}, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0})).Responses(c)
+				(newMessageEndpointsFixture(&service.GatewayService{}, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil, nil, nil))).Responses(c)
 			},
 		},
 		{
@@ -130,7 +130,7 @@ func TestGatewayOpenAICompatibleHandlersAllowBooleanStreamToContinue(t *testing.
 			path: "/v1/chat/completions",
 			body: `{"model":"gpt-5","stream":true,"messages":[{"role":"user","content":"hello"}]}`,
 			run: func(c *gin.Context) {
-				(newMessageEndpointsFixture(&service.GatewayService{}, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0})).ChatCompletions(c)
+				(newMessageEndpointsFixture(&service.GatewayService{}, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil, nil, nil))).ChatCompletions(c)
 			},
 		},
 	}

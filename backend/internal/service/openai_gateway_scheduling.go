@@ -107,7 +107,7 @@ func shouldUseGroupModelUnsupportedError(ctx context.Context, accounts []gateway
 			continue
 		}
 		hasRelevantAccount = true
-		if openAIAccountSupportsRoutingModel(ctx, acc, requestedModel) {
+		if gatewayprovider.ExecutionModelPolicy(acc).SupportsCompatibleRouting(ctx, requestedModel) {
 			return false
 		}
 	}
@@ -180,22 +180,6 @@ func (e openAINoAvailableSelectionError) Unwrap() error {
 	return scheduler.ErrNoAvailableAccounts
 }
 
-// openAIAccountSupportsRoutingModel 按当前入口的真实转发模式检查账号模型规则。
-// HTTP Responses 自动透传只替换认证，因此不会执行账号普通映射和最终白名单。
-func openAIAccountSupportsRoutingModel(ctx context.Context, account *gatewayprovider.ExecutionAccount, routingModel string) bool {
-	routingModel = strings.TrimSpace(routingModel)
-	if routingModel == "" {
-		return true
-	}
-	if requeststate.OpenAIHTTPPassthroughRoutingFromContext(ctx) && account != nil && account.View().IsOpenAIPassthroughEnabled() {
-		return true
-	}
-	return account != nil && gatewayprovider.ExecutionProtocolRecord(account).IsModelSupported(routingModel, accountprovider.
-
-		// allowsOpenAICompatibleCompact 统一读取 OpenAI 管理员开关和 Grok 固有的 Compact 资格。
-		ModelDefaults(), accountprovider.ModelRules(gatewayprovider.ExecutionProtocolRecord(account)))
-}
-
 func allowsOpenAICompatibleCompact(account *gatewayprovider.ExecutionAccount) bool {
 	return account != nil && (account.View().IsGrok() || account.View().AllowsOpenAICompact())
 }
@@ -260,7 +244,7 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 			return "quota_auto_pause"
 		}
 	}
-	if !openAIAccountSupportsRoutingModel(ctx, account, requestedModel) {
+	if !gatewayprovider.ExecutionModelPolicy(account).SupportsCompatibleRouting(ctx, requestedModel) {
 		return "model_not_supported"
 	}
 	if !supportsOpenAIRequestCapability(ctx, account, requiredCapability) {

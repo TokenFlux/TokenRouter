@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -111,14 +110,13 @@ func (s *GatewayService) isUpstreamModelRestrictedByChannel(ctx context.Context,
 
 // channelMappedModelForGroup 返回账号调度层使用的渠道映射后模型。
 func (s *GatewayService) channelMappedModelForGroup(ctx context.Context, groupID *int64, requestedModel string) string {
-	if s == nil || s.channelService == nil || groupID == nil || strings.TrimSpace(requestedModel) == "" {
+	if s == nil {
 		return requestedModel
+
 	}
-	mapping := s.channelService.ResolveChannelMapping(ctx, *groupID, requestedModel)
-	if mappedModel := strings.TrimSpace(mapping.MappedModel); mappedModel != "" {
-		return mappedModel
-	}
-	return requestedModel
+	return s.
+		channelService.
+		ResolveRoutingModel(ctx, groupID, requestedModel)
 }
 
 // resolveAccountMappedModelForForward 执行账号模型映射，并对空映射结果保持原模型透传。

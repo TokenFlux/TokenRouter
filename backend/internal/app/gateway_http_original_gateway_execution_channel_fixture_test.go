@@ -74,7 +74,10 @@ func newGatewayExecutionHandlerWithChannelForTest(repo gatewayprovider.Execution
 		repo,
 		nil, nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, channelService, nil, responseHeaderFilterForTest(nil),
-	), nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0})
+	), nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(repo,
+
+		channelService, nil),
+	)
 }
 
 func newGatewayExecutionChannelServiceForTest(groupID int64, platform string, channel routing.Channel) *routing.ChannelService {
@@ -99,7 +102,7 @@ type messageEndpointsFixture struct {
 }
 
 // newMessageEndpointsFixture 将被验证的真实单次能力接入原生运行时；观测使用无状态替身。
-func newMessageEndpointsFixture(source *service.GatewayService, funding *admission.FundingAdmission, concurrency *gatewayhttp.ConcurrencyHelper, options gatewayhttp.MessagesHTTPOptions) *messageEndpointsFixture {
+func newMessageEndpointsFixture(source *service.GatewayService, funding *admission.FundingAdmission, concurrency *gatewayhttp.ConcurrencyHelper, options gatewayhttp.MessagesHTTPOptions, availability *gatewayModelAvailability) *messageEndpointsFixture {
 	plan := func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
 		var group *routing.Group
 		var id *int64
@@ -109,8 +112,11 @@ func newMessageEndpointsFixture(source *service.GatewayService, funding *admissi
 		return source.PlanRoute(ctx, group, id, model)
 	}
 	b := textattempt.Bindings{
-		PlanRoute: plan, Diagnoser: source, Concurrency: concurrency,
+		PlanRoute: plan, Concurrency: concurrency,
 		Submission: gatewayhttp.NewCompletionSubmission(nil, false),
+	}
+	if availability != nil {
+		b.Diagnoser = availability.Messages
 	}
 	if source != nil {
 		b.Recorder = source.CompletionRecorder()

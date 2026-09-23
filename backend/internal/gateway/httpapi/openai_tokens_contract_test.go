@@ -113,7 +113,7 @@ func TestOpenAITokensNativeHTTPContracts(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			fixture := &tokenExecutionContract{t: t}
-			handler := NewOpenAITokensHandler(OpenAITokenOptions{MaxSwitches: 2}, OpenAITokenPorts{Execution: fixture, Funding: fixture}, fixture)
+			handler := NewOpenAITokensHandler(OpenAITokenOptions{MaxSwitches: 2}, OpenAITokenPorts{Execution: fixture, Funding: fixture, Diagnoser: routing.ModelAvailabilityDiagnoserFunc(unexpectedCountModelDiagnosis), ResolvedDiagnoser: routing.ModelAvailabilityDiagnoserFunc(unexpectedCountModelDiagnosis)}, fixture)
 			writer := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(writer)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/input_tokens", strings.NewReader(`{"model":"client-model","input":"hello","messages":[{"role":"user","content":"hello"}]}`))

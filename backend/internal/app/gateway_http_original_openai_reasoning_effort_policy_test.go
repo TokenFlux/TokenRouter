@@ -23,7 +23,7 @@ import (
 
 // 三个公开入口必须在访问调度或上游之前执行拒绝策略。
 func TestAnthropicReasoningPolicy_AllEntrypointsDeny(t *testing.T) {
-	h := newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0})
+	h := newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 0, MaxGeminiSwitches: 0}, nil)
 	for _, tc := range []struct {
 		path, field string
 		handle      func(*gin.Context)

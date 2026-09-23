@@ -233,7 +233,10 @@ func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatew
 	)
 	concurrencyHelper := gatewayhttp.NewConcurrencyHelper(concurrencySvc, gatewayhttp.SSEPingFormatClaude, 0)
 
-	h := newMessageEndpointsFixture(gwSvc, newFundingAdmissionFixture(billingCacheSvc, cfg), concurrencyHelper, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 1})
+	h := newMessageEndpointsFixture(gwSvc, newFundingAdmissionFixture(billingCacheSvc, cfg), concurrencyHelper, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(nil).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 1}, newExecutionAvailabilityForTest(nil,
+
+		nil, nil),
+	)
 
 	cleanup := func() {
 		billingCacheSvc.Stop()

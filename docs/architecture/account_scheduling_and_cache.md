@@ -59,6 +59,8 @@ Spark 影子的母账号资格由 `account.ParentHealthyForShadow` 统一判断�
 
 错误率和 TTFT 使用共享的运行时 EWMA；错误率以 0% 为初始基线，没有反馈样本时按 0% 计算，归一化健康度为 1，首次失败会从该零基线更新 EWMA 并立即低于完全未观测账号。每个聚合值还保存样本数和最近观测时间。诊断对未观测错误率明确显示“0%（未观测）”，负载、TTFT、窗口重置或平台额度快照缺失时则标注“未观测，使用中性值”，而不是把账号表示为失败或不可调度。负载分母使用账号的 `EffectiveLoadFactor()`。分组覆盖、全局运行时设置与进程默认值均逐字段标注来源，保证诊断公式和实际高级调度路径共用相同有效参数。
 
+模型缺失错误的诊断直接由 `routing.ModelAvailability` 读取持久配置账号池，app 将同一 account 存储与渠道实例绑定到 Messages、兼容文本、已解析模型三种端口。该查询忽略临时限流、过载和停调，不能拿调度快照的空池证明模型不存在；standard/simple 的分组范围保持各自语义。HTTP 与计数执行端分别接收诊断和选择能力，不再从旧 GatewayService 取得诊断。已解析模型不再经过渠道映射；未解析模型使用 `ChannelService.ResolveRoutingModel` 的唯一规则。OpenAI 兼容选择、诊断与 WS 复核共用 `ModelPolicy.SupportsCompatibleRouting`，保留透传旁路与账号白名单规则。
+
 <a id="scheduler_snapshot_consistency"></a>
 ## 快照一致性
 

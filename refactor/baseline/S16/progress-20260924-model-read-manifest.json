@@ -1,0 +1,448 @@
+{
+  "format_version": 1,
+  "scope": "S16 持久模型诊断完整能力及与账号健康的合并验证，非最终验收",
+  "parent_manifest": "progress-20260924-health-manifest.json",
+  "parent_manifest_sha256": "f0da38326a2824b51c693f5324e91fa7b7f0a6b7dfdb14000120404808931959",
+  "source_file_count": 86,
+  "source_total_bytes": 67532081,
+  "archives": [
+    {
+      "path": "progress-20260924-model-read-01.tar.gz",
+      "size": 3562402,
+      "sha256": "8e905d424ca307dde513201238bb0459f20d8b598516c8c1fc018c13c6018b06",
+      "verified_members": 86,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/interim-health-model-read-integration-lint-clean.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-health-model-read-integration.json",
+          "size": 19117082,
+          "sha256": "5b691a0f713a8a45c3feb5b87f42be1d3b480c76b59c95c429f2f4cd6f9246df"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-health-model-read-normal-lint-clean.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-health-model-read-normal-lint.log",
+          "size": 609,
+          "sha256": "5774f2e066a897f56e2c74c46088c7aaa78302ea705f77978b669c8ccff3699b"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-health-model-read-normal.json",
+          "size": 17945852,
+          "sha256": "727a1f2a9136a89de2df27d6a86c12526305aae21e29ae81faf0b97dd0b6b6e8"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-health-model-read-unit-lint-clean.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-health-model-read-unit.json",
+          "size": 27651526,
+          "sha256": "cecf098d4dd4d0242c968f3a99b92bed2122cf11bdc8e87ad2c55a05d5fdaf9a"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-health-model-read-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-service-health-model-read-checks.json",
+          "size": 46599,
+          "sha256": "84bd334e84aed836fef4b687079f64f738ea24689d21f3d985ad2228c54c1f04"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-service-health-model-read-lints.json",
+          "size": 1061,
+          "sha256": "2afeaefcfe97357fcc8766d804182b508f705598eea0f0c7ae9a8f6664adf5d3"
+        },
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 124494,
+          "sha256": "b3593ec7a29709e69fb3b802282d07ce6775ef3e81937565add02e4d446685e5"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-availability-assembly-compile.log",
+          "size": 247,
+          "sha256": "d307af9bde828f214083f958855f8e027affc339a79ec9c8710471c746bc16f8"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-availability-bindings-compile.log",
+          "size": 1306,
+          "sha256": "c42843c65a115faa2f6dec03d8c93ca88fad46ce56f1d1691b2e03a3573883a4"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-availability-compile-2.log",
+          "size": 89,
+          "sha256": "fd802e6e802e0b6b1933540df0f4bec0b5ac07a78ab9431c0f1617f88f12ec5a"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-availability-compile.log",
+          "size": 401,
+          "sha256": "46c74a3bbf47835c33dd95626f19fd8688521e3ac18a7fdbb8e6c4b8352b7bd1"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-availability-http-unit.json",
+          "size": 72539,
+          "sha256": "2bd44ea55c0fce70e082672f769fe220da70f1f02fb91ac7ab4c6a3498bdf223"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-availability-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-diagnosis-contracts.json",
+          "size": 503116,
+          "sha256": "98ffb9d2b9a39b592a489108c5c385361d989436db79a13d28ccb518802af3d8"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-diagnosis-postgres-race-2.json",
+          "size": 7263,
+          "sha256": "a66108e64eb0570005db0ebb81f63c4a36c08e53f36817ea0606674a27507fe9"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-diagnosis-postgres-race-final.json",
+          "size": 5888,
+          "sha256": "f1ff03e1991463e004e69ec6b8ebdaf2cbad208bd58727a26902300e80bef1c9"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-diagnosis-postgres-race.json",
+          "size": 12867,
+          "sha256": "ee139e3459cbfd135c9f8e18c849aaf8f5b5d30a67ea9b864413bdc31c3b0a77"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-diagnosis-retirement-compile-2.log",
+          "size": 335,
+          "sha256": "c02b32f0c35bb7a42df596136a3ba6eb4a199adbb9e6b68d3b66f03927c10d69"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-diagnosis-retirement-compile.log",
+          "size": 333,
+          "sha256": "6cfc2ba7dbcc45a2c5440c97a80775e47e708b55df121fe107f765ff4ece8a2d"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-explicit-fixtures-unit.json",
+          "size": 270012,
+          "sha256": "5346bd3221a6b01f59e909f179436134fa1451ff3b56840d4c291332ab7c0f01"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-fixture-rebind-2.log",
+          "size": 1231,
+          "sha256": "5a66da32f8203dccc8b04ea429b8340cba0677bd7e6322fe2c539e37bb818672"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-fixture-rebind.log",
+          "size": 75,
+          "sha256": "a6b4bedd4f9ae8ec50b79c3dc2e0c7b415c447c21528adc18cf28d8399269463"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-model-contracts.json",
+          "size": 39389,
+          "sha256": "3c54be5353074ba90378c5f8d2eafa7a40cfd3474fc7e7991d40e1daa68b3aae"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-native-policy-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-native-policy-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-native-policy-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-native-policy-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-no-config-integration.log",
+          "size": 309,
+          "sha256": "973f680b3b6af77560024f32ba4e80eef8dff7edc6d650022e848443d7c9953c"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-no-config-normal.log",
+          "size": 309,
+          "sha256": "973f680b3b6af77560024f32ba4e80eef8dff7edc6d650022e848443d7c9953c"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-no-config-unit.log",
+          "size": 309,
+          "sha256": "973f680b3b6af77560024f32ba4e80eef8dff7edc6d650022e848443d7c9953c"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-store-binding-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-store-binding-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-availability-store-binding-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-core-no-store-integration.log",
+          "size": 256,
+          "sha256": "6109aa71f6a8f45ce38016b63d2c97b3cd1e3ea9cda53d171649990d631d856f"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-core-no-store-normal.log",
+          "size": 256,
+          "sha256": "6109aa71f6a8f45ce38016b63d2c97b3cd1e3ea9cda53d171649990d631d856f"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-core-no-store-unit.log",
+          "size": 256,
+          "sha256": "6109aa71f6a8f45ce38016b63d2c97b3cd1e3ea9cda53d171649990d631d856f"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-deleted-handler-stays-denied-integration.log",
+          "size": 290,
+          "sha256": "f8f65cfcf88e6efaf182ed614d976f641d7b4d67a2e9f4e6d93a8ffc64e9cea8"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-deleted-handler-stays-denied-normal.log",
+          "size": 290,
+          "sha256": "f8f65cfcf88e6efaf182ed614d976f641d7b4d67a2e9f4e6d93a8ffc64e9cea8"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-deleted-handler-stays-denied-unit.log",
+          "size": 290,
+          "sha256": "f8f65cfcf88e6efaf182ed614d976f641d7b4d67a2e9f4e6d93a8ffc64e9cea8"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-native-binding-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-native-binding-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-native-binding-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-old-service-denied-integration.log",
+          "size": 262,
+          "sha256": "ae50360e42f060b6f64cabc227728bd3e237ef5b747e971a8aa67aace16f49f2"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-old-service-denied-normal.log",
+          "size": 262,
+          "sha256": "ae50360e42f060b6f64cabc227728bd3e237ef5b747e971a8aa67aace16f49f2"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-old-service-denied-unit.log",
+          "size": 262,
+          "sha256": "ae50360e42f060b6f64cabc227728bd3e237ef5b747e971a8aa67aace16f49f2"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-testkit-no-service-integration.log",
+          "size": 277,
+          "sha256": "558b76dafab0a9a9158a40ad6bdbcd00c7df766acbe2c5eb0746fe7ec3af2d68"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-testkit-no-service-normal.log",
+          "size": 277,
+          "sha256": "558b76dafab0a9a9158a40ad6bdbcd00c7df766acbe2c5eb0746fe7ec3af2d68"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-health-testkit-no-service-unit.log",
+          "size": 277,
+          "sha256": "558b76dafab0a9a9158a40ad6bdbcd00c7df766acbe2c5eb0746fe7ec3af2d68"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-http-no-store-integration.log",
+          "size": 319,
+          "sha256": "ed6133d3fe34786434d3df760f7b46d5c39fad964f68243d932b2456a2a36031"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-http-no-store-normal.log",
+          "size": 319,
+          "sha256": "ed6133d3fe34786434d3df760f7b46d5c39fad964f68243d932b2456a2a36031"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-http-no-store-unit.log",
+          "size": 319,
+          "sha256": "ed6133d3fe34786434d3df760f7b46d5c39fad964f68243d932b2456a2a36031"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-moved-health-no-service-integration.log",
+          "size": 317,
+          "sha256": "05683e03e2c4fe286621efafdc0ef47ef0df8bd62c3c00556f1de5c8c26eafeb"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-moved-health-no-service-normal.log",
+          "size": 317,
+          "sha256": "05683e03e2c4fe286621efafdc0ef47ef0df8bd62c3c00556f1de5c8c26eafeb"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-moved-health-no-service-unit.log",
+          "size": 317,
+          "sha256": "05683e03e2c4fe286621efafdc0ef47ef0df8bd62c3c00556f1de5c8c26eafeb"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-new-app-old-service-denied-integration.log",
+          "size": 290,
+          "sha256": "475a16b28b07e6b27762d5d7ba008d2a303d9af18f2660c9c1837ad708891639"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-new-app-old-service-denied-normal.log",
+          "size": 290,
+          "sha256": "475a16b28b07e6b27762d5d7ba008d2a303d9af18f2660c9c1837ad708891639"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-new-app-old-service-denied-unit.log",
+          "size": 290,
+          "sha256": "475a16b28b07e6b27762d5d7ba008d2a303d9af18f2660c9c1837ad708891639"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-new-provider-no-config-integration.log",
+          "size": 252,
+          "sha256": "0ce019604152d455580e556c4bebae00e0ae0e77394eb332a315b84023f64a69"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-new-provider-no-config-normal.log",
+          "size": 252,
+          "sha256": "0ce019604152d455580e556c4bebae00e0ae0e77394eb332a315b84023f64a69"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-new-provider-no-config-unit.log",
+          "size": 252,
+          "sha256": "0ce019604152d455580e556c4bebae00e0ae0e77394eb332a315b84023f64a69"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-old-test-added-child-integration.log",
+          "size": 398,
+          "sha256": "e1e72d944c09dafd85e89f10fd38bb04b81cb7099a6ced5dc530531d70cb0bdf"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-old-test-added-child-normal.log",
+          "size": 398,
+          "sha256": "e1e72d944c09dafd85e89f10fd38bb04b81cb7099a6ced5dc530531d70cb0bdf"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-old-test-added-child-unit.log",
+          "size": 398,
+          "sha256": "e1e72d944c09dafd85e89f10fd38bb04b81cb7099a6ced5dc530531d70cb0bdf"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-old-test-exact-service-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-old-test-exact-service-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-old-test-exact-service-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-routing-core-no-store-integration.log",
+          "size": 266,
+          "sha256": "dc988ea6ac39ad73a869cb86efa7f1d33aa03d98d2ca696fae6077415ebc036c"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-routing-core-no-store-normal.log",
+          "size": 266,
+          "sha256": "dc988ea6ac39ad73a869cb86efa7f1d33aa03d98d2ca696fae6077415ebc036c"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gate-routing-core-no-store-unit.log",
+          "size": 266,
+          "sha256": "dc988ea6ac39ad73a869cb86efa7f1d33aa03d98d2ca696fae6077415ebc036c"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-boundary-gates.json",
+          "size": 29799,
+          "sha256": "db445dfd7058b1b344e5ee402cb41148b8533badf2f282716ca0952c2ea9f332"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-build-selection-initial.json",
+          "size": 704,
+          "sha256": "56ca57485589e162dbb7bc4f525f024d0facfd7e081b03f6ad20e3cc862c768d"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-build-selection.json",
+          "size": 506797,
+          "sha256": "5cd0f72d6bdd58c68251cadefb0b1f866fd741c1aae15e0d8bdea71c2afa171f"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-integration-compile.log",
+          "size": 89,
+          "sha256": "e312d515710b2f47c03dc807939b94dd86fe22a55f592f04231779eb7b61a8c6"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-normal-followup.json",
+          "size": 466976,
+          "sha256": "3514afcead2e6865d04573369f2804bf073cca2f392ce520e8c6b2dff3012c6d"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-rule-mapping.json",
+          "size": 703,
+          "sha256": "62917631d96b947b75a48d7d3f45042ddd54591bce9413af346c89e102db1e57"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-stability.json",
+          "size": 275,
+          "sha256": "7eba4b3f567a1ce1a60a630d39f4943ecb261630fc4f93ca3c76738eae45d7c5"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-test-mapping.json",
+          "size": 1327,
+          "sha256": "507bf8e805f736329990cd0772f16b63cedc80dac6f423a876f3ed08c38f0736"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-unit-followup.json",
+          "size": 660774,
+          "sha256": "5632368581f8a8317887267107efc1eafc533f3bb68cbf098e982082c6513791"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-unit-lint.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-verification.json",
+          "size": 52044,
+          "sha256": "83de29a8a971e41adf2c2a084ae475c8115b0046681d88ac87000993a6f93b06"
+        },
+        {
+          "path": "refactor/baseline/S16/service-selection-read-wire-stability.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        }
+      ]
+    }
+  ]
+}

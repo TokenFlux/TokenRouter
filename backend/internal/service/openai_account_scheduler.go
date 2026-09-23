@@ -221,7 +221,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 	}) {
 		return false, "shadow_parent_unhealthy"
 	}
-	if !openAIAccountSupportsRoutingModel(ctx, account, req.routingModel()) {
+	if !gatewayprovider.ExecutionModelPolicy(account).SupportsCompatibleRouting(ctx, req.routingModel()) {
 		return false, "model_not_supported"
 	}
 	if req.GroupID != nil && s != nil && s.service != nil &&

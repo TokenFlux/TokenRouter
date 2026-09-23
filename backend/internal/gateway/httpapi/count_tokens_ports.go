@@ -29,9 +29,8 @@ type CountTarget interface {
 	ReleaseSession(context.Context, string)
 }
 
-// CountExecutor 只暴露无槽选择、渠道解析、诊断和既有临时停调能力。
+// CountExecutor 只暴露无槽选择、渠道解析和既有临时停调能力。
 type CountExecutor interface {
-	routing.ModelAvailabilityDiagnoser
 	SelectCountTarget(context.Context, *int64, string, string, map[int64]struct{}) (CountTarget, error)
 	PlanCountRoute(context.Context, *apikey.APIKey, string) routing.RoutePlan
 	TempUnscheduleRetryableError(context.Context, int64, *forwardcore.UpstreamFailoverError)
@@ -39,8 +38,9 @@ type CountExecutor interface {
 
 // CountHTTPPorts 在构造时绑定固定依赖；每请求只建立当前尝试状态。
 type CountHTTPPorts struct {
-	Executor CountExecutor
-	Funding  interface {
+	Diagnoser routing.ModelAvailabilityDiagnoser
+	Executor  CountExecutor
+	Funding   interface {
 		CheckKey(context.Context, *apikey.APIKey, *billing.UserSubscription, string, bool) error
 	}
 	ReadAccess           func(*gin.Context) (*apikey.APIKey, bool)
@@ -137,7 +137,7 @@ func (b *countAttempt) SelectionFailed(err error, last *textflow.AttemptFailure)
 	if b.ports.BusinessError(b.c, err, false, func(status int, kind, message string, _ bool) { WriteAnthropicError(b.c, status, kind, "", message) }) {
 		return
 	}
-	result := ClassifySelectionError(b.Context(), b.ports.Executor, b.key.GroupID, b.parsed.Model, b.parsed.Model, capability.PlatformAnthropic)
+	result := ClassifySelectionError(b.Context(), b.ports.Diagnoser, b.key.GroupID, b.parsed.Model, b.parsed.Model, capability.PlatformAnthropic)
 	if result.ModelNotFound {
 		MarkOpsClientBusinessLimited(b.c, OpsClientBusinessLimitedReasonLocalModelConfiguration)
 	} else {

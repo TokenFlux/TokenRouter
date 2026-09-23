@@ -1223,3 +1223,16 @@ func (s *ChannelService) warn(message string, args ...any) {
 		s.options.Warn(message, args...)
 	}
 }
+
+// ResolveRoutingModel 保留渠道映射的读取时点、空输入和空结果回退。
+// 已解析的路由模型应直接传给消费者，不能再次调用本方法重映射。
+func (s *ChannelService) ResolveRoutingModel(ctx context.Context, groupID *int64, requestedModel string) string {
+	if s == nil || groupID == nil || strings.TrimSpace(requestedModel) == "" {
+		return requestedModel
+	}
+	mapping := s.ResolveChannelMapping(ctx, *groupID, requestedModel)
+	if mapped := strings.TrimSpace(mapping.MappedModel); mapped != "" {
+		return mapped
+	}
+	return requestedModel
+}

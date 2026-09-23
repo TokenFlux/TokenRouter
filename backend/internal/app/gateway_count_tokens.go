@@ -58,7 +58,7 @@ func (t countTarget) ReleaseSession(ctx context.Context, hash string) {
 }
 
 // provideCountTokensHTTP 直接装配原生 HTTP，固定依赖不经旧 Handler 工厂。
-func provideCountTokensHTTP(source *service.GatewayService, openAI *service.OpenAIGatewayService, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service) *gatewayhttp.CountTokensHandler {
+func provideCountTokensHTTP(source *service.GatewayService, openAI *service.OpenAIGatewayService, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability) *gatewayhttp.CountTokensHandler {
 	limit := int64(0)
 	switches := 10
 	if cfg != nil {
@@ -85,6 +85,9 @@ func provideCountTokensHTTP(source *service.GatewayService, openAI *service.Open
 		Failure: func(c *gin.Context, failure *forwardcore.UpstreamFailoverError, platform string, started bool) {
 			gatewayhttp.WriteAnthropicFailover(c, failure, platform, started, matcher, forwardcore.IsOpenAISilentRefusalErrorBody, forwardcore.OpenAISilentRefusalClientMessage())
 		},
+	}
+	if availability != nil {
+		ports.Diagnoser = availability.Messages
 	}
 	result := gatewayhttp.NewCountTokensHandler(limit, switches, ports, prompts)
 	if activity != nil {

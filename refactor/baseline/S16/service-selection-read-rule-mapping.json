@@ -1,0 +1,29 @@
+{
+  "removed": [],
+  "files": [
+    {
+      "path": "internal/app/gateway_model_availability.go",
+      "role": "app"
+    },
+    {
+      "path": "internal/app/gateway_model_availability_fixture_test.go",
+      "role": "app-tests"
+    },
+    {
+      "path": "internal/app/gateway_model_availability_integration_test.go",
+      "role": "app-tests"
+    },
+    {
+      "path": "internal/gateway/provider/model_availability.go",
+      "role": "gateway-provider"
+    },
+    {
+      "path": "internal/gateway/provider/model_availability_original_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/testkit/availability.go",
+      "role": "gateway-testkit"
+    }
+  ]
+}

@@ -17,8 +17,7 @@ type ModelAvailabilityDiagnosis struct {
 	HasModelSupport bool
 }
 
-// ModelAvailabilityDiagnoser 由可诊断模型静态可用性的网关服务实现。
-// GatewayService 与 OpenAIGatewayService 都实现该接口，方便 handler 复用同一分类器。
+// ModelAvailabilityDiagnoser 提供模型静态可用性的窄读取能力，供入口复用同一分类器。
 type ModelAvailabilityDiagnoser interface {
 	DiagnoseModelAvailabilityForPlatform(
 		ctx context.Context,
@@ -182,4 +181,11 @@ type ModelAvailability struct {
 	Simple   bool
 	Read     AvailabilityReader
 	MapModel func(context.Context, *int64, string) string
+}
+
+// ModelAvailabilityDiagnoserFunc 将已绑定诊断意图交给消费者，不新增查询或缓存。
+type ModelAvailabilityDiagnoserFunc func(context.Context, *int64, string, string) ModelAvailabilityDiagnosis
+
+func (f ModelAvailabilityDiagnoserFunc) DiagnoseModelAvailabilityForPlatform(ctx context.Context, group *int64, model, platform string) ModelAvailabilityDiagnosis {
+	return f(ctx, group, model, platform)
 }

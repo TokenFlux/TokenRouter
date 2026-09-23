@@ -949,7 +949,7 @@ func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&httptestkit.ConcurrencyHooks{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
-		), gatewayhttp.SSEPingFormatNone, time.Second),
+		), gatewayhttp.SSEPingFormatNone, time.Second), Availability: newExecutionAvailabilityForTest(nil, nil, nil),
 	})
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
 	defer wsServer.Close()
@@ -1338,7 +1338,9 @@ func TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups(t *testing.
 	moderationSvc.Start()
 	h := newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
 		Source:    gatewaySvc,
-		Moderator: moderationSvc,
+		Moderator: moderationSvc, Availability: newExecutionAvailabilityForTest(nil,
+
+			nil, nil),
 	})
 	body := []byte(`{"prompt_cache_key":"cyber-scope-session"}`)
 	tests := []struct {
@@ -1452,7 +1454,7 @@ func newOpenAIHandlerForPreviousResponseIDValidation(t *testing.T, cache *httpte
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
-		), gatewayhttp.SSEPingFormatNone, time.Second),
+		), gatewayhttp.SSEPingFormatNone, time.Second), Availability: newExecutionAvailabilityForTest(nil, nil, nil),
 	})
 }
 
@@ -1761,7 +1763,9 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 		nil,
 		nil,
 		nil,
-		cfg, nil,
+		cfg, nil, newExecutionAvailabilityForTest(accountRepo,
+
+			nil, cfg),
 	)
 
 	rec := httptest.NewRecorder()
@@ -1861,7 +1865,9 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 				nil,
 				nil,
 				nil,
-				cfg, nil,
+				cfg, nil, newExecutionAvailabilityForTest(accountRepo,
+
+					nil, cfg),
 			)
 
 			rec := httptest.NewRecorder()
@@ -1942,7 +1948,9 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 		nil,
 		nil,
 		nil,
-		cfg, nil,
+		cfg, nil, newExecutionAvailabilityForTest(accountRepo,
+
+			nil, cfg),
 	)
 
 	rec := httptest.NewRecorder()
@@ -2107,7 +2115,9 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 
 			Event: logging.Event},
 		), gatewayhttp.SSEPingFormatNone, time.Second),
-		MaxSwitches: 3,
+		MaxSwitches: 3, Availability: newExecutionAvailabilityForTest(accountRepo,
+
+			nil, cfg),
 	})
 
 	apiKey := &apikey.APIKey{
@@ -2298,7 +2308,9 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 
 			Event: logging.Event},
 		), gatewayhttp.SSEPingFormatNone, time.Second),
-		MaxSwitches: 3,
+		MaxSwitches: 3, Availability: newExecutionAvailabilityForTest(accountRepo,
+
+			nil, cfg),
 	})
 
 	apiKey := &apikey.APIKey{
@@ -2507,7 +2519,9 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
-		), gatewayhttp.SSEPingFormatNone, time.Second),
+		), gatewayhttp.SSEPingFormatNone, time.Second), Availability: newExecutionAvailabilityForTest(accountRepo,
+
+			channelSvc, cfg),
 	})
 
 	apiKey := &apikey.APIKey{

@@ -68,7 +68,9 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 	h := newMessageEndpointsFixture(gatewayService, newFundingAdmissionFixture(billingCacheService, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
 	},
-	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(cfg).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 0})
+	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(cfg).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil,
+		nil, nil),
+	)
 	apiKey := &apikey.APIKey{
 		ID: 9102, UserID: 9103, GroupID: &groupID, Group: group, Status: billing.StatusActive,
 		User: &identity.User{ID: 9103, Concurrency: 10, Balance: 100},

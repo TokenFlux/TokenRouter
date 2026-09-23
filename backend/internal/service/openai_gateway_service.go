@@ -466,14 +466,14 @@ func (s *OpenAIGatewayService) checkChannelPricingRestriction(ctx context.Contex
 
 // resolveChannelRoutingModel 返回 OpenAI 账号调度层使用的渠道映射后模型。
 func (s *OpenAIGatewayService) resolveChannelRoutingModel(ctx context.Context, groupID *int64, requestedModel string) string {
-	if groupID == nil || s == nil || s.channelService == nil || strings.TrimSpace(requestedModel) == "" {
+	if s == nil {
 		return requestedModel
+
 	}
-	mapping := s.channelService.ResolveChannelMapping(ctx, *groupID, requestedModel)
-	if mappedModel := strings.TrimSpace(mapping.MappedModel); mappedModel != "" {
-		return mappedModel
-	}
-	return requestedModel
+	return s.channelService.
+		ResolveRoutingModel(ctx, groupID,
+			requestedModel,
+		)
 }
 
 // ResolveOpenAIWSRoutingModelForAccount 为已选定的 WebSocket 账号逐轮解析并校验渠道模型。

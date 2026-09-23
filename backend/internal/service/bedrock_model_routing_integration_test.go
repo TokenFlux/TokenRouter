@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
@@ -177,7 +179,7 @@ func TestBedrockRegionRouting_SchedulerAndDiagnosisAgree(t *testing.T) {
 						Event: logging.Event},
 					),
 				})
-				diagnosis := gateway.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-sonnet-5", capability.PlatformAnthropic)
+				diagnosis := gatewayprovider.NewModelAvailability(gatewaytestkit.AvailabilityStore{Source: repo}, nil, false, false).DiagnoseGeneral(context.Background(), &groupID, "claude-sonnet-5", capability.PlatformAnthropic)
 				require.True(t, diagnosis.HasAccountsInPool)
 				require.Equal(t, withValid, diagnosis.HasModelSupport)
 				selected, err := gateway.SelectAccountWithLoadAwareness(context.Background(), &groupID, "sticky", "claude-sonnet-5", nil, "", 0)

@@ -646,7 +646,7 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 		_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
 		return 0, nil, "", nil
 	}
-	if !openAIAccountSupportsRoutingModel(ctx, account, routingModel) {
+	if !gatewayprovider.ExecutionModelPolicy(account).SupportsCompatibleRouting(ctx, routingModel) {
 		return 0, nil, "", nil
 	}
 	if !accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(account), requiredCapability) {
@@ -676,7 +676,7 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
 			return 0, nil, "", nil
 		}
-		if !openAIAccountSupportsRoutingModel(ctx, latest, routingModel) {
+		if !gatewayprovider.ExecutionModelPolicy(latest).SupportsCompatibleRouting(ctx, routingModel) {
 			return 0, nil, "", nil
 		}
 		if !accountprovider.SupportsOpenAIEndpoint(gatewayprovider.ExecutionProtocolRecord(latest), requiredCapability) {

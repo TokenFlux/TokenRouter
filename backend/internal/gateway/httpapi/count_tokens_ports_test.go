@@ -88,7 +88,7 @@ func (t countHTTPContractTarget) ForwardCountTokens(_ context.Context, c *gin.Co
 func TestCountTokensNativeHTTPAttemptContract(t *testing.T) {
 	fixture := &countHTTPContract{t: t, group: 42}
 	key := &apikey.APIKey{ID: 7, GroupID: &fixture.group, Group: &routing.Group{Platform: "anthropic"}}
-	ports := CountHTTPPorts{Executor: fixture, Funding: fixture,
+	ports := CountHTTPPorts{Executor: fixture, Funding: fixture, Diagnoser: routing.ModelAvailabilityDiagnoserFunc(unexpectedCountModelDiagnosis),
 		ReadAccess:           func(*gin.Context) (*apikey.APIKey, bool) { return key, true },
 		ObserveCompatibility: func(*zap.Logger) {},
 		BusinessError: func(*gin.Context, error, bool, func(int, string, string, bool)) bool {
@@ -114,4 +114,9 @@ func TestCountTokensNativeHTTPAttemptContract(t *testing.T) {
 	value, ok := c.Get(opsRequestTypeKey)
 	require.True(t, ok)
 	require.Equal(t, int16(usage.RequestTypeSync), value)
+}
+
+// 原计数合同未配置诊断依赖；意外进入该分支必须继续使测试失败。
+func unexpectedCountModelDiagnosis(context.Context, *int64, string, string) routing.ModelAvailabilityDiagnosis {
+	panic("计数合同不应进入模型诊断")
 }

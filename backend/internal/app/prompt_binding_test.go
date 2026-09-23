@@ -20,8 +20,8 @@ import (
 func TestPromptPolicyDirectHTTPBindingSharesCache(t *testing.T) {
 	repository := &readerStoreProbe{}
 	prompts := provideGatewayPromptPolicy(settings.New(repository))
-	first := provideCountTokensHTTP(nil, nil, nil, nil, nil, nil, prompts)
-	second := provideCountTokensHTTP(nil, nil, nil, nil, nil, nil, prompts)
+	first := provideCountTokensHTTP(nil, nil, nil, nil, nil, nil, prompts, nil)
+	second := provideCountTokensHTTP(nil, nil, nil, nil, nil, nil, prompts, nil)
 	require.Zero(t, repository.reads)
 	for _, serve := range []func(*gin.Context){first.CountTokens, second.CountTokens} {
 		response := httptest.NewRecorder()

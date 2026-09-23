@@ -35,7 +35,7 @@ func (p *openAICountAttempt) SelectionFailed(err error) {
 	if err != nil {
 		p.call.Log.Warn("openai_count_tokens.account_select_failed", zap.Error(OpenAICompatibleSelectionErrorForLog(err, p.call.Platform)))
 	}
-	cls := tokenSelectionError(p.c, p.ports.Execution, p.key, p.call.AccountLayerModel, p.call.Model)
+	cls := tokenSelectionError(p.c, p.ports.Diagnoser, p.key, p.call.AccountLayerModel, p.call.Model)
 	if !cls.ModelNotFound {
 		if err != nil {
 			MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, err)

@@ -70,11 +70,11 @@ func RegisterGatewayRoutes(
 	}
 	openAITokensHTTP := h.OpenAITokensHTTP
 	if openAITokensHTTP == nil {
-		openAITokensHTTP = provideOpenAITokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil)
+		openAITokensHTTP = provideOpenAITokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil, nil)
 	}
 	countTokensHTTP := h.CountTokensHTTP
 	if countTokensHTTP == nil && h.TextEnabled {
-		countTokensHTTP = provideCountTokensHTTP(nil, nil, nil, nil, cfg, nil, nil)
+		countTokensHTTP = provideCountTokensHTTP(nil, nil, nil, nil, cfg, nil, nil, nil)
 	}
 	qoderCompatibleHTTP := h.QoderCompatibleHTTP
 	if qoderCompatibleHTTP == nil {
@@ -88,7 +88,7 @@ func RegisterGatewayRoutes(
 	if geminiNativeHTTP == nil && h.TextEnabled {
 		geminiNativeHTTP = provideGeminiNativeHTTP(shared, &service.GatewayService{}, runtime, activity)
 	}
-	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil)
+	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil)
 	openAIRuntime := provideOpenAITextAttemptRuntime(commonOpenAI)
 	mediaRuntime := provideMediaRuntime(nil, nil, nil, commonOpenAI, nil, nil, nil)
 	openAITextHTTP := h.OpenAITextHTTP

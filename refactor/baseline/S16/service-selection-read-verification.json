@@ -1,0 +1,1672 @@
+{
+  "scope": "S16 持久模型诊断完整能力及与账号健康的合并验证，非最终验收",
+  "baseline": "84adf916a",
+  "full_tests": [
+    {
+      "name": "normal",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "elapsed_seconds": 151.08,
+      "log": "interim-health-model-read-normal.json",
+      "events": {
+        "pass": 12006,
+        "skip": 4
+      },
+      "skips": [
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/cleanup-ingress-reject-logs",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/jwtgen",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/server",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/account",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/accountgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/announcement",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/announcementread",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/apikey",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/apikeycompositegroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/authidentity",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/authidentitychannel",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimageevent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimageitem",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimagejob",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerun",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerunoutbox",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerunoutput",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/enttest",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/errorpassthroughrule",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/group",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/hook",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/idempotencyrecord",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/intercept",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentauditlog",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentorder",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/pendingauthsession",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/predicate",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/promocode",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/promocodeusage",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/proxy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/redeemcode",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/redeemcodeusage",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/runtime",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/schema/mixins",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/securitysecret",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/setting",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/subscriptionplan",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/team",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teaminvitation",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teammembership",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teamownershiptransfer",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usagecleanuptask",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usagelog",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/user",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userallowedgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userattributedefinition",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userattributevalue",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userdisabledpublicgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userplatformquota",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usersubscription",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/account/transfer",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/account/usageview",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/apikey/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/audit/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/batchimage",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/batchimage/provider",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/batchimage/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/billing/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/creative",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/creative/provider",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/creative/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/egress/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/egress/urlpolicy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/execution",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/failover",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/modeldisplay",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/idempotency/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/idempotency/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/authconfig",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/contact",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/crypto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/redis/session",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logevent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/ops/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/payment/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/promotion",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/protocol/grok",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/protocol/wirejson",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/routing/accessview",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/routing/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/search/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/search/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/clientip/policy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpconfig",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/settings/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/settings/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/settings/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/site/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/team",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/team/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil/assertion",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil/sqlite",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/anthropic/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/deepseek",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/usageclient",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/kimi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/openai/liveattestation",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/usagecontract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/zhipu",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/ports",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/usage/postgres/query",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+          "test": "TestRealAPI"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+          "test": "TestReadLocalAuthFromDisk"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+        }
+      ],
+      "failures": []
+    },
+    {
+      "name": "unit",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "elapsed_seconds": 161.98,
+      "log": "interim-health-model-read-unit.json",
+      "events": {
+        "pass": 20040,
+        "skip": 8
+      },
+      "skips": [
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/cleanup-ingress-reject-logs",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/jwtgen",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/server",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/account",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/accountgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/announcement",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/announcementread",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/apikey",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/apikeycompositegroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/authidentity",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/authidentitychannel",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimageevent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimageitem",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimagejob",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerun",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerunoutbox",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerunoutput",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/enttest",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/errorpassthroughrule",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/group",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/hook",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/idempotencyrecord",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/intercept",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentauditlog",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentorder",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/pendingauthsession",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/predicate",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/promocode",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/promocodeusage",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/proxy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/redeemcode",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/redeemcodeusage",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/runtime",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/schema/mixins",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/securitysecret",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/setting",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/subscriptionplan",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/team",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teaminvitation",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teammembership",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teamownershiptransfer",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usagecleanuptask",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usagelog",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/user",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userallowedgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userattributedefinition",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userattributevalue",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userdisabledpublicgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userplatformquota",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usersubscription",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/account/transfer",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/account/usageview",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/apikey/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/audit/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/batchimage/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/billing/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/egress/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/egress/urlpolicy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/execution",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/failover",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/modeldisplay",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/idempotency/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/idempotency/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/authconfig",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/contact",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/crypto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logevent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+          "test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+          "test": "TestDialerBasicConnection"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+          "test": "TestJA3Fingerprint"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+          "test": "TestAllProfiles"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/ops/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/payment/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/protocol/grok",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/protocol/wirejson",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/routing/accessview",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/routing/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/search/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/search/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/clientip/policy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpconfig",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/settings/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/settings/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/settings/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/site/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil/assertion",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil/sqlite",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/deepseek",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/usageclient",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/openai/liveattestation",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/usagecontract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/ports",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/usage/postgres/query",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+          "test": "TestRealAPI"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+          "test": "TestReadLocalAuthFromDisk"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+        }
+      ],
+      "failures": []
+    },
+    {
+      "name": "integration",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=integration",
+        "-p=4",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "elapsed_seconds": 188.97,
+      "log": "interim-health-model-read-integration.json",
+      "events": {
+        "pass": 13014,
+        "skip": 4
+      },
+      "skips": [
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/cleanup-ingress-reject-logs",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/jwtgen",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/cmd/server",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/account",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/accountgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/announcement",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/announcementread",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/apikey",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/apikeycompositegroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/authidentity",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/authidentitychannel",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimageevent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimageitem",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/batchimagejob",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerun",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerunoutbox",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/creativerunoutput",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/enttest",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/errorpassthroughrule",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/group",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/hook",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/idempotencyrecord",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/intercept",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentauditlog",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentorder",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/pendingauthsession",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/predicate",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/promocode",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/promocodeusage",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/proxy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/redeemcode",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/redeemcodeusage",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/runtime",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/schema/mixins",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/securitysecret",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/setting",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/subscriptionplan",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/team",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teaminvitation",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teammembership",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/teamownershiptransfer",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usagecleanuptask",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usagelog",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/user",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userallowedgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userattributedefinition",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userattributevalue",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userdisabledpublicgroup",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/userplatformquota",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/ent/usersubscription",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/account/transfer",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/account/usageview",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/apikey/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/audit/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/batchimage",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/batchimage/provider",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/billing/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/creative",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/creative/provider",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/creative/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/egress/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/egress/urlpolicy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/execution",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/failover",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/modeldisplay",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/modeltrace",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/postgres",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/provider/grokforward",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/telemetry",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/gateway/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/idempotency/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/authconfig",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/contact",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/identity/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/crypto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/redis/session",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logevent",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/moderation/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/notification/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/payment/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/promotion",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/protocol/grok",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/protocol/wirejson",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/routing/accessview",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/routing/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/search/contract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/search/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/clientip/policy",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpapi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/server/httpconfig",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/settings/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/settings/testkit",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/site/httpapi/dto",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/team",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/team/rediscache",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil/assertion",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil/postgrescontainer",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil/rediscontainer",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/testutil/sqlite",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/deepseek",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/internal/usageclient",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/kimi",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/openai/liveattestation",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+          "test": "TestRealAPI"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/qoder/localauth",
+          "test": "TestReadLocalAuthFromDisk"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/usagecontract",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/upstream/zhipu",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/usage/httpapi/ports",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/usage/postgres/query",
+          "test": null
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+        },
+        {
+          "package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+        }
+      ],
+      "failures": []
+    }
+  ],
+  "full_lints": [
+    {
+      "tag": "normal",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "elapsed_seconds": 4.49,
+      "log": "interim-health-model-read-normal-lint-clean.log"
+    },
+    {
+      "tag": "unit",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=unit",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "elapsed_seconds": 9.74,
+      "log": "interim-health-model-read-unit-lint-clean.log"
+    },
+    {
+      "tag": "integration",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--build-tags=integration",
+        "./..."
+      ],
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "elapsed_seconds": 12.24,
+      "log": "interim-health-model-read-integration-lint-clean.log"
+    }
+  ],
+  "gate_contracts": 45,
+  "gate_index": "service-selection-read-boundary-gates.json",
+  "build_selection": "service-selection-read-build-selection.json",
+  "test_mapping": "service-selection-read-test-mapping.json",
+  "stability": "service-selection-read-stability.json",
+  "targeted": {
+    "service-selection-diagnosis-contracts.json": {
+      "pass": 456,
+      "skip": 1
+    },
+    "service-selection-diagnosis-postgres-race-final.json": {
+      "pass": 5
+    },
+    "service-selection-read-normal-followup.json": {
+      "pass": 420
+    },
+    "service-selection-read-unit-followup.json": {
+      "pass": 572
+    }
+  },
+  "service_before": {
+    "production": 204,
+    "tests": 322
+  },
+  "service_after": {
+    "production": 201,
+    "tests": 321
+  },
+  "migration_corrections": [
+    "原生计数执行接口拆出诊断后，原未配置该能力的替身显式保留意外调用失败；测试参数显式传递同一仓储与渠道。",
+    "新增 PostgreSQL 装配夹具最初遗漏分组投影，改为直接使用实际 app AccountStore 提供者；未知模型用自映射表达原白名单语义，未改变生产规则。",
+    "合并普通 lint 捕获上一健康批次辅助文件的两个 unused：补 unit 标签；正常与 unit 同包通过测试名称集合与全量结果完全一致，integration 编译与三套 lint 通过。"
+  ],
+  "historical_fixes": [],
+  "remaining": "高级评分诊断、候选筛选/补全、窗口/RPM、previous-response、槽位和平台单次执行仍待退出；S16保持16/17。"
+}

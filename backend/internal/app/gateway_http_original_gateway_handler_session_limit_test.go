@@ -117,7 +117,9 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 	h := newMessageEndpointsFixture(gateway, newFundingAdmissionFixture(billingCache, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
 	},
-	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(cfg).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 0})
+	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: openAITextOptions(cfg).MaxBodyBytes, MaxSwitches: 1, MaxGeminiSwitches: 0}, newExecutionAvailabilityForTest(nil,
+		nil, cfg),
+	)
 	key := &apikey.APIKey{
 		ID: 21, UserID: 22, GroupID: &groupID, Status: billing.StatusActive, Group: group,
 		User: &identity.User{ID: 22, Concurrency: 10, Balance: 100},

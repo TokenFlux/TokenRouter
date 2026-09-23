@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -236,8 +238,8 @@ func TestOpenAIHTTPPassthroughIgnoresStoredAccountModelRules(t *testing.T) {
 	plainCtx := context.Background()
 	passthroughCtx := requeststate.WithOpenAIHTTPPassthroughRouting(plainCtx)
 
-	require.True(t, openAIAccountSupportsRoutingModel(plainCtx, &account, "client-model"))
-	require.True(t, openAIAccountSupportsRoutingModel(passthroughCtx, &account, "client-model"))
+	require.True(t, gatewayprovider.ExecutionModelPolicy(&account).SupportsCompatibleRouting(plainCtx, "client-model"))
+	require.True(t, gatewayprovider.ExecutionModelPolicy(&account).SupportsCompatibleRouting(passthroughCtx, "client-model"))
 	require.True(t, isOpenAICompatibleAccountEligibleForRequest(plainCtx, &account, capability.PlatformOpenAI, "client-model", false, ""))
 	require.True(t, isOpenAICompatibleAccountEligibleForRequest(passthroughCtx, &account, capability.PlatformOpenAI, "client-model", false, ""))
 
@@ -254,8 +256,8 @@ func TestOpenAIHTTPPassthroughIgnoresStoredAccountModelRules(t *testing.T) {
 	require.False(t, errors.As(passthroughErr, &modelErr))
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{accountRepo: schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}))
-	require.True(t, svc.DiagnoseRoutingModelAvailabilityForPlatform(plainCtx, nil, "client-model", capability.PlatformOpenAI).HasModelSupport)
-	require.True(t, svc.DiagnoseRoutingModelAvailabilityForPlatform(passthroughCtx, nil, "client-model", capability.PlatformOpenAI).HasModelSupport)
+	require.True(t, gatewayprovider.NewModelAvailability(gatewaytestkit.AvailabilityStore{Source: svc.accountRepo}, svc.channelService, false, true).DiagnoseCompatibleRouting(plainCtx, nil, "client-model", capability.PlatformOpenAI).HasModelSupport)
+	require.True(t, gatewayprovider.NewModelAvailability(gatewaytestkit.AvailabilityStore{Source: svc.accountRepo}, svc.channelService, false, true).DiagnoseCompatibleRouting(passthroughCtx, nil, "client-model", capability.PlatformOpenAI).HasModelSupport)
 }
 
 func TestModelAvailabilityDiagnosisAcceptsChannelAlias(t *testing.T) {
@@ -282,7 +284,7 @@ func TestModelAvailabilityDiagnosisAcceptsChannelAlias(t *testing.T) {
 		channelService: routingtestkit.Channel(groupID, capability.PlatformOpenAI, channel),
 	}))
 
-	diagnosis := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "client-alias", capability.PlatformOpenAI)
+	diagnosis := gatewayprovider.NewModelAvailability(gatewaytestkit.AvailabilityStore{Source: svc.accountRepo}, svc.channelService, false, true).DiagnoseCompatible(context.Background(), &groupID, "client-alias", capability.PlatformOpenAI)
 	require.True(t, diagnosis.HasAccountsInPool)
 	require.True(t, diagnosis.HasModelSupport)
 }

@@ -203,7 +203,9 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 		nil,
 		nil,
 		nil,
-		cfg, nil,
+		cfg, nil, newExecutionAvailabilityForTest(accountRepo,
+
+			nil, cfg),
 	)
 	handler.Input.MaxSwitches = 10
 	return handler

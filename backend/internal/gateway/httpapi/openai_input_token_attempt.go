@@ -63,7 +63,7 @@ func (p *inputTokensAttemptBridge) SelectionFailed(err error, last *textflow.Att
 	if WriteGroupSelectionBusinessError(p.c, err, false, keyhttp.GetAPIKeyFromContext, gatewayprovider.ModelDisplayCatalogue{}, func(status int, kind, message string, _ bool) { writeOpenAITokenError(p.c, status, kind, message) }) {
 		return
 	}
-	cls := tokenSelectionError(p.c, resolvedTokenDiagnoser{p.ports.Execution}, p.key, p.call.RoutingModel, p.call.Model)
+	cls := tokenSelectionError(p.c, p.ports.ResolvedDiagnoser, p.key, p.call.RoutingModel, p.call.Model)
 	if !cls.ModelNotFound {
 		MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, err)
 	}

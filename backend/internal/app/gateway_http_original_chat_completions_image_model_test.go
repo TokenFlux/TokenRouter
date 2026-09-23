@@ -139,10 +139,12 @@ func newOpenAIImageChatRejectionHandler(t *testing.T) *gatewayHTTPEndpointsFixtu
 
 func newOpenAIImageChatRejectionHandlerWithCache(t *testing.T, cache *httptestkit.ConcurrencyHooks) *gatewayHTTPEndpointsFixture {
 	t.Helper()
-	return newOpenAIImageChatRejectionHandlerWithService(t, cache, &service.OpenAIGatewayService{})
+	return newOpenAIImageChatRejectionHandlerWithService(t, cache, &service.OpenAIGatewayService{}, newExecutionAvailabilityForTest(
+
+		// newOpenAIImageChatRejectionHandlerWithChannel 构造带渠道映射的 OpenAI Chat 测试处理器。
+		nil, nil, nil))
 }
 
-// newOpenAIImageChatRejectionHandlerWithChannel 构造带渠道映射的 OpenAI Chat 测试处理器。
 func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService *routing.ChannelService) *gatewayHTTPEndpointsFixture {
 	t.Helper()
 	gatewayService := service.NewOpenAIGatewayService(
@@ -153,14 +155,17 @@ func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService 
 	gatewayService.BindCompletionRecorder(newHTTPCompletionFixture(nil, nil, nil,
 		nil, nil, channelService, nil, true))
 
-	return newOpenAIImageChatRejectionHandlerWithService(t, &httptestkit.ConcurrencyHooks{}, gatewayService)
+	return newOpenAIImageChatRejectionHandlerWithService(t, &httptestkit.ConcurrencyHooks{}, gatewayService, newExecutionAvailabilityForTest(nil,
+
+		channelService, nil),
+	)
 }
 
 // newOpenAIImageChatRejectionHandlerWithService 复用最小依赖构造 Chat 端点测试处理器。
-func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *httptestkit.ConcurrencyHooks, gatewayService *service.OpenAIGatewayService) *gatewayHTTPEndpointsFixture {
+func newOpenAIImageChatRejectionHandlerWithService(t *testing.T, cache *httptestkit.ConcurrencyHooks, gatewayService *service.OpenAIGatewayService, availability *gatewayModelAvailability) *gatewayHTTPEndpointsFixture {
 	t.Helper()
 	return newGatewayHTTPEndpoints(gatewayHTTPFixtureInput{
-		Source:  gatewayService,
+		Source: gatewayService, Availability: availability,
 		Funding: &admission.FundingAdmission{},
 		Keys:    &apikey.APIKeyService{},
 		Concurrency: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,

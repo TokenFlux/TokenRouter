@@ -145,7 +145,7 @@ func (s *AdvancedSchedulerScoreDiagnosticService) diagnosticPlatformFilterReason
 				return "quota_auto_pause"
 			}
 		}
-		if !openAIAccountSupportsRoutingModel(ctx, account, model) {
+		if !gatewayprovider.ExecutionModelPolicy(account).SupportsCompatibleRouting(ctx, model) {
 			return "model_unsupported"
 		}
 		if s != nil && s.openAIGateway != nil {

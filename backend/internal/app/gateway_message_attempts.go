@@ -26,7 +26,7 @@ func provideMessageAttemptRuntime(
 	rules *errorpolicy.ErrorPassthroughService,
 	worker *completion.UsageRecordWorkerPool,
 	queue *scheduler.UserMessageQueueService,
-	cfg *config.Config,
+	cfg *config.Config, availability *gatewayModelAvailability,
 ) *textattempt.Runtime {
 	var queueHelper *gatewayhttp.UserMsgQueueHelper
 	if queue != nil && cfg != nil {
@@ -35,7 +35,6 @@ func provideMessageAttemptRuntime(
 
 	b := textattempt.Bindings{
 		PlanRoute:   shared.bindings.PlanRoute,
-		Diagnoser:   source,
 		Concurrency: shared.concurrency,
 		Queue:       queueHelper,
 		Errors:      rules,
@@ -43,6 +42,10 @@ func provideMessageAttemptRuntime(
 			worker,
 			false,
 		),
+	}
+
+	if availability != nil {
+		b.Diagnoser = availability.Messages
 	}
 
 	if cfg != nil {

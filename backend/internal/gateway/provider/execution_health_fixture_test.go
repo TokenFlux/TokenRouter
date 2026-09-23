@@ -1,3 +1,5 @@
+//go:build unit
+
 package provider_test
 
 import (

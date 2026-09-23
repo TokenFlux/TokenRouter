@@ -40,12 +40,10 @@ type InputTokensSelection struct {
 
 // OpenAITokenExecution 是计数所需的受控执行能力；不包含资金写入或完成提交。
 type OpenAITokenExecution interface {
-	routing.ModelAvailabilityDiagnoser
 	PlanTokenRoute(context.Context, *apikey.APIKey, string) routing.RoutePlan
 	TokenSessionHash(*gin.Context, []byte) string
 	SelectCount(context.Context, *int64, string, string, string) (OpenAICountTarget, error)
 	SelectInputTokens(context.Context, *int64, string, string, string, map[int64]struct{}, string) (InputTokensSelection, error)
-	DiagnoseRoutingModelAvailabilityForPlatform(context.Context, *int64, string, string) routing.ModelAvailabilityDiagnosis
 }
 
 type TokenFunding interface {
@@ -54,6 +52,8 @@ type TokenFunding interface {
 
 // OpenAITokenPorts 固定绑定只读用例和共享实例，每个请求单独构造尝试状态。
 type OpenAITokenPorts struct {
+	Diagnoser           routing.ModelAvailabilityDiagnoser
+	ResolvedDiagnoser   routing.ModelAvailabilityDiagnoser
 	Execution           OpenAITokenExecution
 	Funding             TokenFunding
 	MissingDependencies []string
@@ -143,12 +143,6 @@ func tokenSelectionError(c *gin.Context, diagnose routing.ModelAvailabilityDiagn
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalModelConfiguration)
 	}
 	return result
-}
-
-type resolvedTokenDiagnoser struct{ OpenAITokenExecution }
-
-func (p resolvedTokenDiagnoser) DiagnoseModelAvailabilityForPlatform(ctx context.Context, id *int64, model, platform string) routing.ModelAvailabilityDiagnosis {
-	return p.DiagnoseRoutingModelAvailabilityForPlatform(ctx, id, model, platform)
 }
 
 // OpenAICompatibleSelectionErrorForLog 保持 Grok 计数选择日志的原平台替换。

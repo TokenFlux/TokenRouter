@@ -27,3 +27,6 @@ var NewS16ExecutionAccountStore = provideExecutionAccountStore
 
 // 账号存储合同复用生产配置投影与事件绑定。
 var NewS16AccountStore = provideAccountStore
+
+// 模型诊断集成合同直接使用实际组合根，不构造旧执行服务。
+var S16ModelAvailability = provideGatewayModelAvailability

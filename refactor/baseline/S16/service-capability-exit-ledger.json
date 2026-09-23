@@ -448,8 +448,28 @@
         "upstream/openai",
         "usage"
       ],
-      "status": "pending",
-      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。"
+      "status": "in_progress",
+      "exit": "实现、全部生产与测试消费者、装配及精确门禁同时改绑；删除本能力全部旧入口后编译和受影响合同通过。共享边界随最终使用批次退出，不另建兼容层。",
+      "completed_capabilities": [
+        {
+          "name": "持久模型可用性诊断",
+          "status": "verified",
+          "old_files": [
+            "backend/internal/service/gateway_model_availability.go",
+            "backend/internal/service/openai_gateway_model_availability.go",
+            "backend/internal/service/model_availability_compat.go"
+          ],
+          "owners": [
+            "routing.ModelAvailability",
+            "routing.ChannelService.ResolveRoutingModel",
+            "gateway/provider.NewModelAvailability",
+            "gateway/provider.ModelPolicy.SupportsCompatibleRouting",
+            "app.gatewayModelAvailability"
+          ],
+          "remaining_blocker": "只读高级评分诊断、候选筛选/补全、窗口/RPM、previous-response 和账号槽仍待同一选号能力批次退出。",
+          "verification": "service-selection-read-verification.json"
+        }
+      ]
     },
     "messages-execution": {
       "files": [
@@ -2483,7 +2503,7 @@
     "shared-boundaries": "无独立规则的配置/结果/模型投影随最后使用批次删除；禁止以新增万能适配对象收纳。"
   },
   "current_service": {
-    "production": 204,
-    "tests": 322
+    "production": 201,
+    "tests": 321
   }
 }

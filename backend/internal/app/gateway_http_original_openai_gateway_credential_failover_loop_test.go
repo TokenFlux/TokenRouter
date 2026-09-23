@@ -977,7 +977,10 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*gatewayHTTPEn
 	h := newGatewayHTTPEndpointsFromDeps(gateway, scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
 	},
-	), newFundingAdmissionFixture(billingCache, cfg), &apikey.APIKeyService{}, nil, nil, nil, nil, cfg, nil)
+	), newFundingAdmissionFixture(billingCache, cfg), &apikey.APIKeyService{}, nil, nil, nil, nil, cfg, nil, newExecutionAvailabilityForTest(repo,
+
+		nil, cfg),
+	)
 	apiKey := &apikey.APIKey{
 		ID: 902, GroupID: &groupID,
 		User: &identity.User{ID: 903, Status: billing.StatusActive},
