@@ -157,8 +157,9 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 		if upstreamMsg := strings.TrimSpace(upstream.ExtractErrorMessage(responseBody)); upstreamMsg != "" {
 			message = upstreamMsg
 		}
-		if s != nil && s.rateLimitService != nil {
-			s.rateLimitService.handleAuthError(stateCtx, account, message)
+		if s != nil && s.healthObserver != nil {
+			s.healthObserver.Core.ApplyAuthenticationFailure(stateCtx, gatewayprovider.ExecutionRecord(account), message)
+
 		}
 		if s != nil {
 			s.BlockAccountScheduling(account, time.Time{}, "openai_access_state")
@@ -170,8 +171,9 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	// 表示上游撤销了该账号的图片能力。此处必须受自构造标记保护：透传客户端自行控制
 	// tools/tool_choice，否则可能误伤健康账号。
 	if openai.IsOpenAIImagesSelfBuiltRequest(ctx) && openai.IsImageCapabilityLossError(statusCode, responseBody) {
-		if s != nil && s.rateLimitService != nil {
-			_ = s.rateLimitService.HandleOpenAIImageCapabilityLoss(stateCtx, account, statusCode, responseBody)
+		if s != nil && s.healthObserver != nil {
+			_ = accountprovider.ObserveOpenAIImageCapabilityLoss(stateCtx, s.healthObserver.Core, gatewayprovider.ExecutionRecord(account), statusCode, responseBody)
+
 		}
 		return accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
@@ -180,14 +182,15 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 		return accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
 	}
 	// Team 联动熔断必须先于 model-not-found 与账户级临时不可调度规则的早退。
-	if s.rateLimitService != nil {
-		s.rateLimitService.maybeHandleOpenAITeamLinkedError(stateCtx, account, statusCode, responseBody)
+	if s.healthObserver != nil {
+		gatewayprovider.ObserveExecutionWorkspaceFailure(stateCtx, s.healthObserver, account, statusCode, responseBody)
+
 	}
 	stateCtx = requeststate.WithHealthModel(stateCtx, canonicalModel)
 	decision := accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(account), statusCode)
-	if s.rateLimitService != nil {
+	if s.healthObserver != nil {
 		if account.View().IsPoolMode() || account.View().IsCustomErrorCodesEnabled() {
-			decision.Policy = s.rateLimitService.UpstreamHealth().ApplyExplicitErrorPolicy(stateCtx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(stateCtx, statusCode, nil, responseBody, canonicalModel))
+			decision.Policy = s.healthObserver.ApplyExplicitErrorPolicy(stateCtx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(stateCtx, statusCode, nil, responseBody, canonicalModel))
 			decision.StopScheduling = decision.Policy == accountcore.ErrorPolicyCustomMatched || decision.Policy == accountcore.ErrorPolicyTempUnscheduled
 		} else {
 			decision = accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
@@ -206,20 +209,24 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	}
 
 	if !suppressDefaultRateLimitState && openai.IsImageRateLimitError(statusCode, responseBody) {
-		if s.rateLimitService != nil {
-			_ = s.rateLimitService.HandleOpenAIImageRateLimit(stateCtx, account, statusCode, headers, responseBody)
+		if s.healthObserver != nil {
+			_ = accountprovider.ObserveOpenAIImageRateLimit(stateCtx, s.healthObserver.Core, gatewayprovider.ExecutionRecord(account), statusCode, headers, responseBody)
+
 		}
 		return decision
 	}
-	if s.rateLimitService != nil && len(canonicalModel) > 0 && s.rateLimitService.HandleUpstreamModelNotFound(stateCtx, account, canonicalModel[0], statusCode, responseBody) {
+	if s.healthObserver != nil && len(canonicalModel) > 0 &&
+		gatewayprovider.ObserveExecutionModelFailure(stateCtx, s.healthObserver, account, canonicalModel[0], statusCode,
+			responseBody) {
 		decision.StopScheduling = true
 		return decision
 	}
 	// 普通账号先保留模型不存在等精确处理，再应用管理员临时规则。
 	// 已知模型的规则只暂停账号与模型组合；模型未知时仍同步整号运行时阻断。
-	if s.rateLimitService != nil && statusCode != http.StatusUnauthorized &&
+	if s.healthObserver != nil && statusCode != http.StatusUnauthorized &&
 		!account.View().IsPoolMode() && !account.View().IsCustomErrorCodesEnabled() &&
-		s.rateLimitService.HandleTempUnschedulable(stateCtx, account, statusCode, responseBody, canonicalModel...) {
+		gatewayprovider.ObserveExecutionTemporaryFailure(stateCtx, s.healthObserver, account, statusCode, responseBody,
+			canonicalModel...) {
 		decision.Policy = accountcore.ErrorPolicyTempUnscheduled
 		decision.StopScheduling = true
 		if len(canonicalModel) == 0 || strings.TrimSpace(canonicalModel[0]) == "" {
@@ -227,8 +234,9 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 		}
 		return decision
 	}
-	if statusCode == http.StatusTooManyRequests && s.rateLimitService != nil && len(canonicalModel) > 0 &&
-		s.rateLimitService.HandleOpenAICodexSparkRateLimit(stateCtx, account, canonicalModel[0], statusCode, headers, responseBody) {
+	if statusCode == http.StatusTooManyRequests && s.healthObserver != nil && len(canonicalModel) > 0 &&
+		gatewayprovider.ObserveExecutionSparkLimit(stateCtx, s.healthObserver, account, canonicalModel[0], statusCode,
+			headers, responseBody) {
 		return decision
 	}
 	if suppressDefaultRateLimitState && statusCode == http.StatusTooManyRequests {
@@ -237,10 +245,11 @@ func (s *OpenAIGatewayService) applyOpenAIAccountUpstreamErrorInternal(
 	if statusCode == http.StatusTooManyRequests {
 		s.markOpenAIOAuth429RateLimited(stateCtx, account, headers, responseBody)
 	}
-	if s.rateLimitService == nil {
+	if s.healthObserver == nil {
 		return decision
 	}
-	decision.StopScheduling = s.rateLimitService.handleDefaultUpstreamError(stateCtx, account, statusCode, headers, responseBody)
+	decision.StopScheduling = gatewayprovider.ApplyDefaultExecutionHealth(stateCtx, s.healthObserver, account, statusCode, headers, responseBody)
+
 	modelTempMatched := statusCode != http.StatusUnauthorized && requeststate.HealthModel(stateCtx, nil) != "" &&
 		len(accountcore.MatchTempUnschedulableRules(gatewayprovider.ExecutionRecord(account), statusCode, responseBody)) > 0
 	if decision.StopScheduling && !modelTempMatched {
@@ -289,8 +298,8 @@ func (s *OpenAIGatewayService) markOpenAIOAuth429RateLimited(ctx context.Context
 	cooldownUntil := time.Now().Add(openAIOAuth429FallbackCooldown)
 	if resetAt != nil && resetAt.After(time.Now()) {
 		cooldownUntil = *resetAt
-	} else if s.rateLimitService != nil {
-		if cooldown, ok := s.rateLimitService.get429FallbackCooldown(ctx, account); ok && cooldown > 0 {
+	} else if s.healthObserver != nil {
+		if cooldown, ok := s.healthObserver.Core.Fallback429Cooldown(ctx, gatewayprovider.ExecutionRecord(account)); ok && cooldown > 0 {
 			cooldownUntil = time.Now().Add(cooldown)
 		}
 	}
@@ -318,7 +327,7 @@ func (s *OpenAIGatewayService) shouldRetryOpenAIOAuth429OnSameAccountWithRespons
 	return s.openAIOAuth429RetryWindowActive(account)
 }
 
-// ShouldRetryOpenAIOAuth429 lets RateLimitService defer persistent account
+// ShouldRetryOpenAIOAuth429 向账号健康观测提供同账号重试判断，延迟持久化账号
 // cooldown until the gateway's same-account retry window is exhausted.
 func (s *OpenAIGatewayService) ShouldRetryOpenAIOAuth429(value *gatewayprovider.ExecutionAccount, headers http.Header, body []byte) bool {
 	if s == nil {

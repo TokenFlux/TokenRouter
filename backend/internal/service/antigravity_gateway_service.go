@@ -36,12 +36,13 @@ type AntigravityGatewayService struct {
 	nativeAttemptActivity func() (func(), error)
 	accountRepo           gatewayprovider.ExecutionAccountStore
 	tokenProvider         *accountcore.AntigravityTokenSource
-	rateLimitService      *RateLimitService
-	httpUpstream          httpclient.UpstreamTransport
-	settingService        *gatewayprovider.RuntimeReaders
-	cache                 session.GatewayCache // 用于模型级限流时清除粘性会话绑定
-	schedulerSnapshot     *scheduler.SnapshotService
-	internal500Cache      accountcore.Internal500CounterCache // INTERNAL 500 渐进惩罚计数器
+	healthObserver        *accountprovider.UpstreamHealth
+
+	httpUpstream      httpclient.UpstreamTransport
+	settingService    *gatewayprovider.RuntimeReaders
+	cache             session.GatewayCache // 用于模型级限流时清除粘性会话绑定
+	schedulerSnapshot *scheduler.SnapshotService
+	internal500Cache  accountcore.Internal500CounterCache // INTERNAL 500 渐进惩罚计数器
 }
 
 func (s *AntigravityGatewayService) upstreamErrorBodyReadLimit() int64 {
@@ -65,7 +66,7 @@ func NewAntigravityGatewayService(
 	cache session.GatewayCache,
 	schedulerSnapshot *scheduler.SnapshotService,
 	tokenProvider *accountcore.AntigravityTokenSource,
-	rateLimitService *RateLimitService,
+	healthObserver *accountprovider.UpstreamHealth,
 	httpUpstream httpclient.UpstreamTransport,
 	settingService *gatewayprovider.RuntimeReaders,
 	internal500Cache accountcore.Internal500CounterCache,
@@ -73,7 +74,7 @@ func NewAntigravityGatewayService(
 	return &AntigravityGatewayService{
 		accountRepo:       accountRepo,
 		tokenProvider:     tokenProvider,
-		rateLimitService:  rateLimitService,
+		healthObserver:    healthObserver,
 		httpUpstream:      httpUpstream,
 		settingService:    settingService,
 		cache:             cache,

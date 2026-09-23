@@ -66,14 +66,15 @@ const geminiAppliedTempPolicyHeader = "X-TokenRouter-Internal-Temp-Policy-Applie
 const geminiDummyThoughtSignature = "skip_thought_signature_validator"
 
 type GeminiMessagesCompatService struct {
-	quotaPrecheck             *accountcore.GeminiPrecheck
-	nativeAttemptActivity     func() (func(), error)
-	accountRepo               gatewayprovider.ExecutionAccountStore
-	groupRepo                 routing.GroupRepository
-	cache                     session.GatewayCache
-	schedulerSnapshot         *scheduler.SnapshotService
-	tokenProvider             *accountcore.GeminiTokenSource
-	rateLimitService          *RateLimitService
+	quotaPrecheck         *accountcore.GeminiPrecheck
+	nativeAttemptActivity func() (func(), error)
+	accountRepo           gatewayprovider.ExecutionAccountStore
+	groupRepo             routing.GroupRepository
+	cache                 session.GatewayCache
+	schedulerSnapshot     *scheduler.SnapshotService
+	tokenProvider         *accountcore.GeminiTokenSource
+	healthObserver        *accountprovider.UpstreamHealth
+
 	httpUpstream              httpclient.UpstreamTransport
 	antigravityGatewayService *AntigravityGatewayService
 	cfg                       *config.Config
@@ -100,7 +101,7 @@ func NewGeminiMessagesCompatService(
 	cache session.GatewayCache,
 	schedulerSnapshot *scheduler.SnapshotService,
 	tokenProvider *accountcore.GeminiTokenSource,
-	rateLimitService *RateLimitService,
+	healthObserver *accountprovider.UpstreamHealth,
 	httpUpstream httpclient.UpstreamTransport,
 	antigravityGatewayService *AntigravityGatewayService,
 	cfg *config.Config, headerFilter *egress.CompiledHeaderFilter,
@@ -111,7 +112,7 @@ func NewGeminiMessagesCompatService(
 		cache:                     cache,
 		schedulerSnapshot:         schedulerSnapshot,
 		tokenProvider:             tokenProvider,
-		rateLimitService:          rateLimitService,
+		healthObserver:            healthObserver,
 		httpUpstream:              httpUpstream,
 		antigravityGatewayService: antigravityGatewayService,
 		cfg:                       cfg,
@@ -1159,7 +1160,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 func (s *GeminiMessagesCompatService) checkErrorPolicyInLoop(
 	ctx context.Context, account *gatewayprovider.ExecutionAccount, resp *http.Response, mappedModel string,
 ) (matched bool, rebuilt *http.Response) {
-	if resp.StatusCode < 400 || s.rateLimitService == nil {
+	if resp.StatusCode < 400 || s.healthObserver == nil {
 		return false, resp
 	}
 	body := s.readUpstreamErrorBody(resp)
@@ -1169,7 +1170,7 @@ func (s *GeminiMessagesCompatService) checkErrorPolicyInLoop(
 		Header:     resp.Header.Clone(),
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
-	policy := s.rateLimitService.UpstreamHealth().CheckErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, resp.StatusCode, nil, body, []string{mappedModel}))
+	policy := s.healthObserver.CheckErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, resp.StatusCode, nil, body, []string{mappedModel}))
 	if policy == accountcore.ErrorPolicyTempUnscheduled {
 		// CheckErrorPolicy 已写入临时不可调度状态，给最终错误处理留下内部标记，
 		// 避免同一个响应再次执行规则并重复写库。
@@ -1512,8 +1513,8 @@ func (s *GeminiMessagesCompatService) handleGeminiUpstreamError(ctx context.Cont
 	if !account.View().ShouldHandleErrorCode(statusCode) {
 		return
 	}
-	if s.rateLimitService != nil && (statusCode == 401 || statusCode == 403 || statusCode == 529) {
-		gatewayprovider.ApplyExecutionHealth(ctx, s.rateLimitService.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(ctx, statusCode, headers, body, nil))
+	if s.healthObserver != nil && (statusCode == 401 || statusCode == 403 || statusCode == 529) {
+		gatewayprovider.ApplyExecutionHealth(ctx, s.healthObserver, account, gatewayprovider.HealthObservationFromContext(ctx, statusCode, headers, body, nil))
 		return
 	}
 	if statusCode != 429 {
@@ -1600,8 +1601,8 @@ func (s *GeminiMessagesCompatService) applyGeminiUpstreamErrorPolicy(
 		decision.StopScheduling = true
 		return decision
 	}
-	if s.rateLimitService != nil {
-		decision.Policy = s.rateLimitService.UpstreamHealth().ApplyExplicitErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, statusCode, nil, body, []string{mappedModel}))
+	if s.healthObserver != nil {
+		decision.Policy = s.healthObserver.ApplyExplicitErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, statusCode, nil, body, []string{mappedModel}))
 		decision.StopScheduling = decision.Policy == accountcore.ErrorPolicyCustomMatched || decision.Policy == accountcore.ErrorPolicyTempUnscheduled
 	}
 	switch decision.Policy {

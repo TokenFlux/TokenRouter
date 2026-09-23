@@ -1,0 +1,123 @@
+{
+  "scope": "S16 账号健康完整能力批次，非最终验收",
+  "baseline": "030120e57",
+  "checks": [
+    {
+      "name": "normal",
+      "command": "go test -count=1 -json ./internal/service ./internal/app ./internal/gateway/provider ./internal/account/provider",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "events": {
+        "pass": 4240,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ],
+      "packages": {
+        "github.com/TokenFlux/TokenRouter/internal/gateway/provider": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/account/provider": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/app": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/service": "pass"
+      },
+      "log": "service-health-normal.json"
+    },
+    {
+      "name": "consumers-unit",
+      "command": "go test -count=1 -json -tags=unit ./internal/service ./internal/app ./internal/gateway/provider ./internal/account/provider",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "events": {
+        "pass": 7091,
+        "skip": 2
+      },
+      "skips": [
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ],
+      "packages": {
+        "github.com/TokenFlux/TokenRouter/internal/gateway/provider": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/app": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/account/provider": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/service": "pass"
+      },
+      "log": "service-health-consumers-unit.json"
+    },
+    {
+      "name": "unit-race",
+      "command": "go test -count=1 -json -race -tags=unit ./internal/gateway/provider ./internal/account/provider ./internal/service ./internal/app -run 'Health|RateLimit|Handle403|HandleUpstreamError|OpenAI429|TeamLinked|SchedulingThreshold|SessionWindow|AdvancedScheduler|RuntimeBlock|ErrorPolicy|ModelNotFound'",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "events": {
+        "pass": 399
+      },
+      "skips": [],
+      "packages": {
+        "github.com/TokenFlux/TokenRouter/internal/gateway/provider": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/account/provider": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/service": "pass",
+        "github.com/TokenFlux/TokenRouter/internal/app": "pass"
+      },
+      "log": "service-health-unit-race.json"
+    },
+    {
+      "name": "integration-race",
+      "command": "go test -count=1 -json -race -tags=integration -p=1 ./internal/app -run TestS16NativeAntigravityProbeAssembly",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "events": {
+        "pass": 3
+      },
+      "skips": [],
+      "packages": {
+        "github.com/TokenFlux/TokenRouter/internal/app": "pass"
+      },
+      "log": "service-health-integration-race.json"
+    },
+    {
+      "name": "redis-race",
+      "command": "go test -count=1 -json -race -tags=integration -p=1 ./internal/account/rediscache -run ^TestS06AccountHealthRedisCompatibility$",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "events": {
+        "pass": 6
+      },
+      "skips": [],
+      "packages": {
+        "github.com/TokenFlux/TokenRouter/internal/account/rediscache": "pass"
+      },
+      "log": "service-health-redis-race.json"
+    },
+    {
+      "name": "affected-unit-lint",
+      "command": "golangci-lint run --timeout=30m --max-same-issues=0 --max-issues-per-linter=0 --build-tags=unit ./internal/service/... ./internal/app/... ./internal/gateway/provider/... ./internal/gateway/testkit/... ./internal/settings/testkit/...",
+      "exit_code": 0,
+      "issues": 0,
+      "log": "service-health-unit-lint-clean.log"
+    }
+  ],
+  "stability": "service-health-stability.json",
+  "test_mapping": "service-health-test-mapping.json",
+  "rule_mapping": "service-health-rule-mapping.json",
+  "unified_ledger": "service-capability-exit-ledger.json",
+  "service_before": {
+    "production": 208,
+    "tests": 331
+  },
+  "service_after": {
+    "production": 204,
+    "tests": 322
+  },
+  "deferred": "与下一稳定能力批次合并执行全仓 normal/unit/integration、三套lint及完整门禁矩阵；最终S16验收完整保留。",
+  "migration_corrections": [
+    "旧健康类型转为原生观测后，同步改正测试签名、完成器窄接口与集成测试导出。",
+    "拆分调度参数夹具时遗漏原健康对象存在性，导致指标断言失败；恢复原健康依赖，保持断言。",
+    "共享测试替身迁移后的嵌入字段及导出字段引用、重复import和格式诊断已修正；初次日志保留。"
+  ],
+  "remaining_blockers": [
+    "选号/诊断仍通过旧执行服务获取平台资格、窗口/RPM、模型/渠道投影。",
+    "各平台单次HTTP执行与WS/Live仍共享旧执行配置、凭据、响应恢复和模型投影，按统一账本完整退出。"
+  ],
+  "new_historical_fixes": []
+}

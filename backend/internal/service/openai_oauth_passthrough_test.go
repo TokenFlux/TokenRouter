@@ -1565,17 +1565,15 @@ func TestOpenAIGatewayService_OpenAIPassthrough_429And529TriggerFailover(t *test
 			}
 			upstream := &httpUpstreamRecorder{resp: resp}
 			repo := &openAIPassthroughFailoverRepo{}
-			rateSvc := &RateLimitService{
-				accountRepo: repo,
-				cfg: &config.Config{
+			rateSvc := newUpstreamHealthForTest(repo,
+				&config.Config{
 					RateLimit: config.RateLimitConfig{OverloadCooldownMinutes: 10},
-				},
-			}
+				}, nil, accountcore.HealthOptions{}, nil)
 
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				cfg:              &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
-				httpUpstream:     upstream,
-				rateLimitService: rateSvc,
+				cfg:            &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
+				httpUpstream:   upstream,
+				healthObserver: rateSvc,
 			})
 
 			account := newAccount(tc.accountType)
@@ -1765,8 +1763,9 @@ func TestOpenAIGatewayService_APIKeyPassthrough_PoolModeAuthErrorsTriggerFailove
 
 			upstreamBody := `{"error":{"message":"upstream credential rejected"}}`
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				cfg:              &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
-				rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil),
+				cfg:            &config.Config{Gateway: config.GatewayConfig{ForceCodexCLI: false}},
+				healthObserver: newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil),
+
 				httpUpstream: &httpUpstreamRecorder{resp: &http.Response{
 					StatusCode: tt.statusCode,
 					Header:     http.Header{"Content-Type": []string{"application/json"}},

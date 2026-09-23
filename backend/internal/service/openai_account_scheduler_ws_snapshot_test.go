@@ -46,10 +46,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapsh
 	cfg.Gateway.OpenAIWS.IngressModeDefault = accountcore.OpenAIWSIngressModeCtxPool
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{*account}},
-		cache:             &schedulerTestGatewayCache{},
-		cfg:               cfg,
-		rateLimitService:  newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{*account}},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		schedulerSnapshot: NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil),
 		concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 			Event: logging.Event,

@@ -150,10 +150,10 @@ func (s *GatewayService) handleErrorResponse(ctx context.Context, resp *http.Res
 func (s *GatewayService) handleRetryExhaustedSideEffects(ctx context.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount, requestedModel ...string) accountcore.UpstreamErrorDecision {
 	body, _ := s.readUpstreamErrorBody(resp)
 	statusCode := resp.StatusCode
-	if s.rateLimitService == nil {
+	if s.healthObserver == nil {
 		return accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(account), statusCode)
 	}
-	policy := s.rateLimitService.UpstreamHealth().ApplyExplicitErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, statusCode, nil, body, requestedModel))
+	policy := s.healthObserver.ApplyExplicitErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, statusCode, nil, body, requestedModel))
 	decision := accountcore.UpstreamErrorDecision{Policy: policy}
 	switch policy {
 	case accountcore.ErrorPolicyCustomMatched, accountcore.ErrorPolicyTempUnscheduled:
@@ -165,7 +165,7 @@ func (s *GatewayService) handleRetryExhaustedSideEffects(ctx context.Context, re
 
 	// OAuth/Setup Token 账号的 403：按上游错误策略处理账号状态。
 	if account.View().IsOAuth() && statusCode == 403 {
-		decision = gatewayprovider.ApplyExecutionHealth(ctx, s.rateLimitService.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(ctx, statusCode, resp.Header, body, requestedModel))
+		decision = gatewayprovider.ApplyExecutionHealth(ctx, s.healthObserver, account, gatewayprovider.HealthObservationFromContext(ctx, statusCode, resp.Header, body, requestedModel))
 		logging.LegacyPrintf("service.gateway", "Account %d: applied upstream error policy after %d retries for status %d", account.Record.ID, maxRetryAttempts, statusCode)
 	} else {
 		// API Key 未配置错误码：不标记账号状态
@@ -176,13 +176,13 @@ func (s *GatewayService) handleRetryExhaustedSideEffects(ctx context.Context, re
 
 func (s *GatewayService) handleFailoverSideEffects(ctx context.Context, resp *http.Response, account *gatewayprovider.ExecutionAccount, requestedModel ...string) accountcore.UpstreamErrorDecision {
 	body, _ := s.readUpstreamErrorBody(resp)
-	if s.rateLimitService == nil {
+	if s.healthObserver == nil {
 		return accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode)
 	}
 	if len(requestedModel) > 0 {
-		return gatewayprovider.ApplyExecutionHealth(ctx, s.rateLimitService.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(ctx, resp.StatusCode, resp.Header, body, []string{requestedModel[0]}))
+		return gatewayprovider.ApplyExecutionHealth(ctx, s.healthObserver, account, gatewayprovider.HealthObservationFromContext(ctx, resp.StatusCode, resp.Header, body, []string{requestedModel[0]}))
 	}
-	return gatewayprovider.ApplyExecutionHealth(ctx, s.rateLimitService.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(ctx, resp.StatusCode, resp.Header, body, nil))
+	return gatewayprovider.ApplyExecutionHealth(ctx, s.healthObserver, account, gatewayprovider.HealthObservationFromContext(ctx, resp.StatusCode, resp.Header, body, nil))
 }
 
 // handleRetryExhaustedError 处理重试耗尽后的错误
@@ -234,7 +234,10 @@ func (s *GatewayService) handleNonStreamingResponse(ctx context.Context, resp *h
 
 // anthropicStreamOptions 保留逐事件动态设置读取和旧账号观测的时机。
 func (s *GatewayService) anthropicStreamOptions(c *gin.Context, account *gatewayprovider.ExecutionAccount) claude.StreamOptions {
-	o := claude.StreamOptions{AccountID: account.Record.ID, ToolNames: toolNameRewriteFromContext(c), UpdateWindow: func(ctx context.Context, h http.Header) { s.rateLimitService.UpdateSessionWindow(ctx, account, h) }, OverrideCache: func(ctx context.Context) (string, bool) { return s.resolveCacheTTLUsageOverrideTarget(ctx, account) }, Failover: func(body []byte) error {
+	o := claude.StreamOptions{AccountID: account.Record.ID, ToolNames: toolNameRewriteFromContext(c), UpdateWindow: func(ctx context.Context, h http.Header) {
+		gatewayprovider.ObserveExecutionSessionWindow(ctx, s.healthObserver, account, h)
+
+	}, OverrideCache: func(ctx context.Context) (string, bool) { return s.resolveCacheTTLUsageOverrideTarget(ctx, account) }, Failover: func(body []byte) error {
 		return &forwardcore.UpstreamFailoverError{StatusCode: 502, ResponseBody: body, RetryableOnSameAccount: true}
 	}}
 	if c != nil && c.Request != nil {
@@ -252,8 +255,11 @@ func (s *GatewayService) anthropicStreamOptions(c *gin.Context, account *gateway
 	if s.responseHeaderFilter != nil {
 		o.WriteHeaders = func(dst, src http.Header) { provider.WriteFilteredHeaders(dst, src, s.responseHeaderFilter) }
 	}
-	if s.rateLimitService != nil {
-		o.OnTimeout = func(ctx context.Context, model string) { s.rateLimitService.HandleStreamTimeout(ctx, account, model) }
+	if s.healthObserver != nil {
+		o.OnTimeout = func(ctx context.Context, model string) {
+			s.healthObserver.Core.HandleStreamTimeout(ctx, gatewayprovider.ExecutionRecord(account), model)
+
+		}
 	}
 	return o
 }
@@ -265,13 +271,13 @@ func (s *GatewayService) anthropicResponseOptions(ctx context.Context, c *gin.Co
 	}, PreserveContentType: s.cfg != nil && !s.cfg.Security.ResponseHeaders.Enabled, ForceCacheBilling: passthrough && requeststate.IsForceCacheBilling(ctx)}
 	o.InvalidJSON = func(ctx context.Context, resp *http.Response, body []byte, err error) error {
 		if passthrough {
-			return invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err)
+			return invalidNonStreamingJSONFailoverError(ctx, s.healthObserver, resp, account, body, err)
 		}
-		return invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, resp, account, body, err, model)
+		return invalidNonStreamingJSONFailoverError(ctx, s.healthObserver, resp, account, body, err, model)
 	}
 	o.WriteHeaders = func(dst, src http.Header) { provider.WriteFilteredHeaders(dst, src, s.responseHeaderFilter) }
 	if passthrough {
-		if s.rateLimitService == nil {
+		if s.healthObserver == nil {
 			o.UpdateWindow = nil
 		}
 		o.WriteHeaders = func(dst, src http.Header) {

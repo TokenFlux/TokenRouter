@@ -63,8 +63,8 @@ func TestHandleNonStreamingResponse_NonJSON2xxTriggersFailover(t *testing.T) {
 		Body: io.NopCloser(bytes.NewReader(body)),
 	}
 	svc := withSchedulerParametersForTest(&GatewayService{
-		cfg:              &config.Config{},
-		rateLimitService: &RateLimitService{},
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	usage, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, "claude-sonnet-4-6", "claude-sonnet-4-6")
@@ -91,8 +91,8 @@ func TestHandleNonStreamingResponse_ValidJSONUnchanged(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
 	svc := withSchedulerParametersForTest(&GatewayService{
-		cfg:              &config.Config{},
-		rateLimitService: &RateLimitService{},
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	usage, err := svc.handleNonStreamingResponse(context.Background(), resp, c, &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1}}, "claude-sonnet-4-6", "claude-sonnet-4-6")
@@ -204,10 +204,11 @@ func TestHandleNonStreamingResponse_NonJSON2xxMatchesModelScopedTempUnschedulabl
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
 
 	repo := &nonJSONTempUnschedAccountRepo{}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	healthObserver := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	svc := withSchedulerParametersForTest(&GatewayService{
-		cfg:              &config.Config{},
-		rateLimitService: rateLimitService,
+		cfg:            &config.Config{},
+		healthObserver: healthObserver,
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 3,
 		Platform: capability.PlatformAnthropic,

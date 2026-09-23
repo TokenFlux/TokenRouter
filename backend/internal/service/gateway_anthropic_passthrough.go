@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 
 	"github.com/TokenFlux/TokenRouter/internal/ops"
@@ -93,7 +94,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	model string,
 ) (*streamingResult, error) {
 	options := s.anthropicStreamOptions(c, account)
-	if s.rateLimitService == nil {
+	if s.healthObserver == nil {
 		options.UpdateWindow = nil
 	}
 	options.WriteHeaders = func(dst, src http.Header) {
@@ -111,7 +112,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 // Anthropic 直通共用）。
 func invalidNonStreamingJSONFailoverError(
 	ctx context.Context,
-	rateLimitService *RateLimitService,
+	healthObserver *accountprovider.UpstreamHealth,
 	resp *http.Response,
 	account *gatewayprovider.ExecutionAccount,
 	body []byte,
@@ -123,7 +124,7 @@ func invalidNonStreamingJSONFailoverError(
 		input.AccountID = account.Record.ID
 		input.AccountName = account.Record.Name
 	}
-	return forwardcore.InvalidJSON(ctx, invalidJSONAdapter{rateLimit: rateLimitService, account: account, headers: resp.Header}, input)
+	return forwardcore.InvalidJSON(ctx, invalidJSONAdapter{rateLimit: healthObserver, account: account, headers: resp.Header}, input)
 }
 
 func (s *GatewayService) handleNonStreamingResponseAnthropicAPIKeyPassthrough(

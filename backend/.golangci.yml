@@ -14,6 +14,270 @@ linters:
   settings:
     depguard:
       rules:
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-settings-testkit-health-stores-go:
+          list-mode: strict
+          files:
+          - "**/internal/settings/testkit/health_stores.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          - sync$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-service-health-observer-fixture-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/service/health_observer_fixture_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          deny:
+            - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+              desc: "service must not import repository"
+            - pkg: gorm.io/gorm
+              desc: "service must not import gorm"
+            - pkg: github.com/redis/go-redis/v9
+              desc: "service must not import redis"
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-testkit-model-health-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/testkit/model_health.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - net/http$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-testkit-health-stores-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/testkit/health_stores.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/querycache$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-testkit-health-store-base-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/testkit/health_store_base.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-testkit-health-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/testkit/health.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/media$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - log/slog$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-session-window-empty-observation-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_session_window_empty_observation_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - testing$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-scheduling-threshold-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_scheduling_threshold_test.go"
+          allow:
+          - context$
+          - encoding/json$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/settings/testkit$
+          - github.com/stretchr/testify/require$
+          - testing$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-openai-team-linked-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_openai_team_linked_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - testing$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-model-not-found-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_model_not_found_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - testing$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-fixture-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_fixture_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-anthropic-window-limit-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_anthropic_window_limit_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - strconv$
+          - testing$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-403-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_403_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - testing$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-403-html-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_403_html_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - testing$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-401-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_401_test.go"
+          allow:
+          - context$
+          - encoding/json$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/settings/testkit$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - testing$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-401-db-fallback-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health_401_db_fallback_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - testing$
+          - time$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-gateway-provider-execution-health-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/provider/execution_health.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - net/http$
+        # S16：健康能力整批退出；按实际所有者及准确文件/import 限定，保留角色基础限制。
+        s16-health-internal-app-account-health-fixture-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/account_health_fixture_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         # S16：旧 HTTP 包已清零，所有构建集合都禁止重新引入。
         retired-handler:
           list-mode: lax
@@ -6540,8 +6804,7 @@ linters:
           files:
           - "**/internal/app/account_health_binding.go"
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/service$
-        # S16：原脱敏断言直接使用所属 DTO 实现。
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
         s16-account-dto-redaction-original:
           list-mode: strict
           files:
@@ -17818,31 +18081,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-service-ratelimit-service-go:
-          list-mode: strict
-          files:
-          - "**/internal/service/ratelimit_service.go"
-          allow:
-          - context$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/account/provider$
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/media$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/usage$
-          - net/http$
-          - sync$
-          - time$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: service must not import repository
-          - pkg: gorm.io/gorm
-            desc: service must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: service must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-service-openai-codex-transform-test-go:
           list-mode: strict
           files:
@@ -17953,6 +18191,7 @@ linters:
           allow:
           - context$
           - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/upstream/grok$
@@ -19155,30 +19394,6 @@ linters:
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-service-ratelimit-service-scheduling-threshold-test-go:
-          list-mode: strict
-          files:
-          - "**/internal/service/ratelimit_service_scheduling_threshold_test.go"
-          allow:
-          - context$
-          - encoding/json$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/stretchr/testify/require$
-          - testing$
-          - time$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: service must not import repository
-          - pkg: gorm.io/gorm
-            desc: service must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: service must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-service-account-scheduling-threshold-integration-test-go:
           list-mode: strict
           files:
@@ -19189,7 +19404,9 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/settings/testkit$
           - github.com/stretchr/testify/require$
           - testing$
           - time$
@@ -19461,31 +19678,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: net/rpc
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-service-ratelimit-service-401-test-go:
-          list-mode: strict
-          files:
-          - "**/internal/service/ratelimit_service_401_test.go"
-          allow:
-          - context$
-          - encoding/json$
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/querycache$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/stretchr/testify/require$
-          - net/http$
-          - testing$
-          - time$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: service must not import repository
-          - pkg: gorm.io/gorm
-            desc: service must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: service must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-service-openai-agent-identity-test-go:
           list-mode: strict
@@ -22530,7 +22722,9 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/settings/testkit$
           - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
@@ -23474,6 +23668,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
@@ -23644,6 +23839,7 @@ linters:
           - encoding/json$
           - fmt$
           - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/egress$
@@ -23659,7 +23855,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
           - github.com/TokenFlux/TokenRouter/internal/upstream/anthropic$
           - github.com/TokenFlux/TokenRouter/internal/usage$
           - github.com/tidwall/gjson$
@@ -23718,6 +23913,7 @@ linters:
           allow:
           - context$
           - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
@@ -23810,6 +24006,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/stretchr/testify/require$
           - io$
@@ -25053,6 +25250,7 @@ linters:
           - "**/internal/service/gateway_anthropic_passthrough.go"
           allow:
           - context$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
           - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
@@ -26388,6 +26586,7 @@ linters:
           - errors$
           - fmt$
           - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
           - github.com/TokenFlux/TokenRouter/internal/apikey$
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/config$
@@ -31193,12 +31392,6 @@ linters:
           - "**/internal/app/account_antigravity_probe_integration_test.go"
           allow:
           - context$
-          - io$
-          - net/http$
-          - net/http/httptest$
-          - strings$
-          - testing$
-          - time$
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/account/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/account/postgres$
@@ -31208,6 +31401,12 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint$
           - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/stretchr/testify/require$
+          - io$
+          - net/http$
+          - net/http/httptest$
+          - strings$
+          - testing$
+          - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -58960,6 +59159,7 @@ linters:
         gateway-provider:
           list-mode: strict
           files:
+          - "!**/internal/gateway/provider/execution_health.go"
           - "!**/internal/gateway/provider/grok_media_eligibility.go"
           - "!**/internal/gateway/provider/grok_media_codec.go"
           - "!**/internal/gateway/provider/ws_result.go"
@@ -59123,6 +59323,16 @@ linters:
         gateway-provider-tests:
           list-mode: strict
           files:
+          - "!**/internal/gateway/provider/execution_session_window_empty_observation_test.go"
+          - "!**/internal/gateway/provider/execution_health_scheduling_threshold_test.go"
+          - "!**/internal/gateway/provider/execution_health_openai_team_linked_test.go"
+          - "!**/internal/gateway/provider/execution_health_model_not_found_test.go"
+          - "!**/internal/gateway/provider/execution_health_fixture_test.go"
+          - "!**/internal/gateway/provider/execution_health_anthropic_window_limit_test.go"
+          - "!**/internal/gateway/provider/execution_health_403_test.go"
+          - "!**/internal/gateway/provider/execution_health_403_html_test.go"
+          - "!**/internal/gateway/provider/execution_health_401_test.go"
+          - "!**/internal/gateway/provider/execution_health_401_db_fallback_test.go"
           - "!**/internal/gateway/provider/responses_image_intent_original_benchmark_test.go"
           - "!**/internal/gateway/provider/grok_media_eligibility_original_test.go"
           - "!**/internal/gateway/provider/thinking_protocol_original_test.go"
@@ -59225,6 +59435,10 @@ linters:
         gateway-testkit:
           list-mode: strict
           files:
+          - "!**/internal/gateway/testkit/model_health.go"
+          - "!**/internal/gateway/testkit/health_stores.go"
+          - "!**/internal/gateway/testkit/health_store_base.go"
+          - "!**/internal/gateway/testkit/health.go"
           - "!**/internal/gateway/testkit/recording_best_effort.go"
           - "!**/internal/gateway/testkit/recording_stores.go"
           - "!**/internal/gateway/testkit/recording.go"
@@ -71478,6 +71692,7 @@ linters:
         settings-testkit:
           list-mode: strict
           files:
+          - "!**/internal/settings/testkit/health_stores.go"
             # S16：综合设置测试仅装配所属模块；此文件使用同等严格的精确 import 规则。
           - '!**/internal/settings/testkit/composite.go'
           - '**/internal/settings/testkit/**/*.go'
@@ -79132,14 +79347,11 @@ linters:
           files:
           - "**/internal/app/scheduler_state.go"
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
           - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
           - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/settings$
-          - github.com/TokenFlux/TokenRouter/internal/usage$
           - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
@@ -79737,6 +79949,7 @@ linters:
           allow:
           - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/account/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/account/provider$
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/egress$
@@ -80743,6 +80956,7 @@ linters:
         app-tests:
           list-mode: strict
           files:
+          - "!**/internal/app/account_health_fixture_test.go"
           - "!**/internal/app/gateway_http_original_openai_resource_binding_test.go"
           - "!**/internal/app/gateway_http_original_openai_gateway_credential_failover_loop_test.go"
           - "!**/internal/app/gateway_http_original_completion_fixture_test.go"
@@ -84962,6 +85176,7 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
           - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/testkit$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/stretchr/testify/require$

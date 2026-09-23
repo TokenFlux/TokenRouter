@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"context"
@@ -9,39 +9,44 @@ import (
 	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
 
 // countingOpenAI403CounterCache 记录连续 403 计数器是否被调用。
 type countingOpenAI403CounterCache struct {
-	openAI403CounterCacheStub
+	gatewaytestkit.ForbiddenCounter
+
 	increments int
 }
 
 func (s *countingOpenAI403CounterCache) IncrementOpenAI403Count(ctx context.Context, accountID int64, window int) (int64, error) {
 	s.increments++
-	return s.openAI403CounterCacheStub.IncrementOpenAI403Count(ctx, accountID, window)
+	return s.ForbiddenCounter.IncrementOpenAI403Count(ctx, accountID, window)
 }
 
 type openAI403TestHarness struct {
-	svc     *RateLimitService
-	repo    *rateLimitAccountRepoStub
+	svc *accountprovider.UpstreamHealth
+
+	repo    *gatewaytestkit.HealthStoreRecorder
 	counter *countingOpenAI403CounterCache
-	blocker *runtimeBlockRecorder
+	blocker *gatewaytestkit.RuntimeBlockRecorder
 	account *gatewayprovider.ExecutionAccount
 }
 
 func newOpenAI403TestHarness(t *testing.T, accountID int64, counts ...int64) *openAI403TestHarness {
 	t.Helper()
-	repo := &rateLimitAccountRepoStub{}
-	counter := &countingOpenAI403CounterCache{openAI403CounterCacheStub: openAI403CounterCacheStub{counts: counts}}
-	blocker := &runtimeBlockRecorder{}
-	svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	svc.SetOpenAI403CounterCache(counter)
-	svc.SetAccountRuntimeBlocker(blocker)
+	repo := &gatewaytestkit.HealthStoreRecorder{}
+	counter := &countingOpenAI403CounterCache{ForbiddenCounter: gatewaytestkit.ForbiddenCounter{Counts: counts}}
+	blocker := &gatewaytestkit.RuntimeBlockRecorder{}
+	svc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{ForbiddenCounter: counter, Block: func(v *accountcore.Record, until time.Time, reason string) {
+		blocker.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(v), until, reason)
+	}}, nil)
+
 	return &openAI403TestHarness{
 		svc:     svc,
 		repo:    repo,
@@ -52,14 +57,14 @@ func newOpenAI403TestHarness(t *testing.T, accountID int64, counts ...int64) *op
 }
 
 func (h *openAI403TestHarness) handle(body string) bool {
-	return gatewayprovider.ApplyExecutionHealth(context.Background(), h.svc.UpstreamHealth(), h.account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(body), nil)).StopScheduling
+	return gatewayprovider.ApplyExecutionHealth(context.Background(), h.svc, h.account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(body), nil)).StopScheduling
 }
 
 func (h *openAI403TestHarness) requireNoAccountPenalty(t *testing.T) {
 	t.Helper()
-	require.Equal(t, 0, h.repo.setErrorCalls, "端点级 403 不得永久禁用账号")
-	require.Equal(t, 0, h.repo.tempCalls, "端点级 403 不得把账号设为临时不可调度")
-	require.Empty(t, h.blocker.accounts, "端点级 403 不得触发调度阻断通知")
+	require.Equal(t, 0, h.repo.SetErrorCalls, "端点级 403 不得永久禁用账号")
+	require.Equal(t, 0, h.repo.TempCalls, "端点级 403 不得把账号设为临时不可调度")
+	require.Empty(t, h.blocker.Accounts, "端点级 403 不得触发调度阻断通知")
 	require.Equal(t, 0, h.counter.increments, "端点级 403 不得递增连续 403 计数")
 }
 
@@ -112,9 +117,9 @@ func TestHandleUpstreamErrorCNProviderStructured403UsesCumulativeCooldown(t *tes
 
 			require.True(t, h.handle(`{"error":{"message":"forbidden"}}`))
 			require.Equal(t, 1, h.counter.increments)
-			require.Equal(t, 1, h.repo.tempCalls)
-			require.Zero(t, h.repo.setErrorCalls)
-			require.Contains(t, h.repo.lastTempReason, "(1/3)")
+			require.Equal(t, 1, h.repo.TempCalls)
+			require.Zero(t, h.repo.SetErrorCalls)
+			require.Contains(t, h.repo.LastTempReason, "(1/3)")
 		})
 	}
 }
@@ -137,25 +142,25 @@ func TestHandleUpstreamError_OpenAIStructured403StillPenalizes(t *testing.T) {
 
 		require.True(t, h.handle(`{"error":{"message":"Your account is not authorized"}}`))
 		require.Equal(t, 1, h.counter.increments)
-		require.Equal(t, 1, h.repo.tempCalls)
-		require.Equal(t, 0, h.repo.setErrorCalls)
-		require.Contains(t, h.repo.lastTempReason, "Your account is not authorized")
-		require.Len(t, h.blocker.accounts, 1)
+		require.Equal(t, 1, h.repo.TempCalls)
+		require.Equal(t, 0, h.repo.SetErrorCalls)
+		require.Contains(t, h.repo.LastTempReason, "Your account is not authorized")
+		require.Len(t, h.blocker.Accounts, 1)
 	})
 
 	t.Run("threshold_disables", func(t *testing.T) {
 		h := newOpenAI403TestHarness(t, 504, int64(accountcore.OpenAI403DisableThresholdDefault))
 
 		require.True(t, h.handle(`{"error":{"message":"workspace forbidden by policy"}}`))
-		require.Equal(t, 1, h.repo.setErrorCalls)
-		require.Contains(t, h.repo.lastErrorMsg, "workspace forbidden by policy")
+		require.Equal(t, 1, h.repo.SetErrorCalls)
+		require.Contains(t, h.repo.LastErrorMsg, "workspace forbidden by policy")
 	})
 
 	t.Run("plain_text_body_unchanged", func(t *testing.T) {
 		h := newOpenAI403TestHarness(t, 505, 1)
 
 		require.True(t, h.handle("Forbidden"))
-		require.Equal(t, 1, h.repo.tempCalls)
+		require.Equal(t, 1, h.repo.TempCalls)
 	})
 }
 
@@ -163,14 +168,15 @@ func TestHandleUpstreamError_OpenAIStructured403StillPenalizes(t *testing.T) {
 func TestHandleUpstreamError_HTML403OnOtherPlatformsUnchanged(t *testing.T) {
 	for _, platform := range []string{capability.PlatformAnthropic, capability.PlatformGemini} {
 		t.Run(platform, func(t *testing.T) {
-			repo := &rateLimitAccountRepoStub{}
-			svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+			repo := &gatewaytestkit.HealthStoreRecorder{}
+			svc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 506, Platform: platform, Type: capability.AccountTypeAPIKey}}
 
-			shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), svc.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(openAI403HTMLBody), nil)).StopScheduling
+			shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), svc, account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(openAI403HTMLBody), nil)).StopScheduling
 
 			require.True(t, shouldDisable)
-			require.Equal(t, 1, repo.setErrorCalls, "其他平台保持原有 SetError 行为")
+			require.Equal(t, 1, repo.SetErrorCalls, "其他平台保持原有 SetError 行为")
 		})
 	}
 }

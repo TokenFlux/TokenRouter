@@ -12,6 +12,7 @@ import (
 	billingtestkit "github.com/TokenFlux/TokenRouter/internal/billing/testkit"
 	completion "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
@@ -84,79 +85,82 @@ func TestCalculateOpenAIRecordUsageCostEmptyCandidatesIsPricingUnavailable(t *te
 }
 
 func TestHandle403_OtherCNProviderWithKimiConcurrencyMessageUsesNormalPolicy(t *testing.T) {
-	repo := &rateLimitAccountRepoStub{}
-	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
-	blocker := &runtimeBlockRecorder{}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	service.SetOpenAI403CounterCache(counter)
-	service.SetAccountRuntimeBlocker(blocker)
+	repo := &gatewaytestkit.HealthStoreRecorder{}
+	counter := &gatewaytestkit.ForbiddenCounter{Counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
+	blocker := &gatewaytestkit.RuntimeBlockRecorder{}
+	service := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{ForbiddenCounter: counter, Block: func(v *accountcore.Record, until time.Time, reason string) {
+		blocker.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(v), until, reason)
+	}}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 405, Platform: capability.PlatformZhipu, Type: capability.AccountTypeAPIKey}}
 
-	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service, account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
-	require.Equal(t, 1, repo.setErrorCalls, "non-Kimi CN provider must retain the normal permanent-error policy")
-	require.Equal(t, 0, repo.tempCalls)
-	require.Empty(t, counter.counts, "normal CN 403 policy must consume the counter result")
-	require.Equal(t, []string{"auth_error"}, blocker.reasons, "the Kimi-specific runtime block must not apply")
+	require.Equal(t, 1, repo.SetErrorCalls, "non-Kimi CN provider must retain the normal permanent-error policy")
+	require.Equal(t, 0, repo.TempCalls)
+	require.Empty(t, counter.Counts, "normal CN 403 policy must consume the counter result")
+	require.Equal(t, []string{"auth_error"}, blocker.Reasons, "the Kimi-specific runtime block must not apply")
 }
 
 func TestHandle403_CNProviderConcurrencyLimitAlwaysUsesTemporaryCooldown(t *testing.T) {
-	repo := &rateLimitAccountRepoStub{}
-	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
-	blocker := &runtimeBlockRecorder{}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	service.SetOpenAI403CounterCache(counter)
-	service.SetAccountRuntimeBlocker(blocker)
+	repo := &gatewaytestkit.HealthStoreRecorder{}
+	counter := &gatewaytestkit.ForbiddenCounter{Counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
+	blocker := &gatewaytestkit.RuntimeBlockRecorder{}
+	service := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{ForbiddenCounter: counter, Block: func(v *accountcore.Record, until time.Time, reason string) {
+		blocker.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(v), until, reason)
+	}}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 403, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}}
 
-	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service, account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable, "the request must still fail over to another account")
-	require.Equal(t, 0, repo.setErrorCalls)
-	require.Equal(t, 1, repo.tempCalls)
-	require.Contains(t, repo.lastTempReason, accountcore.CNConcurrencyLimitReason)
-	require.Equal(t, []int64{accountcore.OpenAI403DisableThresholdDefault}, counter.counts, "transient concurrency 403 must bypass the permanent-error counter")
-	require.Len(t, blocker.accounts, 1)
-	require.Equal(t, accountcore.CNConcurrencyLimitReason, blocker.reasons[0])
-	require.True(t, blocker.until[0].After(time.Now()))
+	require.Equal(t, 0, repo.SetErrorCalls)
+	require.Equal(t, 1, repo.TempCalls)
+	require.Contains(t, repo.LastTempReason, accountcore.CNConcurrencyLimitReason)
+	require.Equal(t, []int64{accountcore.OpenAI403DisableThresholdDefault}, counter.Counts, "transient concurrency 403 must bypass the permanent-error counter")
+	require.Len(t, blocker.Accounts, 1)
+	require.Equal(t, accountcore.CNConcurrencyLimitReason, blocker.Reasons[0])
+	require.True(t, blocker.Until[0].After(time.Now()))
 }
 
 func TestHandle403_KimiConcurrencyLimitRepositoryFailureKeepsRuntimeBlock(t *testing.T) {
-	repo := &rateLimitAccountRepoStub{tempErr: errors.New("repository unavailable")}
-	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
-	blocker := &runtimeBlockRecorder{}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	service.SetOpenAI403CounterCache(counter)
-	service.SetAccountRuntimeBlocker(blocker)
+	repo := &gatewaytestkit.HealthStoreRecorder{TempErr: errors.New("repository unavailable")}
+	counter := &gatewaytestkit.ForbiddenCounter{Counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
+	blocker := &gatewaytestkit.RuntimeBlockRecorder{}
+	service := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{ForbiddenCounter: counter, Block: func(v *accountcore.Record, until time.Time, reason string) {
+		blocker.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(v), until, reason)
+	}}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 406, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}}
 
-	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service, account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please wait for your ongoing requests to finish and try again."}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable, "the current request must fail over even when persistence fails")
-	require.Equal(t, 1, repo.tempCalls, "the temporary cooldown should still be persisted when possible")
-	require.Equal(t, 0, repo.setErrorCalls, "persistence failure must not fall back to permanent account error")
-	require.Equal(t, []int64{accountcore.OpenAI403DisableThresholdDefault}, counter.counts, "persistence failure must not enter the permanent-error counter path")
-	require.Len(t, blocker.accounts, 1, "the in-memory runtime block must survive repository failure")
+	require.Equal(t, 1, repo.TempCalls, "the temporary cooldown should still be persisted when possible")
+	require.Equal(t, 0, repo.SetErrorCalls, "persistence failure must not fall back to permanent account error")
+	require.Equal(t, []int64{accountcore.OpenAI403DisableThresholdDefault}, counter.Counts, "persistence failure must not enter the permanent-error counter path")
+	require.Len(t, blocker.Accounts, 1, "the in-memory runtime block must survive repository failure")
 	// 原实体没有时钟依赖；保留全部业务字段和路线比较，函数本身不属于运行阻断数据。
-	expectedAccount, observedAccount := *account, *blocker.accounts[0]
+	expectedAccount, observedAccount := *account, *blocker.Accounts[0]
 	expectedAccount.Record.Now, observedAccount.Record.Now = nil, nil
 	expectedAccount.Record.LoadLocation, observedAccount.Record.LoadLocation = nil, nil
 	require.Equal(t, expectedAccount, observedAccount)
-	require.Equal(t, accountcore.CNConcurrencyLimitReason, blocker.reasons[0])
-	require.True(t, blocker.until[0].After(time.Now()))
+	require.Equal(t, accountcore.CNConcurrencyLimitReason, blocker.Reasons[0])
+	require.True(t, blocker.Until[0].After(time.Now()))
 }
 
 func TestHandle403_CNProviderNearMatchRetainsNormalPermanentErrorPolicy(t *testing.T) {
-	repo := &rateLimitAccountRepoStub{}
-	counter := &openAI403CounterCacheStub{counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
-	service := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	service.SetOpenAI403CounterCache(counter)
+	repo := &gatewaytestkit.HealthStoreRecorder{}
+	counter := &gatewaytestkit.ForbiddenCounter{Counts: []int64{accountcore.OpenAI403DisableThresholdDefault}}
+	service := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{ForbiddenCounter: counter}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 404, Platform: capability.PlatformKimi, Type: capability.AccountTypeAPIKey}}
 
-	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service.UpstreamHealth(), account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please contact support."}}`), nil)).StopScheduling
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), service, account, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusForbidden, http.Header{}, []byte(`{"error":{"message":"You've reached your concurrent request limit. Please contact support."}}`), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
-	require.Equal(t, 1, repo.setErrorCalls, "non-exact 403 must retain existing permission/auth protection")
-	require.Equal(t, 0, repo.tempCalls)
+	require.Equal(t, 1, repo.SetErrorCalls, "non-exact 403 must retain existing permission/auth protection")
+	require.Equal(t, 0, repo.TempCalls)
 }

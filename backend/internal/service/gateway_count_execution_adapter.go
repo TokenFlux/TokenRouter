@@ -89,8 +89,8 @@ func (a *countExecutionAdapter) UnsupportedCount(status int, body []byte) bool {
 }
 func (a *countExecutionAdapter) CountHealth(ctx context.Context, status int, headers map[string][]string, body []byte, model string) forwardcore.ErrorDecision {
 	d := accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(a.account), status)
-	if a.s.rateLimitService != nil {
-		d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.rateLimitService.UpstreamHealth(), a.account, gatewayprovider.HealthObservationFromContext(ctx, status, headers, body, []string{model}))
+	if a.s.healthObserver != nil {
+		d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.healthObserver, a.account, gatewayprovider.HealthObservationFromContext(ctx, status, headers, body, []string{model}))
 	}
 	return forwardcore.ErrorDecision{
 		Generic:          d.ShouldReturnGenericError(),

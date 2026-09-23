@@ -23,7 +23,8 @@ func (transientCooldownAccountRepo) SetOverloaded(context.Context, int64, time.T
 
 func TestHandleOpenAITransientError_BlocksOnlyRequestedModel(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5105,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey},
@@ -43,7 +44,8 @@ func TestHandleOpenAITransientError_TransientStatusesUseModelScope(t *testing.T)
 	for _, statusCode := range []int{http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout, 520, 521, 522, 523, 524} {
 		t.Run(http.StatusText(statusCode), func(t *testing.T) {
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-			svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+			svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: int64(5100 + statusCode),
 				Platform: capability.PlatformOpenAI,
 				Type:     capability.AccountTypeAPIKey},
@@ -66,7 +68,8 @@ func TestHandleOpenAITransientError_529RemainsOverloadOnly(t *testing.T) {
 
 func TestHandleOpenAITransientError_CanonicalModelIsNotMappedTwice(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5107,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
@@ -91,7 +94,8 @@ func TestHandleOpenAITransientError_CanonicalModelIsNotMappedTwice(t *testing.T)
 
 func TestHandleOpenAITransientError_DoesNotBlockParameter400(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5103,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey},

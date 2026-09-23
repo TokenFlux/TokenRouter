@@ -154,8 +154,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamPreservesBodyAnd
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     &RateLimitService{},
-		deferredService:      &accountcore.DeferredService{},
+		healthObserver:       newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+
+		deferredService: &accountcore.DeferredService{},
 	})
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101,
@@ -233,7 +234,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardCountTokensPreservesBo
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     &RateLimitService{},
+		healthObserver:       newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 102,
@@ -431,9 +432,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases(t *test
 					},
 				}
 				svc := withSchedulerParametersForTest(&GatewayService{
-					cfg:              &config.Config{},
-					httpUpstream:     upstream,
-					rateLimitService: &RateLimitService{},
+					cfg:            &config.Config{},
+					httpUpstream:   upstream,
+					healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 				})
 
 				result, err := svc.Forward(context.Background(), c, account, parsed)
@@ -453,9 +454,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingEdgeCases(t *test
 					},
 				}
 				svc := withSchedulerParametersForTest(&GatewayService{
-					cfg:              &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
-					httpUpstream:     upstream,
-					rateLimitService: &RateLimitService{},
+					cfg:            &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
+					httpUpstream:   upstream,
+					healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 				})
 
 				err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
@@ -492,9 +493,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ModelMappingPreservesOtherFie
 	}
 
 	svc := withSchedulerParametersForTest(&GatewayService{
-		cfg:              &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
-		httpUpstream:     upstream,
-		rateLimitService: &RateLimitService{},
+		cfg:            &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
+		httpUpstream:   upstream,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
@@ -545,9 +546,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokensFiltersGenerationF
 	}
 
 	svc := withSchedulerParametersForTest(&GatewayService{
-		cfg:              &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
-		httpUpstream:     upstream,
-		rateLimitService: &RateLimitService{},
+		cfg:            &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
+		httpUpstream:   upstream,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 	account := newAnthropicAPIKeyAccountForTest()
 
@@ -591,9 +592,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_EmptyModelSkipsMapping(t *tes
 	}
 
 	svc := withSchedulerParametersForTest(&GatewayService{
-		cfg:              &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
-		httpUpstream:     upstream,
-		rateLimitService: &RateLimitService{},
+		cfg:            &config.Config{Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize}},
+		httpUpstream:   upstream,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 302,
@@ -678,8 +679,8 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokens404PassthroughNotE
 				cfg: &config.Config{
 					Gateway: config.GatewayConfig{MaxLineSize: defaultMaxLineSize},
 				},
-				httpUpstream:     upstream,
-				rateLimitService: nil,
+				httpUpstream:   upstream,
+				healthObserver: nil,
 			})
 
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 200,
@@ -832,8 +833,9 @@ func TestGatewayService_AnthropicOAuth_AppliesAccountMappingBeforeNormalization(
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     &RateLimitService{},
-		deferredService:      &accountcore.DeferredService{},
+		healthObserver:       newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+
+		deferredService: &accountcore.DeferredService{},
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 303,
 		Name:        "anthropic-oauth-mapping",
@@ -918,8 +920,9 @@ func TestGatewayService_AnthropicOAuthMimic_RewritesSystemWithBillingBlock(t *te
 				cfg:                  cfg,
 				responseHeaderFilter: compileResponseHeaderFilter(cfg),
 				httpUpstream:         upstream,
-				rateLimitService:     &RateLimitService{},
-				deferredService:      &accountcore.DeferredService{},
+				healthObserver:       newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+
+				deferredService: &accountcore.DeferredService{},
 			})
 
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
@@ -1023,8 +1026,9 @@ func TestGatewayService_AnthropicOAuthRealClaudeCodeHaiku_PreservesClientHeaders
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     &RateLimitService{},
-		deferredService:      &accountcore.DeferredService{},
+		healthObserver:       newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+
+		deferredService: &accountcore.DeferredService{},
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 302, Name: "anthropic-real-cc", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token"}, Status: billing.StatusActive, Schedulable: true},
@@ -1075,8 +1079,9 @@ func TestGatewayService_AnthropicOAuthProxiedClaudeCode_PreservesSystemCachePref
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     &RateLimitService{},
-		deferredService:      &accountcore.DeferredService{},
+		healthObserver:       newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+
+		deferredService: &accountcore.DeferredService{},
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 304, Name: "anthropic-proxied-cc", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeOAuth, Concurrency: 1,
 		Credentials: map[string]any{"access_token": "oauth-token"}, Status: billing.StatusActive, Schedulable: true},
@@ -1127,7 +1132,7 @@ func TestGatewayService_AnthropicOAuth_SystemPromptInjectionCanBeDisabled(t *tes
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     &RateLimitService{},
+		healthObserver:       newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 
 		settingService:  settingService,
 		deferredService: &accountcore.DeferredService{},
@@ -1174,7 +1179,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingStillCollectsUsageAf
 				MaxLineSize: defaultMaxLineSize,
 			},
 		},
-		rateLimitService: &RateLimitService{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	resp := &http.Response{
@@ -1210,7 +1215,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_MissingTerminalEventReturnsEr
 				MaxLineSize: defaultMaxLineSize,
 			},
 		},
-		rateLimitService: &RateLimitService{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	resp := &http.Response{
@@ -1249,9 +1254,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardDirect_NonStreamingSuc
 		},
 	}
 	svc := withSchedulerParametersForTest(&GatewayService{
-		cfg:              &config.Config{},
-		httpUpstream:     upstream,
-		rateLimitService: &RateLimitService{},
+		cfg:            &config.Config{},
+		httpUpstream:   upstream,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	result, err := svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c, newAnthropicAPIKeyAccountForTest(), body, "claude-3-5-sonnet-latest", "claude-3-5-sonnet-latest", false, time.Now())
@@ -1485,7 +1490,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingDataIntervalTimeout(
 				MaxLineSize:               defaultMaxLineSize,
 			},
 		},
-		rateLimitService: &RateLimitService{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	pr, pw := io.Pipe()
@@ -1518,7 +1523,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingSendsKeepaliveDuring
 				MaxLineSize:             defaultMaxLineSize,
 			},
 		},
-		rateLimitService: &RateLimitService{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	pr, pw := io.Pipe()
@@ -1567,7 +1572,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingKeepaliveDoesNotInte
 				MaxLineSize:             defaultMaxLineSize,
 			},
 		},
-		rateLimitService: &RateLimitService{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	pr, pw := io.Pipe()
@@ -1643,7 +1648,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingTimeoutAfterClientDi
 				MaxLineSize:               defaultMaxLineSize,
 			},
 		},
-		rateLimitService: &RateLimitService{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 
 	pr, pw := io.Pipe()
@@ -1826,8 +1831,9 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_Non2xxRecordsOllamaActivity(t
 		},
 		httpUpstream: upstream,
 
-		rateLimitService: &RateLimitService{},
-		deferredService:  deferred,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+
+		deferredService: deferred,
 	})
 	ollama := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 604, Name: "ollama-400", Platform: capability.PlatformAnthropic, Type: capability.AccountTypeAPIKey,
 		Concurrency: 1,

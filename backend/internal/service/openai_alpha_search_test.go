@@ -505,10 +505,10 @@ func TestForwardAlphaSearchUnauthorizedDoesNotMarkAccountError(t *testing.T) {
 	repo := &alphaSearchAccountStateRepo{}
 	cfg := &config.Config{}
 	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     upstream,
-		accountRepo:      repo,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
+		cfg:            cfg,
+		httpUpstream:   upstream,
+		accountRepo:    repo,
+		healthObserver: newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
 	}))
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 44,
 		Platform:    capability.PlatformOpenAI,
@@ -547,10 +547,10 @@ func TestForwardAlphaSearchPATResponsesFallbackUnauthorizedDoesNotMarkAccountErr
 	repo := &alphaSearchAccountStateRepo{}
 	cfg := &config.Config{}
 	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     upstream,
-		accountRepo:      repo,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
+		cfg:            cfg,
+		httpUpstream:   upstream,
+		accountRepo:    repo,
+		healthObserver: newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
 	}))
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 46,
 		Platform:    capability.PlatformOpenAI,
@@ -596,10 +596,10 @@ func TestForwardAlphaSearchAPIKeyEndpointNotFoundFailsOver(t *testing.T) {
 	repo := &alphaSearchAccountStateRepo{}
 	cfg := &config.Config{}
 	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:              cfg,
-		httpUpstream:     upstream,
-		accountRepo:      repo,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
+		cfg:            cfg,
+		httpUpstream:   upstream,
+		accountRepo:    repo,
+		healthObserver: newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
 	}))
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9,
 		Platform: capability.PlatformOpenAI,

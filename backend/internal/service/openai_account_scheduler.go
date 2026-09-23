@@ -743,7 +743,7 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountOrID any
 	}
 
 	healthTripped := false
-	if account != nil && s != nil && s.rateLimitService != nil {
+	if account != nil && s != nil && s.healthObserver != nil {
 		// 成功路径沿用原不读取设置、不清滚动计数的语义。
 		if !success && len(observedErr) > 0 && observedErr[0] != nil {
 			healthTripped = s.ObserveOpenAIAccountHealthFailure(context.Background(), account, observedErr[0])
@@ -758,7 +758,7 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountOrID any
 		s.reportOpenAIAccountScheduleResult(false, accountID, model, success, firstTokenMs)
 		return healthTripped
 	}
-	if s == nil || s.rateLimitService == nil {
+	if s == nil || s.healthObserver == nil {
 		return healthTripped
 	}
 	scheduler := s.ensureOpenAIAccountScheduler()
@@ -771,12 +771,13 @@ func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountOrID any
 
 // ObserveOpenAIAccountHealthFailure 记录已经写出响应后无法进入调度反馈的失败。
 func (s *OpenAIGatewayService) ObserveOpenAIAccountHealthFailure(ctx context.Context, account *gatewayprovider.ExecutionAccount, observedErr error) bool {
-	if s == nil || s.rateLimitService == nil || account == nil || observedErr == nil {
+	if s == nil || s.healthObserver == nil || account == nil || observedErr == nil {
 		return false
 	}
 	status, body, eligible := gatewayprovider.ClassifyOpenAIAPIKeyHealthFailure(observedErr)
 	record := gatewayprovider.ExecutionRecord(account)
-	handled := s.rateLimitService.HealthCore().ApplyAPIKeyHealthFailure(ctx, record, status, body, eligible)
+	handled := s.healthObserver.Core.
+		ApplyAPIKeyHealthFailure(ctx, record, status, body, eligible)
 	account.Record.TempUnschedulableUntil = record.TempUnschedulableUntil
 	account.Record.TempUnschedulableReason = record.TempUnschedulableReason
 	return handled
@@ -819,7 +820,7 @@ func (s *OpenAIGatewayService) reportOpenAIAccountScheduleResultWithFeedback(acc
 
 func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {
 	// 旧调用点没有分组上下文，仅在高级调度依赖已装配时记录，避免空服务污染指标。
-	if s == nil || s.rateLimitService == nil {
+	if s == nil || s.healthObserver == nil {
 		return
 	}
 	scheduler := s.ensureOpenAIAccountScheduler()

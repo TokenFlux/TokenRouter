@@ -63,8 +63,9 @@ func (s *AntigravityGatewayService) antigravityRetryBinding() *accountprovider.A
 		return s.nativeRetry
 	}
 	var policy *accountcore.HealthService
-	if s.rateLimitService != nil {
-		policy = s.rateLimitService.HealthCore()
+	if s.healthObserver != nil {
+		policy = s.healthObserver.Core
+
 	}
 	return &accountprovider.AntigravityRetry{Health: s.antigravityHealth(), Policy: policy, BaseURL: func(v *accountcore.Record) string {
 		return resolveAntigravityForwardBaseURL(gatewayprovider.NewExecutionAccount(v))

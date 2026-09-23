@@ -117,8 +117,8 @@ func TestOpenAIGatewayServiceForwardCountTokensCNProvidersAlwaysEstimateLocally(
 			upstream := &httpUpstreamRecorder{}
 			repo := &countTokensRuntimeStateRepo{}
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				httpUpstream:     upstream,
-				rateLimitService: &RateLimitService{accountRepo: repo, cfg: &config.Config{}},
+				httpUpstream:   upstream,
+				healthObserver: newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil),
 			})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
 				Platform: tt.platform,
@@ -204,9 +204,9 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_OAuthFallsBackWhenPl
 			}}
 			repo := &countTokensRuntimeStateRepo{}
 			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				cfg:              &config.Config{},
-				httpUpstream:     upstream,
-				rateLimitService: &RateLimitService{accountRepo: repo, cfg: &config.Config{}},
+				cfg:            &config.Config{},
+				httpUpstream:   upstream,
+				healthObserver: newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil),
 			})
 
 			err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "gpt-5.4")

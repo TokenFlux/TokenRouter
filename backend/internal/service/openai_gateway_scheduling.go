@@ -593,10 +593,11 @@ func (s *OpenAIGatewayService) filterOpenAIAccountsBySchedulingThreshold(ctx con
 }
 
 func (s *OpenAIGatewayService) isOpenAIAccountBlockedBySchedulingThreshold(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
-	if s == nil || s.rateLimitService == nil || account == nil {
+	if s == nil || s.healthObserver == nil || account == nil {
 		return false
 	}
-	return s.rateLimitService.ApplyAccountSchedulingThreshold(ctx, account)
+	return gatewayprovider.ApplyExecutionSchedulingThreshold(ctx, s.healthObserver, account)
+
 }
 
 func (s *OpenAIGatewayService) hydrateSelectedAccount(ctx context.Context, account *gatewayprovider.ExecutionAccount) (*gatewayprovider.ExecutionAccount, error) {

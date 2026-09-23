@@ -36,7 +36,9 @@ func TestCompactSchedulingRechecksAdministratorSwitchFromDatabase(t *testing.T) 
 				svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
 					accountRepo: schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{fresh}},
 					cache:       &schedulerTestGatewayCache{}, cfg: &config.Config{},
-					rateLimitService: newAdvancedSchedulerRateLimitService(fmt.Sprint(advanced)),
+					healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+					schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+						fmt.Sprint(advanced)),
 					concurrencyService: scheduler.NewConcurrencyService(schedulerTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 						Event: logging.Event,

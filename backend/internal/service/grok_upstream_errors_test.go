@@ -160,8 +160,8 @@ func TestGrokNonFailoverDoesNotApplyGenericTempUnschedulablePolicy(t *testing.T)
 
 	repo := &grokQuotaAccountRepo{}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: NewRateLimitService(repo, nil, nil, nil),
+		accountRepo:    repo,
+		healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil),
 	}))
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5099,
 		Platform: capability.PlatformGrok,

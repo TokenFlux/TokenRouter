@@ -609,10 +609,11 @@ func (s *GatewayService) filterAccountsBySchedulingThreshold(ctx context.Context
 }
 
 func (s *GatewayService) isAccountBlockedBySchedulingThreshold(ctx context.Context, account *gatewayprovider.ExecutionAccount) bool {
-	if s == nil || s.rateLimitService == nil || account == nil {
+	if s == nil || s.healthObserver == nil || account == nil {
 		return false
 	}
-	return s.rateLimitService.ApplyAccountSchedulingThreshold(ctx, account)
+	return gatewayprovider.ApplyExecutionSchedulingThreshold(ctx, s.healthObserver, account)
+
 }
 
 func (s *GatewayService) hydrateSelectedAccount(ctx context.Context, account *gatewayprovider.ExecutionAccount) (*gatewayprovider.ExecutionAccount, error) {

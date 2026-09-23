@@ -1745,3 +1745,13 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 全仓普通 12,006、unit 20,040、integration（-p=4）13,009 条通过，既有跳过 4/8/4，数量与迁移前一致；三套完整 lint 均为零。删除 41 项旧路径规则，新增目标角色的精确许可并保留同等限制；旧 handler 全局拒绝及 testkit 生产隔离的 12 类夹具三套标签共 36/36 通过，临时夹具删除。
 - 普通/unit/integration/wireinject/embed/e2e/Darwin/Linux 的受影响文件选择已核对；选择记录不替代行为证据。Wire 再生成稳定，SQL/Ent、冻结正文/资料及其他任务文件无改动，已有与新增差异检查通过。系统架构和网关生命周期文档同步当前结构。
 - 索引 `progress-20260924-handler-retirement-verification.json`。按用户授权提交本完整批次；继续清理 service 的平台/调度/健康适配及最终全项验收，roadmap 仍为 16/17、S16 实施中。
+
+
+### 剩余能力批次账本与账号健康完整退出（2026-09-24）
+
+- 按用户最新要求调整实施粒度和验证频率，原计划正文不变。复用现有函数调用账本，一次性覆盖剩余 208 个生产文件，按健康、选号/诊断、Messages/Bedrock、Gemini/Antigravity、Grok、OpenAI、WS/Live 与共享边界登记依赖和退出条件；不按文件数量机械迁包。统一索引为 `baseline/S16/service-capability-exit-ledger.json`，后续只增量更新。
+- 账号健康批次删除旧 RateLimitService 及健康、恢复、Team 构造回绑四个生产文件。app 直接发布唯一 UpstreamHealth，所有平台消费者与构造签名同步改绑；Health/Recovery/Team/429 观测与 RuntimeBlockState 仍使用已有实例，规则、缓存和存储未复制。gateway/provider 只保留执行快照与显式观测投影，写回范围及空观测短路保持。
+- 调度参数与健康测试依赖分离，评分诊断构造删除未使用的健康参数；原有选择指标断言保留。九个健康合同文件迁至实际执行适配旁，原标签和 32 项测试声明保留；共用健康/错误记录替身及设置内存替身进入所属 testkit。余下旧 service 测试只验证尚未退出的平台执行，不重建旧限流服务。
+- 旧 service 生产文件 208 → 204（减少 4），测试文件 331 → 322（净减少 9）。普通直接消费者 4,240 条、unit 7,091 条通过，各保留 2 项既有跳过；定向 unit race 399 条、真实 PostgreSQL 装配 integration race 3 条、真实 Redis 兼容 integration race 6 条通过，无失败或跳过。批内 unit lint 为零；完整命令、初次编译/迁移修正及跳过见 `baseline/S16/service-health-verification.json`。
+- Wire 再生成稳定。因删掉旧健康构造对设置读取器的依赖，Wire 推迟构造这些读取器；搜索仍只登记原 StartOrder=181/StopOrder=30 hook，没有提前初始化或启动。SQL/Ent、原计划正文、前阶段冻结资料及 51 个受保护文件未变；文档同步实际健康所有权。
+- 本批只归档新增证据，不重新打包以往全量资料。按授权提交进度；下一能力批次继续消除选号/诊断的资格、窗口/RPM、渠道与模型投影依赖。相关稳定批次合并执行全仓三类测试、三套 lint 与门禁矩阵，最终全部验收不降低要求。S16 保持实施中、16/17。

@@ -13,8 +13,10 @@ import (
 )
 
 // provideAccountDiagnostics 保留原诊断装配与唯一调度反馈，执行算法留 S07。
-func provideAccountDiagnostics(admin *account.Admin, groups *routing.GroupAdmin, concurrency *scheduler.ConcurrencyService, limits *service.RateLimitService, gateway *service.GatewayService, openai *service.OpenAIGatewayService, shared *schedulerSharedState) *service.AdvancedSchedulerScoreDiagnosticService {
-	core := service.NewAdvancedSchedulerScoreDiagnosticService(accountDiagnosticSource{accounts: admin, groups: groups}, concurrency, limits)
+func provideAccountDiagnostics(admin *account.Admin, groups *routing.GroupAdmin, concurrency *scheduler.ConcurrencyService,
+
+	gateway *service.GatewayService, openai *service.OpenAIGatewayService, shared *schedulerSharedState) *service.AdvancedSchedulerScoreDiagnosticService {
+	core := service.NewAdvancedSchedulerScoreDiagnosticService(accountDiagnosticSource{accounts: admin, groups: groups}, concurrency)
 	core.BindSchedulerRuntime(shared.Feedback, shared.Parameters)
 	core.SetSchedulingServices(gateway, openai)
 	return core

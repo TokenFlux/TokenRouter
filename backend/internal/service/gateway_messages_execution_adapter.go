@@ -218,8 +218,8 @@ func (a *messageExecutionAdapter) Health(ctx context.Context, mode string, statu
 		_ = resp.Body.Close()
 	default:
 		d = accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(a.account), status)
-		if mode == "persist" && a.s.rateLimitService != nil {
-			d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.rateLimitService.UpstreamHealth(), a.account, gatewayprovider.HealthObservationFromContext(ctx, status, headers, body, []string{model}))
+		if mode == "persist" && a.s.healthObserver != nil {
+			d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.healthObserver, a.account, gatewayprovider.HealthObservationFromContext(ctx, status, headers, body, []string{model}))
 		}
 	}
 	return forwardcore.ErrorDecision{

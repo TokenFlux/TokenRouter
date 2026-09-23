@@ -3,6 +3,7 @@ package app
 
 import (
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	provider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -38,8 +39,7 @@ func provideGatewayForRouting(nativeUsageStore *usagepostgres.Store,
 	schedulerSnapshot *scheduler.SnapshotService,
 	concurrencyService *scheduler.ConcurrencyService,
 
-	rateLimitService *service.RateLimitService,
-
+	healthObserver *accountprovider.UpstreamHealth,
 	identityService *anthropic.RequestFingerprint,
 	httpUpstream httpclient.UpstreamTransport, deferredService *account.DeferredService,
 	messageCredentials *account.MessageCredentialSource,
@@ -54,7 +54,7 @@ func provideGatewayForRouting(nativeUsageStore *usagepostgres.Store,
 
 	headerFilter *egress.CompiledHeaderFilter, recorders GatewayCompletionRecorders,
 ) *service.GatewayService {
-	gateway := service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, cache, cfg, schedulerSnapshot, concurrencyService, rateLimitService, identityService, httpUpstream, deferredService, messageCredentials, sessionLimitCache, windowCostCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, headerFilter)
+	gateway := service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, cache, cfg, schedulerSnapshot, concurrencyService, healthObserver, identityService, httpUpstream, deferredService, messageCredentials, sessionLimitCache, windowCostCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, headerFilter)
 	gateway.BindUsageWindowSource(usageWindowStats{nativeUsageStore})
 	gateway.BindCompletionRecorder(recorders.Forward)
 	return gateway

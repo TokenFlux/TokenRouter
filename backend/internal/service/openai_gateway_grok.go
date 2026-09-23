@@ -323,9 +323,9 @@ func (s *OpenAIGatewayService) applyGrokAccountUpstreamError(
 	s.updateGrokUsageSnapshotWithRateLimit(stateCtx, account, quotaSnapshot, snapshotFailure.Class != grok.GrokFailureModelCapacity)
 
 	decision := accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(account), statusCode)
-	if s.rateLimitService != nil {
+	if s.healthObserver != nil {
 		if account.View().IsPoolMode() || account.View().IsCustomErrorCodesEnabled() {
-			decision.Policy = s.rateLimitService.UpstreamHealth().ApplyExplicitErrorPolicy(stateCtx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(stateCtx, statusCode, nil, responseBody, canonicalModel))
+			decision.Policy = s.healthObserver.ApplyExplicitErrorPolicy(stateCtx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(stateCtx, statusCode, nil, responseBody, canonicalModel))
 			decision.StopScheduling = decision.Policy == accountcore.ErrorPolicyCustomMatched || decision.Policy == accountcore.ErrorPolicyTempUnscheduled
 		} else {
 			decision = accountcore.UpstreamErrorDecision{Policy: accountcore.ErrorPolicyNone}
@@ -343,15 +343,17 @@ func (s *OpenAIGatewayService) applyGrokAccountUpstreamError(
 		return decision
 	}
 
-	if s.rateLimitService != nil && len(canonicalModel) > 0 &&
-		s.rateLimitService.HandleUpstreamModelNotFound(stateCtx, account, canonicalModel[0], statusCode, responseBody) {
+	if s.healthObserver != nil && len(canonicalModel) > 0 &&
+		gatewayprovider.ObserveExecutionModelFailure(stateCtx, s.healthObserver, account, canonicalModel[0], statusCode,
+			responseBody) {
 		decision.StopScheduling = true
 		return decision
 	}
 	// 普通账号先保留模型不存在等精确处理，再应用管理员临时规则。
-	if s.rateLimitService != nil && statusCode != http.StatusUnauthorized &&
+	if s.healthObserver != nil && statusCode != http.StatusUnauthorized &&
 		!account.View().IsPoolMode() && !account.View().IsCustomErrorCodesEnabled() &&
-		s.rateLimitService.HandleTempUnschedulable(stateCtx, account, statusCode, responseBody, canonicalModel...) {
+		gatewayprovider.ObserveExecutionTemporaryFailure(stateCtx, s.healthObserver, account, statusCode, responseBody,
+			canonicalModel...) {
 		decision.Policy = accountcore.ErrorPolicyTempUnscheduled
 		decision.StopScheduling = true
 		if requeststate.FirstHealthModel(canonicalModel) == "" {

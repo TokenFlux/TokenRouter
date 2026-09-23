@@ -321,7 +321,8 @@ func TestPassthroughLifecycle_NonCyberFailureKeepsAccountSideEffects(t *testing.
 	upstream.Send(`{"type":"response.failed","response":{"id":"resp_non_cyber","error":{"type":"authentication_error","code":"invalid_api_key","status_code":401,"message":"credential rejected"},"usage":{"input_tokens":3,"output_tokens":1}}}`)
 	repo := &openAIStream403AccountRepo{}
 	svc := newPassthroughLifecycleService(passthroughLifecycleConfig(), upstream)
-	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil)
+	svc.healthObserver = newUpstreamHealthForTest(repo, svc.cfg, nil, accountcore.HealthOptions{}, nil)
+
 	account := passthroughLifecycleAccount()
 
 	markSeen := make(chan *moderationflow.Mark, 1)
@@ -367,7 +368,8 @@ func TestPassthroughLifecycle_CyberSkipsFailureAccountSideEffects(t *testing.T) 
 	upstream.Send(`{"type":"response.failed","response":{"id":"resp_cyber_auth","error":{"type":"authentication_error","code":"cyber_policy","status_code":401,"message":"request blocked"}}}`)
 	repo := &openAIStream403AccountRepo{}
 	svc := newPassthroughLifecycleService(passthroughLifecycleConfig(), upstream)
-	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil)
+	svc.healthObserver = newUpstreamHealthForTest(repo, svc.cfg, nil, accountcore.HealthOptions{}, nil)
+
 	account := passthroughLifecycleAccount()
 
 	server, serverErr := startPassthroughLifecycleServer(t, controlCtx, svc, account)

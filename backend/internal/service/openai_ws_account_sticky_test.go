@@ -468,7 +468,10 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseIDUsesResolvedRouti
 			Event: logging.Event},
 		),
 		openaiWSStateStore: store,
-		rateLimitService:   newAdvancedSchedulerRateLimitService("true"),
+		healthObserver:     newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(newOpenAIWSV2TestConfig(),
+
+			"true"),
 	}))
 
 	require.NoError(t, store.BindResponseAccount(ctx, groupID, "resp_dispatch_model", account.Record.ID, time.Hour))

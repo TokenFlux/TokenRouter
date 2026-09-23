@@ -19,22 +19,21 @@ func (p *healthRuntimeCounter) ResetOpenAI403Count(_ context.Context, id int64) 
 	return nil
 }
 
-// 原生运行时先完整构造，再将同一实例交给旧执行端；构造不能查询空存储。
+// 原生运行时完整构造后发布同一实例；构造不能查询空存储。
 func TestAccountHealthRuntimePublishesOneNativeGraph(t *testing.T) {
 	cfg := &config.Config{}
 	counter := &healthRuntimeCounter{}
 	runtime := provideAccountHealthRuntime(nil, nil, cfg, nil, nil, counter, nil, provideAccountRuntimeState())
-	legacy := provideLegacyRateLimitService(nil, nil, cfg, nil, nil, counter, nil, nil, runtime)
+	observer := provideUpstreamHealth(runtime)
 	require.Empty(t, counter.resets)
-	require.Same(t, runtime.Health, legacy.HealthCore())
+	require.Same(t, runtime.Health, observer.Core)
 	require.Same(t, runtime.Recovery, provideAccountRecovery(runtime))
-	require.Same(t, runtime.Recovery, legacy.RecoveryCore())
-	require.Same(t, runtime.Observer, legacy.UpstreamHealth())
-	require.Same(t, runtime.Observer.Limits, legacy.RateLimitObserver())
-	require.Same(t, runtime.Observer.Team, legacy.TeamLinkedHealth())
+	require.Same(t, runtime.Observer, observer)
+	require.Same(t, runtime.Observer.Limits, observer.Limits)
+	require.Same(t, runtime.Observer.Team, observer.Team)
 	require.Same(t, runtime.Health, runtime.Observer.Limits.Health)
 	require.Same(t, runtime.Health, runtime.Observer.Models.Health)
-	legacy.ResetOpenAI403Counter(t.Context(), 7)
+	observer.Core.ResetForbiddenCounter(t.Context(), 7)
 	runtime.Health.ResetForbiddenCounter(t.Context(), 9)
 	require.Equal(t, []int64{7, 9}, counter.resets)
 }

@@ -60,11 +60,11 @@ func (a *anthropicErrorAdapter) ResetBody(body []byte) {
 }
 func (a *anthropicErrorAdapter) Health(ctx context.Context, status int, models []string) forwardcore.ErrorDecision {
 	d := accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(a.account), status)
-	if a.s.rateLimitService != nil {
+	if a.s.healthObserver != nil {
 		if len(models) > 0 {
-			d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.rateLimitService.UpstreamHealth(), a.account, gatewayprovider.HealthObservationFromContext(ctx, status, a.resp.Header, a.body, []string{models[0]}))
+			d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.healthObserver, a.account, gatewayprovider.HealthObservationFromContext(ctx, status, a.resp.Header, a.body, []string{models[0]}))
 		} else {
-			d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.rateLimitService.UpstreamHealth(), a.account, gatewayprovider.HealthObservationFromContext(ctx, status, a.resp.Header, a.body, nil))
+			d = gatewayprovider.ApplyExecutionHealth(ctx, a.s.healthObserver, a.account, gatewayprovider.HealthObservationFromContext(ctx, status, a.resp.Header, a.body, nil))
 		}
 	}
 	return a.decision(d, status)

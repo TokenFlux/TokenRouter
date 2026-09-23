@@ -64,8 +64,9 @@ func newForwardPartialUsageServiceForTest(upstream *anthropicHTTPUpstreamRecorde
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     &RateLimitService{},
-		deferredService:      &accountcore.DeferredService{},
+		healthObserver:       newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+
+		deferredService: &accountcore.DeferredService{},
 	})
 }
 
@@ -261,8 +262,9 @@ func TestGatewayService_Forward_PreOutputSSEOverloadedErrorUsesSemantic529(t *te
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil),
-		deferredService:      &accountcore.DeferredService{},
+		healthObserver:       newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
+
+		deferredService: &accountcore.DeferredService{},
 	})
 	account := newAnthropicOAuthAccountForPartialUsageTest()
 	account.Record.Credentials["temp_unschedulable_enabled"] = true
@@ -302,8 +304,9 @@ func TestGatewayService_Forward_PostOutputSSEOverloadedErrorKeepsExistingStatus(
 		cfg:                  cfg,
 		responseHeaderFilter: compileResponseHeaderFilter(cfg),
 		httpUpstream:         upstream,
-		rateLimitService:     NewRateLimitService(repo, nil, cfg, nil),
-		deferredService:      &accountcore.DeferredService{},
+		healthObserver:       newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
+
+		deferredService: &accountcore.DeferredService{},
 	})
 	result, err := svc.Forward(context.Background(), c, newAnthropicOAuthAccountForPartialUsageTest(), parsed)
 	require.Error(t, err)

@@ -199,14 +199,14 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 		}},
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
-	rateSvc := &RateLimitService{accountRepo: repo}
-	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
+	rateSvc := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{ForbiddenCounter: &openAIWS403CounterCacheStub{counts: []int64{1}}}, nil)
+
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: rateSvc,
-		httpUpstream:     upstream,
-		cache:            &stubGatewayCache{},
-		cfg:              cfg,
+		accountRepo:    repo,
+		healthObserver: rateSvc,
+		httpUpstream:   upstream,
+		cache:          &stubGatewayCache{},
+		cfg:            cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 	}))
@@ -263,14 +263,14 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 		}},
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
-	rateSvc := &RateLimitService{accountRepo: repo}
-	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
+	rateSvc := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{ForbiddenCounter: &openAIWS403CounterCacheStub{counts: []int64{1}}}, nil)
+
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: rateSvc,
-		httpUpstream:     upstream,
-		cache:            &stubGatewayCache{},
-		cfg:              cfg,
+		accountRepo:    repo,
+		healthObserver: rateSvc,
+		httpUpstream:   upstream,
+		cache:          &stubGatewayCache{},
+		cfg:            cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
@@ -335,14 +335,14 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 		}},
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
-	rateSvc := &RateLimitService{accountRepo: repo}
-	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
+	rateSvc := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{ForbiddenCounter: &openAIWS403CounterCacheStub{counts: []int64{1}}}, nil)
+
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: rateSvc,
-		httpUpstream:     upstream,
-		cache:            &stubGatewayCache{},
-		cfg:              cfg,
+		accountRepo:    repo,
+		healthObserver: rateSvc,
+		httpUpstream:   upstream,
+		cache:          &stubGatewayCache{},
+		cfg:            cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 	}))
@@ -397,14 +397,14 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 		}},
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
-	rateSvc := &RateLimitService{accountRepo: repo}
-	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
+	rateSvc := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{ForbiddenCounter: &openAIWS403CounterCacheStub{counts: []int64{1}}}, nil)
+
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: rateSvc,
-		httpUpstream:     upstream,
-		cache:            &stubGatewayCache{},
-		cfg:              cfg,
+		accountRepo:    repo,
+		healthObserver: rateSvc,
+		httpUpstream:   upstream,
+		cache:          &stubGatewayCache{},
+		cfg:            cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
@@ -443,10 +443,11 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake502RecordsModelTransient(t *t
 		Extra:       map[string]any{"responses_websockets_v2_enabled": true}},
 	}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:              cfg,
-		rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, cfg, nil),
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(transientCooldownAccountRepo{}, cfg, nil, accountcore.HealthOptions{}, nil),
+
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 	})
@@ -504,14 +505,14 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 		}},
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
-	rateSvc := &RateLimitService{accountRepo: repo}
-	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
+	rateSvc := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{ForbiddenCounter: &openAIWS403CounterCacheStub{counts: []int64{1}}}, nil)
+
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: rateSvc,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		cfg:              cfg,
+		accountRepo:    repo,
+		healthObserver: rateSvc,
+		httpUpstream:   &httpUpstreamRecorder{},
+		cache:          &stubGatewayCache{},
+		cfg:            cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
@@ -606,14 +607,14 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 		}},
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
-	rateSvc := &RateLimitService{accountRepo: repo}
-	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
+	rateSvc := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{ForbiddenCounter: &openAIWS403CounterCacheStub{counts: []int64{1}}}, nil)
+
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: rateSvc,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		cfg:              cfg,
+		accountRepo:    repo,
+		healthObserver: rateSvc,
+		httpUpstream:   &httpUpstreamRecorder{},
+		cache:          &stubGatewayCache{},
+		cfg:            cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
@@ -709,14 +710,14 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 		}},
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
-	rateSvc := &RateLimitService{accountRepo: repo}
-	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
+	rateSvc := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{ForbiddenCounter: &openAIWS403CounterCacheStub{counts: []int64{1}}}, nil)
+
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: rateSvc,
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
-		cfg:              cfg,
+		accountRepo:    repo,
+		healthObserver: rateSvc,
+		httpUpstream:   &httpUpstreamRecorder{},
+		cache:          &stubGatewayCache{},
+		cfg:            cfg,
 
 		toolCorrector: upstreamopenai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,

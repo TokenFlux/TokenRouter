@@ -1,15 +1,8 @@
 package app
 
-import "github.com/TokenFlux/TokenRouter/internal/service"
+import accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 
-// bindAccountHealthRuntime 只把唯一原生拥有者交给尚未清零的执行端口。
-func bindAccountHealthRuntime(source *service.RateLimitService, health *accountHealthRuntime) {
-	if health == nil {
-		return
-	}
-	source.BindHealth(health.Health)
-	source.BindRecovery(health.Recovery)
-	source.BindRateLimitObserver(health.Observer.Limits)
-	source.BindTeamLinkedHealth(health.Observer.Team)
-	source.BindUpstreamHealth(health.Observer)
+// provideUpstreamHealth 直接发布组合根已构造的唯一观测图，不再回绑旧服务。
+func provideUpstreamHealth(runtime *accountHealthRuntime) *accountprovider.UpstreamHealth {
+	return runtime.Observer
 }

@@ -128,8 +128,11 @@ func (s *GatewayService) forwardBedrock(
 	if s.cfg != nil && s.cfg.Gateway.StreamDataIntervalTimeout > 0 {
 		streamOptions.Interval = time.Duration(s.cfg.Gateway.StreamDataIntervalTimeout) * time.Second
 	}
-	if s.rateLimitService != nil {
-		streamOptions.OnTimeout = func(ctx context.Context, model string) { s.rateLimitService.HandleStreamTimeout(ctx, account, model) }
+	if s.healthObserver != nil {
+		streamOptions.OnTimeout = func(ctx context.Context, model string) {
+			s.healthObserver.Core.HandleStreamTimeout(ctx, gatewayprovider.ExecutionRecord(account), model)
+
+		}
 	}
 	hadHTTPError := false
 	var errorResult *forward.MessagesResult

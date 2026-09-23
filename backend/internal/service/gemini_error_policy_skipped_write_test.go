@@ -17,6 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -44,9 +45,9 @@ func newGeminiSkippedWriteService(status int, body string) (*GeminiMessagesCompa
 		},
 	}
 	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
-		httpUpstream:     httpStub,
-		cfg:              &config.Config{},
-		rateLimitService: NewRateLimitService(&errorPolicyRepoStub{}, nil, &config.Config{}, nil),
+		httpUpstream:   httpStub,
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(&gatewaytestkit.ErrorPolicyStore{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil),
 	})
 	return svc, httpStub
 }

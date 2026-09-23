@@ -140,8 +140,8 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesActualFormulaAndSafeDTO(t *
 		accounts: []gatewayprovider.ExecutionAccount{*target, other},
 		pool:     []gatewayprovider.ExecutionAccount{*target, other},
 	}
-	rateLimitService := NewRateLimitService(nil, nil, nil, nil)
-	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil, rateLimitService))
+
+	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil))
 
 	result, err := diagnostics.GetDetail(context.Background(), target.Record.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{
 		GroupID:         group.ID,
@@ -203,15 +203,16 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesProcessConfigBeforeFallback
 		accounts: []gatewayprovider.ExecutionAccount{*target, other},
 		pool:     []gatewayprovider.ExecutionAccount{*target, other},
 	}
-	rateLimitService := NewRateLimitService(nil, nil, &config.Config{
+	cfg := &config.Config{
 		Gateway: config.GatewayConfig{AdvancedScheduler: config.GatewayAdvancedSchedulerConfig{
 			LBTopK: 1,
 			ScoreWeights: config.GatewayAdvancedSchedulerScoreWeights{
 				Priority: 4,
 			},
 		}},
-	}, nil)
-	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil, rateLimitService))
+	}
+
+	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil), cfg)
 
 	result, err := diagnostics.GetDetail(context.Background(), target.Record.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
 	require.NoError(t, err)
@@ -249,7 +250,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_HardStickyForcesAccountOutsideT
 	source := &advancedSchedulerDiagnosticSourceStub{
 		account: target, group: group, accounts: []gatewayprovider.ExecutionAccount{*target, best}, pool: []gatewayprovider.ExecutionAccount{best, *target},
 	}
-	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil, NewRateLimitService(nil, nil, &config.Config{}, nil)))
+	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil))
 
 	result, err := diagnostics.GetDetail(context.Background(), target.Record.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{
 		GroupID: group.ID, StickyAccountID: target.Record.ID,
@@ -286,7 +287,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_SubscriptionPriorityUsesSubscri
 	source := &advancedSchedulerDiagnosticSourceStub{
 		account: target, group: group, accounts: []gatewayprovider.ExecutionAccount{*target, subscription}, pool: []gatewayprovider.ExecutionAccount{*target, subscription},
 	}
-	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil, NewRateLimitService(nil, nil, &config.Config{}, nil)))
+	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil))
 
 	result, err := diagnostics.GetDetail(context.Background(), target.Record.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
 
@@ -313,7 +314,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_CountsMoreThanOneThousandExclud
 		allAccounts = append(allAccounts, gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: int64(9100 + index), Platform: capability.PlatformGemini, Status: billing.StatusDisabled}})
 	}
 	source := &advancedSchedulerDiagnosticSourceStub{account: target, group: group, accounts: allAccounts, pool: []gatewayprovider.ExecutionAccount{*target}}
-	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil, NewRateLimitService(nil, nil, &config.Config{}, nil)))
+	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil))
 
 	result, err := diagnostics.GetDetail(context.Background(), target.Record.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
 
@@ -345,7 +346,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_StableSortsLargeCandidatePool(t
 	target := &accounts[len(accounts)-1]
 	target.Record.AccountGroups = []accountcore.GroupMembership{{GroupID: group.ID, Group: (*accessview.GroupConfig)(group)}}
 	source := &advancedSchedulerDiagnosticSourceStub{account: target, group: group, accounts: accounts, pool: accounts}
-	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil, NewRateLimitService(nil, nil, &config.Config{}, nil)))
+	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil))
 
 	result, err := diagnostics.GetDetail(context.Background(), target.Record.ID, policy.AdvancedSchedulerScoreDiagnosticRequest{GroupID: group.ID})
 
@@ -365,7 +366,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_LoadUsesEffectiveLoadFactor(t *
 	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(nil, scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 		Event: logging.Event,
 	},
-	), nil))
+	)))
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1101, Concurrency: 2, LoadFactor: advancedSchedulerDiagnosticInt(7)}}
 
 	diagnostics.loadMap(context.Background(), []*gatewayprovider.ExecutionAccount{account})
@@ -381,7 +382,7 @@ func TestAdvancedSchedulerScoreDiagnosticService_FiltersModelRuntimeBlock(t *tes
 			"gemini-3-pro": map[string]any{"rate_limit_reset_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)},
 		}}},
 	}
-	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(nil, nil, nil))
+	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(nil, nil))
 
 	reason := diagnostics.diagnosticHardFilterReason(
 		context.Background(), account, group,
@@ -409,12 +410,12 @@ func TestAdvancedSchedulerScoreDiagnosticService_EscapedStickyUsesRegularWindowC
 	cfg := &config.Config{Gateway: config.GatewayConfig{AdvancedScheduler: config.GatewayAdvancedSchedulerConfig{
 		StickyEscapeEnabled: true, StickyEscapeTTFTMs: 15000, StickyEscapeErrorRate: 0.55,
 	}}}
-	rateLimitService := NewRateLimitService(nil, nil, cfg, nil)
+
 	feedback := scheduler.NewRuntimeStats(time.Now)
 	for range 4 {
 		feedback.Report(target.Record.ID, false, nil)
 	}
-	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil, rateLimitService))
+	diagnostics := withSchedulerParametersForTest(NewAdvancedSchedulerScoreDiagnosticService(source, nil))
 	diagnostics.BindSchedulerRuntime(feedback, scheduler.NewParameters(scheduler.NewSettingsRuntime(scheduler.Diagnostics{}), nil, schedulerParameterDefaultsForTest(cfg)))
 	diagnostics.SetSchedulingServices(withSchedulerParametersForTest(&GatewayService{
 		cfg: cfg, windowCostCache: &sessionLimitCacheHotpathStub{batchData: map[int64]float64{target.Record.ID: 11}},

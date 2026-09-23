@@ -27,27 +27,26 @@ func schedulerParameterDefaultsForTest(cfg *config.Config) scheduler.ParameterDe
 // withSchedulerParametersForTest 显式把原夹具的配置和设置替身交给原生参数实现。
 func withSchedulerParametersForTest[T interface {
 	*GatewayService | *OpenAIGatewayService | *GeminiMessagesCompatService | *AdvancedSchedulerScoreDiagnosticService
-}](value T) T {
+}](value T, configs ...*config.Config) T {
 	var cfg *config.Config
-	var limits *RateLimitService
+
 	var target **scheduler.Parameters
 	switch s := any(value).(type) {
 	case *GatewayService:
-		cfg, limits, target = s.cfg, s.rateLimitService, &s.schedulerParameters
+		cfg, target = s.cfg, &s.schedulerParameters
 	case *OpenAIGatewayService:
-		cfg, limits, target = s.cfg, s.rateLimitService, &s.schedulerParameters
+		cfg, target = s.cfg, &s.schedulerParameters
 	case *GeminiMessagesCompatService:
-		cfg, limits, target = s.cfg, s.rateLimitService, &s.schedulerParameters
+		cfg, target = s.cfg, &s.schedulerParameters
 	case *AdvancedSchedulerScoreDiagnosticService:
-		limits, target = s.rateLimitService, &s.schedulerParameters
-		if limits != nil {
-			cfg = limits.cfg
-		}
+		target = &s.schedulerParameters
 	}
-	var source scheduler.RuntimeSettingSource
-	if limits != nil && limits.settingService != nil {
-		source = limits.settingService.Scheduler
+	if *target != nil {
+		return value
 	}
-	*target = scheduler.NewParameters(scheduler.NewSettingsRuntime(scheduler.Diagnostics{}), source, schedulerParameterDefaultsForTest(cfg))
+	if len(configs) > 0 {
+		cfg = configs[0]
+	}
+	*target = scheduler.NewParameters(scheduler.NewSettingsRuntime(scheduler.Diagnostics{}), nil, schedulerParameterDefaultsForTest(cfg))
 	return value
 }

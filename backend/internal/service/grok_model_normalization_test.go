@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -113,15 +115,15 @@ func TestGrokRuntimeModelKeysUseFinalUpstreamID(t *testing.T) {
 	require.Equal(t, xai.DefaultResponsesModel, gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel("grok"))
 	require.Equal(t, xai.DefaultResponsesModel, gatewayprovider.ExecutionModelPolicy(account).CanonicalSchedulingModel("client-alias"))
 	require.Equal(t, []string{xai.DefaultResponsesModel}, gatewayprovider.ExecutionModelPolicy(account).LimitKeys(context.Background(), "grok"))
-	require.Equal(t, xai.DefaultResponsesModel, modelRateLimitKeyForUpstreamModelNotFound(context.Background(), account, "grok"))
+	require.Equal(t, xai.DefaultResponsesModel, (&accountprovider.ModelHealth{CodexRules: gatewayprovider.CodexModelRules()}).LimitKey(gatewayprovider.ExecutionRecord(account), "grok", nil))
 	// 状态处理接收最终上游模型后不得再次命中 grok-4.5 -> grok-4.3。
-	require.Equal(t, xai.DefaultResponsesModel, modelRateLimitKeyForUpstreamModelNotFound(context.Background(), account, xai.DefaultResponsesModel))
+	require.Equal(t, xai.DefaultResponsesModel, (&accountprovider.ModelHealth{CodexRules: gatewayprovider.CodexModelRules()}).LimitKey(gatewayprovider.ExecutionRecord(account), xai.DefaultResponsesModel, nil))
 }
 
 // TestGrokModelNotFoundWritesFinalUpstreamID 验证 Grok 默认错误链路会写入最终上游模型键。
 func TestGrokModelNotFoundWritesFinalUpstreamID(t *testing.T) {
 	repo := &grokModelStateAccountRepo{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4511,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeAPIKey,
@@ -147,14 +149,14 @@ func TestGrokModelNotFoundWritesFinalUpstreamID(t *testing.T) {
 	require.True(t, decision.StopScheduling)
 	require.Len(t, repo.modelRateLimitCalls, 1)
 	require.Equal(t, xai.DefaultResponsesModel, repo.modelRateLimitCalls[0].scope)
-	require.Equal(t, upstreamModelNotFoundReason, repo.modelRateLimitCalls[0].reason)
+	require.Equal(t, accountcore.ModelNotFoundReason, repo.modelRateLimitCalls[0].reason)
 	require.False(t, svc.isOpenAIAccountRuntimeBlocked(account))
 }
 
 // TestGrokTransientErrorBlocksOnlyFinalModel 验证 API Key 的连续瞬态错误只冷却最终模型。
 func TestGrokTransientErrorBlocksOnlyFinalModel(t *testing.T) {
 	repo := &grokModelStateAccountRepo{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 4512,
 		Platform: capability.PlatformGrok,
 		Type:     capability.AccountTypeAPIKey,

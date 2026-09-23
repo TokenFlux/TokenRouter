@@ -34,15 +34,14 @@ func TestOpenAIGatewayServiceRecordUsageResets403CounterForZeroUsage(t *testing.
 	for _, platform := range []string{capability.PlatformOpenAI, capability.PlatformKimi, capability.PlatformZhipu, capability.PlatformDeepseek} {
 		t.Run(platform, func(t *testing.T) {
 			counter := &openAI403CounterResetStub{}
-			rateLimitSvc := NewRateLimitService(nil, nil, nil, nil)
-			rateLimitSvc.SetOpenAI403CounterCache(counter)
+			rateLimitSvc := newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{ForbiddenCounter: counter}, nil)
 
 			usageRepo := &gatewaytestkit.UsageLogStore{Inserted: true}
 			billingRepo := &gatewaytestkit.SettlementStore{Result: &billing.UsageBillingApplyResult{Applied: true}}
 			userRepo := &gatewaytestkit.UserStore{}
 			subRepo := &gatewaytestkit.SubscriptionStore{}
 			svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo, nil)
-			svc.Dependencies.Health = rateLimitSvc
+			svc.Dependencies.Health = forbiddenResetFixture{rateLimitSvc.Core}
 
 			err := svc.RecordOpenAI(context.Background(), &gatewaycapture.OpenAICapture{
 				Result: &forwardcore.OpenAIResult{
@@ -59,4 +58,11 @@ func TestOpenAIGatewayServiceRecordUsageResets403CounterForZeroUsage(t *testing.
 			require.Equal(t, 1, usageRepo.Calls)
 		})
 	}
+}
+
+// forbiddenResetFixture 只将完成器的窄通知签名绑定到实际账号健康实例。
+type forbiddenResetFixture struct{ core *accountcore.HealthService }
+
+func (f forbiddenResetFixture) ResetOpenAI403Counter(ctx context.Context, id int64) {
+	f.core.ResetForbiddenCounter(ctx, id)
 }

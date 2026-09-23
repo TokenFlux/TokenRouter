@@ -35,8 +35,7 @@ func provideOpenAIGatewayExecution(
 	schedulerSnapshot *scheduler.SnapshotService,
 	concurrencyService *scheduler.ConcurrencyService,
 
-	rateLimitService *service.RateLimitService,
-
+	healthObserver *accountprovider.UpstreamHealth,
 	httpUpstream httpclient.UpstreamTransport,
 	tlsFPProfileService *provider.TLSProfiles,
 	deferredService *accountcore.DeferredService,
@@ -66,7 +65,7 @@ func provideOpenAIGatewayExecution(
 		schedulerSnapshot,
 		concurrencyService,
 
-		rateLimitService,
+		healthObserver,
 
 		httpUpstream,
 		tlsFPProfileService,

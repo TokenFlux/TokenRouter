@@ -895,10 +895,11 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedIsNotSchedulingSuccess(
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:              cfg,
-		rateLimitService: NewRateLimitService(transientCooldownAccountRepo{}, nil, cfg, nil),
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(transientCooldownAccountRepo{}, cfg, nil, accountcore.HealthOptions{}, nil),
+
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,
@@ -944,10 +945,11 @@ func TestOpenAIGatewayService_Forward_WSv2_ResponseFailedCustomStatusFailsOver(t
 	pool.SetClientDialerForTest(&openAIWSCaptureDialer{conn: captureConn})
 	repo := &openAIWSPolicyRepo{}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:              cfg,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
-		httpUpstream:     &httpUpstreamRecorder{},
-		cache:            &stubGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
+
+		httpUpstream: &httpUpstreamRecorder{},
+		cache:        &stubGatewayCache{},
 
 		toolCorrector: openai.NewCodexToolCorrector(),
 		openaiWSPool:  pool,

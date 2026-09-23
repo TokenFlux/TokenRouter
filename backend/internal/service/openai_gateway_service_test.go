@@ -162,13 +162,14 @@ func TestOpenAIGatewayService_ForwardAsAnthropic_CapacityShedReturnsRequestScope
 		},
 	}}
 	repo := &tempUnschedulableOpenAIAccountRepo{}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	healthObserver := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
 		cfg: &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{
 			Enabled: false, AllowInsecureHTTP: true,
 		}}},
-		httpUpstream:     upstream,
-		rateLimitService: rateLimitService,
+		httpUpstream:   upstream,
+		healthObserver: healthObserver,
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5099, Name: "temporary-unschedulable", Platform: capability.PlatformOpenAI,
 		Type: capability.AccountTypeAPIKey, Concurrency: 1,
@@ -216,7 +217,7 @@ func TestOpenAIGatewayService_ForwardAsAnthropic_CapacityShedReturnsRequestScope
 func TestFailoverOpenAIUpstreamHTTPError_NilContextSkipsTempUnschedulablePolicy(t *testing.T) {
 	repo := &tempUnschedulableOpenAIAccountRepo{}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		rateLimitService: NewRateLimitService(repo, nil, &config.Config{}, nil),
+		healthObserver: newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil),
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5099, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey,
 		Credentials: map[string]any{

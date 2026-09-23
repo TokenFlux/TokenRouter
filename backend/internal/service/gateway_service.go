@@ -3,6 +3,7 @@ package service
 import (
 	"log"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	usage "github.com/TokenFlux/TokenRouter/internal/usage"
 
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -423,7 +424,7 @@ type GatewayService struct {
 	schedulerSnapshot *scheduler.SnapshotService
 
 	// 用量计费时钟，测试可注入固定时间以覆盖峰值倍率。
-	rateLimitService *RateLimitService
+	healthObserver *accountprovider.UpstreamHealth
 
 	identityService *claude.RequestFingerprint
 	httpUpstream    httpclient.UpstreamTransport
@@ -462,8 +463,7 @@ func NewGatewayService(
 	schedulerSnapshot *scheduler.SnapshotService,
 	concurrencyService *scheduler.ConcurrencyService,
 
-	rateLimitService *RateLimitService,
-
+	healthObserver *accountprovider.UpstreamHealth,
 	identityService *claude.RequestFingerprint,
 	httpUpstream httpclient.UpstreamTransport, deferredService *accountcore.DeferredService,
 
@@ -490,7 +490,7 @@ func NewGatewayService(
 		schedulerSnapshot:  schedulerSnapshot,
 		concurrencyService: concurrencyService,
 
-		rateLimitService: rateLimitService,
+		healthObserver: healthObserver,
 
 		identityService: identityService,
 		httpUpstream:    httpUpstream,

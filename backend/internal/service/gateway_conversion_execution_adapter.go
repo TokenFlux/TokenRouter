@@ -97,8 +97,8 @@ func (a *conversionExecutionAdapter) ErrorMessage(body []byte) string {
 }
 func (a *conversionExecutionAdapter) Health(ctx context.Context, status int, body []byte, model string) forwardcore.ErrorDecision {
 	decision := accountcore.ErrorDecisionWithoutPersistence(gatewayprovider.ExecutionErrorPolicy(a.account), status)
-	if a.s.rateLimitService != nil {
-		decision = gatewayprovider.ApplyExecutionHealth(ctx, a.s.rateLimitService.UpstreamHealth(), a.account, gatewayprovider.HealthObservationFromContext(ctx, status, a.response.Header, body, []string{model}))
+	if a.s.healthObserver != nil {
+		decision = gatewayprovider.ApplyExecutionHealth(ctx, a.s.healthObserver, a.account, gatewayprovider.HealthObservationFromContext(ctx, status, a.response.Header, body, []string{model}))
 	}
 	return forwardcore.ErrorDecision{
 		Generic:          decision.ShouldReturnGenericError(),

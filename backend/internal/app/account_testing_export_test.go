@@ -16,7 +16,7 @@ var NewS16AccountEvents = newAccountEvents
 
 // 集成测试直接使用原生装配及单向兼容绑定。
 var NewS16AccountHealthRuntime = provideAccountHealthRuntime
-var BindS16AccountHealthRuntime = bindAccountHealthRuntime
+var S16UpstreamHealth = provideUpstreamHealth
 
 // 原生完成装配仅向隔离存储测试开放，不增加生产 API。
 var NewS16CompletionRecorders = ProvideGatewayCompletionRecorders

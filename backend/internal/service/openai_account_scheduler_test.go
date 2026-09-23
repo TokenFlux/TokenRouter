@@ -324,7 +324,7 @@ func (s *advancedSchedulerSettingRepoStub) Delete(context.Context, string) error
 	panic("unexpected call to Delete")
 }
 
-func newAdvancedSchedulerRateLimitService(_ string, values ...string) *RateLimitService {
+func newAdvancedSchedulerParametersForTest(cfg *config.Config, _ string, values ...string) *schedulercore.Parameters {
 
 	repo := &advancedSchedulerSettingRepoStub{
 		values: map[string]string{},
@@ -335,9 +335,8 @@ func newAdvancedSchedulerRateLimitService(_ string, values ...string) *RateLimit
 	if len(values) > 1 && values[1] != "" {
 		repo.values[schedulercore.SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled] = values[1]
 	}
-	return &RateLimitService{
-		settingService: newExecutionReadersFixture(repo, &config.Config{}),
-	}
+	return schedulercore.NewParameters(schedulercore.NewSettingsRuntime(schedulercore.Diagnostics{}), repo, schedulerParameterDefaultsForTest(cfg))
+
 }
 
 func (s *openAISnapshotCacheStub) GetSnapshot(ctx context.Context, bucket schedulercore.SchedulerBucket) ([]*gatewayprovider.ExecutionAccount, bool, error) {
@@ -962,10 +961,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NoAvailableErrorReports
 	}
 	cfg := &config.Config{}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -996,10 +997,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NoAvailableErrorPreserv
 		},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              &config.Config{},
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1055,10 +1058,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NoAvailableErrorAggrega
 		Concurrency: 1},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{quotaPaused, mappingMiss, excluded}},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              &config.Config{},
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{quotaPaused, mappingMiss, excluded}},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1080,10 +1085,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NoAvailableErrorReports
 	groupID := int64(101204)
 	ctx = withAdvancedSchedulerTestGroup(ctx, groupID)
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              &config.Config{},
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1133,10 +1140,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_EnabledUsesAdvancedPrev
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 	cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 3600
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1200,10 +1209,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_StickyWeightedSessionUs
 		cache.sessionBindings["openai:"+fmt.Sprintf("session_hash_weighted_topk_%d", index)] = 37101
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true", "true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true", "true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1274,10 +1285,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_StickyWeightedPreviousR
 	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0.8
 	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0.5
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true", "true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true", "true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1370,10 +1383,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_PreviousResponseCompact
 	cfg.Gateway.AdvancedScheduler.ScoreWeights.ErrorRate = 0.8
 	cfg.Gateway.AdvancedScheduler.ScoreWeights.TTFT = 0.5
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1437,10 +1452,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_Enabled_EmbeddingsSkips
 	cfg := &config.Config{}
 	cfg.Gateway.Scheduling.LoadBatchEnabled = false
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1508,10 +1525,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_Enabled_EmbeddingsSkips
 		},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -1669,10 +1688,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyRateLimite
 	snapshotCache := &openAISnapshotCacheStub{snapshotAccounts: []*gatewayprovider.ExecutionAccount{staleSticky, staleBackup}, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{31001: freshSticky, 31002: freshBackup}}
 	snapshotService := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{*freshSticky, *freshBackup}},
-		cache:             cache,
-		cfg:               &config.Config{},
-		rateLimitService:  newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{*freshSticky, *freshBackup}},
+		cache:          cache,
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		schedulerSnapshot: snapshotService,
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
@@ -1964,9 +1985,11 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_SkipsFreshlyRa
 	snapshotCache := &openAISnapshotCacheStub{snapshotAccounts: []*gatewayprovider.ExecutionAccount{stalePrimary, staleSecondary}, accountsByID: map[int64]*gatewayprovider.ExecutionAccount{32001: freshPrimary, 32002: freshSecondary}}
 	snapshotService := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{*freshPrimary, *freshSecondary}},
-		cfg:               &config.Config{},
-		rateLimitService:  newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{*freshPrimary, *freshSecondary}},
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		schedulerSnapshot: snapshotService,
 	}))
 
@@ -2032,10 +2055,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyDBRuntimeR
 	}
 	snapshotService := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{dbSticky, dbBackup}},
-		cache:             cache,
-		cfg:               &config.Config{},
-		rateLimitService:  newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{dbSticky, dbBackup}},
+		cache:          cache,
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		schedulerSnapshot: snapshotService,
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
@@ -2065,9 +2090,11 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_DBRuntimeReche
 	}
 	snapshotService := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{dbPrimary, dbSecondary}},
-		cfg:               &config.Config{},
-		rateLimitService:  newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{dbPrimary, dbSecondary}},
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		schedulerSnapshot: snapshotService,
 	}))
 
@@ -2199,10 +2226,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_PreviousResponseSticky(
 	cfg.Gateway.OpenAIWS.StickyResponseIDTTLSeconds = 3600
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2251,10 +2280,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionSticky(t *testin
 	}
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
-		cache:            cache,
-		cfg:              &config.Config{},
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
+		cache:          cache,
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2335,10 +2366,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyBusyKeepsS
 	}
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2395,10 +2428,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeByTT
 	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.5
 	concurrencyCache := schedulerTestConcurrencyCache{acquireResults: map[int64]bool{21102: true}}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2453,10 +2488,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeByEr
 	cfg.Gateway.AdvancedScheduler.StickyEscapeTTFTMs = 15000
 	cfg.Gateway.AdvancedScheduler.StickyEscapeErrorRate = 0.7
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{21202: true}}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2515,10 +2552,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyBusyEscape
 		},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2558,10 +2597,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeDisa
 		waitCounts:     map[int64]int{21401: 999},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2615,10 +2656,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SubscriptionPriorityCho
 	}
 	cfg := newSchedulerTestSubscriptionPriorityConfig()
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true", "", "true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true", "", "true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2670,10 +2713,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SubscriptionPriorityFal
 		},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              newSchedulerTestSubscriptionPriorityConfig(),
-		rateLimitService: newAdvancedSchedulerRateLimitService("true", "", "true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            newSchedulerTestSubscriptionPriorityConfig(),
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(newSchedulerTestSubscriptionPriorityConfig(),
+			"true", "", "true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2724,10 +2769,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SubscriptionPriorityDis
 		},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              newSchedulerTestSubscriptionPriorityConfig(),
-		rateLimitService: newAdvancedSchedulerRateLimitService("true", "", "false"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            newSchedulerTestSubscriptionPriorityConfig(),
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(newSchedulerTestSubscriptionPriorityConfig(),
+			"true", "", "false"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2780,10 +2827,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesAccountPriorityWith
 	cfg.Gateway.AdvancedScheduler.ScoreWeights.Load = 0
 	cfg.Gateway.AdvancedScheduler.ScoreWeights.Queue = 0
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2887,10 +2936,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionSticky_ForceHTTP
 	}
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
-		cache:            cache,
-		cfg:              &config.Config{},
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
+		cache:          cache,
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -2959,10 +3010,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_RequiredWSV2_SkipsStick
 	}
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3020,10 +3073,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_ClearsStickyAccountOuts
 	}
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
-		cache:            cache,
-		cfg:              &config.Config{},
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
+		cache:          cache,
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3065,10 +3120,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_RequiredWSV2_NoAvailabl
 	}
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              newSchedulerTestOpenAIWSV2Config(),
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            newSchedulerTestOpenAIWSV2Config(),
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(newSchedulerTestOpenAIWSV2Config(),
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3141,10 +3198,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadBalanceTopKFallback
 	}
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3218,10 +3277,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadBalanceTopKExcludes
 	}
 
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3266,10 +3327,12 @@ func TestOpenAIGatewayService_OpenAIAccountSchedulerMetrics(t *testing.T) {
 		},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
-		cache:            cache,
-		cfg:              &config.Config{},
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}},
+		cache:          cache,
+		cfg:            &config.Config{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(&config.Config{},
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(schedulerTestConcurrencyCache{}, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3341,10 +3404,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_LoadBalanceDistributesA
 		},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{sessionBindings: map[string]int64{}},
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{sessionBindings: map[string]int64{}},
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3534,10 +3599,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_StickyWeightedDoesNotFa
 		acquireResults: map[int64]bool{38001: false, 38002: true},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
-		cache:            cache,
-		cfg:              cfg,
-		rateLimitService: newAdvancedSchedulerRateLimitService("true", "true"),
+		accountRepo:    schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
+		cache:          cache,
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(cfg,
+			"true", "true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3599,10 +3666,12 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SubscriptionPriorityWai
 		acquireResults: map[int64]bool{38011: false, 38012: true},
 	}
 	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:            &schedulerTestGatewayCache{},
-		cfg:              newSchedulerTestSubscriptionPriorityConfig(),
-		rateLimitService: newAdvancedSchedulerRateLimitService("true", "", "true"),
+		accountRepo:    schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:          &schedulerTestGatewayCache{},
+		cfg:            newSchedulerTestSubscriptionPriorityConfig(),
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
+		schedulerParameters: newAdvancedSchedulerParametersForTest(newSchedulerTestSubscriptionPriorityConfig(),
+			"true", "", "true"),
 		concurrencyService: schedulercore.NewConcurrencyService(concurrencyCache, schedulercore.Diagnostics{
 			Logf:  logging.LegacyPrintf,
 			Event: logging.Event},
@@ -3692,7 +3761,8 @@ func TestOpenAIGatewayService_MessagesRoutingModelUsesFullMappingChain(t *testin
 				),
 			}))
 			if advancedScheduler {
-				svc.rateLimitService = newAdvancedSchedulerRateLimitService("true")
+				svc.healthObserver = newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil)
+				svc.schedulerParameters = newAdvancedSchedulerParametersForTest(svc.cfg, "true")
 			}
 
 			selection, _, err := svc.SelectAccountWithSchedulerForCapabilityAndRoutingModel(

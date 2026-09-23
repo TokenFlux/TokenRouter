@@ -114,11 +114,12 @@ func TestProxyResponsesWebSocketFromClient_RewritesCapacityShedCodeForClient(t *
 			}
 			repo := &openAIWSIngressCapacityShedRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []gatewayprovider.ExecutionAccount{account}}}
 			svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-				accountRepo:      repo,
-				rateLimitService: &RateLimitService{accountRepo: repo},
-				httpUpstream:     &httpUpstreamRecorder{},
-				cache:            &stubGatewayCache{},
-				cfg:              cfg,
+				accountRepo:    repo,
+				healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil),
+
+				httpUpstream: &httpUpstreamRecorder{},
+				cache:        &stubGatewayCache{},
+				cfg:          cfg,
 
 				toolCorrector: openai.NewCodexToolCorrector(),
 				openaiWSPool:  pool,

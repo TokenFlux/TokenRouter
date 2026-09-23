@@ -12,6 +12,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -168,10 +169,10 @@ func TestCheckErrorPolicy_GeminiAccounts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := &errorPolicyRepoStub{}
-			svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+			repo := &gatewaytestkit.ErrorPolicyStore{}
+			svc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
 
-			result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(tt.account), gatewayprovider.HealthObservationFromContext(context.Background(), tt.statusCode, nil, tt.body, nil))
+			result := svc.CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(tt.account), gatewayprovider.HealthObservationFromContext(context.Background(), tt.statusCode, nil, tt.body, nil))
 			require.Equal(t, tt.expected, result)
 		})
 	}
@@ -277,10 +278,11 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &geminiErrorPolicyRepo{}
-			rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+			rlSvc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 			svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
-				accountRepo:      repo,
-				rateLimitService: rlSvc,
+				accountRepo:    repo,
+				healthObserver: rlSvc,
 			})
 
 			writer := httptest.NewRecorder()
@@ -298,8 +300,8 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 			account := tt.account
 			headers := http.Header{}
 
-			if svc.rateLimitService != nil {
-				policy := svc.rateLimitService.UpstreamHealth().CheckErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, statusCode, nil, respBody, []string{"gemini-2.5-pro"}))
+			if svc.healthObserver != nil {
+				policy := svc.healthObserver.CheckErrorPolicy(ctx, gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(ctx, statusCode, nil, respBody, []string{"gemini-2.5-pro"}))
 				switch policy {
 				case accountcore.ErrorPolicyCustomSkipped:
 					// Skipped → return error directly (no handleGeminiUpstreamError, no failover)
@@ -349,10 +351,10 @@ func TestGeminiErrorPolicyIntegration(t *testing.T) {
 
 func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
 	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
-		rateLimitService: nil,
+		healthObserver: nil,
 	})
 
-	// When rateLimitService is nil, error policy is skipped → falls through to
+	// When healthObserver is nil, error policy is skipped → falls through to
 	// shouldFailoverGeminiUpstreamError (original logic).
 	// Verify this doesn't panic and follows expected behavior.
 
@@ -367,15 +369,15 @@ func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
 	}
 
 	// The nil check should prevent CheckErrorPolicy from being called
-	if svc.rateLimitService != nil {
-		t.Fatal("rateLimitService should be nil for this test")
+	if svc.healthObserver != nil {
+		t.Fatal("healthObserver should be nil for this test")
 	}
 
 	// shouldFailoverGeminiUpstreamError still works
 	require.True(t, svc.shouldFailoverGeminiUpstreamError(429))
 	require.False(t, svc.shouldFailoverGeminiUpstreamError(400))
 
-	// handleGeminiUpstreamError should not panic with nil rateLimitService
+	// handleGeminiUpstreamError should not panic with nil healthObserver
 	require.NotPanics(t, func() {
 		svc.handleGeminiUpstreamError(ctx, account, 500, http.Header{}, []byte(`error`))
 	})
@@ -389,11 +391,12 @@ func TestGeminiErrorPolicy_NilRateLimitService(t *testing.T) {
 func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t *testing.T) {
 	repo := &rateLimit429AccountRepoStub{}
 	quotaSvc := accountcore.NewGeminiQuotaService(accountcore.GeminiQuotaOptions{})
-	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	rlSvc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
-		quotaPrecheck:    accountcore.NewGeminiPrecheck(quotaSvc, nil, accountcore.GeminiPrecheckOptions{Now: time.Now, Location: geminiQuotaLocation()}),
-		accountRepo:      repo,
-		rateLimitService: rlSvc,
+		quotaPrecheck:  accountcore.NewGeminiPrecheck(quotaSvc, nil, accountcore.GeminiPrecheckOptions{Now: time.Now, Location: geminiQuotaLocation()}),
+		accountRepo:    repo,
+		healthObserver: rlSvc,
 	})
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 511,
@@ -420,11 +423,12 @@ func TestHandleGeminiUpstreamError_GoogleOneCapacityExhaustedUsesTierCooldown(t 
 func TestHandleGeminiUpstreamError_ThirdPartyAPIKeyIgnoresOfficialQuotaMessage(t *testing.T) {
 	repo := &rateLimit429AccountRepoStub{}
 	quotaSvc := accountcore.NewGeminiQuotaService(accountcore.GeminiQuotaOptions{})
-	rlSvc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	rlSvc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{
-		quotaPrecheck:    accountcore.NewGeminiPrecheck(quotaSvc, nil, accountcore.GeminiPrecheckOptions{Now: time.Now, Location: geminiQuotaLocation()}),
-		accountRepo:      repo,
-		rateLimitService: rlSvc,
+		quotaPrecheck:  accountcore.NewGeminiPrecheck(quotaSvc, nil, accountcore.GeminiPrecheckOptions{Now: time.Now, Location: geminiQuotaLocation()}),
+		accountRepo:    repo,
+		healthObserver: rlSvc,
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 512,
 		Platform: capability.PlatformGemini,
@@ -449,8 +453,9 @@ func TestHandleGeminiUpstreamError_ThirdPartyAPIKeyIgnoresOfficialQuotaMessage(t
 // 也不会继续执行 Gemini 默认 429 限流写入。
 func TestGeminiPoolMode429BypassesLocalRateLimit(t *testing.T) {
 	repo := &geminiErrorPolicyRepo{}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{accountRepo: repo, rateLimitService: rateLimitService})
+	healthObserver := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{accountRepo: repo, healthObserver: healthObserver})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 520,
 		Type:     capability.AccountTypeAPIKey,
 		Platform: capability.PlatformGemini,
@@ -527,8 +532,9 @@ func TestHandleGeminiUpstreamError_PoolMode429SkipsAccountLimit(t *testing.T) {
 // 管理员显式策略并写入账号错误。
 func TestGeminiCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 	repo := &geminiErrorPolicyRepo{}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{accountRepo: repo, rateLimitService: rateLimitService})
+	healthObserver := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
+	svc := withSchedulerParametersForTest(&GeminiMessagesCompatService{accountRepo: repo, healthObserver: healthObserver})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 521,
 		Type:     capability.AccountTypeAPIKey,
 		Platform: capability.PlatformGemini,

@@ -58,14 +58,12 @@ func (s *OpenAIGatewayService) applyGrokForbiddenPolicy(ctx context.Context, acc
 
 	match := matches[0]
 	// 存储库可用时复用中心策略实现，以保持既有原因和缓存格式并避免重复写入。
-	if s != nil && s.rateLimitService != nil && s.rateLimitService.accountRepo != nil {
+	if s != nil && s.healthObserver != nil &&
+		s.healthObserver.Limits.Plans !=
+			nil {
 		stateCtx, cancel := openAIAccountStateContext(ctx)
-		handled := s.rateLimitService.tryTempUnschedulable(
-			stateCtx,
-			account,
-			http.StatusForbidden,
-			responseBody,
-		)
+		handled := gatewayprovider.TryExecutionTemporaryFailure(stateCtx, s.healthObserver, account, http.StatusForbidden, responseBody)
+
 		cancel()
 		if handled {
 			return true

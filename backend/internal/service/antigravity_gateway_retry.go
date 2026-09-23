@@ -109,8 +109,8 @@ func (s *AntigravityGatewayService) handleUpstreamError(ctx context.Context, pre
 		if s.accountRepo != nil {
 			observer.SetRateLimited = s.accountRepo.SetRateLimited
 		}
-		if s.rateLimitService != nil {
-			observer.Other = s.rateLimitService.UpstreamHealth()
+		if s.healthObserver != nil {
+			observer.Other = s.healthObserver
 		}
 	}
 	input := accountprovider.AntigravityErrorInput{Context: ctx, Account: view, Prefix: prefix, Status: status, Headers: headers, Body: body, RequestedModel: model, Thinking: requeststate.HealthThinking(ctx), OtherObservation: gatewayprovider.HealthObservationFromContext(ctx, status, headers, body, nil), Sticky: sticky}

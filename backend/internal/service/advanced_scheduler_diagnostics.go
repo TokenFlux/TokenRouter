@@ -59,9 +59,9 @@ type AdvancedSchedulerScoreDiagnosticService struct {
 	schedulerParameters *schedulercore.Parameters
 	source              AdvancedSchedulerScoreDiagnosticSource
 	concurrencyService  *schedulercore.ConcurrencyService
-	rateLimitService    *RateLimitService
-	gatewayService      *GatewayService
-	openAIGateway       *OpenAIGatewayService
+
+	gatewayService *GatewayService
+	openAIGateway  *OpenAIGatewayService
 }
 
 // SetSchedulingServices 注入生产调度服务，供诊断复用只读硬过滤逻辑。
@@ -77,12 +77,11 @@ func (s *AdvancedSchedulerScoreDiagnosticService) SetSchedulingServices(gateway 
 func NewAdvancedSchedulerScoreDiagnosticService(
 	source AdvancedSchedulerScoreDiagnosticSource,
 	concurrencyService *schedulercore.ConcurrencyService,
-	rateLimitService *RateLimitService,
+
 ) *AdvancedSchedulerScoreDiagnosticService {
 	return &AdvancedSchedulerScoreDiagnosticService{
 		source:             source,
 		concurrencyService: concurrencyService,
-		rateLimitService:   rateLimitService,
 	}
 }
 

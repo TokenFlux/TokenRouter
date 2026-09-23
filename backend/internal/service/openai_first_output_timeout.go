@@ -54,8 +54,9 @@ func (s *OpenAIGatewayService) newOpenAIFirstOutputTimeoutError(
 		Kind: "first_output_timeout", Message: "OpenAI upstream produced no semantic output before the deadline",
 		Detail: fmt.Sprintf("phase=%s elapsed_ms=%d timeout_ms=%d", phase, elapsed.Milliseconds(), timeout.Milliseconds()),
 	})
-	if s.rateLimitService != nil {
-		s.rateLimitService.HandleStreamTimeout(ctx, account, originalModel)
+	if s.healthObserver != nil {
+		s.healthObserver.Core.HandleStreamTimeout(ctx, gatewayprovider.ExecutionRecord(account), originalModel)
+
 	}
 	return &forwardcore.UpstreamFailoverError{
 		StatusCode:      http.StatusGatewayTimeout,

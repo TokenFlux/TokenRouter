@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -25,9 +26,10 @@ import (
 // TestGatewayFailoverSideEffects_BedrockUsesMappedModel 验证 Bedrock 显式临时规则
 // 使用实际上游模型，并禁止池模式同账号重试。
 func TestGatewayFailoverSideEffects_BedrockUsesMappedModel(t *testing.T) {
-	repo := &errorPolicyRepoStub{}
-	rateLimitService := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	svc := withSchedulerParametersForTest(&GatewayService{rateLimitService: rateLimitService})
+	repo := &gatewaytestkit.ErrorPolicyStore{}
+	healthObserver := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
+	svc := withSchedulerParametersForTest(&GatewayService{healthObserver: healthObserver})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 20503,
 		Type:     capability.AccountTypeBedrock,
 		Platform: capability.PlatformAnthropic,
@@ -54,9 +56,9 @@ func TestGatewayFailoverSideEffects_BedrockUsesMappedModel(t *testing.T) {
 	require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, decision.Policy)
 	require.True(t, decision.StopScheduling)
 	require.False(t, decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), http.StatusServiceUnavailable))
-	require.Len(t, repo.modelRateLimitCalls, 1)
-	require.Equal(t, "anthropic.claude-mapped", repo.modelRateLimitCalls[0].scope)
-	require.Zero(t, repo.tempCalls)
+	require.Len(t, repo.ModelRateLimitCalls, 1)
+	require.Equal(t, "anthropic.claude-mapped", repo.ModelRateLimitCalls[0].Scope)
+	require.Zero(t, repo.TempCalls)
 }
 
 // ---------------------------------------------------------------------------
@@ -66,14 +68,6 @@ func TestGatewayFailoverSideEffects_BedrockUsesMappedModel(t *testing.T) {
 // ---------------------------------------------------------------------------
 // errorPolicyRepoStub — minimal AccountRepository stub for error policy tests
 // ---------------------------------------------------------------------------
-
-type errorPolicyRepoStub struct {
-	mockAccountRepoForGemini
-	tempCalls           int
-	setErrCalls         int
-	lastErrorMsg        string
-	modelRateLimitCalls []modelNotFoundRateLimitCall
-}
 
 // retryExhaustedCooldownRepoStub 记录同账号重试耗尽后的本地冷却写入。
 type retryExhaustedCooldownRepoStub struct {
@@ -119,24 +113,4 @@ func TestTempUnscheduleRetryableError_PoolModeSkipsLegacyCooldown(t *testing.T) 
 		RetryableOnSameAccount: true,
 	})
 	require.Equal(t, 1, repo.tempCalls)
-}
-
-func (r *errorPolicyRepoStub) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
-	r.tempCalls++
-	return nil
-}
-
-func (r *errorPolicyRepoStub) SetError(ctx context.Context, id int64, errorMsg string) error {
-	r.setErrCalls++
-	r.lastErrorMsg = errorMsg
-	return nil
-}
-
-func (r *errorPolicyRepoStub) SetModelRateLimit(_ context.Context, id int64, scope string, resetAt time.Time, reason ...string) error {
-	call := modelNotFoundRateLimitCall{accountID: id, scope: scope, resetAt: resetAt}
-	if len(reason) > 0 {
-		call.reason = reason[0]
-	}
-	r.modelRateLimitCalls = append(r.modelRateLimitCalls, call)
-	return nil
 }

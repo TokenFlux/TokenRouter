@@ -16,7 +16,8 @@ import (
 
 func TestOpenAIWSTerminalEvent_ResponseFailedRecordsModelTransient(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5201, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	payload := []byte(`{"type":"response.failed","response":{"error":{"code":"server_error","message":"Internal error"}}}`)
 
@@ -34,7 +35,8 @@ func TestOpenAIWSTerminalEvent_ResponseFailedRecordsModelTransient(t *testing.T)
 func TestOpenAIWSTerminalFailureReturnsExplicitPolicyDecision(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
-	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5206,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
@@ -61,7 +63,8 @@ func TestOpenAIWSTerminalFailureReturnsExplicitPolicyDecision(t *testing.T) {
 func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
-	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5207,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
@@ -86,7 +89,8 @@ func TestOpenAIWSTerminalContentPolicyBypassesAccountPolicy(t *testing.T) {
 
 func TestOpenAIWSErrorEvent_ServerErrorRecordsModelTransient(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5203, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	payload := []byte(`{"type":"error","error":{"code":"server_error","type":"server_error","message":"Internal error"}}`)
 
@@ -110,7 +114,8 @@ func TestOpenAIWSErrorPolicyStatus_PreservesExplicitStatusAndFallbackMapping(t *
 
 func TestOpenAIWSDial5xxRecordsModelTransient(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5202, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	dialErr := &openai.WSDialError{
 		StatusCode:      http.StatusBadGateway,
@@ -131,7 +136,8 @@ func TestOpenAIWSDial5xxRecordsModelTransient(t *testing.T) {
 // 池模式统一决策，不再写入默认模型瞬态冷却。
 func TestOpenAIWSPoolModeErrorUsesConfiguredRetry(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
-	svc.rateLimitService = NewRateLimitService(transientCooldownAccountRepo{}, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(transientCooldownAccountRepo{}, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5204,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
@@ -166,7 +172,8 @@ func (r *openAIWSPolicyRepo) SetError(context.Context, int64, string) error {
 func TestOpenAIWSCustomNonFailoverStatusStopsScheduling(t *testing.T) {
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 	repo := &openAIWSPolicyRepo{}
-	svc.rateLimitService = NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc.healthObserver = newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 5205,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,

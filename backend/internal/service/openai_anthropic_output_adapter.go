@@ -49,15 +49,16 @@ func (s *OpenAIGatewayService) nativeAnthropicDirectOptions(c *gin.Context, acco
 	return forward.NativeAnthropicOptions{
 		AccountID: account.Record.ID,
 		UpdateWindow: func(ctx context.Context, h http.Header) {
-			if s.rateLimitService != nil {
-				s.rateLimitService.UpdateSessionWindow(ctx, account, h)
+			if s.healthObserver != nil {
+				gatewayprovider.ObserveExecutionSessionWindow(ctx, s.healthObserver, account, h)
+
 			}
 		},
 		ReadBody: func(r io.Reader) ([]byte, error) {
 			return httpapi.ReadUpstreamResponseBody(r, resolveUpstreamResponseReadLimit(s.cfg), c, httpapi.AnthropicResponseTooLarge)
 		},
 		InvalidJSON: func(ctx context.Context, r *http.Response, body []byte, err error, model string) error {
-			return invalidNonStreamingJSONFailoverError(ctx, s.rateLimitService, r, account, body, err, model)
+			return invalidNonStreamingJSONFailoverError(ctx, s.healthObserver, r, account, body, err, model)
 		},
 		ForceCache: requeststate.IsForceCacheBilling, ClassifyCache: anthropic.ClassifyResponseInputAsCacheRead,
 		CopyHeaders:  func(dst, src http.Header) { httpapi.WriteAnthropicPassthroughHeaders(dst, src, s.responseHeaderFilter) },
@@ -78,8 +79,9 @@ func (s *OpenAIGatewayService) nativeAnthropicDirectOptions(c *gin.Context, acco
 		ExtractData: anthropic.ExtractSSEDataLine, IsTerminal: anthropic.StreamEventIsTerminal,
 		Log: func(format string, args ...any) { logging.LegacyPrintf("service.gateway", format, args...) },
 		HandleTimeout: func(ctx context.Context, model string) {
-			if s.rateLimitService != nil {
-				s.rateLimitService.HandleStreamTimeout(ctx, account, model)
+			if s.healthObserver != nil {
+				s.healthObserver.Core.HandleStreamTimeout(ctx, gatewayprovider.ExecutionRecord(account), model)
+
 			}
 		},
 	}

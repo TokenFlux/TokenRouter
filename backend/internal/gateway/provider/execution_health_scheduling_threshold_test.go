@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"context"
@@ -12,18 +12,21 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	settingstestkit "github.com/TokenFlux/TokenRouter/internal/settings/testkit"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(t *testing.T) {
 
-	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
+	settingsRepo := settingstestkit.NewMemory()
+	settingsRepo.Data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
-	accountRepo := &rateLimitAccountRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
-	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
+	accountRepo := &gatewaytestkit.HealthStoreRecorder{}
+	rl := newUpstreamHealthForTest(accountRepo, &config.Config{}, nil, accountcore.HealthOptions{},
+
+		newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1001,
@@ -36,16 +39,16 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(
 		}},
 	}
 
-	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
+	blocked := gatewayprovider.ApplyExecutionSchedulingThreshold(context.Background(), rl, account)
 
 	require.True(t, blocked)
-	require.Equal(t, 1, accountRepo.tempCalls)
+	require.Equal(t, 1, accountRepo.TempCalls)
 	require.NotNil(t, account.Record.TempUnschedulableUntil)
 	require.WithinDuration(t, until, *account.Record.TempUnschedulableUntil, time.Second)
-	require.True(t, accountcore.IsAccountSchedulingThresholdReason(accountRepo.lastTempReason))
+	require.True(t, accountcore.IsAccountSchedulingThresholdReason(accountRepo.LastTempReason))
 
 	var payload map[string]any
-	require.NoError(t, json.Unmarshal([]byte(accountRepo.lastTempReason), &payload))
+	require.NoError(t, json.Unmarshal([]byte(accountRepo.LastTempReason), &payload))
 	require.Equal(t, capability.PlatformOpenAI, payload["platform"])
 	require.Equal(t, "7d", payload["window"])
 	require.Equal(t, float64(80), payload["threshold_percent"])
@@ -55,12 +58,13 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SetsTempUnschedulable(
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInReason(t *testing.T) {
 
-	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
+	settingsRepo := settingstestkit.NewMemory()
+	settingsRepo.Data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":90}`
 
-	accountRepo := &rateLimitAccountRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
-	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
+	accountRepo := &gatewaytestkit.HealthStoreRecorder{}
+	rl := newUpstreamHealthForTest(accountRepo, &config.Config{}, nil, accountcore.HealthOptions{},
+
+		newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1003,
@@ -76,20 +80,21 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_UsesAccountOverrideInR
 		}},
 	}
 
-	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
+	blocked := gatewayprovider.ApplyExecutionSchedulingThreshold(context.Background(), rl, account)
 
 	require.True(t, blocked)
-	require.Equal(t, 1, accountRepo.tempCalls)
+	require.Equal(t, 1, accountRepo.TempCalls)
 
 	var payload map[string]any
-	require.NoError(t, json.Unmarshal([]byte(accountRepo.lastTempReason), &payload))
+	require.NoError(t, json.Unmarshal([]byte(accountRepo.LastTempReason), &payload))
 	require.Equal(t, float64(80), payload["threshold_percent"])
 	require.Equal(t, float64(85.5), payload["used_percent"])
 	require.Contains(t, payload["error_message"], "85.5% used >= 80%")
 }
 
 type fableSchedulingThresholdRepoStub struct {
-	rateLimitAccountRepoStub
+	gatewaytestkit.HealthStoreRecorder
+
 	modelCalls      int
 	lastModelScope  string
 	lastModelReset  time.Time
@@ -108,12 +113,13 @@ func (r *fableSchedulingThresholdRepoStub) SetModelRateLimit(_ context.Context, 
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableModels(t *testing.T) {
 
-	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"anthropic":100}`
+	settingsRepo := settingstestkit.NewMemory()
+	settingsRepo.Data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"anthropic":100}`
 
 	accountRepo := &fableSchedulingThresholdRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
-	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
+	rl := newUpstreamHealthForTest(accountRepo, &config.Config{}, nil, accountcore.HealthOptions{},
+
+		newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(4 * 24 * time.Hour).Truncate(time.Second)
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 1004,
@@ -131,10 +137,10 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableMo
 		}},
 	}
 
-	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
+	blocked := gatewayprovider.ApplyExecutionSchedulingThreshold(context.Background(), rl, account)
 
 	require.False(t, blocked, "the Fable-only window must not pause the whole account")
-	require.Zero(t, accountRepo.tempCalls)
+	require.Zero(t, accountRepo.TempCalls)
 	require.Equal(t, 1, accountRepo.modelCalls)
 	require.Equal(t, accountcore.AnthropicFableRateLimitKey, accountRepo.lastModelScope)
 	require.WithinDuration(t, until, accountRepo.lastModelReset, time.Second)
@@ -144,19 +150,21 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_FableOnlyLimitsFableMo
 	require.True(t, gatewayprovider.ExecutionModelPolicy(account).Schedulable(context.Background(), "claude-opus-4-8"))
 	require.True(t, gatewayprovider.ExecutionModelPolicy(account).Schedulable(context.Background(), "claude-sonnet-4-6"))
 
-	blocked = rl.ApplyAccountSchedulingThreshold(context.Background(), account)
+	blocked = gatewayprovider.ApplyExecutionSchedulingThreshold(context.Background(), rl, account)
+
 	require.False(t, blocked)
 	require.Equal(t, 1, accountRepo.modelCalls, "an active model limit should not be persisted twice")
 }
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnschedulable(t *testing.T) {
 
-	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
+	settingsRepo := settingstestkit.NewMemory()
+	settingsRepo.Data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
-	accountRepo := &rateLimitAccountRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
-	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
+	accountRepo := &gatewaytestkit.HealthStoreRecorder{}
+	rl := newUpstreamHealthForTest(accountRepo, &config.Config{}, nil, accountcore.HealthOptions{},
+
+		newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	until := time.Now().UTC().Add(6 * time.Hour).Truncate(time.Second)
 	existingReason := accountcore.BuildDetailedAccountSchedulingThresholdReason(accountcore.AccountSchedulingThresholdReasonInput{
@@ -179,10 +187,10 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 		}},
 	}
 
-	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
+	blocked := gatewayprovider.ApplyExecutionSchedulingThreshold(context.Background(), rl, account)
 
 	require.True(t, blocked)
-	require.Equal(t, 0, accountRepo.tempCalls)
+	require.Equal(t, 0, accountRepo.TempCalls)
 	require.Equal(t, existingReason, account.Record.TempUnschedulableReason)
 	require.NotNil(t, account.Record.TempUnschedulableUntil)
 	require.True(t, until.Equal(*account.Record.TempUnschedulableUntil))
@@ -190,12 +198,13 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_SkipsDuplicateTempUnsc
 
 func TestRateLimitService_ApplyAccountSchedulingThreshold_UnsupportedPlatformDoesNotBlock(t *testing.T) {
 
-	settingsRepo := newMockSettingRepo()
-	settingsRepo.data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
+	settingsRepo := settingstestkit.NewMemory()
+	settingsRepo.Data[accountcore.SettingKeyAccountSchedulingThresholds] = `{"openai":80}`
 
-	accountRepo := &rateLimitAccountRepoStub{}
-	rl := NewRateLimitService(accountRepo, nil, &config.Config{}, nil)
-	rl.SetSettingService(newExecutionReadersFixture(settingsRepo, &config.Config{}))
+	accountRepo := &gatewaytestkit.HealthStoreRecorder{}
+	rl := newUpstreamHealthForTest(accountRepo, &config.Config{}, nil, accountcore.HealthOptions{},
+
+		newExecutionReadersFixture(settingsRepo, &config.Config{}))
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2002,
 		Platform:    "kiro",
@@ -210,10 +219,10 @@ func TestRateLimitService_ApplyAccountSchedulingThreshold_UnsupportedPlatformDoe
 		}},
 	}
 
-	blocked := rl.ApplyAccountSchedulingThreshold(context.Background(), account)
+	blocked := gatewayprovider.ApplyExecutionSchedulingThreshold(context.Background(), rl, account)
 
 	require.False(t, blocked)
-	require.Equal(t, 0, accountRepo.tempCalls)
+	require.Equal(t, 0, accountRepo.TempCalls)
 	require.Nil(t, account.Record.TempUnschedulableUntil)
 	require.Empty(t, account.Record.TempUnschedulableReason)
 }

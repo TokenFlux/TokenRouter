@@ -1825,7 +1825,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 
 			accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 			upstream := &openAIHTTPPassthroughAuthFailoverUpstream{statusCode: tt.statusCode}
-			rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil)
+			rateLimitSvc := newAppHealthObserverFixture(accountRepo, cfg)
 			billingCacheSvc := newBillingEligibilityFixture(cfg)
 			billingCacheSvc.Start()
 			t.Cleanup(billingCacheSvc.Stop)
@@ -1850,7 +1850,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 				nil,
 				nil, responseHeaderFilterForTest(cfg), nil,
 			)
-			gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput6, billingCacheSvc, completionInput7, nil, rateLimitSvc, true))
+			gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput6, billingCacheSvc, completionInput7, nil, completionHealth{rateLimitSvc.Core}, true))
 
 			h := newGatewayHTTPEndpointsFromDeps(
 				gatewaySvc, scheduler.NewConcurrencyService(nil, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
@@ -2065,7 +2065,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	cfg.Gateway.MaxAccountSwitches = 3
 
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
-	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil)
+	rateLimitSvc := newAppHealthObserverFixture(accountRepo, cfg)
 	billingCacheSvc := newBillingEligibilityFixture(cfg)
 	billingCacheSvc.Start()
 	completionInput10 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
@@ -2089,7 +2089,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		nil,
 		nil, responseHeaderFilterForTest(cfg), nil,
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput10, billingCacheSvc, completionInput11, nil, rateLimitSvc, true))
+	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput10, billingCacheSvc, completionInput11, nil, completionHealth{rateLimitSvc.Core}, true))
 
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn: func(ctx context.Context, userID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -2272,7 +2272,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	cfg.Gateway.MaxAccountSwitches = 3
 
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
-	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil)
+	rateLimitSvc := newAppHealthObserverFixture(accountRepo, cfg)
 	billingCacheSvc := newBillingEligibilityFixture(cfg)
 	billingCacheSvc.Start()
 	completionInput12 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
@@ -2282,7 +2282,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 		nil, nil, completionInput13, newOpenAIExecutionCredentialsForTest(accountRepo,
 			nil), nil, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil,
 	)
-	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput12, billingCacheSvc, completionInput13, nil, rateLimitSvc, true))
+	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput12, billingCacheSvc, completionInput13, nil, completionHealth{rateLimitSvc.Core}, true))
 
 	cache := &httptestkit.ConcurrencyHooks{
 		AcquireUserSlotFn: func(context.Context, int64, int, string) (bool, error) { return true, nil },

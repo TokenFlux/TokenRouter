@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
@@ -279,7 +280,7 @@ type OpenAIGatewayService struct {
 	concurrencyService *scheduler.ConcurrencyService
 
 	// 用量计费时钟，测试可注入固定时间以覆盖峰值倍率。
-	rateLimitService *RateLimitService
+	healthObserver *accountprovider.UpstreamHealth
 
 	completionRecorder   *completion.Recorder
 	httpUpstream         httpclient.UpstreamTransport
@@ -346,8 +347,7 @@ func NewOpenAIGatewayService(
 	schedulerSnapshot *scheduler.SnapshotService,
 	concurrencyService *scheduler.ConcurrencyService,
 
-	rateLimitService *RateLimitService,
-
+	healthObserver *accountprovider.UpstreamHealth,
 	httpUpstream httpclient.UpstreamTransport,
 	tlsFPProfileService *provider.TLSProfiles,
 	deferredService *accountcore.DeferredService,
@@ -376,7 +376,7 @@ func NewOpenAIGatewayService(
 		schedulerSnapshot:  schedulerSnapshot,
 		concurrencyService: concurrencyService,
 
-		rateLimitService: rateLimitService,
+		healthObserver: healthObserver,
 
 		httpUpstream:         httpUpstream,
 		tlsFPProfileService:  tlsFPProfileService,
@@ -396,9 +396,6 @@ func NewOpenAIGatewayService(
 		responseHeaderFilter:  headerFilter,
 		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
 		openaiModelTransient:  accountcore.NewModelTransientState(0),
-	}
-	if rateLimitService != nil {
-		rateLimitService.SetAccountRuntimeBlocker(svc)
 	}
 
 	svc.logOpenAIWSModeBootstrap()

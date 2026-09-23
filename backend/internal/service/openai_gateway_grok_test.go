@@ -3043,13 +3043,21 @@ func newGrokPoolPolicyGateway(account *gatewayprovider.ExecutionAccount) (*OpenA
 		grokQuotaAccountRepo: &grokQuotaAccountRepo{mockAccountRepoForPlatform: baseRepo},
 	}
 	cfg := &config.Config{}
-	rateLimitService := NewRateLimitService(repo, nil, cfg, nil)
-	svc := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:      repo,
-		rateLimitService: rateLimitService,
-		cfg:              cfg,
+	var svc *OpenAIGatewayService
+
+	healthObserver := newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{Block: func(v *accountcore.Record, until time.Time, reason string) {
+		svc.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(v), until, reason)
+	}}, nil)
+
+	svc = withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
+		accountRepo:    repo,
+		healthObserver: healthObserver,
+		cfg:            cfg,
 	}))
-	rateLimitService.SetAccountRuntimeBlocker(svc)
+	healthObserver.Limits.RetryOpenAI = func(v *accountcore.Record, h http.Header, body []byte) bool {
+		return svc.ShouldRetryOpenAIOAuth429(gatewayprovider.NewExecutionAccount(v), h, body)
+	}
+
 	return svc, repo
 }
 
@@ -3863,7 +3871,8 @@ func TestOpenAIWSHTTPBridgeSSEErrorSideEffectsRunOncePerPlatform(t *testing.T) {
 				httpUpstream: upstream,
 			}))
 			if platform == capability.PlatformOpenAI {
-				svc.rateLimitService = NewRateLimitService(repo, nil, cfg, nil)
+				svc.healthObserver = newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil)
+
 			}
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 70, Platform: platform, Type: capability.AccountTypeOAuth, Concurrency: 1}}
 			recorder := httptest.NewRecorder()

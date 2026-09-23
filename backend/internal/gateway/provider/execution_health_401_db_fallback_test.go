@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -18,9 +19,9 @@ import (
 // dbFallbackRepoStub extends errorPolicyRepoStub with a configurable DB account
 // returned by GetByID, simulating cache miss + DB fallback.
 type dbFallbackRepoStub struct {
-	errorPolicyRepoStub
-	dbAccount *gatewayprovider. // returned by GetByID when non-nil
-			ExecutionAccount
+	gatewaytestkit.ErrorPolicyStore
+
+	dbAccount *gatewayprovider.ExecutionAccount // 非空时由 GetByID 返回。
 }
 
 func (r *dbFallbackRepoStub) GetByID(ctx context.Context, id int64) (*gatewayprovider.ExecutionAccount, error) {
@@ -41,7 +42,7 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 				TempUnschedulableReason: `{"status_code":401,"until_unix":1735689600}`},
 			},
 		}
-		svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+		svc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
 
 		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 20,
 			Type:                    capability.AccountTypeOAuth,
@@ -59,7 +60,7 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 			}},
 		}
 
-		result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
+		result := svc.CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
 		require.Equal(t, accountcore.ErrorPolicyNone, result, "gemini 401 with DB fallback showing previous 401 should escalate")
 	})
 
@@ -69,7 +70,7 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 				TempUnschedulableReason: `{"status_code":401,"until_unix":1735689600}`},
 			},
 		}
-		svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+		svc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
 
 		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 20,
 			Type:                    capability.AccountTypeOAuth,
@@ -87,7 +88,7 @@ func TestCheckErrorPolicy_401_DBFallback_Escalates(t *testing.T) {
 			}},
 		}
 
-		result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
+		result := svc.CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
 		require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "antigravity 401 skips escalation, stays temp-unscheduled")
 	})
 }
@@ -100,7 +101,7 @@ func TestCheckErrorPolicy_401_DBFallback_NoDBRecord_FirstHit(t *testing.T) {
 			TempUnschedulableReason: ""}, // DB also empty
 		},
 	}
-	svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 21,
 		Type:                    capability.AccountTypeOAuth,
@@ -118,7 +119,7 @@ func TestCheckErrorPolicy_401_DBFallback_NoDBRecord_FirstHit(t *testing.T) {
 		}},
 	}
 
-	result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
+	result := svc.CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
 	require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "401 first hit with no DB record should temp-unschedule")
 }
 
@@ -128,7 +129,7 @@ func TestCheckErrorPolicy_401_DBFallback_DBError_FirstHit(t *testing.T) {
 	repo := &dbFallbackRepoStub{
 		dbAccount: nil, // GetByID returns nil, nil
 	}
-	svc := NewRateLimitService(repo, nil, &config.Config{}, nil)
+	svc := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
 
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 22,
 		Type:                    capability.AccountTypeOAuth,
@@ -146,6 +147,6 @@ func TestCheckErrorPolicy_401_DBFallback_DBError_FirstHit(t *testing.T) {
 		}},
 	}
 
-	result := svc.UpstreamHealth().CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
+	result := svc.CheckErrorPolicy(context.Background(), gatewayprovider.ExecutionRecord(account), gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusUnauthorized, nil, []byte(`unauthorized`), nil))
 	require.Equal(t, accountcore.ErrorPolicyTempUnscheduled, result, "401 first hit with DB not found should temp-unschedule")
 }

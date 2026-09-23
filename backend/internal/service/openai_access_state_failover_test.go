@@ -123,7 +123,7 @@ func TestOpenAIHTTPAccessStateDoesNotTrustBadRequestMessage(t *testing.T) {
 
 func TestOpenAIHTTPAccessStateBadRequestDoesNotDisableAccount(t *testing.T) {
 	repo := &openAIStream403AccountRepo{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 925, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true}}
 	body := []byte(`{"error":{"code":"unknown_parameter","message":"Unknown parameter: account disabled"}}`)
 
@@ -136,7 +136,7 @@ func TestOpenAIHTTPAccessStateBadRequestDoesNotDisableAccount(t *testing.T) {
 
 func TestOpenAIStreamEchoedAccessStateMessageDoesNotDisableOrFailover(t *testing.T) {
 	repo := &openAIStream403AccountRepo{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 926, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true}}
 	payload := []byte(`{"type":"response.failed","response":{"error":{"type":"invalid_request_error","code":"unknown_parameter","message":"Unknown parameter: account disabled"}}}`)
 	message := openai.ExtractOpenAISSEErrorMessage(payload)
@@ -152,7 +152,7 @@ func TestOpenAIStreamEchoedAccessStateMessageDoesNotDisableOrFailover(t *testing
 
 func TestOpenAIHTTPAccessStateTrustsStructuredCode(t *testing.T) {
 	repo := &openAIStream403AccountRepo{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 930, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true}}
 	body := []byte(`{"error":{"code":"organization_deactivated","message":"request rejected"}}`)
 
@@ -166,8 +166,9 @@ func TestOpenAIHTTPAccessStateTrustsStructuredCode(t *testing.T) {
 func TestOpenAIHTTPAuthMessagesUseExistingStatusPolicies(t *testing.T) {
 	t.Run("oauth 401 remains recoverable", func(t *testing.T) {
 		repo := &openAIAuthPolicyAccountRepo{}
-		rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil)
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: rateLimits})
+		rateLimits := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil)
+
+		svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: rateLimits})
 		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 931, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true,
 			Credentials: map[string]any{"refresh_token": "refreshable"}}}
 		body := []byte(`{"error":{"message":"account is disabled"}}`)
@@ -181,10 +182,17 @@ func TestOpenAIHTTPAuthMessagesUseExistingStatusPolicies(t *testing.T) {
 	t.Run("403 uses counter cooldown", func(t *testing.T) {
 		repo := &openAIAuthPolicyAccountRepo{}
 		counter := &openAIAuthPolicy403Counter{counts: []int64{1}}
-		rateLimits := NewRateLimitService(repo, nil, &config.Config{}, nil)
-		rateLimits.openAI403CounterCache = counter
-		svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: rateLimits})
-		rateLimits.SetAccountRuntimeBlocker(svc)
+		var svc *OpenAIGatewayService
+
+		rateLimits := newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{ForbiddenCounter: counter, Block: func(v *accountcore.Record, until time.Time, reason string) {
+			svc.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(v), until, reason)
+		}}, nil)
+
+		svc = withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: rateLimits})
+		rateLimits.Limits.RetryOpenAI = func(v *accountcore.Record, h http.Header, body []byte) bool {
+			return svc.ShouldRetryOpenAIOAuth429(gatewayprovider.NewExecutionAccount(v), h, body)
+		}
+
 		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 932, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth, Status: billing.StatusActive, Schedulable: true}}
 		body := []byte(`{"error":{"message":"workspace has been suspended"}}`)
 
@@ -284,8 +292,9 @@ func TestOpenAIStream403FailoverRequiresStructuredAccountCredentialSignal(t *tes
 
 func TestOpenAIStream403PostOutputAccountSideEffectsIgnoreRequestPermissionErrors(t *testing.T) {
 	repo := &openAIStream403AccountRepo{}
-	rateLimits := &RateLimitService{accountRepo: repo}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: rateLimits})
+	rateLimits := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)
+
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: rateLimits})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 918, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	payload := []byte(`{"type":"error","error":{"type":"permission_error","code":"forbidden","status_code":403,"message":"access denied for this request"}}`)
 
@@ -299,8 +308,9 @@ func TestOpenAIStream403PostOutputAccountSideEffectsIgnoreRequestPermissionError
 
 func TestOpenAIStream403ExplicitCredentialAuthAppliesAccountSideEffects(t *testing.T) {
 	repo := &openAIStream403AccountRepo{}
-	rateLimits := &RateLimitService{accountRepo: repo}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: rateLimits})
+	rateLimits := newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)
+
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: rateLimits})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 917, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	payload := []byte(`{"type":"error","error":{"type":"permission_error","code":"invalid_api_key","status_code":403,"message":"credential rejected"}}`)
 
@@ -314,7 +324,7 @@ func TestOpenAIStream403ExplicitCredentialAuthAppliesAccountSideEffects(t *testi
 
 func TestOpenAIWSStandaloneFailedStructured403AppliesAccountSideEffectsOnce(t *testing.T) {
 	repo := &openAIStream403AccountRepo{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 923, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	failed := []byte(`{"type":"response.failed","response":{"error":{"type":"permission_error","code":"invalid_api_key","status_code":403,"message":"credential rejected"}}}`)
 
@@ -325,7 +335,7 @@ func TestOpenAIWSStandaloneFailedStructured403AppliesAccountSideEffectsOnce(t *t
 
 func TestOpenAIWSPairedStructured403SideEffectsCanBeDeduplicated(t *testing.T) {
 	repo := &openAIStream403AccountRepo{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{rateLimitService: &RateLimitService{accountRepo: repo}})
+	svc := withSchedulerParametersForTest(&OpenAIGatewayService{healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil)})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 924, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 	errorEvent := []byte(`{"type":"error","error":{"code":"workspace_suspended","status_code":403,"message":"workspace is suspended"}}`)
 	failedEvent := []byte(`{"type":"response.failed","response":{"error":{"code":"workspace_suspended","status_code":403,"message":"workspace is suspended"}}}`)
@@ -360,9 +370,9 @@ func TestOpenAIStreamPairedFailureAppliesAccountSideEffectsOnce(t *testing.T) {
 
 		repo := &openAIStream403AccountRepo{}
 		svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-			cfg:              &config.Config{},
-			toolCorrector:    openai.NewCodexToolCorrector(),
-			rateLimitService: &RateLimitService{accountRepo: repo},
+			cfg:            &config.Config{},
+			toolCorrector:  openai.NewCodexToolCorrector(),
+			healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil),
 		})
 		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 921, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 		recorder := newOpenAIResponseFlushRecorder()
@@ -385,8 +395,8 @@ func TestOpenAIStreamPairedFailureAppliesAccountSideEffectsOnce(t *testing.T) {
 
 		repo := &openAIStream403AccountRepo{}
 		svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-			cfg:              &config.Config{},
-			rateLimitService: &RateLimitService{accountRepo: repo},
+			cfg:            &config.Config{},
+			healthObserver: newUpstreamHealthForTest(repo, nil, nil, accountcore.HealthOptions{}, nil),
 		})
 		account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 922, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeOAuth}}
 		recorder := httptest.NewRecorder()

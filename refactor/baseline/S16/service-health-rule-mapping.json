@@ -1,0 +1,81 @@
+{
+  "removed": [
+    "s16-internal-service-ratelimit-service-go",
+    "s16-internal-service-ratelimit-service-scheduling-threshold-test-go",
+    "s16-internal-service-ratelimit-service-401-test-go"
+  ],
+  "files": [
+    {
+      "path": "internal/app/account_health_fixture_test.go",
+      "role": "app-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health.go",
+      "role": "gateway-provider"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_401_db_fallback_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_401_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_403_html_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_403_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_anthropic_window_limit_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_fixture_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_model_not_found_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_openai_team_linked_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_health_scheduling_threshold_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/provider/execution_session_window_empty_observation_test.go",
+      "role": "gateway-provider-tests"
+    },
+    {
+      "path": "internal/gateway/testkit/health.go",
+      "role": "gateway-testkit"
+    },
+    {
+      "path": "internal/gateway/testkit/health_store_base.go",
+      "role": "gateway-testkit"
+    },
+    {
+      "path": "internal/gateway/testkit/health_stores.go",
+      "role": "gateway-testkit"
+    },
+    {
+      "path": "internal/gateway/testkit/model_health.go",
+      "role": "gateway-testkit"
+    },
+    {
+      "path": "internal/service/health_observer_fixture_test.go",
+      "role": "service-no-repository"
+    },
+    {
+      "path": "internal/settings/testkit/health_stores.go",
+      "role": "settings-testkit"
+    }
+  ]
+}

@@ -25,7 +25,7 @@ func newStreamingResponseTestGatewayService() *GatewayService {
 				MaxLineSize:               defaultMaxLineSize,
 			},
 		},
-		rateLimitService: &RateLimitService{},
+		healthObserver: newUpstreamHealthForTest(nil, nil, nil, accountcore.HealthOptions{}, nil),
 	})
 }
 

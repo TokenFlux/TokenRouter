@@ -121,8 +121,9 @@ func (s *OpenAIGatewayService) nativeResponseStreamOptions(ctx context.Context, 
 		CountSearch: grok.CountGrokNativeSearchCallsInSSEDataDedup,
 
 		StreamTimeout: func(model string) {
-			if s.rateLimitService != nil {
-				s.rateLimitService.HandleStreamTimeout(ctx, account, model)
+			if s.healthObserver != nil {
+				s.healthObserver.Core.HandleStreamTimeout(ctx, gatewayprovider.ExecutionRecord(account), model)
+
 			}
 		},
 

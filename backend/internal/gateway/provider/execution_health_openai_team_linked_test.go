@@ -1,6 +1,6 @@
 //go:build unit
 
-package service
+package provider_test
 
 import (
 	"context"
@@ -9,9 +9,11 @@ import (
 	time "time"
 
 	"github.com/TokenFlux/TokenRouter/internal/account"
+	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/stretchr/testify/require"
 )
@@ -19,7 +21,7 @@ import (
 const teamLinkedDeactivatedBody = `{"detail":{"code":"deactivated_workspace","message":"This workspace has been deactivated."}}`
 
 type teamLinkedAccountRepoStub struct {
-	mockAccountRepoForGemini
+	gatewaytestkit.HealthStoreBase
 	teamAccounts []gatewayprovider.ExecutionAccount
 	listErr      error
 	listCalls    int
@@ -88,10 +90,14 @@ func newTeamLinkedFixture() []gatewayprovider.ExecutionAccount {
 	}
 }
 
-func newTeamLinkedTestService(repo *teamLinkedAccountRepoStub) (*RateLimitService, *runtimeBlockRecorder) {
-	rl := NewRateLimitService(repo, nil, &config.Config{}, nil)
-	blocker := &runtimeBlockRecorder{}
-	rl.SetAccountRuntimeBlocker(blocker)
+func newTeamLinkedTestService(repo *teamLinkedAccountRepoStub) (*accountprovider.UpstreamHealth,
+	*gatewaytestkit.RuntimeBlockRecorder) {
+
+	blocker := &gatewaytestkit.RuntimeBlockRecorder{}
+	rl := newUpstreamHealthForTest(repo, &config.Config{}, nil, account.HealthOptions{Block: func(v *account.Record, until time.Time, reason string) {
+		blocker.BlockAccountScheduling(gatewayprovider.NewExecutionAccount(v), until, reason)
+	}}, nil)
+
 	return rl, blocker
 }
 
@@ -100,7 +106,7 @@ func TestTeamLinkedError_FanoutMarksSameTeamAccounts(t *testing.T) {
 	rl, blocker := newTeamLinkedTestService(repo)
 	trigger := newTeamLinkedAccount(1, "team-A")
 
-	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil)).StopScheduling
+	shouldDisable := gatewayprovider.ApplyExecutionHealth(context.Background(), rl, &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil)).StopScheduling
 
 	require.True(t, shouldDisable)
 	// fan-out 先标记同队兄弟（#2、#6），触发账户 #1 随后由常规 case 402 标记
@@ -110,10 +116,10 @@ func TestTeamLinkedError_FanoutMarksSameTeamAccounts(t *testing.T) {
 	require.Contains(t, repo.setErrorMsgs[1], "Workspace deactivated (402)")
 	require.NotContains(t, repo.setErrorMsgs[1], "team-linked")
 	// 熔断顺序：兄弟账户先于落库全部进程内熔断，触发账户走 auth_error
-	require.Equal(t, []string{account.OpenAITeamLinkedErrorBlockReason, account.OpenAITeamLinkedErrorBlockReason, "auth_error"}, blocker.reasons)
-	require.Equal(t, int64(2), blocker.accounts[0].Record.ID)
-	require.Equal(t, int64(6), blocker.accounts[1].Record.ID)
-	require.Equal(t, int64(1), blocker.accounts[2].Record.ID)
+	require.Equal(t, []string{account.OpenAITeamLinkedErrorBlockReason, account.OpenAITeamLinkedErrorBlockReason, "auth_error"}, blocker.Reasons)
+	require.Equal(t, int64(2), blocker.Accounts[0].Record.ID)
+	require.Equal(t, int64(6), blocker.Accounts[1].Record.ID)
+	require.Equal(t, int64(1), blocker.Accounts[2].Record.ID)
 }
 
 func TestTeamLinkedError_GenericPaymentErrorDoesNotFanout(t *testing.T) {
@@ -121,7 +127,7 @@ func TestTeamLinkedError_GenericPaymentErrorDoesNotFanout(t *testing.T) {
 	rl, _ := newTeamLinkedTestService(repo)
 	trigger := newTeamLinkedAccount(1, "team-A")
 
-	gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(`{"error":{"message":"insufficient balance"}}`), nil))
+	gatewayprovider.ApplyExecutionHealth(context.Background(), rl, &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(`{"error":{"message":"insufficient balance"}}`), nil))
 
 	require.Equal(t, []int64{1}, repo.setErrorIDs)
 	require.Contains(t, repo.setErrorMsgs[1], "Payment required (402)")
@@ -134,8 +140,8 @@ func TestTeamLinkedError_DedupWithinTTL(t *testing.T) {
 	first := newTeamLinkedAccount(1, "team-A")
 	second := newTeamLinkedAccount(2, "team-A")
 
-	gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &first, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
-	gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &second, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
+	gatewayprovider.ApplyExecutionHealth(context.Background(), rl, &first, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
+	gatewayprovider.ApplyExecutionHealth(context.Background(), rl, &second, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
 
 	// 第二次触发被去重：只有 #2 自身经 case 402 标记，未再次 fan-out
 	require.Equal(t, []int64{2, 6, 1, 2}, repo.setErrorIDs)
@@ -148,7 +154,7 @@ func TestTeamLinkedError_APIKeyTriggerDoesNotFanout(t *testing.T) {
 	trigger := newTeamLinkedAccount(4, "team-A")
 	trigger.Record.Type = capability.AccountTypeAPIKey
 
-	gatewayprovider.ApplyExecutionHealth(context.Background(), rl.UpstreamHealth(), &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
+	gatewayprovider.ApplyExecutionHealth(context.Background(), rl, &trigger, gatewayprovider.HealthObservationFromContext(context.Background(), http.StatusPaymentRequired, http.Header{}, []byte(teamLinkedDeactivatedBody), nil))
 
 	require.Equal(t, []int64{4}, repo.setErrorIDs)
 	require.Zero(t, repo.listCalls)

@@ -281,7 +281,8 @@ func TestForwardAsChatCompletions_ResponseFailedCustomErrorMissReturnsGeneric500
 			Body:       io.NopCloser(strings.NewReader("data: " + failed + "\n\n")),
 		}},
 	})
-	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil)
+	svc.healthObserver = newUpstreamHealthForTest(repo, svc.cfg, nil, accountcore.HealthOptions{}, nil)
+
 	account := forcedResponsesChatTestAccount()
 	account.Record.Credentials["custom_error_codes_enabled"] = true
 	account.Record.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
@@ -316,7 +317,8 @@ func TestForwardAsChatCompletions_ResponseFailedCustomNonDefaultStatusFailsOver(
 			Body:       io.NopCloser(strings.NewReader("data: " + failed + "\n\n")),
 		}},
 	})
-	svc.rateLimitService = NewRateLimitService(repo, nil, svc.cfg, nil)
+	svc.healthObserver = newUpstreamHealthForTest(repo, svc.cfg, nil, accountcore.HealthOptions{}, nil)
+
 	account := forcedResponsesChatTestAccount()
 	account.Record.Credentials["custom_error_codes_enabled"] = true
 	account.Record.Credentials["custom_error_codes"] = []any{float64(http.StatusUnprocessableEntity)}
@@ -348,9 +350,10 @@ func TestOpenAIResponsesStreaming_ResponseFailedCustomStatusFailsOver(t *testing
 	repo := &openAIWSPolicyRepo{}
 	cfg := rawChatCompletionsTestConfig()
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:              cfg,
-		rateLimitService: NewRateLimitService(repo, nil, cfg, nil),
-		toolCorrector:    openai.NewCodexToolCorrector(),
+		cfg:            cfg,
+		healthObserver: newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
+
+		toolCorrector: openai.NewCodexToolCorrector(),
 	})
 	account := rawChatCompletionsTestAccount()
 	account.Record.Credentials["custom_error_codes_enabled"] = true
