@@ -32,7 +32,7 @@ type openAIHTTPWSForwardAdapter struct {
 
 func (p *openAIHTTPWSForwardAdapter) Execute(ctx context.Context, body map[string]any, attempt int, lastReason string, agentRecovered *bool) (*gatewayws.ForwardResult, error) {
 	result, err := p.s.forwardOpenAIWSV2(ctx, p.c, p.account, body, p.clientPromptCacheKey, p.token, p.decision, p.isCodexCLI, p.stream, p.originalModel, p.upstreamModel, p.startedAt, attempt, lastReason, p.tls, agentRecovered)
-	return wsForwardResult(result), err
+	return gatewayprovider.ProjectWSResult(result), err
 }
 func (p *openAIHTTPWSForwardAdapter) OutputCommitted() bool {
 	return p.c != nil && p.c.Writer != nil && p.c.Writer.Written()

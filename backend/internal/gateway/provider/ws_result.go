@@ -1,14 +1,16 @@
-package service
+package provider
 
 import (
 	"net/http"
+
+	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayws "github.com/TokenFlux/TokenRouter/internal/gateway/ws"
 )
 
-// wsForwardResult 显式投影结果，不用不透明旧对象跨越核心边界。
-func wsForwardResult(r *forwardcore.OpenAIResult) *gatewayws.ForwardResult {
+// ProjectWSResult 显式投影本次 WS turn 的已观测结果与恢复输入。
+func ProjectWSResult(r *forwardcore.OpenAIResult) *gatewayws.ForwardResult {
 	if r == nil {
 		return nil
 	}
@@ -47,7 +49,7 @@ func wsForwardResult(r *forwardcore.OpenAIResult) *gatewayws.ForwardResult {
 		SearchCount:                 r.SearchCount,
 		AudioUsage:                  r.AudioUsage,
 		WSReplayInput:               replay, WSReplayInputExists: replayExists, WSAccountFailoverReplayInput: r.WSAccountFailoverReplayInput(),
-		ResponseTurnState: http.Header(r.ResponseHeaders).Get(openAIWSTurnStateHeader),
+		ResponseTurnState: http.Header(r.ResponseHeaders).Get(openai.WSTurnStateHeader),
 	}
 	if r.UpstreamWarning != nil {
 		out.UpstreamWarning = &forwardcore.UpstreamWarning{StatusCode: r.UpstreamWarning.StatusCode, ResponseBody: r.UpstreamWarning.ResponseBody, Message: r.UpstreamWarning.Message}
@@ -55,8 +57,8 @@ func wsForwardResult(r *forwardcore.OpenAIResult) *gatewayws.ForwardResult {
 	return out
 }
 
-// legacyWSForwardResult 保留完成 hooks 所需旧形状，规则不在此执行。
-func legacyWSForwardResult(r *gatewayws.ForwardResult) *forwardcore.OpenAIResult {
+// ForwardResultFromWS 为完成与健康端口保留原 HTTP 结果形状，不执行计算规则。
+func ForwardResultFromWS(r *gatewayws.ForwardResult) *forwardcore.OpenAIResult {
 	if r == nil {
 		return nil
 	}
@@ -100,14 +102,4 @@ func legacyWSForwardResult(r *gatewayws.ForwardResult) *forwardcore.OpenAIResult
 		out.UpstreamWarning = &forwardcore.UpstreamWarning{StatusCode: r.UpstreamWarning.StatusCode, ResponseBody: r.UpstreamWarning.ResponseBody, Message: r.UpstreamWarning.Message}
 	}
 	return out
-}
-
-// ProjectWSForwardResult 供原生 HTTP 入站适配逐字段接收旧执行入口的 turn 结果。
-func ProjectWSForwardResult(result *forwardcore.OpenAIResult) *gatewayws.ForwardResult {
-	return wsForwardResult(result)
-}
-
-// LegacyWSForwardResult 只供尚未清理的完成/健康入口使用，不承载计算规则。
-func LegacyWSForwardResult(result *gatewayws.ForwardResult) *forwardcore.OpenAIResult {
-	return legacyWSForwardResult(result)
 }

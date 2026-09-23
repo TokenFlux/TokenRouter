@@ -16,7 +16,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
@@ -167,8 +166,6 @@ func (h *OpenAIGatewayHandler) recoverResponsesPanic(c *gin.Context, streamStart
 
 const cyberPolicyRecordedKey = gatewayhttp.CyberPolicyRecordedKey
 
-const cyberSessionBlockedClientMsg = moderationflow.SessionBlockedClientMessage
-
 type cyberSessionBlockFormat int
 
 const (
@@ -185,10 +182,6 @@ func (h *OpenAIGatewayHandler) enqueueCyberSessionBlockedOpsEntry(c *gin.Context
 	h.NewCyberHTTPHandler().EnqueueBlocked(c, apikey.CopyAPIKey(apiKey), model, sessionBlockKey)
 }
 
-func clearCyberPolicyTurnState(c *gin.Context) {
-	gatewayhttp.ClearCyberTurnState(c, gatewayhttp.ClearOpsCyberPolicy)
-}
-
 // openAICompactKeepaliveInterval 复用流式 keepalive 配置作为 compact 下游
 // 心跳间隔；0 表示禁用（与流式路径语义一致）。
 func (h *OpenAIGatewayHandler) openAICompactKeepaliveInterval() time.Duration {
@@ -202,19 +195,8 @@ func setOpenAIClientTransportHTTP(c *gin.Context) {
 	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
 }
 
-func setOpenAIClientTransportWS(c *gin.Context) {
-	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportWS)
-}
-
 func openAIWSNextAttemptMessage(current, retryPayload []byte, retryCurrentTurn bool) ([]byte, bool) {
 	return gatewayws.EntryNextAttemptMessage(current, retryPayload, retryCurrentTurn)
-}
-
-func findBlockedCyberSessionKey(ctx context.Context, source *service.OpenAIGatewayService, id int64, c *gin.Context, body []byte) string {
-	if source == nil {
-		return ""
-	}
-	return gatewayhttp.FindBlockedCyberSession(ctx, source.CyberBlocks(), id, c, body)
 }
 
 // handleGroupSelectionBusinessError 只绑定原 Key 读取与平台展示目录。

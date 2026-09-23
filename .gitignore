@@ -182,3 +182,6 @@ refactor/baseline/S16/*
 
 # S16 OpenAI 单次尝试运行时检查点索引。
 !refactor/baseline/S16/progress-20260923-openai-attempt-manifest.json
+
+# S16 WS 入站与每轮适配检查点索引。
+!refactor/baseline/S16/progress-20260923-ws-entry-manifest.json

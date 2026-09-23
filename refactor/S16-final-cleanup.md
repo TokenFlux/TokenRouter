@@ -1714,3 +1714,12 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 正在执行这两批的合并完整验证；全项完成后在此追加真实结果，再提交进度。S16 仍为实施中、16/17，WS/媒体和旧平台执行适配及最终验收尚未清零。
 
 - 合并全仓检查最终普通/unit/integration 分别为 11,994 / 20,028 / 12,997 条通过，既有跳过 4/8/4，三套完整 lint 均为零。删除旧委托后再次构建并补跑定向 race 903 条通过，跳过 0 项；完整命令与实际事件见 `progress-20260923-openai-attempt-verification.json`。本批按授权提交进度，不更新为 S16 完成。
+
+
+### WS 入站、每轮目标与完成投影整批迁移（2026-09-23）
+
+- WS 升级 backend、EntryPorts、账号执行目标、每 turn hooks 与日志适配进入 `gateway/httpapi/wsentry`。app 直接构造 WS Handler，文本与 WS 共用 Wire 唯一的 openaiattempt.Bindings/Support、并发资源、完成器与 Cyber；旧 Handler 不再参与 WS 生产装配。单次供应商交换及配置默认值的剩余旧端口仍逐文件登记，未把整个旧平台图搬进新模块。
+- HTTP/WS 原结果投影归 gateway/provider，四个旧结果函数及原文件删除。保留所有已观测字段、Header、turn-state、replay、nil、终态和完成时刻；原始 Key 读取、动态 Fast 策略、连接/turn 租约、先后次序和双向 relay 不变。旧入站构造仅委托，三处无消费者辅助函数及一个旧常量清零。
+- 编译、Wire 与构建通过；定向普通 644 条、unit race 818 条通过，各有一项既有 WS 跳过。请求投影副本/延迟刷新和真实组合根的升级、依赖、关闭拒绝合同同批执行；并发拥有者补充 unit race 10 条，真实 Redis 连接租约及会话归属 integration race 10 条通过，无失败或跳过。
+- 三套完整 lint 最终为零；初次仅报退役常量 unused，删除后补验，未增加忽略。12 类边界夹具在三套标签下 36/36 通过，夹具已删除；Wire 再生成稳定，生产只构造一份共享绑定。SQL/Ent、冻结正文/资料及其他任务内容未变，文档同步实际结构。
+- 结果索引 `progress-20260923-ws-entry-verification.json`。本批按授权保存提交，下一完整能力为媒体/辅助入口；前一稳定批次的完整全仓 11,994 / 20,028 / 12,997 结果保留，后续稳定批次再合并全仓检查，最终 S16 验收仍需完整执行。当前保持 16/17、实施中。

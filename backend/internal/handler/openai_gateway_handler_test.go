@@ -1682,7 +1682,7 @@ func TestSetOpenAIClientTransportWS(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	setOpenAIClientTransportWS(c)
+	gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportWS)
 	require.Equal(t, gatewayhttp.OpenAIClientTransportWS, gatewayhttp.GetOpenAIClientTransport(c))
 }
 

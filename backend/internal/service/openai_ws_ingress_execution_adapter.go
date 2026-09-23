@@ -385,7 +385,7 @@ func (s *OpenAIGatewayService) executeWSIngressAdapter(
 		},
 		BridgeFn: func(ctx context.Context, input gatewayws.ClientPayload, body []byte, identity string, turn int) (*gatewayws.ForwardResult, error) {
 			result, err := s.proxyOpenAIWSHTTPBridgeTurn(ctx, c, account, token, body, len(body), input.OriginalModel, input.RoutingModel, input.ImageBillingModel, input.ImageSizeTier, input.ImageInputSize, identity, turn, writeClientMessage, tlsRouterMatch)
-			return wsForwardResult(result), err
+			return gatewayprovider.ProjectWSResult(result), err
 		},
 		SetStateFn: func(turnState, sessionHash string) {
 			if turnState != "" && c != nil && c.Request != nil {

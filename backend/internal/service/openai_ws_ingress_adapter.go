@@ -188,7 +188,7 @@ func wsIngressHooks(h *gatewayws.OpenAIIngressHooks) *gatewayws.IngressHooks {
 	out := &gatewayws.IngressHooks{TurnStarted: h.TurnStarted, BeforeTurn: h.BeforeTurn, BeforeRequest: h.BeforeRequest}
 	if h.AfterTurn != nil {
 		out.AfterTurn = func(c gatewayws.TurnCapture) {
-			h.AfterTurn(gatewayws.OpenAITurnCapture{Turn: c.Turn, StartedAt: c.StartedAt, RequestBody: c.RequestBody, OriginalModel: c.OriginalModel, PreviousResponseID: c.PreviousResponseID, Result: legacyWSForwardResult(c.Result), Err: c.Err, PayloadSource: c.PayloadSource})
+			h.AfterTurn(gatewayws.OpenAITurnCapture{Turn: c.Turn, StartedAt: c.StartedAt, RequestBody: c.RequestBody, OriginalModel: c.OriginalModel, PreviousResponseID: c.PreviousResponseID, Result: gatewayprovider.ForwardResultFromWS(c.Result), Err: c.Err, PayloadSource: c.PayloadSource})
 		}
 	}
 	return out

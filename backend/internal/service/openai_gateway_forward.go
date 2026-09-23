@@ -144,7 +144,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 		adapter := &openAIHTTPWSForwardAdapter{s: s, c: c, account: account, clientPromptCacheKey: clientPromptCacheKey, token: token, decision: wsDecision, isCodexCLI: isCodexCLI, stream: reqStream, originalModel: originalModel, upstreamModel: upstreamModel, startedAt: startTime, tls: tlsRouterMatch, lineageGroupID: lineageGroupID, lineageSessionHash: lineageSessionHash}
 		result, err := gatewayws.RunHTTPForward(ctx, wsReqBody, gatewayws.HTTPForwardInput{AccountID: account.Record.ID, AccountType: account.Record.Type, UpstreamModel: upstreamModel, BillingModel: billingModel, ImageBillingModel: imageBillingModel, ImageSizeTier: imageSizeTier, ImageInputSize: imageInputSize, LineageEntryBody: lineageEntryBody, Stream: reqStream, RetryLimit: openAIWSReconnectRetryLimit, IDLogLimit: gatewayprovider.OpenAIWSIDValueMaxLen}, adapter)
-		return legacyWSForwardResult(result), err
+		return gatewayprovider.ForwardResultFromWS(result), err
 	}
 
 	reasoningEffort := requeststate.ExtractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
