@@ -15818,6 +15818,7 @@ linters:
           allow:
           - github.com/TokenFlux/TokenRouter/internal/apikey$
           - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
           - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
           - github.com/TokenFlux/TokenRouter/internal/routing$
@@ -21829,21 +21830,6 @@ linters:
           - pkg: github.com/redis/go-redis/v9
             desc: handler must not import redis
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-messages-execution-dependencies-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/messages_execution_dependencies.go"
-          allow:
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-handler-openai-grok-image-intent-gate-test-go:
           list-mode: strict
           files:
@@ -22426,20 +22412,6 @@ linters:
           - pkg: net/rpc
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-compatible-text-http-adapter-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/compatible_text_http_adapter.go"
-          allow:
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-handler-cyber-http-adapter-go:
           list-mode: strict
           files:
@@ -22450,47 +22422,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow$
           - github.com/TokenFlux/TokenRouter/internal/ops$
           - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/gin-gonic/gin$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-gateway-handler-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/gateway_handler.go"
-          allow:
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/gateway$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
-          - github.com/TokenFlux/TokenRouter/internal/moderation$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/gin-gonic/gin$
-          - go.uber.org/zap$
-          - time$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-gateway-handler-chat-completions-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/gateway_handler_chat_completions.go"
-          allow:
           - github.com/gin-gonic/gin$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
@@ -22515,34 +22446,6 @@ linters:
           - net/http/httptest$
           - strings$
           - testing$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-gateway-handler-responses-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/gateway_handler_responses.go"
-          allow:
-          - github.com/gin-gonic/gin$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-gemini-v1beta-handler-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/gemini_v1beta_handler.go"
-          allow:
-          - github.com/gin-gonic/gin$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -22611,24 +22514,6 @@ linters:
           - go.uber.org/zap$
           - net/http$
           - strings$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-messages-http-adapter-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/messages_http_adapter.go"
-          allow:
-          - context$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -36362,34 +36247,14 @@ linters:
           files:
           - '**/internal/app/route_admin_qoder_oauth_test.go'
           allow:
-          # S16：原生分组与请求投影；来源见本阶段类型/请求状态迁移清单。
+          - context$
           - github.com/TokenFlux/TokenRouter/internal/account/httpapi$
-          - gopkg.in/yaml.v3$
-          - $gostd
-          - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
-          - github.com/andybalholm/brotli$
-          - github.com/google/go-cmp/
-          - github.com/google/wire$
-          - github.com/imroc/req/v3$
-          - github.com/klauspost/compress/
-          - github.com/lib/pq
-          - github.com/natefinch/lumberjack$
-          - github.com/redis/go-redis/v9
-          - github.com/refraction-networking/utls$
-          - github.com/stretchr/testify/
-          - go.uber.org/goleak$
-          - go.uber.org/zap
-          - golang.org/x/mod/semver$
-          - golang.org/x/net/
-          - gopkg.in/natefinch/lumberjack.v2$
-          - github.com/DATA-DOG/go-sqlmock$
-          - modernc.org/sqlite$
-          - github.com/testcontainers/testcontainers-go
-          - github.com/TokenFlux/TokenRouter/migrations$
-          - github.com/TokenFlux/TokenRouter/internal/handler/admin$
-          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - strings$
+          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -36403,14 +36268,14 @@ linters:
           files:
           - "**/internal/app/route_admin_test.go"
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/account/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/backup/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi$
+          - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
           - net/http$
           - net/http/httptest$
           - testing$
-          - github.com/TokenFlux/TokenRouter/internal/account/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/backup/httpapi$
-          - github.com/gin-gonic/gin$
-          - github.com/stretchr/testify/require$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -36426,18 +36291,18 @@ linters:
           files:
           - "**/internal/app/route_auth_rate_limit_test.go"
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/infra/redis$
+          - github.com/TokenFlux/TokenRouter/internal/payment/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/gin-gonic/gin$
+          - github.com/redis/go-redis/v9$
+          - github.com/stretchr/testify/require$
           - net/http$
           - net/http/httptest$
           - strings$
           - testing$
           - time$
-          - github.com/TokenFlux/TokenRouter/internal/payment/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/infra/redis$
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
-          - github.com/gin-gonic/gin$
-          - github.com/redis/go-redis/v9$
-          - github.com/stretchr/testify/require$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -36493,37 +36358,17 @@ linters:
           files:
           - '**/internal/app/route_gateway_codex_models_test.go'
           allow:
+          - context$
+          - encoding/json$
           - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/protocol$
           - github.com/TokenFlux/TokenRouter/internal/routing$
-          # S16：常量消费者直接引用唯一所有者；来源见 service-constant-owners.json。
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - gopkg.in/yaml.v3$
-          - $gostd
-          - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
-          - github.com/andybalholm/brotli$
-          - github.com/google/go-cmp/
-          - github.com/google/wire$
-          - github.com/imroc/req/v3$
-          - github.com/klauspost/compress/
-          - github.com/lib/pq
-          - github.com/natefinch/lumberjack$
-          - github.com/redis/go-redis/v9
-          - github.com/refraction-networking/utls$
-          - github.com/stretchr/testify/
-          - go.uber.org/goleak$
-          - go.uber.org/zap
-          - golang.org/x/mod/semver$
-          - golang.org/x/net/
-          - gopkg.in/natefinch/lumberjack.v2$
-          - github.com/DATA-DOG/go-sqlmock$
-          - modernc.org/sqlite$
-          - github.com/testcontainers/testcontainers-go
-          - github.com/TokenFlux/TokenRouter/migrations$
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/handler$
-          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -36537,26 +36382,25 @@ linters:
           files:
           - "**/internal/app/route_gateway_test.go"
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
-          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
           - encoding/json$
-          - io$
-          - net/http$
-          - net/http/httptest$
-          - strings$
-          - testing$
           - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/handler$
           - github.com/TokenFlux/TokenRouter/internal/identity$
+          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
+          - io$
+          - net/http$
+          - net/http/httptest$
+          - strings$
+          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -36585,10 +36429,10 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/search/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/server/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/TokenFlux/TokenRouter/internal/settings/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/usage/httpapi/admin$
-          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/gin-gonic/gin$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service
@@ -36607,15 +36451,15 @@ linters:
           files:
           - "**/internal/app/route_legacy_auth_test.go"
           allow:
-          - time$
           - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
           - github.com/TokenFlux/TokenRouter/internal/identity/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/notification/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/payment/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/routing/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
           - github.com/gin-gonic/gin$
+          - time$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -36633,14 +36477,17 @@ linters:
           allow:
           - github.com/TokenFlux/TokenRouter/internal/apikey$
           - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
           - github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/billing$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt$
           - github.com/TokenFlux/TokenRouter/internal/ops$
           - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/usage/httpapi$
           - github.com/gin-gonic/gin$
           - time$
@@ -36665,10 +36512,10 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
           - github.com/TokenFlux/TokenRouter/internal/identity/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/promotion/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/team/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/usage/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/gin-gonic/gin$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
@@ -36685,15 +36532,15 @@ linters:
           files:
           - "**/internal/app/route_ops_ingress_reject_routes_test.go"
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
           - github.com/TokenFlux/TokenRouter/internal/identity/httpapi$
-          - net/http$
-          - net/http/httptest$
-          - testing$
           - github.com/TokenFlux/TokenRouter/internal/ops/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -36709,39 +36556,17 @@ linters:
           files:
           - '**/internal/app/route_protocol_capabilities_test.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
-          # S16：原生分组与请求投影；来源见本阶段类型/请求状态迁移清单。
           - github.com/TokenFlux/TokenRouter/internal/apikey$
-          # S16：原生分组与请求投影；来源见本阶段类型/请求状态迁移清单。
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - gopkg.in/yaml.v3$
-          - $gostd
-          - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
-          - github.com/andybalholm/brotli$
-          - github.com/google/go-cmp/
-          - github.com/google/wire$
-          - github.com/imroc/req/v3$
-          - github.com/klauspost/compress/
-          - github.com/lib/pq
-          - github.com/natefinch/lumberjack$
-          - github.com/redis/go-redis/v9
-          - github.com/refraction-networking/utls$
-          - github.com/stretchr/testify/
-          - go.uber.org/goleak$
-          - go.uber.org/zap
-          - golang.org/x/mod/semver$
-          - golang.org/x/net/
-          - gopkg.in/natefinch/lumberjack.v2$
-          - github.com/DATA-DOG/go-sqlmock$
-          - modernc.org/sqlite$
-          - github.com/testcontainers/testcontainers-go
-          - github.com/TokenFlux/TokenRouter/migrations$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
-          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - strings$
+          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -36755,13 +36580,13 @@ linters:
           files:
           - "**/internal/app/route_removed_feature_routes_test.go"
           allow:
-          - net/http$
-          - net/http/httptest$
-          - testing$
           - github.com/TokenFlux/TokenRouter/internal/identity/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -39768,34 +39593,17 @@ linters:
           files:
           - '**/internal/app/route_inventory_s15_test.go'
           allow:
-          - gopkg.in/yaml.v3$
-          - $gostd
-          - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
-          - github.com/TokenFlux/TokenRouter/internal/
-          - github.com/andybalholm/brotli$
-          - github.com/google/go-cmp/
-          - github.com/google/wire$
-          - github.com/imroc/req/v3$
-          - github.com/klauspost/compress/
-          - github.com/lib/pq
-          - github.com/natefinch/lumberjack$
-          - github.com/redis/go-redis/v9
-          - github.com/refraction-networking/utls$
-          - github.com/stretchr/testify/
-          - go.uber.org/goleak$
-          - go.uber.org/zap
-          - golang.org/x/mod/semver$
-          - golang.org/x/net/
-          - gopkg.in/natefinch/lumberjack.v2$
-          - github.com/DATA-DOG/go-sqlmock$
-          - modernc.org/sqlite$
-          - github.com/testcontainers/testcontainers-go
-          - github.com/TokenFlux/TokenRouter/migrations$
+          - encoding/json$
           - github.com/TokenFlux/TokenRouter/internal/server$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/gin-gonic/gin$
           - github.com/stretchr/testify/require$
+          - net/http/httptest$
+          - os$
+          - reflect$
+          - sort$
+          - strings$
+          - testing$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。

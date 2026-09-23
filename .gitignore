@@ -161,3 +161,6 @@ refactor/baseline/S16/*
 
 # S16 通用文本运行时检查点的增量证据索引。
 !refactor/baseline/S16/progress-20260923-textattempt-manifest.json
+
+# S16 旧通用 Handler 退役检查点索引。
+!refactor/baseline/S16/progress-20260923-generic-retirement-manifest.json

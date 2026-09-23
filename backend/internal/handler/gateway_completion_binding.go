@@ -4,15 +4,6 @@ package handler
 import "github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 
 // BindCompletionRecorder 在开放 HTTP 前接入应用唯一实例。
-func (h *GatewayHandler) BindCompletionRecorder(r *completion.Recorder) { h.completionRecorder = r }
-func (h *GatewayHandler) completionRuntime() *completion.Recorder {
-	if h.completionRecorder != nil {
-		return h.completionRecorder
-	}
-	return h.gatewayService.CompletionRecorder()
-}
-
-// BindCompletionRecorder 在开放 HTTP 前接入应用唯一实例。
 func (h *OpenAIGatewayHandler) BindCompletionRecorder(r *completion.Recorder) {
 	h.completionRecorder = r
 }

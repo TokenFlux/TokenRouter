@@ -174,7 +174,7 @@ func (f *fakeConcurrencyCache) CleanupExpiredAccountSlots(context.Context, int64
 func (f *fakeConcurrencyCache) CleanupExpiredAccountSlotKeys(context.Context) error     { return nil }
 func (f *fakeConcurrencyCache) CleanupStaleProcessSlots(context.Context, string) error  { return nil }
 
-func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatewayprovider.ExecutionAccount) (*GatewayHandler, func()) {
+func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatewayprovider.ExecutionAccount) (*messageEndpointsFixture, func()) {
 	t.Helper()
 
 	schedulerCache := &fakeSchedulerCache{accounts: accounts}
@@ -233,14 +233,7 @@ func newTestGatewayHandler(t *testing.T, group *routing.Group, accounts []*gatew
 	)
 	concurrencyHelper := gatewayhttp.NewConcurrencyHelper(concurrencySvc, gatewayhttp.SSEPingFormatClaude, 0)
 
-	h := &GatewayHandler{
-		gatewayService:      gwSvc,
-		billingCacheService: newFundingAdmissionFixture(billingCacheSvc, cfg),
-		concurrencyHelper:   concurrencyHelper,
-		// 这些字段对本测试不敏感，保持较小即可
-		maxAccountSwitches:       1,
-		maxAccountSwitchesGemini: 1,
-	}
+	h := newMessageEndpointsFixture(gwSvc, newFundingAdmissionFixture(billingCacheSvc, cfg), concurrencyHelper, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: gatewayMaxBodySize(nil), MaxSwitches: 1, MaxGeminiSwitches: 1})
 
 	cleanup := func() {
 		billingCacheSvc.Stop()

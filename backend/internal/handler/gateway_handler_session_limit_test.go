@@ -85,7 +85,7 @@ func gatewaySessionResponse(status int, stream bool) *http.Response {
 }
 
 // 使用真实调度、Forward 和 handler 收尾，只替换外部上游、Redis 与账单依赖。
-func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bool, upstream *gatewaySessionUpstreamStub) (*GatewayHandler, *apikey.APIKey, *gatewaySessionLimitCacheStub) {
+func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bool, upstream *gatewaySessionUpstreamStub) (*messageEndpointsFixture, *apikey.APIKey, *gatewaySessionLimitCacheStub) {
 	t.Helper()
 	groupID := int64(11)
 	group := &routing.Group{ID: groupID, Hydrated: true, Platform: capability.PlatformAnthropic, Status: billing.StatusActive}
@@ -114,14 +114,10 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 	gateway.BindCompletionRecorder(newHTTPCompletionFixture(cfg, nil, completionInput1, billingCache, nil,
 		nil, nil, false))
 
-	h := &GatewayHandler{
-		cfg: cfg, gatewayService: gateway, billingCacheService: newFundingAdmissionFixture(billingCache, cfg),
-		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-			Event: logging.Event,
-		},
-		), gatewayhttp.SSEPingFormatClaude, 0),
-		maxAccountSwitches: 1,
-	}
+	h := newMessageEndpointsFixture(gateway, newFundingAdmissionFixture(billingCache, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	},
+	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: gatewayMaxBodySize(cfg), MaxSwitches: 1, MaxGeminiSwitches: 0})
 	key := &apikey.APIKey{
 		ID: 21, UserID: 22, GroupID: &groupID, Status: billing.StatusActive, Group: group,
 		User: &identity.User{ID: 22, Concurrency: 10, Balance: 100},
@@ -129,7 +125,7 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 	return h, key, sessions
 }
 
-func serveGatewaySessionMessage(h *GatewayHandler, key *apikey.APIKey, stream bool) *httptest.ResponseRecorder {
+func serveGatewaySessionMessage(h *messageEndpointsFixture, key *apikey.APIKey, stream bool) *httptest.ResponseRecorder {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	body := `{"model":"claude-sonnet-4-5","max_tokens":256,"messages":[{"role":"user","content":"check session lifecycle"}]`

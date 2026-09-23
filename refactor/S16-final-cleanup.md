@@ -1658,3 +1658,11 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - Docker 可用后保持代码、断言和超时不变，原场景按包串行补验 8 条通过，无失败或跳过；构建和三套完整 lint 均退出零。初次全量 integration 仍登记失败，不以补验冒充整组通过。记录见 `interim-native-message-runtime-checks.json` 和 `native-message-runtime-followup-checks.json`。
 - 原生运行时/精确 app 绑定/同目录新文件/迁出许可/旧包、config、存储反向依赖的 10 类夹具覆盖三种标签，30/30 符合预期，夹具已删除。格式整理后的构建及实际路由/固定状态补验 10 条通过；693 路由合同保持。完整索引为 `progress-20260923-textattempt-verification.json`。
 - 本批按用户要求验证后提交检查点，不推送，不修改 16/17 状态；S16 剩余旧测试构造、OpenAI/WS/媒体 HTTP 及平台执行适配仍需收尾，最终验收尚未完成。
+
+
+### 旧通用 GatewayHandler 及构造入口清零（2026-09-23）
+
+- 余下取消、会话、渠道、图片模型与输入校验测试改为直接调用原生 HTTP 处理函数。夹具仅持有函数句柄并接入被验证的真实单次能力，不复制旧 Handler/Service 实现、缓存或规则；应用路由夹具直接调用实际 app 原生构造函数。订阅展示的两条原断言迁入 billing，删除仅服务于旧类型的测试委托。
+- 删除 GatewayHandler 类型及 11 个旧构造/转接文件，并从共用文件删除其完成和会话方法。生产、测试与生成代码的 `GatewayHandler` / `NewGatewayHandler` 精确类型引用清零；剩余 OpenAIGatewayHandler 不在此项中混算。Gemini 文档锚点移动到真实原生入口。
+- 首轮新夹具误把原 typed-nil 提示词端口替换为 nil interface，渠道图片拒绝合同因此 panic；恢复原 typed-nil 后，原业务断言保持，297 条定向 unit race 与 1,480 条相关普通测试通过。初次失败与修正结果分别保留，没有修复清单外历史问题。
+- Wire、构建及普通/unit/integration 三套完整 lint 均退出零；Wire 生成无差异，SQL/Ent 未改。旧精确文件许可随入口删除，新增及已有文件差异检查通过。本批提交检查点，不标记 S16 完成；索引 `progress-20260923-generic-retirement-verification.json`。

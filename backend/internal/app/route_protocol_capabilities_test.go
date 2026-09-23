@@ -31,7 +31,7 @@ func TestProtocolAllPublicRoutesDeniedBeforeUpstream(t *testing.T) {
 	}
 	for _, tc := range paths {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
-			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{ID: 1, Platform: tc.platform, AllowedProtocols: []protocol.ProtocolID{}})
+			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, &routing.Group{ID: 1, Platform: tc.platform, AllowedProtocols: []protocol.ProtocolID{}})
 			if strings.HasPrefix(tc.path, "/v1beta/") {
 				// Gemini 鉴权使用单独中间件；此处在鉴权后注入分组，独立验证动作分派。
 				router = gin.New()

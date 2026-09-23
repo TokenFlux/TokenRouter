@@ -4,9 +4,6 @@ import (
 	slog "log/slog"
 	time "time"
 
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-
 	pricingprovider "github.com/TokenFlux/TokenRouter/internal/billing/provider"
 	requeststate "github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
@@ -109,15 +106,4 @@ func TestPrepareGatewayAttemptRequestUsesGeminiGroupMapping(t *testing.T) {
 	require.Equal(t, "gemini-channel-model", attempt.Model)
 	require.Equal(t, "gemini-channel-model", gjson.GetBytes(attempt.Body.Bytes(), "model").String())
 	require.Equal(t, int64(703), mapping.ChannelID)
-}
-
-// prepareGatewayAttemptRequest 只绑定原渠道解析端口；请求克隆与改写由 HTTP 原生实现拥有。
-func (h *GatewayHandler) prepareGatewayAttemptRequest(ctx context.Context, parsed *requeststate.ParsedRequest, body []byte, key *apikey.APIKey, model string) (*requeststate.ParsedRequest, routing.ChannelMappingResult, error) {
-	return gatewayhttp.PrepareChannelAttempt(ctx, parsed, body, key, model, func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-		var id *int64
-		if key != nil {
-			id = key.GroupID
-		}
-		return h.gatewayService.PlanRoute(ctx, service.APIKeyRouteGroup(key), id, model)
-	})
 }

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
@@ -21,7 +23,7 @@ import (
 
 // 三个公开入口必须在访问调度或上游之前执行拒绝策略。
 func TestAnthropicReasoningPolicy_AllEntrypointsDeny(t *testing.T) {
-	h := &GatewayHandler{}
+	h := newMessageEndpointsFixture(nil, nil, nil, gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: gatewayMaxBodySize(nil), MaxSwitches: 0, MaxGeminiSwitches: 0})
 	for _, tc := range []struct {
 		path, field string
 		handle      func(*gin.Context)

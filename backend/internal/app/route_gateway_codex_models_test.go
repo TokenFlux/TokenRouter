@@ -43,7 +43,7 @@ func TestGatewayRoutesModelsWithClientVersionUsesLocalList(t *testing.T) {
 			},
 		},
 	}
-	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{
+	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, &routing.Group{
 		ID: 1, Platform: capability.PlatformOpenAI, AllowedProtocols: []protocol.ProtocolID{protocol.ProtocolAnthropicMessages, protocol.ProtocolOpenAIResponses, protocol.ProtocolOpenAIChatCompletions},
 	}, newGatewayModelsHandlerForTest(repo))
 	paths := []string{

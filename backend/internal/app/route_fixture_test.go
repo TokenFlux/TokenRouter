@@ -85,7 +85,7 @@ type routeTestHandlers struct {
 	CompatibleTextHTTP  *gatewayhttpapi.CompatibleTextHandler
 	CountTokensHTTP     *gatewayhttpapi.CountTokensHandler
 	Creative            *creativehttpapi.CreativeHandler
-	Gateway             *handler.GatewayHandler
+	TextEnabled         bool
 	GeminiNativeHTTP    *gatewayhttpapi.GeminiNativeHandler
 	LiveHTTP            *gatewayhttpapi.LiveHandler
 	MediaHTTP           *gatewayhttpapi.MediaHandler

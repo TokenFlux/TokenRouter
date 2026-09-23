@@ -29,15 +29,15 @@ import (
 )
 
 func newGatewayRoutesTestRouter(platform ...string) *gin.Engine {
-	return newGatewayRoutesTestRouterWithOptions(&config.Config{}, nil, platform...)
+	return newGatewayRoutesTestRouterWithOptions(&config.Config{}, platform...)
 }
 
 func newGatewayRoutesTestRouterWithConfig(cfg *config.Config, platform ...string) *gin.Engine {
-	return newGatewayRoutesTestRouterWithOptions(cfg, nil, platform...)
+	return newGatewayRoutesTestRouterWithOptions(cfg, platform...)
 }
 
-// newGatewayRoutesTestRouterWithOptions 同时支持注入配置和网关 handler。
-func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *handler.GatewayHandler, platform ...string) *gin.Engine {
+// newGatewayRoutesTestRouterWithOptions 以原生 HTTP 入口验证配置和平台路由。
+func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, platform ...string) *gin.Engine {
 	groupPlatform := capability.PlatformOpenAI
 	if len(platform) > 0 && platform[0] != "" {
 		groupPlatform = platform[0]
@@ -52,7 +52,7 @@ func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *h
 	if groupPlatform == capability.PlatformGemini || groupPlatform == capability.PlatformAntigravity {
 		protocols = append(protocols, protocolcore.ProtocolGeminiGenerateContent)
 	}
-	return newGatewayRoutesTestRouterWithGroup(cfg, gatewayHandler, &routing.Group{
+	return newGatewayRoutesTestRouterWithGroup(cfg, &routing.Group{
 		ID:               groupID,
 		Platform:         groupPlatform,
 		AllowedProtocols: protocols,
@@ -60,13 +60,9 @@ func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *h
 }
 
 // newGatewayRoutesTestRouterWithGroup 允许测试显式控制 nil 与空协议集合。
-func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, gatewayHandler *handler.GatewayHandler, group *routing.Group, models ...*gatewayhttp.ModelsHandler) *gin.Engine {
+func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, group *routing.Group, models ...*gatewayhttp.ModelsHandler) *gin.Engine {
 
 	router := gin.New()
-
-	if gatewayHandler == nil {
-		gatewayHandler = &handler.GatewayHandler{}
-	}
 
 	var modelsHTTP *gatewayhttp.ModelsHandler
 	if len(models) > 0 {
@@ -75,7 +71,7 @@ func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, gatewayHandler *han
 	RegisterGatewayRoutes(
 		router,
 		&routeTestHandlers{
-			Gateway:       gatewayHandler,
+			TextEnabled:   true,
 			ModelsHTTP:    modelsHTTP,
 			OpenAIGateway: &handler.OpenAIGatewayHandler{},
 		},
@@ -142,7 +138,7 @@ func TestGatewayRoutesClientProtocolGateRejectsAliasesBeforeReadingBody(t *testi
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			groupID := int64(1)
-			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{
+			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, &routing.Group{
 				ID:               groupID,
 				Platform:         tt.platform,
 				AllowedProtocols: tt.protocols,
@@ -180,7 +176,7 @@ func TestGatewayRoutesUnsupportedCountTokensBypassesProtocolGate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			groupID := int64(1)
-			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{
+			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, &routing.Group{
 				ID:               groupID,
 				Platform:         tt.platform,
 				AllowedProtocols: []protocolcore.ProtocolID{},
@@ -202,7 +198,7 @@ func TestGatewayRoutesUnsupportedCountTokensBypassesProtocolGate(t *testing.T) {
 
 func TestGatewayRoutesResponsesSubpathGuardRunsBeforeProtocolGate(t *testing.T) {
 	groupID := int64(1)
-	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &routing.Group{
+	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, &routing.Group{
 		ID:       groupID,
 		Platform: capability.PlatformQoder,
 		AllowedProtocols: []protocolcore.ProtocolID{
@@ -357,7 +353,7 @@ func TestGatewayRoutesQoderResponsesWebSocketIsRejected(t *testing.T) {
 }
 
 func TestGatewayRoutesNonNativeResponsesWebSocketIsRejected(t *testing.T) {
-	router := newGatewayRoutesTestRouterWithOptions(&config.Config{}, nil, capability.PlatformAnthropic)
+	router := newGatewayRoutesTestRouterWithOptions(&config.Config{}, capability.PlatformAnthropic)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/responses", nil))
 

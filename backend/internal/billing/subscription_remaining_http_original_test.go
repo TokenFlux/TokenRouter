@@ -1,6 +1,6 @@
 //go:build unit
 
-package handler
+package billing_test
 
 import (
 	"testing"
@@ -14,7 +14,6 @@ func subscriptionLimitPtr(v float64) *float64 {
 }
 
 func TestCalculateSubscriptionRemaining_IgnoresDisabledZeroLimit(t *testing.T) {
-	h := &GatewayHandler{}
 	sub := &billing.UserSubscription{
 		DailyLimitUSD:   subscriptionLimitPtr(10),
 		WeeklyLimitUSD:  subscriptionLimitPtr(0),
@@ -24,15 +23,14 @@ func TestCalculateSubscriptionRemaining_IgnoresDisabledZeroLimit(t *testing.T) {
 		MonthlyUsageUSD: 20,
 	}
 
-	require.Equal(t, 7.0, h.calculateSubscriptionRemaining(sub))
+	require.Equal(t, 7.0, billing.SubscriptionRemainingForDisplay(sub))
 }
 
 func TestCalculateSubscriptionRemaining_NoPositiveLimitsReturnsUnlimited(t *testing.T) {
-	h := &GatewayHandler{}
 	sub := &billing.UserSubscription{
 		DailyLimitUSD:   subscriptionLimitPtr(0),
 		MonthlyLimitUSD: subscriptionLimitPtr(0),
 	}
 
-	require.Equal(t, -1.0, h.calculateSubscriptionRemaining(sub))
+	require.Equal(t, -1.0, billing.SubscriptionRemainingForDisplay(sub))
 }

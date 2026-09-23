@@ -14,13 +14,6 @@ func isSessionIsolationConflict(err error) bool {
 	return errors.Is(err, session.ErrSessionIsolationConflict)
 }
 
-func (h *GatewayHandler) ensureGatewaySessionIsolation(ctx context.Context, apiKey *apikey.APIKey, userID int64, source, sessionHash string) error {
-	if h == nil || h.gatewayService == nil {
-		return nil
-	}
-	return h.gatewayService.EnsureSessionIsolation(ctx, apiKey, userID, source, sessionHash)
-}
-
 func (h *OpenAIGatewayHandler) ensureOpenAISessionIsolation(ctx context.Context, apiKey *apikey.APIKey, userID int64, source, sessionHash string) error {
 	if h == nil || h.gatewayService == nil {
 		return nil

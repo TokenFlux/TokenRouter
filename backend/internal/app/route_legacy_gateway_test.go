@@ -1,6 +1,10 @@
 package app
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
+	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"time"
 
 	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
@@ -55,13 +59,21 @@ func RegisterGatewayRoutes(
 	settingService *routing.RuntimeSettings,
 	cfg *config.Config,
 ) {
-	// 生产使用 app 已绑定的目标 handler；手工装配的兼容测试仍复用同一实现。
+	// 路由契约直接使用原生 HTTP 与运行时；没有上游行为的夹具不构造旧聚合 Handler。
+	var shared *messageHTTPBindings
+	var runtime *textattempt.Runtime
+	var activity *gatewayRequestActivity
+	if h.TextEnabled {
+		shared = provideMessageHTTPBindings(&service.GatewayService{}, &service.OpenAIGatewayService{}, nil, nil, nil, nil, nil, nil, cfg)
+		runtime = textattempt.New(textattempt.Bindings{})
+		activity = &gatewayRequestActivity{Operations: lifecycle.NewOperations("route-fixture")}
+	}
 	openAITokensHTTP := h.OpenAITokensHTTP
 	if openAITokensHTTP == nil {
 		openAITokensHTTP = provideOpenAITokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil)
 	}
 	countTokensHTTP := h.CountTokensHTTP
-	if countTokensHTTP == nil && h.Gateway != nil {
+	if countTokensHTTP == nil && h.TextEnabled {
 		countTokensHTTP = provideCountTokensHTTP(nil, nil, nil, nil, cfg, nil, nil)
 	}
 	qoderCompatibleHTTP := h.QoderCompatibleHTTP
@@ -69,12 +81,12 @@ func RegisterGatewayRoutes(
 		qoderCompatibleHTTP = provideQoderCompatibleHTTP(nil, nil, nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil)
 	}
 	compatibleTextHTTP := h.CompatibleTextHTTP
-	if compatibleTextHTTP == nil && h.Gateway != nil {
-		compatibleTextHTTP = h.Gateway.NewCompatibleTextHTTPHandler()
+	if compatibleTextHTTP == nil && h.TextEnabled {
+		compatibleTextHTTP = provideCompatibleTextHTTP(shared, &service.GatewayService{}, runtime, activity)
 	}
 	geminiNativeHTTP := h.GeminiNativeHTTP
-	if geminiNativeHTTP == nil && h.Gateway != nil {
-		geminiNativeHTTP = h.Gateway.NewGeminiNativeHTTPHandler()
+	if geminiNativeHTTP == nil && h.TextEnabled {
+		geminiNativeHTTP = provideGeminiNativeHTTP(shared, &service.GatewayService{}, runtime, activity)
 	}
 	openAITextHTTP := h.OpenAITextHTTP
 	if openAITextHTTP == nil && h.OpenAIGateway != nil {
@@ -85,12 +97,12 @@ func RegisterGatewayRoutes(
 		responsesWSHTTP = h.OpenAIGateway.NewResponsesWSHTTPHandler()
 	}
 	modelsHTTP := h.ModelsHTTP
-	if modelsHTTP == nil && h.Gateway != nil {
+	if modelsHTTP == nil && h.TextEnabled {
 		modelsHTTP = provideModelsHTTP(nil, nil, nil)
 	}
 	messagesHTTP := h.MessagesHTTP
-	if messagesHTTP == nil && h.Gateway != nil {
-		messagesHTTP = h.Gateway.NewMessagesHTTPHandler()
+	if messagesHTTP == nil && h.TextEnabled {
+		messagesHTTP = provideMessagesHTTP(shared, runtime, activity)
 	}
 
 	mediaHTTP, auxiliaryHTTP, liveHTTP, searchHTTP := h.MediaHTTP, h.AuxiliaryHTTP, h.LiveHTTP, h.SearchHTTP
@@ -105,7 +117,7 @@ func RegisterGatewayRoutes(
 			liveHTTP = provideLiveHTTP(nil, nil, nil, nil, nil)
 		}
 	}
-	if searchHTTP == nil && h.Gateway != nil {
+	if searchHTTP == nil && h.TextEnabled {
 		searchHTTP = gatewayhttp.NewSearchHandler(gatewayhttp.SearchPorts{})
 	}
 

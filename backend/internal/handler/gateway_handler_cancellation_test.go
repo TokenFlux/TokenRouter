@@ -65,16 +65,10 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 	billingCacheService := newBillingEligibilityFixture(cfg)
 	billingCacheService.Start()
 	t.Cleanup(billingCacheService.Stop)
-	h := &GatewayHandler{
-		gatewayService:      gatewayService,
-		billingCacheService: newFundingAdmissionFixture(billingCacheService, cfg),
-		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-			Event: logging.Event,
-		},
-		), gatewayhttp.SSEPingFormatClaude, 0),
-		maxAccountSwitches: 1,
-		cfg:                cfg,
-	}
+	h := newMessageEndpointsFixture(gatewayService, newFundingAdmissionFixture(billingCacheService, cfg), gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&fakeConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	},
+	), gatewayhttp.SSEPingFormatClaude, 0), gatewayhttp.MessagesHTTPOptions{MaxBodyBytes: gatewayMaxBodySize(cfg), MaxSwitches: 1, MaxGeminiSwitches: 0})
 	apiKey := &apikey.APIKey{
 		ID: 9102, UserID: 9103, GroupID: &groupID, Group: group, Status: billing.StatusActive,
 		User: &identity.User{ID: 9103, Concurrency: 10, Balance: 100},
