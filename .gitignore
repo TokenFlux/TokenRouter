@@ -189,3 +189,6 @@ refactor/baseline/S16/*
 # S16 2026-09-24 媒体完整能力检查点及后续证据分片。
 !refactor/baseline/S16/progress-20260924-*.tar.gz
 !refactor/baseline/S16/progress-20260924-media-entry-manifest.json
+
+# S16 旧 HTTP 包与测试兼容清零检查点。
+!refactor/baseline/S16/progress-20260924-handler-retirement-manifest.json

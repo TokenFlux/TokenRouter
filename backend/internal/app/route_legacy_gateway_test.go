@@ -88,13 +88,16 @@ func RegisterGatewayRoutes(
 	if geminiNativeHTTP == nil && h.TextEnabled {
 		geminiNativeHTTP = provideGeminiNativeHTTP(shared, &service.GatewayService{}, runtime, activity)
 	}
+	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil)
+	openAIRuntime := provideOpenAITextAttemptRuntime(commonOpenAI)
+	mediaRuntime := provideMediaRuntime(nil, nil, nil, commonOpenAI, nil, nil, nil)
 	openAITextHTTP := h.OpenAITextHTTP
-	if openAITextHTTP == nil && h.OpenAIGateway != nil {
-		openAITextHTTP = h.OpenAIGateway.NewOpenAITextHTTPHandler()
+	if openAITextHTTP == nil && h.OpenAIEnabled {
+		openAITextHTTP = provideOpenAITextHTTP(nil, nil, nil, nil, nil, nil, nil, nil, nil, openAIRuntime, activity)
 	}
 	responsesWSHTTP := h.ResponsesWSHTTP
-	if responsesWSHTTP == nil && h.OpenAIGateway != nil {
-		responsesWSHTTP = h.OpenAIGateway.NewResponsesWSHTTPHandler()
+	if responsesWSHTTP == nil && h.OpenAIEnabled {
+		responsesWSHTTP = provideResponsesWSHTTP(nil, nil, nil, commonOpenAI, nil, nil, nil, activity)
 	}
 	modelsHTTP := h.ModelsHTTP
 	if modelsHTTP == nil && h.TextEnabled {
@@ -106,12 +109,12 @@ func RegisterGatewayRoutes(
 	}
 
 	mediaHTTP, auxiliaryHTTP, liveHTTP, searchHTTP := h.MediaHTTP, h.AuxiliaryHTTP, h.LiveHTTP, h.SearchHTTP
-	if h.OpenAIGateway != nil {
+	if h.OpenAIEnabled {
 		if mediaHTTP == nil {
-			mediaHTTP = h.OpenAIGateway.MediaHTTPHandler()
+			mediaHTTP = provideMediaHTTP(mediaRuntime, activity)
 		}
 		if auxiliaryHTTP == nil {
-			auxiliaryHTTP = h.OpenAIGateway.AuxiliaryHTTPHandler()
+			auxiliaryHTTP = provideAuxiliaryHTTP(mediaRuntime, activity)
 		}
 		if liveHTTP == nil {
 			liveHTTP = provideLiveHTTP(nil, nil, nil, nil, nil)

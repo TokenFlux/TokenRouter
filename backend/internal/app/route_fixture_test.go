@@ -11,7 +11,6 @@ import (
 	creativehttpapi "github.com/TokenFlux/TokenRouter/internal/creative/httpapi"
 	egresshttpapi "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	gatewayhttpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 	identityhttpapi "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
 	moderationhttpapi "github.com/TokenFlux/TokenRouter/internal/moderation/httpapi"
 	notificationhttpapi "github.com/TokenFlux/TokenRouter/internal/notification/httpapi"
@@ -93,7 +92,7 @@ type routeTestHandlers struct {
 	ModelMarketplace    *routinghttpapi.MarketplaceHandler
 	ModelsHTTP          *gatewayhttpapi.ModelsHandler
 	Notification        *notificationhttpapi.Handler
-	OpenAIGateway       *handler.OpenAIGatewayHandler
+	OpenAIEnabled       bool
 	OpenAITextHTTP      *gatewayhttpapi.OpenAITextHandler
 	OpenAITokensHTTP    *gatewayhttpapi.OpenAITokensHandler
 	Passkey             *identityhttpapi.PasskeyHandler

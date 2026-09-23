@@ -27,6 +27,30 @@ func provideMediaRuntime(
 	prober *account.GrokQuotaService,
 	cfg *config.Config,
 ) *mediaentry.Runtime {
+	return mediaentry.New(mediaBindings(source, keys, funding, common, resources, prober, cfg))
+}
+
+func provideMediaHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.MediaHandler {
+	result := runtime.MediaHTTPHandler()
+	result.BindRequestActivity(activity.Enter)
+	return result
+}
+func provideAuxiliaryHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.AuxiliaryHandler {
+	result := runtime.AuxiliaryHTTPHandler()
+	result.BindRequestActivity(activity.Enter)
+	return result
+}
+
+// mediaBindings 只组合既有能力及静态选项，视频拥有者按原时点取得。
+func mediaBindings(
+	source *service.OpenAIGatewayService,
+	keys *apikey.APIKeyService,
+	funding *admission.FundingAdmission,
+	common openaiattempt.Bindings,
+	resources *gatewayhttp.OpenAIHTTPResources,
+	prober *account.GrokQuotaService,
+	cfg *config.Config,
+) mediaentry.Bindings {
 
 	b := mediaentry.Bindings{
 		Common:    common,
@@ -77,15 +101,5 @@ func provideMediaRuntime(
 		b.Platform.Stop429 = source.ShouldStopOpenAIOAuth429Failover
 		b.Platform.ReportSwitch = source.RecordOpenAIAccountSwitch
 	}
-	return mediaentry.New(b)
-}
-func provideMediaHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.MediaHandler {
-	result := runtime.MediaHTTPHandler()
-	result.BindRequestActivity(activity.Enter)
-	return result
-}
-func provideAuxiliaryHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.AuxiliaryHandler {
-	result := runtime.AuxiliaryHTTPHandler()
-	result.BindRequestActivity(activity.Enter)
-	return result
+	return b
 }

@@ -26,6 +26,15 @@ func provideResponsesWSHTTP(
 	cfg *config.Config,
 	activity *gatewayRequestActivity,
 ) *gatewayhttp.ResponsesWSHandler {
+	options := responsesWSOptions(cfg)
+	b := responsesWSBindings(source, funding, keys, common, prompt, blocks)
+	result := wsentry.New(options, b)
+	result.BindRequestActivity(activity.Enter)
+	return result
+}
+
+// responsesWSOptions 保留入站连接与首帧的原静态默认值。
+func responsesWSOptions(cfg *config.Config) gatewayhttp.ResponsesWSOptions {
 	options := gatewayhttp.ResponsesWSOptions{
 		MaxAccountSwitches:  3,
 		ReadLimit:           service.ResolveOpenAIWSClientReadLimitBytes(cfg),
@@ -37,6 +46,11 @@ func provideResponsesWSHTTP(
 			options.MaxAccountSwitches = cfg.Gateway.MaxAccountSwitches
 		}
 	}
+	return options
+}
+
+// responsesWSBindings 仅接入已有共享状态及每轮单步端口。
+func responsesWSBindings(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, common openaiattempt.Bindings, prompt *promptpolicy.Service, blocks *session.CyberBlocks) wsentry.Bindings {
 	b := wsentry.Bindings{
 		Common: common,
 		Prompt: prompt,
@@ -67,7 +81,5 @@ func provideResponsesWSHTTP(
 		b.BeginPreemption = source.BeginOpenAIWSIngressSessionPreemption
 		b.Relay = source.ProxyResponsesWebSocketFromClient
 	}
-	result := wsentry.New(options, b)
-	result.BindRequestActivity(activity.Enter)
-	return result
+	return b
 }

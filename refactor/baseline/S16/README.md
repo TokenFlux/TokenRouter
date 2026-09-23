@@ -75,3 +75,7 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 ## 2026-09-24 媒体/辅助入口检查点
 
 `progress-20260924-media-entry-manifest.json` 接续 20260923-ws-entry 检查点。生产 Wire/server 三套依赖图已无旧 handler。全仓普通/unit/integration 最终 12,006 / 20,040 / 13,009 条通过，既有跳过 4/8/4；三套 lint 为零。定向 race 1,238 条、真实 Redis/PG race 4 条通过；门禁 42/42、Wire 稳定。初次配置缩进、unused 及静态合同旧路径失败独立保存；完整索引为 `progress-20260924-media-entry-verification.json`。S16 未完成。
+
+## 2026-09-24 旧 handler 清零检查点
+
+`progress-20260924-handler-retirement-manifest.json` 接续 media-entry 检查点。143 项原测试/benchmark 声明和标签均有替代位置，未运行 benchmark。定向普通 2,021、unit race 1,569 条通过；完整普通/unit/integration 12,006 / 20,040 / 13,009，既有跳过 4/8/4，三套 lint 为零。门禁 36/36、Wire 稳定、八类文件选择已记录。完整索引为 `progress-20260924-handler-retirement-verification.json`。旧 handler 删除，S16 仍未完成。

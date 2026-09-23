@@ -15,7 +15,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 
@@ -73,7 +72,7 @@ func newGatewayRoutesTestRouterWithGroup(cfg *config.Config, group *routing.Grou
 		&routeTestHandlers{
 			TextEnabled:   true,
 			ModelsHTTP:    modelsHTTP,
-			OpenAIGateway: &handler.OpenAIGatewayHandler{},
+			OpenAIEnabled: true,
 		},
 		keyhttp.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := group.ID

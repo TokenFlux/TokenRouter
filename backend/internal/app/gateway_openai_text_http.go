@@ -33,6 +33,15 @@ func provideOpenAITextHTTP(
 	runtime *openaiattempt.Runtime,
 	activity *gatewayRequestActivity,
 ) *gatewayhttp.OpenAITextHandler {
+	options := openAITextOptions(cfg)
+	bindings := openAITextBindings(source, funding, keys, resources, cyber, rules, moderator)
+	result := gatewayhttp.NewBoundOpenAITextHandler(options, bindings, prompts, textflow.NewResponsesExecutor(runtime, textflow.ResponseOptions{MaxSwitches: options.MaxSwitches}, textflow.ResponseOptions{MaxSwitches: options.MaxSwitches, FirstOutputBudget: true}))
+	result.BindRequestActivity(activity.Enter)
+	return result
+}
+
+// openAITextOptions 仅投影静态 HTTP 与切号预算。
+func openAITextOptions(cfg *config.Config) gatewayhttp.OpenAITextOptions {
 	options := gatewayhttp.OpenAITextOptions{MaxSwitches: 3}
 	if cfg != nil {
 		options.ForceCodexCLI = cfg.Gateway.ForceCodexCLI
@@ -44,6 +53,11 @@ func provideOpenAITextHTTP(
 			options.CompactKeepaliveInterval = time.Duration(cfg.Gateway.StreamKeepaliveInterval) * time.Second
 		}
 	}
+	return options
+}
+
+// openAITextBindings 固定原生能力，运行时只创建请求数据。
+func openAITextBindings(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, resources *gatewayhttp.OpenAIHTTPResources, cyber *gatewayhttp.CyberHandler, rules *errorpolicy.ErrorPassthroughService, moderator *moderation.ContentModerationService) gatewayhttp.OpenAITextBindings {
 	var moderationPort gatewayhttp.ModerationPort
 	if moderator != nil {
 		moderationPort = moderator
@@ -68,7 +82,5 @@ func provideOpenAITextHTTP(
 		Cyber:          cyber,
 		IsolateSession: source.EnsureSessionIsolation,
 	}
-	result := gatewayhttp.NewBoundOpenAITextHandler(options, bindings, prompts, textflow.NewResponsesExecutor(runtime, textflow.ResponseOptions{MaxSwitches: options.MaxSwitches}, textflow.ResponseOptions{MaxSwitches: options.MaxSwitches, FirstOutputBudget: true}))
-	result.BindRequestActivity(activity.Enter)
-	return result
+	return bindings
 }
