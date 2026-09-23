@@ -143,5 +143,5 @@ func MapOpenAIUpstreamError(statusCode int) (int, string, string) {
 
 // WriteFailoverExhausted 使用当前文本入口的输出状态，裁决仅保留一份。
 func (h *OpenAITextHandler) WriteFailoverExhausted(c *gin.Context, failure *OpenAIFailoverError, started bool, rules ErrorRuleMatcher, hooks FailoverErrorHooks) {
-	WriteOpenAIFailoverExhausted(c, failure, started, rules, hooks, h.handleStreamingAwareError)
+	h.errorOutput().WriteFailoverExhausted(c, failure, started, rules, hooks)
 }

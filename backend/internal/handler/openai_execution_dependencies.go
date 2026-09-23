@@ -5,6 +5,8 @@ import (
 	"context"
 	"net/http"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
@@ -116,16 +118,16 @@ func newOpenAIExecutionDependencies(h *OpenAIGatewayHandler) *openAIExecutionDep
 	d.diagnoser = h.gatewayService
 	d.resolvedDiagnoser = openAIResolvedRoutingModelDiagnoser{service: h.gatewayService}
 	d.acquireResponsesAccountSlot = h.acquireResponsesAccountSlot
-	d.anthropicStreamingAwareError = h.anthropicStreamingAwareError
+	d.anthropicStreamingAwareError = gatewayhttp.DefaultOpenAIErrorOutput().WriteAnthropicStreamingError
 	d.deriveOpenAIForwardAttemptBody = h.deriveOpenAIForwardAttemptBody
 	d.ensureAnthropicErrorResponse = h.ensureAnthropicErrorResponse
-	d.ensureOpenAIForwardErrorResponse = h.ensureOpenAIForwardErrorResponse
+	d.ensureOpenAIForwardErrorResponse = gatewayhttp.DefaultOpenAIErrorOutput().EnsureResponse
 	d.ensureOpenAIStreamReadErrorResponse = h.ensureOpenAIStreamReadErrorResponse
 	d.handleAnthropicFailoverExhausted = h.handleAnthropicFailoverExhausted
 	d.handleFailoverExhausted = h.handleFailoverExhausted
 	d.handleFailoverExhaustedSimple = h.handleFailoverExhaustedSimple
 	d.handleOpenAISelectionBusinessError = h.handleOpenAISelectionBusinessError
-	d.handleStreamingAwareError = h.handleStreamingAwareError
+	d.handleStreamingAwareError = gatewayhttp.DefaultOpenAIErrorOutput().StreamError
 	d.recordCyberPolicyIfMarked = func(c *gin.Context, key *apikey.APIKey, account *gatewaycapture.ExecutionAccount, subscription *billing.UserSubscription, model string, failed bool, body []byte, fields routing.ChannelUsageFields, hash string, compact ...bool) bool {
 		return h.recordCyberPolicyIfMarked(c, key, account, subscription, model, failed, body, fields, hash, compact...)
 	}

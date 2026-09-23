@@ -176,18 +176,18 @@ func (p *alphaRequestAdapter) renderFailure(f *gatewaymedia.AlphaFailure) {
 			if !cls.ModelNotFound {
 				gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
 			}
-			p.h.errorResponse(p.c, cls.Status, cls.ErrType, cls.Message)
+			gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, cls.Status, cls.ErrType, cls.Message)
 			return
 		}
 		var last *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &last) {
 			p.h.handleFailoverExhausted(p.c, last, false)
 		} else {
-			p.h.errorResponse(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
+			gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		}
 	case "forward":
 		if !f.Outcome.OutputChanged {
-			p.h.errorResponse(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
+			gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		}
 		p.reqLog.Warn("openai_alpha_search.forward_failed", zap.Int64("account_id", p.selection.Account.Record.ID), zap.Error(f.Err))
 	case "exhausted":

@@ -155,7 +155,7 @@ func appendOpenAIAccountProxyLogFields(fields []zap.Field, account *gatewayprovi
 // handleOpenAISelectionBusinessError 保持 OpenAI handler 调用侧语义清晰。
 func (h *OpenAIGatewayHandler) handleOpenAISelectionBusinessError(c *gin.Context, err error, streamStarted bool) bool {
 	return handleGroupSelectionBusinessError(c, err, streamStarted, func(status int, errType string, message string, streamStarted bool) {
-		h.handleStreamingAwareError(c, status, errType, message, streamStarted)
+		gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, status, errType, message, streamStarted)
 	})
 }
 
@@ -218,15 +218,11 @@ func resolveOpenAIMessagesMetadataSession(c *gin.Context, sessionHash, promptCac
 	return gatewaysession.MessagesMetadataSession(gatewayhttp.ClaudeCodeSessionIDFromHeader(c), sessionHash, promptCacheKey, reqModel, body)
 }
 
-func (h *OpenAIGatewayHandler) anthropicStreamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool) {
-	h.NewOpenAITextHTTPHandler().WriteAnthropicStreamingError(c, status, errType, message, streamStarted)
-}
-
 // handleAnthropicFailoverExhausted 将上游切号错误转换为 Anthropic 格式。
 func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, failoverErr *forwardcore.UpstreamFailoverError, streamStarted bool) {
 	if failoverErr != nil && gatewayprovider.IsOpenAIRequestBodyTooLarge(failoverErr) {
 		gatewayhttp.SetOpsUpstreamError(c, http.StatusRequestEntityTooLarge, forwardcore.OpenAIRequestBodyTooLargeClientMessage, "")
-		h.anthropicStreamingAwareError(
+		gatewayhttp.DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(
 			c,
 			http.StatusRequestEntityTooLarge,
 			"invalid_request_error",
@@ -240,7 +236,7 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 	}
 	if failoverErr != nil && failoverErr.IsCredentialFailure() {
 		status, message := gatewayhttp.CredentialFailoverClientResponse(failoverErr)
-		h.anthropicStreamingAwareError(c, status, "api_error", message, streamStarted)
+		gatewayhttp.DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, status, "api_error", message, streamStarted)
 		return
 	}
 	if failoverErr != nil && gatewayprovider.IsOpenAICapacityShed(failoverErr) && strings.TrimSpace(failoverErr.ClientMessage) != "" {
@@ -248,11 +244,11 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 		if status <= 0 {
 			status = http.StatusServiceUnavailable
 		}
-		h.anthropicStreamingAwareError(c, status, "api_error", failoverErr.ClientMessage, streamStarted)
+		gatewayhttp.DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, status, "api_error", failoverErr.ClientMessage, streamStarted)
 		return
 	}
 	status, errType, errMsg := h.mapUpstreamError(failoverErr.StatusCode)
-	h.anthropicStreamingAwareError(c, status, errType, errMsg, streamStarted)
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, status, errType, errMsg, streamStarted)
 }
 
 // ensureAnthropicErrorResponse writes a fallback Anthropic error if no response was written.
@@ -260,7 +256,7 @@ func (h *OpenAIGatewayHandler) ensureAnthropicErrorResponse(c *gin.Context, stre
 	if c == nil || c.Writer == nil || c.Writer.Written() {
 		return false
 	}
-	h.anthropicStreamingAwareError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteAnthropicStreamingError(c, http.StatusBadGateway, "api_error", "Upstream request failed", streamStarted)
 	return true
 }
 
@@ -283,7 +279,7 @@ func (h *OpenAIGatewayHandler) validateFunctionCallOutputRequest(c *gin.Context,
 		reqLog.Warn("openai.request_validation_failed",
 			zap.String("reason", "function_call_output_missing_call_id"),
 		)
-		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "function_call_output requires call_id on HTTP requests; continuation via previous_response_id is only supported on Responses WebSocket v2")
+		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, http.StatusBadRequest, "invalid_request_error", "function_call_output requires call_id on HTTP requests; continuation via previous_response_id is only supported on Responses WebSocket v2")
 		return false
 	}
 	if validation.HasItemReferenceForAllCallIDs {
@@ -293,7 +289,7 @@ func (h *OpenAIGatewayHandler) validateFunctionCallOutputRequest(c *gin.Context,
 	reqLog.Warn("openai.request_validation_failed",
 		zap.String("reason", "function_call_output_missing_item_reference"),
 	)
-	h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "function_call_output requires item_reference ids matching each call_id on HTTP requests; continuation via previous_response_id is only supported on Responses WebSocket v2")
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, http.StatusBadRequest, "invalid_request_error", "function_call_output requires item_reference ids matching each call_id on HTTP requests; continuation via previous_response_id is only supported on Responses WebSocket v2")
 	return false
 }
 
@@ -364,7 +360,7 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 ) (func(), openAISlotAcquireResult) {
 	if writeError == nil {
 		writeError = func(status int, errType, code, message string) {
-			h.handleStreamingAwareErrorWithCode(c, status, errType, code, message, *streamStarted, false)
+			gatewayhttp.DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, status, errType, code, message, *streamStarted, false)
 		}
 	}
 	var projected *gatewayhttp.SelectedAccountSlot
@@ -393,7 +389,7 @@ func (h *OpenAIGatewayHandler) recoverResponsesPanic(c *gin.Context, streamStart
 	if streamStarted != nil {
 		started = *streamStarted
 	}
-	wroteFallback := h.ensureForwardErrorResponse(c, started)
+	wroteFallback := gatewayhttp.DefaultOpenAIErrorOutput().EnsureFallback(c, started)
 	gatewayhttp.RequestLogger(c, "handler.openai_gateway.responses").Error(
 		"openai.responses_panic_recovered",
 		zap.Bool("fallback_error_response_written", wroteFallback),
@@ -469,7 +465,7 @@ func getContextInt64(c *gin.Context, key string) (int64, bool) {
 // handleConcurrencyError 统一处理并发槽位获取失败。
 func (h *OpenAIGatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool) {
 	status, errType, code, message := gatewayhttp.ConcurrencyErrorResponse(err, slotType)
-	h.handleStreamingAwareErrorWithCode(c, status, errType, code, message, streamStarted, false)
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(c, status, errType, code, message, streamStarted, false)
 }
 
 func (h *OpenAIGatewayHandler) acquireImageGenerationSlot(c *gin.Context, streamStarted bool) (func(), bool) {
@@ -489,7 +485,7 @@ func (h *OpenAIGatewayHandler) acquireImageGenerationSlot(c *gin.Context, stream
 	if acquired {
 		return release, true
 	}
-	h.handleStreamingAwareError(c, http.StatusTooManyRequests, "rate_limit_error", "Image generation concurrency limit exceeded, please retry later", streamStarted)
+	gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, http.StatusTooManyRequests, "rate_limit_error", "Image generation concurrency limit exceeded, please retry later", streamStarted)
 	return nil, false
 }
 
@@ -498,7 +494,7 @@ func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverE
 	if h.errorPassthroughService != nil {
 		rules = h.errorPassthroughService
 	}
-	h.NewOpenAITextHTTPHandler().WriteFailoverExhausted(c, gatewayhttp.ProjectOpenAIFailoverError(failoverErr), streamStarted, rules, gatewayhttp.FailoverErrorHooks{Upstream: func(c *gin.Context, status int, message string) {
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteFailoverExhausted(c, gatewayhttp.ProjectOpenAIFailoverError(failoverErr), streamStarted, rules, gatewayhttp.FailoverErrorHooks{Upstream: func(c *gin.Context, status int, message string) {
 		gatewayhttp.SetOpsUpstreamError(c, status, message, "")
 	}, SkipMonitoring: func(c *gin.Context) { c.Set(gatewayhttp.OpsSkipPassthroughKey, true) }})
 }
@@ -511,28 +507,11 @@ func copyFailoverRetryAfter(c *gin.Context, headers http.Header) {
 func (h *OpenAIGatewayHandler) handleFailoverExhaustedSimple(c *gin.Context, statusCode int, streamStarted bool) {
 	status, errType, errMsg := h.mapUpstreamError(statusCode)
 	gatewayhttp.SetOpsUpstreamError(c, statusCode, errMsg, "")
-	h.handleStreamingAwareError(c, status, errType, errMsg, streamStarted)
+	gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, status, errType, errMsg, streamStarted)
 }
 
 func (h *OpenAIGatewayHandler) mapUpstreamError(statusCode int) (int, string, string) {
 	return gatewayhttp.MapOpenAIUpstreamError(statusCode)
-}
-
-// handleStreamingAwareError handles errors that may occur after streaming has started
-func (h *OpenAIGatewayHandler) handleStreamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool) {
-	h.handleStreamingAwareErrorWithCode(c, status, errType, "", message, streamStarted, false)
-}
-
-func (h *OpenAIGatewayHandler) handleStreamingAwareErrorWithCode(
-	c *gin.Context,
-	status int,
-	errType string,
-	code string,
-	message string,
-	streamStarted bool,
-	countTowardsSLA bool,
-) {
-	h.NewOpenAITextHTTPHandler().WriteStreamingErrorWithCode(c, status, errType, code, message, streamStarted, countTowardsSLA)
 }
 
 func (h *OpenAIGatewayHandler) ensureOpenAIStreamReadErrorResponse(c *gin.Context, err error, streamStarted bool) bool {
@@ -543,98 +522,10 @@ func (h *OpenAIGatewayHandler) ensureOpenAIStreamReadErrorResponse(c *gin.Contex
 	if c.Writer.Written() {
 		streamStarted = true
 	}
-	h.handleStreamingAwareErrorWithCode(
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteStreamingErrorWithCode(
 		c, http.StatusBadGateway, "upstream_error", code, message, streamStarted, true,
 	)
 	return true
-}
-
-// ensureForwardErrorResponse 在 Forward 返回错误但尚未写响应时补写统一错误响应。
-func (h *OpenAIGatewayHandler) ensureForwardErrorResponse(c *gin.Context, streamStarted bool) bool {
-	return h.ensureOpenAIForwardErrorResponse(c, streamStarted, nil)
-}
-
-func (h *OpenAIGatewayHandler) ensureOpenAIForwardErrorResponse(c *gin.Context, streamStarted bool, err error) bool {
-	if c == nil || c.Writer == nil {
-		return false
-	}
-	// 先停止两类心跳再读 Writer 状态，避免与心跳 goroutine 竞争。
-	compactKeepaliveCommitted := gatewayhttp.StopOpenAICompactSSEKeepaliveCommitted(c)
-	if compactKeepaliveCommitted {
-		streamStarted = true
-	}
-	imageKeepalivePresent := gatewayhttp.OpenAIImagesJSONKeepalivePresent(c)
-	gatewayhttp.StopOpenAIImagesJSONKeepaliveCommitted(c)
-	imageKeepalivePaddingOnly := false
-	imageKeepaliveResponseWritten := false
-	if imageKeepalivePresent {
-		adjustedSize := gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
-		imageKeepalivePaddingOnly = adjustedSize < 0
-		imageKeepaliveResponseWritten = adjustedSize >= 0
-	}
-	compactKeepaliveHasMeaningfulOutput := compactKeepaliveCommitted && gatewayhttp.OpenAICompactKeepaliveAdjustedWrittenSize(c) > 0
-	// Compact 心跳可能只提交了 200 响应头而没有写语义 SSE；此时仍须补齐 response.failed。
-	if (gatewayhttp.IsResponseCommitted(c) && (!compactKeepaliveCommitted || compactKeepaliveHasMeaningfulOutput)) ||
-		(!compactKeepaliveCommitted && imageKeepaliveResponseWritten) {
-		return false
-	}
-	errType := "upstream_error"
-	message := "Upstream request failed"
-	status := http.StatusBadGateway
-	if warning, ok := forwardcore.WarningFromError(err); ok && gatewayprovider.IsOpenAICyberWarningPayload(warning.ResponseBody, warning.Message) {
-		errType = "invalid_request_error"
-		message = gatewayprovider.ExtractOpenAICyberWarningMessage(warning.ResponseBody, warning.Message)
-		if warning.StatusCode >= 400 && warning.StatusCode <= 599 {
-			status = warning.StatusCode
-		}
-	}
-	// 普通 SSE 心跳已写出时继续追加协议终态；图片 JSON 只有心跳空白时
-	// 仍按非流式响应补写一个 JSON 错误，不能误切换到 SSE 格式。
-	if c.Writer.Written() && !imageKeepalivePaddingOnly {
-		streamStarted = true
-	}
-	h.handleStreamingAwareError(c, status, errType, message, streamStarted)
-	return true
-}
-
-func shouldLogOpenAIForwardFailureAsWarn(c *gin.Context, wroteFallback bool) bool {
-	if wroteFallback {
-		return false
-	}
-	if c == nil || c.Writer == nil {
-		return false
-	}
-	return c.Writer.Written()
-}
-
-// 判断转发层是否已把上游终止错误写给客户端。
-//
-// 响应流可能收到状态码 200 里的终止失败事件，例如安全策略拒绝。
-// 转发层会先原样转发该终止事件，再返回错误给处理层做日志和统计；
-// 处理层不能再追加通用失败事件，否则严格客户端会看到重复终止事件。
-func openAIForwardErrorAlreadyCommunicated(c *gin.Context, writerSizeBeforeForward int, err error) bool {
-	if err == nil || c == nil || c.Writer == nil {
-		return false
-	}
-	// 与快照同口径：排除 compact 心跳字节，避免"仅心跳写出"被误判为
-	// 响应已写出（#3887）。
-	if gatewayhttp.OpenAICompactKeepaliveAdjustedWrittenSize(c) == writerSizeBeforeForward || gatewayhttp.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c) == writerSizeBeforeForward {
-		return false
-	}
-	if gatewayhttp.GetOpsCyberPolicy(c) != nil {
-		return true
-	}
-
-	msg := strings.TrimSpace(err.Error())
-	for _, prefix := range []string{
-		"upstream response failed:",
-		"non-streaming openai protocol error:",
-	} {
-		if strings.HasPrefix(msg, prefix) {
-			return true
-		}
-	}
-	return false
 }
 
 const cyberPolicyRecordedKey = gatewayhttp.CyberPolicyRecordedKey
@@ -740,10 +631,6 @@ func openAIRequestAllowsFailoverReplay(c *gin.Context) bool {
 		return false
 	}
 	return !gatewayhttp.FailoverClientGone(c)
-}
-
-func (h *OpenAIGatewayHandler) errorResponse(c *gin.Context, status int, errType, message string) {
-	h.NewOpenAITextHTTPHandler().WriteError(c, status, errType, message)
 }
 
 // openAICompactKeepaliveInterval 复用流式 keepalive 配置作为 compact 下游

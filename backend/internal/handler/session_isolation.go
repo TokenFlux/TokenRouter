@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/gin-gonic/gin"
@@ -26,9 +28,9 @@ func (h *OpenAIGatewayHandler) handleOpenAISessionIsolationError(c *gin.Context,
 		return false
 	}
 	if isSessionIsolationConflict(err) {
-		h.handleStreamingAwareError(c, http.StatusForbidden, "permission_error", session.SessionIsolationConflictMessage, streamStarted)
+		gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, http.StatusForbidden, "permission_error", session.SessionIsolationConflictMessage, streamStarted)
 		return true
 	}
-	h.handleStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
+	gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, http.StatusServiceUnavailable, "api_error", "Service temporarily unavailable", streamStarted)
 	return true
 }

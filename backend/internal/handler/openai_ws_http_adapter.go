@@ -83,7 +83,7 @@ func (p openAIWSHTTPBackend) Access(c *gin.Context) (*gatewayws.EntryKey, bool) 
 }
 func (p openAIWSHTTPBackend) Transport(c *gin.Context) { setOpenAIClientTransportWS(c) }
 func (p openAIWSHTTPBackend) Error(c *gin.Context, status int, kind, message string) {
-	p.h.errorResponse(c, status, kind, message)
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, status, kind, message)
 }
 func (p openAIWSHTTPBackend) Dependencies(c *gin.Context, log *zap.Logger) bool {
 	return p.h.ensureResponsesDependencies(c, log)

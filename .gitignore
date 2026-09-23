@@ -167,3 +167,6 @@ refactor/baseline/S16/*
 
 # S16 OpenAI 入站提示检查点索引。
 !refactor/baseline/S16/progress-20260923-openai-hints-manifest.json
+
+# S16 OpenAI 共用输出检查点索引。
+!refactor/baseline/S16/progress-20260923-openai-output-manifest.json

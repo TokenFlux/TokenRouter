@@ -47,3 +47,7 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 ## 2026-09-23 OpenAI 入站提示检查点
 
 `progress-20260923-openai-hints-manifest.json` 接续 generic-retirement 检查点。定向 unit race 516 条通过、1 项既有跳过；普通合同 37 条通过，构建及三套完整 lint 为零。阶段仍实施中；命令与范围见归档中的 `progress-20260923-openai-hints-verification.json`。
+
+## 2026-09-23 OpenAI 共用输出检查点
+
+`progress-20260923-openai-output-manifest.json` 接续 openai-hints 检查点。定向 race 573 条、相关普通合同 263 条通过；构建及三套完整 lint 为零。11 组原断言迁入 HTTP 所有者，原诊断与修正记录保留。完整结果见归档内 `progress-20260923-openai-output-verification.json`；S16 尚未完成。

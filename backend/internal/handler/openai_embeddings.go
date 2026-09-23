@@ -119,21 +119,21 @@ func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure
 			if !cls.ModelNotFound {
 				gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(p.c, f.Err)
 			}
-			p.h.errorResponse(p.c, cls.Status, cls.ErrType, cls.Message)
+			gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, cls.Status, cls.ErrType, cls.Message)
 			return
 		}
 		var failure *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &failure) {
 			p.h.handleFailoverExhausted(p.c, failure, false)
 		} else {
-			p.h.errorResponse(p.c, http.StatusBadGateway, "api_error", "Upstream request failed")
+			gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, http.StatusBadGateway, "api_error", "Upstream request failed")
 		}
 	case "empty_selection":
 		cls := classifyNoAccountErrorFromGin(p.c, p.h.gatewayService, p.apiKey, p.reqModel, p.reqModel, capability.PlatformOpenAI)
 		if !cls.ModelNotFound {
 			gatewayhttp.MarkOpsRoutingCapacityLimited(p.c)
 		}
-		p.h.errorResponse(p.c, cls.Status, cls.ErrType, cls.Message)
+		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, cls.Status, cls.ErrType, cls.Message)
 	case "exhausted":
 		var failure *forwardcore.UpstreamFailoverError
 		if errors.As(f.Outcome.Err, &failure) {
@@ -141,7 +141,7 @@ func (p *embeddingRequestAdapter) renderFailure(f *gatewaymedia.EmbeddingFailure
 		}
 	case "forward":
 		if !f.Outcome.OutputChanged {
-			p.h.errorResponse(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
+			gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		}
 		p.reqLog.Warn("openai_embeddings.forward_failed", zap.Int64("account_id", p.selection.Account.Record.ID), zap.Error(f.Err))
 	}

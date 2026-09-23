@@ -270,7 +270,7 @@ func (b *openAIChatAttemptBridge) OtherFailure(err error) {
 		b.binding().recordOpenAICyberWarning(b.c, b.reqLog, b.apiKey, b.account, b.reqModel, statusCode, nil, err.Error())
 	}
 	b.binding().reportOpenAIAccountScheduleResult(b.account, openAIAccountScheduleModel(b.c, b.account, b.reqModel, false, nil), false, nil, err)
-	upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
+	upstreamErrorAlreadyCommunicated := gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
 	b.wroteFallback = false
 	if !upstreamErrorAlreadyCommunicated && (!recordedWarning || b.c.Writer.Size() == b.writerSizeBeforeForward) {
 		b.wroteFallback = b.binding().ensureOpenAIStreamReadErrorResponse(b.c, err, (*b.streamStarted))

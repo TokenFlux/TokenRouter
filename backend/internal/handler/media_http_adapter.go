@@ -63,13 +63,13 @@ func (p mediaHTTPAdapter) Dependencies(c *gin.Context, log *zap.Logger) bool {
 	return p.h.ensureResponsesDependencies(c, log)
 }
 func (p mediaHTTPAdapter) Error(c *gin.Context, status int, code, message string) {
-	p.h.errorResponse(c, status, code, message)
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, status, code, message)
 }
 func (p mediaHTTPAdapter) StreamingError(c *gin.Context, status int, code, message string, stream bool) {
-	p.h.handleStreamingAwareError(c, status, code, message, stream)
+	gatewayhttp.DefaultOpenAIErrorOutput().StreamError(c, status, code, message, stream)
 }
 func (p mediaHTTPAdapter) EnsureForwardError(c *gin.Context, stream bool) bool {
-	return p.h.ensureForwardErrorResponse(c, stream)
+	return gatewayhttp.DefaultOpenAIErrorOutput().EnsureFallback(c, stream)
 }
 func (p mediaHTTPAdapter) ObserveRequest(c *gin.Context, model string, stream, endpoint bool) {
 	gatewayhttp.SetOpsRequestContext(c, model, stream)
@@ -102,7 +102,7 @@ func (p mediaHTTPAdapter) Moderate(c *gin.Context, log *zap.Logger, subject gate
 	if decision == nil || !decision.Blocked {
 		return false
 	}
-	p.h.errorResponse(c, gatewayhttp.ContentModerationStatus(decision), gatewayhttp.ContentModerationErrorCode(decision), decision.Message)
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, gatewayhttp.ContentModerationStatus(decision), gatewayhttp.ContentModerationErrorCode(decision), decision.Message)
 	return true
 }
 func (p mediaHTTPAdapter) CyberSnapshot(c *gin.Context, body []byte) {
@@ -205,7 +205,7 @@ func (p mediaHTTPAdapter) ModerateVoice(c *gin.Context, log *zap.Logger, _ gatew
 	if decision == nil || !decision.Blocked {
 		return false
 	}
-	p.h.errorResponse(c, gatewayhttp.ContentModerationStatus(decision), gatewayhttp.ContentModerationErrorCode(decision), decision.Message)
+	gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, gatewayhttp.ContentModerationStatus(decision), gatewayhttp.ContentModerationErrorCode(decision), decision.Message)
 	return true
 }
 func (p mediaHTTPAdapter) NewVoice(c *gin.Context, _ gatewayhttp.AuxiliaryHTTPInput, log *zap.Logger) media.VoicePorts {
@@ -221,7 +221,7 @@ func (p mediaHTTPAdapter) EndVoice(c *gin.Context, f *media.VoiceFailure) {
 	if errors.As(f.Last, &last) {
 		p.h.handleFailoverExhausted(c, last, false)
 	} else if f.NoAccounts {
-		p.h.errorResponse(c, 503, "api_error", "No available Grok accounts")
+		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(c, 503, "api_error", "No available Grok accounts")
 	}
 }
 func (p mediaHTTPAdapter) NewRealtime(c *gin.Context, log *zap.Logger) gatewayhttp.RealtimeHTTPExecution {

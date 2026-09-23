@@ -349,7 +349,7 @@ func (b *responsesAttemptBridge) OtherFailure(err error) {
 		b.binding().recordOpenAICyberWarning(b.c, b.reqLog, b.apiKey, b.account, b.reqModel, statusCode, nil, err.Error())
 	}
 	b.binding().reportOpenAIAccountScheduleResult(b.account, openAIAccountScheduleModel(b.c, b.account, b.forwardModel, b.requireCompact, b.result), false, nil, err)
-	upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
+	upstreamErrorAlreadyCommunicated := gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(b.c, b.writerSizeBeforeForward, err)
 	b.wroteFallback = false
 	// cyber warning 场景下，service 层可能已经把上游 response.failed/JSON 错误写给下游。
 	// 此时不再补写第二个 fallback，避免客户端看到重复的终止事件。
@@ -366,7 +366,7 @@ func (b *responsesAttemptBridge) OtherFailure(err error) {
 
 // Failed 只执行单次 Responses 适配操作，不持有重试循环。
 func (b *responsesAttemptBridge) Failed() {
-	if shouldLogOpenAIForwardFailureAsWarn(b.c, b.wroteFallback) {
+	if gatewayhttp.ShouldLogOpenAIForwardFailureAsWarn(b.c, b.wroteFallback) {
 		b.reqLog.Warn("openai.forward_failed", b.fields...)
 		return
 	}

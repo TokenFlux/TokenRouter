@@ -350,9 +350,9 @@ func (p *generationRequestAdapter) MediaCapacity(err error, conditional bool) {
 }
 func (p *generationRequestAdapter) MediaError(status int, typ, message string, stream bool) {
 	if stream {
-		p.h.handleStreamingAwareError(p.c, status, typ, message, *p.streamStarted)
+		gatewayhttp.DefaultOpenAIErrorOutput().StreamError(p.c, status, typ, message, *p.streamStarted)
 	} else {
-		p.h.errorResponse(p.c, status, typ, message)
+		gatewayhttp.DefaultOpenAIErrorOutput().WriteError(p.c, status, typ, message)
 	}
 }
 func (p *generationRequestAdapter) MediaFailover(err error, stream bool) {
@@ -381,11 +381,11 @@ func (p *generationRequestAdapter) MediaCommunicated(err error) bool {
 	if p.grok {
 		return gatewayhttp.IsResponseCommitted(p.c)
 	}
-	return openAIForwardErrorAlreadyCommunicated(p.c, p.writerBefore, err)
+	return gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(p.c, p.writerBefore, err)
 }
 func (p *generationRequestAdapter) MediaEnsureFallback(err error) bool {
-	return p.h.ensureOpenAIForwardErrorResponse(p.c, *p.streamStarted, err)
+	return gatewayhttp.DefaultOpenAIErrorOutput().EnsureResponse(p.c, *p.streamStarted, err)
 }
 func (p *generationRequestAdapter) MediaWarnFailure(wrote bool) bool {
-	return shouldLogOpenAIForwardFailureAsWarn(p.c, wrote)
+	return gatewayhttp.ShouldLogOpenAIForwardFailureAsWarn(p.c, wrote)
 }

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	moderationflow "github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
@@ -21,8 +22,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-
-	httpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 
 	usage "github.com/TokenFlux/TokenRouter/internal/usage"
 
@@ -46,7 +45,6 @@ import (
 
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -73,76 +71,6 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-func TestOpenAIHandleStreamingAwareError_JSONEscaping(t *testing.T) {
-	tests := []struct {
-		name    string
-		errType string
-		message string
-	}{
-		{
-			name:    "包含双引号的消息",
-			errType: "server_error",
-			message: `upstream returned "invalid" response`,
-		},
-		{
-			name:    "包含反斜杠的消息",
-			errType: "server_error",
-			message: `path C:\Users\test\file.txt not found`,
-		},
-		{
-			name:    "包含双引号和反斜杠的消息",
-			errType: "upstream_error",
-			message: `error parsing "key\value": unexpected token`,
-		},
-		{
-			name:    "包含换行符的消息",
-			errType: "server_error",
-			message: "line1\nline2\ttab",
-		},
-		{
-			name:    "普通消息",
-			errType: "upstream_error",
-			message: "Upstream service temporarily unavailable",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-			h := &OpenAIGatewayHandler{}
-			h.handleStreamingAwareError(c, http.StatusBadGateway, tt.errType, tt.message, true)
-
-			body := w.Body.String()
-
-			// 验证 SSE 格式：event: error\ndata: {JSON}\n\n
-			assert.True(t, strings.HasPrefix(body, "event: error\n"), "应以 'event: error\\n' 开头")
-			assert.True(t, strings.HasSuffix(body, "\n\n"), "应以 '\\n\\n' 结尾")
-
-			// 提取 data 部分
-			lines := strings.Split(strings.TrimSuffix(body, "\n\n"), "\n")
-			require.Len(t, lines, 2, "应有 event 行和 data 行")
-			dataLine := lines[1]
-			require.True(t, strings.HasPrefix(dataLine, "data: "), "第二行应以 'data: ' 开头")
-			jsonStr := strings.TrimPrefix(dataLine, "data: ")
-
-			// 验证 JSON 合法性
-			var parsed map[string]any
-			err := json.Unmarshal([]byte(jsonStr), &parsed)
-			require.NoError(t, err, "JSON 应能被成功解析，原始 JSON: %s", jsonStr)
-
-			// 验证结构
-			errorObj, ok := parsed["error"].(map[string]any)
-			require.True(t, ok, "应包含 error 对象")
-			assert.Equal(t, tt.errType, errorObj["type"])
-			assert.Equal(t, tt.message, errorObj["message"])
-		})
-	}
-}
-
 // TestHandleGroupSelectionBusinessError 验证客户端策略拒绝不会被误报为服务不可用。
 func TestHandleGroupSelectionBusinessError(t *testing.T) {
 
@@ -167,35 +95,6 @@ func TestHandleGroupSelectionBusinessError(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, status)
 	require.Equal(t, "permission_error", errType)
 	require.Equal(t, routing.ErrClaudeCodeOnly.Error(), message)
-}
-
-func TestOpenAIHandleStreamingAwareErrorWithCode_EmitsStableClassification(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
-
-	h := &OpenAIGatewayHandler{}
-	h.handleStreamingAwareErrorWithCode(
-		c,
-		http.StatusBadGateway,
-		"upstream_error",
-		openai.OpenAIUpstreamHTTP2StreamErrorCode,
-		"Upstream HTTP/2 stream failed",
-		true,
-		true,
-	)
-
-	body := w.Body.String()
-	require.Contains(t, body, "event: error\n")
-	require.Equal(t, "upstream_error", gjson.Get(body[strings.Index(body, "{"):], "error.type").String())
-	require.Equal(t, openai.OpenAIUpstreamHTTP2StreamErrorCode, gjson.Get(body[strings.Index(body, "{"):], "error.code").String())
-	require.NotContains(t, body, "stream ID")
-
-	streamErr, ok := httpapi.GetOpsStreamError(c)
-	require.True(t, ok)
-	require.True(t, streamErr.CountTowardsSLA)
-	require.Equal(t, http.StatusBadGateway, streamErr.IntendedStatus)
 }
 
 func TestOpenAIForwardSucceededForScheduling(t *testing.T) {
@@ -272,8 +171,8 @@ func TestResolveOpenAIMessagesMetadataSession_ClaudeCodeHeaderOverridesContentFa
 	body1 := []byte(`{"model":"gpt-5.6-sol","system":"parent","messages":[{"role":"user","content":"parent task"}]}`)
 	body2 := []byte(`{"model":"gpt-5.6-sol","system":"subagent","messages":[{"role":"user","content":"child task"}]}`)
 
-	contentHash1 := httpapi.GenerateOpenAISessionHash(c, body1)
-	contentHash2 := httpapi.GenerateOpenAISessionHash(c, body2)
+	contentHash1 := gatewayhttp.GenerateOpenAISessionHash(c, body1)
+	contentHash2 := gatewayhttp.GenerateOpenAISessionHash(c, body2)
 	require.NotEqual(t, contentHash1, contentHash2, "different bodies should prove the content fallback differs")
 
 	hash1, cacheKey1 := resolveOpenAIMessagesMetadataSession(c, contentHash1, "", "gpt-5.6-sol", body1)
@@ -308,27 +207,6 @@ func TestResolveOpenAIMessagesMetadataSession_BlankClaudeHeaderKeepsContentFallb
 	require.Empty(t, cacheKey)
 }
 
-func TestOpenAIHandleStreamingAwareError_NonStreaming(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-	h := &OpenAIGatewayHandler{}
-	h.handleStreamingAwareError(c, http.StatusBadGateway, "upstream_error", "test error", false)
-
-	// 非流式应返回 JSON 响应
-	assert.Equal(t, http.StatusBadGateway, w.Code)
-
-	var parsed map[string]any
-	err := json.Unmarshal(w.Body.Bytes(), &parsed)
-	require.NoError(t, err)
-	errorObj, ok := parsed["error"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "upstream_error", errorObj["type"])
-	assert.Equal(t, "test error", errorObj["message"])
-}
-
 func TestReadRequestBodyWithPrealloc(t *testing.T) {
 	payload := `{"model":"gpt-5","input":"hello"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(payload))
@@ -350,98 +228,11 @@ func TestReadRequestBodyWithPrealloc_MaxBytesError(t *testing.T) {
 	require.ErrorAs(t, err, &maxErr)
 }
 
-func TestOpenAIEnsureForwardErrorResponse_WritesFallbackWhenNotWritten(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-
-	h := &OpenAIGatewayHandler{}
-	wrote := h.ensureForwardErrorResponse(c, false)
-
-	require.True(t, wrote)
-	require.Equal(t, http.StatusBadGateway, w.Code)
-
-	var parsed map[string]any
-	err := json.Unmarshal(w.Body.Bytes(), &parsed)
-	require.NoError(t, err)
-	errorObj, ok := parsed["error"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "upstream_error", errorObj["type"])
-	assert.Equal(t, "Upstream request failed", errorObj["message"])
-}
-
-// Writer 已写后 ensureForwardErrorResponse 必须仍然把错误信息以 SSE
-// 形式追加给客户端（streamStarted 强制 true）。
-// 这是 case B 修复：旧实现遇到 Writer.Written 直接 return false，
-// 客户端只能拿到 silent EOF；Codex CLI 报 "stream closed before response.completed"。
-func TestOpenAIEnsureForwardErrorResponse_AppendsSSEAfterWritten(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-	c.String(http.StatusTeapot, "already written")
-
-	h := &OpenAIGatewayHandler{}
-	wrote := h.ensureForwardErrorResponse(c, false)
-
-	require.True(t, wrote, "must attempt to communicate the failure to the client via SSE")
-	// 状态码改不了（headers 已 flush），但 body 应该追加 SSE 错误事件。
-	require.Equal(t, http.StatusTeapot, w.Code)
-	assert.Contains(t, w.Body.String(), "already written")
-	// 非 /responses 路径走 legacy event: error 分支。
-	assert.Contains(t, w.Body.String(), "event: error\n")
-}
-
-// case B 回归测试：/responses 路径，Writer 已被写过（模拟 ping flushed），
-// ensureForwardErrorResponse 必须发 response.failed，让 Codex 收到合规终止事件。
-func TestOpenAIEnsureForwardErrorResponse_ResponsesRouteAfterWrittenEmitsResponseFailed(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, httpapi.EndpointResponses, nil)
-	// 模拟 ping 已 flush 的状态：Writer 已写过 1 个字节
-	_, _ = c.Writer.WriteString(":\n\n")
-
-	h := &OpenAIGatewayHandler{}
-	wrote := h.ensureForwardErrorResponse(c, false)
-
-	require.True(t, wrote)
-	body := w.Body.String()
-	assert.Contains(t, body, ":\n\n", "earlier ping bytes preserved")
-	assert.Contains(t, body, "event: response.failed\n", "appended a Responses terminal event")
-	assert.Contains(t, body, `"type":"response.failed"`)
-	assert.Contains(t, body, `"code":"upstream_error"`)
-	assert.Contains(t, body, "Upstream request failed")
-}
-
-func TestOpenAIEnsureForwardErrorResponse_CompactKeepaliveOnlyWritesResponseFailed(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, httpapi.EndpointResponses, nil)
-	httpapi.MarkOpenAICompactClientStream(c)
-
-	stop := httpapi.StartOpenAICompactSSEKeepalive(c, 5*time.Millisecond)
-	defer stop()
-	before := httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c)
-	require.Eventually(t, c.Writer.Written, time.Second, time.Millisecond)
-	require.Equal(t, before, httpapi.OpenAICompactKeepaliveAdjustedWrittenSize(c))
-	// 模拟上游错误路径已设置 committed 标记，但未实际写出语义事件。
-	httpapi.MarkResponseCommitted(c)
-
-	h := &OpenAIGatewayHandler{}
-	require.True(t, h.ensureForwardErrorResponse(c, false))
-	require.Equal(t, http.StatusOK, w.Code)
-	require.Contains(t, w.Body.String(), "event: response.failed\n")
-	require.NotContains(t, w.Body.String(), "event: error\n")
-}
-
 func TestOpenAIEnsureForwardErrorResponse_ResponsesRouteCyberWarningEmitsOriginalMessage(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, httpapi.EndpointResponses, nil)
+	c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointResponses, nil)
 	_, _ = c.Writer.WriteString(":\n\n")
 
 	message := "This request has been flagged for potentially high-risk cyber activity."
@@ -454,8 +245,7 @@ func TestOpenAIEnsureForwardErrorResponse_ResponsesRouteCyberWarningEmitsOrigina
 		err: errors.New("upstream response failed"),
 	}
 
-	h := &OpenAIGatewayHandler{}
-	wrote := h.ensureOpenAIForwardErrorResponse(c, false, err)
+	wrote := gatewayhttp.DefaultOpenAIErrorOutput().EnsureResponse(c, false, err)
 
 	require.True(t, wrote)
 	body := w.Body.String()
@@ -470,14 +260,14 @@ func TestOpenAIForwardErrorAlreadyCommunicated(t *testing.T) {
 	t.Run("upstream response failed after write", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, httpapi.EndpointResponses, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointResponses, nil)
 		before := c.Writer.Size()
 		_, _ = c.Writer.WriteString(`event: response.failed
 data: {"type":"response.failed","error":{"message":"This content was flagged"}}
 
 `)
 
-		reported := openAIForwardErrorAlreadyCommunicated(c, before, errors.New("upstream response failed: This content was flagged"))
+		reported := gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(c, before, errors.New("upstream response failed: This content was flagged"))
 
 		require.True(t, reported)
 	})
@@ -485,9 +275,9 @@ data: {"type":"response.failed","error":{"message":"This content was flagged"}}
 	t.Run("no write still needs fallback", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, httpapi.EndpointResponses, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointResponses, nil)
 
-		reported := openAIForwardErrorAlreadyCommunicated(c, c.Writer.Size(), errors.New("upstream response failed: This content was flagged"))
+		reported := gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(c, c.Writer.Size(), errors.New("upstream response failed: This content was flagged"))
 
 		require.False(t, reported)
 	})
@@ -495,11 +285,11 @@ data: {"type":"response.failed","error":{"message":"This content was flagged"}}
 	t.Run("generic error after write still needs fallback", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
-		c.Request = httptest.NewRequest(http.MethodPost, httpapi.EndpointResponses, nil)
+		c.Request = httptest.NewRequest(http.MethodPost, gatewayhttp.EndpointResponses, nil)
 		before := c.Writer.Size()
 		_, _ = c.Writer.WriteString(":\n\n")
 
-		reported := openAIForwardErrorAlreadyCommunicated(c, before, errors.New("stream read error: unexpected EOF"))
+		reported := gatewayhttp.OpenAIForwardErrorAlreadyCommunicated(c, before, errors.New("stream read error: unexpected EOF"))
 
 		require.False(t, reported)
 	})
@@ -510,7 +300,7 @@ func TestOpenAIHandleFailoverExhausted_CyberWarningPassesThroughMessage(t *testi
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	httpapi.SetOpsRequestContext(c, "gpt-5.1", false)
+	gatewayhttp.SetOpsRequestContext(c, "gpt-5.1", false)
 
 	message := "This content was flagged for possible cybersecurity risk. If this seems wrong, try rephrasing your request."
 	h := &OpenAIGatewayHandler{}
@@ -524,153 +314,24 @@ func TestOpenAIHandleFailoverExhausted_CyberWarningPassesThroughMessage(t *testi
 	assert.NotContains(t, w.Body.String(), "All available accounts exhausted")
 }
 
-// TestOpenAIEnsureForwardErrorResponse_AfterDeltaAppendsSingleValidResponseFailed 确认流中只追加一个合法失败终态。
-func TestOpenAIEnsureForwardErrorResponse_AfterDeltaAppendsSingleValidResponseFailed(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, httpapi.EndpointResponses, nil)
-
-	delta := `{"type":"response.output_text.delta","delta":"ok","sequence_number":1}`
-	_, err := c.Writer.WriteString("event: response.output_text.delta\ndata: " + delta + "\n\n")
-	require.NoError(t, err)
-
-	h := &OpenAIGatewayHandler{}
-	require.True(t, h.ensureForwardErrorResponse(c, true))
-
-	frames := strings.Split(strings.TrimSuffix(w.Body.String(), "\n\n"), "\n\n")
-	require.Len(t, frames, 2)
-	errorEvents := 0
-	for _, frame := range frames {
-		lines := strings.Split(frame, "\n")
-		require.Len(t, lines, 2)
-		require.True(t, strings.HasPrefix(lines[0], "event: "))
-		require.True(t, strings.HasPrefix(lines[1], "data: "))
-
-		eventType := strings.TrimPrefix(lines[0], "event: ")
-		data := strings.TrimPrefix(lines[1], "data: ")
-		require.True(t, json.Valid([]byte(data)), "each downstream SSE frame must contain valid JSON")
-		var event struct {
-			Type string `json:"type"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(data), &event))
-		require.Equal(t, eventType, event.Type)
-		if eventType == "response.failed" {
-			errorEvents++
-		}
-	}
-	require.Equal(t, 1, errorEvents)
-}
-
-func TestOpenAIEnsureForwardErrorResponse_ImageJSONKeepaliveWritesSingleJSONFallback(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	stop := httpapi.StartOpenAIImagesJSONKeepalive(c, 5*time.Millisecond)
-	defer stop()
-	before := httpapi.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
-	require.Eventually(t, c.Writer.Written, time.Second, time.Millisecond)
-	require.Equal(t, before, httpapi.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c))
-	require.False(t, openAIForwardErrorAlreadyCommunicated(c, before, errors.New("read upstream response: unexpected EOF")))
-
-	h := &OpenAIGatewayHandler{}
-	wrote := h.ensureForwardErrorResponse(c, false)
-
-	require.True(t, wrote)
-	require.Equal(t, http.StatusOK, w.Code, "heartbeat already committed the status")
-	require.True(t, json.Valid(w.Body.Bytes()), w.Body.String())
-	require.NotContains(t, w.Body.String(), "event:")
-	require.NotContains(t, w.Body.String(), "data:")
-
-	decoder := json.NewDecoder(strings.NewReader(w.Body.String()))
-	var payload map[string]any
-	require.NoError(t, decoder.Decode(&payload))
-	require.ErrorIs(t, decoder.Decode(&payload), io.EOF)
-	require.Equal(t, "upstream_error", gjson.Get(w.Body.String(), "error.type").String())
-	require.Equal(t, "Upstream request failed", gjson.Get(w.Body.String(), "error.message").String())
-}
-
-func TestOpenAIEnsureForwardErrorResponse_ImageJSONKeepalivePreservesCompletedJSON(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	stop := httpapi.StartOpenAIImagesJSONKeepalive(c, 5*time.Millisecond)
-	defer stop()
-	before := httpapi.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
-	require.Eventually(t, c.Writer.Written, time.Second, time.Millisecond)
-	c.JSON(http.StatusOK, gin.H{"data": []gin.H{{"b64_json": "aW1hZ2U="}}})
-	completedBody := w.Body.String()
-	require.True(t, json.Valid([]byte(completedBody)), completedBody)
-	require.Greater(t, httpapi.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), before)
-	require.False(t, openAIForwardErrorAlreadyCommunicated(c, before, errors.New("read upstream trailer: unexpected EOF")))
-
-	h := &OpenAIGatewayHandler{}
-	wrote := h.ensureForwardErrorResponse(c, false)
-
-	require.False(t, wrote, "the completed Images JSON already communicated the response")
-	require.Equal(t, completedBody, w.Body.String())
-	require.NotContains(t, w.Body.String(), "event:")
-	require.NotContains(t, w.Body.String(), "data:")
-
-	decoder := json.NewDecoder(strings.NewReader(w.Body.String()))
-	var payload map[string]any
-	require.NoError(t, decoder.Decode(&payload))
-	require.ErrorIs(t, decoder.Decode(&payload), io.EOF)
-	require.Equal(t, "aW1hZ2U=", gjson.Get(w.Body.String(), "data.0.b64_json").String())
-}
-
-func TestOpenAIEnsureForwardErrorResponse_FastImageJSONKeepalivePreservesCompletedJSON(t *testing.T) {
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	stop := httpapi.StartOpenAIImagesJSONKeepalive(c, time.Hour)
-	defer stop()
-	before := httpapi.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c)
-	c.JSON(http.StatusOK, gin.H{"data": []gin.H{{"b64_json": "ZmFzdC1pbWFnZQ=="}}})
-	completedBody := w.Body.String()
-	require.True(t, json.Valid([]byte(completedBody)), completedBody)
-	require.Greater(t, httpapi.OpenAIImagesJSONKeepaliveAdjustedWrittenSize(c), before)
-	require.False(t, openAIForwardErrorAlreadyCommunicated(c, before, errors.New("read upstream trailer: unexpected EOF")))
-
-	h := &OpenAIGatewayHandler{}
-	wrote := h.ensureForwardErrorResponse(c, false)
-
-	require.False(t, wrote, "fast completed Images JSON already communicated the response")
-	require.Equal(t, completedBody, w.Body.String())
-	require.NotContains(t, w.Body.String(), "event:")
-	require.NotContains(t, w.Body.String(), "data:")
-
-	decoder := json.NewDecoder(strings.NewReader(w.Body.String()))
-	var payload map[string]any
-	require.NoError(t, decoder.Decode(&payload))
-	require.ErrorIs(t, decoder.Decode(&payload), io.EOF)
-	require.Equal(t, "ZmFzdC1pbWFnZQ==", gjson.Get(w.Body.String(), "data.0.b64_json").String())
-}
-
 func TestShouldLogOpenAIForwardFailureAsWarn(t *testing.T) {
 
 	t.Run("fallback_written_should_not_downgrade", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-		require.False(t, shouldLogOpenAIForwardFailureAsWarn(c, true))
+		require.False(t, gatewayhttp.ShouldLogOpenAIForwardFailureAsWarn(c, true))
 	})
 
 	t.Run("context_nil_should_not_downgrade", func(t *testing.T) {
-		require.False(t, shouldLogOpenAIForwardFailureAsWarn(nil, false))
+		require.False(t, gatewayhttp.ShouldLogOpenAIForwardFailureAsWarn(nil, false))
 	})
 
 	t.Run("response_not_written_should_not_downgrade", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
-		require.False(t, shouldLogOpenAIForwardFailureAsWarn(c, false))
+		require.False(t, gatewayhttp.ShouldLogOpenAIForwardFailureAsWarn(c, false))
 	})
 
 	t.Run("response_already_written_should_downgrade", func(t *testing.T) {
@@ -678,7 +339,7 @@ func TestShouldLogOpenAIForwardFailureAsWarn(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
 		c.String(http.StatusForbidden, "already written")
-		require.True(t, shouldLogOpenAIForwardFailureAsWarn(c, false))
+		require.True(t, gatewayhttp.ShouldLogOpenAIForwardFailureAsWarn(c, false))
 	})
 }
 
@@ -770,7 +431,7 @@ func TestOpenAIMissingResponsesDependencies(t *testing.T) {
 			gatewayService:      &service.OpenAIGatewayService{},
 			billingCacheService: &admission.FundingAdmission{},
 			apiKeyService:       &apikey.APIKeyService{},
-			concurrencyHelper:   httpapi.NewConcurrencyHelper(&scheduler.ConcurrencyService{}, httpapi.SSEPingFormatNone, 0),
+			concurrencyHelper:   gatewayhttp.NewConcurrencyHelper(&scheduler.ConcurrencyService{}, gatewayhttp.SSEPingFormatNone, 0),
 		}
 		require.Empty(t, h.missingResponsesDependencies())
 	})
@@ -822,7 +483,7 @@ func TestOpenAIEnsureResponsesDependencies(t *testing.T) {
 			gatewayService:      &service.OpenAIGatewayService{},
 			billingCacheService: &admission.FundingAdmission{},
 			apiKeyService:       &apikey.APIKeyService{},
-			concurrencyHelper:   httpapi.NewConcurrencyHelper(&scheduler.ConcurrencyService{}, httpapi.SSEPingFormatNone, 0),
+			concurrencyHelper:   gatewayhttp.NewConcurrencyHelper(&scheduler.ConcurrencyService{}, gatewayhttp.SSEPingFormatNone, 0),
 		}
 		ok := h.ensureResponsesDependencies(c, nil)
 
@@ -973,7 +634,7 @@ func TestOpenAIResponses_SetsClientTransportHTTP(t *testing.T) {
 	h.Responses(c)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
-	require.Equal(t, httpapi.OpenAIClientTransportHTTP, httpapi.GetOpenAIClientTransport(c))
+	require.Equal(t, gatewayhttp.OpenAIClientTransportHTTP, gatewayhttp.GetOpenAIClientTransport(c))
 }
 
 func TestOpenAIResponses_RejectsMessageIDAsPreviousResponseID(t *testing.T) {
@@ -1117,7 +778,7 @@ func TestOpenAIResponsesWebSocket_SetsClientTransportWSWhenUpgradeValid(t *testi
 	h.ResponsesWebSocket(c)
 
 	require.Equal(t, http.StatusUnauthorized, w.Code)
-	require.Equal(t, httpapi.OpenAIClientTransportWS, httpapi.GetOpenAIClientTransport(c))
+	require.Equal(t, gatewayhttp.OpenAIClientTransportWS, gatewayhttp.GetOpenAIClientTransport(c))
 }
 
 func TestOpenAIResponsesWebSocket_InvalidUpgradeDoesNotSetTransport(t *testing.T) {
@@ -1130,7 +791,7 @@ func TestOpenAIResponsesWebSocket_InvalidUpgradeDoesNotSetTransport(t *testing.T
 	h.ResponsesWebSocket(c)
 
 	require.Equal(t, http.StatusUpgradeRequired, w.Code)
-	require.Equal(t, httpapi.OpenAIClientTransportUnknown, httpapi.GetOpenAIClientTransport(c))
+	require.Equal(t, gatewayhttp.OpenAIClientTransportUnknown, gatewayhttp.GetOpenAIClientTransport(c))
 }
 
 func TestOpenAIResponsesWebSocket_IngressCapacityRejected(t *testing.T) {
@@ -1570,10 +1231,10 @@ func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T
 		billingCacheService:      &admission.FundingAdmission{},
 		apiKeyService:            &apikey.APIKeyService{},
 		contentModerationService: moderationSvc,
-		concurrencyHelper: httpapi.NewConcurrencyHelper(scheduler.NewConcurrencyService(&concurrencyCacheMock{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(&concurrencyCacheMock{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
-		), httpapi.SSEPingFormatNone, time.Second),
+		), gatewayhttp.SSEPingFormatNone, time.Second),
 	}
 	wsServer := newOpenAIWSHandlerTestServer(t, h, authctx.AuthSubject{UserID: 1, Concurrency: 1})
 	defer wsServer.Close()
@@ -1638,7 +1299,7 @@ func TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	httpapi.SetOpenAICyberWarningRequestSnapshot(c, moderation.ContentModerationProtocolOpenAIResponses, []byte(`{"model":"gpt-5.1","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"bad cyber prompt"}]}]}`))
+	gatewayhttp.SetOpenAICyberWarningRequestSnapshot(c, moderation.ContentModerationProtocolOpenAIResponses, []byte(`{"model":"gpt-5.1","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"bad cyber prompt"}]}]}`))
 	apiKey := &apikey.APIKey{
 		ID:     101,
 		Name:   "test-key",
@@ -1690,7 +1351,7 @@ func TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	httpapi.SetOpenAICyberWarningPromptExcerpt(c, "second turn prompt")
+	gatewayhttp.SetOpenAICyberWarningPromptExcerpt(c, "second turn prompt")
 
 	apiKey := &apikey.APIKey{ID: 101, Name: "test-key", UserID: 1001, User: &identity.User{ID: 1001, Email: "user@example.com"}}
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 2001, Name: "openai-1"}}
@@ -1732,7 +1393,7 @@ func TestOpenAIRecordCyberWarning_RequestSnapshotUsesCurrentToolOutput(t *testin
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	httpapi.SetOpenAICyberWarningRequestSnapshot(c, moderation.ContentModerationProtocolOpenAIResponses, []byte(`{
+	gatewayhttp.SetOpenAICyberWarningRequestSnapshot(c, moderation.ContentModerationProtocolOpenAIResponses, []byte(`{
 		"model":"gpt-5.1",
 		"input":[
 			{"type":"message","role":"user","content":[{"type":"input_text","text":"latest cyber prompt"}]},
@@ -1910,7 +1571,7 @@ func TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope(t *testing.T
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
-	httpapi.MarkOpsCyberPolicy(c, moderationflow.Mark{
+	gatewayhttp.MarkOpsCyberPolicy(c, moderationflow.Mark{
 		Message:        "Request blocked by upstream cyber policy",
 		Body:           `{"response":{"error":{"code":"cyber_policy","message":"Request blocked by upstream cyber policy"}}}`,
 		UpstreamStatus: http.StatusOK,
@@ -2063,7 +1724,7 @@ func TestSetOpenAIClientTransportHTTP(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	setOpenAIClientTransportHTTP(c)
-	require.Equal(t, httpapi.OpenAIClientTransportHTTP, httpapi.GetOpenAIClientTransport(c))
+	require.Equal(t, gatewayhttp.OpenAIClientTransportHTTP, gatewayhttp.GetOpenAIClientTransport(c))
 }
 
 func TestSetOpenAIClientTransportWS(t *testing.T) {
@@ -2072,7 +1733,7 @@ func TestSetOpenAIClientTransportWS(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	setOpenAIClientTransportWS(c)
-	require.Equal(t, httpapi.OpenAIClientTransportWS, httpapi.GetOpenAIClientTransport(c))
+	require.Equal(t, gatewayhttp.OpenAIClientTransportWS, gatewayhttp.GetOpenAIClientTransport(c))
 }
 
 // TestOpenAIHandler_GjsonExtraction 验证 gjson 从请求体中提取 model/stream 的正确性
@@ -2179,10 +1840,10 @@ func newOpenAIHandlerForPreviousResponseIDValidation(t *testing.T, cache *concur
 		gatewayService:      &service.OpenAIGatewayService{},
 		billingCacheService: &admission.FundingAdmission{},
 		apiKeyService:       &apikey.APIKeyService{},
-		concurrencyHelper: httpapi.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
-		), httpapi.SSEPingFormatNone, time.Second),
+		), gatewayhttp.SSEPingFormatNone, time.Second),
 	}
 }
 
@@ -2833,10 +2494,10 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		gatewayService:      gatewaySvc,
 		billingCacheService: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		apiKeyService:       &apikey.APIKeyService{},
-		concurrencyHelper: httpapi.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
-		), httpapi.SSEPingFormatNone, time.Second),
+		), gatewayhttp.SSEPingFormatNone, time.Second),
 		maxAccountSwitches: 3,
 	}
 
@@ -3024,10 +2685,10 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 		gatewayService:      gatewaySvc,
 		billingCacheService: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		apiKeyService:       &apikey.APIKeyService{},
-		concurrencyHelper: httpapi.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
-		), httpapi.SSEPingFormatNone, time.Second),
+		), gatewayhttp.SSEPingFormatNone, time.Second),
 		maxAccountSwitches: 3,
 	}
 
@@ -3234,10 +2895,10 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		gatewayService:      gatewaySvc,
 		billingCacheService: newFundingAdmissionFixture(billingCacheSvc, cfg),
 		apiKeyService:       &apikey.APIKeyService{},
-		concurrencyHelper: httpapi.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		concurrencyHelper: gatewayhttp.NewConcurrencyHelper(scheduler.NewConcurrencyService(cache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
 
 			Event: logging.Event},
-		), httpapi.SSEPingFormatNone, time.Second),
+		), gatewayhttp.SSEPingFormatNone, time.Second),
 	}
 
 	apiKey := &apikey.APIKey{

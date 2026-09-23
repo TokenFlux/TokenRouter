@@ -1,0 +1,120 @@
+{
+  "format_version": 1,
+  "scope": "S16 阶段检查点增量，非最终验收",
+  "base_archive": "s16-evidence.tar.gz",
+  "base_archive_sha256": "9d3fa06d7fdef83f358c34c0816b55e4be7e531c3b3134a01fc1ff32bd6808ae",
+  "source_file_count": 20,
+  "source_total_bytes": 1446535,
+  "archives": [
+    {
+      "path": "progress-20260923-openai-output-01.tar.gz",
+      "size": 99803,
+      "sha256": "b5ce562756beafd635873085857e1a09d9df71e62ecd1eaa27ff25ce8019bfc4",
+      "verified_members": 20,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-compile-final.log",
+          "size": 431,
+          "sha256": "fac7ca6edd95db11639a8c9a47d36083c74b4ff7e2577abeab255652f0dc66f6"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-compile-mapped.log",
+          "size": 1406,
+          "sha256": "6ad72eb7d8d0237ef6d6abbe05fa260ef1d23fa38506c957d66869249c35a726"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-compile-recheck.log",
+          "size": 2038,
+          "sha256": "41c6a1106de390fba51d3e5afded5a4f63a89aec04017f43e99ad668e3051f23"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-compile.log",
+          "size": 427,
+          "sha256": "0d30e624a7a86934d9bd1eb7b86b946b42a8d9cd63bc5e8c7761ecf3d509a542"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-consumers.json",
+          "size": 605,
+          "sha256": "69033f655fb127596bfca75a91db9a4555c7231df8750cd892e2805aa9300c99"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-final-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-final-checks.json",
+          "size": 1297,
+          "sha256": "90fc1bcbbdae99e04e363335da7d4054e8fd7319fce6e16ca8d6be0355ef0304"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-final-lint-normal.log",
+          "size": 1048,
+          "sha256": "6f03b12e72b03b1f3ac8f6c257830f725a16f190699923ba0363b3e7f95db4a7"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-final-normal.jsonl",
+          "size": 328164,
+          "sha256": "0f18e118245560ba4203089d20a4bbbe658dff75463e8e46e4c6991c357c3c79"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-lint-final-checks.json",
+          "size": 1366,
+          "sha256": "fafd92d4841db841d055f74caa769a412d16af67c6e55478f8724f74fd1aece3"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-lint-final-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-lint-final-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-lint-final-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-mapped-consumers.json",
+          "size": 1037,
+          "sha256": "dc8da68b33f014195a827c7206c4218512bb8e3f355f7753634800303c4de7cd"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-original.json",
+          "size": 41158,
+          "sha256": "ea1c6787b63ad82abf46e03b44acd3d7a25f2a736bbf429f3cf8c86761fbfe1d"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-race.jsonl",
+          "size": 1058937,
+          "sha256": "cf13a3fe0f5d8b8703312574bfc07cc76acad4ea923c45ffe0845d01fb0ed408"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-error-output-test-names.json",
+          "size": 833,
+          "sha256": "340d9b7866995db241a4ee2f7571b5617c0e193056c15cb03a10873a9f209bb1"
+        },
+        {
+          "path": "refactor/baseline/S16/native-openai-output-gate-consumers.json",
+          "size": 1516,
+          "sha256": "01e6b7cfdec77084dc09c45f614b96e710801841a25bdcb184a8ac2dc95a8cd0"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-openai-hints-manifest.json",
+          "size": 3683,
+          "sha256": "8df92180789f7dc2926277547c5d0c81557c7d152aa4482130727beaf11d3a0b"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-openai-output-verification.json",
+          "size": 2559,
+          "sha256": "3ad4640f3cb9af7aa61f134830d907f02bb4e6db35cd5a5450cebabc416970f9"
+        }
+      ]
+    }
+  ],
+  "parent_manifest": "progress-20260923-openai-hints-manifest.json",
+  "parent_manifest_sha256": "8df92180789f7dc2926277547c5d0c81557c7d152aa4482130727beaf11d3a0b"
+}

@@ -210,7 +210,7 @@ func (p openAITextHTTPBackend) MarkStream(c *gin.Context, kind, message string, 
 	gatewayhttp.MarkOpsStreamError(c, kind, message, status)
 }
 func (p openAITextHTTPBackend) EnsureFallback(c *gin.Context, started bool) bool {
-	return p.h.ensureForwardErrorResponse(c, started)
+	return gatewayhttp.DefaultOpenAIErrorOutput().EnsureFallback(c, started)
 }
 
 // Execution 只构造原生投影到既有单步适配器，不执行第二套切号或计量逻辑。

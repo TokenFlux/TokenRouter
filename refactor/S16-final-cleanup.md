@@ -1673,3 +1673,10 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - Codex 审查模型、Header/metadata 声明冲突与父线程解析归 clientmeta；HTTP 保留原模型短路并复用 scheduler 散列，requeststate 保存请求内的当前/旧散列及父绑定保护。普通模型、缺失或冲突线索继续忽略；原当前分组粘性读取时点与兼容键不变。旧选择器仅剩原缓存读取适配，没有新增账号查询或缓存实例。
 - HTTP 透传标记的写入/读取成对迁入 requeststate，分组 Responses 图片许可直接使用 routing 的唯一规则。原 HTTP 线索合同迁到实际所有者，真实选择与父绑定保护合同继续验证生产选择器。
 - 编译、516 条定向 unit race 通过，1 项原 WS 分支跳过单列；普通合同 37 条通过，构建和三套完整 lint 退出零。原计划、SQL/Ent 及其他任务文件未变；精确门禁及文档同批更新，详见 `native-openai-hints-*`。本批作为进度提交，OpenAI HTTP 资源/输出与剩余旧执行适配继续收尾。
+
+
+### OpenAI 共用错误输出归属（2026-09-23）
+
+- HTTP 的 OpenAIErrorOutput 唯一拥有普通 JSON、SSE 终止、Anthropic 兼容错误及已写响应兜底。文本 Handler 继续传入原 backend 观测端口；旧文本/WS/媒体调用直接使用同一默认输出器，不再为写错误重建 Handler。保留 compact/image 心跳停止后的 Writer 判断、仅保活与真实输出区别、错误转义、Cyber 原消息和 SLA 观测差异。
+- 六个旧 Handler 错误方法及旧“已告知”/日志分类入口删除，函数值消费者同批改绑；11 组原输出断言迁到实际 HTTP 所有者，标签与断言保持。未为测试扩大旧入口，也没有复制第二份算法。
+- 编译、573 条定向 unit race、263 条相关普通合同及构建通过；普通/unit/integration 三套完整 lint 为零。测试迁移中的空旧构造和重复 import 已清理，初次诊断保留；测试与消费者映射见 `native-openai-error-output-*`。错误策略文档已同步，SQL/Ent 与冻结资料未变。本批按授权提交进度，S16 仍实施中。
