@@ -14,6 +14,359 @@ linters:
   settings:
     depguard:
       rules:
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-app-gateway-message-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/app/gateway_message_attempts.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - time$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-messages-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/messages_attempts.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/anthropic$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/antigravity$
+          - github.com/gin-gonic/gin$
+          - go.uber.org/zap$
+          - net/http$
+          - strconv$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-native-gemini-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/native_gemini_attempts.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/bridge$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/gemini$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - go.uber.org/zap$
+          - net/http$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-generic-chat-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/generic_chat_attempts.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/anthropic$
+          - go.uber.org/zap$
+          - net/http$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-messages-gemini-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/messages_gemini_attempts.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - go.uber.org/zap$
+          - net/http$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-bindings-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/bindings.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/gin-gonic/gin$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-generic-responses-attempts-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/generic_responses_attempts.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/anthropic$
+          - go.uber.org/zap$
+          - net/http$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-key-projection-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/key_projection.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-antigravity-route-original-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/antigravity_route_original_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/account$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/stretchr/testify/require$
+          - testing$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-selection-errors-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/selection_errors.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/gin-gonic/gin$
+          - net/http$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-messages-fixed-execution-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/messages_fixed_execution.go"
+          allow:
+          - context$
+          - errors$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/execution$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
+          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
+          - github.com/TokenFlux/TokenRouter/internal/routing$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - net/http$
+          - slices$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-antigravity-compat-route-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/antigravity_compat_route.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S16：文本单次尝试的 HTTP 适配；固定原生依赖，app 的剩余平台方法绑定清零时退出。
+        s16-message-runtime-internal-gateway-httpapi-textattempt-messages-fixed-execution-test-go:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/httpapi/textattempt/messages_fixed_execution_test.go"
+          allow:
+          - context$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/execution$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/gin-gonic/gin$
+          - github.com/stretchr/testify/require$
+          - go.uber.org/zap$
+          - net/http$
+          - net/http/httptest$
+          - testing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         # S16：文本终止输出与原断言归属；保留角色限制，逐文件许可实际 import。
         s16-text-errors-internal-gateway-httpapi-messages-error-output-original-test-go:
           list-mode: strict
@@ -175,8 +528,10 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
           - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
-          - github.com/TokenFlux/TokenRouter/internal/handler$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/telemetry$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
           - github.com/TokenFlux/TokenRouter/internal/moderation$
           - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
@@ -284,9 +639,9 @@ linters:
           files:
           - "**/internal/gateway/provider/selection.go"
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
           - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
-        # S16：执行健康投影；仅许可实际账号观测与请求状态，保留基础角色限制。
         s16-health-internal-gateway-provider-health-observation-test-go:
           list-mode: strict
           files:
@@ -14835,57 +15190,6 @@ linters:
           - pkg: github.com/redis/go-redis/v9
             desc: service must not import redis
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-messages-fixed-execution-test-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/messages_fixed_execution_test.go"
-          allow:
-          - context$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/execution$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/upstream$
-          - github.com/gin-gonic/gin$
-          - github.com/stretchr/testify/require$
-          - go.uber.org/zap$
-          - net/http$
-          - net/http/httptest$
-          - testing$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-messages-fixed-execution-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/messages_fixed_execution.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/execution$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/upstream$
-          - net/http$
-          - slices$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-gateway-forward-messages-result-go:
           list-mode: strict
           files:
@@ -21530,18 +21834,8 @@ linters:
           files:
           - "**/internal/handler/messages_execution_dependencies.go"
           allow:
-          - context$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/gin-gonic/gin$
-          - time$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -21833,37 +22127,6 @@ linters:
           - pkg: github.com/redis/go-redis/v9
             desc: handler must not import redis
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-native-gemini-attempts-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/native_gemini_attempts.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
-          - github.com/TokenFlux/TokenRouter/internal/protocol/bridge$
-          - github.com/TokenFlux/TokenRouter/internal/protocol/gemini$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - go.uber.org/zap$
-          - net/http$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-handler-openai-chat-completions-go:
           list-mode: strict
           files:
@@ -22082,21 +22345,6 @@ linters:
           - pkg: github.com/TokenFlux/TokenRouter/ent
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-antigravity-compat-route-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/antigravity_compat_route.go"
-          allow:
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-ops-error-classification-go:
           list-mode: strict
           files:
@@ -22128,36 +22376,6 @@ linters:
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-messages-gemini-attempts-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/messages_gemini_attempts.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
-          - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - go.uber.org/zap$
-          - net/http$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
         # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
         s16-internal-gateway-httpapi-concurrency-error-original-test-go:
           list-mode: strict
@@ -22246,20 +22464,15 @@ linters:
           files:
           - "**/internal/handler/gateway_handler.go"
           allow:
-          - context$
           - github.com/TokenFlux/TokenRouter/internal/apikey$
           - github.com/TokenFlux/TokenRouter/internal/config$
           - github.com/TokenFlux/TokenRouter/internal/gateway$
           - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
           - github.com/TokenFlux/TokenRouter/internal/gateway/completion$
           - github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy$
           - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
           - github.com/TokenFlux/TokenRouter/internal/moderation$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/TokenFlux/TokenRouter/internal/scheduler$
           - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/gin-gonic/gin$
@@ -22329,67 +22542,7 @@ linters:
           files:
           - "**/internal/handler/gemini_v1beta_handler.go"
           allow:
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
           - github.com/gin-gonic/gin$
-          - net/http$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-generic-chat-attempts-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/generic_chat_attempts.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/anthropic$
-          - go.uber.org/zap$
-          - net/http$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-generic-responses-attempts-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/generic_responses_attempts.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/anthropic$
-          - go.uber.org/zap$
-          - net/http$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -22458,43 +22611,6 @@ linters:
           - go.uber.org/zap$
           - net/http$
           - strings$
-          deny:
-          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
-            desc: handler must not import repository
-          - pkg: gorm.io/gorm
-            desc: handler must not import gorm
-          - pkg: github.com/redis/go-redis/v9
-            desc: handler must not import redis
-        # S16：原生用量装配及供应商错误投影；保留角色限制，仅许可准确文件/import。
-        s16-internal-handler-messages-attempts-go:
-          list-mode: strict
-          files:
-          - "**/internal/handler/messages_attempts.go"
-          allow:
-          - context$
-          - errors$
-          - github.com/TokenFlux/TokenRouter/internal/apikey$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/admission$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/forward$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/provider$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/requeststate$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/text$
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
-          - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/routing$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/anthropic$
-          - github.com/TokenFlux/TokenRouter/internal/upstream/antigravity$
-          - github.com/gin-gonic/gin$
-          - go.uber.org/zap$
-          - net/http$
-          - strconv$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
             desc: handler must not import repository
@@ -37352,25 +37468,21 @@ linters:
           files:
           - '**/internal/config/config.go'
           allow:
-          - $gostd
-          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
-          - github.com/google/uuid$
-          - github.com/google/wire$
-          - github.com/shopspring/decimal$
-          - github.com/spf13/viper$
-          - github.com/tidwall/gjson$
-          - github.com/tidwall/sjson$
-          - golang.org/x/net/http/httpguts$
+          - crypto/rand$
+          - encoding/hex$
+          - fmt$
           - github.com/TokenFlux/TokenRouter/internal/identity/authconfig$
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip/policy$
           - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip/policy$
           - github.com/TokenFlux/TokenRouter/internal/server/httpconfig$
-        # S15：客户端地址策略叶子不依赖请求、配置、业务或 I/O。
+          - github.com/spf13/viper$
+          - log/slog$
+          - math$
+          - net/url$
+          - os$
+          - strings$
+          - sync/atomic$
+          - time$
         s15-clientip-policy:
           list-mode: strict
           files:
@@ -50054,23 +50166,6 @@ linters:
           files:
           - '**/internal/app/gateway_completion_bindings.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/migrations$
-          - $gostd
-          - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
-          - github.com/TokenFlux/TokenRouter/internal/
-          - github.com/andybalholm/brotli$
-          - github.com/google/wire$
-          - github.com/imroc/req/v3$
-          - github.com/klauspost/compress/
-          - github.com/lib/pq
-          - github.com/natefinch/lumberjack$
-          - github.com/redis/go-redis/v9
-          - github.com/refraction-networking/utls$
-          - go.uber.org/zap
-          - golang.org/x/mod/semver$
-          - golang.org/x/net/
-          - gopkg.in/natefinch/lumberjack.v2$
           - github.com/TokenFlux/TokenRouter/internal/handler$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service
@@ -56893,6 +56988,16 @@ linters:
         gateway-httpapi:
           list-mode: strict
           files:
+          - "!**/internal/gateway/httpapi/textattempt/messages_attempts.go"
+          - "!**/internal/gateway/httpapi/textattempt/native_gemini_attempts.go"
+          - "!**/internal/gateway/httpapi/textattempt/generic_chat_attempts.go"
+          - "!**/internal/gateway/httpapi/textattempt/messages_gemini_attempts.go"
+          - "!**/internal/gateway/httpapi/textattempt/bindings.go"
+          - "!**/internal/gateway/httpapi/textattempt/generic_responses_attempts.go"
+          - "!**/internal/gateway/httpapi/textattempt/key_projection.go"
+          - "!**/internal/gateway/httpapi/textattempt/selection_errors.go"
+          - "!**/internal/gateway/httpapi/textattempt/messages_fixed_execution.go"
+          - "!**/internal/gateway/httpapi/textattempt/antigravity_compat_route.go"
           - "!**/internal/gateway/httpapi/messages_error_output.go"
           - "!**/internal/gateway/httpapi/gemini_native_bindings.go"
           - "!**/internal/gateway/httpapi/compatible_text_bindings.go"
@@ -57053,6 +57158,8 @@ linters:
         gateway-httpapi-tests:
           list-mode: strict
           files:
+          - "!**/internal/gateway/httpapi/textattempt/antigravity_route_original_test.go"
+          - "!**/internal/gateway/httpapi/textattempt/messages_fixed_execution_test.go"
           - "!**/internal/gateway/httpapi/messages_error_output_original_test.go"
           - "!**/internal/gateway/httpapi/upstream_response_limit_original_test.go"
           - "!**/internal/gateway/httpapi/codex_fingerprint_state_original_test.go"
@@ -77477,6 +77584,7 @@ linters:
         app:
           list-mode: strict
           files:
+          - "!**/internal/app/gateway_message_attempts.go"
           - "!**/internal/app/gateway_messages_http.go"
           - "!**/internal/app/assembly_usage_wire.go"
           - "!**/internal/app/assembly_upstream_wire.go"

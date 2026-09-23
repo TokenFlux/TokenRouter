@@ -1,10 +1,7 @@
 package handler
 
 import (
-	"context"
-
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
-	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 
 	"github.com/TokenFlux/TokenRouter/internal/gateway"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -14,14 +11,11 @@ import (
 	"time"
 
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
-	"github.com/TokenFlux/TokenRouter/internal/gateway/requeststate"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/completion"
 
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
@@ -113,71 +107,6 @@ func NewGatewayHandler(
 
 // Messages 兼容入口委托目标 HTTP 适配器，生产路由由 app 直接绑定。
 func (h *GatewayHandler) Messages(c *gin.Context) { h.NewMessagesHTTPHandler().Messages(c) }
-
-func cloneAPIKeyWithGroup(apiKey *apikey.APIKey, group *routing.Group) *apikey.APIKey {
-	if apiKey == nil || group == nil {
-		return apiKey
-	}
-	cloned := *apiKey
-	groupID := group.ID
-	cloned.GroupID = &groupID
-	cloned.Group = group
-	return &cloned
-}
-
-// 兼容类型指向唯一的客户端识别值。
-type InterceptType = clientmeta.InterceptType
-
-const (
-	InterceptTypeNone              = clientmeta.InterceptTypeNone
-	InterceptTypeWarmup            = clientmeta.InterceptTypeWarmup
-	InterceptTypeSuggestionMode    = clientmeta.InterceptTypeSuggestionMode
-	InterceptTypeMaxTokensOneHaiku = clientmeta.InterceptTypeMaxTokensOneHaiku
-)
-
-func detectInterceptType(body []byte, model string, maxTokens int, isClaudeCodeClient bool) InterceptType {
-	return clientmeta.DetectInterceptType(body, model, maxTokens, isClaudeCodeClient)
-}
-
-func sendMockInterceptStream(c *gin.Context, model string, interceptType InterceptType) {
-	gatewayhttp.WriteInterceptStream(c, model, interceptType)
-}
-
-func sendMockInterceptResponse(c *gin.Context, model string, interceptType InterceptType) {
-	gatewayhttp.WriteInterceptResponse(c, model, interceptType)
-}
-
-// getUserMsgQueueMode 获取当前请求的 UMQ 模式
-// 返回 "serialize" | "throttle" | ""
-func (h *GatewayHandler) getUserMsgQueueMode(account *gatewayprovider.ExecutionAccount, parsed *requeststate.ParsedRequest) string {
-	if h.userMsgQueueHelper == nil {
-		return ""
-	}
-	// 仅适用于 Anthropic OAuth/SetupToken 账号
-	if !account.View().IsAnthropicOAuthOrSetupToken() {
-		return ""
-	}
-	if !requeststate.IsRealUserMessage(parsed) {
-		return ""
-	}
-	// 账号级模式优先，fallback 到全局配置
-	mode := gatewayprovider.ExecutionRuntimeConfig(account).GetUserMsgQueueMode()
-	if mode == "" {
-		mode = h.cfg.Gateway.UserMessageQueue.GetEffectiveMode()
-	}
-	return mode
-}
-
-// prepareGatewayAttemptRequest 只绑定原渠道解析端口；请求克隆与改写由 HTTP 原生实现拥有。
-func (h *GatewayHandler) prepareGatewayAttemptRequest(ctx context.Context, parsed *requeststate.ParsedRequest, body []byte, key *apikey.APIKey, model string) (*requeststate.ParsedRequest, routing.ChannelMappingResult, error) {
-	return gatewayhttp.PrepareChannelAttempt(ctx, parsed, body, key, model, func(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-		var id *int64
-		if key != nil {
-			id = key.GroupID
-		}
-		return h.gatewayService.PlanRoute(ctx, service.APIKeyRouteGroup(key), id, model)
-	})
-}
 
 // maybeLogCompatibilityFallbackMetrics 复用计数入口与文本入口的同一个采样计数器。
 func (h *GatewayHandler) maybeLogCompatibilityFallbackMetrics(log *zap.Logger) {

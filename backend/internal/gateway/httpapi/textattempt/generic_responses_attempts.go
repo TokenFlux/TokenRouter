@@ -1,4 +1,4 @@
-package handler
+package textattempt
 
 import (
 	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -39,7 +39,7 @@ func (b *genericResponsesAttemptBridge) Select(excluded map[int64]struct{}) (tex
 	}
 	b.account = b.selection.Account
 	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
-	return capturedTextSelection(b.account), nil
+	return gatewaycapture.CaptureTextSelection(b.account), nil
 
 }
 
@@ -47,7 +47,7 @@ func (b *genericResponsesAttemptBridge) Select(excluded map[int64]struct{}) (tex
 func (b *genericResponsesAttemptBridge) FirstSelectionFailure(err error, _ bool) {
 
 	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, gatewayhttp.EffectiveAPIKeyPlatform(b.c, b.apiKey))
-	cls = classifySelectionFailureError(err, cls)
+	cls = gatewayhttp.RefineSelectionError(err, cls)
 	if !cls.ModelNotFound {
 		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 	}

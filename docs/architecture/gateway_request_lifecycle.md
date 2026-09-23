@@ -39,7 +39,7 @@ HTTP 入口由 app 固定构造。`gateway/text` 拥有文本账号循环与计�
 
 文本入口把 `requeststate.ExecutionHints` 和 `RoutingState` 显式传给执行器，分别携带客户端识别、图片意图、粘性预取等执行提示，以及原生分组、路由计划和客户端协议。分组在写入和读取边界复制，后续 attempt 重新绑定变更后的分组，不能修改先前请求快照。旧单步 Adapter 暂通过私有类型的 context 读取同一状态；`pkg/ctxkey` 已删除，telemetry 只保留观测关联信息。
 
-Messages、通用 Responses/Chat 和 Gemini 原生的 HTTP 绑定由 app 直接构造 `gateway/httpapi` 的目标入口；共同的请求标记、审核、资金与会话前置操作不再由旧 Handler backend 实现。实际文本尝试执行器的剩余兼容装配仍单独保留，未形成第二套账号重试或完成处理。执行边界采用 `gateway/provider.SelectionResult`，保留实际账号目标、等待计划和本次反馈参数；调度核心继续只读取无凭据候选。
+Messages、通用 Responses/Chat 和 Gemini 原生的 HTTP 绑定由 app 直接构造 `gateway/httpapi` 的目标入口；共同的请求标记、审核、资金与会话前置操作不再由旧 Handler backend 实现。`gateway/httpapi/textattempt.Runtime` 在构造时绑定平台单次调用、选择反馈与原生资源，三个入口共享这一无状态运行时；每次 Open 只创建请求/attempt 数据，不持有旧 GatewayHandler，也不按请求重建依赖。app 对尚未清零的平台执行方法只做端口绑定；账号循环与完成规则仍由原生 text/completion 拥有。执行边界采用 `gateway/provider.SelectionResult`，保留实际账号目标、等待计划和本次反馈参数；调度核心继续只读取无凭据候选。
 
 `gateway/searchtools` 组织工具模拟，`gateway/moderationflow` 固化审核完成输入；`completion.Recorder` 消费独立资金与用量快照。`ws`、`live` 各自管理连接/turn 状态；摘要、隔离和归属值由 `session` 提供，Redis 协议由 `rediscache` 适配。错误规则与不可变发布快照位于 `errorpolicy`，不承担调度健康或重试决策。
 

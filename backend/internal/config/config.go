@@ -40,14 +40,6 @@ const (
 // __CSP_NONCE__ will be replaced with actual nonce at request time by the SecurityHeaders middleware
 const DefaultCSPPolicy = httpconfig.DefaultCSPPolicy
 
-// UMQ（用户消息队列）模式常量
-const (
-	// UMQModeSerialize: 账号级串行锁 + RPM 自适应延迟
-	UMQModeSerialize = "serialize"
-	// UMQModeThrottle: 仅 RPM 自适应前置延迟，不阻塞并发
-	UMQModeThrottle = "throttle"
-)
-
 // 连接池隔离策略常量
 // 用于控制上游 HTTP 连接池的隔离粒度，影响连接复用和资源消耗
 const (
@@ -1053,11 +1045,11 @@ func (c *UserMessageQueueConfig) WaitTimeout() time.Duration {
 // GetEffectiveMode 返回生效的模式
 // 注意：Mode 字段已在 load() 中做过白名单校验和规范化，此处无需重复验证
 func (c *UserMessageQueueConfig) GetEffectiveMode() string {
-	if c.Mode == UMQModeSerialize || c.Mode == UMQModeThrottle {
+	if c.Mode == schedulerpolicy.MessageQueueSerialize || c.Mode == schedulerpolicy.MessageQueueThrottle {
 		return c.Mode
 	}
 	if c.Enabled {
-		return UMQModeSerialize // 向后兼容
+		return schedulerpolicy.MessageQueueSerialize // 向后兼容
 	}
 	return ""
 }
@@ -1714,10 +1706,10 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	}
 
 	// Normalize UMQ mode: 白名单校验，非法值在加载时一次性 warn 并清空
-	if m := cfg.Gateway.UserMessageQueue.Mode; m != "" && m != UMQModeSerialize && m != UMQModeThrottle {
+	if m := cfg.Gateway.UserMessageQueue.Mode; m != "" && m != schedulerpolicy.MessageQueueSerialize && m != schedulerpolicy.MessageQueueThrottle {
 		slog.Warn("invalid user_message_queue mode, disabling",
 			"mode", m,
-			"valid_modes", []string{UMQModeSerialize, UMQModeThrottle})
+			"valid_modes", []string{schedulerpolicy.MessageQueueSerialize, schedulerpolicy.MessageQueueThrottle})
 		cfg.Gateway.UserMessageQueue.Mode = ""
 	}
 

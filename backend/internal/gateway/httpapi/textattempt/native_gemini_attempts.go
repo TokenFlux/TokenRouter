@@ -1,4 +1,4 @@
-package handler
+package textattempt
 
 import (
 	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -56,7 +56,7 @@ func (b *nativeGeminiAttemptBridge) Select(excluded map[int64]struct{}) (textflo
 		}
 		b.body = protocolgemini.CleanNativeThoughtSignatures(b.body, bridge.DummyThoughtSignature)
 	}
-	return capturedTextSelection(b.account), nil
+	return gatewaycapture.CaptureTextSelection(b.account), nil
 
 }
 
@@ -74,7 +74,7 @@ func (b *nativeGeminiAttemptBridge) FirstSelectionFailure(err error, _ bool) {
 	if !cls.ModelNotFound {
 		message = "No available Gemini accounts: " + err.Error()
 	}
-	googleError(b.c, cls.Status, message)
+	gatewayhttp.WriteGoogleError(b.c, cls.Status, message)
 }
 
 // Acquire 保留 Gemini 原生适配，重试与完成资格由文本核心控制。
@@ -84,7 +84,7 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 	if !b.selection.Acquired {
 		if b.selection.WaitPlan == nil {
 			gatewayhttp.MarkOpsRoutingCapacityLimited(b.c)
-			googleError(b.c, http.StatusServiceUnavailable, "No available Gemini accounts")
+			gatewayhttp.WriteGoogleError(b.c, http.StatusServiceUnavailable, "No available Gemini accounts")
 			return false
 		}
 		accountWaitCounted := false
@@ -97,7 +97,7 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 				zap.Int64("account_id", b.account.Record.ID),
 				zap.Int("max_waiting", b.selection.WaitPlan.MaxWaiting),
 			)
-			googleError(b.c, http.StatusTooManyRequests, "Too many pending requests, please retry later")
+			gatewayhttp.WriteGoogleError(b.c, http.StatusTooManyRequests, "Too many pending requests, please retry later")
 			return false
 		}
 		if err == nil && canWait {
@@ -119,7 +119,7 @@ func (b *nativeGeminiAttemptBridge) Acquire() bool {
 		)
 		if err != nil {
 			b.reqLog.Warn("gemini.account_slot_acquire_failed", zap.Int64("account_id", b.account.Record.ID), zap.Error(err))
-			googleError(b.c, http.StatusTooManyRequests, err.Error())
+			gatewayhttp.WriteGoogleError(b.c, http.StatusTooManyRequests, err.Error())
 			return false
 		}
 		if accountWaitCounted {

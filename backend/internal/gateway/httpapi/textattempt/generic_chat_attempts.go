@@ -1,4 +1,4 @@
-package handler
+package textattempt
 
 import (
 	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -40,7 +40,7 @@ func (b *genericChatAttemptBridge) Select(excluded map[int64]struct{}) (textflow
 	}
 	b.account = b.selection.Account
 	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
-	return capturedTextSelection(b.account), nil
+	return gatewaycapture.CaptureTextSelection(b.account), nil
 
 }
 
@@ -53,7 +53,7 @@ func (b *genericChatAttemptBridge) FirstSelectionFailure(err error, _ bool) {
 		return
 	}
 	cls := classifyNoAccountErrorFromGin(b.c, b.binding().diagnoser, b.apiKey, b.reqModel, b.reqModel, b.groupPlatform)
-	cls = classifySelectionFailureError(err, cls)
+	cls = gatewayhttp.RefineSelectionError(err, cls)
 	if !cls.ModelNotFound {
 		gatewayhttp.MarkOpsRoutingCapacityLimitedIfNoAvailable(b.c, err)
 	}

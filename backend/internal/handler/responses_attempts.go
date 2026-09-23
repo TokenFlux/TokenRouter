@@ -398,7 +398,7 @@ func (b *responsesAttemptBridge) Completed(switchCount int) {
 func (b *responsesAttemptBridge) Context() context.Context { return b.c.Request.Context() }
 func (b *responsesAttemptBridge) CanAttempt() bool         { return openAIRequestAllowsFailoverReplay(b.c) }
 func (b *responsesAttemptBridge) selectedView() textflow.ResponseSelection {
-	return textflow.ResponseSelection{Selection: capturedTextSelection(b.account), Available: true, OAuth: failover.OAuth429Account{OpenAI: b.account.View().IsOpenAIOAuthLike(), Grok: b.account.Record.Platform == capability.PlatformGrok && b.account.Record.Type == capability.AccountTypeOAuth}}
+	return textflow.ResponseSelection{Selection: gatewaycapture.CaptureTextSelection(b.account), Available: true, OAuth: failover.OAuth429Account{OpenAI: b.account.View().IsOpenAIOAuthLike(), Grok: b.account.Record.Platform == capability.PlatformGrok && b.account.Record.Type == capability.AccountTypeOAuth}}
 }
 func (b *responsesAttemptBridge) Exhausted(failure *textflow.AttemptFailure) {
 	var original *forwardcore.UpstreamFailoverError

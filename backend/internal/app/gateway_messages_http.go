@@ -4,6 +4,10 @@ import (
 	"context"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/httpapi/textattempt"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/telemetry"
+	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
+
 	"github.com/TokenFlux/TokenRouter/internal/upstream/gemini"
 	"github.com/google/uuid"
 
@@ -14,7 +18,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/gateway/errorpolicy"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/promptpolicy"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
 	"github.com/TokenFlux/TokenRouter/internal/moderation"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
@@ -23,7 +26,17 @@ import (
 )
 
 // provideMessagesHTTP 直接构造原生 HTTP；执行依赖的最后兼容装配单独保留。
-func provideMessageHTTPBindings(source *service.GatewayService, openai *service.OpenAIGatewayService, funding *admission.FundingAdmission, rules *errorpolicy.ErrorPassthroughService, moderationService *moderation.ContentModerationService, settings *gateway.RuntimeSettings, prompts *promptpolicy.Service, concurrency *scheduler.ConcurrencyService, cfg *config.Config) *messageHTTPBindings {
+func provideMessageHTTPBindings(
+	source *service.GatewayService,
+	openai *service.OpenAIGatewayService,
+	funding *admission.FundingAdmission,
+	rules *errorpolicy.ErrorPassthroughService,
+	moderationService *moderation.ContentModerationService,
+	settings *gateway.RuntimeSettings,
+	prompts *promptpolicy.Service,
+	concurrency *scheduler.ConcurrencyService,
+	cfg *config.Config,
+) *messageHTTPBindings {
 	options := gatewayhttp.MessagesHTTPOptions{MaxSwitches: 10, MaxGeminiSwitches: 3}
 	ping := time.Duration(0)
 	if cfg != nil {
@@ -68,21 +81,92 @@ type messageHTTPBindings struct {
 	concurrency *gatewayhttp.ConcurrencyHelper
 }
 
-func provideMessagesHTTP(shared *messageHTTPBindings, legacy *handler.GatewayHandler, activity *gatewayRequestActivity, recorders GatewayCompletionRecorders) *gatewayhttp.MessagesHandler {
-	legacy.BindCompletionRecorder(recorders.Forward)
-	result := gatewayhttp.NewBoundMessagesHandler(shared.options, shared.bindings, shared.prompt, shared.concurrency, legacy.NewMessagesExecutor())
+func provideMessagesHTTP(
+	shared *messageHTTPBindings,
+	runtime *textattempt.Runtime,
+	activity *gatewayRequestActivity,
+) *gatewayhttp.MessagesHandler {
+	result := gatewayhttp.NewBoundMessagesHandler(
+		shared.options,
+		shared.bindings,
+		shared.prompt,
+		shared.concurrency,
+		textflow.NewMessagesExecutor(
+			runtime,
+			textflow.MessageOptions{
+				MaxSwitches:            shared.options.MaxSwitches,
+				CompletePartialFailure: true,
+				Observe:                telemetry.Failover,
+			},
+			textflow.MessageOptions{
+				MaxSwitches: shared.options.MaxGeminiSwitches,
+				Observe:     telemetry.Failover,
+			},
+		),
+	)
 	result.BindRequestActivity(activity.Enter)
 	return result
 }
-func provideCompatibleTextHTTP(shared *messageHTTPBindings, source *service.GatewayService, legacy *handler.GatewayHandler, activity *gatewayRequestActivity, recorders GatewayCompletionRecorders) *gatewayhttp.CompatibleTextHandler {
-	legacy.BindCompletionRecorder(recorders.Forward)
-	result := gatewayhttp.NewBoundCompatibleTextHandler(shared.options, shared.bindings, source.ReplaceModelInBody, shared.prompt, shared.concurrency, legacy.NewCompatibleTextExecutor())
+func provideCompatibleTextHTTP(
+	shared *messageHTTPBindings,
+	source *service.GatewayService,
+	runtime *textattempt.Runtime,
+	activity *gatewayRequestActivity,
+) *gatewayhttp.CompatibleTextHandler {
+	result := gatewayhttp.NewBoundCompatibleTextHandler(
+		shared.options,
+		shared.bindings,
+		source.ReplaceModelInBody,
+		shared.prompt,
+		shared.concurrency,
+		textflow.NewMessagesExecutor(
+			runtime,
+			textflow.MessageOptions{
+				MaxSwitches:           shared.options.MaxSwitches,
+				StopOnCanceledContext: true,
+				Observe:               telemetry.Failover,
+			},
+			textflow.MessageOptions{
+				MaxSwitches:           shared.options.MaxGeminiSwitches,
+				StopOnCanceledContext: true,
+				Observe:               telemetry.Failover,
+			},
+		),
+	)
 	result.BindRequestActivity(activity.Enter)
 	return result
 }
-func provideGeminiNativeHTTP(shared *messageHTTPBindings, source *service.GatewayService, legacy *handler.GatewayHandler, activity *gatewayRequestActivity, recorders GatewayCompletionRecorders) *gatewayhttp.GeminiNativeHandler {
-	legacy.BindCompletionRecorder(recorders.Forward)
-	result := gatewayhttp.NewBoundGeminiNativeHandler(gatewayhttp.GeminiNativeOptions{MaxSwitches: shared.options.MaxGeminiSwitches}, shared.bindings, gatewayhttp.GeminiHTTPBindings{SafeModelSegment: gemini.IsSafeGeminiModelPathSegment, FindSession: source.FindGeminiSession, BindSticky: source.BindStickySession}, shared.prompt, shared.concurrency, func() string { return uuid.New().String() }, legacy.NewGeminiNativeExecutor())
+func provideGeminiNativeHTTP(
+	shared *messageHTTPBindings,
+	source *service.GatewayService,
+	runtime *textattempt.Runtime,
+	activity *gatewayRequestActivity,
+) *gatewayhttp.GeminiNativeHandler {
+	result := gatewayhttp.NewBoundGeminiNativeHandler(
+		gatewayhttp.GeminiNativeOptions{
+			MaxSwitches: shared.options.MaxGeminiSwitches,
+		},
+		shared.bindings,
+		gatewayhttp.GeminiHTTPBindings{
+			SafeModelSegment: gemini.IsSafeGeminiModelPathSegment,
+			FindSession:      source.FindGeminiSession,
+			BindSticky:       source.BindStickySession,
+		},
+		shared.prompt,
+		shared.concurrency,
+		func() string { return uuid.New().String() },
+		textflow.NewMessagesExecutor(
+			runtime,
+			textflow.MessageOptions{
+				MaxSwitches: shared.options.MaxGeminiSwitches,
+				Observe:     telemetry.Failover,
+			},
+			textflow.MessageOptions{
+				MaxSwitches: shared.options.MaxGeminiSwitches,
+				Observe:     telemetry.Failover,
+			},
+		),
+	)
 	result.BindRequestActivity(activity.Enter)
 	return result
 }

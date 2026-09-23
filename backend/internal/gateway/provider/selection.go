@@ -1,6 +1,7 @@
 package provider
 
 import (
+	textflow "github.com/TokenFlux/TokenRouter/internal/gateway/text"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
@@ -14,4 +15,10 @@ type SelectionResult struct {
 	WaitPlan                  *scheduler.AccountWaitPlan
 	AdvancedScheduler         bool
 	AdvancedSchedulerFeedback *policy.FeedbackConfig
+}
+
+// capturedTextSelection 在候选返回时立即取得实际计划，结束后不再查看可变候选状态。
+func CaptureTextSelection(account *ExecutionAccount) textflow.Selection {
+	plan, provided := ExecutionCandidatePlan(account)
+	return textflow.Selection{Account: ExecutionSnapshot(account), RetryLimit: account.View().GetPoolModeRetryCount(), Plan: plan, PlanProvided: provided}
 }

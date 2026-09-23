@@ -158,3 +158,6 @@ refactor/baseline/S16/*
 # 用户授权的 S16 网关清理检查点：增量证据及逐文件校验。
 !refactor/baseline/S16/progress-20260923-*.tar.gz
 !refactor/baseline/S16/progress-20260923-manifest.json
+
+# S16 通用文本运行时检查点的增量证据索引。
+!refactor/baseline/S16/progress-20260923-textattempt-manifest.json

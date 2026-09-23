@@ -1,5 +1,5 @@
 // 固定 Messages 执行绑定只构造一次依赖；Open 每次仅分配请求/attempt 状态。
-package handler
+package textattempt
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/execution"
-	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -20,9 +19,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 )
 
-type fixedMessagesRuntime struct{ dependencies *messageExecutionDependencies }
+type Runtime struct{ dependencies *messageExecutionDependencies }
 
-func (r *fixedMessagesRuntime) Open(ctx context.Context, in execution.Request, sink upstream.OutputSink) (textflow.MessagePorts, error) {
+func (r *Runtime) Open(ctx context.Context, in execution.Request, sink upstream.OutputSink) (textflow.MessagePorts, error) {
 	output, ok := sink.(*gatewayhttp.MessagesOutput)
 	if !ok || output.HTTP == nil {
 		return nil, errors.New("messages execution requires its HTTP output adapter")
@@ -92,10 +91,4 @@ func messageObservedAttempt(result *forwardcore.MessagesResult, err error) upstr
 		out.AudioUsage = &v
 	}
 	return out
-}
-
-// capturedTextSelection 在候选返回时立即取得实际计划，结束后不再查看可变候选状态。
-func capturedTextSelection(account *gatewayprovider.ExecutionAccount) textflow.Selection {
-	plan, provided := gatewayprovider.ExecutionCandidatePlan(account)
-	return textflow.Selection{Account: gatewayprovider.ExecutionSnapshot(account), RetryLimit: account.View().GetPoolModeRetryCount(), Plan: plan, PlanProvided: provided}
 }

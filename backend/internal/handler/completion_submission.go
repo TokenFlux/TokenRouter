@@ -8,10 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (h *GatewayHandler) submitUsageRecordTask(c *gin.Context, task completion.UsageRecordTask) {
-	gatewayhttp.NewCompletionSubmission(h.usageRecordWorkerPool, false).Submit(c, task)
-}
-
 func (h *OpenAIGatewayHandler) submitMandatoryUsageRecordTask(c *gin.Context, task completion.UsageRecordTask) {
 	gatewayhttp.NewCompletionSubmission(h.usageRecordWorkerPool, true).SubmitMandatory(c, task)
 }

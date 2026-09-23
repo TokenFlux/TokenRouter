@@ -1647,3 +1647,14 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 文本选项和状态编译、559 条定向 unit race、完整 unit lint 通过；初次遗漏函数值消费者和测试私有助手的编译结果独立保留。旧函数、公开 context key 与四个旧文件退出，映射见 `native-thinking-*`、`native-cache-billing-consumers.json`。
 - Anthropic/Messages、Responses、Chat 与 Gemini 的终止错误适配归 gateway/httpapi.MessagesErrorOutput；旧 Handler 的错误方法删除，固定依赖、直接消费者与原 fallback 测试同批迁移。保留前导/真实输出区别、凭据安全提示、Retry-After、规则匹配及 Ops 标记顺序。编译、741 条定向 unit race 和完整 unit lint 通过；初次值接收者/测试空壳构造的编译修正记录在 `native-text-error-*`。
 - 用户要求后续完整能力批次验证后提交进度，本次据此制作 S16 阶段检查点；该要求覆盖原计划的“不自动提交”约定，不自动推送。当前构建及原生包普通补验通过，详细事件在 `progress-20260923-verification.json`。S16 尚未完成，保留 16/17；不提交 AGENTS.md、SYNC.md、其他任务计划或 diagnostics。
+
+
+### 通用文本尝试运行时与第二检查点（2026-09-23）
+
+- `gateway/httpapi/textattempt.Runtime` 接管 Messages、通用 Responses/Chat、Gemini 的六组单次尝试适配及固定依赖。入口、平台调用和资源按 Forward/Selection 与原生资源分组注入；运行时无旧 GatewayHandler 字段，也无每请求回退构造。app 直接绑定同一运行时，Wire 已不构造旧 GatewayHandler；旧类型暂仅由历史测试夹具消费，后续清零。
+- HTTP 输出统一调用 MessagesErrorOutput；完成仍使用唯一 Recorder/Submission，资金、调度、并发及平台算法未复制。请求 Open 继续取得独立状态，平台取消与完成资格、序列锁、会话和每 attempt 解析顺序保持。共享的选择快照投影归 gateway/provider，供 OpenAI 与通用文本复用。
+- 消息队列模式值归 scheduler/policy；配置字符串、默认模式和等待预算不变。原固定状态隔离与平台资格测试跟随实现，跨入口字段替身、Wire 和门禁同批改绑；新测试包在 TestMain 只初始化一次 Gin 模式。
+- 编译、899 条定向 unit race 通过；Wire 再生成摘要一致。普通/unit 全量分别为 11,986 / 20,020 条通过，既有跳过 4/8。integration 本次为 12,980 条通过、5 项跳过、7 个失败事件：六个场景均在容器启动读取 Docker socket 时超时，尚未进入业务断言，另一个事件为父测试失败；业务日完整小时不足的原跳过单列。
+- Docker 可用后保持代码、断言和超时不变，原场景按包串行补验 8 条通过，无失败或跳过；构建和三套完整 lint 均退出零。初次全量 integration 仍登记失败，不以补验冒充整组通过。记录见 `interim-native-message-runtime-checks.json` 和 `native-message-runtime-followup-checks.json`。
+- 原生运行时/精确 app 绑定/同目录新文件/迁出许可/旧包、config、存储反向依赖的 10 类夹具覆盖三种标签，30/30 符合预期，夹具已删除。格式整理后的构建及实际路由/固定状态补验 10 条通过；693 路由合同保持。完整索引为 `progress-20260923-textattempt-verification.json`。
+- 本批按用户要求验证后提交检查点，不推送，不修改 16/17 状态；S16 剩余旧测试构造、OpenAI/WS/媒体 HTTP 及平台执行适配仍需收尾，最终验收尚未完成。

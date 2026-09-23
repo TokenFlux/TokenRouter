@@ -1,4 +1,4 @@
-package handler
+package textattempt
 
 import (
 	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -41,7 +41,7 @@ func (b *geminiMessageAttemptBridge) Select(excluded map[int64]struct{}) (textfl
 	}
 	b.account = b.selection.Account
 	gatewayhttp.SetOpsSelectedAccount(b.c, b.account.Record.ID, b.account.Record.Platform)
-	return capturedTextSelection(b.account), nil
+	return gatewaycapture.CaptureTextSelection(b.account), nil
 
 }
 

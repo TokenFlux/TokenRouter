@@ -33,3 +33,9 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 `progress-20260923-manifest.json` 记录相对原归档新增或变化的完整证据及分卷 SHA-256；每个分卷都已重新读取并逐文件验哈希。先解压原 `s16-evidence.tar.gz`，再按文件名顺序解压 `progress-20260923-*.tar.gz` 即可还原当前证据；原始文件仍保留在本地。
 
 最新稳定合并检查为普通 11,986、unit 20,020、integration 12,988 条通过，既有跳过 4/8/4，三套 lint 为零。此后文本选项与输出的定向 race 分别为 559/741 条通过，当前构建、2,110 条原生包普通补验及 unit lint 通过。各集合有重叠，不相加；S16 和最终验收仍未完成。完整命令与结果见归档内 `interim-native-health-text-checks.json` 和 `progress-20260923-verification.json`。
+
+## 2026-09-23 通用文本运行时检查点
+
+`progress-20260923-textattempt-manifest.json` 是上一检查点的增量索引，按原归档、`progress-20260923-01` 至 `07`、`progress-20260923-textattempt-*` 的顺序解压。所有新增分卷均逐成员核对哈希。
+
+普通/unit 全量为 11,986 / 20,020 条通过；integration 本次 12,980 通过、5 跳过、7 失败事件，其中六个场景在 Docker 容器启动阶段超时，未进入业务断言，另一个为父测试失败。原场景保持断言与超时，串行补验 8 条通过；构建与三套 lint 为零，不将补验记作整组 integration 通过。定向 race 899 条通过，后续路由/固定状态合同 10 条通过，依赖门禁 30/30 通过。详情见归档中的 `progress-20260923-textattempt-verification.json`。

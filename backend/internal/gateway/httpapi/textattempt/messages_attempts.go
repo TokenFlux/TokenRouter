@@ -1,11 +1,13 @@
 // Messages 的旧执行端口只持有本请求投影，循环唯一位于 gateway/text。
-package handler
+package textattempt
 
 import (
 	admission "github.com/TokenFlux/TokenRouter/internal/gateway/admission"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta"
 	gatewaycapture "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	authctx "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	queuepolicy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 
 	"context"
 	"errors"
@@ -19,7 +21,6 @@ import (
 	protocol "github.com/TokenFlux/TokenRouter/internal/protocol"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/server/clientip"
@@ -36,7 +37,6 @@ import (
 // messageAttemptBridge 保存尚未迁完的执行适配，异步完成仅捕获 completion.Input。
 type messageAttemptBridge struct {
 	fixed                                          *messageExecutionDependencies
-	h                                              *GatewayHandler
 	c                                              *gin.Context
 	apiKey, currentAPIKey                          *apikey.APIKey
 	subject                                        authctx.AuthSubject
@@ -102,7 +102,7 @@ func (b *messageAttemptBridge) Select(excluded map[int64]struct{}) (textflow.Sel
 		zap.Bool("sticky_honored", b.sessionBoundAccountID > 0 && b.sessionBoundAccountID == b.account.Record.ID),
 	)
 
-	return capturedTextSelection(b.account), nil
+	return gatewaycapture.CaptureTextSelection(b.account), nil
 }
 
 // FirstSelectionFailure 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
@@ -135,15 +135,15 @@ func (b *messageAttemptBridge) FirstSelectionFailure(err error, fallbackUsed boo
 // Intercept 只执行一次适配操作，重试与分组回退循环由 gateway/text 拥有。
 func (b *messageAttemptBridge) Intercept() bool {
 	if b.account.View().IsInterceptWarmupEnabled() {
-		interceptType := detectInterceptType(b.body, b.reqModel, b.parsedReq.MaxTokens, b.isClaudeCodeClient)
-		if interceptType != InterceptTypeNone {
+		interceptType := clientmeta.DetectInterceptType(b.body, b.reqModel, b.parsedReq.MaxTokens, b.isClaudeCodeClient)
+		if interceptType != clientmeta.InterceptTypeNone {
 			if b.selection.Acquired && b.selection.ReleaseFunc != nil {
 				b.selection.ReleaseFunc()
 			}
 			if b.reqStream {
-				sendMockInterceptStream(b.c, b.reqModel, interceptType)
+				gatewayhttp.WriteInterceptStream(b.c, b.reqModel, interceptType)
 			} else {
-				sendMockInterceptResponse(b.c, b.reqModel, interceptType)
+				gatewayhttp.WriteInterceptResponse(b.c, b.reqModel, interceptType)
 			}
 			return true
 		}
@@ -229,7 +229,7 @@ func (b *messageAttemptBridge) Forward(state textflow.AttemptState) textflow.Out
 	umqMode := b.binding().getUserMsgQueueMode(b.account, b.attemptParsedReq)
 
 	switch umqMode {
-	case config.UMQModeSerialize:
+	case queuepolicy.MessageQueueSerialize:
 		// 串行模式：获取锁 + RPM 延迟 + 释放（当前行为不变）
 		baseRPM := gatewaycapture.ExecutionRuntimeConfig(b.account).GetBaseRPM()
 		release, qErr := b.binding().userMsgQueueHelper.AcquireWithWait(
@@ -247,7 +247,7 @@ func (b *messageAttemptBridge) Forward(state textflow.AttemptState) textflow.Out
 			queueRelease = release
 		}
 
-	case config.UMQModeThrottle:
+	case queuepolicy.MessageQueueThrottle:
 		// 软性限速：仅施加 RPM 自适应延迟，不阻塞并发
 		baseRPM := gatewaycapture.ExecutionRuntimeConfig(b.account).GetBaseRPM()
 		if tErr := b.binding().userMsgQueueHelper.ThrottleWithPing(

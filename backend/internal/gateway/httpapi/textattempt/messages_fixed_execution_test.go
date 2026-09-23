@@ -1,4 +1,4 @@
-package handler
+package textattempt
 
 import (
 	"context"
@@ -21,7 +21,7 @@ import (
 func TestFixedMessagesOpenUsesBoundDependenciesAndExplicitState(t *testing.T) {
 
 	dependencies := &messageExecutionDependencies{}
-	runtime := &fixedMessagesRuntime{dependencies: dependencies}
+	runtime := &Runtime{dependencies: dependencies}
 	var previous *messageAttemptBridge
 	for _, model := range []string{"first", "second"} {
 		writer := httptest.NewRecorder()
@@ -34,7 +34,6 @@ func TestFixedMessagesOpenUsesBoundDependenciesAndExplicitState(t *testing.T) {
 		require.NoError(t, err)
 		state, ok := ports.(*messageAttemptBridge)
 		require.True(t, ok)
-		require.Nil(t, state.h)
 		require.Same(t, dependencies, state.fixed)
 		require.Equal(t, model, state.reqModel)
 		require.Equal(t, int64(9), state.apiKey.ID)
