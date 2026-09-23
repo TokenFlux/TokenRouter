@@ -34,7 +34,7 @@ func TestCompletionRuntimeOwnsIsolatedRatesAndSharedRecorders(t *testing.T) {
 	recorders := ProvideGatewayCompletionRecorders(rates, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, health, nil, tasks, cfg)
 	require.Zero(t, repo.calls)
 	forward := provideGatewayForRouting(nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, recorders)
-	openai := provideOpenAIGatewayExecution(nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, recorders, nil, nil)
+	openai := provideOpenAIGatewayExecution(nil, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, recorders, nil, nil, nil)
 	require.Same(t, recorders.Forward, forward.CompletionRecorder())
 	require.Same(t, recorders.OpenAI, openai.CompletionRecorder())
 	// 装配提供的摘要缓存由后续请求反复复用，不随完成器查询重建。

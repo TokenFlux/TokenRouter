@@ -256,6 +256,7 @@ var defaultOpenAICodexSnapshotPersistThrottle = newAccountWriteThrottle(openAICo
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	cyberBlocks *session.CyberBlocks
 	// prompts 直接引用 app 的唯一提示词运行时，WS 不再通过设置聚合取回它。
 	prompts          *promptpolicy.Service
 	runtimeBlocks    atomic.Pointer[accountcore.RuntimeBlockState]

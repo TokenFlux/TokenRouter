@@ -55,3 +55,7 @@ tar -xzf refactor/baseline/S16/s16-evidence.tar.gz -C "$evidence_dir"
 ## 2026-09-23 OpenAI HTTP 资源检查点
 
 `progress-20260923-openai-controls-manifest.json` 接续 openai-output 检查点。普通合同 48 条、定向 race 137 条通过；Wire 再生成稳定，构建和三套完整 lint 为零。唯一 limiter/并发资源的容量合同及原始诊断完整保留。结果见归档内 `progress-20260923-openai-controls-verification.json`，S16 仍未完成。
+
+## 2026-09-23 Cyber 会话与装配检查点
+
+`progress-20260923-cyber-manifest.json` 接续 openai-controls 检查点。合并普通/unit/integration 全量通过 11,987 / 20,021 / 12,990，既有跳过 4/8/4；三套完整 lint 为零。定向 unit race 48 条、真实 Redis integration race 1 条和边界门禁 27/27 通过；Wire 稳定性已验证。完整命令与事件见归档内 `progress-20260923-cyber-verification.json`。S16 未完成。

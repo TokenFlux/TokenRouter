@@ -54,6 +54,7 @@ func provideOpenAIGatewayExecution(
 	recorders GatewayCompletionRecorders,
 	executionCredentials *accountcore.OpenAIExecutionCredentials,
 	taskCoordinator *accountcore.OpenAITaskCoordinator,
+	cyberBlocks *session.CyberBlocks,
 	tlsFPRouterServices ...*egress.TLSFingerprintRouterService,
 ) *service.OpenAIGatewayService {
 	source := service.NewOpenAIGatewayService(
@@ -92,6 +93,7 @@ func provideOpenAIGatewayExecution(
 	source.BindAgentIdentity(gatewayprovider.NewExecutionAgentIdentity(taskCoordinator, accountRepo, func(ctx context.Context, value *accountcore.Record) (string, error) {
 		return accountprovider.RegisterAgentIdentityTask(ctx, value, "https://auth.openai.com/api/accounts")
 	}, source.InvalidateAgentIdentityWSConnections))
+	source.BindCyberBlocks(cyberBlocks)
 	source.BindCompletionRecorder(recorders.OpenAI)
 	source.BindPromptCacheBindings(session.NewAnthropicPromptCache(time.Now))
 	return source

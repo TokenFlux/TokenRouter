@@ -2,16 +2,14 @@
 package handler
 
 import (
-	"context"
+	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/moderationflow"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
-type cyberHTTPBackend struct{ h *OpenAIGatewayHandler }
 type cyberBackgroundTasks struct{ service *service.OpenAIGatewayService }
 
 func (t cyberBackgroundTasks) Go(name string, fn func()) bool {
@@ -25,16 +23,18 @@ type cyberOpsWriter struct {
 
 func (w cyberOpsWriter) Enqueue(in *ops.OpsInsertErrorLogInput) { w.queue.Enqueue(w.service, in) }
 
-// NewCyberHTTPHandler 复用唯一 Recorder、moderation、会话与后台跟踪器，不创建队列。
+// NewCyberHTTPHandler 仅供尚未改绑的旧调用取得应用实例；独立夹具不复制规则。
 func (h *OpenAIGatewayHandler) NewCyberHTTPHandler() *gatewayhttp.CyberHandler {
 	if h != nil && h.cyberHTTP != nil {
 		return h.cyberHTTP
 	}
 	runtime := moderationflow.Runtime{Tasks: cyberBackgroundTasks{}}
+	var core *session.CyberBlocks
 	if h != nil && h.gatewayService != nil {
+		core = h.gatewayService.CyberBlocks()
 		runtime.Tasks = cyberBackgroundTasks{h.gatewayService}
 		runtime.Recorder = h.completionRuntime()
-		runtime.Blocks = h.gatewayService
+		runtime.Blocks = core
 	}
 	if h != nil && h.opsService != nil && h.opsErrorQueue != nil {
 		runtime.Ops = cyberOpsWriter{h.opsService, h.opsErrorQueue}
@@ -43,38 +43,10 @@ func (h *OpenAIGatewayHandler) NewCyberHTTPHandler() *gatewayhttp.CyberHandler {
 	if h != nil {
 		moderator = nativeModerationPort(h.contentModerationService)
 	}
-	return gatewayhttp.NewCyberHandler(cyberHTTPBackend{h}, moderator, gatewayhttp.GatewayModerationEndpoints{}, runtime)
-}
-func (p cyberHTTPBackend) Available() bool { return p.h != nil && p.h.gatewayService != nil }
-func (p cyberHTTPBackend) Enabled(ctx context.Context) bool {
-	enabled, _ := p.h.gatewayService.CyberSessionBlockRuntime(ctx)
-	return enabled
-}
-func (p cyberHTTPBackend) Find(ctx context.Context, id int64, c *gin.Context, body []byte) string {
-	return findBlockedCyberSessionKey(ctx, p.h.gatewayService, id, c, body)
-}
-func (p cyberHTTPBackend) Mark(c *gin.Context) *moderationflow.Mark {
-	m := gatewayhttp.GetOpsCyberPolicy(c)
-	if m == nil {
-		return nil
-	}
-	v := moderationflow.Mark(*m)
-	return &v
-}
-func (p cyberHTTPBackend) StopKeepalive(c *gin.Context) bool {
-	return gatewayhttp.StopOpenAICompactSSEKeepaliveCommitted(c)
-}
-func (p cyberHTTPBackend) MarkStream(c *gin.Context, k, m string, status int) {
-	gatewayhttp.MarkOpsStreamError(c, k, m, status)
-}
-func (p cyberHTTPBackend) FailedSSE(c *gin.Context, k, m string) bool {
-	return gatewayhttp.WriteResponsesFailedSSE(c, k, "", m, gatewayhttp.ErrorRequestID(c), gatewayhttp.ErrorRequestModel(c))
-}
-func (p cyberHTTPBackend) UpstreamEndpoint(c *gin.Context, platform string) string {
-	return gatewayhttp.GetUpstreamEndpoint(c, platform)
+	return gatewayhttp.NewBoundCyberHandler(core, moderator, runtime)
 }
 
-// BindCyberHTTPHandler 在应用启动前固定审核编排入口，复用同一完成器。
+// BindCyberHTTPHandler 在应用开始工作前连接同一原生实例。
 func (h *OpenAIGatewayHandler) BindCyberHTTPHandler(core *gatewayhttp.CyberHandler) {
 	h.cyberHTTP = core
 }

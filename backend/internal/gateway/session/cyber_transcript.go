@@ -1,4 +1,4 @@
-package service
+package session
 
 import (
 	"crypto/sha256"
@@ -17,14 +17,11 @@ type openAICyberTranscriptBlockKeys struct {
 	lookupKeysTruncated bool
 }
 
-// Bound the Redis lookup work for a single request while retaining the most
-// recent transcript prefixes, where a continuation is most likely to match.
+// 限制单请求的 Redis 查询工作量，保留最可能匹配续接的近期转录前缀。
 const maxOpenAICyberTranscriptLookupKeys = 256
 
-// deriveOpenAICyberTranscriptBlockKeys returns cumulative semantic-history
-// hashes plus the context key immediately before the latest user turn. The
-// context key requires model-generated history so shared first-turn templates
-// cannot block unrelated conversations.
+// deriveOpenAICyberTranscriptBlockKeys 返回累计语义历史散列和最新用户轮次前的上下文键。
+// 上下文键必须观察到模型生成历史，避免共享首轮模板误屏蔽无关会话。
 func deriveOpenAICyberTranscriptBlockKeys(apiKeyID int64, body []byte) openAICyberTranscriptBlockKeys {
 	if len(body) == 0 {
 		return openAICyberTranscriptBlockKeys{}
@@ -37,8 +34,7 @@ func deriveOpenAICyberTranscriptBlockKeys(apiKeyID int64, body []byte) openAICyb
 	h := sha256.New()
 	_, _ = h.Write([]byte("cyber-transcript:v3|api_key="))
 	_, _ = h.Write([]byte(strconv.FormatInt(apiKeyID, 10)))
-	// Model and tool definitions are request configuration rather than history.
-	// Root instructions remain model-visible context and participate in identity.
+	// 模型与工具定义属于请求配置；根指令仍是模型可见的上下文，参与身份计算。
 	for _, field := range []string{"instructions"} {
 		v := root.Get(field)
 		if !v.Exists() || (v.Type == gjson.String && strings.TrimSpace(v.String()) == "") {
@@ -64,9 +60,8 @@ func deriveOpenAICyberTranscriptBlockKeys(apiKeyID int64, body []byte) openAICyb
 		nextLookupKey := 0
 		lookupKeysRotated := false
 		lastLookupKey := ""
-		// This is an entropy heuristic, not provenance proof: authenticated
-		// server-side history would be required to distinguish fixed few-shot
-		// assistant items perfectly.
+		// 这里只使用熵启发式，不能证明来源；若要准确区分固定 few-shot 助手条目，
+		// 需要经过认证的服务端历史。
 		hasModelGeneratedItem := false
 		sequence.ForEach(func(_, item gjson.Result) bool {
 			canonical := item.Raw

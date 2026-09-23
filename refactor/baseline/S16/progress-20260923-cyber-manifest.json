@@ -1,0 +1,265 @@
+{
+  "format_version": 1,
+  "scope": "S16 阶段检查点增量，非最终验收",
+  "base_archive": "s16-evidence.tar.gz",
+  "base_archive_sha256": "9d3fa06d7fdef83f358c34c0816b55e4be7e531c3b3134a01fc1ff32bd6808ae",
+  "source_file_count": 49,
+  "source_total_bytes": 64197459,
+  "archives": [
+    {
+      "path": "progress-20260923-cyber-01.tar.gz",
+      "size": 3526348,
+      "sha256": "78d816f41470b1a9627fd8c0e939b96ef5ac2d69ba2abb2f560180d4e474fb01",
+      "verified_members": 49,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/interim-native-cyber-checks.json",
+          "size": 5656,
+          "sha256": "9d3c7d37ad23e4939c1dfd7e6512b68dec0ec58d110f1d26c607ab1dbdfd5fab"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-cyber-integration.jsonl",
+          "size": 18869188,
+          "sha256": "f16c92aa8602866d4a18fc39fbb7d196286dbcd1e990893f99eae718c1673a46"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-cyber-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-cyber-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-cyber-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-cyber-normal.jsonl",
+          "size": 17712837,
+          "sha256": "0172ca41aff8ae8d638fa15e0d47beb1f73e77e115ea4479e74e82d584d1aee0"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-cyber-unit.jsonl",
+          "size": 27450184,
+          "sha256": "1d5d536c00670127b9d05b50bd7ac34781cb3b77e0cd584cd33c65805529d514"
+        },
+        {
+          "path": "refactor/baseline/S16/interim-native-cyber-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-app-binding-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-app-binding-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-app-binding-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-http-integration.log",
+          "size": 271,
+          "sha256": "d9bae51783b2899ff45fd9178ec34071ad86382555df18be977be0c7b2fa812f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-http-normal.log",
+          "size": 271,
+          "sha256": "d9bae51783b2899ff45fd9178ec34071ad86382555df18be977be0c7b2fa812f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-http-unit.log",
+          "size": 271,
+          "sha256": "d9bae51783b2899ff45fd9178ec34071ad86382555df18be977be0c7b2fa812f"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-legal-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-legal-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-legal-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-moved-integration.log",
+          "size": 256,
+          "sha256": "064df069347963bfa5f118f58c7bd441229c1865e89bc99394c83d5518d785ca"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-moved-normal.log",
+          "size": 256,
+          "sha256": "064df069347963bfa5f118f58c7bd441229c1865e89bc99394c83d5518d785ca"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-moved-unit.log",
+          "size": 256,
+          "sha256": "064df069347963bfa5f118f58c7bd441229c1865e89bc99394c83d5518d785ca"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-new-sibling-integration.log",
+          "size": 247,
+          "sha256": "a3adbdd72d84d23399d1455931f788302192d23659310aebc56f139cec1eaa08"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-new-sibling-normal.log",
+          "size": 247,
+          "sha256": "a3adbdd72d84d23399d1455931f788302192d23659310aebc56f139cec1eaa08"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-new-sibling-unit.log",
+          "size": 247,
+          "sha256": "a3adbdd72d84d23399d1455931f788302192d23659310aebc56f139cec1eaa08"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-old-service-integration.log",
+          "size": 288,
+          "sha256": "beed7253380dee03f73bf5aac5d38201c46bd735ad30009144ea66c17c664bf4"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-old-service-normal.log",
+          "size": 288,
+          "sha256": "beed7253380dee03f73bf5aac5d38201c46bd735ad30009144ea66c17c664bf4"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-core-old-service-unit.log",
+          "size": 288,
+          "sha256": "beed7253380dee03f73bf5aac5d38201c46bd735ad30009144ea66c17c664bf4"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-http-session-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-http-session-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-http-session-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-http-store-integration.log",
+          "size": 322,
+          "sha256": "48c5b2929a4c1a34e25a44eb1e0c541fbed227a33f8b847307d3c8d17da32aad"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-http-store-normal.log",
+          "size": 322,
+          "sha256": "48c5b2929a4c1a34e25a44eb1e0c541fbed227a33f8b847307d3c8d17da32aad"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-http-store-unit.log",
+          "size": 322,
+          "sha256": "48c5b2929a4c1a34e25a44eb1e0c541fbed227a33f8b847307d3c8d17da32aad"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-transcript-protocol-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-transcript-protocol-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gate-cyber-transcript-protocol-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-boundary-gates.json",
+          "size": 17229,
+          "sha256": "b5c6e690548a3c61437aaf17f81e8289be487955a66ca2fc74e8813534c5f248"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-compile-recheck.log",
+          "size": 420,
+          "sha256": "8dbb5c078de5b799f4ec226f0f2bb8000ad7e3adebc7652f036220ad10faeb3c"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-compile.log",
+          "size": 5059,
+          "sha256": "b114ec15cf64aee0255e5ab010c79f0e2b1fac332bebc239ac56b99987c57bc6"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-gate-consumers.json",
+          "size": 924,
+          "sha256": "452c26347397025ca30ac038edb96f0128a9650551ae38f153cfae8f9196f42c"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-integration-race.jsonl",
+          "size": 1451,
+          "sha256": "9da0e6250a6e4e1d99a38e5b80b0e201e8411550cf87a5be55aa97aba4841794"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-key-consumers.json",
+          "size": 218,
+          "sha256": "4b003c085fb7e77419e4ec7b198d18ef74b1d942a73eb440f6cebe3a5c9289fa"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-lint.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-original.json",
+          "size": 13158,
+          "sha256": "e338883473748fe4f2b010f4b249ebd021f7a86c5488bffed8d1d79fafb21664"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-race.jsonl",
+          "size": 104716,
+          "sha256": "f6fcaab9a6c25ea5f819721aeb444310d32442ecc889f6a2fa645e2cd61e851a"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-wire-repeat.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-wire-stability.json",
+          "size": 198,
+          "sha256": "b14b3af6e88c91878b2dddcf3a8fe9e7375c76fa58d70bb8eb49fa6f35a749a3"
+        },
+        {
+          "path": "refactor/baseline/S16/native-cyber-wire.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-cyber-verification.json",
+          "size": 6499,
+          "sha256": "80ceb6e198e7be345c487b34f889c8b4360e2f015c631d0a2581ccfb143afc80"
+        },
+        {
+          "path": "refactor/baseline/S16/progress-20260923-openai-controls-manifest.json",
+          "size": 4999,
+          "sha256": "ce3af322a4ca224a49d349dcd3a738d9fddfabe71a54c599152013bc60c4551b"
+        }
+      ]
+    }
+  ],
+  "parent_manifest": "progress-20260923-openai-controls-manifest.json",
+  "parent_manifest_sha256": "ce3af322a4ca224a49d349dcd3a738d9fddfabe71a54c599152013bc60c4551b"
+}

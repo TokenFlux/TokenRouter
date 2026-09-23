@@ -1687,3 +1687,11 @@ Claude 客户端识别原测试迁到 clientmeta，context 值读写测试回到
 - 用户槽与图片槽 HTTP 适配归 OpenAIHTTPResources，依赖缺失检查归 OpenAIDependencies，工具输出输入验证直接调用原生 HTTP 函数。五个旧 Handler 准入/验证方法删除，生产、函数值消费者及测试同批改绑。保持依赖缺失项目顺序、未提交时的 503、工具错误优先级、等待前 context 的取消释放、图片拒绝/等待/旁路和原响应。
 - app 构造唯一并发 helper 与本地图片 limiter，Wire 显式交给尚未清零的 OpenAI Handler；构造器收到资源时不再创建备用实例。原生与兼容入口的容量合同验证同一槽位状态、阻塞与重复释放；剩余旧入口仅投影现有指针和配置，不复制 limiter 状态。
 - 原图片槽 HTTP 合同迁到实际所有者，新增资源共享合同通过。普通合同 48 条、定向 unit race 137 条通过，构建与三套完整 lint 为零；Wire 再生成摘要一致。源码/测试/门禁及文档已同步，SQL/Ent 未变，证据为 `native-openai-controls-*`。按授权保存进度，S16 的直接 OpenAI HTTP/Cyber 绑定及其他残留继续收尾。
+
+
+### Cyber 会话与 HTTP 固定装配完整批次（2026-09-23）
+
+- 转录前缀与显式/scope 键、旧单键缓存兼容、开关/TTL 读取、写入与查找统一进入 gateway/session。核心没有 Gin/config 或日志后端依赖，HTTP 仅提供同步惰性的显式会话读取。保持原哈希前缀、API Key 隔离、scope 前置、256 候选上限、溢出阻断、错误 fail-open 与动态读取时点。
+- app 直接构造唯一 CyberBlocks 和 CyberHandler，复用同一 GatewayCache、moderation 设置、ApplicationBackgroundTasks、Recorder 与 Ops 队列；旧 Handler backend 删除，旧服务仅保留实例绑定/无状态测试投影，不保留规则或缓存。真实请求的记录、异步提交与关闭拥有者不变。
+- 原会话测试迁到实际 HTTP/会话链，真实选择调用继续回归；48 条定向 unit race 通过，真实 Redis 组合根合同 1 条 integration race 通过，分别保留内存替身与真实存储证据。初次 app 测试构造参数遗漏已补齐，没有削弱断言或修复范围外问题。
+- 合并全仓普通/unit/integration 为 11,987 / 20,021 / 12,990 条通过，既有跳过 4/8/4，三套完整 lint 均为零；Wire 再生成稳定。9 类门禁在三种标签下共 27/27 通过，夹具已删除。SQL/Ent、原计划及冻结资料未变，验证见 `interim-native-cyber-checks.json` 与 `progress-20260923-cyber-verification.json`。保存本批进度，S16 仍未完成。

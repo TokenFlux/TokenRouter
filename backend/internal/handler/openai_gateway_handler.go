@@ -553,8 +553,8 @@ type cyberSessionBlockWritePlan struct {
 }
 
 func buildCyberSessionBlockWritePlan(apiKeyID int64, c *gin.Context, body []byte) cyberSessionBlockWritePlan {
-	explicit := service.CyberSessionExplicitBlockKey(apiKeyID, c, body)
-	transcript := service.CyberSessionTranscriptBlockKeys(apiKeyID, body)
+	explicit := gatewayhttp.CyberSessionExplicitBlockKey(apiKeyID, c, body)
+	transcript := gatewaysession.CyberSessionTranscriptBlockKeys(apiKeyID, body)
 	scope := ""
 	if len(transcript) > 0 {
 		scope = cyberSessionScopeKey(apiKeyID, c)
@@ -563,23 +563,18 @@ func buildCyberSessionBlockWritePlan(apiKeyID int64, c *gin.Context, body []byte
 	return cyberSessionBlockWritePlan{scopeKey: plan.ScopeKey, keys: plan.Keys}
 }
 
-func findBlockedCyberSessionKey(ctx context.Context, gatewayService *service.OpenAIGatewayService, apiKeyID int64, c *gin.Context, body []byte) string {
-	if gatewayService == nil {
+func findBlockedCyberSessionKey(ctx context.Context, source *service.OpenAIGatewayService, id int64, c *gin.Context, body []byte) string {
+	if source == nil {
 		return ""
 	}
-	clientIP, userAgent := "", ""
-	if c != nil {
-		clientIP = strings.TrimSpace(clientip.GetClientIP(c))
-		userAgent = c.GetHeader("User-Agent")
-	}
-	return gatewayService.FindCyberSessionBlockedForRequest(ctx, apiKeyID, c, body, clientIP, userAgent)
+	return gatewayhttp.FindBlockedCyberSession(ctx, source.CyberBlocks(), id, c, body)
 }
 
 func cyberSessionScopeKey(apiKeyID int64, c *gin.Context) string {
 	if c == nil {
 		return ""
 	}
-	return service.CyberSessionScopeKey(apiKeyID, strings.TrimSpace(clientip.GetClientIP(c)), c.GetHeader("User-Agent"))
+	return gatewaysession.CyberSessionScopeKey(apiKeyID, strings.TrimSpace(clientip.GetClientIP(c)), c.GetHeader("User-Agent"))
 }
 
 // handleGroupSelectionBusinessError 只绑定原 Key 读取与平台展示目录。
