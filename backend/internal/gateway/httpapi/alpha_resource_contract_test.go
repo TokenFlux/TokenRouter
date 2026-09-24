@@ -1,5 +1,5 @@
 // 原失败返回契约同时检查响应体拥有者，保留已有错误/输出断言。
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -12,7 +12,6 @@ import (
 	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
@@ -36,12 +35,12 @@ func TestS09AlphaSearchFailoverClosesOriginalResponse(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
 	closedBody := &s09AlphaResponseBody{ReadCloser: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`))}
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusTooManyRequests,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       closedBody,
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,

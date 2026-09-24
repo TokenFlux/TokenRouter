@@ -1,9 +1,10 @@
-package service
+package httpapi
 
 import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -13,10 +14,11 @@ import (
 	"time"
 
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
@@ -79,15 +81,14 @@ func TestForwardAlphaSearchOAuthPreservesWire(t *testing.T) {
 	c.Request.Header.Set("Version", "0.144.1")
 	c.Request.Header.Set("X-Codex-Turn-Metadata", `{"session_id":"search-session","turn_id":"search-turn"}`)
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"encrypted_output":"ciphertext","output":"search result"}`)),
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:                 &config.Config{},
-		httpUpstream:        upstream,
-		tlsFPProfileService: &provider.TLSProfiles{},
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport: upstream,
+		profiles:  &provider.TLSProfiles{},
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 42,
 		Platform:    capability.PlatformOpenAI,
@@ -156,15 +157,14 @@ func TestForwardAlphaSearchPATUsesResponsesWebSearchFallback(t *testing.T) {
 	c.Request.Header.Set(media.ResponsesLiteHeaderKey, "true")
 	c.Request.Header.Set("X-Codex-Turn-Metadata", `{"turn_id":"turn-1"}`)
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"req-search"}},
 		Body:       io.NopCloser(strings.NewReader(alphaSearchResponsesSSE("search result"))),
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:                 &config.Config{},
-		httpUpstream:        upstream,
-		tlsFPProfileService: &provider.TLSProfiles{},
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport: upstream,
+		profiles:  &provider.TLSProfiles{},
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 43,
 		Platform:    capability.PlatformOpenAI,
@@ -243,25 +243,22 @@ func TestForwardAlphaSearchPATBackfillsMissingChatGPTAccountMetadata(t *testing.
 		}`))
 	}))
 	defer whoamiServer.Close()
-	oldWhoamiURL := openAICodexPATWhoamiURL
-	openAICodexPATWhoamiURL = whoamiServer.URL
-	defer func() { openAICodexPATWhoamiURL = oldWhoamiURL }()
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"output":"search result"}`)),
 	}}
-	oauthService := newOpenAIAuthorizationForTest(t, nil, nil)
+	oauthService := accountcore.NewOpenAIAuthorization(accountcore.NewOpenAISessionStore(), accountprovider.OpenAIAuthorizationOptions(&accountprovider.OpenAIAuthorizationDependencies{WhoamiURL: whoamiServer.URL}))
+	t.Cleanup(func() { require.NoError(t, oauthService.StopContext(context.Background())) })
 	oauthService.Start()
 	repo := &alphaSearchAccountStateRepo{}
-	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:                  &config.Config{},
-		httpUpstream:         upstream,
-		executionCredentials: newOpenAIExecutionCredentialsForTest(nil, newOpenAITokenSourceForTest(nil, nil, oauthService), nil),
-		openAIAuthorization:  oauthService,
-		accountRepo:          repo,
-	}))
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport:     upstream,
+		credentials:   &accountcore.OpenAIExecutionCredentials{OpenAI: (&accountcore.OpenAITokenSource{Metrics: &accountcore.OpenAITokenMetricsStore{}, Policy: accountcore.OpenAIProviderRefreshPolicy(), Debug: slog.Debug, Warn: slog.Warn}).GetAccessToken},
+		authorization: oauthService,
+		store:         repo,
+	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 45,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -296,12 +293,12 @@ func TestForwardAlphaSearchAPIKeyMapsModelAndPassesThroughError(t *testing.T) {
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	upstreamBody := `{"error":{"type":"invalid_request_error","message":"bad search"}}`
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusBadRequest,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
@@ -335,12 +332,12 @@ func TestForwardAlphaSearchReturnsFailoverBeforeWriting(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusTooManyRequests,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 8,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
@@ -373,7 +370,7 @@ func TestForwardAlphaSearchSetupToken429CarriesSameAccountRetryWindow(t *testing
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusTooManyRequests,
 		Header: http.Header{
 			"Content-Type": []string{"application/json"},
@@ -382,7 +379,7 @@ func TestForwardAlphaSearchSetupToken429CarriesSameAccountRetryWindow(t *testing
 		},
 		Body: io.NopCloser(strings.NewReader(`{"error":{"type":"rate_limit_error","code":"rate_limit_exceeded","message":"rate limited"}}`)),
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 81,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeSetupToken,
@@ -413,7 +410,7 @@ func TestForwardAlphaSearchAccessStateUsesTypedFailover(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusForbidden,
 		Header: http.Header{
 			"Content-Type": []string{"application/json"},
@@ -421,7 +418,7 @@ func TestForwardAlphaSearchAccessStateUsesTypedFailover(t *testing.T) {
 		},
 		Body: io.NopCloser(strings.NewReader(`{"error":{"code":"deactivated_workspace","message":"Workspace is deactivated"}}`)),
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 11,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -447,7 +444,7 @@ func TestForwardAlphaSearchPATFallbackAccessStateUsesTypedFailover(t *testing.T)
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusForbidden,
 		Header: http.Header{
 			"Content-Type": []string{"application/json"},
@@ -455,7 +452,7 @@ func TestForwardAlphaSearchPATFallbackAccessStateUsesTypedFailover(t *testing.T)
 		},
 		Body: io.NopCloser(strings.NewReader(`{"error":{"code":"account_disabled","message":"Account is disabled"}}`)),
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 12,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -497,19 +494,18 @@ func TestForwardAlphaSearchUnauthorizedDoesNotMarkAccountError(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusUnauthorized,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"detail":"Unauthorized"}`)),
 	}}
 	repo := &alphaSearchAccountStateRepo{}
-	cfg := &config.Config{}
-	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:            cfg,
-		httpUpstream:   upstream,
-		accountRepo:    repo,
-		healthObserver: newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
-	}))
+
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport: upstream,
+		store:     repo,
+		observer:  gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo}),
+	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 44,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -539,19 +535,18 @@ func TestForwardAlphaSearchPATResponsesFallbackUnauthorizedDoesNotMarkAccountErr
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusUnauthorized,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"detail":"Unauthorized"}`)),
 	}}
 	repo := &alphaSearchAccountStateRepo{}
-	cfg := &config.Config{}
-	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:            cfg,
-		httpUpstream:   upstream,
-		accountRepo:    repo,
-		healthObserver: newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
-	}))
+
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport: upstream,
+		store:     repo,
+		observer:  gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo}),
+	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 46,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -588,19 +583,18 @@ func TestForwardAlphaSearchAPIKeyEndpointNotFoundFailsOver(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusNotFound,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"Not Found"}}`)),
 	}}
 	repo := &alphaSearchAccountStateRepo{}
-	cfg := &config.Config{}
-	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:            cfg,
-		httpUpstream:   upstream,
-		accountRepo:    repo,
-		healthObserver: newUpstreamHealthForTest(repo, cfg, nil, accountcore.HealthOptions{}, nil),
-	}))
+
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport: upstream,
+		store:     repo,
+		observer:  gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo}),
+	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 9,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
@@ -631,12 +625,12 @@ func TestForwardAlphaSearchOAuthNotFoundPassesThrough(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/alpha/search", bytes.NewReader(body))
 
 	upstreamBody := `{"detail":"Not Found"}`
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusNotFound,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
 	}}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	service := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 10,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,

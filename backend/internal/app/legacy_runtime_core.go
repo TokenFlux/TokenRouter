@@ -37,7 +37,6 @@ func provideCoreRuntime(
 	usageCleanup *usage.UsageCleanupService,
 	idempotencyCleanup *idempotency.IdempotencyCleanupService,
 	openAIGateway *service.OpenAIGatewayService,
-	openAIAuthorization *account.OpenAIAuthorization,
 	paymentOrderExpiry *payment.OrderExpiry,
 	tlsFingerprintCollector *provider.TLSFingerprintCollectorService,
 	manager *lifecycle.Manager,
@@ -56,7 +55,6 @@ func provideCoreRuntime(
 	if openAIGateway != nil {
 		openAIGateway.BindSchedulerStickyStats(shared.Sticky)
 
-		openAIGateway.BindOpenAIAuthorization(openAIAuthorization)
 		openAIGateway.BindNativeAttemptActivity(nativeAttempts.Enter)
 	}
 	manager.Register(lifecycle.Hook{Name: "AuthCacheInvalidationWorker", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {

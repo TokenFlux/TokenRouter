@@ -20,7 +20,7 @@ import (
 func TestMediaAssemblyKeepsReadAndStopBoundaries(t *testing.T) {
 	activity := &gatewayRequestActivity{Operations: lifecycle.NewOperations("media-entry-contract")}
 	common := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
-	runtime := provideMediaRuntime(nil, nil, nil, nil, common, nil, nil, nil, nil, nil)
+	runtime := provideMediaRuntime(nil, nil, nil, nil, common, nil, nil, nil, nil, nil, nil)
 	media := provideMediaHTTP(runtime, activity)
 	auxiliary := provideAuxiliaryHTTP(runtime, activity)
 	for _, stopped := range []bool{false, true} {

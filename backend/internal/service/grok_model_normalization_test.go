@@ -184,7 +184,7 @@ func TestGrokCountTokensUsesCanonicalModel(t *testing.T) {
 			"model_mapping": map[string]any{"claude-sonnet-4-5": "grok-latest"},
 		}},
 	}
-	prepared, err := prepareOpenAIInputTokensCountRequest(
+	prepared, err := gatewayprovider.PrepareAnthropicInputTokens(
 		[]byte(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hello"}]}`),
 		account,
 		"",

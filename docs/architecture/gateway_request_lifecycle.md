@@ -153,7 +153,7 @@ Codex 身份和指纹的请求内状态只由 HTTP Adapter 持有；账号 provi
 
 Messages 的 `count_tokens` 由 app 直接构造原生 HTTP Handler，不再经过旧 GatewayHandler 工厂。HTTP 只持有受控计数目标与无凭据账号快照；原有选择和平台执行原语由组合根连接。资金预检先于无槽选择，失败后释放本次会话，每次尝试从原报文重建渠道映射；不新增费用提交或完成任务。文本与计数入口共用原有兼容指标采样计数器。
 
-OpenAI 兼容计数、Grok 本地估算和 Responses 输入 token 预检由 app 独立构造 OpenAITokensHandler，直接绑定同一个请求生命周期屏障，已不依赖旧 OpenAIGatewayHandler。计数保持渠道规划后检查资金，再执行单次无槽选择；Responses 预检保持资金检查先于渠道规划，并释放选择器交付的每个账号槽。Grok 本地估算不增加资金检查、选账号或上游请求。这些入口没有生成请求的完成提交端口。
+OpenAI 兼容计数、Grok 本地估算和 Responses 输入 token 预检由 app 独立构造 OpenAITokensHandler，直接绑定同一个请求生命周期屏障，已不依赖旧 OpenAIGatewayHandler。计数保持渠道规划后检查资金，再执行单次无槽选择；Responses 预检保持资金检查先于渠道规划，并释放选择器交付的每个账号槽。Grok 本地估算不增加资金检查、选账号或上游请求。这些入口没有生成请求的完成提交端口。 计数执行现在直接绑定 OpenAIAuxiliary，路由计划和选择分别使用原生 RoutePlanner 与 Compatible；账号目标只在受控转发方法内携带凭据。AlphaSearch 与 Embeddings 同样复用固定请求和响应实例，搜索授权元数据由同一 account.OpenAIAuthorization 提供。
 
 Live 与 sideband 的 HTTP 入口也由 app 直接构造，原生 LivePorts 共享原审核、资金准入和并发服务，不再通过旧 OpenAIGatewayHandler 创建门面。平台与启用门禁先于读取请求体；审核先于资金检查，再取得即时用户槽。会话创建、身份归属及 relay 通过受控执行端口调用已有 Live 运行时，未增加第二份租约或 observer；Live 仍只记录零费用用量。非报文模型重定向由 HTTP Adapter 的唯一函数提供，Live 与 WS 保持相同的一跳映射与追踪语义。
 

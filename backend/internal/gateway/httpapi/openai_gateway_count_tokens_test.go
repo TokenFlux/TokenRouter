@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -16,9 +16,10 @@ import (
 	"testing"
 	"time"
 
+	gatewaytestkit "github.com/TokenFlux/TokenRouter/internal/gateway/testkit"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tokenestimate"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/wirejson"
@@ -54,18 +55,15 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_APIKeyUsesResponsesI
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", bytes.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"object":"response.input_tokens","input_tokens":42}`)),
 	}}
 
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg: &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{
-			Enabled:           false,
-			AllowInsecureHTTP: true,
-		}}},
-		httpUpstream: upstream,
+	svc := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		allowHTTP: true,
+		transport: upstream,
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 101,
 		Name:        "openai-apikey",
@@ -114,11 +112,11 @@ func TestOpenAIGatewayServiceForwardCountTokensCNProvidersAlwaysEstimateLocally(
 			c, _ := gin.CreateTestContext(rec)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", bytes.NewReader(body))
 
-			upstream := &httpUpstreamRecorder{}
+			upstream := &auxiliaryHTTPRecorder{}
 			repo := &countTokensRuntimeStateRepo{}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				httpUpstream:   upstream,
-				healthObserver: newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil),
+			svc := newAuxiliaryFixture(auxiliaryFixtureInputs{
+				transport: upstream,
+				observer:  gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo}),
 			})
 			account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 301,
 				Platform: tt.platform,
@@ -157,7 +155,7 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_OAuthFallsBackWhenPl
 		Schedulable: true},
 	}
 
-	prepared, err := prepareOpenAIInputTokensCountRequest(body, account, "gpt-5.4")
+	prepared, err := gatewayprovider.PrepareAnthropicInputTokens(body, account, "gpt-5.4")
 	require.NoError(t, err)
 	expectedEstimate, err := tokenestimate.Responses(prepared.Request)
 	require.NoError(t, err)
@@ -197,16 +195,15 @@ func TestOpenAIGatewayService_ForwardCountTokensAsAnthropic_OAuthFallsBackWhenPl
 			c.Request.Header.Set("Content-Type", "application/json")
 			c.Request.Header.Set("User-Agent", "Claude-Code/1.0")
 
-			upstream := &httpUpstreamRecorder{resp: &http.Response{
+			upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 				StatusCode: tt.statusCode,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body:       io.NopCloser(strings.NewReader(tt.body)),
 			}}
 			repo := &countTokensRuntimeStateRepo{}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				cfg:            &config.Config{},
-				httpUpstream:   upstream,
-				healthObserver: newUpstreamHealthForTest(repo, &config.Config{}, nil, accountcore.HealthOptions{}, nil),
+			svc := newAuxiliaryFixture(auxiliaryFixtureInputs{
+				transport: upstream,
+				observer:  gatewaytestkit.NewHealthObserver(gatewaytestkit.HealthInput{Store: repo}),
 			})
 
 			err := svc.ForwardCountTokensAsAnthropic(context.Background(), c, account, body, "gpt-5.4")
@@ -227,7 +224,7 @@ func TestOpenAIGatewayService_OpenAIOAuthInputTokensFallbackUsesMinimumWhenEstim
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
-	prepared := &openAIInputTokensCountPrepared{
+	prepared := &gatewayprovider.InputTokensPrepared{
 		Request: tokenestimate.Request{
 			Model: "gpt-5",
 			Input: json.RawMessage(`[`),
@@ -277,7 +274,7 @@ func TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI(t *testing.T) {
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey}}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			prepared, err := prepareOpenAIInputTokensCountRequest(tc.anthropicBody, account, tc.defaultOpenAIModel)
+			prepared, err := gatewayprovider.PrepareAnthropicInputTokens(tc.anthropicBody, account, tc.defaultOpenAIModel)
 			require.NoError(t, err)
 
 			estimated, err := tokenestimate.Responses(prepared.Request)

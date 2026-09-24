@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -76,7 +75,7 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/embeddings", bytes.NewReader(reqBody))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header: http.Header{
 			"Content-Type": []string{"application/json"},
@@ -92,9 +91,8 @@ func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing
 			"usage":{"prompt_tokens":13,"total_tokens":13}
 		}`)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{},
-		httpUpstream: upstream,
+	svc := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport: upstream,
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 42,
 		Platform: capability.PlatformOpenAI,
@@ -137,7 +135,7 @@ func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/embeddings", bytes.NewReader(reqBody))
 
 	upstreamBody := []byte(`{"error":{"code":"deactivated_workspace","message":"Workspace is deactivated"}}`)
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusForbidden,
 		Header: http.Header{
 			"Content-Type": []string{"application/json"},
@@ -145,7 +143,7 @@ func TestForwardEmbeddings_AccessStateUsesTypedFailover(t *testing.T) {
 		},
 		Body: io.NopCloser(bytes.NewReader(upstreamBody)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	svc := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 43,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,
@@ -178,12 +176,12 @@ func TestForwardEmbeddings_NonAccessFailoverKeepsLegacyShape(t *testing.T) {
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/embeddings", bytes.NewReader(reqBody))
 
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusTooManyRequests,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited"}}`)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{}, httpUpstream: upstream})
+	svc := newAuxiliaryFixture(auxiliaryFixtureInputs{transport: upstream})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 44,
 		Platform: capability.PlatformOpenAI,
 		Type:     capability.AccountTypeAPIKey,

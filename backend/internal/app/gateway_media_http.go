@@ -28,9 +28,9 @@ func provideMediaRuntime(
 	common openaiattempt.Bindings,
 	resources *gatewayhttp.OpenAIHTTPResources,
 	prober *account.GrokQuotaService,
-	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks,
+	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks, auxiliary *gatewayhttp.OpenAIAuxiliary,
 ) *mediaentry.Runtime {
-	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg, grok, video))
+	return mediaentry.New(mediaBindings(source, credentials, keys, funding, common, resources, prober, cfg, grok, video, auxiliary))
 }
 
 func provideMediaHTTP(runtime *mediaentry.Runtime, activity *gatewayRequestActivity) *gatewayhttp.MediaHandler {
@@ -52,7 +52,7 @@ func mediaBindings(
 	common openaiattempt.Bindings,
 	resources *gatewayhttp.OpenAIHTTPResources,
 	prober *account.GrokQuotaService,
-	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks,
+	cfg *config.Config, grok *gatewayhttp.GrokExecutor, video *media.VideoTasks, auxiliary *gatewayhttp.OpenAIAuxiliary,
 ) mediaentry.Bindings {
 
 	b := mediaentry.Bindings{
@@ -92,8 +92,8 @@ func mediaBindings(
 		b.Platform.SelectImages = common.Selection.SelectImages
 		b.Platform.Images = source.ForwardImages
 		b.Platform.GrokMedia = grok.ForwardGrokMedia
-		b.Platform.Embeddings = source.ForwardEmbeddings
-		b.Platform.AlphaSearch = source.ForwardAlphaSearch
+		b.Platform.Embeddings = auxiliary.ForwardEmbeddings
+		b.Platform.AlphaSearch = auxiliary.ForwardAlphaSearch
 		b.Platform.Voice = grok.ForwardGrokVoice
 		b.Platform.OpenRealtime = func(ctx context.Context, a *provider.ExecutionAccount, token, model string) (upstream.FrameConn, error) {
 			return grok.OpenGrokRealtime(ctx, a, token, model)

@@ -110,6 +110,7 @@ func newOpenAIExecutionAndSelectionFixture(
 		routers = tlsFPRouterServices[0]
 	}
 	source.BindTextExecution(openAITextExecution(cfg, accountRepo, nil, executionCredentials, httpUpstream, tlsFPProfileService, routers, settingService, source.Grok, output, source.PromptCacheBindings(), choices.OpenAIHTTPResponseStickyTTL, provideCompactExecutor(cfg)))
+	source.Auxiliary = &gatewayhttp.OpenAIAuxiliary{Requests: source.Requests, Output: output, CodexUsage: source.Text.CodexUsage}
 	source.BindRuntimeBlockState(blocks)
 	source.BindSchedulerStickyStats(sticky)
 	return source, choices, &gatewayhttp.RequestCredentialExecutor{Runtime: credentials}

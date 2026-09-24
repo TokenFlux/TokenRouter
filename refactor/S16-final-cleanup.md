@@ -1870,3 +1870,11 @@ S16 与总计划仍为 **实施中、16 / 17**；本批定向验收不替代阶�
 - 普通受影响消费者按成功包与 service 完整补跑组合共 6102 条通过；unit 9,099 条通过、5项既有跳过。定向 race 按成功非app包与app完整补跑组合共 3333 条通过，另有传输替身135条、存储6条通过；各集合不相加。初轮失败保留，不能记成整组通过。详见[验证摘要](baseline/S16/service-openai-execution-owner-verification.json)。
 - 三套受影响 lint 为0/0/0，60/60门禁、8个构建集合、Wire两次稳定及全仓生产构建通过。SQL、Ent、旧阶段资料、原计划正文与51个保护文件保持。
 - 旧 service 生产93→64、测试209→207；测试多从混合文件按能力移出，因此用例数和文件数分别记录。批次验证后提交，roadmap仍为16/17，S16最终验收尚未完成。
+
+### 搜索、嵌入与计数辅助入口批次（2026-09-25）
+
+- Embeddings、AlphaSearch、Messages count_tokens 和 Responses input_tokens 由 OpenAIAuxiliary 接入，模型与计数准备归 gateway/provider。计数路由直接组合原生 RoutePlanner、选择器和受控账号目标，删除旧服务执行与授权取回入口。
+- 复用同一请求、输出、健康、额度观察、活动屏障和账号授权实例；保留 PAT 搜索回退、非2xx不计量、原响应体关闭、本地估算和原错误形状。没有修改资金、缓存格式或查询时机。
+- 30 个原测试完成名称、标签与断言映射；授权停止检查移入该测试的Cleanup，多计1次NoError，没有减少原断言。定向race81条通过、1项既有外部跳过；受影响普通/unit分别4,000/5,722条通过，各2项既有跳过；PostgreSQL outbox失败回滚1条实际通过。
+- 45/45门禁、8个构建集合、三套受影响lint0/0/0、Wire两次稳定和生产构建通过。[验证摘要](baseline/S16/service-openai-auxiliary-owner-verification.json)单列了跳过与仅编译。SQL、Ent、早期冻结资料、原计划正文和51个保护文件保持。
+- 旧service生产64→60、测试207→201。剩余Responses主入口、图片、WS/Live与聚合资源继续按能力批次退出；S16及最终验收尚未完成。

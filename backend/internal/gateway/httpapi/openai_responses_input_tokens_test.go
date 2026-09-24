@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	time "time"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 	"github.com/gin-gonic/gin"
@@ -24,10 +23,9 @@ func TestForwardResponsesInputTokensCustomRelayUsesLocalEstimate(t *testing.T) {
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/input_tokens", nil)
 
-	upstream := &httpUpstreamRecorder{}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-		httpUpstream: upstream,
+	upstream := &auxiliaryHTTPRecorder{}
+	svc := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport: upstream,
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 159, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "relay-key", "base_url": "https://relay.example/v1"}},
@@ -47,7 +45,7 @@ func TestForwardResponsesInputTokensGrokUsesLocalEstimate(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/input_tokens", nil)
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	svc := newAuxiliaryFixture(auxiliaryFixtureInputs{})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 160, Platform: capability.PlatformGrok, Type: capability.AccountTypeOAuth}}
 
 	err := svc.ForwardResponsesInputTokens(context.Background(), c, account, []byte(`{"model":"grok-4.1","input":"hello world"}`))
@@ -62,14 +60,13 @@ func TestForwardResponsesInputTokensUpstream404FallsBackLocally(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/input_tokens", nil)
-	upstream := &httpUpstreamRecorder{resp: &http.Response{
+	upstream := &auxiliaryHTTPRecorder{resp: &http.Response{
 		StatusCode: http.StatusNotFound,
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"invalid_request_error","message":"Invalid URL"}}`)),
 	}}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
-		httpUpstream: upstream,
+	svc := newAuxiliaryFixture(auxiliaryFixtureInputs{
+		transport: upstream,
 	})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 171, Platform: capability.PlatformOpenAI, Type: capability.AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "official-key", "base_url": "https://api.openai.com/v1"}},

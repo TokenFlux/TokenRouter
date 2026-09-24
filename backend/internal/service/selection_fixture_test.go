@@ -133,6 +133,7 @@ func bindCompatibleSelectionFixture(source *OpenAIGatewayService) {
 		executor.ForcedTemplate = source.cfg.Gateway.ForcedCodexInstructionsTemplate
 	}
 	source.BindTextExecution(executor)
+	source.Auxiliary = &gatewayhttp.OpenAIAuxiliary{Requests: source.Requests, Output: source.responseOutput, CodexUsage: source.Text.CodexUsage, Enter: source.nativeAttemptActivity}
 
 }
 

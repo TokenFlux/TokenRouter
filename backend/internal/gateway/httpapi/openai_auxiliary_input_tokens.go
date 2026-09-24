@@ -1,13 +1,11 @@
-package service
+package httpapi
 
 import (
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
@@ -17,7 +15,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream"
 
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
-	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/tokenestimate"
 
@@ -28,7 +25,7 @@ import (
 
 // ForwardResponsesInputTokens 转发 OpenAI 原生 POST /responses/input_tokens。
 // 不支持该预检端点的账号使用本地估算，避免把已知不兼容请求发送到上游。
-func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
+func (s *OpenAIAuxiliary) ForwardResponsesInputTokens(
 	ctx context.Context,
 	c *gin.Context,
 	account *gatewayprovider.ExecutionAccount,
@@ -39,18 +36,18 @@ func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
 		return fmt.Errorf("responses input_tokens: missing account")
 	}
 
-	prepared, err := prepareNativeOpenAIInputTokensCountRequest(body, account)
+	prepared, err := gatewayprovider.PrepareNativeInputTokens(body, account)
 	if err != nil {
 		writeOpenAIResponsesInputTokensError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return err
 	}
 
-	if shouldEstimateOpenAIInputTokensLocally(account) {
+	if gatewayprovider.EstimateInputTokensLocally(account) {
 		writeOpenAIResponsesInputTokensFallback(c, account, prepared, 0, "local_account")
 		return nil
 	}
 
-	token, _, err := s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
+	token, _, err := s.Requests.Credentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
 	if err != nil {
 		writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Failed to get access token")
 		return fmt.Errorf("responses input_tokens: get access token: %w", err)
@@ -70,18 +67,18 @@ func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
 	if account.Record.Proxy != nil {
 		proxyURL = account.Record.Proxy.URL()
 	}
-	if s.httpUpstream == nil {
+	if s.Requests.Transport == nil {
 		writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		return fmt.Errorf("responses input_tokens: upstream client is unavailable")
 	}
 	return openai.CountNativeInputTokens(upstreamReq, openai.NativeInputTokensOptions{
-		Enter: s.nativeAttemptActivity,
+		Enter: s.Enter,
 		Do: func(req *http.Request) (*http.Response, error) {
-			return s.httpUpstream.Do(req, proxyURL, account.Record.ID, account.Record.Concurrency)
+			return s.Requests.Transport.Do(req, proxyURL, account.Record.ID, account.Record.Concurrency)
 		},
 		TransportError: func(err error) error {
 			safeErr := logredact.SanitizeUpstreamQueries(err.Error())
-			gatewayhttp.SetOpsUpstreamError(c, 0, safeErr, "")
+			SetOpsUpstreamError(c, 0, safeErr, "")
 			writeOpenAIResponsesInputTokensError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 			return fmt.Errorf("responses input_tokens: upstream request failed: %s", safeErr)
 		},
@@ -94,49 +91,10 @@ func (s *OpenAIGatewayService) ForwardResponsesInputTokens(
 			return s.handleResponsesInputTokensUpstreamError(ctx, c, account, prepared, resp, respBody)
 		},
 		WriteError: func(status int, kind, message string) { writeOpenAIResponsesInputTokensError(c, status, kind, message) },
-	}, gatewayhttp.ResponseSink{Writer: c.Writer})
+	}, ResponseSink{Writer: c.Writer})
 }
 
-func prepareNativeOpenAIInputTokensCountRequest(body []byte, account *gatewayprovider.ExecutionAccount) (*openAIInputTokensCountPrepared, error) {
-	var req tokenestimate.Request
-	if err := json.Unmarshal(body, &req); err != nil {
-		return nil, fmt.Errorf("parse responses input_tokens request: %w", err)
-	}
-	originalModel := strings.TrimSpace(req.Model)
-	if originalModel == "" {
-		return nil, fmt.Errorf("parse responses input_tokens request: model is required")
-	}
-	billingModel := gatewayprovider.ExecutionModelPolicy(account).ForwardModel(originalModel, "")
-	upstreamModel := gatewayprovider.ExecutionModelPolicy(account).NormalizeOpenAI(billingModel)
-	req.Model = upstreamModel
-	return &openAIInputTokensCountPrepared{
-		Request:         req,
-		OriginalModel:   originalModel,
-		NormalizedModel: originalModel,
-		BillingModel:    billingModel,
-		UpstreamModel:   upstreamModel,
-	}, nil
-}
-
-func shouldEstimateOpenAIInputTokensLocally(account *gatewayprovider.ExecutionAccount) bool {
-	if account == nil || account.View().IsGrok() || account.View().IsCNProvider() || account.Record.Type == capability.AccountTypeUpstream {
-		return true
-	}
-	if account.Record.Type != capability.AccountTypeAPIKey {
-		return false
-	}
-	baseURL := strings.TrimSpace(account.View().GetCredential("base_url"))
-	if baseURL == "" {
-		return false
-	}
-	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return true
-	}
-	return !strings.EqualFold(parsed.Hostname(), "api.openai.com")
-}
-
-func writeOpenAIResponsesInputTokensFallback(c *gin.Context, account *gatewayprovider.ExecutionAccount, prepared *openAIInputTokensCountPrepared, statusCode int, reason string) {
+func writeOpenAIResponsesInputTokensFallback(c *gin.Context, account *gatewayprovider.ExecutionAccount, prepared *gatewayprovider.InputTokensPrepared, statusCode int, reason string) {
 	estimated := openAIInputTokensFallbackMinimum
 	if prepared != nil {
 		if got, err := tokenestimate.Responses(prepared.Request); err == nil && got > 0 {
@@ -168,28 +126,28 @@ func writeOpenAIResponsesInputTokensError(c *gin.Context, status int, errType, m
 	c.JSON(status, gin.H{"error": gin.H{"type": errType, "message": message}})
 }
 
-func (s *OpenAIGatewayService) readResponsesInputTokensBody(resp *http.Response) ([]byte, error) {
-	body := s.responseOutput.ReadErrorBody(resp)
+func (s *OpenAIAuxiliary) readResponsesInputTokensBody(resp *http.Response) ([]byte, error) {
+	body := s.Output.ReadErrorBody(resp)
 	if len(body) == 0 {
 		return nil, fmt.Errorf("responses input_tokens: empty upstream response")
 	}
 	return body, nil
 }
 
-func (s *OpenAIGatewayService) handleResponsesInputTokensUpstreamError(
+func (s *OpenAIAuxiliary) handleResponsesInputTokensUpstreamError(
 	ctx context.Context,
 	c *gin.Context,
 	account *gatewayprovider.ExecutionAccount,
-	prepared *openAIInputTokensCountPrepared,
+	prepared *gatewayprovider.InputTokensPrepared,
 	resp *http.Response,
 	body []byte,
 ) error {
 	upstreamMsg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(upstream.ExtractErrorMessage(body)))
 	var decision accountcore.UpstreamErrorDecision
 	if account.Record.Platform == capability.PlatformGrok {
-		decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.grokHealth, account, resp.StatusCode, resp.Header, body, "", prepared.UpstreamModel)
+		decision = gatewayprovider.ApplyGrokExecutionHealth(ctx, s.Output.GrokHealth, account, resp.StatusCode, resp.Header, body, "", prepared.UpstreamModel)
 	} else {
-		decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.responseOutput.Health, account, resp.StatusCode, resp.Header, body, false, prepared.UpstreamModel)
+		decision = gatewayprovider.ApplyOpenAIResponseHealth(ctx, s.Output.Health, account, resp.StatusCode, resp.Header, body, false, prepared.UpstreamModel)
 	}
 	if decision.ShouldReturnGenericError() {
 		writeOpenAIResponsesInputTokensError(c, http.StatusInternalServerError, "upstream_error", "Upstream gateway error")
@@ -207,7 +165,7 @@ func (s *OpenAIGatewayService) handleResponsesInputTokensUpstreamError(
 			RetryableOnSameAccount: decision.RetryableOnSameAccount(gatewayprovider.ExecutionErrorPolicy(account), resp.StatusCode),
 		}
 	}
-	gatewayhttp.SetOpsUpstreamError(c, resp.StatusCode, upstreamMsg, "")
+	SetOpsUpstreamError(c, resp.StatusCode, upstreamMsg, "")
 	message := "Upstream request failed"
 	if resp.StatusCode == http.StatusTooManyRequests {
 		message = "Rate limit exceeded"

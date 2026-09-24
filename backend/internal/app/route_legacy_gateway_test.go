@@ -71,7 +71,7 @@ func RegisterGatewayRoutes(
 	}
 	openAITokensHTTP := h.OpenAITokensHTTP
 	if openAITokensHTTP == nil {
-		openAITokensHTTP = provideOpenAITokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil)
+		openAITokensHTTP = provideOpenAITokensHTTP(nil, nil, nil, nil, nil, cfg, nil, nil, nil, nil, nil)
 	}
 	countTokensHTTP := h.CountTokensHTTP
 	if countTokensHTTP == nil && h.TextEnabled {
@@ -91,7 +91,7 @@ func RegisterGatewayRoutes(
 	}
 	commonOpenAI := provideOpenAIAttemptBindings(nil, nil, nil, nil, nil, nil, GatewayCompletionRecorders{}, nil, nil, nil)
 	openAIRuntime := provideOpenAITextAttemptRuntime(commonOpenAI)
-	mediaRuntime := provideMediaRuntime(nil, nil, nil, nil, commonOpenAI, nil, nil, nil, nil, nil)
+	mediaRuntime := provideMediaRuntime(nil, nil, nil, nil, commonOpenAI, nil, nil, nil, nil, nil, nil)
 	openAITextHTTP := h.OpenAITextHTTP
 	if openAITextHTTP == nil && h.OpenAIEnabled {
 		openAITextHTTP = provideOpenAITextHTTP(nil, nil, nil, nil, nil, nil, nil, nil, nil, openAIRuntime, activity)

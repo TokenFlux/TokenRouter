@@ -110,8 +110,9 @@ type openAIWSRetryMetrics struct {
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
-	Text     *gatewayhttp.OpenAITextExecutor
-	Requests *gatewayhttp.OpenAIRequests
+	Auxiliary *gatewayhttp.OpenAIAuxiliary
+	Text      *gatewayhttp.OpenAITextExecutor
+	Requests  *gatewayhttp.OpenAIRequests
 
 	Grok             *gatewayhttp.GrokExecutor
 	fastPolicy       *gatewayprovider.ExecutionFastPolicy
@@ -146,9 +147,8 @@ type OpenAIGatewayService struct {
 	deferredService      *accountcore.DeferredService
 	executionCredentials *accountcore.OpenAIExecutionCredentials
 
-	openAIAuthorization *accountcore.OpenAIAuthorization
-	requestCredentials  *gatewayprovider.RequestCredentials
-	toolCorrector       *openai.CodexToolCorrector
+	requestCredentials *gatewayprovider.RequestCredentials
+	toolCorrector      *openai.CodexToolCorrector
 
 	resolver       *billing.PriceResolver
 	channelService *routing.ChannelService

@@ -16,18 +16,18 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 // openAITokenExecution 只将旧选择原语接到原生计数端口，不参与循环或资金规则。
 type openAITokenExecution struct {
-	*service.OpenAIGatewayService
+	*gatewayhttp.OpenAIAuxiliary
+	planner *gatewayprovider.RoutePlanner
 	choices *selection.Compatible
 }
 
 func (p openAITokenExecution) PlanTokenRoute(ctx context.Context, key *apikey.APIKey, model string) routing.RoutePlan {
-	return p.PlanRoute(ctx, service.APIKeyRouteGroup(key), key.GroupID, model)
+	return p.planner.PlanKey(ctx, key, model)
 }
 
 func (p openAITokenExecution) TokenSessionHash(c *gin.Context, body []byte) string {
@@ -39,7 +39,7 @@ func (p openAITokenExecution) SelectCount(ctx context.Context, group *int64, has
 	if value == nil {
 		return nil, err
 	}
-	return openAITokenTarget{source: p.OpenAIGatewayService, value: value}, err
+	return openAITokenTarget{source: p.OpenAIAuxiliary, value: value}, err
 }
 
 func (p openAITokenExecution) SelectInputTokens(ctx context.Context, group *int64, hash, model, routingModel string, excluded map[int64]struct{}, platform string) (gatewayhttp.InputTokensSelection, error) {
@@ -47,7 +47,7 @@ func (p openAITokenExecution) SelectInputTokens(ctx context.Context, group *int6
 	if err != nil || selected == nil || selected.Account == nil {
 		return gatewayhttp.InputTokensSelection{}, err
 	}
-	result := gatewayhttp.InputTokensSelection{Target: openAITokenTarget{source: p.OpenAIGatewayService, value: selected.Account}}
+	result := gatewayhttp.InputTokensSelection{Target: openAITokenTarget{source: p.OpenAIAuxiliary, value: selected.Account}}
 	if selected.Acquired {
 		result.Release = selected.ReleaseFunc
 	}
@@ -56,7 +56,7 @@ func (p openAITokenExecution) SelectInputTokens(ctx context.Context, group *int6
 
 // openAITokenTarget 将凭据留在受控调用内，仅向 HTTP 提供独立选择快照。
 type openAITokenTarget struct {
-	source *service.OpenAIGatewayService
+	source *gatewayhttp.OpenAIAuxiliary
 	value  *gatewayprovider.ExecutionAccount
 }
 
@@ -75,7 +75,7 @@ func (t openAITokenTarget) ForwardInputTokens(ctx context.Context, c *gin.Contex
 }
 
 // provideOpenAITokensHTTP 不构造旧 Handler，也不取得用户槽、worker 或第二份缓存。
-func provideOpenAITokensHTTP(source *service.OpenAIGatewayService, funding *admission.FundingAdmission, keys *apikey.APIKeyService, concurrency *scheduler.ConcurrencyService, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible) *gatewayhttp.OpenAITokensHandler {
+func provideOpenAITokensHTTP(source *gatewayhttp.OpenAIAuxiliary, funding *admission.FundingAdmission, keys *apikey.APIKeyService, concurrency *scheduler.ConcurrencyService, rules *errorpolicy.ErrorPassthroughService, cfg *config.Config, activity *gatewayRequestActivity, prompts *promptpolicy.Service, availability *gatewayModelAvailability, choices *selection.Compatible, planner *gatewayprovider.RoutePlanner) *gatewayhttp.OpenAITokensHandler {
 	options := gatewayhttp.OpenAITokenOptions{MaxSwitches: 3}
 	if cfg != nil {
 		options.MaxBodyBytes = cfg.Gateway.MaxBodySize
@@ -83,7 +83,7 @@ func provideOpenAITokensHTTP(source *service.OpenAIGatewayService, funding *admi
 			options.MaxSwitches = cfg.Gateway.MaxAccountSwitches
 		}
 	}
-	ports := gatewayhttp.OpenAITokenPorts{Execution: openAITokenExecution{source, choices}, Funding: funding}
+	ports := gatewayhttp.OpenAITokenPorts{Execution: openAITokenExecution{OpenAIAuxiliary: source, choices: choices, planner: planner}, Funding: funding}
 	if availability != nil {
 		ports.Diagnoser = availability.Compatible
 		ports.ResolvedDiagnoser = availability.Resolved
