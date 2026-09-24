@@ -1,4 +1,4 @@
-# TokenRouter Agent 协作规范
+# TokenRouter 协作规范
 
 ## Project Doc 门禁
 
@@ -15,8 +15,8 @@
 - 代码必须包含注释，注释统一使用中文。
 - 代码不要刻意压行，保持可读性。
 - Commit message 必须遵循 Conventional Commits 规范。
-- 不得提交 `SYNC.md`。
 - 除非用户明确要求，否则不得创建或切换 Git 分支；所有任务直接在当前 `main` 分支上完成。
+- 写代码注释和文档需要使用 Humanizer 技能
 
 ## 计划模式
 
@@ -25,8 +25,3 @@
 ## 前端规范
 
 - 需要选择框时，必须使用项目自研的选择框组件，不得使用原生 `<select>`。
-
-## 上游同步
-
-- 如果上游在 `backend/migrations/` 下新增迁移，不得原样照搬文件名；必须根据当前 fork 的最新迁移 ID 递增后，替换文件名前缀 ID。
-- 如果上游在 `README.md` 中新增文档，必须将内容并入 `docs/` 下合适的文档；没有合适文档时新建一篇，不要直接写入 `README.md`，保持其简洁。
