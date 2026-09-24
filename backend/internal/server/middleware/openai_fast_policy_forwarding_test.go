@@ -36,7 +36,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/upstream/anthropic"
 
 	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 	settingscore "github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -92,15 +91,9 @@ func TestAPIKeyAuthForwardsUserScopedOpenAIFastPolicyToUpstream(t *testing.T) {
 	choices := selection.NewCompatible(selection.CompatibleDependencies{Responses: responses, ModelTransient: transient, ProxyCircuit: circuit, RuntimeBlocks: blocks}, selection.Options{Simple: true, WS: &egress.OpenAIWSOptions{}})
 	output := &gatewayhttp.OpenAIResponseOutput{Options: gatewayhttp.OpenAIResponseOptions{Configured: true, ReadLimit: config.DefaultUpstreamResponseReadMaxBytes}, Health: &accountprovider.OpenAIResponseHealth{Runtime: blocks, ModelTransient: transient}, Corrector: openai.NewCodexToolCorrector(), ProxyCircuit: circuit, Responses: responses, ResponseTTL: choices.OpenAIHTTPResponseStickyTTL, Headers: responseHeaderFilterForTest(cfg)}
 	transport := &openAIFastPolicyForwardingHTTPUpstream{client: upstreamServer.Client()}
-	gatewayService := service.NewOpenAIGatewayService(
-		nil, nil, nil, cfg,
-		nil, nil, transport,
-		nil, nil, nil, nil, nil, nil, settingService, nil, responseHeaderFilterForTest(cfg), responses, nil, transient, circuit, choices, nil, nil, output,
-	)
-	gatewayService.BindGrokExecution(&gatewayhttp.GrokExecutor{FastPolicy: &gatewayprovider.ExecutionFastPolicy{Readers: settingService}})
-	requests := &gatewayhttp.OpenAIRequests{Options: gatewayhttp.OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{AllowInsecureHTTP: true}}, Transport: transport, Readers: settingService, ClientPolicy: &accountprovider.OpenAIProbePolicy{Available: true, DefaultBrowserUserAgent: gateway.DefaultOpenAICodexUserAgent}}
-	gatewayService.BindTextExecution(&gatewayhttp.OpenAITextExecutor{Requests: requests, Output: output, FastPolicy: &gatewayprovider.ExecutionFastPolicy{Readers: settingService}, CodexUsage: &accountprovider.CodexUsageObserver{}, ResponseTTL: choices.OpenAIHTTPResponseStickyTTL})
-	gatewayService.BindRuntimeBlockState(blocks)
+	requests := &gatewayhttp.OpenAIRequests{Options: gatewayhttp.OpenAIRequestOptions{URLPolicy: egress.OperatorURLPolicy{AllowInsecureHTTP: true}}, Transport: transport, Readers: settingService, Credentials: &accountcore.OpenAIExecutionCredentials{}, Identity: gatewayprovider.NewExecutionAgentIdentity(&accountcore.OpenAITaskCoordinator{}, nil, nil, nil), ClientPolicy: &accountprovider.OpenAIProbePolicy{Available: true, DefaultBrowserUserAgent: gateway.DefaultOpenAICodexUserAgent}}
+	text := &gatewayhttp.OpenAITextExecutor{Requests: requests, Output: output, FastPolicy: &gatewayprovider.ExecutionFastPolicy{Readers: settingService}, CodexUsage: &accountprovider.CodexUsageObserver{}, ResponseTTL: choices.OpenAIHTTPResponseStickyTTL, Compact: &gatewayhttp.CompactExecutor{}}
+	executor := &gatewayhttp.OpenAIResponsesExecutor{Requests: requests, Output: output, Text: text, Lineage: &gatewayhttp.OpenAIEncryptedLineage{Store: responses, TTL: choices.SessionStickyTTL}, ImageBridge: &gatewayprovider.ResponseImagePolicy{}, ResolveTransport: choices.ResolveTransport}
 
 	groupID := int64(101)
 	group := &routing.Group{
@@ -139,7 +132,7 @@ func TestAPIKeyAuthForwardsUserScopedOpenAIFastPolicyToUpstream(t *testing.T) {
 			return
 		}
 		gatewayhttp.SetOpenAIClientTransport(c, gatewayhttp.OpenAIClientTransportHTTP)
-		if _, forwardErr := gatewayService.Forward(c.Request.Context(), c, account, body); forwardErr != nil {
+		if _, forwardErr := executor.Forward(c.Request.Context(), c, account, body); forwardErr != nil {
 			c.Status(http.StatusBadGateway)
 			return
 		}

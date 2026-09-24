@@ -20,7 +20,6 @@ import (
 
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -32,8 +31,6 @@ import (
 // newOpenAIExecutionAndSelectionFixture 组合真实执行组件与原生选择器，显式共享所有可变状态。
 func newOpenAIExecutionAndSelectionFixture(
 	accountRepo gatewayprovider.ExecutionAccountStore,
-	usageLogRepo usage.UsageLogRepository,
-
 	cache session.GatewayCache,
 	cfg *config.Config,
 	schedulerSnapshot *scheduler.SnapshotService,
@@ -98,7 +95,7 @@ func newOpenAIExecutionAndSelectionFixture(
 		return (gatewayprovider.ModelPolicy{Record: value}).NormalizeOpenAI(model)
 	}}
 	output := provideOpenAIResponseOutput(cfg, provideOpenAIResponseHealth(healthObserver, blocks, modelTransient, deferredService), grokHealth, healthObserver, headerFilter, turnHeaders, proxyCircuit, settingService, stateStore, choices, provideReasoningHistory(cache))
-	source := service.NewOpenAIGatewayService(accountRepo, usageLogRepo, cache, cfg, concurrencyService,
+	source := service.NewOpenAIGatewayService(accountRepo, cache, cfg, concurrencyService,
 		healthObserver, httpUpstream, tlsFPProfileService, deferredService,
 
 		executionCredentials, credentials, resolver, channelService,

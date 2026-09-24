@@ -164,7 +164,6 @@ func provideCoreRuntime(
 		manager.Register(lifecycle.Hook{Name: fmt.Sprintf("BackgroundBarrier%d", phase), StartOrder: 1000 - phase, StopOrder: phase, Stop: tasks.Wait})
 	}
 
-	manager.Register(lifecycle.Hook{Name: "OpenAILiveObservers", StartOrder: 995, StopOrder: 5, Stop: openAIGateway.StopLiveObservers})
 	manager.Register(lifecycle.Hook{Name: "HTTPIdleConnections", StartOrder: 160, StopOrder: 840, Stop: func(context.Context) error {
 		if closer, ok := httpUpstream.(interface{ CloseIdleConnections() }); ok {
 			closer.CloseIdleConnections()

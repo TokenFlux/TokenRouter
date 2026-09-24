@@ -1,8 +1,10 @@
-package service
+package httpapi
 
 import (
 	"context"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/egress"
@@ -17,23 +19,21 @@ import (
 	"go.uber.org/zap"
 )
 
-// liveCreatePorts 仅投影账号与平台能力；selected 只用于旧返回值兼容，不参与核心规则。
+// liveCreatePorts 只连接原生选择器、模型轨迹和供应商单次创建能力。
 type liveCreatePorts struct {
-	service  *OpenAIGatewayService
-	selected *gatewayprovider.ExecutionAccount
+	service *OpenAILiveExecutor
 }
 
 func (p *liveCreatePorts) PrepareAttestation(ctx context.Context) (string, string, error) {
 	return p.service.prepareLiveAttestation(ctx)
 }
 func (p *liveCreatePorts) Select(ctx context.Context, groupID *int64, model string, excluded map[int64]struct{}) (*gatewaylive.Candidate, error) {
-	selection, _, err := p.service.selection.SelectAccountWithSchedulerForCapability(ctx, groupID, "", uuid.NewString(), model, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityLive, false, false)
+	selection, _, err := p.service.Selection.SelectAccountWithSchedulerForCapability(ctx, groupID, "", uuid.NewString(), model, excluded, egress.OpenAIUpstreamTransportHTTPSSE, accountcore.OpenAIEndpointCapabilityLive, false, false)
 	if err != nil || selection == nil {
 		return nil, err
 	}
 	result := &gatewaylive.Candidate{Acquired: selection.Acquired, ReleaseFunc: selection.ReleaseFunc}
 	if selection.Account != nil {
-		p.selected = selection.Account
 		result.ID = selection.Account.Record.ID
 		result.Concurrency = selection.Account.Record.Concurrency
 		result.Target = &liveCreateTarget{service: p.service, account: selection.Account, groupID: groupID}
@@ -49,8 +49,8 @@ func (p *liveCreatePorts) ModelTrace(ctx context.Context, groupID *int64, model,
 	if trace, ok := modeltrace.FromContext(ctx); ok && strings.TrimSpace(trace.ClientModel) != "" {
 		requested = trace.ClientModel
 	}
-	plan := p.service.PlanRoute(ctx, nil, groupID, model)
-	mapping := ChannelMappingFromRoutePlan(plan)
+	plan := p.service.Routes.PlanRoute(ctx, nil, groupID, model)
+	mapping := routing.ChannelMappingResult(plan.Mapping())
 	return requested, mapping.BuildModelMappingChain(model, upstream)
 }
 func (p *liveCreatePorts) NewLeaseID() string { return scheduler.GenerateRequestID() }
@@ -58,21 +58,21 @@ func (p *liveCreatePorts) ShouldFailover(err error) bool {
 	return p.service.shouldFailoverLiveCreateError(err)
 }
 func (p *liveCreatePorts) Observe(record *session.LiveCallRecord) {
-	p.service.RunBackgroundTask("service/openai_live.go:CreateLiveCall", func() {
+	p.service.Background("service/openai_live.go:CreateLiveCall", func() {
 		p.service.observeLiveCall(record)
 	})
 }
 
 // liveCreateTarget 保存本次选择取得的凭据视图，避免迁移引入第二次账号查询。
 type liveCreateTarget struct {
-	service *OpenAIGatewayService
+	service *OpenAILiveExecutor
 	account *gatewayprovider.ExecutionAccount
 	groupID *int64
 	router  egress.TLSFingerprintRouterMatchResult
 }
 
 func (t *liveCreateTarget) ResolveModel(ctx context.Context, model string) (string, string, error) {
-	routing, err := t.service.ResolveOpenAIWSRoutingModelForAccount(ctx, t.groupID, t.account, model, accountcore.OpenAIEndpointCapabilityLive)
+	routing, err := t.service.Selection.ResolveOpenAIWSRoutingModelForAccount(ctx, t.groupID, t.account, model, accountcore.OpenAIEndpointCapabilityLive)
 	if err != nil {
 		return "", "", err
 	}

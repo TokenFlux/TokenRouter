@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountprovider "github.com/TokenFlux/TokenRouter/internal/account/provider"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	forwardcore "github.com/TokenFlux/TokenRouter/internal/gateway/forward"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
@@ -43,9 +42,9 @@ type liveAttestationStub struct {
 
 // newLiveTLSRoutingServices 构造同时覆盖 TLS 模板和身份头的 Live 路由规则。
 func newLiveTLSRoutingServices() (*provider.TLSProfiles, *egress.TLSFingerprintRouterService) {
-	profileService := newTLSProfileServiceWithCacheForTest(map[int64]*egress.TLSFingerprintProfile{
-		20: {ID: 20, Name: "live-routed"},
-	})
+	profileService := provider.NewTLSProfiles(egress.NewTLSFingerprintProfileService(&liveProfileStore{values: []*egress.TLSFingerprintProfile{{ID: 20, Name: "live-routed"}}}, nil))
+	profileService.Start()
+
 	router := &egress.TLSFingerprintRouter{
 		ID:      9,
 		Name:    "live-router",
@@ -60,9 +59,9 @@ func newLiveTLSRoutingServices() (*provider.TLSProfiles, *egress.TLSFingerprintR
 			UpstreamOriginator:      "codex_vscode",
 		}},
 	}
-	routerService := newTLSRouterServiceWithCacheForTest(map[int64]*cachedTLSFingerprintRouter{
-		router.ID: newCachedTLSFingerprintRouter(router),
-	})
+	routerService := egress.NewTLSFingerprintRouterService(&liveRouterStore{values: []*egress.TLSFingerprintRouter{router}}, nil)
+	routerService.Start()
+
 	return profileService, routerService
 }
 
@@ -136,12 +135,7 @@ func TestValidateLiveCallRequestDoesNotRequireDelegation(t *testing.T) {
 func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 	upstream := &liveHTTPUpstreamStub{}
 	profileService, routerService := newLiveTLSRoutingServices()
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cfg:                 &config.Config{},
-		httpUpstream:        upstream,
-		tlsFPProfileService: profileService,
-		tlsFPRouterService:  routerService,
-	})
+	service := newLiveFixture(liveFixtureInputs{transport: upstream, profiles: profileService, routers: routerService})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, ID: 7,
 		Platform:    capability.PlatformOpenAI,
 		Type:        capability.AccountTypeOAuth,
@@ -194,7 +188,7 @@ func TestCreateUpstreamLiveCallPreservesSession(t *testing.T) {
 
 func TestLiveClientPolicyUsesTLSRouterMatch(t *testing.T) {
 	_, routerService := newLiveTLSRoutingServices()
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{tlsFPRouterService: routerService})
+	service := newLiveFixture(liveFixtureInputs{routers: routerService})
 	account := &gatewayprovider.ExecutionAccount{Record: accountcore.Record{LoadLocation: time.LoadLocation, Platform: capability.PlatformOpenAI,
 		Type: capability.AccountTypeOAuth,
 		Extra: map[string]any{
@@ -226,12 +220,8 @@ func TestLiveClientPolicyUsesTLSRouterMatch(t *testing.T) {
 }
 
 func TestLiveAttestationCipherRoundTripAndRejectsOtherInstanceKey(t *testing.T) {
-	first := newLiveAttestationCipher(&config.Config{
-		JWT: config.JWTConfig{Secret: "first-live-secret"},
-	})
-	second := newLiveAttestationCipher(&config.Config{
-		JWT: config.JWTConfig{Secret: "second-live-secret"},
-	})
+	first := openai.NewLiveAttestationCipher("first-live-secret")
+	second := openai.NewLiveAttestationCipher("second-live-secret")
 	require.NotNil(t, first)
 	require.NotNil(t, second)
 
@@ -248,13 +238,8 @@ func TestLiveAttestationCipherRoundTripAndRejectsOtherInstanceKey(t *testing.T) 
 }
 
 func TestPrepareLiveAttestationEncryptsHeaderAndReturnsExplicitProviderError(t *testing.T) {
-	cipher := newLiveAttestationCipher(&config.Config{
-		JWT: config.JWTConfig{Secret: "live-attestation-test-secret"},
-	})
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{
-		liveAttestation:       liveAttestationStub{header: `{"v":1,"s":0,"t":"v1.test"}`},
-		liveAttestationCipher: cipher,
-	})
+	cipher := openai.NewLiveAttestationCipher("live-attestation-test-secret")
+	service := newLiveFixture(liveFixtureInputs{attestation: liveAttestationStub{header: `{"v":1,"s":0,"t":"v1.test"}`}, cipher: cipher})
 	header, ciphertext, err := service.prepareLiveAttestation(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, `{"v":1,"s":0,"t":"v1.test"}`, header)
@@ -263,7 +248,7 @@ func TestPrepareLiveAttestationEncryptsHeaderAndReturnsExplicitProviderError(t *
 	require.NoError(t, err)
 	require.Equal(t, header, decrypted)
 
-	service.liveAttestation = liveAttestationStub{err: errors.New("macOS app missing")}
+	service.Attestation = liveAttestationStub{err: errors.New("macOS app missing")}
 	_, _, err = service.prepareLiveAttestation(context.Background())
 	var unavailable *gatewaysession.LiveAttestationUnavailableError
 	require.ErrorAs(t, err, &unavailable)
@@ -271,15 +256,11 @@ func TestPrepareLiveAttestationEncryptsHeaderAndReturnsExplicitProviderError(t *
 }
 
 func TestLiveMaxSessionDurationDefaultsAndOverrides(t *testing.T) {
-	require.Equal(t, defaultLiveMaxSessionDuration, (withSchedulerParametersForTest(&OpenAIGatewayService{})).liveMaxSessionDuration())
+	require.Equal(t, defaultLiveMaxSessionDuration, (newLiveFixture(liveFixtureInputs{})).liveMaxSessionDuration())
 	require.Equal(
 		t,
 		90*time.Second,
-		(withSchedulerParametersForTest(&OpenAIGatewayService{cfg: &config.Config{
-			Gateway: config.GatewayConfig{
-				Live: config.GatewayLiveConfig{MaxSessionDurationSeconds: 90},
-			},
-		}})).liveMaxSessionDuration(),
+		(newLiveFixture(liveFixtureInputs{duration: time.Duration(90) * time.Second})).liveMaxSessionDuration(),
 	)
 }
 
@@ -292,7 +273,7 @@ func TestLiveSidebandNormalCloseEndsCall(t *testing.T) {
 }
 
 func TestLiveCreateFailoverUsesExistingOpenAIPolicy(t *testing.T) {
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	service := newLiveFixture(liveFixtureInputs{})
 	require.False(t, service.shouldFailoverLiveCreateError(&forwardcore.UpstreamFailoverError{
 		StatusCode:   http.StatusBadRequest,
 		ResponseBody: []byte(`{"error":{"message":"invalid session"}}`),

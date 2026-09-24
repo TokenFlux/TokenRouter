@@ -963,7 +963,7 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*gatewayHTTPEn
 	completionInput2 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput3 := &accountcore.DeferredService{}
 	gateway, gatewayChoices, gatewayCredentialPort := newOpenAIExecutionAndSelectionFixture(
-		repo, nil, nil, cfg, nil, nil, nil, upstream,
+		repo, nil, cfg, nil, nil, nil, upstream,
 		nil, completionInput3, newOpenAIExecutionCredentialsForTest(repo,
 			provider), provider, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)

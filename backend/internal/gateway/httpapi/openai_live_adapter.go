@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 )
 
 // livePorts 仅把现有依赖和展示值投影给纯 Live 编排。
-type livePorts struct{ service *OpenAIGatewayService }
+type livePorts struct{ service *OpenAILiveExecutor }
 
 func (p livePorts) Store() (session.LiveCallStore, error) { return p.service.liveStore() }
 func (p livePorts) Leases() (scheduler.LiveConcurrencyCache, error) {
@@ -36,7 +36,7 @@ func (p livePorts) Target(ctx context.Context, record *session.LiveCallRecord) (
 	return liveTarget{service: p.service, record: record, account: account}, nil
 }
 func (p livePorts) RecordZeroUsage(ctx context.Context, record *session.LiveCallRecord, duration int) {
-	if p.service.usageLogRepo == nil {
+	if p.service.Usage == nil {
 		return
 	}
 	inboundEndpoint := record.InboundEndpoint
@@ -54,7 +54,7 @@ func (p livePorts) RecordZeroUsage(ctx context.Context, record *session.LiveCall
 	// TODO(billing): Live 当前只记录零费用用量，尚未进入标准计费管道；若后续按时长
 	// 或 token 计费，应在这里接入统一扣费逻辑并补充余额与订阅模式回归测试。
 	// Live finalize 只有一次落库机会，复用批量写入与同步 Create 兜底，避免队列故障吞掉记录。
-	writeUsageLogBestEffort(context.Background(), p.service.usageLogRepo, &usage.UsageLog{
+	p.service.Usage.WriteUsage(context.Background(), &usage.UsageLog{
 		UserID:            actorUserID,
 		BillingUserID:     record.UserID,
 		TeamID:            liveOptionalID(record.TeamID),
@@ -81,7 +81,7 @@ func (p livePorts) RecordZeroUsage(ctx context.Context, record *session.LiveCall
 
 // liveTarget 保留账号执行凭据和平台拨号，核心只能使用受控帧接口。
 type liveTarget struct {
-	service *OpenAIGatewayService
+	service *OpenAILiveExecutor
 	record  *session.LiveCallRecord
 	account *gatewayprovider.ExecutionAccount
 }
@@ -124,12 +124,12 @@ func (c liveDownstreamFrames) Close() error             { return c.conn.CloseNow
 
 // liveModelResolver 适配当前账号能力与路由结果，不实施报文改写。
 type liveModelResolver struct {
-	service *OpenAIGatewayService
+	service *OpenAILiveExecutor
 	account *gatewayprovider.ExecutionAccount
 }
 
 func (r liveModelResolver) ResolveModel(ctx context.Context, groupID *int64, model string) (string, string, error) {
-	routing, err := r.service.ResolveOpenAIWSRoutingModelForAccount(ctx, groupID, r.account, model, accountcore.OpenAIEndpointCapabilityLive)
+	routing, err := r.service.Selection.ResolveOpenAIWSRoutingModelForAccount(ctx, groupID, r.account, model, accountcore.OpenAIEndpointCapabilityLive)
 	if err != nil {
 		return "", "", err
 	}

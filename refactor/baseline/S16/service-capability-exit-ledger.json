@@ -21,6 +21,7 @@
     "creative-targets",
     "openai-responses",
     "openai-execution",
+    "openai-live",
     "ws-live",
     "shared-boundaries"
   ],
@@ -2123,11 +2124,6 @@
     "ws-live": {
       "files": [
         "backend/internal/service/openai_http_ws_forward_adapter.go",
-        "backend/internal/service/openai_live.go",
-        "backend/internal/service/openai_live_adapter.go",
-        "backend/internal/service/openai_live_attestation.go",
-        "backend/internal/service/openai_live_create_adapter.go",
-        "backend/internal/service/openai_live_types.go",
         "backend/internal/service/openai_ws_forwarder.go",
         "backend/internal/service/openai_ws_forwarder_ingress.go",
         "backend/internal/service/openai_ws_forwarder_payload.go",
@@ -2815,6 +2811,31 @@
       "test_mapping": "service-openai-responses-test-mapping.json",
       "completed_at": "2026-09-25",
       "exit": "Responses主请求、准备/转换/HTTP适配、失效密文、图片策略及认证投影同步改绑原生实现；旧Forward方法和7个生产文件删除。WS传输端口继续复用旧池拥有者，属于未完成WS批次。"
+    },
+    "openai-live": {
+      "status": "verified",
+      "files": [
+        "backend/internal/service/gateway_usage_billing.go",
+        "backend/internal/service/gateway_websearch_emulation.go",
+        "backend/internal/service/openai_live.go",
+        "backend/internal/service/openai_live_adapter.go",
+        "backend/internal/service/openai_live_attestation.go",
+        "backend/internal/service/openai_live_create_adapter.go",
+        "backend/internal/service/openai_live_types.go"
+      ],
+      "native_owners": [
+        "gateway/httpapi.OpenAILiveExecutor",
+        "gateway/live",
+        "gateway/provider/selection.Compatible",
+        "gateway/session",
+        "gateway/completion.Recorder",
+        "upstream/openai",
+        "app"
+      ],
+      "verification": "service-openai-live-owner-verification.json",
+      "test_mapping": "service-openai-live-test-mapping.json",
+      "completed_at": "2026-09-25",
+      "exit": "Live创建、sideband、观察者、密文、零费用记录及生产关闭直接绑定原生实例；旧返回实体和纯投影删除。WS/Live共用原生逐轮模型资格复核。"
     }
   },
   "boundary_notes": {
@@ -2839,8 +2860,8 @@
     "tests_reduced": 31
   },
   "current_remaining": {
-    "production_files": 47,
-    "test_files": 172,
-    "verified_batch": "openai-responses"
+    "production_files": 40,
+    "test_files": 169,
+    "verified_batch": "openai-live"
   }
 }

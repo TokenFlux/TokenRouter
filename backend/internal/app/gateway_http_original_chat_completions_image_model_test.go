@@ -150,7 +150,7 @@ func newOpenAIImageChatRejectionHandlerWithCache(t *testing.T, cache *httptestki
 func newOpenAIImageChatRejectionHandlerWithChannel(t *testing.T, channelService *routing.ChannelService) *gatewayHTTPEndpointsFixture {
 	t.Helper()
 	gatewayService, gatewayServiceChoices, _ := newOpenAIExecutionAndSelectionFixture(
-		nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
 			nil), nil, nil, channelService, nil, nil, responseHeaderFilterForTest(nil), nil, nil, nil,
 	)

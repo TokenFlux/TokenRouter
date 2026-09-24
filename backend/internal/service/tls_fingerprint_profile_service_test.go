@@ -85,25 +85,6 @@ func (s *tlsProfileTestStore) List(context.Context) ([]*egress.TLSFingerprintPro
 	return s.profiles, nil
 }
 
-// 测试通过公开构造与预热播种，避免依赖核心缓存布局。
-func newTLSProfileServiceWithCacheForTest(profiles map[int64]*egress.TLSFingerprintProfile) *provider.TLSProfiles {
-	values := make([]*egress.TLSFingerprintProfile, 0, len(profiles))
-	for _, profile := range profiles {
-		values = append(values, profile)
-	}
-	service := provider.NewTLSProfiles(egress.NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: values}, nil))
-	service.Start()
-	return service
-}
-
-type cachedTLSFingerprintRouter struct {
-	*egress.TLSFingerprintRouter
-}
-
-func newCachedTLSFingerprintRouter(value *egress.TLSFingerprintRouter) *cachedTLSFingerprintRouter {
-	return &cachedTLSFingerprintRouter{value}
-}
-
 type tlsRouterTestStore struct {
 	egress.TLSFingerprintRouterRepository
 	values []*egress.TLSFingerprintRouter
@@ -111,15 +92,6 @@ type tlsRouterTestStore struct {
 
 func (s *tlsRouterTestStore) List(context.Context) ([]*egress.TLSFingerprintRouter, error) {
 	return s.values, nil
-}
-func newTLSRouterServiceWithCacheForTest(routers map[int64]*cachedTLSFingerprintRouter) *egress.TLSFingerprintRouterService {
-	values := make([]*egress.TLSFingerprintRouter, 0, len(routers))
-	for _, router := range routers {
-		values = append(values, router.TLSFingerprintRouter)
-	}
-	service := egress.NewTLSFingerprintRouterService(&tlsRouterTestStore{values: values}, nil)
-	service.Start()
-	return service
 }
 
 func newTLSFingerprintRouterTestService(routers ...*egress.TLSFingerprintRouter) *egress.TLSFingerprintRouterService {

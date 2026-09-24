@@ -140,8 +140,6 @@ func TestOpenAIGatewayHandlerImages_ServerErrorFailsOverAndReturnsClearErrorWhen
 	gatewayService, gatewayServiceChoices, gatewayServiceCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
-
-		nil,
 		cfg,
 		nil,
 		nil,

@@ -590,8 +590,6 @@ func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 	svc := withSchedulerParametersForTest(NewOpenAIGatewayService(
 		nil,
 		nil,
-
-		nil,
 		cfg,
 
 		nil,

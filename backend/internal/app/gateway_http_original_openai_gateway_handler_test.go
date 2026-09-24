@@ -1327,7 +1327,7 @@ func TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups(t *testing.
 	}}
 	cache := &cyberSessionBlockHandlerCacheStub{blocked: true}
 	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
-		nil, nil, cache, nil, nil, nil, nil,
+		nil, cache, nil, nil, nil, nil,
 		nil, nil, nil, newOpenAIExecutionCredentialsForTest(nil,
 			nil), nil, nil, nil, gatewaytestkit.RuntimeReaders(settingRepo), nil, responseHeaderFilterForTest(nil), nil, nil, nil,
 	)
@@ -1736,8 +1736,6 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
-
-		nil,
 		cfg,
 		nil,
 		nil, nil,
@@ -1838,8 +1836,6 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 				accountRepo,
 				nil,
-
-				nil,
 				cfg,
 				nil,
 				nil, rateLimitSvc,
@@ -1920,8 +1916,6 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	completionInput9 := &accountcore.DeferredService{}
 	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
-		nil,
-
 		nil,
 		cfg,
 		nil,
@@ -2080,8 +2074,6 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	completionInput11 := &accountcore.DeferredService{}
 	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
-		nil,
-
 		nil,
 		cfg,
 		nil,
@@ -2288,7 +2280,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	completionInput12 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput13 := &accountcore.DeferredService{}
 	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
-		accountRepo, nil, nil, cfg, nil, nil, rateLimitSvc,
+		accountRepo, nil, cfg, nil, nil, rateLimitSvc,
 		nil, nil, completionInput13, newOpenAIExecutionCredentialsForTest(accountRepo,
 			nil), nil, nil, nil, nil, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
@@ -2483,8 +2475,6 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	completionInput15 := &accountcore.DeferredService{}
 	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
-		usageRepo,
-
 		nil,
 		cfg,
 		nil,

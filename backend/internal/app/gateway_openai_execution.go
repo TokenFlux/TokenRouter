@@ -20,7 +20,6 @@ import (
 
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -32,8 +31,6 @@ import (
 // provideOpenAIGatewayExecution 只连接旧执行原语与 app 持有的原生倍率、完成实例。
 func provideOpenAIGatewayExecution(
 	accountRepo gatewayprovider.ExecutionAccountStore,
-	usageLogRepo usage.UsageLogRepository,
-
 	cache session.GatewayCache,
 	cfg *config.Config,
 
@@ -63,8 +60,6 @@ func provideOpenAIGatewayExecution(
 ) *service.OpenAIGatewayService {
 	source := service.NewOpenAIGatewayService(
 		accountRepo,
-		usageLogRepo,
-
 		cache,
 		cfg,
 

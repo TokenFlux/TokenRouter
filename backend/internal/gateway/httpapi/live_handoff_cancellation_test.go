@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -39,9 +39,10 @@ func TestLiveHandoffCancellationStopsBeforeAccountLookup(t *testing.T) {
 	record := &session.LiveCallRecord{CallHash: "planning", Controller: session.LiveControllerPending, AccountID: 7, ExpiresAt: time.Now().Add(time.Minute)}
 	store := &s11PlanningLiveStore{liveTestStore: liveTestStore{record: record}, cancel: cancel}
 	accounts := &s11PlanningLiveAccounts{}
-	s := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{cache: store, accountRepo: accounts, liveObserverStopped: true}))
+	s := newLiveFixture(liveFixtureInputs{store: store, accounts: accounts})
+	s.liveObserverStopped = true
 	start := time.Now()
-	err := s.ProxyLiveSideband(ctx, record, &coderws.Conn{})
+	err := s.Proxy(ctx, record, &coderws.Conn{})
 	if err != context.Canceled {
 		t.Errorf("expected cancellation, got %v", err)
 	}

@@ -160,8 +160,6 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream httpclient.Ups
 	gatewayService, gatewayServiceChoices, gatewayServiceCredentialPort := newOpenAIExecutionAndSelectionFixture(
 		accountRepo,
 		nil,
-
-		nil,
 		cfg,
 		nil,
 		nil,

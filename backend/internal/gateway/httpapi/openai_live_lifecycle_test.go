@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -14,7 +14,6 @@ import (
 
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/live"
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
@@ -268,7 +267,7 @@ func (r *liveTestUsageRepo) Create(_ context.Context, log *usage.UsageLog) (bool
 func TestRunLiveControllerClosesExpiredSession(t *testing.T) {
 	upstream := newLiveTestFrameConn()
 	record := &session.LiveCallRecord{ExpiresAt: time.Now().Add(20 * time.Millisecond)}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	service := newLiveFixture(liveFixtureInputs{})
 
 	err := service.runLiveController(context.Background(), record, upstream, make(chan error))
 	require.ErrorIs(t, err, context.DeadlineExceeded)
@@ -304,14 +303,10 @@ func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
 	concurrencyCache := &liveTestConcurrencyCache{}
 	usageRepo := &liveTestUsageRepo{}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cache: store,
-		concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-			Event: logging.Event,
-		},
-		),
-		usageLogRepo: usageRepo,
-	})
+	service := newLiveFixture(liveFixtureInputs{store: store, concurrency: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	},
+	), logs: usageRepo})
 
 	service.finalizeLiveCall(record)
 	service.finalizeLiveCall(record)
@@ -351,16 +346,16 @@ func TestGetLiveCallForIdentityRejectsMismatchedCaller(t *testing.T) {
 	}
 	store := &liveTestStore{}
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{cache: store})
+	service := newLiveFixture(liveFixtureInputs{store: store})
 
-	_, err := service.GetLiveCallForIdentity(context.Background(), record.CallID, session.LiveCallIdentity{
+	_, err := service.Lookup(context.Background(), record.CallID, session.LiveCallIdentity{
 		APIKeyID: 99,
 		UserID:   record.UserID,
 		GroupID:  &groupID,
 	})
 	require.ErrorIs(t, err, session.ErrLiveIdentityMismatch)
 
-	loaded, err := service.GetLiveCallForIdentity(context.Background(), record.CallID, session.LiveCallIdentity{
+	loaded, err := service.Lookup(context.Background(), record.CallID, session.LiveCallIdentity{
 		APIKeyID: record.APIKeyID,
 		UserID:   record.UserID,
 		GroupID:  &groupID,
@@ -387,7 +382,7 @@ func TestLiveSidebandRewritesEachSessionModelAndRestoresResponse(t *testing.T) {
 		UpstreamModel:      upstreamModel,
 		APIKeyModelMapping: map[string]string{"live-alias": "gpt-5", "tool-alias": "tool-target"},
 	}
-	service := withSchedulerParametersForTest(&OpenAIGatewayService{})
+	service := newLiveFixture(liveFixtureInputs{})
 	payload := []byte(`{"type":"session.update","session":{"model":"live-alias","tools":[{"model":"tool-alias"}],"instructions":"keep live-alias and gpt-5.1-codex"}}`)
 
 	rewritten, clientModel, internalModels, err := service.rewriteLiveSidebandClientPayload(context.Background(), record, account, payload)
@@ -434,9 +429,7 @@ func TestProxyLiveSidebandForwardsTextAndBinary(t *testing.T) {
 		Controller: session.LiveControllerPending,
 		UserAgent:  "test-live-client",
 	}
-	attestationCipher := newLiveAttestationCipher(&config.Config{
-		JWT: config.JWTConfig{Secret: "live-sideband-test-secret"},
-	})
+	attestationCipher := openai.NewLiveAttestationCipher("live-sideband-test-secret")
 	var err error
 	record.AttestationCiphertext, err = attestationCipher.Encrypt(`{"v":1,"s":0,"t":"v1.sideband"}`)
 	require.NoError(t, err)
@@ -444,14 +437,7 @@ func TestProxyLiveSidebandForwardsTextAndBinary(t *testing.T) {
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
 	upstream := newLiveTestFrameConn()
 	dialer := &liveTestDialer{conn: upstream}
-	service := withOpenAIExecutionCredentialsForTest(withSchedulerParametersForTest(&OpenAIGatewayService{
-		accountRepo:               &liveTestAccountRepo{account: account},
-		cache:                     store,
-		openaiWSPassthroughDialer: dialer,
-		liveAttestationCipher:     attestationCipher,
-		tlsFPProfileService:       profileService,
-		tlsFPRouterService:        routerService,
-	}))
+	service := newLiveFixture(liveFixtureInputs{accounts: &liveTestAccountRepo{account: account}, store: store, dialer: dialer, cipher: attestationCipher, profiles: profileService, routers: routerService})
 	proxyResult := make(chan error, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		downstream, err := coderws.Accept(writer, request, nil)
@@ -460,7 +446,7 @@ func TestProxyLiveSidebandForwardsTextAndBinary(t *testing.T) {
 			return
 		}
 		defer func() { _ = downstream.CloseNow() }()
-		proxyResult <- service.ProxyLiveSideband(request.Context(), record, downstream)
+		proxyResult <- service.Proxy(request.Context(), record, downstream)
 	}))
 	defer server.Close()
 
@@ -544,7 +530,7 @@ func TestWaitForLiveObserverRetryLeavesExpiryToLoopFinalize(t *testing.T) {
 	}
 	store := &liveTestStore{}
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cache: store})
+	svc := newLiveFixture(liveFixtureInputs{store: store})
 
 	require.True(t, svc.waitForLiveObserverRetry(record),
 		"过期判定必须留给循环顶部，否则不会写 usage log")
@@ -569,19 +555,16 @@ func TestWaitForLiveObserverRetryTreatsStoreErrorAsRetryable(t *testing.T) {
 	}
 	store := &liveTestStore{getControllerErr: errors.New("redis: connection refused")}
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cache: store})
+	svc := newLiveFixture(liveFixtureInputs{store: store})
 
 	require.True(t, svc.waitForLiveObserverRetry(record),
 		"store 报错时必须继续重试，否则会话会静默结束")
-	require.False(t, (withSchedulerParametersForTest(&OpenAIGatewayService{cache: &liveTestStore{}})).waitForLiveObserverRetry(record),
+	require.False(t, (newLiveFixture(liveFixtureInputs{store: &liveTestStore{}})).waitForLiveObserverRetry(record),
 		"记录不存在时应停止重试")
 }
 
 // observer 持续读不到 store 时，必须使用创建阶段快照在到期后释放租约并写 usage log。
 func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
-	restore := liveObserverStoreRetryInterval
-	liveObserverStoreRetryInterval = time.Millisecond
-	t.Cleanup(func() { liveObserverStoreRetryInterval = restore })
 
 	cases := []struct {
 		name   string
@@ -613,15 +596,12 @@ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
 			tc.inject(store)
 			concurrencyCache := &liveTestConcurrencyCache{}
 			usageRepo := &liveTestUsageRepo{}
-			svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-				cache: store,
-				concurrencyService: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-					Event: logging.Event,
-				},
-				),
-				usageLogRepo: usageRepo,
-			})
+			svc := newLiveFixture(liveFixtureInputs{store: store, concurrency: scheduler.NewConcurrencyService(concurrencyCache, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+				Event: logging.Event,
+			},
+			), logs: usageRepo})
 
+			svc.Options.ObserverRetryInterval = time.Millisecond
 			svc.observeLiveCall(record)
 
 			concurrencyCache.mu.Lock()
@@ -665,14 +645,10 @@ func TestFinalizeLiveCallUsageLogFallsBackToSyncCreate(t *testing.T) {
 	store := &liveTestStore{}
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
 	usageRepo := &liveTestBestEffortUsageRepo{bestEffortErr: errors.New("usage log queue dropped")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{
-		cache: store,
-		concurrencyService: scheduler.NewConcurrencyService(&liveTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
-			Event: logging.Event,
-		},
-		),
-		usageLogRepo: usageRepo,
-	})
+	svc := newLiveFixture(liveFixtureInputs{store: store, concurrency: scheduler.NewConcurrencyService(&liveTestConcurrencyCache{}, scheduler.Diagnostics{Logf: logging.LegacyPrintf,
+		Event: logging.Event,
+	},
+	), logs: usageRepo})
 
 	svc.finalizeLiveCall(record)
 
@@ -687,7 +663,7 @@ func TestFinalizeLiveCallUsageLogFallsBackToSyncCreate(t *testing.T) {
 func TestStopLiveObserversPreservesRemoteCall(t *testing.T) {
 	record := &session.LiveCallRecord{CallHash: "s02-shutdown", Controller: session.LiveControllerPending, ExpiresAt: time.Now().Add(time.Hour)}
 	store := &liveTestStore{record: record, claimErr: errors.New("temporary store failure")}
-	svc := withSchedulerParametersForTest(&OpenAIGatewayService{cache: store})
+	svc := newLiveFixture(liveFixtureInputs{store: store})
 	done := make(chan struct{})
 	go func() { svc.observeLiveCall(record); close(done) }()
 	require.Eventually(t, func() bool {

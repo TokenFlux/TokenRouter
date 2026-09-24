@@ -21,7 +21,7 @@ OAuth 授权会话、刷新结果补全和凭据组装由 `account.OpenAIAuthori
 
 推理凭据由 `account.OpenAIExecutionCredentials` 统一选择，app 绑定原母账号读取、OpenAI 和 Grok token 源。影子账号在需要凭据时读取母账号，普通账号不增加查询；Agent Identity、setup-token 与缺少 token 源时的存量凭据回退保持独立。setup-token 不进入刷新，OpenAI 与 Messages 对其它平台 setup-token 的拒绝差异继续保留。token 源的运行阻断回调也由 app 在开放请求前绑定，不再由旧网关构造器安装。
 
-供应商 OAuth/PAT/隐私交换、规范 Codex 身份、请求指纹、Header 组合及 WS 客户端位于 `upstream/openai`；WS v2 relay 与 Live attestation 是平台内的技术子包。WS 池唯一持有连接、预热、队列和租约状态，构造不启动 worker，入站拥有者在首次使用时显式启用。完整入站 WS 编排、每轮资金快照和完成处理仍在旧网关。
+供应商 OAuth/PAT/隐私交换、规范 Codex 身份、请求指纹、Header 组合及 WS 客户端位于 `upstream/openai`；WS v2 relay 与 Live attestation 是平台内的技术子包。WS 池唯一持有连接、预热、队列和租约状态，构造不启动 worker，入站拥有者在首次使用时显式启用。Live 创建、sideband、DeviceCheck 密文与观察者适配由 gateway/httpapi.OpenAILiveExecutor 组合，app 负责 JWT 密钥投影与关闭登记。长连接的逐轮模型资格复核由共享选择器拥有；Live仍只记录零费用用量。完整入站 WS 的剩余适配仍在退出旧网关。
 
 标准 Responses、passthrough、Chat/Messages 转换和 Raw Chat 读取使用原生实现，通过同步 OutputSink 输出。 `gateway/httpapi.OpenAIResponseOutput` 固定绑定响应读取、Header、错误规则、健康观测、超时及诊断；app 注入静态参数，TTFT 设置仍在原读取时点查询。响应结果直接使用上游读取器的值类型，保留“仅有观测的失败”在不同入口上的返回差异。首输出暂存器拥有当前尝试的内存和临时文件；protocol 唯一提供工具参数、usage、终态重建和图片产出计数。Embeddings、Images 和 Alpha Search 的单次执行负责网络调用和响应资源，账号选择、健康写入及全局重试由入站适配。Alpha Search 在错误处理回卷响应体时仍关闭最初取得的上游 Body。计数查询保持原生完整 JSON 与 Anthropic 兼容响应的区别，不作为推理结算事实。 Embeddings、AlphaSearch、Messages count_tokens 和 Responses input_tokens 由 `gateway/httpapi.OpenAIAuxiliary` 直接接入；请求构造与健康/输出复用原实例，模型投影和计数请求准备归 gateway/provider。计数路由直接组合 RoutePlanner、选择器及受控账号目标，不再通过旧网关服务取得执行能力。
 

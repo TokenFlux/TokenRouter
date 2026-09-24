@@ -124,7 +124,7 @@ func newGatewayHTTPEndpoints(input gatewayHTTPFixtureInput) *gatewayHTTPEndpoint
 		common, _, blocks := base()
 		options := responsesWSOptions(input.Config)
 		options.MaxAccountSwitches = input.MaxSwitches
-		return wsentry.New(options, responsesWSBindings(input.Source, input.Credentials, input.Funding, input.Keys, common, input.Prompts, blocks))
+		return wsentry.New(options, responsesWSBindings(input.Source, input.Credentials, input.Funding, input.Keys, common, input.Prompts, blocks, input.Choices))
 	}
 	media := func() *mediaentry.Runtime {
 		common, _, _ := base()

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -27,14 +26,11 @@ import (
 	gatewayprovider "github.com/TokenFlux/TokenRouter/internal/gateway/provider"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/session"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/ws"
-	"github.com/TokenFlux/TokenRouter/internal/identity"
 
 	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
-
-	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
@@ -44,7 +40,6 @@ import (
 	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/upstream/openai"
-	"github.com/TokenFlux/TokenRouter/internal/upstream/openai/liveattestation"
 	"github.com/gin-gonic/gin"
 )
 
@@ -122,12 +117,7 @@ type OpenAIGatewayService struct {
 	runtimeBlocks atomic.Pointer[accountcore.RuntimeBlockState]
 
 	nativeAttemptActivity func() (func(), error)
-	liveObserverMu        sync.Mutex
-	liveObserverStopped   bool
-	liveObserverCancels   map[string]context.CancelFunc
-	liveObserverWG        sync.WaitGroup
 	accountRepo           gatewayprovider.ExecutionAccountStore
-	usageLogRepo          usage.UsageLogRepository
 
 	cache              session.GatewayCache
 	cfg                *config.Config
@@ -151,9 +141,6 @@ type OpenAIGatewayService struct {
 	channelService *routing.ChannelService
 
 	settingService *gatewayprovider.RuntimeReaders
-
-	liveAttestation       liveattestation.Provider
-	liveAttestationCipher identity.SecretEncryptor
 
 	openaiWSPoolOnce       sync.Once
 	openaiWSPoolMu         sync.Mutex
@@ -190,8 +177,6 @@ type OpenAIGatewayService struct {
 // NewOpenAIGatewayService 接入固定执行依赖，剩余协议编排随 S16 退出。
 func NewOpenAIGatewayService(
 	accountRepo gatewayprovider.ExecutionAccountStore,
-	usageLogRepo usage.UsageLogRepository,
-
 	cache session.GatewayCache,
 	cfg *config.Config,
 
@@ -232,7 +217,6 @@ func NewOpenAIGatewayService(
 		turnStateHeaders:   turnStateHeaders,
 		prompts:            prompts,
 		accountRepo:        accountRepo,
-		usageLogRepo:       usageLogRepo,
 
 		cache: cache,
 		cfg:   cfg,
@@ -254,9 +238,7 @@ func NewOpenAIGatewayService(
 
 		settingService: settingService,
 
-		liveAttestation:       liveattestation.NewProvider(),
-		liveAttestationCipher: newLiveAttestationCipher(cfg),
-		responseHeaderFilter:  headerFilter,
+		responseHeaderFilter: headerFilter,
 
 		openaiModelTransient:     modelTransient,
 		openaiProxyStreamCircuit: proxyCircuit,
@@ -295,60 +277,6 @@ func (s *OpenAIGatewayService) ResolveChannelMappingAndRestrict(ctx context.Cont
 	}
 	result, restricted := s.channelService.ResolveChannelMappingAndRestrict(ctx, groupID, model)
 	return modeltrace.WithChannelRedirect(result, ctx, model), restricted
-}
-
-// resolveChannelRoutingModel 返回 OpenAI 账号调度层使用的渠道映射后模型。
-func (s *OpenAIGatewayService) resolveChannelRoutingModel(ctx context.Context, groupID *int64, requestedModel string) string {
-	if s == nil {
-		return requestedModel
-
-	}
-	return s.channelService.
-		ResolveRoutingModel(ctx, groupID,
-			requestedModel,
-		)
-}
-
-// ResolveOpenAIWSRoutingModelForAccount 为已选定的 WebSocket 账号逐轮解析并校验渠道模型。
-// 长连接不能在后续 turn 重新调度账号，因此模型不再适配当前账号时直接拒绝该帧。
-func (s *OpenAIGatewayService) ResolveOpenAIWSRoutingModelForAccount(
-	ctx context.Context,
-	groupID *int64,
-	account *gatewayprovider.ExecutionAccount,
-	requestedModel string,
-	requiredCapability accountcore.OpenAIEndpointCapability,
-) (string, error) {
-	requestedModel = strings.TrimSpace(requestedModel)
-	if requestedModel == "" {
-		return "", errors.New("websocket request model is empty")
-	}
-	if s.selection.CheckChannelPricingRestriction(ctx, groupID, requestedModel) {
-		return "", fmt.Errorf("model %s is restricted by channel pricing", requestedModel)
-	}
-
-	routingModel := strings.TrimSpace(s.resolveChannelRoutingModel(ctx, groupID, requestedModel))
-	if routingModel == "" {
-		routingModel = requestedModel
-	}
-	if account == nil || !gatewayprovider.
-		CompatibleAccountEligible(
-			ctx,
-			account,
-			account.Record.Platform,
-			routingModel,
-			false,
-			requiredCapability,
-		) {
-		return "", fmt.Errorf("model %s is not supported by the selected websocket account", requestedModel)
-	}
-	if s.isOpenAIAccountRequestRuntimeBlocked(account, routingModel) {
-		return "", fmt.Errorf("model %s is temporarily unavailable on the selected websocket account", requestedModel)
-	}
-	if groupID != nil && s.selection.NeedsUpstreamChannelRestriction(ctx, groupID) &&
-		s.selection.UpstreamRoutingModelRestricted(ctx, *groupID, account, routingModel, false) {
-		return "", fmt.Errorf("model %s is restricted after account mapping", requestedModel)
-	}
-	return routingModel, nil
 }
 
 // ReplaceModelInBody 替换请求体中的 JSON model 字段（通用 gjson/sjson 实现）。

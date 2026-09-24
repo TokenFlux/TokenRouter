@@ -101,7 +101,7 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string) *ope
 	completionInput16 := billingtestkit.Calculator(cfg.Default.RateMultiplier, nil, nil)
 	completionInput17 := &accountcore.DeferredService{}
 	gatewaySvc, gatewaySvcChoices, gatewaySvcCredentialPort := newOpenAIExecutionAndSelectionFixture(
-		accountRepo, usageRepo, gatewayCache, cfg, nil, nil, nil, nil, nil, completionInput17, newOpenAIExecutionCredentialsForTest(accountRepo, nil), nil, nil, nil, settingSvc, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
+		accountRepo, gatewayCache, cfg, nil, nil, nil, nil, nil, completionInput17, newOpenAIExecutionCredentialsForTest(accountRepo, nil), nil, nil, nil, settingSvc, nil, responseHeaderFilterForTest(cfg), nil, nil, nil,
 	)
 	gatewaySvc.BindCompletionRecorder(newHTTPCompletionFixture(cfg, usageRepo, completionInput16, billingCacheSvc, completionInput17, nil, nil, true))
 

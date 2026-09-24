@@ -23,6 +23,7 @@ var gatewayAssemblyProviders = wire.NewSet(
 	provideMediaRuntime,
 	provideAuxiliaryHTTP,
 	provideLiveHTTP,
+	provideLiveExecution,
 	gatewaySearchProviders,
 	provideMessageHTTPBindings,
 	provideMessageAttemptRuntime,

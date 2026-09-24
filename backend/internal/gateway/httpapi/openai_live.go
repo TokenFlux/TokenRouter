@@ -1,4 +1,4 @@
-package service
+package httpapi
 
 import (
 	"context"
@@ -33,10 +33,7 @@ const (
 	liveUpstreamBodyLimit         = 2 << 20
 )
 
-// liveObserverStoreRetryInterval 允许测试缩短 store 故障的重试等待。
-var liveObserverStoreRetryInterval = time.Second
-
-var (
+const (
 	chatGPTLiveCallsURL        = "https://chatgpt.com/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas"
 	chatGPTLiveSidebandBaseURL = "wss://chatgpt.com/backend-api/codex"
 )
@@ -65,46 +62,36 @@ func liveOptionalString(value string) *string {
 	return &value
 }
 
-func (s *OpenAIGatewayService) liveStore() (session.LiveCallStore, error) {
-	if s == nil || s.cache == nil {
+func (s *OpenAILiveExecutor) liveStore() (session.LiveCallStore, error) {
+	if s == nil || s.Store == nil {
 		return nil, session.ErrLiveUnavailable
 	}
-	store, ok := s.cache.(session.LiveCallStore)
-	if !ok {
-		return nil, session.ErrLiveUnavailable
-	}
-	return store, nil
+	return s.Store, nil
 }
-
-func (s *OpenAIGatewayService) liveConcurrencyCache() (scheduler.LiveConcurrencyCache, error) {
-	if s == nil || s.concurrencyService == nil {
+func (s *OpenAILiveExecutor) liveConcurrencyCache() (scheduler.LiveConcurrencyCache, error) {
+	if s == nil || s.Leases == nil {
 		return nil, session.ErrLiveUnavailable
 	}
-	cache := s.concurrencyService.LiveLeases()
-	if cache == nil {
-		return nil, session.ErrLiveUnavailable
-	}
-	return cache, nil
+	return s.Leases, nil
 }
-
-func (s *OpenAIGatewayService) liveMaxSessionDuration() time.Duration {
-	if s != nil && s.cfg != nil && s.cfg.Gateway.Live.MaxSessionDurationSeconds > 0 {
-		return time.Duration(s.cfg.Gateway.Live.MaxSessionDurationSeconds) * time.Second
+func (s *OpenAILiveExecutor) liveMaxSessionDuration() time.Duration {
+	if s != nil && s.Options.MaxSessionDuration > 0 {
+		return s.Options.MaxSessionDuration
 	}
 	return defaultLiveMaxSessionDuration
 }
 
-// CreateLiveCall 委托唯一创建编排，旧返回值只补入已有账号展示对象。
-func (s *OpenAIGatewayService) CreateLiveCall(ctx context.Context, request *session.LiveCallRequest, identity session.LiveCallIdentity, userMaxConcurrency int) (*LiveCallCreated, error) {
+// Create 将选择与技术端口交给唯一 Live 创建用例。
+func (s *OpenAILiveExecutor) Create(ctx context.Context, request *session.LiveCallRequest, identity session.LiveCallIdentity, userMaxConcurrency int) (*gatewaylive.Created, error) {
 	ports := &liveCreatePorts{service: s}
 	created, err := gatewaylive.NewCreator(s.liveRuntime(), ports, s.liveMaxSessionDuration()).Create(ctx, request, identity, userMaxConcurrency)
 	if err != nil {
 		return nil, err
 	}
-	return &LiveCallCreated{SDP: created.SDP, CallID: created.CallID, Location: created.Location, Account: ports.selected}, nil
+	return created, nil
 }
 
-func (s *OpenAIGatewayService) shouldFailoverLiveCreateError(err error) bool {
+func (s *OpenAILiveExecutor) shouldFailoverLiveCreateError(err error) bool {
 	var upstreamErr *forwardcore.UpstreamFailoverError
 	if !errors.As(err, &upstreamErr) {
 		// 凭证读取和网络传输错误都可能只影响当前账号或代理。
@@ -117,25 +104,25 @@ func (s *OpenAIGatewayService) shouldFailoverLiveCreateError(err error) bool {
 	)
 }
 
-func (s *OpenAIGatewayService) createUpstreamLiveCall(ctx context.Context, account *gatewayprovider.ExecutionAccount, request *session.LiveCallRequest, attestation string, tlsRouterMatch egress.TLSFingerprintRouterMatchResult) (*LiveCallCreated, error) {
+func (s *OpenAILiveExecutor) createUpstreamLiveCall(ctx context.Context, account *gatewayprovider.ExecutionAccount, request *session.LiveCallRequest, attestation string, tlsRouterMatch egress.TLSFingerprintRouterMatchResult) (*gatewaylive.Created, error) {
 	result, err := openai.CreateLiveCall(ctx, request, openai.LiveCreateOptions{
 		URL:         chatGPTLiveCallsURL,
 		Attestation: attestation,
 		Token: func(ctx context.Context) (string, error) {
-			token, _, err := s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
+			token, _, err := s.Requests.Credentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
 			return token, err
 		},
 		Authentication: func(ctx context.Context, token string) (http.Header, error) {
-			return s.agentIdentity.Headers(ctx, account, token)
+			return s.Requests.Identity.Headers(ctx, account, token)
 		},
 		AccountHeaders: func(ctx context.Context, headers http.Header) error {
-			return gatewayprovider.CredentialChatGPTHeaders(ctx, s.accountRepo, headers, account)
+			return gatewayprovider.CredentialChatGPTHeaders(ctx, s.Requests.Accounts, headers, account)
 		},
 		Routing: func(ctx context.Context, headers http.Header) {
 			s.applyLiveUpstreamRouting(ctx, account, headers, tlsRouterMatch)
 		},
 		Do: func(request *http.Request) (*http.Response, error) {
-			return s.httpUpstream.DoWithTLS(request, resolveAccountProxyURL(account), account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch))
+			return s.Requests.Transport.DoWithTLS(request, liveAccountProxyURL(account), account.Record.ID, account.Record.Concurrency, s.Requests.TLSProfile(account, tlsRouterMatch))
 		},
 		StageFailure: func(stage string, err error) { logLiveCreateStageFailure(ctx, account.Record.ID, stage, err) },
 		HTTPFailure: func(status int, headers http.Header, body []byte) error {
@@ -146,7 +133,7 @@ func (s *OpenAIGatewayService) createUpstreamLiveCall(ctx context.Context, accou
 	if err != nil {
 		return nil, err
 	}
-	return &LiveCallCreated{SDP: result.SDP, CallID: result.CallID, Location: result.Location}, nil
+	return &gatewaylive.Created{SDP: result.SDP, CallID: result.CallID, Location: result.Location}, nil
 }
 
 func logLiveCreateStageFailure(ctx context.Context, accountID int64, stage string, err error) {
@@ -197,7 +184,7 @@ func logLiveUpstreamFailure(
 }
 
 // applyLiveUpstreamRouting 同步应用 fork 的 UA 路由和 TLS 身份配对规则。
-func (s *OpenAIGatewayService) applyLiveUpstreamRouting(
+func (s *OpenAILiveExecutor) applyLiveUpstreamRouting(
 	ctx context.Context,
 	account *gatewayprovider.ExecutionAccount,
 	headers http.Header,
@@ -212,21 +199,21 @@ func (s *OpenAIGatewayService) applyLiveUpstreamRouting(
 	openai.ApplyLiveUpstreamIdentityHeaders(headers)
 }
 
-func (s *OpenAIGatewayService) liveSidebandHeaders(
+func (s *OpenAILiveExecutor) liveSidebandHeaders(
 	ctx context.Context,
 	account *gatewayprovider.ExecutionAccount,
 	record *session.LiveCallRecord,
 	tlsRouterMatch egress.TLSFingerprintRouterMatchResult,
 ) (http.Header, error) {
-	token, _, err := s.executionCredentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
+	token, _, err := s.Requests.Credentials.Resolve(ctx, gatewayprovider.ExecutionRecord(account))
 	if err != nil {
 		return nil, err
 	}
-	headers, err := s.agentIdentity.Headers(ctx, account, token)
+	headers, err := s.Requests.Identity.Headers(ctx, account, token)
 	if err != nil {
 		return nil, err
 	}
-	if err := gatewayprovider.CredentialChatGPTHeaders(ctx, s.accountRepo, headers, account); err != nil {
+	if err := gatewayprovider.CredentialChatGPTHeaders(ctx, s.Requests.Accounts, headers, account); err != nil {
 		return nil, err
 	}
 	attestation, err := s.decryptLiveAttestation(record)
@@ -239,11 +226,11 @@ func (s *OpenAIGatewayService) liveSidebandHeaders(
 }
 
 // liveSidebandAccount 加载并校验创建 Live 会话时绑定的账号。
-func (s *OpenAIGatewayService) liveSidebandAccount(ctx context.Context, record *session.LiveCallRecord) (*gatewayprovider.ExecutionAccount, error) {
+func (s *OpenAILiveExecutor) liveSidebandAccount(ctx context.Context, record *session.LiveCallRecord) (*gatewayprovider.ExecutionAccount, error) {
 	if record == nil {
 		return nil, session.ErrLiveCallNotFound
 	}
-	account, err := s.accountRepo.GetByID(ctx, record.AccountID)
+	account, err := s.Requests.Accounts.GetByID(ctx, record.AccountID)
 	if err != nil {
 		return nil, err
 	}
@@ -254,26 +241,26 @@ func (s *OpenAIGatewayService) liveSidebandAccount(ctx context.Context, record *
 }
 
 // dialLiveSidebandForAccount 复用已经校验的会话账号建立控制连接。
-func (s *OpenAIGatewayService) dialLiveSidebandForAccount(ctx context.Context, record *session.LiveCallRecord, account *gatewayprovider.ExecutionAccount) (openai.LiveFrameConn, error) {
+func (s *OpenAILiveExecutor) dialLiveSidebandForAccount(ctx context.Context, record *session.LiveCallRecord, account *gatewayprovider.ExecutionAccount) (openai.LiveFrameConn, error) {
 	tlsRouterMatch := s.matchLiveTLSFingerprintRouter(account, record.UserAgent)
 	headers, err := s.liveSidebandHeaders(ctx, account, record, tlsRouterMatch)
 	if err != nil {
 		return nil, err
 	}
 	tlsProfile, _ := s.Requests.WSTLSProfile(account, tlsRouterMatch)
-	return openai.DialLiveSideband(ctx, s.getOpenAIWSPassthroughDialer(), chatGPTLiveSidebandBaseURL, record.CallID, headers, resolveAccountProxyURL(account), tlsProfile)
+	return openai.DialLiveSideband(ctx, s.Dialer, chatGPTLiveSidebandBaseURL, record.CallID, headers, liveAccountProxyURL(account), tlsProfile)
 }
 
 // matchLiveTLSFingerprintRouter 使用创建 Live 会话时记录的入站 UA 选择 fork 的 TLS 路由模板。
-func (s *OpenAIGatewayService) matchLiveTLSFingerprintRouter(account *gatewayprovider.ExecutionAccount, userAgent string) egress.TLSFingerprintRouterMatchResult {
-	if s == nil || s.tlsFPRouterService == nil || account == nil || account.View().GetTLSFingerprintRouterID() <= 0 {
+func (s *OpenAILiveExecutor) matchLiveTLSFingerprintRouter(account *gatewayprovider.ExecutionAccount, userAgent string) egress.TLSFingerprintRouterMatchResult {
+	if s == nil || s.Requests.Routers == nil || account == nil || account.View().GetTLSFingerprintRouterID() <= 0 {
 		return egress.TLSFingerprintRouterMatchResult{}
 	}
-	return s.tlsFPRouterService.MatchUserAgent(account.View().GetTLSFingerprintRouterID(), userAgent)
+	return s.Requests.Routers.MatchUserAgent(account.View().GetTLSFingerprintRouterID(), userAgent)
 }
 
 // liveClientPolicyResult 复用 fork 的 OAuth 客户端限制检测，不在 service 层写 HTTP 响应。
-func (s *OpenAIGatewayService) liveClientPolicyResult(
+func (s *OpenAILiveExecutor) liveClientPolicyResult(
 	ctx context.Context,
 	account *gatewayprovider.ExecutionAccount,
 	identity session.LiveCallIdentity,
@@ -289,12 +276,12 @@ func (s *OpenAIGatewayService) liveClientPolicyResult(
 }
 
 // GetLiveCallForIdentity 委托会话绑定校验，不重复读取或复制身份规则。
-func (s *OpenAIGatewayService) GetLiveCallForIdentity(ctx context.Context, callID string, identity session.LiveCallIdentity) (*session.LiveCallRecord, error) {
+func (s *OpenAILiveExecutor) Lookup(ctx context.Context, callID string, identity session.LiveCallIdentity) (*session.LiveCallRecord, error) {
 	return s.liveRuntime().Lookup(ctx, callID, identity)
 }
 
 // rewriteLiveSidebandClientPayload 委托唯一 Live 会话模型改写规则。
-func (s *OpenAIGatewayService) rewriteLiveSidebandClientPayload(ctx context.Context, record *session.LiveCallRecord, account *gatewayprovider.ExecutionAccount, payload []byte) ([]byte, string, []string, error) {
+func (s *OpenAILiveExecutor) rewriteLiveSidebandClientPayload(ctx context.Context, record *session.LiveCallRecord, account *gatewayprovider.ExecutionAccount, payload []byte) ([]byte, string, []string, error) {
 	if account == nil {
 		return payload, "", nil, nil
 	}
@@ -302,42 +289,49 @@ func (s *OpenAIGatewayService) rewriteLiveSidebandClientPayload(ctx context.Cont
 }
 
 // liveRuntime 复用原应用拥有的存储、租约和观察任务登记，不构造新的状态。
-func (s *OpenAIGatewayService) liveRuntime() *gatewaylive.Service {
-	return gatewaylive.New(livePorts{service: s}, liveObserverStoreRetryInterval, openai.WSMessageReadLimitBytes)
+func (s *OpenAILiveExecutor) liveRuntime() *gatewaylive.Service {
+	return gatewaylive.New(livePorts{service: s}, s.Options.ObserverRetryInterval, openai.WSMessageReadLimitBytes)
 }
 
 // ProxyLiveSideband 把 HTTP WebSocket 投影为帧端口，编排由 gateway/live 唯一持有。
-func (s *OpenAIGatewayService) ProxyLiveSideband(ctx context.Context, record *session.LiveCallRecord, downstream *coderws.Conn) error {
+func (s *OpenAILiveExecutor) Proxy(ctx context.Context, record *session.LiveCallRecord, downstream *coderws.Conn) error {
 	if downstream == nil {
 		return session.ErrLiveCallNotFound
 	}
 	return s.liveRuntime().ProxyLiveSideband(ctx, record, liveDownstreamFrames{downstream})
 }
 
-func (s *OpenAIGatewayService) runLiveController(ctx context.Context, record *session.LiveCallRecord, upstream openai.LiveFrameConn, errs <-chan error) error {
+func (s *OpenAILiveExecutor) runLiveController(ctx context.Context, record *session.LiveCallRecord, upstream openai.LiveFrameConn, errs <-chan error) error {
 	return s.liveRuntime().RunController(ctx, record, liveUpstreamFrames{upstream}, errs)
 }
-func (s *OpenAIGatewayService) observeLiveCall(record *session.LiveCallRecord) {
+func (s *OpenAILiveExecutor) observeLiveCall(record *session.LiveCallRecord) {
 	s.liveRuntime().Observe(record)
 }
 
-func (s *OpenAIGatewayService) waitForLiveObserverRetry(record *session.LiveCallRecord) bool {
+func (s *OpenAILiveExecutor) waitForLiveObserverRetry(record *session.LiveCallRecord) bool {
 	return s.liveRuntime().WaitForObserverRetry(context.Background(), record)
 }
 
-func (s *OpenAIGatewayService) finalizeLiveCall(record *session.LiveCallRecord) {
+func (s *OpenAILiveExecutor) finalizeLiveCall(record *session.LiveCallRecord) {
 	s.liveRuntime().Finalize(record)
 }
 
 // liveObserverState 投影原应用的唯一技术登记，不复制取消表或等待计数。
-func (s *OpenAIGatewayService) liveObserverState() gatewaylive.ObserverState {
+func (s *OpenAILiveExecutor) liveObserverState() gatewaylive.ObserverState {
 	return gatewaylive.ObserverState{Mutex: &s.liveObserverMu, Stopped: &s.liveObserverStopped, Cancels: &s.liveObserverCancels, Wait: &s.liveObserverWG}
 }
-func (s *OpenAIGatewayService) beginLiveObserver(owner string) (context.Context, func(), bool) {
+func (s *OpenAILiveExecutor) beginLiveObserver(owner string) (context.Context, func(), bool) {
 	return s.liveObserverState().Begin(owner)
 }
 
 // StopLiveObservers 复用原应用生命周期入口；停止实现由 gateway/live 拥有。
-func (s *OpenAIGatewayService) StopLiveObservers(ctx context.Context) error {
+func (s *OpenAILiveExecutor) StopLiveObservers(ctx context.Context) error {
 	return s.liveObserverState().Stop(ctx)
+}
+
+func liveAccountProxyURL(value *gatewayprovider.ExecutionAccount) string {
+	if value == nil || value.Record.ProxyID == nil || value.Record.Proxy == nil {
+		return ""
+	}
+	return value.Record.Proxy.URL()
 }

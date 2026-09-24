@@ -1,0 +1,451 @@
+{
+  "format_version": 1,
+  "scope": "S16 Live创建、sideband与观察者批次及受影响消费者检查，非最终验收",
+  "parent_manifest": "progress-20260925-openai-responses-manifest.json",
+  "parent_manifest_sha256": "d703c7e7241f9d29de6eca15b557011fe6c791df63457104d6ae13285f5ba9dc",
+  "source_file_count": 72,
+  "source_total_bytes": 17377980,
+  "collection": "仅本批 service-openai-live-* 及更新的统一账本；旧归档保持不变。测试日志按凭据字段脱敏，未使用生产凭据。",
+  "archives": [
+    {
+      "path": "progress-20260925-openai-live-01.tar.gz",
+      "size": 1012126,
+      "sha256": "92f7ebb3747a80dd4a6ca677e9b13cb354f0e215db4c175471be287515d389b4",
+      "verified_members": 72,
+      "entries": [
+        {
+          "path": "refactor/baseline/S16/service-capability-exit-ledger.json",
+          "size": 141166,
+          "sha256": "e6c7c304305f213c824c9391890c2fd771a9afd87a4af9227ff81858bfb2a697",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-all-unit-compile.json",
+          "size": 382,
+          "sha256": "7467a0c1dfaa2469ff752a54f8aada7ed98e2145175de25b4b8d4789eaca87e7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-all-unit-compile.log",
+          "size": 26295,
+          "sha256": "4e1d075f0e73d4ab5169ce02c744e6c38df27a85ac28b67fc6363544f159e340",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-app-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-app-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-app-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-app-no-old-integration.log",
+          "size": 290,
+          "sha256": "fe274ebe3082a902d101f5dca039c8a886367ff86fe2f518019c2727ff9e88ba",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-app-no-old-normal.log",
+          "size": 290,
+          "sha256": "fe274ebe3082a902d101f5dca039c8a886367ff86fe2f518019c2727ff9e88ba",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-app-no-old-unit.log",
+          "size": 290,
+          "sha256": "fe274ebe3082a902d101f5dca039c8a886367ff86fe2f518019c2727ff9e88ba",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-http-no-old-integration.log",
+          "size": 324,
+          "sha256": "8104fb1f253544d1e9ffbb4b48f02e2a017705e3ea503009c4aa738e91c8bdde",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-http-no-old-normal.log",
+          "size": 324,
+          "sha256": "8104fb1f253544d1e9ffbb4b48f02e2a017705e3ea503009c4aa738e91c8bdde",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-http-no-old-unit.log",
+          "size": 324,
+          "sha256": "8104fb1f253544d1e9ffbb4b48f02e2a017705e3ea503009c4aa738e91c8bdde",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-config-integration.log",
+          "size": 370,
+          "sha256": "30948805698a9abfb823cbed2961abd6551b752621c0ff82d7fd7fc1f4e3c658",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-config-normal.log",
+          "size": 370,
+          "sha256": "30948805698a9abfb823cbed2961abd6551b752621c0ff82d7fd7fc1f4e3c658",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-config-unit.log",
+          "size": 370,
+          "sha256": "30948805698a9abfb823cbed2961abd6551b752621c0ff82d7fd7fc1f4e3c658",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-old-integration.log",
+          "size": 372,
+          "sha256": "44a17fc6ddd3f79c300518eb9115e1d5bf578be51c5bee5415e65d6f60692714",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-old-normal.log",
+          "size": 372,
+          "sha256": "44a17fc6ddd3f79c300518eb9115e1d5bf578be51c5bee5415e65d6f60692714",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-old-unit.log",
+          "size": 372,
+          "sha256": "44a17fc6ddd3f79c300518eb9115e1d5bf578be51c5bee5415e65d6f60692714",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-store-integration.log",
+          "size": 328,
+          "sha256": "4439eeceac3c4a0ad386d4e86b2eb02e0f6a43e85fcca21f5d77b0d283038319",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-store-normal.log",
+          "size": 328,
+          "sha256": "4439eeceac3c4a0ad386d4e86b2eb02e0f6a43e85fcca21f5d77b0d283038319",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-live-no-store-unit.log",
+          "size": 328,
+          "sha256": "4439eeceac3c4a0ad386d4e86b2eb02e0f6a43e85fcca21f5d77b0d283038319",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-new-http-no-old-integration.log",
+          "size": 249,
+          "sha256": "3e9b9331516a5bdc5407303c36fdc6a25672a096deab692c67c789fb4c6453d1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-new-http-no-old-normal.log",
+          "size": 249,
+          "sha256": "3e9b9331516a5bdc5407303c36fdc6a25672a096deab692c67c789fb4c6453d1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-new-http-no-old-unit.log",
+          "size": 249,
+          "sha256": "3e9b9331516a5bdc5407303c36fdc6a25672a096deab692c67c789fb4c6453d1",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-native-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-native-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-native-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-child-integration.log",
+          "size": 344,
+          "sha256": "5dc49afdf1d4d53746e104eb82cc7579ac5ee7bd3d5bbcd2603dc4dec8a73e5c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-child-normal.log",
+          "size": 344,
+          "sha256": "5dc49afdf1d4d53746e104eb82cc7579ac5ee7bd3d5bbcd2603dc4dec8a73e5c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-child-unit.log",
+          "size": 344,
+          "sha256": "5dc49afdf1d4d53746e104eb82cc7579ac5ee7bd3d5bbcd2603dc4dec8a73e5c",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-gin-integration.log",
+          "size": 340,
+          "sha256": "309fa9eac4fd8b7065b30be958ec8ecaae575700fe5564d81d233cc284132417",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-gin-normal.log",
+          "size": 340,
+          "sha256": "309fa9eac4fd8b7065b30be958ec8ecaae575700fe5564d81d233cc284132417",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-gin-unit.log",
+          "size": 340,
+          "sha256": "309fa9eac4fd8b7065b30be958ec8ecaae575700fe5564d81d233cc284132417",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-old-integration.log",
+          "size": 390,
+          "sha256": "83a59b0ecb8911d4c68ec7dce8c1c34eabf1dff6a9805790b426dbce26070f4d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-old-normal.log",
+          "size": 390,
+          "sha256": "83a59b0ecb8911d4c68ec7dce8c1c34eabf1dff6a9805790b426dbce26070f4d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gate-routing-no-old-unit.log",
+          "size": 390,
+          "sha256": "83a59b0ecb8911d4c68ec7dce8c1c34eabf1dff6a9805790b426dbce26070f4d",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-boundary-gates.json",
+          "size": 26400,
+          "sha256": "999717222a993fb587921b67a639ead975415939857ffaa8d0cf77c829bd596a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-build-selection.json",
+          "size": 758486,
+          "sha256": "50cc24f40dfd2e2e991e4e1dad914384312774cf76483f29d310fbfc34457b7a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-checks.json",
+          "size": 733,
+          "sha256": "c4d2c458d3470e0ed22fe5426147822675b21460ee650a30547cedfd635b5b61",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-contracts-race.jsonl",
+          "size": 51126,
+          "sha256": "c28dd239bebb78ba69a1f965d731c306b78a2e4b17ee414dcbc586d8f3e334c6",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-contracts-race.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-doc-links.json",
+          "size": 3210,
+          "sha256": "462b816a8ac583e50cd6dbc5bbb1e97cfb8ac3e9ec5a2734a862353a81784613",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-final-build.json",
+          "size": 67,
+          "sha256": "831e94908526afbddbe8bbe4ba5a1f9ca0a74df37a4d2f26c39772ae897422d8",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-final-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-final-consumers.jsonl",
+          "size": 48702,
+          "sha256": "fc022c9b33eb6b3f4166f538bf61d090f8e95e8355cc67b9e6653ae895f653bd",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-final-consumers.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-import-permissions.json",
+          "size": 38505,
+          "sha256": "d56c012bb57637f7f00efdf6c9952c22fc7e847ff265eeda8bd0f009140618c5",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-lint-initial.json",
+          "size": 452,
+          "sha256": "e8f5d6f1e3b5f5a487448ec868254d7d16aec164f1266b6c62caa3381a1fab67",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-lint-integration.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-lint-normal-initial.log",
+          "size": 1387,
+          "sha256": "828d7bb4eedf429804c2b57fc49914e5ca54171e25c18dccfbd4cf2441667691",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-lint-normal.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-lint-unit.log",
+          "size": 10,
+          "sha256": "e92606b0bf483111dff0a120c315ea165821348f31365020e2468a0059095c47",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-lint.json",
+          "size": 1540,
+          "sha256": "1a767c3c8bcc7cb864533c7da3b2152ef37869bede4ec6ceb0a23e1e8f2ecdb7",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-native-build.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-normal.jsonl",
+          "size": 6978259,
+          "sha256": "190f9f298f400fcd8578ddb84d1c1c8ce77b1829b605080e6cc6ded574b21956",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-normal.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-owner-verification.json",
+          "size": 6418,
+          "sha256": "944c34c8532349895d7bf6c2acdae3ec0602ab6f53f572cc95b87afb6f80c7d4",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-production-build-2.log",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-production-build.log",
+          "size": 569,
+          "sha256": "c776813ac52e5d7bd2d30f4e1755b858be26adfc997adc8be86a3479daf0314a",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-test-compile.log",
+          "size": 1303,
+          "sha256": "eaa75cdfb860d89ac0f78b8f132bc6191c68c5955d1b86b45b993519aff0f7ee",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-test-mapping.json",
+          "size": 22041,
+          "sha256": "0cff2a2d96d0904182fd9fd94c7d184a5cc96afff10deb8caa6b9a7a56a4d4ce",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-unit.jsonl",
+          "size": 9260241,
+          "sha256": "03157df5335f12430b6aa3f258cd06f2f726c850bc0795bc8b8f0a90e6913a2b",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-unit.stderr",
+          "size": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-wire-2.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-wire-3.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-wire-stability.json",
+          "size": 621,
+          "sha256": "450755a87b35f59f5d1d451248f1454123e1e0a02710f8c89fd7103377843268",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-wire-stable-1.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-wire-stable-2.log",
+          "size": 137,
+          "sha256": "5c2c8fd251fd54e7f50d415b2ad782d5e42c5049a126bfe96dc212f79b558139",
+          "redacted": false
+        },
+        {
+          "path": "refactor/baseline/S16/service-openai-live-wire.log",
+          "size": 388,
+          "sha256": "200eba4b21c8d26884bed59bd5fb5650234dfe85d2384786b237ee9c5a6528d5",
+          "redacted": false
+        }
+      ]
+    }
+  ]
+}

@@ -60,7 +60,7 @@ func TestResolveOpenAIWSRoutingModelForAccountStrictlyFollowsBillingBasis(t *tes
 				}},
 			}
 
-			routingModel, err := svc.ResolveOpenAIWSRoutingModelForAccount(
+			routingModel, err := svc.selection.ResolveOpenAIWSRoutingModelForAccount(
 				context.Background(), &groupID, account, "client-alias", accountcore.OpenAIEndpointCapabilityTextGeneration,
 			)
 			if tt.expectRejected {
@@ -88,7 +88,7 @@ func TestResolveOpenAIWSRoutingModelForAccountRejectsUnsupportedMappedModel(t *t
 	}
 	svc := withSchedulerParametersForTest(&OpenAIGatewayService{})
 
-	routingModel, err := svc.ResolveOpenAIWSRoutingModelForAccount(
+	routingModel, err := svc.selection.ResolveOpenAIWSRoutingModelForAccount(
 		context.Background(), nil, account, "channel-model", accountcore.OpenAIEndpointCapabilityTextGeneration,
 	)
 	require.Error(t, err)

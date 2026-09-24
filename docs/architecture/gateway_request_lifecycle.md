@@ -157,7 +157,7 @@ Messages 的 `count_tokens` 由 app 直接构造原生 HTTP Handler，不再经�
 
 OpenAI 兼容计数、Grok 本地估算和 Responses 输入 token 预检由 app 独立构造 OpenAITokensHandler，直接绑定同一个请求生命周期屏障，已不依赖旧 OpenAIGatewayHandler。计数保持渠道规划后检查资金，再执行单次无槽选择；Responses 预检保持资金检查先于渠道规划，并释放选择器交付的每个账号槽。Grok 本地估算不增加资金检查、选账号或上游请求。这些入口没有生成请求的完成提交端口。 计数执行现在直接绑定 OpenAIAuxiliary，路由计划和选择分别使用原生 RoutePlanner 与 Compatible；账号目标只在受控转发方法内携带凭据。AlphaSearch 与 Embeddings 同样复用固定请求和响应实例，搜索授权元数据由同一 account.OpenAIAuthorization 提供。
 
-Live 与 sideband 的 HTTP 入口也由 app 直接构造，原生 LivePorts 共享原审核、资金准入和并发服务，不再通过旧 OpenAIGatewayHandler 创建门面。平台与启用门禁先于读取请求体；审核先于资金检查，再取得即时用户槽。会话创建、身份归属及 relay 通过受控执行端口调用已有 Live 运行时，未增加第二份租约或 observer；Live 仍只记录零费用用量。非报文模型重定向由 HTTP Adapter 的唯一函数提供，Live 与 WS 保持相同的一跳映射与追踪语义。
+Live 与 sideband 的 HTTP 入口也由 app 直接构造，原生 LivePorts 共享原审核、资金准入和并发服务，不再通过旧 OpenAIGatewayHandler 创建门面。平台与启用门禁先于读取请求体；审核先于资金检查，再取得即时用户槽。会话创建、身份归属及 relay 直接绑定 OpenAILiveExecutor；纯会话编排继续由 gateway/live 拥有，存储、租约、拨号器与现有入口共享。observer 的取消表和等待计数由该执行器唯一持有，app 直接登记原关闭阶段；Live 仍只记录零费用用量。非报文模型重定向由 HTTP Adapter 的唯一函数提供，Live 与 WS 保持相同的一跳映射与追踪语义。
 
 客户端会话 Header、Grok 强制平台/认证分组判定及 OpenAI 会话哈希的请求绑定由 gateway/httpapi 负责；内容种子、Grok 模型隔离种子和 Gemini 摘要格式由 gateway/session 提供。显式信号、内容回退、无状态图片入口和用量日志仍使用各自原有优先级，不把只适用于日志的 Header 扩大为通用选号信号。新旧哈希同时从同一种子派生，旧哈希通过 requeststate 传给既有粘性读取逻辑。Qoder 兼容入口直接调用唯一的通用请求哈希函数，不再要求旧 GatewayService 提供纯计算端口。
 

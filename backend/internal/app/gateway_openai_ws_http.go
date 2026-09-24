@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 
+	"github.com/TokenFlux/TokenRouter/internal/gateway/provider/selection"
+
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/gateway/admission"
@@ -25,9 +27,10 @@ func provideResponsesWSHTTP(
 	blocks *session.CyberBlocks,
 	cfg *config.Config,
 	activity *gatewayRequestActivity,
+	choices *selection.Compatible,
 ) *gatewayhttp.ResponsesWSHandler {
 	options := responsesWSOptions(cfg)
-	b := responsesWSBindings(source, credentials, funding, keys, common, prompt, blocks)
+	b := responsesWSBindings(source, credentials, funding, keys, common, prompt, blocks, choices)
 	result := wsentry.New(options, b)
 	result.BindRequestActivity(activity.Enter)
 	return result
@@ -50,7 +53,7 @@ func responsesWSOptions(cfg *config.Config) gatewayhttp.ResponsesWSOptions {
 }
 
 // responsesWSBindings 仅接入已有共享状态及每轮单步端口。
-func responsesWSBindings(source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor, funding *admission.FundingAdmission, keys *apikey.APIKeyService, common openaiattempt.Bindings, prompt *promptpolicy.Service, blocks *session.CyberBlocks) wsentry.Bindings {
+func responsesWSBindings(source *service.OpenAIGatewayService, credentials *gatewayhttp.RequestCredentialExecutor, funding *admission.FundingAdmission, keys *apikey.APIKeyService, common openaiattempt.Bindings, prompt *promptpolicy.Service, blocks *session.CyberBlocks, choices *selection.Compatible) wsentry.Bindings {
 	b := wsentry.Bindings{
 		Common: common,
 		Prompt: prompt,
@@ -77,7 +80,7 @@ func responsesWSBindings(source *service.OpenAIGatewayService, credentials *gate
 		b.ReportSelection = common.Selection.ReportSelection
 		b.Stop429 = source.ShouldStopOpenAIOAuth429Failover
 		b.Credential = credentials.Resolve
-		b.ResolveRouting = source.ResolveOpenAIWSRoutingModelForAccount
+		b.ResolveRouting = choices.ResolveOpenAIWSRoutingModelForAccount
 		b.BeginPreemption = source.BeginOpenAIWSIngressSessionPreemption
 		b.Relay = source.ProxyResponsesWebSocketFromClient
 	}
